@@ -1,0 +1,6 @@
+Metadata-Version: 2.1
+Name: greek-sub-publisher
+Version: 0.1.0
+Summary: Local-first tooling for Greek subtitles and vertical video prep.
+Requires-Python: >=3.11
+Provides-Extra: dev

@@ -1,0 +1,83 @@
+from pathlib import Path
+
+from greek_sub_publisher import subtitles
+
+
+def test_extract_audio_invokes_ffmpeg(monkeypatch, tmp_path: Path) -> None:
+    input_video = tmp_path / "clip.mp4"
+    input_video.write_bytes(b"video")
+
+    def fake_run(cmd, check, stdout, stderr):
+        assert cmd[0] == "ffmpeg"
+        Path(cmd[-1]).write_bytes(b"audio")
+        return None
+
+    monkeypatch.setattr(subtitles.subprocess, "run", fake_run)
+    audio_path = subtitles.extract_audio(input_video, output_dir=tmp_path)
+    assert audio_path.exists()
+    assert audio_path.suffix == ".wav"
+
+
+def test_generate_subtitles_from_audio_writes_srt(monkeypatch, tmp_path: Path) -> None:
+    audio_path = tmp_path / "clip.wav"
+    audio_path.write_bytes(b"audio")
+
+    class StubWord:
+        def __init__(self, start, end, word) -> None:
+            self.start = start
+            self.end = end
+            self.word = word
+
+    class StubSegment:
+        def __init__(self, start: float, end: float, text: str, words) -> None:
+            self.start = start
+            self.end = end
+            self.text = text
+            self.words = words
+
+    class StubModel:
+        def __init__(self, *args, **kwargs) -> None:
+            self.args = args
+            self.kwargs = kwargs
+
+        def transcribe(self, *_args, **_kwargs):
+            return [
+                StubSegment(
+                    0.0,
+                    1.5,
+                    "Γεια σου",
+                    [StubWord(0.0, 0.7, "Γεια"), StubWord(0.7, 1.5, "σου")],
+                )
+            ], None
+
+    monkeypatch.setattr(subtitles, "WhisperModel", StubModel)
+    srt_path, cues = subtitles.generate_subtitles_from_audio(
+        audio_path, model_size="tiny", output_dir=tmp_path
+    )
+    assert srt_path.exists()
+    assert "Γεια σου" in srt_path.read_text(encoding="utf-8")
+    assert len(cues) == 1
+    assert cues[0].words and cues[0].words[0].text == "ΓΕΙΑ"
+
+
+def test_create_styled_subtitle_file_generates_ass(tmp_path: Path) -> None:
+    srt_path = tmp_path / "clip.srt"
+    srt_path.write_text("1\n00:00:00,00 --> 00:00:01,50\nΓεια σου\n", encoding="utf-8")
+
+    cue = subtitles.Cue(
+        start=0.0,
+        end=1.5,
+        text="GEIA SOU",
+        words=[
+            subtitles.WordTiming(0.0, 0.7, "GEIA"),
+            subtitles.WordTiming(0.7, 1.5, "SOU"),
+        ],
+    )
+
+    ass_path = subtitles.create_styled_subtitle_file(srt_path, cues=[cue])
+
+    ass_content = ass_path.read_text(encoding="utf-8")
+    assert "[Script Info]" in ass_content
+    assert "Style: Default" in ass_content
+    assert "Dialogue:" in ass_content
+    assert "\\k" in ass_content
