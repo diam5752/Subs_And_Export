@@ -78,25 +78,26 @@ def normalize_and_stub_subtitles(
     destination = output_path.expanduser().resolve()
     destination.parent.mkdir(parents=True, exist_ok=True)
 
-    scratch = Path(tempfile.mkdtemp())
-    audio_path = subtitles.extract_audio(input_path, output_dir=scratch)
-    srt_path, cues = subtitles.generate_subtitles_from_audio(
-        audio_path,
-        model_size=model_size or config.WHISPER_MODEL_SIZE,
-        language=language or config.WHISPER_LANGUAGE,
-        device=device or config.WHISPER_DEVICE,
-        compute_type=compute_type or config.WHISPER_COMPUTE_TYPE,
-        output_dir=scratch,
-    )
-    ass_path = subtitles.create_styled_subtitle_file(srt_path, cues=cues)
+    with tempfile.TemporaryDirectory() as scratch_dir:
+        scratch = Path(scratch_dir)
+        audio_path = subtitles.extract_audio(input_path, output_dir=scratch)
+        srt_path, cues = subtitles.generate_subtitles_from_audio(
+            audio_path,
+            model_size=model_size or config.WHISPER_MODEL_SIZE,
+            language=language or config.WHISPER_LANGUAGE,
+            device=device or config.WHISPER_DEVICE,
+            compute_type=compute_type or config.WHISPER_COMPUTE_TYPE,
+            output_dir=scratch,
+        )
+        ass_path = subtitles.create_styled_subtitle_file(srt_path, cues=cues)
 
-    _run_ffmpeg_with_subs(
-        input_path,
-        ass_path,
-        destination,
-        video_crf=video_crf or config.DEFAULT_VIDEO_CRF,
-        video_preset=video_preset or config.DEFAULT_VIDEO_PRESET,
-        audio_bitrate=audio_bitrate or config.DEFAULT_AUDIO_BITRATE,
-        audio_copy=audio_copy,
-    )
+        _run_ffmpeg_with_subs(
+            input_path,
+            ass_path,
+            destination,
+            video_crf=video_crf or config.DEFAULT_VIDEO_CRF,
+            video_preset=video_preset or config.DEFAULT_VIDEO_PRESET,
+            audio_bitrate=audio_bitrate or config.DEFAULT_AUDIO_BITRATE,
+            audio_copy=audio_copy,
+        )
     return destination
