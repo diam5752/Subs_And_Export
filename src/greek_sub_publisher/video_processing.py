@@ -68,7 +68,8 @@ def normalize_and_stub_subtitles(
     video_preset: str | None = None,
     audio_bitrate: str | None = None,
     audio_copy: bool = False,
-) -> Path:
+    generate_social_copy: bool = False,
+) -> Path | tuple[Path, subtitles.SocialCopy]:
     """
     Normalize video to 9:16, generate Greek subs, and burn them into the output.
     """
@@ -77,6 +78,8 @@ def normalize_and_stub_subtitles(
 
     destination = output_path.expanduser().resolve()
     destination.parent.mkdir(parents=True, exist_ok=True)
+
+    social_copy: subtitles.SocialCopy | None = None
 
     with tempfile.TemporaryDirectory() as scratch_dir:
         scratch = Path(scratch_dir)
@@ -91,6 +94,10 @@ def normalize_and_stub_subtitles(
         )
         ass_path = subtitles.create_styled_subtitle_file(srt_path, cues=cues)
 
+        if generate_social_copy:
+            transcript_text = subtitles.cues_to_text(cues)
+            social_copy = subtitles.build_social_copy(transcript_text)
+
         _run_ffmpeg_with_subs(
             input_path,
             ass_path,
@@ -100,4 +107,7 @@ def normalize_and_stub_subtitles(
             audio_bitrate=audio_bitrate or config.DEFAULT_AUDIO_BITRATE,
             audio_copy=audio_copy,
         )
+    if generate_social_copy:
+        assert social_copy is not None
+        return destination, social_copy
     return destination
