@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import os
 import sys
 import tempfile
+import tomllib
 from pathlib import Path
 
 import streamlit as st
@@ -35,9 +37,43 @@ st.set_page_config(
 # Load Technical SaaS CSS
 load_css(SRC / "greek_sub_publisher" / "styles.css")
 
+
+def _load_ai_settings() -> dict[str, object]:
+    """Load AI defaults from .streamlit/config.toml if present."""
+    settings: dict[str, object] = {
+        "enable_by_default": False,
+        "model": config.SOCIAL_LLM_MODEL,
+        "temperature": 0.6,
+    }
+    cfg_path = ROOT / ".streamlit" / "config.toml"
+    if not cfg_path.exists():
+        return settings
+
+    try:
+        with cfg_path.open("rb") as fh:
+            cfg = tomllib.load(fh)
+        ai_cfg = cfg.get("ai", {}) if isinstance(cfg, dict) else {}
+        if isinstance(ai_cfg, dict):
+            if "enable_by_default" in ai_cfg:
+                settings["enable_by_default"] = bool(ai_cfg["enable_by_default"])
+            if "model" in ai_cfg and ai_cfg["model"]:
+                settings["model"] = str(ai_cfg["model"])
+            if "temperature" in ai_cfg:
+                try:
+                    settings["temperature"] = float(ai_cfg["temperature"])
+                except (TypeError, ValueError):
+                    pass
+    except Exception:
+        # If config parsing fails, keep safe defaults
+        pass
+    return settings
+
+
 # --- SIDEBAR: CONFIGURATION & INPUTS ---
 with st.sidebar:
     render_sidebar_header()
+    
+    ai_settings = _load_ai_settings()
     
     # 1. Primary Action: Upload
     uploaded = st.file_uploader(
@@ -93,18 +129,31 @@ with st.sidebar:
 
     # AI Enrichment
     st.markdown("**AI Intelligence**")
+    
+    # Check if API key is available
+    has_api_key = bool(
+        os.getenv("OPENAI_API_KEY") or 
+        (hasattr(st, "secrets") and "OPENAI_API_KEY" in st.secrets)
+    )
+    
     use_llm = st.toggle(
         "Enable AI Enrichment", 
-        value=False,
-        help="If enabled, an AI model will analyze the transcript to generate viral titles and descriptions for TikTok, Shorts, and Reels."
+        value=bool(ai_settings["enable_by_default"]) and has_api_key,
+        disabled=not has_api_key,
+        help=(
+            "Uses OpenAI GPT-4o-mini to generate viral titles and descriptions. "
+            "Fast and professional results. Requires OPENAI_API_KEY in environment or Streamlit secrets."
+        )
     )
     
     llm_model = None
-    llm_temperature = 0.6
+    llm_temperature = float(ai_settings["temperature"])
     
     if use_llm:
-        st.caption("AI Model Active: Generating Social Copy")
-        llm_model = config.SOCIAL_LLM_MODEL # Default to config, hidden for simplicity
+        llm_model = str(ai_settings["model"])
+        st.caption(f"⚡ AI Model Active: {llm_model} (OpenAI)")
+    elif not has_api_key:
+        st.caption("⚠️ Set OPENAI_API_KEY to enable AI enrichment")
 
     # Hidden/Advanced defaults
     language = None # Auto-detect

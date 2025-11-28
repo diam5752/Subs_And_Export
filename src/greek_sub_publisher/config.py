@@ -29,7 +29,7 @@ WHISPER_LANGUAGE = "el"
 WHISPER_DEVICE = "auto"  # "cpu", "cuda", "auto"
 WHISPER_COMPUTE_TYPE = "auto"  # e.g., "int8", "float16"
 
-# LLM social copy defaults
+# LLM social copy defaults (OpenAI API)
 SOCIAL_LLM_MODEL = "gpt-4o-mini"
 
 # Audio extraction settings

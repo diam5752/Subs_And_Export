@@ -79,12 +79,12 @@ def process(
     llm_social_copy: bool = typer.Option(
         False,
         "--llm-social-copy/--no-llm-social-copy",
-        help="Use an LLM (OpenAI-compatible) to draft social copy instead of the deterministic template.",
+        help="Use OpenAI GPT models to generate professional social copy (requires OPENAI_API_KEY).",
     ),
     llm_model: str = typer.Option(
         None,
         "--llm-model",
-        help="LLM model name (defaults to config.SOCIAL_LLM_MODEL).",
+        help="OpenAI model name (defaults to gpt-4o-mini for fast, affordable inference).",
     ),
     llm_temperature: float = typer.Option(
         0.6,

@@ -474,12 +474,26 @@ def build_social_copy(transcript_text: str) -> SocialCopy:
 
 
 def _load_openai_client(api_key: str):
+    """
+    Load OpenAI client with secure API key.
+    
+    Args:
+        api_key: OpenAI API key for authentication
+        
+    Returns:
+        Configured OpenAI client instance
+        
+    Raises:
+        RuntimeError: If openai package is not installed
+    """
     try:
         from openai import OpenAI
     except Exception as exc:  # pragma: no cover - exercised in tests via monkeypatch
         raise RuntimeError(
-            "openai package is required for LLM social copy generation"
+            "openai package is required for LLM social copy generation. "
+            "Install with: pip install openai"
         ) from exc
+    
     return OpenAI(api_key=api_key)
 
 
@@ -491,16 +505,50 @@ def build_social_copy_llm(
     temperature: float = 0.6,
 ) -> SocialCopy:
     """
-    Generate richer social copy using an LLM (OpenAI-compatible).
+    Generate professional social copy using OpenAI's GPT models.
 
-    Requires OPENAI_API_KEY or an explicit api_key. Returns SocialCopy parsed
-    from the model JSON response.
+    Securely handles API key from multiple sources (in priority order):
+    1. Explicit api_key parameter
+    2. OPENAI_API_KEY environment variable
+    3. Streamlit secrets (st.secrets.OPENAI_API_KEY)
+
+    Args:
+        transcript_text: Video transcript to generate social copy from
+        api_key: Optional explicit API key (overrides env/secrets)
+        model: Model name (defaults to gpt-4o-mini)
+        temperature: Sampling temperature (0.0-2.0, default 0.6)
+
+    Returns:
+        SocialCopy with platform-specific titles and descriptions
+
+    Raises:
+        RuntimeError: If no API key is found in any source
+        ValueError: If LLM response is invalid
     """
-    api_key = api_key or os.getenv("OPENAI_API_KEY")
+    # Try to get API key from multiple sources
     if not api_key:
-        raise RuntimeError("OPENAI_API_KEY is required for LLM social copy generation")
+        # Try environment variable first
+        api_key = os.getenv("OPENAI_API_KEY")
+        
+        # Try Streamlit secrets if available
+        if not api_key:
+            try:
+                import streamlit as st
+                if hasattr(st, "secrets") and "OPENAI_API_KEY" in st.secrets:
+                    api_key = st.secrets["OPENAI_API_KEY"]
+            except (ImportError, FileNotFoundError, KeyError):
+                pass  # Streamlit not available or secrets not configured
+    
+    # Validate API key is present
+    if not api_key:
+        raise RuntimeError(
+            "OpenAI API key is required for AI enrichment. Please set it via:\n"
+            "  1. Environment variable: export OPENAI_API_KEY='your-key'\n"
+            "  2. Streamlit secrets: Add OPENAI_API_KEY to .streamlit/secrets.toml\n"
+            "  3. Pass explicitly via api_key parameter"
+        )
+    
     model_name = model or config.SOCIAL_LLM_MODEL
-
     client = _load_openai_client(api_key)
     messages = [
         {

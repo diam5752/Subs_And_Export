@@ -21,6 +21,9 @@ env/
 .vscode/
 *.swp
 
+# Streamlit secrets
+.streamlit/secrets.toml
+
 # Generated media outputs
 tests/data/*_subbed*.mp4
 tests/data/*_output*.mp4

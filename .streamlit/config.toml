@@ -5,3 +5,9 @@ backgroundColor = "#0E1117"
 secondaryBackgroundColor = "#262730"
 textColor = "#FAFAFA"
 font = "sans serif"
+
+# AI settings for Streamlit UI (non-secret)
+[ai]
+enable_by_default = false
+model = "gpt-4o-mini"
+temperature = 0.6
