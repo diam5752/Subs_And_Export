@@ -64,9 +64,14 @@ def process(
         "--audio-copy",
         help="Copy input audio instead of re-encoding to AAC.",
     ),
+    social_copy: bool = typer.Option(
+        True,
+        "--social-copy/--no-social-copy",
+        help="Generate platform-ready titles and descriptions from the transcript.",
+    ),
 ) -> None:
     """Normalize a video, transcribe Greek audio, and burn styled subtitles."""
-    processed_path = normalize_and_stub_subtitles(
+    result = normalize_and_stub_subtitles(
         input_video,
         output_video,
         model_size=model_size,
@@ -77,8 +82,22 @@ def process(
         video_preset=video_preset,
         audio_bitrate=audio_bitrate,
         audio_copy=audio_copy,
+        generate_social_copy=social_copy,
     )
+    processed_path = result[0] if isinstance(result, tuple) else result
     typer.echo(f"Processed video saved to: {processed_path}")
+
+    if isinstance(result, tuple):
+        social = result[1]
+        typer.echo("\nSuggested platform copy:")
+        typer.echo(f"TikTok title: {social.tiktok.title}")
+        typer.echo(f"TikTok description:\n{social.tiktok.description}\n")
+        typer.echo(f"YouTube Shorts title: {social.youtube_shorts.title}")
+        typer.echo(
+            f"YouTube Shorts description:\n{social.youtube_shorts.description}\n"
+        )
+        typer.echo(f"Instagram title: {social.instagram.title}")
+        typer.echo(f"Instagram description:\n{social.instagram.description}\n")
 
 
 def main() -> None:

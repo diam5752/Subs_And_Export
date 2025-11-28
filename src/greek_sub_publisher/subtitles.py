@@ -33,6 +33,19 @@ class Cue:
     words: Optional[List[WordTiming]] = None
 
 
+@dataclass(frozen=True)
+class PlatformCopy:
+    title: str
+    description: str
+
+
+@dataclass(frozen=True)
+class SocialCopy:
+    tiktok: PlatformCopy
+    youtube_shorts: PlatformCopy
+    instagram: PlatformCopy
+
+
 def _normalize_text(text: str) -> str:
     """
     Uppercase + strip accents for consistent, bold subtitle styling.
@@ -318,3 +331,128 @@ def _format_karaoke_text(
     if second:
         return " ".join(first) + "\\N" + " ".join(second)
     return " ".join(first)
+
+
+_STOPWORDS = {
+    "και",
+    "για",
+    "στο",
+    "στη",
+    "the",
+    "this",
+    "that",
+    "and",
+    "for",
+    "with",
+    "your",
+    "from",
+    "about",
+    "στον",
+    "μια",
+    "είναι",
+    "που",
+    "τους",
+}
+
+
+def cues_to_text(cues: Sequence[Cue]) -> str:
+    """Collapse cue text into a single transcript string."""
+
+    return " ".join(cue.text.strip() for cue in cues if cue.text).strip()
+
+
+def _extract_keywords(text: str, limit: int = 5) -> List[str]:
+    tokens = re.findall(r"[\wάέίόύήώϊϋΐΰ]+", text.lower())
+    ranked: dict[str, tuple[int, int]] = {}
+    for idx, tok in enumerate(tokens):
+        if tok in _STOPWORDS or len(tok) <= 3:
+            continue
+        count, first_idx = ranked.get(tok, (0, idx))
+        ranked[tok] = (count + 1, first_idx)
+    ordered = sorted(ranked.items(), key=lambda item: (-item[1][0], item[1][1]))
+    return [kw for kw, _ in ordered[:limit]]
+
+
+def _summarize_text(text: str, max_words: int = 45) -> str:
+    words = text.split()
+    summary_words = words[:max_words]
+    return " ".join(summary_words).strip()
+
+
+def _compose_title(keywords: Sequence[str]) -> str:
+    if not keywords:
+        return "Greek Highlights"
+    if len(keywords) == 1:
+        return f"{keywords[0].title()} Highlights"
+    return f"{keywords[0].title()} & {keywords[1].title()} Moments"
+
+
+def _build_hashtags(keywords: Sequence[str], extra: Sequence[str]) -> List[str]:
+    raw_tags = [f"#{kw.replace(' ', '')}" for kw in keywords]
+    raw_tags.extend(f"#{tag}" if not tag.startswith("#") else tag for tag in extra)
+    deduped = list(dict.fromkeys(raw_tags))
+    return deduped[:10]
+
+
+def _platform_copy(
+    base_title: str,
+    summary: str,
+    hashtags: Sequence[str],
+    *,
+    title_suffix: str,
+    call_to_action: str,
+    extra_tags: Sequence[str],
+) -> PlatformCopy:
+    platform_title = f"{base_title} | {title_suffix}"
+    all_tags = list(dict.fromkeys([*hashtags, *extra_tags]))
+    description = (
+        f"{summary}\n{call_to_action}\n"
+        f"{' '.join(f"#{tag.lstrip('#')}" for tag in all_tags)}"
+    ).strip()
+    return PlatformCopy(title=platform_title.strip(), description=description)
+
+
+def build_social_copy(transcript_text: str) -> SocialCopy:
+    """
+    Create platform-optimized titles and descriptions from transcript text.
+
+    The output stays deterministic and avoids external API calls so it can be
+    used in CI environments.
+    """
+
+    clean_text = transcript_text.strip()
+    keywords = _extract_keywords(clean_text)
+    base_title = _compose_title(keywords)
+    summary = _summarize_text(clean_text)
+    shared_tags = _build_hashtags(keywords, ["greek", "subtitles", "verticalvideo"])
+
+    tiktok_copy = _platform_copy(
+        base_title,
+        summary,
+        shared_tags,
+        title_suffix="TikTok",
+        call_to_action="Follow for daily Greek clips.",
+        extra_tags=["tiktok", "fyp", "viral"],
+    )
+
+    shorts_copy = _platform_copy(
+        base_title,
+        summary,
+        shared_tags,
+        title_suffix="YouTube Shorts",
+        call_to_action="Subscribe for more Shorts-ready stories.",
+        extra_tags=["shorts", "ytshorts", "greektalk"],
+    )
+
+    instagram_copy = _platform_copy(
+        base_title,
+        summary,
+        shared_tags,
+        title_suffix="Instagram Reels",
+        call_to_action="Save & share if this inspired you!",
+        extra_tags=["reels", "instagood", "greeklife"],
+    )
+
+    return SocialCopy(
+        tiktok=tiktok_copy, youtube_shorts=shorts_copy, instagram=instagram_copy
+    )
