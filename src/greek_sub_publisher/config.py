@@ -24,10 +24,13 @@ DEFAULT_OUTPUT_SUFFIX = "_subbed"
 PROJECT_ROOT = Path(__file__).resolve().parent
 
 # Whisper / STT defaults
-WHISPER_MODEL_SIZE = "small"
+WHISPER_MODEL_SIZE = "medium"
 WHISPER_LANGUAGE = "el"
 WHISPER_DEVICE = "auto"  # "cpu", "cuda", "auto"
 WHISPER_COMPUTE_TYPE = "auto"  # e.g., "int8", "float16"
+
+# LLM social copy defaults
+SOCIAL_LLM_MODEL = "gpt-4o-mini"
 
 # Audio extraction settings
 AUDIO_SAMPLE_RATE = 16000

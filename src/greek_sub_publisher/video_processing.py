@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -56,6 +58,56 @@ def _run_ffmpeg_with_subs(
     subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
 
+def _persist_artifacts(
+    artifact_dir: Path,
+    audio_path: Path,
+    srt_path: Path,
+    ass_path: Path,
+    transcript_text: str,
+    social_copy: subtitles.SocialCopy | None,
+) -> None:
+    """Copy intermediate files and social copy text to a user-visible directory."""
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+
+    for src in (audio_path, srt_path, ass_path):
+        if src.exists():
+            shutil.copy2(src, artifact_dir / src.name)
+
+    (artifact_dir / "transcript.txt").write_text(transcript_text, encoding="utf-8")
+
+    if social_copy:
+        social_txt = (
+            "TikTok\n"
+            f"Title: {social_copy.tiktok.title}\n"
+            f"Description: {social_copy.tiktok.description}\n\n"
+            "YouTube Shorts\n"
+            f"Title: {social_copy.youtube_shorts.title}\n"
+            f"Description: {social_copy.youtube_shorts.description}\n\n"
+            "Instagram Reels\n"
+            f"Title: {social_copy.instagram.title}\n"
+            f"Description: {social_copy.instagram.description}\n"
+        )
+        (artifact_dir / "social_copy.txt").write_text(social_txt, encoding="utf-8")
+
+        social_json = {
+            "tiktok": {
+                "title": social_copy.tiktok.title,
+                "description": social_copy.tiktok.description,
+            },
+            "youtube_shorts": {
+                "title": social_copy.youtube_shorts.title,
+                "description": social_copy.youtube_shorts.description,
+            },
+            "instagram": {
+                "title": social_copy.instagram.title,
+                "description": social_copy.instagram.description,
+            },
+        }
+        (artifact_dir / "social_copy.json").write_text(
+            json.dumps(social_json, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+
+
 def normalize_and_stub_subtitles(
     input_path: Path,
     output_path: Path,
@@ -64,11 +116,17 @@ def normalize_and_stub_subtitles(
     language: str | None = None,
     device: str | None = None,
     compute_type: str | None = None,
+    beam_size: int | None = None,
+    best_of: int | None = 1,
     video_crf: int | None = None,
     video_preset: str | None = None,
     audio_bitrate: str | None = None,
     audio_copy: bool = False,
     generate_social_copy: bool = False,
+    use_llm_social_copy: bool = False,
+    llm_model: str | None = None,
+    llm_temperature: float = 0.6,
+    artifact_dir: Path | None = None,
 ) -> Path | tuple[Path, subtitles.SocialCopy]:
     """
     Normalize video to 9:16, generate Greek subs, and burn them into the output.
@@ -90,13 +148,22 @@ def normalize_and_stub_subtitles(
             language=language or config.WHISPER_LANGUAGE,
             device=device or config.WHISPER_DEVICE,
             compute_type=compute_type or config.WHISPER_COMPUTE_TYPE,
+            beam_size=beam_size,
+            best_of=best_of,
             output_dir=scratch,
         )
         ass_path = subtitles.create_styled_subtitle_file(srt_path, cues=cues)
 
+        transcript_text = subtitles.cues_to_text(cues)
         if generate_social_copy:
-            transcript_text = subtitles.cues_to_text(cues)
-            social_copy = subtitles.build_social_copy(transcript_text)
+            if use_llm_social_copy:
+                social_copy = subtitles.build_social_copy_llm(
+                    transcript_text,
+                    model=llm_model,
+                    temperature=llm_temperature,
+                )
+            else:
+                social_copy = subtitles.build_social_copy(transcript_text)
 
         _run_ffmpeg_with_subs(
             input_path,
@@ -107,6 +174,15 @@ def normalize_and_stub_subtitles(
             audio_bitrate=audio_bitrate or config.DEFAULT_AUDIO_BITRATE,
             audio_copy=audio_copy,
         )
+        if artifact_dir:
+            _persist_artifacts(
+                artifact_dir,
+                audio_path,
+                srt_path,
+                ass_path,
+                transcript_text,
+                social_copy,
+            )
     if generate_social_copy:
         assert social_copy is not None
         return destination, social_copy

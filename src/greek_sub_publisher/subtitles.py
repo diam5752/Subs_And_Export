@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import os
 import re
 import subprocess
 import tempfile
@@ -105,9 +107,11 @@ def _write_srt_from_segments(segments: Iterable[TimeRange], dest: Path) -> Path:
 def generate_subtitles_from_audio(
     audio_path: Path,
     model_size: str = config.WHISPER_MODEL_SIZE,
-    language: str = config.WHISPER_LANGUAGE,
+    language: str | None = config.WHISPER_LANGUAGE,
     device: str = config.WHISPER_DEVICE,
     compute_type: str = config.WHISPER_COMPUTE_TYPE,
+    beam_size: int | None = None,
+    best_of: int | None = 1,
     output_dir: Path | None = None,
 ) -> Tuple[Path, List[Cue]]:
     """
@@ -116,8 +120,16 @@ def generate_subtitles_from_audio(
     Returns the path to the SRT file and the structured cues (with word timings
     when available) to support karaoke-style highlighting.
     """
+    if language and language.lower() == "auto":
+        language = None
     model = WhisperModel(model_size, device=device, compute_type=compute_type)
-    segments, _ = model.transcribe(str(audio_path), language=language, word_timestamps=True)
+    segments, _ = model.transcribe(
+        str(audio_path),
+        language=language,
+        word_timestamps=True,
+        beam_size=beam_size,
+        best_of=best_of,
+    )
 
     cues: List[Cue] = []
     timed_text: List[TimeRange] = []
@@ -309,16 +321,18 @@ def _format_karaoke_text(
     available, falls back to plain text with simple 2-line wrapping.
     """
     if cue.words:
+        word_texts = [w.text for w in cue.words]
         first_line_words, second_line_words = _wrap_two_lines(
-            [w.text for w in cue.words], max_chars=config.MAX_SUB_LINE_CHARS
+            word_texts, max_chars=config.MAX_SUB_LINE_CHARS
         )
+        break_index = len(first_line_words) if second_line_words else None
         words = cue.words
         segments = []
         for idx, word in enumerate(words):
             duration_cs = max(1, round((word.end - word.start) * 100))
             token = f"{{\\k{duration_cs}}}{{\\c{highlight_color}}}{word.text}{{\\c{secondary_color}}}"
-            # insert line break before the first word of the second line
-            if idx == len(first_line_words):
+            # insert line break before second line
+            if break_index is not None and idx == break_index:
                 segments.append("\\N")
             segments.append(token)
             if idx != len(words) - 1:
@@ -405,10 +419,8 @@ def _platform_copy(
 ) -> PlatformCopy:
     platform_title = f"{base_title} | {title_suffix}"
     all_tags = list(dict.fromkeys([*hashtags, *extra_tags]))
-    description = (
-        f"{summary}\n{call_to_action}\n"
-        f"{' '.join(f"#{tag.lstrip('#')}" for tag in all_tags)}"
-    ).strip()
+    formatted_tags = " ".join(f"#{tag.lstrip('#')}" for tag in all_tags)
+    description = f"{summary}\n{call_to_action}\n{formatted_tags}".strip()
     return PlatformCopy(title=platform_title.strip(), description=description)
 
 
@@ -456,3 +468,76 @@ def build_social_copy(transcript_text: str) -> SocialCopy:
     return SocialCopy(
         tiktok=tiktok_copy, youtube_shorts=shorts_copy, instagram=instagram_copy
     )
+
+
+def _load_openai_client(api_key: str):
+    try:
+        from openai import OpenAI
+    except Exception as exc:  # pragma: no cover - exercised in tests via monkeypatch
+        raise RuntimeError(
+            "openai package is required for LLM social copy generation"
+        ) from exc
+    return OpenAI(api_key=api_key)
+
+
+def build_social_copy_llm(
+    transcript_text: str,
+    *,
+    api_key: str | None = None,
+    model: str | None = None,
+    temperature: float = 0.6,
+) -> SocialCopy:
+    """
+    Generate richer social copy using an LLM (OpenAI-compatible).
+
+    Requires OPENAI_API_KEY or an explicit api_key. Returns SocialCopy parsed
+    from the model JSON response.
+    """
+    api_key = api_key or os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY is required for LLM social copy generation")
+    model_name = model or config.SOCIAL_LLM_MODEL
+
+    client = _load_openai_client(api_key)
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are a concise, creative copywriter for TikTok, YouTube Shorts, "
+                "and Instagram Reels. Given a transcript, produce engaging titles "
+                "and descriptions. Keep titles punchy, include up to 8 hashtags in "
+                "descriptions, and respond ONLY with JSON matching this schema:\n"
+                '{ "tiktok": {"title": "...", "description": "..."}, '
+                '"youtube_shorts": {"title": "...", "description": "..."}, '
+                '"instagram": {"title": "...", "description": "..."} }'
+            ),
+        },
+        {"role": "user", "content": transcript_text.strip()},
+    ]
+    response = client.chat.completions.create(
+        model=model_name,
+        messages=messages,
+        temperature=temperature,
+    )
+    content = response.choices[0].message.content
+    try:
+        parsed = json.loads(content)
+    except json.JSONDecodeError as exc:
+        raise ValueError("LLM social copy response was not valid JSON") from exc
+
+    try:
+        return SocialCopy(
+            tiktok=PlatformCopy(
+                title=parsed["tiktok"]["title"], description=parsed["tiktok"]["description"]
+            ),
+            youtube_shorts=PlatformCopy(
+                title=parsed["youtube_shorts"]["title"],
+                description=parsed["youtube_shorts"]["description"],
+            ),
+            instagram=PlatformCopy(
+                title=parsed["instagram"]["title"],
+                description=parsed["instagram"]["description"],
+            ),
+        )
+    except Exception as exc:  # pragma: no cover - sanity guard
+        raise ValueError("LLM social copy response JSON missing expected fields") from exc

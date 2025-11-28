@@ -31,3 +31,36 @@ def test_process_command_invokes_pipeline(monkeypatch, tmp_path: Path) -> None:
     assert output_file.exists()
     assert "Processed video saved to" in result.stdout
     assert "TikTok title: TT" in result.stdout
+
+
+def test_process_command_passes_llm_flag(monkeypatch, tmp_path: Path) -> None:
+    runner = CliRunner()
+    input_file = tmp_path / "input.mp4"
+    input_file.write_bytes(b"dummy video content")
+    output_file = tmp_path / "output.mp4"
+
+    received = {}
+
+    def fake_process(input_video, output_video, **kwargs):
+        received.update(kwargs)
+        return output_video
+
+    monkeypatch.setattr("greek_sub_publisher.cli.normalize_and_stub_subtitles", fake_process)
+    result = runner.invoke(
+        app,
+        [
+            str(input_file),
+            "--output",
+            str(output_file),
+            "--llm-social-copy",
+            "--llm-model",
+            "gpt-test",
+            "--llm-temperature",
+            "0.5",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert received["use_llm_social_copy"] is True
+    assert received["llm_model"] == "gpt-test"
+    assert received["llm_temperature"] == 0.5

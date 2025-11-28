@@ -1,3 +1,4 @@
+import json
 import shutil
 from pathlib import Path
 
@@ -192,3 +193,117 @@ def test_normalize_and_stub_subtitles_can_return_social_copy(monkeypatch, tmp_pa
 
     assert result_path == destination.resolve()
     assert social_copy.tiktok.title.startswith("Coding")
+
+
+def test_normalize_and_stub_subtitles_persists_artifacts(monkeypatch, tmp_path: Path):
+    artifact_dir = tmp_path / "artifacts"
+
+    def fake_extract(input_video: Path, output_dir=None) -> Path:
+        audio = output_dir / "audio.wav"
+        audio.write_text("audio")
+        return audio
+
+    def fake_generate(audio_path: Path, **kwargs):
+        srt = Path(kwargs["output_dir"]) / "subs.srt"
+        srt.write_text("1\n00:00:00,00 --> 00:00:01,00\nHello world\n", encoding="utf-8")
+        cues = [
+            video_processing.subtitles.Cue(
+                start=0.0,
+                end=1.0,
+                text="HELLO WORLD",
+                words=[video_processing.subtitles.WordTiming(0.0, 1.0, "HELLO")],
+            )
+        ]
+        return srt, cues
+
+    def fake_style(transcript_path: Path, **kwargs) -> Path:
+        ass = transcript_path.with_suffix(".ass")
+        ass.write_text("[Script Info]\n")
+        return ass
+
+    def fake_burn(input_path: Path, ass_path: Path, output_path: Path, **kwargs) -> None:
+        output_path.write_bytes(b"video")
+
+    monkeypatch.setattr(video_processing.subtitles, "extract_audio", fake_extract)
+    monkeypatch.setattr(video_processing.subtitles, "generate_subtitles_from_audio", fake_generate)
+    monkeypatch.setattr(video_processing.subtitles, "create_styled_subtitle_file", fake_style)
+    monkeypatch.setattr(video_processing, "_run_ffmpeg_with_subs", fake_burn)
+
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"video")
+    destination = tmp_path / "dest.mp4"
+
+    result_path, social_copy = video_processing.normalize_and_stub_subtitles(
+        source,
+        destination,
+        language="el",
+        generate_social_copy=True,
+        artifact_dir=artifact_dir,
+    )
+
+    assert result_path == destination.resolve()
+    assert (artifact_dir / "audio.wav").exists()
+    assert (artifact_dir / "subs.srt").exists()
+    assert (artifact_dir / "subs.ass").exists()
+    transcript = (artifact_dir / "transcript.txt").read_text(encoding="utf-8")
+    assert "HELLO WORLD" in transcript
+    social_txt = (artifact_dir / "social_copy.txt").read_text(encoding="utf-8")
+    assert social_copy.tiktok.title in social_txt
+    social_json = json.loads((artifact_dir / "social_copy.json").read_text(encoding="utf-8"))
+    assert social_json["tiktok"]["title"] == social_copy.tiktok.title
+
+
+def test_normalize_and_stub_subtitles_can_use_llm_social_copy(monkeypatch, tmp_path: Path):
+    def fake_extract(input_video: Path, output_dir=None) -> Path:
+        audio = output_dir / "audio.wav"
+        audio.write_text("audio")
+        return audio
+
+    def fake_generate(audio_path: Path, **kwargs):
+        srt = Path(kwargs["output_dir"]) / "subs.srt"
+        srt.write_text("1\n00:00:00,00 --> 00:00:01,00\nHello world\n", encoding="utf-8")
+        cues = [
+            video_processing.subtitles.Cue(
+                start=0.0,
+                end=1.0,
+                text="HELLO WORLD",
+                words=[video_processing.subtitles.WordTiming(0.0, 1.0, "HELLO")],
+            )
+        ]
+        return srt, cues
+
+    def fake_style(transcript_path: Path, **kwargs) -> Path:
+        ass = transcript_path.with_suffix(".ass")
+        ass.write_text("[Script Info]\n")
+        return ass
+
+    def fake_burn(input_path: Path, ass_path: Path, output_path: Path, **kwargs) -> None:
+        output_path.write_bytes(b"video")
+
+    def fake_social_copy_llm(transcript_text: str, **kwargs):
+        return video_processing.subtitles.SocialCopy(
+            tiktok=video_processing.subtitles.PlatformCopy("LLM TT", "desc"),
+            youtube_shorts=video_processing.subtitles.PlatformCopy("LLM YT", "desc"),
+            instagram=video_processing.subtitles.PlatformCopy("LLM IG", "desc"),
+        )
+
+    monkeypatch.setattr(video_processing.subtitles, "extract_audio", fake_extract)
+    monkeypatch.setattr(video_processing.subtitles, "generate_subtitles_from_audio", fake_generate)
+    monkeypatch.setattr(video_processing.subtitles, "create_styled_subtitle_file", fake_style)
+    monkeypatch.setattr(video_processing, "_run_ffmpeg_with_subs", fake_burn)
+    monkeypatch.setattr(video_processing.subtitles, "build_social_copy_llm", fake_social_copy_llm)
+
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"video")
+    destination = tmp_path / "dest.mp4"
+
+    result_path, social_copy = video_processing.normalize_and_stub_subtitles(
+        source,
+        destination,
+        language="el",
+        generate_social_copy=True,
+        use_llm_social_copy=True,
+    )
+
+    assert result_path == destination.resolve()
+    assert social_copy.tiktok.title == "LLM TT"

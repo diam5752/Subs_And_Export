@@ -81,3 +81,85 @@ def test_create_styled_subtitle_file_generates_ass(tmp_path: Path) -> None:
     assert "Style: Default" in ass_content
     assert "Dialogue:" in ass_content
     assert "\\k" in ass_content
+
+
+def test_format_karaoke_wraps_long_lines() -> None:
+    words = [
+        subtitles.WordTiming(start=i * 0.1, end=(i + 1) * 0.1, text=w)
+        for i, w in enumerate(
+            [
+                "ΜΙΑ",
+                "ΠΟΛΥ",
+                "ΜΕΓΑΛΗ",
+                "ΠΡΟΤΑΣΗ",
+                "ΜΕ",
+                "ΠΟΛΛΕΣ",
+                "ΛΕΞΕΙΣ",
+                "ΠΟΥ",
+                "ΧΡΕΙΑΖΕΤΑΙ",
+                "ΣΠΑΣΙΜΟ",
+                "ΓΙΑ",
+                "ΝΑ",
+                "ΧΩΡΕΣΕΙ",
+                "ΣΤΗΝ",
+                "ΟΘΟΝΗ",
+            ]
+        )
+    ]
+    cue = subtitles.Cue(start=0.0, end=1.5, text="", words=words)
+
+    karaoke = subtitles._format_karaoke_text(cue)
+
+    assert karaoke.count("\\N") == 1  # exactly two lines
+
+
+def test_generate_subtitles_from_audio_accepts_auto_language(monkeypatch, tmp_path: Path) -> None:
+    audio_path = tmp_path / "clip.wav"
+    audio_path.write_bytes(b"audio")
+
+    class StubModel:
+        def __init__(self, *args, **kwargs) -> None:
+            self.kwargs = kwargs
+
+        def transcribe(self, *_args, **_kwargs):
+            return [], None
+
+    monkeypatch.setattr(subtitles, "WhisperModel", StubModel)
+    subtitles.generate_subtitles_from_audio(audio_path, language="auto", output_dir=tmp_path)
+
+
+def test_generate_subtitles_from_audio_passes_decoding_params(monkeypatch, tmp_path: Path) -> None:
+    audio_path = tmp_path / "clip.wav"
+    audio_path.write_bytes(b"audio")
+    transcribe_kwargs = {}
+
+    class StubModel:
+        def __init__(self, *args, **kwargs) -> None:
+            self.args = args
+            self.kwargs = kwargs
+
+        def transcribe(self, *_args, **_kwargs):
+            transcribe_kwargs.update(_kwargs)
+
+            class Seg:
+                def __init__(self) -> None:
+                    self.start = 0.0
+                    self.end = 1.0
+                    self.text = "hello"
+                    self.words = []
+
+            return [Seg()], None
+
+    monkeypatch.setattr(subtitles, "WhisperModel", StubModel)
+
+    subtitles.generate_subtitles_from_audio(
+        audio_path,
+        output_dir=tmp_path,
+        model_size="tiny",
+        beam_size=4,
+        best_of=3,
+        language="el",
+    )
+
+    assert transcribe_kwargs["beam_size"] == 4
+    assert transcribe_kwargs["best_of"] == 3

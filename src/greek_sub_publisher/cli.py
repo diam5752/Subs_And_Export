@@ -34,6 +34,18 @@ def process(
         "--language",
         help="Language code for transcription (default: el).",
     ),
+    beam_size: int = typer.Option(
+        None,
+        "--beam-size",
+        min=1,
+        help="Beam size for beam search decoding (higher = better quality, slower).",
+    ),
+    best_of: int = typer.Option(
+        1,
+        "--best-of",
+        min=1,
+        help="Number of candidate samples to pick best from during decoding.",
+    ),
     device: str = typer.Option(
         None,
         "--device",
@@ -64,6 +76,34 @@ def process(
         "--audio-copy",
         help="Copy input audio instead of re-encoding to AAC.",
     ),
+    llm_social_copy: bool = typer.Option(
+        False,
+        "--llm-social-copy/--no-llm-social-copy",
+        help="Use an LLM (OpenAI-compatible) to draft social copy instead of the deterministic template.",
+    ),
+    llm_model: str = typer.Option(
+        None,
+        "--llm-model",
+        help="LLM model name (defaults to config.SOCIAL_LLM_MODEL).",
+    ),
+    llm_temperature: float = typer.Option(
+        0.6,
+        "--llm-temperature",
+        min=0.0,
+        max=2.0,
+        help="Sampling temperature for LLM social copy.",
+    ),
+    artifacts_dir: Path | None = typer.Option(
+        None,
+        "--artifacts",
+        "-a",
+        file_okay=False,
+        dir_okay=True,
+        writable=True,
+        readable=False,
+        resolve_path=True,
+        help="Directory where intermediate audio/SRT/ASS and social copy files will be saved.",
+    ),
     social_copy: bool = typer.Option(
         True,
         "--social-copy/--no-social-copy",
@@ -76,6 +116,8 @@ def process(
         output_video,
         model_size=model_size,
         language=language,
+        beam_size=beam_size,
+        best_of=best_of,
         device=device,
         compute_type=compute_type,
         video_crf=video_crf,
@@ -83,6 +125,10 @@ def process(
         audio_bitrate=audio_bitrate,
         audio_copy=audio_copy,
         generate_social_copy=social_copy,
+        use_llm_social_copy=llm_social_copy,
+        llm_model=llm_model,
+        llm_temperature=llm_temperature,
+        artifact_dir=artifacts_dir,
     )
     processed_path = result[0] if isinstance(result, tuple) else result
     typer.echo(f"Processed video saved to: {processed_path}")
