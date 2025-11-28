@@ -1,0 +1,25 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Packaging/build
+*.egg-info/
+build/
+dist/
+.eggs/
+
+# Virtualenv
+.venv/
+venv/
+env/
+.env
+
+# OS/editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Generated media outputs
+tests/data/*_subbed*.mp4
