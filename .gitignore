@@ -23,3 +23,4 @@ env/
 
 # Generated media outputs
 tests/data/*_subbed*.mp4
+tests/data/demo.mp4
