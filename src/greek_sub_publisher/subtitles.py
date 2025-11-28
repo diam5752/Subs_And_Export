@@ -123,13 +123,16 @@ def generate_subtitles_from_audio(
     if language and language.lower() == "auto":
         language = None
     model = WhisperModel(model_size, device=device, compute_type=compute_type)
-    segments, _ = model.transcribe(
-        str(audio_path),
-        language=language,
-        word_timestamps=True,
-        beam_size=beam_size,
-        best_of=best_of,
-    )
+    transcribe_kwargs = {
+        "language": language,
+        "word_timestamps": True,
+    }
+    if beam_size is not None:
+        transcribe_kwargs["beam_size"] = beam_size
+    if best_of is not None:
+        transcribe_kwargs["best_of"] = best_of
+
+    segments, _ = model.transcribe(str(audio_path), **transcribe_kwargs)
 
     cues: List[Cue] = []
     timed_text: List[TimeRange] = []
