@@ -76,3 +76,11 @@ def test_normalize_and_stub_subtitles_runs_pipeline(monkeypatch, tmp_path: Path)
     assert result_path == destination.resolve()
     assert destination.read_bytes() == b"video"
     assert [c[0] for c in calls] == ["extract", "transcribe", "style", "burn"]
+
+
+def test_build_filtergraph_quotes_ass_path() -> None:
+    ass_path = Path("/tmp/my subs's file.ass")
+
+    filtergraph = video_processing._build_filtergraph(ass_path)
+
+    assert filtergraph.endswith("ass='/tmp/my subs\\'s file.ass'")

@@ -10,6 +10,8 @@ from . import config, subtitles
 
 
 def _build_filtergraph(ass_path: Path) -> str:
+    ass_file = ass_path.as_posix().replace("'", r"\'")
+    ass_filter = f"ass='{ass_file}'"
     scale = (
         f"scale={config.DEFAULT_WIDTH}:-2:force_original_aspect_ratio=decrease"
     )
@@ -17,7 +19,7 @@ def _build_filtergraph(ass_path: Path) -> str:
         f"pad={config.DEFAULT_WIDTH}:{config.DEFAULT_HEIGHT}:"
         f"({config.DEFAULT_WIDTH}-iw)/2:({config.DEFAULT_HEIGHT}-ih)/2"
     )
-    graph = ",".join([scale, pad, "format=yuv420p", f"ass={ass_path}"])
+    graph = ",".join([scale, pad, "format=yuv420p", ass_filter])
     return graph
 
 
