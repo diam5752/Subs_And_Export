@@ -1,3 +1,6 @@
+[server]
+maxUploadSize = 500
+
 [theme]
 base = "dark"
 primaryColor = "#3b82f6"
@@ -6,8 +9,4 @@ secondaryBackgroundColor = "#262730"
 textColor = "#FAFAFA"
 font = "sans serif"
 
-# AI settings for Streamlit UI (non-secret)
-[ai]
-enable_by_default = false
-model = "gpt-4o-mini"
-temperature = 0.6
+

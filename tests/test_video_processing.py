@@ -43,6 +43,8 @@ def test_normalize_and_stub_subtitles_runs_pipeline(monkeypatch, tmp_path: Path)
         video_preset,
         audio_bitrate,
         audio_copy,
+        use_hw_accel=False,
+        **kwargs,
     ) -> None:
         calls.append(
             (
@@ -58,6 +60,9 @@ def test_normalize_and_stub_subtitles_runs_pipeline(monkeypatch, tmp_path: Path)
         )
         output_path.write_bytes(b"video")
 
+    def fake_get_duration(path: Path) -> float:
+        return 10.0
+
     monkeypatch.setattr(video_processing.subtitles, "extract_audio", fake_extract)
     monkeypatch.setattr(
         video_processing.subtitles, "generate_subtitles_from_audio", fake_generate
@@ -66,6 +71,7 @@ def test_normalize_and_stub_subtitles_runs_pipeline(monkeypatch, tmp_path: Path)
         video_processing.subtitles, "create_styled_subtitle_file", fake_style
     )
     monkeypatch.setattr(video_processing, "_run_ffmpeg_with_subs", fake_burn)
+    monkeypatch.setattr(video_processing.subtitles, "get_video_duration", fake_get_duration)
 
     source = tmp_path / "source.mp4"
     source.write_bytes(b"video")
@@ -137,6 +143,7 @@ def test_normalize_and_stub_subtitles_removes_temporary_directory(
     monkeypatch.setattr(video_processing.subtitles, "generate_subtitles_from_audio", fake_generate)
     monkeypatch.setattr(video_processing.subtitles, "create_styled_subtitle_file", fake_style)
     monkeypatch.setattr(video_processing, "_run_ffmpeg_with_subs", fake_burn)
+    monkeypatch.setattr(video_processing.subtitles, "get_video_duration", lambda p: 10.0)
 
     source = tmp_path / "source.mp4"
     source.write_bytes(b"video")
@@ -182,6 +189,7 @@ def test_normalize_and_stub_subtitles_can_return_social_copy(monkeypatch, tmp_pa
     monkeypatch.setattr(video_processing.subtitles, "generate_subtitles_from_audio", fake_generate)
     monkeypatch.setattr(video_processing.subtitles, "create_styled_subtitle_file", fake_style)
     monkeypatch.setattr(video_processing, "_run_ffmpeg_with_subs", fake_burn)
+    monkeypatch.setattr(video_processing.subtitles, "get_video_duration", lambda p: 10.0)
 
     source = tmp_path / "source.mp4"
     source.write_bytes(b"video")
@@ -228,6 +236,7 @@ def test_normalize_and_stub_subtitles_persists_artifacts(monkeypatch, tmp_path: 
     monkeypatch.setattr(video_processing.subtitles, "generate_subtitles_from_audio", fake_generate)
     monkeypatch.setattr(video_processing.subtitles, "create_styled_subtitle_file", fake_style)
     monkeypatch.setattr(video_processing, "_run_ffmpeg_with_subs", fake_burn)
+    monkeypatch.setattr(video_processing.subtitles, "get_video_duration", lambda p: 10.0)
 
     source = tmp_path / "source.mp4"
     source.write_bytes(b"video")
@@ -292,6 +301,7 @@ def test_normalize_and_stub_subtitles_can_use_llm_social_copy(monkeypatch, tmp_p
     monkeypatch.setattr(video_processing.subtitles, "create_styled_subtitle_file", fake_style)
     monkeypatch.setattr(video_processing, "_run_ffmpeg_with_subs", fake_burn)
     monkeypatch.setattr(video_processing.subtitles, "build_social_copy_llm", fake_social_copy_llm)
+    monkeypatch.setattr(video_processing.subtitles, "get_video_duration", lambda p: 10.0)
 
     source = tmp_path / "source.mp4"
     source.write_bytes(b"video")

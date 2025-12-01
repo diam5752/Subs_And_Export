@@ -128,6 +128,7 @@ def process(
         use_llm_social_copy=llm_social_copy,
         llm_model=llm_model,
         llm_temperature=llm_temperature,
+        llm_api_key=None,  # CLI relies on env var for now
         artifact_dir=artifacts_dir,
     )
     processed_path = result[0] if isinstance(result, tuple) else result

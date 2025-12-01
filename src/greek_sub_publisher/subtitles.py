@@ -9,7 +9,7 @@ import subprocess
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, List, Optional, Sequence, Tuple
+from typing import Callable, Iterable, List, Optional, Sequence, Tuple
 import unicodedata
 import textwrap
 
@@ -104,6 +104,22 @@ def _write_srt_from_segments(segments: Iterable[TimeRange], dest: Path) -> Path:
     return dest
 
 
+def get_video_duration(path: Path) -> float:
+    """Get the duration of a video/audio file in seconds using ffprobe."""
+    cmd = [
+        "ffprobe",
+        "-v",
+        "error",
+        "-show_entries",
+        "format=duration",
+        "-of",
+        "default=noprint_wrappers=1:nokey=1",
+        str(path),
+    ]
+    result = subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    return float(result.stdout.strip())
+
+
 def generate_subtitles_from_audio(
     audio_path: Path,
     model_size: str = config.WHISPER_MODEL_SIZE,
@@ -113,6 +129,8 @@ def generate_subtitles_from_audio(
     beam_size: int | None = None,
     best_of: int | None = 1,
     output_dir: Path | None = None,
+    progress_callback: Callable[[float], None] | None = None,
+    total_duration: float | None = None,
 ) -> Tuple[Path, List[Cue]]:
     """
     Transcribe Greek speech to an SRT subtitle file using faster-whisper.
@@ -122,21 +140,36 @@ def generate_subtitles_from_audio(
     """
     if language and language.lower() == "auto":
         language = None
-    model = WhisperModel(model_size, device=device, compute_type=compute_type)
+    
+    # Optimize CPU threads: Use all available cores (capped at 8 to avoid overhead)
+    threads = min(8, os.cpu_count() or 4)
+    
+    model = WhisperModel(
+        model_size, 
+        device=device, 
+        compute_type=compute_type,
+        cpu_threads=threads
+    )
+    
     transcribe_kwargs = {
         "language": language,
         "word_timestamps": True,
+        "vad_filter": True,
+        "vad_parameters": dict(min_silence_duration_ms=500),
+        "condition_on_previous_text": False, # Speed optimization: Don't look back
     }
     if beam_size is not None:
         transcribe_kwargs["beam_size"] = beam_size
     if best_of is not None:
         transcribe_kwargs["best_of"] = best_of
 
-    segments, _ = model.transcribe(str(audio_path), **transcribe_kwargs)
+    segments_iter, _ = model.transcribe(str(audio_path), **transcribe_kwargs)
 
     cues: List[Cue] = []
     timed_text: List[TimeRange] = []
-    for seg in segments:
+    
+    # Iterate over segments to track progress
+    for seg in segments_iter:
         timed_text.append((seg.start, seg.end, seg.text))
         words: Optional[List[WordTiming]] = None
         if getattr(seg, "words", None):
@@ -146,6 +179,11 @@ def generate_subtitles_from_audio(
             ]
         cue_text = _normalize_text(seg.text)
         cues.append(Cue(start=seg.start, end=seg.end, text=cue_text, words=words))
+        
+        if progress_callback and total_duration and total_duration > 0:
+            # Calculate progress based on the end time of the current segment
+            progress = min(100.0, (seg.end / total_duration) * 100.0)
+            progress_callback(progress)
 
     output_dir = output_dir or Path(tempfile.mkdtemp())
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -497,6 +535,23 @@ def _load_openai_client(api_key: str):
     return OpenAI(api_key=api_key)
 
 
+def _clean_json_response(content: str) -> str:
+    """
+    Strip markdown code fences from LLM response to ensure valid JSON.
+    """
+    content = content.strip()
+    # Remove ```json ... ``` or just ``` ... ```
+    if content.startswith("```"):
+        # Find the first newline to skip the language identifier (e.g. "json")
+        newline_idx = content.find("\n")
+        if newline_idx != -1:
+            content = content[newline_idx + 1 :]
+        # Remove the trailing ```
+        if content.endswith("```"):
+            content = content[:-3]
+    return content.strip()
+
+
 def build_social_copy_llm(
     transcript_text: str,
     *,
@@ -510,11 +565,10 @@ def build_social_copy_llm(
     Securely handles API key from multiple sources (in priority order):
     1. Explicit api_key parameter
     2. OPENAI_API_KEY environment variable
-    3. Streamlit secrets (st.secrets.OPENAI_API_KEY)
 
     Args:
         transcript_text: Video transcript to generate social copy from
-        api_key: Optional explicit API key (overrides env/secrets)
+        api_key: Optional explicit API key (overrides env)
         model: Model name (defaults to gpt-4o-mini)
         temperature: Sampling temperature (0.0-2.0, default 0.6)
 
@@ -527,25 +581,15 @@ def build_social_copy_llm(
     """
     # Try to get API key from multiple sources
     if not api_key:
-        # Try environment variable first
+        # Try environment variable
         api_key = os.getenv("OPENAI_API_KEY")
-        
-        # Try Streamlit secrets if available
-        if not api_key:
-            try:
-                import streamlit as st
-                if hasattr(st, "secrets") and "OPENAI_API_KEY" in st.secrets:
-                    api_key = st.secrets["OPENAI_API_KEY"]
-            except (ImportError, FileNotFoundError, KeyError):
-                pass  # Streamlit not available or secrets not configured
     
     # Validate API key is present
     if not api_key:
         raise RuntimeError(
             "OpenAI API key is required for AI enrichment. Please set it via:\n"
             "  1. Environment variable: export OPENAI_API_KEY='your-key'\n"
-            "  2. Streamlit secrets: Add OPENAI_API_KEY to .streamlit/secrets.toml\n"
-            "  3. Pass explicitly via api_key parameter"
+            "  2. Pass explicitly via api_key parameter"
         )
     
     model_name = model or config.SOCIAL_LLM_MODEL
@@ -565,30 +609,41 @@ def build_social_copy_llm(
         },
         {"role": "user", "content": transcript_text.strip()},
     ]
-    response = client.chat.completions.create(
-        model=model_name,
-        messages=messages,
-        temperature=temperature,
-    )
-    content = response.choices[0].message.content
-    try:
-        parsed = json.loads(content)
-    except json.JSONDecodeError as exc:
-        raise ValueError("LLM social copy response was not valid JSON") from exc
 
-    try:
-        return SocialCopy(
-            tiktok=PlatformCopy(
-                title=parsed["tiktok"]["title"], description=parsed["tiktok"]["description"]
-            ),
-            youtube_shorts=PlatformCopy(
-                title=parsed["youtube_shorts"]["title"],
-                description=parsed["youtube_shorts"]["description"],
-            ),
-            instagram=PlatformCopy(
-                title=parsed["instagram"]["title"],
-                description=parsed["instagram"]["description"],
-            ),
-        )
-    except Exception as exc:  # pragma: no cover - sanity guard
-        raise ValueError("LLM social copy response JSON missing expected fields") from exc
+    # Simple retry mechanism (1 retry)
+    max_retries = 1
+    last_exc = None
+
+    for attempt in range(max_retries + 1):
+        try:
+            response = client.chat.completions.create(
+                model=model_name,
+                messages=messages,
+                temperature=temperature,
+            )
+            content = response.choices[0].message.content
+            if not content:
+                raise ValueError("Empty response from LLM")
+                
+            cleaned_content = _clean_json_response(content)
+            parsed = json.loads(cleaned_content)
+            
+            return SocialCopy(
+                tiktok=PlatformCopy(
+                    title=parsed["tiktok"]["title"], description=parsed["tiktok"]["description"]
+                ),
+                youtube_shorts=PlatformCopy(
+                    title=parsed["youtube_shorts"]["title"],
+                    description=parsed["youtube_shorts"]["description"],
+                ),
+                instagram=PlatformCopy(
+                    title=parsed["instagram"]["title"],
+                    description=parsed["instagram"]["description"],
+                ),
+            )
+        except (json.JSONDecodeError, KeyError, ValueError) as exc:
+            last_exc = exc
+            if attempt < max_retries:
+                continue
+    
+    raise ValueError("Failed to generate valid social copy after retries") from last_exc

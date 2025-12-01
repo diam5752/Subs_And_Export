@@ -24,10 +24,11 @@ DEFAULT_OUTPUT_SUFFIX = "_subbed"
 PROJECT_ROOT = Path(__file__).resolve().parent
 
 # Whisper / STT defaults
-WHISPER_MODEL_SIZE = "medium"
+WHISPER_MODEL_SIZE = "tiny"  # Optimized for speed (3-5x faster than medium)
+WHISPER_MODEL_TURBO = "deepdml/faster-whisper-large-v3-turbo-ct2"  # Multilingual Turbo model
 WHISPER_LANGUAGE = "el"
 WHISPER_DEVICE = "auto"  # "cpu", "cuda", "auto"
-WHISPER_COMPUTE_TYPE = "auto"  # e.g., "int8", "float16"
+WHISPER_COMPUTE_TYPE = "int8"  # Force int8 for 2-4x speedup on CPU vs float32
 
 # LLM social copy defaults (OpenAI API)
 SOCIAL_LLM_MODEL = "gpt-4o-mini"
@@ -42,3 +43,4 @@ DEFAULT_VIDEO_CRF = 16  # lower is higher quality
 DEFAULT_VIDEO_PRESET = "slow"  # slower preset -> better quality at same bitrate
 DEFAULT_AUDIO_BITRATE = "256k"
 DEFAULT_HIGHLIGHT_COLOR = "&H0000FFFF"  # vivid yellow for per-word fill
+USE_HW_ACCEL = True  # Use VideoToolbox on macOS by default

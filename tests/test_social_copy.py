@@ -76,11 +76,6 @@ def test_build_social_copy_llm_prefers_explicit_key(monkeypatch) -> None:
     captured_keys: list[str] = []
 
     monkeypatch.setenv("OPENAI_API_KEY", "env-key")
-    monkeypatch.setitem(
-        sys.modules,
-        "streamlit",
-        types.SimpleNamespace(secrets={"OPENAI_API_KEY": "secret-key"}),
-    )
     monkeypatch.setattr(
         subtitles,
         "_load_openai_client",
@@ -92,29 +87,51 @@ def test_build_social_copy_llm_prefers_explicit_key(monkeypatch) -> None:
     assert captured_keys == ["explicit-key"]
 
 
-def test_build_social_copy_llm_uses_streamlit_secrets(monkeypatch) -> None:
-    calls = {}
-    captured_keys: list[str] = []
-
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    monkeypatch.setitem(
-        sys.modules,
-        "streamlit",
-        types.SimpleNamespace(secrets={"OPENAI_API_KEY": "secret-key"}),
-    )
-    monkeypatch.setattr(
-        subtitles,
-        "_load_openai_client",
-        lambda api_key: captured_keys.append(api_key) or _fake_openai_client(calls),
-    )
-
-    subtitles.build_social_copy_llm("hello world")
-
-    assert captured_keys == ["secret-key"]
-
-
 def test_build_social_copy_llm_requires_key(monkeypatch) -> None:
     """Verify that API key is required for LLM social copy generation."""
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     with pytest.raises(RuntimeError, match="OpenAI API key is required"):
         subtitles.build_social_copy_llm("hi there")
+
+
+def test_clean_json_response_strips_markdown() -> None:
+    """Verify that markdown code fences are removed from JSON response."""
+    raw = "```json\n{\"tiktok\": {\"title\": \"T\", \"description\": \"D\"}, \"youtube_shorts\": {\"title\": \"Y\", \"description\": \"D\"}, \"instagram\": {\"title\": \"I\", \"description\": \"D\"}}\n```"
+    cleaned = subtitles._clean_json_response(raw)
+    assert cleaned.startswith("{")
+    assert cleaned.endswith("}")
+    assert "```" not in cleaned
+
+
+def test_build_social_copy_llm_retries_on_failure(monkeypatch) -> None:
+    """Verify that the function retries on invalid JSON."""
+    
+    class FlakyChatCompletions:
+        def __init__(self):
+            self.attempts = 0
+            
+        def create(self, **kwargs):
+            self.attempts += 1
+            if self.attempts == 1:
+                # First attempt returns invalid JSON
+                return type("Response", (), {"choices": [type("Choice", (), {"message": type("Message", (), {"content": "Not JSON"})})]})()
+            # Second attempt returns valid JSON
+            payload = {
+                "tiktok": {"title": "TT", "description": "DESC"},
+                "youtube_shorts": {"title": "YT", "description": "DESC"},
+                "instagram": {"title": "IG", "description": "DESC"},
+            }
+            return type("Response", (), {"choices": [type("Choice", (), {"message": type("Message", (), {"content": json.dumps(payload)})})]})()
+
+    class FlakyClient:
+        def __init__(self):
+            self.chat = type("Chat", (), {"completions": FlakyChatCompletions()})()
+
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    client = FlakyClient()
+    monkeypatch.setattr(subtitles, "_load_openai_client", lambda api_key: client)
+
+    social = subtitles.build_social_copy_llm("transcript")
+    
+    assert client.chat.completions.attempts == 2
+    assert social.tiktok.title == "TT"

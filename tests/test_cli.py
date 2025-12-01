@@ -64,3 +64,4 @@ def test_process_command_passes_llm_flag(monkeypatch, tmp_path: Path) -> None:
     assert received["use_llm_social_copy"] is True
     assert received["llm_model"] == "gpt-test"
     assert received["llm_temperature"] == 0.5
+    assert received["llm_api_key"] is None
