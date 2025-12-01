@@ -156,18 +156,34 @@ def _utc_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _get_secret(key: str) -> str | None:
+    """Safely read a Streamlit secret if available."""
+    try:
+        import streamlit as st  # Local import to avoid hard dependency outside UI
+
+        if hasattr(st, "secrets") and key in st.secrets:
+            return str(st.secrets.get(key))
+    except Exception:
+        return None
+    return None
+
+
 def google_oauth_config() -> dict[str, str] | None:
     """
-    Read Google OAuth configuration from environment.
+    Read Google OAuth configuration from environment or Streamlit secrets.
 
     Required:
         GOOGLE_CLIENT_ID
         GOOGLE_CLIENT_SECRET
         GOOGLE_REDIRECT_URI  (should point back to the running Streamlit app)
     """
-    client_id = os.getenv("GOOGLE_CLIENT_ID")
-    client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
-    redirect_uri = os.getenv("GOOGLE_REDIRECT_URI")
+    client_id = os.getenv("GOOGLE_CLIENT_ID") or _get_secret("GOOGLE_CLIENT_ID")
+    client_secret = os.getenv("GOOGLE_CLIENT_SECRET") or _get_secret(
+        "GOOGLE_CLIENT_SECRET"
+    )
+    redirect_uri = os.getenv("GOOGLE_REDIRECT_URI") or _get_secret(
+        "GOOGLE_REDIRECT_URI"
+    )
     if not (client_id and client_secret and redirect_uri):
         return None
     return {
@@ -192,7 +208,11 @@ def build_google_flow(cfg: dict[str, str]):
     }
     flow = Flow.from_client_config(
         client_config,
-        scopes=["https://www.googleapis.com/auth/userinfo.email", "openid", "profile"],
+        scopes=[
+            "openid",
+            "https://www.googleapis.com/auth/userinfo.email",
+            "https://www.googleapis.com/auth/userinfo.profile",
+        ],
         redirect_uri=cfg["redirect_uri"],
     )
     return flow

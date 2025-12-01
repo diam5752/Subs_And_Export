@@ -165,8 +165,24 @@ def _handle_oauth_callbacks(params: dict[str, str]) -> None:
             except Exception as exc:
                 st.error(f"Google sign-in failed: {exc}")
         handled = True
+        # Clear state regardless of config success to avoid loops
         st.session_state.pop("google_oauth_state", None)
         st.session_state.pop("google_auth_url", None)
+
+    # Local fallback: if state was lost (e.g., app restarted) but we are on localhost, still try to exchange
+    elif code and state and not st.session_state.get("google_oauth_state"):
+        cfg = auth.google_oauth_config()
+        if cfg and cfg.get("redirect_uri", "").startswith("http://localhost"):
+            try:
+                profile = auth.exchange_google_code(cfg, code)
+                user = USER_STORE.upsert_google_user(
+                    profile["email"], profile["name"], profile.get("sub") or ""
+                )
+                _set_current_user(user)
+                st.success(f"Signed in as {user.email}")
+            except Exception as exc:
+                st.error(f"Google sign-in failed: {exc}")
+            handled = True
 
     if code and state and state == st.session_state.get("tiktok_oauth_state"):
         cfg = tiktok.config_from_env()
