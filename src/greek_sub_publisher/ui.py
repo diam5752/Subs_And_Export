@@ -11,12 +11,14 @@ def render_sidebar_header() -> None:
     """Renders the sidebar branding."""
     st.markdown(
         """
-        <div style="padding-bottom: 20px; border-bottom: 1px solid #27272a; margin-bottom: 20px;">
-            <div style="font-weight: 600; font-size: 16px; color: #fff; display: flex; align-items: center; gap: 8px;">
-                <span style="background: #5e6ad2; width: 20px; height: 20px; border-radius: 4px; display: inline-block;"></span>
+        <div style="padding-bottom: 24px; border-bottom: 1px solid #27272a; margin-bottom: 24px;">
+            <div style="font-weight: 600; font-size: 18px; color: #fff; display: flex; align-items: center; gap: 10px;">
+                <div style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); width: 24px; height: 24px; border-radius: 6px; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 4px rgba(99, 102, 241, 0.3);">
+                    <span style="color: white; font-size: 14px; font-weight: 700;">G</span>
+                </div>
                 Greek Sub Publisher
             </div>
-            <div style="font-size: 12px; color: #71717a; margin-top: 4px;">v2.1.0 &bull; Enterprise</div>
+            <div style="font-size: 12px; color: #71717a; margin-top: 6px; font-weight: 500;">v2.2.0 &bull; Enterprise Edition</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -26,13 +28,13 @@ def render_dashboard_header() -> None:
     """Renders the main dashboard header."""
     st.markdown(
         """
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px;">
             <div>
-                <h1 style="margin: 0;">Dashboard</h1>
-                <div style="color: #a1a1aa; font-size: 13px;">Manage your video processing pipeline.</div>
+                <h1 style="margin: 0; font-size: 28px; letter-spacing: -0.02em;">Dashboard</h1>
+                <div style="color: #a1a1aa; font-size: 14px; margin-top: 4px;">Manage your video processing pipeline and social exports.</div>
             </div>
             <div style="display: flex; gap: 12px;">
-                <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #a1a1aa; background: #18181b; padding: 6px 12px; border-radius: 20px; border: 1px solid #27272a;">
+                <div style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #a1a1aa; background: #121214; padding: 8px 16px; border-radius: 20px; border: 1px solid #27272a; font-weight: 500;">
                     <span class="status-dot"></span> System Operational
                 </div>
             </div>

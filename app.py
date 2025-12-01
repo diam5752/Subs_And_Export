@@ -6,7 +6,9 @@ import tempfile
 import tomllib
 import platform
 import traceback
+import secrets
 from pathlib import Path
+from typing import Any, Dict
 
 import streamlit as st
 
@@ -16,7 +18,7 @@ SRC = ROOT / "src"
 if SRC.exists() and str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from greek_sub_publisher import config, metrics  # type: ignore  # noqa: E402
+from greek_sub_publisher import auth, config, history, metrics, tiktok, login_ui  # type: ignore  # noqa: E402
 from greek_sub_publisher.subtitles import SocialCopy  # type: ignore  # noqa: E402
 from greek_sub_publisher.video_processing import (  # type: ignore  # noqa: E402
     normalize_and_stub_subtitles,
@@ -38,6 +40,27 @@ st.set_page_config(
 
 # Load Technical SaaS CSS
 load_css(SRC / "greek_sub_publisher" / "styles.css")
+
+USER_STORE = auth.UserStore()
+HISTORY_STORE = history.HistoryStore()
+
+
+def _get_query_params() -> dict[str, str]:
+    """Normalize query params for oauth callbacks."""
+    # st.query_params is a dict-like object in newer Streamlit versions
+    params = st.query_params
+    normalized: dict[str, str] = {}
+    for key, val in params.items():
+        if isinstance(val, list):
+            normalized[key] = val[0]
+        else:
+            normalized[key] = val
+    return normalized
+
+
+def _clear_query_params() -> None:
+    """Remove query params to avoid re-processing callbacks."""
+    st.query_params.clear()
 
 
 def _log_ui_error(exc: Exception, context: dict | None = None) -> None:
@@ -66,6 +89,116 @@ def _clear_processing_state() -> None:
     ]
     for k in keys:
         st.session_state.pop(k, None)
+
+
+def _set_current_user(user: auth.User) -> None:
+    st.session_state["user"] = user.to_session()
+
+
+def _current_user() -> auth.User | None:
+    data = st.session_state.get("user")
+    if not data:
+        return None
+    stored = USER_STORE.get_user_by_email(data.get("email", ""))
+    if stored:
+        return stored
+    return auth.User(
+        id=data.get("id", ""),
+        email=data.get("email", ""),
+        name=data.get("name", "User"),
+        provider=data.get("provider", "local"),
+    )
+
+
+def _logout_user() -> None:
+    for key in ("user", "tiktok_tokens", "google_oauth_state", "google_auth_url", "tiktok_oauth_state", "tiktok_auth_url"):
+        st.session_state.pop(key, None)
+
+
+def _handle_oauth_callbacks(params: dict[str, str]) -> None:
+    """Handle Google and TikTok OAuth redirects."""
+    code = params.get("code")
+    state = params.get("state")
+    handled = False
+
+    if code and state and state == st.session_state.get("google_oauth_state"):
+        cfg = auth.google_oauth_config()
+        if cfg:
+            try:
+                profile = auth.exchange_google_code(cfg, code)
+                user = USER_STORE.upsert_google_user(
+                    profile["email"], profile["name"], profile.get("sub") or ""
+                )
+                _set_current_user(user)
+                st.success(f"Signed in as {user.email}")
+            except Exception as exc:
+                st.error(f"Google sign-in failed: {exc}")
+        handled = True
+        st.session_state.pop("google_oauth_state", None)
+        st.session_state.pop("google_auth_url", None)
+
+    if code and state and state == st.session_state.get("tiktok_oauth_state"):
+        cfg = tiktok.config_from_env()
+        if cfg:
+            try:
+                tokens = tiktok.exchange_code_for_token(cfg, code)
+                st.session_state["tiktok_tokens"] = tokens
+                st.success("TikTok connected")
+            except Exception as exc:
+                st.error(f"TikTok connection failed: {exc}")
+        handled = True
+        st.session_state.pop("tiktok_oauth_state", None)
+        st.session_state.pop("tiktok_auth_url", None)
+
+    if handled:
+        _clear_query_params()
+
+
+def _record_processing_history(
+    user: auth.User,
+    uploaded_name: str,
+    output_path: Path,
+    artifact_dir: Path,
+    params: Dict[str, Any],
+) -> None:
+    try:
+        HISTORY_STORE.record_event(
+            user,
+            "process",
+            summary=f"Processed {uploaded_name}",
+            data={
+                "output_path": str(output_path),
+                "artifact_dir": str(artifact_dir),
+                **params,
+            },
+        )
+    except Exception:
+        # History is best-effort; never block UI.
+        pass
+
+
+def _record_tiktok_history(user: auth.User, payload: Dict[str, Any]) -> None:
+    try:
+        HISTORY_STORE.record_event(
+            user,
+            "tiktok_upload",
+            summary="Uploaded video to TikTok",
+            data={"response": payload},
+        )
+    except Exception:
+        pass
+
+
+def _get_tiktok_tokens() -> tiktok.TikTokTokens | None:
+    tokens = st.session_state.get("tiktok_tokens")
+    if isinstance(tokens, tiktok.TikTokTokens):
+        return tokens
+    if isinstance(tokens, dict):
+        try:
+            return tiktok.TikTokTokens(**tokens)
+        except Exception:
+            return None
+    return None
 
 
 def _load_ai_settings() -> dict[str, object]:
@@ -99,10 +232,32 @@ def _load_ai_settings() -> dict[str, object]:
     return settings
 
 
+# Process OAuth callbacks before rendering the UI
+_handle_oauth_callbacks(_get_query_params())
+
+# --- AUTHENTICATION CHECK ---
+user = _current_user()
+
+if not user:
+    # Render the new centered login page
+    authenticated_user = login_ui.render_login_page(USER_STORE)
+    if authenticated_user:
+        _set_current_user(authenticated_user)
+        st.rerun()
+    st.stop()  # Stop rendering the rest of the app until logged in
+
+
 # --- SIDEBAR: CONFIGURATION & INPUTS ---
 with st.sidebar:
     render_sidebar_header()
-    
+
+    st.markdown("### Account")
+    if user:
+        st.success(f"Signed in as {user.name} ({user.email})")
+        if st.button("Log out", use_container_width=True, type="secondary"):
+            _logout_user()
+            st.rerun()
+
     ai_settings = _load_ai_settings()
     
     # 1. Primary Action: Upload
@@ -120,8 +275,12 @@ with st.sidebar:
     st.markdown("###") # Spacer
 
     # 2. Primary Action: Process
-    process_btn = st.button("Start Processing", type="primary", use_container_width=True, disabled=not uploaded)
-
+    process_btn = st.button(
+        "Start Processing",
+        type="primary",
+        use_container_width=True,
+        disabled=not uploaded,
+    )
 
     st.markdown("###") # Spacer
     st.markdown("---")
@@ -235,6 +394,14 @@ with st.sidebar:
 # --- MAIN DASHBOARD ---
 render_dashboard_header()
 
+if user:
+    recent_events = HISTORY_STORE.recent_for_user(user, limit=6)
+    if recent_events:
+        st.markdown("### Recent activity")
+        for evt in recent_events:
+            st.markdown(f"- `{evt.ts}` — **{evt.summary}** ({evt.kind})")
+        st.markdown("---")
+
 # Processing Logic
 if process_btn and uploaded:
     import time
@@ -343,6 +510,19 @@ if process_btn and uploaded:
         social_json = artifact_dir / "social_copy.json"
         if social_json.exists():
             st.session_state["social_json_bytes"] = social_json.read_bytes()
+
+        if user:
+            _record_processing_history(
+                user,
+                uploaded.name,
+                processed_path,
+                artifact_dir,
+                {
+                    "model_size": model_size,
+                    "video_crf": video_crf,
+                    "use_llm": use_llm,
+                },
+            )
         
         # Clear progress indicators and show success
         progress_bar.empty()
@@ -393,7 +573,8 @@ if st.session_state.get("processing_done"):
                 file_name=st.session_state["processed_video_name"],
                 mime="video/mp4",
                 key="btn_download_video",
-                use_container_width=True
+                use_container_width=True,
+                type="primary"
             )
         else:
             st.caption("Video download unavailable due to a processing error.")
@@ -405,7 +586,8 @@ if st.session_state.get("processing_done"):
                 file_name="transcript.txt",
                 mime="text/plain",
                 key="btn_download_transcript",
-                use_container_width=True
+                use_container_width=True,
+                type="secondary"
             )
 
         if "social_json_bytes" in st.session_state:
@@ -415,13 +597,70 @@ if st.session_state.get("processing_done"):
                 file_name="social_copy.json",
                 mime="application/json",
                 key="btn_download_json",
-                use_container_width=True
+                use_container_width=True,
+                type="secondary"
             )
 
     # Bottom Row: Social Copy
     if "social" in st.session_state and st.session_state["social"]:
         st.markdown("---")
         render_social_copy(st.session_state["social"])
+
+    st.markdown("---")
+    st.markdown("### Publish to TikTok")
+    tiktok_cfg = tiktok.config_from_env()
+    tiktok_tokens = _get_tiktok_tokens()
+
+    if tiktok_cfg:
+        if tiktok_tokens and tiktok_tokens.is_expired() and tiktok_tokens.refresh_token:
+            try:
+                tiktok_tokens = tiktok.refresh_access_token(tiktok_cfg, tiktok_tokens.refresh_token)
+                st.session_state["tiktok_tokens"] = tiktok_tokens
+            except Exception:
+                tiktok_tokens = None
+                st.warning("TikTok session expired. Please reconnect.")
+
+        if not tiktok_tokens:
+            if st.button("Connect TikTok", use_container_width=True, key="btn_tiktok_connect", type="primary"):
+                state = f"tiktok-{secrets.token_hex(8)}"
+                st.session_state["tiktok_oauth_state"] = state
+                st.session_state["tiktok_auth_url"] = tiktok.build_auth_url(tiktok_cfg, state=state)
+            if st.session_state.get("tiktok_auth_url"):
+                try:
+                    st.link_button(
+                        "Authorize TikTok in new tab",
+                        st.session_state["tiktok_auth_url"],
+                        use_container_width=True,
+                        type="primary",
+                        key="btn_tiktok_link",
+                    )
+                except Exception:
+                    st.markdown(f"[Authorize TikTok]({st.session_state['tiktok_auth_url']})")
+            st.caption("Stay signed in to this app during TikTok consent. You'll return here automatically.")
+        else:
+            processed_path = st.session_state.get("processed_path")
+            if not processed_path:
+                st.info("No processed video available for upload.")
+            else:
+                default_title = st.session_state["social"].tiktok.title if st.session_state.get("social") else st.session_state.get("processed_video_name", "TikTok Upload")
+                default_desc = st.session_state["social"].tiktok.description if st.session_state.get("social") else ""
+                tt_title = st.text_input("TikTok title", value=default_title, key="tiktok_title")
+                tt_desc = st.text_area("TikTok description", value=default_desc, height=140, key="tiktok_desc")
+                if st.button("Upload to TikTok", type="primary", use_container_width=True, key="btn_tiktok_upload"):
+                    try:
+                        payload = tiktok.upload_video(
+                            tiktok_tokens,
+                            Path(processed_path),
+                            tt_title,
+                            tt_desc,
+                        )
+                        st.success("TikTok upload request sent.")
+                        _record_tiktok_history(user, payload)
+                    except Exception as exc:
+                        st.error(f"TikTok upload failed: {exc}")
+
+    else:
+        st.info("Set TIKTOK_CLIENT_KEY, TIKTOK_CLIENT_SECRET, and TIKTOK_REDIRECT_URI to enable TikTok uploads.")
 
 else:
     # Empty State
@@ -433,9 +672,9 @@ else:
             align-items: center; 
             justify-content: center; 
             height: 400px; 
-            background-color: #18181b; 
+            background-color: #121214; 
             border: 1px dashed #27272a; 
-            border-radius: 8px; 
+            border-radius: 12px; 
             color: #52525b;
             margin-top: 20px;">
             <div style="font-size: 48px; margin-bottom: 16px; opacity: 0.5;">📼</div>

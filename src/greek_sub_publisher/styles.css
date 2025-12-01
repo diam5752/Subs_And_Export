@@ -1,14 +1,15 @@
 /* 
-    THEME: Technical SaaS (Linear/Vercel Inspired)
-    Background: #0f0f11 (Rich Dark)
+    THEME: Premium Technical SaaS
+    Background: #09090b (Zinc 950)
     Surface: #18181b (Zinc 900)
     Border: #27272a (Zinc 800)
     Text: #e4e4e7 (Zinc 200)
-    Accent: #5e6ad2 (Indigo)
+    Accent: #6366f1 (Indigo 500)
+    Success: #10b981 (Emerald 500)
     Font: 'Inter', -apple-system, monospace
 */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
 /* Global Reset */
 html,
@@ -16,31 +17,33 @@ body,
 [class*="css"] {
     font-family: 'Inter', -apple-system, sans-serif;
     color: #e4e4e7;
-    background-color: #0f0f11;
+    background-color: #09090b;
     font-size: 14px;
     letter-spacing: -0.01em;
+    -webkit-font-smoothing: antialiased;
 }
 
 /* Sidebar Styling */
 [data-testid="stSidebar"] {
-    background-color: #0a0a0c;
+    background-color: #0c0c0e;
     border-right: 1px solid #27272a;
-    min-width: 400px !important;
-    max-width: 400px !important;
+    min-width: 380px !important;
+    max-width: 380px !important;
 }
 
 [data-testid="stSidebar"] hr {
     border-color: #27272a;
-    margin: 1.5rem 0;
+    margin: 2rem 0;
+    opacity: 0.5;
 }
 
 /* Gamified Radio Buttons (Pills) */
 [data-testid="stRadio"]>div {
     display: flex;
-    gap: 8px;
+    gap: 6px;
     background-color: #18181b;
     padding: 4px;
-    border-radius: 8px;
+    border-radius: 10px;
     border: 1px solid #27272a;
 }
 
@@ -48,21 +51,19 @@ body,
     flex: 1;
     text-align: center;
     background-color: transparent;
-    border-radius: 6px;
+    border-radius: 8px;
     padding: 8px 12px;
     cursor: pointer;
     transition: all 0.2s ease;
     border: 1px solid transparent;
+    font-weight: 500;
+    color: #a1a1aa;
 }
 
 [data-testid="stRadio"] label:hover {
+    color: #e4e4e7;
     background-color: #27272a;
 }
-
-/* Active State for Radio (Simulated via Streamlit's internal classes if possible, 
-   but mainly relying on the fact that selected items usually get a specific class. 
-   Since we can't easily target the selected state via pure CSS without :has(), 
-   we style the container to look like a track) */
 
 /* Headings */
 h1,
@@ -70,99 +71,110 @@ h2,
 h3 {
     color: #ffffff !important;
     font-weight: 600 !important;
-    letter-spacing: -0.02em;
+    letter-spacing: -0.025em;
 }
 
 h1 {
-    font-size: 24px !important;
-    margin-bottom: 0.5rem !important;
+    font-size: 28px !important;
+    margin-bottom: 0.75rem !important;
 }
 
 h2 {
-    font-size: 18px !important;
-    margin-top: 1.5rem !important;
+    font-size: 20px !important;
+    margin-top: 2rem !important;
+    margin-bottom: 1rem !important;
 }
 
 h3 {
     font-size: 16px !important;
-    font-weight: 500 !important;
-    color: #a1a1aa !important;
+    font-weight: 600 !important;
+    color: #d4d4d8 !important;
+    margin-bottom: 0.75rem !important;
 }
 
 /* Inputs - Technical & Precise */
 .stTextInput>div>div>input,
 .stNumberInput>div>div>input,
-.stSelectbox>div>div>div {
+.stSelectbox>div>div>div,
+.stTextArea>div>div>textarea {
     background-color: #18181b;
     color: #e4e4e7;
     border: 1px solid #27272a;
-    border-radius: 6px;
-    height: 36px;
+    border-radius: 8px;
     font-size: 13px;
-    transition: border-color 0.15s ease;
+    transition: all 0.15s ease;
 }
 
 .stTextInput>div>div>input:focus,
 .stNumberInput>div>div>input:focus,
-.stSelectbox>div>div>div:focus-within {
-    border-color: #5e6ad2;
-    box-shadow: 0 0 0 1px #5e6ad2;
+.stSelectbox>div>div>div:focus-within,
+.stTextArea>div>div>textarea:focus {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+    background-color: #1c1c20;
 }
 
 /* Buttons */
 .stButton>button {
-    border-radius: 6px;
+    border-radius: 8px;
     font-weight: 500;
-    font-size: 13px;
-    padding: 0.5rem 1rem;
-    transition: all 0.15s ease;
+    font-size: 14px;
+    padding: 0.6rem 1.2rem;
+    transition: all 0.2s ease;
+    letter-spacing: -0.01em;
 }
 
 /* Primary Button */
 .stButton>button[kind="primary"] {
-    background-color: #5e6ad2;
+    background: linear-gradient(180deg, #6366f1 0%, #4f46e5 100%);
     color: #ffffff;
-    border: 1px solid #5e6ad2;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+    border: 1px solid #4f46e5;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
 .stButton>button[kind="primary"]:hover {
-    background-color: #4f5bba;
-    border-color: #4f5bba;
+    background: linear-gradient(180deg, #5558e6 0%, #4338ca 100%);
+    border-color: #4338ca;
+    transform: translateY(-1px);
+}
+
+.stButton>button[kind="primary"]:active {
+    transform: translateY(0);
 }
 
 /* Secondary/Ghost Button */
 .stButton>button[kind="secondary"] {
-    background-color: transparent;
-    color: #a1a1aa;
+    background-color: #18181b;
+    color: #e4e4e7;
     border: 1px solid #27272a;
 }
 
 .stButton>button[kind="secondary"]:hover {
     background-color: #27272a;
-    color: #ffffff;
     border-color: #3f3f46;
+    color: #ffffff;
 }
 
 /* File Uploader - Minimal */
 .stFileUploader {
-    background-color: #18181b;
+    background-color: #121214;
     border: 1px dashed #3f3f46;
-    border-radius: 8px;
-    padding: 1.5rem;
+    border-radius: 12px;
+    padding: 2rem;
     text-align: center;
+    transition: all 0.2s ease;
 }
 
 .stFileUploader:hover {
-    border-color: #5e6ad2;
-    background-color: #202023;
+    border-color: #6366f1;
+    background-color: #18181b;
 }
 
 /* Expanders - Clean Accordion */
 .streamlit-expanderHeader {
     background-color: transparent;
     color: #e4e4e7;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 500;
     border: none;
     padding-left: 0;
@@ -176,43 +188,51 @@ h3 {
 
 /* Dashboard Cards */
 .dashboard-card {
-    background-color: #18181b;
+    background-color: #121214;
     border: 1px solid #27272a;
-    border-radius: 8px;
-    padding: 20px;
+    border-radius: 12px;
+    padding: 24px;
     height: 100%;
+    transition: border-color 0.2s ease;
+}
+
+.dashboard-card:hover {
+    border-color: #3f3f46;
 }
 
 .stat-value {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 24px;
-    font-weight: 500;
+    font-size: 28px;
+    font-weight: 600;
     color: #ffffff;
     margin-top: 8px;
+    letter-spacing: -0.03em;
 }
 
 .stat-label {
     font-size: 12px;
     color: #a1a1aa;
     text-transform: uppercase;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.08em;
+    font-weight: 600;
 }
 
 /* Video Player */
 video {
-    border-radius: 8px;
+    border-radius: 12px;
     border: 1px solid #27272a;
-    max-height: 500px !important;
+    max-height: 600px !important;
     width: auto !important;
     margin: 0 auto;
     display: block;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.2);
 }
 
 .stVideo {
-    background-color: #0f0f11;
+    background-color: #0c0c0e;
     border: 1px solid #27272a;
-    border-radius: 8px;
-    padding: 20px;
+    border-radius: 12px;
+    padding: 24px;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -223,45 +243,52 @@ code {
     font-family: 'JetBrains Mono', monospace;
     background-color: #27272a;
     color: #e4e4e7;
-    padding: 2px 4px;
-    border-radius: 4px;
-    font-size: 12px;
+    padding: 2px 6px;
+    border-radius: 6px;
+    font-size: 13px;
 }
 
 /* Tabs */
 .stTabs [data-baseweb="tab-list"] {
-    gap: 20px;
+    gap: 24px;
     border-bottom: 1px solid #27272a;
     padding-bottom: 0;
 }
 
 .stTabs [data-baseweb="tab"] {
-    height: 40px;
+    height: 44px;
     background-color: transparent;
     border: none;
     color: #a1a1aa;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 500;
     padding: 0 4px;
+    transition: color 0.2s ease;
+}
+
+.stTabs [data-baseweb="tab"]:hover {
+    color: #e4e4e7;
 }
 
 .stTabs [aria-selected="true"] {
     color: #ffffff;
-    border-bottom: 2px solid #5e6ad2;
+    border-bottom: 2px solid #6366f1;
 }
 
 /* Status Dots */
 .status-dot {
     height: 8px;
     width: 8px;
-    background-color: #22c55e;
+    background-color: #10b981;
     border-radius: 50%;
     display: inline-block;
-    margin-right: 6px;
+    margin-right: 8px;
+    box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
 }
 
 .status-dot.processing {
     background-color: #eab308;
+    box-shadow: 0 0 8px rgba(234, 179, 8, 0.4);
     animation: pulse 2s infinite;
 }
 
@@ -277,4 +304,84 @@ code {
     100% {
         opacity: 1;
     }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #09090b;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #27272a;
+    border-radius: 4px;
+}
+
+
+/* Login Page Styling */
+.login-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding-top: 10vh;
+    max-width: 400px;
+    margin: 0 auto;
+}
+
+.login-logo {
+    font-size: 48px;
+    margin-bottom: 24px;
+    text-align: center;
+}
+
+.login-title {
+    font-size: 32px;
+    font-weight: 700;
+    color: #ffffff;
+    text-align: center;
+    margin-bottom: 12px;
+    letter-spacing: -0.02em;
+}
+
+.login-subtitle {
+    font-size: 16px;
+    color: #a1a1aa;
+    text-align: center;
+    margin-bottom: 32px;
+}
+
+.login-card {
+    width: 100%;
+    background-color: transparent;
+}
+
+.login-divider {
+    display: flex;
+    align-items: center;
+    text-align: center;
+    color: #52525b;
+    margin: 24px 0;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.login-divider::before,
+.login-divider::after {
+    content: '';
+    flex: 1;
+    border-bottom: 1px solid #27272a;
+}
+
+.login-divider::before {
+    margin-right: 12px;
+}
+
+.login-divider::after {
+    margin-left: 12px;
 }

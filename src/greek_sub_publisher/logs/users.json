@@ -1,0 +1,20 @@
+[
+  {
+    "id": "482d47f8a3b3eed8",
+    "email": "test@gmail.com",
+    "name": "test",
+    "provider": "local",
+    "password_hash": "f5a53e541c8879e4$1abc4419ba6ddeac10319594c80b40abbc549510cf3bed13f210f7597e1456d6",
+    "google_sub": null,
+    "created_at": "2025-12-01T13:18:20.650742+00:00"
+  },
+  {
+    "id": "143ca59b5ec5b990",
+    "email": "test2@gmail.com",
+    "name": "test2",
+    "provider": "local",
+    "password_hash": "a6e493e0fef12cba$95598d4d938a5004a27f85a54f4ea72f2dfe885f93c383ca29d84fa101d64b5f",
+    "google_sub": null,
+    "created_at": "2025-12-01T13:23:44.234340+00:00"
+  }
+]

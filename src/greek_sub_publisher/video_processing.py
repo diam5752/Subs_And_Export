@@ -300,9 +300,9 @@ def normalize_and_stub_subtitles(
             # Stage 1: Audio Extraction (5%)
             if progress_callback:
                 progress_callback("Extracting audio...", 0.0)
-            stage_start = time.perf_counter()
-            audio_path = subtitles.extract_audio(input_path, output_dir=scratch)
-            pipeline_timings["extract_audio_s"] = time.perf_counter() - stage_start
+            
+            with metrics.measure_time(pipeline_timings, "extract_audio_s"):
+                audio_path = subtitles.extract_audio(input_path, output_dir=scratch)
             
             # Stage 2: Transcription (5% -> 65%)
             if progress_callback:
@@ -314,33 +314,32 @@ def normalize_and_stub_subtitles(
                     overall = 5.0 + (p * 0.6)
                     progress_callback(f"Transcribing audio ({int(p)}%)...", overall)
 
-            stage_start = time.perf_counter()
-            srt_path, cues = subtitles.generate_subtitles_from_audio(
-                audio_path,
-                model_size=selected_model,
-                language=language or config.WHISPER_LANGUAGE,
-                device=effective_device,
-                compute_type=effective_compute,
-                beam_size=beam_size,
-                best_of=best_of,
-                output_dir=scratch,
-                progress_callback=_transcribe_progress if total_duration > 0 else None,
-                total_duration=total_duration,
-                temperature=temperature,
-                chunk_length=effective_chunk_length,
-                condition_on_previous_text=condition_on_previous_text,
-                initial_prompt=initial_prompt,
-                vad_filter=effective_vad_filter,
-                vad_parameters=effective_vad_parameters,
-            )
-            pipeline_timings["transcribe_s"] = time.perf_counter() - stage_start
+            with metrics.measure_time(pipeline_timings, "transcribe_s"):
+                srt_path, cues = subtitles.generate_subtitles_from_audio(
+                    audio_path,
+                    model_size=selected_model,
+                    language=language or config.WHISPER_LANGUAGE,
+                    device=effective_device,
+                    compute_type=effective_compute,
+                    beam_size=beam_size,
+                    best_of=best_of,
+                    output_dir=scratch,
+                    progress_callback=_transcribe_progress if total_duration > 0 else None,
+                    total_duration=total_duration,
+                    temperature=temperature,
+                    chunk_length=effective_chunk_length,
+                    condition_on_previous_text=condition_on_previous_text,
+                    initial_prompt=initial_prompt,
+                    vad_filter=effective_vad_filter,
+                    vad_parameters=effective_vad_parameters,
+                )
             
             # Stage 3: Subtitle Styling (65% -> 70%)
             if progress_callback:
                 progress_callback("Styling subtitles...", 65.0)
-            stage_start = time.perf_counter()
-            ass_path = subtitles.create_styled_subtitle_file(srt_path, cues=cues)
-            pipeline_timings["style_subs_s"] = time.perf_counter() - stage_start
+            
+            with metrics.measure_time(pipeline_timings, "style_subs_s"):
+                ass_path = subtitles.create_styled_subtitle_file(srt_path, cues=cues)
 
             transcript_text = subtitles.cues_to_text(cues)
             
@@ -354,6 +353,7 @@ def normalize_and_stub_subtitles(
             
             future_social = None
             social_start = time.perf_counter() if generate_social_copy else None
+            
             with ThreadPoolExecutor() as executor:
                 if generate_social_copy:
                     if use_llm_social_copy:
@@ -366,9 +366,8 @@ def normalize_and_stub_subtitles(
                         )
                     else:
                         # Local generation is fast enough to run inline
-                        social_copy = subtitles.build_social_copy(transcript_text)
-                        if social_start is not None:
-                            pipeline_timings["social_copy_s"] = time.perf_counter() - social_start
+                        with metrics.measure_time(pipeline_timings, "social_copy_s"):
+                            social_copy = subtitles.build_social_copy(transcript_text)
 
                 # Stage 5: Video Encoding (80% -> 100%)
                 if progress_callback:
@@ -381,26 +380,9 @@ def normalize_and_stub_subtitles(
                         progress_callback(f"Encoding video ({int(p)}%)...", overall)
 
                 # Start FFmpeg immediately
-                encode_start = time.perf_counter()
                 encode_log = ""
-                try:
-                    encode_log = _run_ffmpeg_with_subs(
-                        input_path,
-                        ass_path,
-                        destination,
-                        video_crf=video_crf or config.DEFAULT_VIDEO_CRF,
-                        video_preset=video_preset or config.DEFAULT_VIDEO_PRESET,
-                        audio_bitrate=audio_bitrate or config.DEFAULT_AUDIO_BITRATE,
-                        audio_copy=effective_audio_copy,
-                        use_hw_accel=use_hw_accel,
-                        progress_callback=_encode_progress if total_duration > 0 else None,
-                        total_duration=total_duration,
-                    )
-                except subprocess.CalledProcessError as exc:
-                    encode_log = exc.output or ""
-                    if use_hw_accel:
-                        # Retry without hardware acceleration if VideoToolbox fails
-                        pipeline_timings["encode_retry"] = "fallback_to_software"
+                with metrics.measure_time(pipeline_timings, "encode_s"):
+                    try:
                         encode_log = _run_ffmpeg_with_subs(
                             input_path,
                             ass_path,
@@ -409,23 +391,37 @@ def normalize_and_stub_subtitles(
                             video_preset=video_preset or config.DEFAULT_VIDEO_PRESET,
                             audio_bitrate=audio_bitrate or config.DEFAULT_AUDIO_BITRATE,
                             audio_copy=effective_audio_copy,
-                            use_hw_accel=False,
+                            use_hw_accel=use_hw_accel,
                             progress_callback=_encode_progress if total_duration > 0 else None,
                             total_duration=total_duration,
                         )
-                    else:
-                        raise
-                pipeline_timings["encode_s"] = time.perf_counter() - encode_start
+                    except subprocess.CalledProcessError as exc:
+                        encode_log = exc.output or ""
+                        if use_hw_accel:
+                            # Retry without hardware acceleration if VideoToolbox fails
+                            pipeline_timings["encode_retry"] = "fallback_to_software"
+                            encode_log = _run_ffmpeg_with_subs(
+                                input_path,
+                                ass_path,
+                                destination,
+                                video_crf=video_crf or config.DEFAULT_VIDEO_CRF,
+                                video_preset=video_preset or config.DEFAULT_VIDEO_PRESET,
+                                audio_bitrate=audio_bitrate or config.DEFAULT_AUDIO_BITRATE,
+                                audio_copy=effective_audio_copy,
+                                use_hw_accel=False,
+                                progress_callback=_encode_progress if total_duration > 0 else None,
+                                total_duration=total_duration,
+                            )
+                        else:
+                            raise
+                
                 if encode_log:
                     pipeline_timings["encode_log"] = encode_log
 
                 # Collect Social Copy result
                 if generate_social_copy and future_social:
-                    social_copy = future_social.result()
-                    if social_start is not None:
-                        pipeline_timings["social_copy_s"] = time.perf_counter() - social_start
-                elif generate_social_copy and social_start is not None and "social_copy_s" not in pipeline_timings:
-                    pipeline_timings["social_copy_s"] = time.perf_counter() - social_start
+                    with metrics.measure_time(pipeline_timings, "social_copy_s"):
+                        social_copy = future_social.result()
             
             # Final stage: Persisting artifacts
             if progress_callback:

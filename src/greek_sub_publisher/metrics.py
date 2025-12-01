@@ -5,9 +5,11 @@ from __future__ import annotations
 import json
 import os
 import socket
+import time
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Generator, Optional
 
 from . import config
 
@@ -71,3 +73,21 @@ def log_pipeline_metrics(event: dict[str, Any]) -> None:
     except Exception:
         # Best-effort logging; swallow errors so pipeline never fails due to logging.
         return
+
+
+@contextmanager
+def measure_time(
+    timings_dict: dict[str, float], key: str
+) -> Generator[None, None, None]:
+    """
+    Context manager to measure execution time and store it in a dictionary.
+    
+    Usage:
+        with measure_time(timings, "my_step_s"):
+            do_work()
+    """
+    start = time.perf_counter()
+    try:
+        yield
+    finally:
+        timings_dict[key] = time.perf_counter() - start

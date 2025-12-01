@@ -6,6 +6,10 @@ Local-first tooling to normalize vertical videos, transcribe Greek audio with fa
 - Python 3.11+
 - ffmpeg available on PATH
 - Optional for LLM copy: `OPENAI_API_KEY` and `pip install openai` (see `OPENAI_SETUP.md` for secure setup tips)
+- Optional for auth/publishing:
+  - Google OAuth: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`
+  - TikTok publishing: `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET`, `TIKTOK_REDIRECT_URI`
+    (register an app in TikTok Dev Console; enable the `video.upload` scope)
 
 Install deps:
 ```bash
@@ -24,6 +28,11 @@ Artifacts directory will contain WAV/SRT/ASS/transcript and social_copy files.
 
 Need help configuring OpenAI? Check `OPENAI_SETUP.md` for environment variable and Streamlit secrets instructions.
 Set UI defaults (model/temperature/auto-enable) in `.streamlit/config.toml` under the `[ai]` section.
+
+## Auth, history, and TikTok uploads
+- Users can sign in with Google or a local email/password account (stored in `logs/users.json`).
+- All processing/publishing runs are tied to the signed-in user and logged to `logs/user_history.jsonl`.
+- TikTok uploads stay inside the app: connect your TikTok account (OAuth) and upload the processed MP4 directly after a run. Tokens are stored in session only; reconnect when expired.
 
 ## Tests
 - Fast suite (CI default): `pytest -m "not slow"`
