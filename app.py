@@ -79,25 +79,46 @@ HISTORY_STORE = history.HistoryStore(db=DB)
 
 
 def _get_query_params() -> dict[str, str]:
-    """Normalize query params for oauth callbacks."""
-    # st.query_params is a dict-like object in newer Streamlit versions
-    params = st.query_params
+    """Normalize query params for oauth callbacks (new + legacy APIs)."""
+    raw: dict[str, object] = {}
+    try:
+        if hasattr(st, "query_params"):
+            candidate = getattr(st, "query_params")
+            if hasattr(candidate, "items"):
+                raw = dict(candidate.items())  # type: ignore[arg-type]
+        if not raw and hasattr(st, "experimental_get_query_params"):
+            raw = st.experimental_get_query_params()  # type: ignore[attr-defined]
+    except Exception:
+        raw = {}
+
     normalized: dict[str, str] = {}
-    for key, val in params.items():
-        if isinstance(val, list):
-            normalized[key] = val[0]
-        else:
-            normalized[key] = val
+    for key, val in raw.items():
+        if isinstance(val, list) and val:
+            normalized[key] = str(val[0])
+        elif val is not None:
+            normalized[key] = str(val)
     return normalized
 
 
 def _clear_query_params(preserve: set[str] | None = None) -> None:
     """Remove transient params to avoid re-processing callbacks."""
     preserve = preserve or {"auth_token"}
-    for key in list(st.query_params.keys()):
-        if key in preserve:
-            continue
-        st.query_params.pop(key, None)
+    try:
+        for key in list(getattr(st, "query_params", {}).keys()):
+            if key in preserve:
+                continue
+            getattr(st, "query_params").pop(key, None)
+    except Exception:
+        pass
+    try:
+        if hasattr(st, "experimental_get_query_params") and hasattr(
+            st, "experimental_set_query_params"
+        ):
+            current = st.experimental_get_query_params()  # type: ignore[attr-defined]
+            filtered = {k: v for k, v in current.items() if k in preserve}
+            st.experimental_set_query_params(**filtered)  # type: ignore[attr-defined]
+    except Exception:
+        pass
 
 
 def _log_ui_error(exc: Exception, context: dict | None = None) -> None:
@@ -132,10 +153,20 @@ def _persist_session(user: auth.User) -> None:
     token = SESSION_STORE.issue_session(user)
     st.session_state["session_token"] = token
     st.session_state["user"] = user.to_session()
+    # Persist token in URL for automatic re-auth after reloads
     try:
-        st.query_params["auth_token"] = token
+        if hasattr(st, "query_params"):
+            st.query_params["auth_token"] = token
     except Exception:
-        # Non-fatal when query params are unavailable (e.g., during tests)
+        pass
+    try:
+        if hasattr(st, "experimental_set_query_params"):
+            current = {}
+            if hasattr(st, "experimental_get_query_params"):
+                current = st.experimental_get_query_params()  # type: ignore[attr-defined]
+            current["auth_token"] = token
+            st.experimental_set_query_params(**current)  # type: ignore[attr-defined]
+    except Exception:
         pass
 
 
@@ -151,6 +182,15 @@ def _current_user() -> auth.User | None:
             st.session_state["user"] = user.to_session()
             try:
                 st.query_params["auth_token"] = str(token)
+            except Exception:
+                pass
+            try:
+                if hasattr(st, "experimental_set_query_params"):
+                    current = {}
+                    if hasattr(st, "experimental_get_query_params"):
+                        current = st.experimental_get_query_params()  # type: ignore[attr-defined]
+                    current["auth_token"] = str(token)
+                    st.experimental_set_query_params(**current)  # type: ignore[attr-defined]
             except Exception:
                 pass
             return user
@@ -187,6 +227,15 @@ def _logout_user() -> None:
         st.session_state.pop(key, None)
     try:
         st.query_params.pop("auth_token", None)
+    except Exception:
+        pass
+    try:
+        if hasattr(st, "experimental_get_query_params") and hasattr(
+            st, "experimental_set_query_params"
+        ):
+            params = st.experimental_get_query_params()  # type: ignore[attr-defined]
+            params.pop("auth_token", None)
+            st.experimental_set_query_params(**params)  # type: ignore[attr-defined]
     except Exception:
         pass
 

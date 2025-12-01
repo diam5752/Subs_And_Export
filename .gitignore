@@ -23,6 +23,11 @@ env/
 
 # Streamlit secrets
 .streamlit/secrets.toml
+.streamlit/app_settings.toml
+
+# Local state/logs
+logs/
+*.db
 
 # Generated media outputs
 tests/data/*_subbed*.mp4

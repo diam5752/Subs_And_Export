@@ -27,6 +27,18 @@ def test_local_register_and_auth(tmp_path):
         store.register_local_user("test@example.com", "secret", "Tester")
 
 
+def test_query_param_backward_compat(monkeypatch):
+    import app
+
+    monkeypatch.delattr(app.st, "query_params", raising=False)
+    monkeypatch.setattr(
+        app.st, "experimental_get_query_params", lambda: {"auth_token": ["abc"], "code": ["123"]}
+    )
+
+    params = app._get_query_params()
+    assert params == {"auth_token": "abc", "code": "123"}
+
+
 def test_session_roundtrip(tmp_path):
     db = database.Database(tmp_path / "app.db")
     store = auth.UserStore(db=db)
@@ -38,6 +50,48 @@ def test_session_roundtrip(tmp_path):
     assert restored and restored.email == user.email
     sessions.revoke(token)
     assert sessions.authenticate(token) is None
+
+
+def test_persist_session_sets_url_and_restores(monkeypatch, tmp_path):
+    import app
+
+    # Use an isolated DB
+    db = database.Database(tmp_path / "app.db")
+    app.DB = db
+    app.USER_STORE = auth.UserStore(db=db)
+    app.SESSION_STORE = auth.SessionStore(db=db)
+    app.HISTORY_STORE = history.HistoryStore(db=db)
+
+    def _reset_state():
+        for key in list(app.st.session_state.keys()):
+            app.st.session_state.pop(key, None)
+
+    _reset_state()
+    applied: dict[str, str] = {}
+    monkeypatch.delattr(app.st, "query_params", raising=False)
+    monkeypatch.setattr(app.st, "experimental_get_query_params", lambda: {})
+
+    def fake_set_query_params(**kwargs):
+        applied.update({k: v[0] if isinstance(v, list) else v for k, v in kwargs.items()})
+
+    monkeypatch.setattr(app.st, "experimental_set_query_params", fake_set_query_params)
+
+    user = app.USER_STORE.register_local_user("auto@example.com", "secret", "Auto")
+    app._persist_session(user)
+
+    assert applied.get("auth_token")
+    assert app.st.session_state.get("user", {}).get("email") == "auto@example.com"
+
+    # Simulate a fresh browser session with only the query param available
+    _reset_state()
+    monkeypatch.setattr(
+        app.st,
+        "experimental_get_query_params",
+        lambda: {"auth_token": applied["auth_token"]},
+    )
+
+    restored = app._current_user()
+    assert restored and restored.email == user.email
 
 
 def test_google_oauth_config(monkeypatch):
