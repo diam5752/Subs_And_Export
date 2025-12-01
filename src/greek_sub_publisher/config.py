@@ -28,7 +28,10 @@ WHISPER_MODEL_SIZE = "tiny"  # Optimized for speed (3-5x faster than medium)
 WHISPER_MODEL_TURBO = "deepdml/faster-whisper-large-v3-turbo-ct2"  # Multilingual Turbo model
 WHISPER_LANGUAGE = "el"
 WHISPER_DEVICE = "auto"  # "cpu", "cuda", "auto"
-WHISPER_COMPUTE_TYPE = "int8"  # Force int8 for 2-4x speedup on CPU vs float32
+WHISPER_COMPUTE_TYPE = "float16"  # Prefer fp16 on Apple Silicon; fallback handled downstream
+WHISPER_COMPUTE_TYPE_TURBO = "int8_float16"  # Kept for reference but not used (was slower)
+WHISPER_CHUNK_LENGTH = 90  # seconds; testing shows 90s is faster than 30s for this hardware
+WHISPER_BATCH_SIZE = 16  # batch size for faster-whisper processing
 
 # LLM social copy defaults (OpenAI API)
 SOCIAL_LLM_MODEL = "gpt-4o-mini"
@@ -40,7 +43,7 @@ AUDIO_CODEC = "pcm_s16le"
 
 # Encoding defaults for delivery to TikTok / Reels / Shorts
 DEFAULT_VIDEO_CRF = 16  # lower is higher quality
-DEFAULT_VIDEO_PRESET = "slow"  # slower preset -> better quality at same bitrate
+DEFAULT_VIDEO_PRESET = "medium"  # balanced speed/quality - platforms re-encode anyway
 DEFAULT_AUDIO_BITRATE = "256k"
 DEFAULT_HIGHLIGHT_COLOR = "&H0000FFFF"  # vivid yellow for per-word fill
 USE_HW_ACCEL = True  # Use VideoToolbox on macOS by default

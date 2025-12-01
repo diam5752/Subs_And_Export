@@ -34,14 +34,14 @@ def process(
         "--language",
         help="Language code for transcription (default: el).",
     ),
-    beam_size: int = typer.Option(
+    beam_size: int | None = typer.Option(
         None,
         "--beam-size",
         min=1,
         help="Beam size for beam search decoding (higher = better quality, slower).",
     ),
-    best_of: int = typer.Option(
-        1,
+    best_of: int | None = typer.Option(
+        None,
         "--best-of",
         min=1,
         help="Number of candidate samples to pick best from during decoding.",
@@ -71,10 +71,10 @@ def process(
         "--audio-bitrate",
         help="Audio bitrate (e.g., 256k). Ignored if --audio-copy is set.",
     ),
-    audio_copy: bool = typer.Option(
-        False,
-        "--audio-copy",
-        help="Copy input audio instead of re-encoding to AAC.",
+    audio_copy: bool | None = typer.Option(
+        None,
+        "--audio-copy/--reencode-audio",
+        help="Copy input audio instead of re-encoding to AAC (default: auto-detect AAC).",
     ),
     llm_social_copy: bool = typer.Option(
         False,

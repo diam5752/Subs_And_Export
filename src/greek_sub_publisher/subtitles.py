@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Callable, Iterable, List, Optional, Sequence, Tuple
 import unicodedata
 import textwrap
+import functools
 
 from faster_whisper import WhisperModel
 
@@ -120,6 +121,60 @@ def get_video_duration(path: Path) -> float:
     return float(result.stdout.strip())
 
 
+@functools.lru_cache(maxsize=8)
+def _get_whisper_model_cached(
+    model_size: str,
+    device: str,
+    compute_type: str,
+    cpu_threads: int,
+) -> WhisperModel:
+    """Cache Whisper models across runs to avoid reload overhead."""
+    model = WhisperModel(
+        model_size,
+        device=device,
+        compute_type=compute_type,
+        cpu_threads=cpu_threads,
+    )
+    setattr(model, "_compute_type", compute_type)
+    return model
+
+
+def _get_whisper_model(
+    model_size: str,
+    device: str,
+    compute_type: str,
+    cpu_threads: int,
+) -> WhisperModel:
+    """
+    Load a Whisper model with graceful fallback when fp16 is unsupported.
+    """
+    # Try the requested compute_type first, then fall back for fp16 issues.
+    candidates: list[str] = [compute_type]
+    if compute_type in ("float16", "auto", "int8_float16"):
+        for ct in ("int8_float16", "int8", "float32"):
+            if ct not in candidates:
+                candidates.append(ct)
+    else:
+        for ct in ("int8", "float32"):
+            if ct not in candidates:
+                candidates.append(ct)
+
+    last_exc: Exception | None = None
+    for ct in candidates:
+        try:
+            return _get_whisper_model_cached(model_size, device, ct, cpu_threads)
+        except (RuntimeError, ValueError) as exc:
+            last_exc = exc
+            # Only continue on fp16-related failures; otherwise surface error.
+            msg = str(exc).lower()
+            if "float16" in msg or "fp16" in msg or "int8_float16" in msg or "compute type" in msg:
+                continue
+            raise
+
+    assert last_exc is not None
+    raise last_exc
+
+
 def generate_subtitles_from_audio(
     audio_path: Path,
     model_size: str = config.WHISPER_MODEL_SIZE,
@@ -131,6 +186,12 @@ def generate_subtitles_from_audio(
     output_dir: Path | None = None,
     progress_callback: Callable[[float], None] | None = None,
     total_duration: float | None = None,
+    temperature: float | None = None,
+    chunk_length: int | None = config.WHISPER_CHUNK_LENGTH,
+    condition_on_previous_text: bool = False,
+    initial_prompt: str | None = None,
+    vad_filter: bool = True,
+    vad_parameters: dict | None = None,
 ) -> Tuple[Path, List[Cue]]:
     """
     Transcribe Greek speech to an SRT subtitle file using faster-whisper.
@@ -144,24 +205,31 @@ def generate_subtitles_from_audio(
     # Optimize CPU threads: Use all available cores (capped at 8 to avoid overhead)
     threads = min(8, os.cpu_count() or 4)
     
-    model = WhisperModel(
-        model_size, 
-        device=device, 
+    # Cache models to avoid reloads between runs
+    model = _get_whisper_model(
+        model_size,
+        device=device,
         compute_type=compute_type,
-        cpu_threads=threads
+        cpu_threads=threads,
     )
     
     transcribe_kwargs = {
         "language": language,
         "word_timestamps": True,
-        "vad_filter": True,
-        "vad_parameters": dict(min_silence_duration_ms=500),
-        "condition_on_previous_text": False, # Speed optimization: Don't look back
+        "vad_filter": vad_filter,
+        "vad_parameters": vad_parameters or dict(min_silence_duration_ms=700),
+        "condition_on_previous_text": condition_on_previous_text,
     }
     if beam_size is not None:
         transcribe_kwargs["beam_size"] = beam_size
     if best_of is not None:
         transcribe_kwargs["best_of"] = best_of
+    if temperature is not None:
+        transcribe_kwargs["temperature"] = temperature
+    if chunk_length is not None:
+        transcribe_kwargs["chunk_length"] = chunk_length
+    if initial_prompt:
+        transcribe_kwargs["initial_prompt"] = initial_prompt
 
     segments_iter, _ = model.transcribe(str(audio_path), **transcribe_kwargs)
 

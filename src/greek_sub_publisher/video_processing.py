@@ -8,11 +8,13 @@ import re
 import shutil
 import subprocess
 import tempfile
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable
 
 from . import config, subtitles
+from . import metrics
 
 
 def _build_filtergraph(ass_path: Path) -> str:
@@ -41,7 +43,7 @@ def _run_ffmpeg_with_subs(
     use_hw_accel: bool = False,
     progress_callback: Callable[[float], None] | None = None,
     total_duration: float | None = None,
-) -> None:
+) -> str:
     filtergraph = _build_filtergraph(ass_path)
     cmd = [
         "ffmpeg",
@@ -90,17 +92,19 @@ def _run_ffmpeg_with_subs(
     
     # Use Popen to read stderr in real-time for progress
     process = subprocess.Popen(
-        cmd, 
-        stdout=subprocess.PIPE, 
-        stderr=subprocess.PIPE, 
-        universal_newlines=True
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        universal_newlines=True,
     )
     
     # Regex to extract time=HH:MM:SS.mm
     time_pattern = re.compile(r"time=(\d{2}):(\d{2}):(\d{2}\.\d{2})")
-    
+    stderr_lines: list[str] = []
+
     if process.stderr:
         for line in process.stderr:
+            stderr_lines.append(line)
             if progress_callback and total_duration and total_duration > 0:
                 match = time_pattern.search(line)
                 if match:
@@ -111,7 +115,35 @@ def _run_ffmpeg_with_subs(
     
     process.wait()
     if process.returncode != 0:
-        raise subprocess.CalledProcessError(process.returncode, cmd)
+        raise subprocess.CalledProcessError(process.returncode, cmd, "".join(stderr_lines))
+    return "".join(stderr_lines)
+
+
+def _input_audio_is_aac(input_path: Path) -> bool:
+    """Return True if the primary audio stream is already AAC."""
+    probe_cmd = [
+        "ffprobe",
+        "-v",
+        "error",
+        "-select_streams",
+        "a:0",
+        "-show_entries",
+        "stream=codec_name",
+        "-of",
+        "default=nokey=1:noprint_wrappers=1",
+        str(input_path),
+    ]
+    try:
+        result = subprocess.run(
+            probe_cmd,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        return "aac" in result.stdout.strip().lower()
+    except Exception:
+        return False
 
 
 def _persist_artifacts(
@@ -173,11 +205,11 @@ def normalize_and_stub_subtitles(
     device: str | None = None,
     compute_type: str | None = None,
     beam_size: int | None = None,
-    best_of: int | None = 1,
+    best_of: int | None = None,
     video_crf: int | None = None,
     video_preset: str | None = None,
     audio_bitrate: str | None = None,
-    audio_copy: bool = False,
+    audio_copy: bool | None = None,
     generate_social_copy: bool = False,
     use_llm_social_copy: bool = False,
     llm_model: str | None = None,
@@ -186,6 +218,12 @@ def normalize_and_stub_subtitles(
     artifact_dir: Path | None = None,
     use_hw_accel: bool = False,
     progress_callback: Callable[[str, float], None] | None = None,
+    temperature: float | None = None,
+    chunk_length: int | None = None,
+    condition_on_previous_text: bool | None = None,
+    initial_prompt: str | None = None,
+    vad_filter: bool | None = None,
+    vad_parameters: dict | None = None,
 ) -> Path | tuple[Path, subtitles.SocialCopy]:
     """
     Normalize video to 9:16, generate Greek subs, and burn them into the output.
@@ -197,128 +235,261 @@ def normalize_and_stub_subtitles(
     destination.parent.mkdir(parents=True, exist_ok=True)
 
     social_copy: subtitles.SocialCopy | None = None
+    pipeline_timings: dict[str, float] = {}
+    pipeline_error: str | None = None
+    overall_start = time.perf_counter()
+    total_duration = 0.0
+    audio_path: Path | None = None
+    srt_path: Path | None = None
+    ass_path: Path | None = None
+    transcript_text: str | None = None
+    scratch_dir_path: Path | None = None
 
-    with tempfile.TemporaryDirectory() as scratch_dir:
-        scratch = Path(scratch_dir)
-        
-        # Get total duration for smart progress tracking
-        total_duration = 0.0
-        try:
-            total_duration = subtitles.get_video_duration(input_path)
-        except Exception:
-            # Fallback if ffprobe fails (unlikely if ffmpeg works)
-            pass
+    selected_model = model_size or config.WHISPER_MODEL_SIZE
+    effective_device = device or config.WHISPER_DEVICE
+    effective_compute = compute_type or config.WHISPER_COMPUTE_TYPE
+    effective_chunk_length = chunk_length or config.WHISPER_CHUNK_LENGTH
+    effective_vad_filter = True if vad_filter is None else vad_filter
+    effective_vad_parameters = vad_parameters or {"min_silence_duration_ms": 400}
+    effective_audio_copy = audio_copy
+    if effective_audio_copy is None:
+        effective_audio_copy = _input_audio_is_aac(input_path)
 
-        # Stage 1: Audio Extraction (5%)
-        if progress_callback:
-            progress_callback("Extracting audio...", 0.0)
-        audio_path = subtitles.extract_audio(input_path, output_dir=scratch)
-        
-        # Stage 2: Transcription (5% -> 65%)
-        if progress_callback:
-            progress_callback("Transcribing audio...", 5.0)
+    try:
+        with tempfile.TemporaryDirectory() as scratch_dir:
+            scratch = Path(scratch_dir)
+            scratch_dir_path = scratch
+            scratch.mkdir(parents=True, exist_ok=True)
             
-        def _transcribe_progress(p: float) -> None:
-            if progress_callback:
-                # Map 0-100% to 5-65% (range of 60%)
-                overall = 5.0 + (p * 0.6)
-                progress_callback(f"Transcribing audio ({int(p)}%)...", overall)
+            # Get total duration for smart progress tracking
+            try:
+                total_duration = subtitles.get_video_duration(input_path)
+            except Exception:
+                # Fallback if ffprobe fails (unlikely if ffmpeg works)
+                total_duration = 0.0
 
-        srt_path, cues = subtitles.generate_subtitles_from_audio(
-            audio_path,
-            model_size=model_size or config.WHISPER_MODEL_SIZE,
-            language=language or config.WHISPER_LANGUAGE,
-            device=device or config.WHISPER_DEVICE,
-            compute_type=compute_type or config.WHISPER_COMPUTE_TYPE,
-            beam_size=beam_size,
-            best_of=best_of,
-            output_dir=scratch,
-            progress_callback=_transcribe_progress if total_duration > 0 else None,
-            total_duration=total_duration,
-        )
-        
-        # Stage 3: Subtitle Styling (65% -> 70%)
-        if progress_callback:
-            progress_callback("Styling subtitles...", 65.0)
-        ass_path = subtitles.create_styled_subtitle_file(srt_path, cues=cues)
-
-        transcript_text = subtitles.cues_to_text(cues)
-        
-        # Stage 4: Social Copy Generation (70% -> 80%)
-        if generate_social_copy and progress_callback:
-            progress_callback("Generating social copy...", 70.0)
-        
-        # Parallel Execution:
-        # 1. Generate Social Copy (if enabled)
-        # 2. Burn Subtitles (FFmpeg)
-        
-        future_social = None
-        with ThreadPoolExecutor() as executor:
-            if generate_social_copy:
-                if use_llm_social_copy:
-                    future_social = executor.submit(
-                        subtitles.build_social_copy_llm,
-                        transcript_text,
-                        model=llm_model,
-                        temperature=llm_temperature,
-                        api_key=llm_api_key,
-                    )
+                # Heuristic defaults per model for accuracy + speed on M-series
+            if beam_size is None:
+                if selected_model == config.WHISPER_MODEL_TURBO:
+                    beam_size = 1
+                elif "large" in selected_model:
+                    beam_size = 3
                 else:
-                    # Local generation is fast enough to run inline, but for consistency we can submit it too
-                    # or just run it. It's instant, so let's just run it if not LLM.
-                    # Actually, let's keep it simple. If LLM, use future.
-                    pass
+                    beam_size = 1
 
-            # Stage 5: Video Encoding (80% -> 100%)
+            if best_of is None:
+                if selected_model == config.WHISPER_MODEL_TURBO:
+                    best_of = 1
+                elif "large" in selected_model:
+                    best_of = 3
+                else:
+                    best_of = 1
+
+            if condition_on_previous_text is None:
+                condition_on_previous_text = "large" in selected_model
+
+            if temperature is None:
+                # Use deterministic pass on fast modes; leave Best with library defaults
+                if selected_model == config.WHISPER_MODEL_TURBO:
+                    temperature = 0.0
+                elif "large" in selected_model:
+                    temperature = None
+                else:
+                    temperature = 0.0
+
+            # Stage 1: Audio Extraction (5%)
             if progress_callback:
-                progress_callback("Encoding video with subtitles...", 80.0)
+                progress_callback("Extracting audio...", 0.0)
+            stage_start = time.perf_counter()
+            audio_path = subtitles.extract_audio(input_path, output_dir=scratch)
+            pipeline_timings["extract_audio_s"] = time.perf_counter() - stage_start
             
-            def _encode_progress(p: float) -> None:
+            # Stage 2: Transcription (5% -> 65%)
+            if progress_callback:
+                progress_callback("Transcribing audio...", 5.0)
+                
+            def _transcribe_progress(p: float) -> None:
                 if progress_callback:
-                    # Map 0-100% to 80-100% (range of 20%)
-                    overall = 80.0 + (p * 0.2)
-                    progress_callback(f"Encoding video ({int(p)}%)...", overall)
+                    # Map 0-100% to 5-65% (range of 60%)
+                    overall = 5.0 + (p * 0.6)
+                    progress_callback(f"Transcribing audio ({int(p)}%)...", overall)
 
-            # Start FFmpeg immediately
-            _run_ffmpeg_with_subs(
-                input_path,
-                ass_path,
-                destination,
-                video_crf=video_crf or config.DEFAULT_VIDEO_CRF,
-                video_preset=video_preset or config.DEFAULT_VIDEO_PRESET,
-                audio_bitrate=audio_bitrate or config.DEFAULT_AUDIO_BITRATE,
-                audio_copy=audio_copy,
-                use_hw_accel=use_hw_accel,
-                progress_callback=_encode_progress if total_duration > 0 else None,
-                total_duration=total_duration,
-            )
-
-            # Collect Social Copy result
-            if generate_social_copy:
-                if future_social:
-                    social_copy = future_social.result()
-                else:
-                    # Fallback to local deterministic copy
-                    social_copy = subtitles.build_social_copy(transcript_text)
-        
-        # Final stage: Persisting artifacts
-        if progress_callback:
-            progress_callback("Finalizing...", 95.0)
-        
-        if artifact_dir:
-            _persist_artifacts(
-                artifact_dir,
+            stage_start = time.perf_counter()
+            srt_path, cues = subtitles.generate_subtitles_from_audio(
                 audio_path,
-                srt_path,
-                ass_path,
-                transcript_text,
-                social_copy,
+                model_size=selected_model,
+                language=language or config.WHISPER_LANGUAGE,
+                device=effective_device,
+                compute_type=effective_compute,
+                beam_size=beam_size,
+                best_of=best_of,
+                output_dir=scratch,
+                progress_callback=_transcribe_progress if total_duration > 0 else None,
+                total_duration=total_duration,
+                temperature=temperature,
+                chunk_length=effective_chunk_length,
+                condition_on_previous_text=condition_on_previous_text,
+                initial_prompt=initial_prompt,
+                vad_filter=effective_vad_filter,
+                vad_parameters=effective_vad_parameters,
             )
+            pipeline_timings["transcribe_s"] = time.perf_counter() - stage_start
+            
+            # Stage 3: Subtitle Styling (65% -> 70%)
+            if progress_callback:
+                progress_callback("Styling subtitles...", 65.0)
+            stage_start = time.perf_counter()
+            ass_path = subtitles.create_styled_subtitle_file(srt_path, cues=cues)
+            pipeline_timings["style_subs_s"] = time.perf_counter() - stage_start
+
+            transcript_text = subtitles.cues_to_text(cues)
+            
+            # Stage 4: Social Copy Generation (70% -> 80%)
+            if generate_social_copy and progress_callback:
+                progress_callback("Generating social copy...", 70.0)
+            
+            # Parallel Execution:
+            # 1. Generate Social Copy (if enabled)
+            # 2. Burn Subtitles (FFmpeg)
+            
+            future_social = None
+            social_start = time.perf_counter() if generate_social_copy else None
+            with ThreadPoolExecutor() as executor:
+                if generate_social_copy:
+                    if use_llm_social_copy:
+                        future_social = executor.submit(
+                            subtitles.build_social_copy_llm,
+                            transcript_text,
+                            model=llm_model,
+                            temperature=llm_temperature,
+                            api_key=llm_api_key,
+                        )
+                    else:
+                        # Local generation is fast enough to run inline
+                        social_copy = subtitles.build_social_copy(transcript_text)
+                        if social_start is not None:
+                            pipeline_timings["social_copy_s"] = time.perf_counter() - social_start
+
+                # Stage 5: Video Encoding (80% -> 100%)
+                if progress_callback:
+                    progress_callback("Encoding video with subtitles...", 80.0)
+                
+                def _encode_progress(p: float) -> None:
+                    if progress_callback:
+                        # Map 0-100% to 80-100% (range of 20%)
+                        overall = 80.0 + (p * 0.2)
+                        progress_callback(f"Encoding video ({int(p)}%)...", overall)
+
+                # Start FFmpeg immediately
+                encode_start = time.perf_counter()
+                encode_log = ""
+                try:
+                    encode_log = _run_ffmpeg_with_subs(
+                        input_path,
+                        ass_path,
+                        destination,
+                        video_crf=video_crf or config.DEFAULT_VIDEO_CRF,
+                        video_preset=video_preset or config.DEFAULT_VIDEO_PRESET,
+                        audio_bitrate=audio_bitrate or config.DEFAULT_AUDIO_BITRATE,
+                        audio_copy=effective_audio_copy,
+                        use_hw_accel=use_hw_accel,
+                        progress_callback=_encode_progress if total_duration > 0 else None,
+                        total_duration=total_duration,
+                    )
+                except subprocess.CalledProcessError as exc:
+                    encode_log = exc.output or ""
+                    if use_hw_accel:
+                        # Retry without hardware acceleration if VideoToolbox fails
+                        pipeline_timings["encode_retry"] = "fallback_to_software"
+                        encode_log = _run_ffmpeg_with_subs(
+                            input_path,
+                            ass_path,
+                            destination,
+                            video_crf=video_crf or config.DEFAULT_VIDEO_CRF,
+                            video_preset=video_preset or config.DEFAULT_VIDEO_PRESET,
+                            audio_bitrate=audio_bitrate or config.DEFAULT_AUDIO_BITRATE,
+                            audio_copy=effective_audio_copy,
+                            use_hw_accel=False,
+                            progress_callback=_encode_progress if total_duration > 0 else None,
+                            total_duration=total_duration,
+                        )
+                    else:
+                        raise
+                pipeline_timings["encode_s"] = time.perf_counter() - encode_start
+                if encode_log:
+                    pipeline_timings["encode_log"] = encode_log
+
+                # Collect Social Copy result
+                if generate_social_copy and future_social:
+                    social_copy = future_social.result()
+                    if social_start is not None:
+                        pipeline_timings["social_copy_s"] = time.perf_counter() - social_start
+                elif generate_social_copy and social_start is not None and "social_copy_s" not in pipeline_timings:
+                    pipeline_timings["social_copy_s"] = time.perf_counter() - social_start
+            
+            # Final stage: Persisting artifacts
+            if progress_callback:
+                progress_callback("Finalizing...", 95.0)
+
+            final_output = destination
+            if not destination.exists():
+                raise RuntimeError(f"Output video was not produced by ffmpeg; last log: {encode_log or 'n/a'}")
+
+            if artifact_dir:
+                artifact_dir.mkdir(parents=True, exist_ok=True)
+                video_copy = artifact_dir / destination.name
+                shutil.copy2(destination, video_copy)
+                final_output = video_copy
+
+                _persist_artifacts(
+                    artifact_dir,
+                    audio_path,
+                    srt_path,
+                    ass_path,
+                    transcript_text,
+                    social_copy,
+                )
+    except Exception as exc:
+        pipeline_error = str(exc)
+        raise
+    finally:
+        pipeline_timings["total_s"] = time.perf_counter() - overall_start
+        metrics.log_pipeline_metrics(
+            {
+                "status": "error" if pipeline_error else "success",
+                "error": pipeline_error,
+                "encode_log": pipeline_timings.get("encode_log"),
+                "model_size": selected_model,
+                "device": effective_device,
+                "compute_type": effective_compute,
+                "beam_size": beam_size,
+                "best_of": best_of,
+                "temperature": temperature,
+                "chunk_length": effective_chunk_length,
+                "condition_on_previous_text": condition_on_previous_text,
+                "initial_prompt": bool(initial_prompt),
+                "use_hw_accel": use_hw_accel,
+                "audio_copy": effective_audio_copy,
+                "language": language or config.WHISPER_LANGUAGE,
+                "llm_social_copy": generate_social_copy,
+                "use_llm_social_copy": use_llm_social_copy,
+                "video_preset": video_preset or config.DEFAULT_VIDEO_PRESET,
+                "video_crf": video_crf or config.DEFAULT_VIDEO_CRF,
+                "input_bytes": input_path.stat().st_size if input_path.exists() else None,
+                "output_bytes": final_output.stat().st_size if 'final_output' in locals() and final_output.exists() else None,
+                "duration_s": total_duration,
+                "timings": pipeline_timings,
+            }
+        )
+        if scratch_dir_path and scratch_dir_path.exists():
+            shutil.rmtree(scratch_dir_path, ignore_errors=True)
     
     if progress_callback:
         progress_callback("Complete!", 100.0)
     
     if generate_social_copy:
-        assert social_copy is not None
-        return destination, social_copy
-    return destination
+        if social_copy is None:
+            # Safety fallback to deterministic social copy so we never raise on None
+            social_copy = subtitles.build_social_copy(transcript_text or "")
+        return final_output if 'final_output' in locals() else destination, social_copy
+    return final_output if 'final_output' in locals() else destination

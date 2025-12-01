@@ -5,6 +5,7 @@ import sys
 import tempfile
 import tomllib
 import platform
+import traceback
 from pathlib import Path
 
 import streamlit as st
@@ -15,7 +16,7 @@ SRC = ROOT / "src"
 if SRC.exists() and str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from greek_sub_publisher import config  # type: ignore  # noqa: E402
+from greek_sub_publisher import config, metrics  # type: ignore  # noqa: E402
 from greek_sub_publisher.subtitles import SocialCopy  # type: ignore  # noqa: E402
 from greek_sub_publisher.video_processing import (  # type: ignore  # noqa: E402
     normalize_and_stub_subtitles,
@@ -37,6 +38,34 @@ st.set_page_config(
 
 # Load Technical SaaS CSS
 load_css(SRC / "greek_sub_publisher" / "styles.css")
+
+
+def _log_ui_error(exc: Exception, context: dict | None = None) -> None:
+    """Best-effort logging for UI-triggered pipeline errors."""
+    event: dict[str, object] = {
+        "status": "error",
+        "error": f"{type(exc).__name__}: {exc}",
+        "traceback": traceback.format_exc(),
+    }
+    if context:
+        event.update(context)
+    metrics.log_pipeline_metrics(event)
+
+
+def _clear_processing_state() -> None:
+    """Clear any stale results before a new run."""
+    keys = [
+        "processing_done",
+        "processed_path",
+        "processed_video_bytes",
+        "processed_video_name",
+        "transcript_bytes",
+        "social_json_bytes",
+        "artifact_dir",
+        "social",
+    ]
+    for k in keys:
+        st.session_state.pop(k, None)
 
 
 def _load_ai_settings() -> dict[str, object]:
@@ -122,10 +151,24 @@ with st.sidebar:
     }
     model_size = model_map[transcribe_mode]
     
-    # Optimize beam_size for speed
-    # Turbo/Distilled models are trained for greedy search (beam_size=1)
-    beam_size_map = {"Fast": 1, "Balanced": 1, "Turbo": 1, "Best": 2}
+    # Decoder settings tuned for accuracy-first on M-series
+    beam_size_map = {"Fast": 1, "Balanced": 1, "Turbo": 1, "Best": 3}
     beam_size = beam_size_map[transcribe_mode]
+    
+    best_of_map = {"Fast": 1, "Balanced": 1, "Turbo": 1, "Best": 3}
+    best_of = best_of_map[transcribe_mode]
+
+    condition_map = {"Fast": False, "Balanced": False, "Turbo": False, "Best": True}
+    condition_on_previous_text = condition_map[transcribe_mode]
+
+    temperature_map = {"Fast": 0.0, "Balanced": 0.0, "Turbo": 0.0, "Best": None}
+    decode_temperature = temperature_map[transcribe_mode]
+    
+    # Use float16 for all modes - int8_float16 was slower on this hardware
+    compute_type = config.WHISPER_COMPUTE_TYPE
+    
+    chunk_length = config.WHISPER_CHUNK_LENGTH
+    batch_size = config.WHISPER_BATCH_SIZE
 
     # Video Quality
     st.markdown("**Video Output Quality**")
@@ -169,10 +212,15 @@ with st.sidebar:
     elif not has_api_key:
         st.caption("⚠️ Set OPENAI_API_KEY to enable AI enrichment")
 
+    context_prompt = st.text_area(
+        "Context prompt (names/terms)",
+        placeholder="Speaker names, brand terms, or domain context to boost accuracy",
+        help="Optional hint to the model for better accuracy on names and jargon.",
+    )
+
     # Hidden/Advanced defaults
     language = "el" # Force Greek to prevent English hallucination
-    best_of = 1
-    audio_copy = False
+    audio_copy = None
     
     # Hardware Acceleration
     is_mac = platform.system() == "Darwin"
@@ -190,6 +238,9 @@ render_dashboard_header()
 # Processing Logic
 if process_btn and uploaded:
     import time
+    
+    # Clear previous results to avoid stale state
+    _clear_processing_state()
     
     # Create placeholders for progress tracking
     progress_bar = st.progress(0.0)
@@ -220,98 +271,132 @@ if process_btn and uploaded:
             time_text.markdown(f"*{time_str}*")
     
     try:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            tmp = Path(tmp_dir)
-            input_path = tmp / uploaded.name
-            input_path.write_bytes(uploaded.getbuffer())
+        # Use a persistent temp directory per run so the output file
+        # remains accessible for reading, even if processing is slow.
+        tmp_dir = tempfile.mkdtemp(prefix="gsp-run-")
+        tmp = Path(tmp_dir)
+        input_path = tmp / uploaded.name
+        input_path.write_bytes(uploaded.getbuffer())
 
-            output_path = tmp / f"{input_path.stem}{config.DEFAULT_OUTPUT_SUFFIX}.mp4"
-            artifact_dir = tmp / "artifacts"
+        output_path = tmp / f"{input_path.stem}{config.DEFAULT_OUTPUT_SUFFIX}.mp4"
+        artifact_dir = tmp / "artifacts"
 
-            # Get API key for LLM if enabled
-            api_key = None
-            if use_llm:
-                api_key = os.getenv("OPENAI_API_KEY")
-                if not api_key and hasattr(st, "secrets") and "OPENAI_API_KEY" in st.secrets:
-                    api_key = st.secrets["OPENAI_API_KEY"]
+        # Get API key for LLM if enabled
+        api_key = None
+        if use_llm:
+            api_key = os.getenv("OPENAI_API_KEY")
+            if not api_key and hasattr(st, "secrets") and "OPENAI_API_KEY" in st.secrets:
+                api_key = st.secrets["OPENAI_API_KEY"]
 
-            result = normalize_and_stub_subtitles(
-                input_path,
-                output_path,
-                model_size=model_size,
-                language=language,
-                beam_size=beam_size or None,
-                best_of=best_of,
-                video_crf=video_crf,
-                audio_copy=audio_copy,
-                generate_social_copy=True,
-                use_llm_social_copy=use_llm,
-                llm_model=llm_model,
-                llm_temperature=llm_temperature,
-                llm_api_key=api_key,
-                artifact_dir=artifact_dir,
-                use_hw_accel=use_hw_accel,
-                progress_callback=update_progress,
-            )
+        result = normalize_and_stub_subtitles(
+            input_path,
+            output_path,
+            model_size=model_size,
+            language=language,
+            compute_type=compute_type,
+            beam_size=beam_size,
+            best_of=best_of,
+            temperature=decode_temperature,
+            chunk_length=chunk_length,
+            condition_on_previous_text=condition_on_previous_text,
+            initial_prompt=context_prompt.strip() if context_prompt else None,
+            video_crf=video_crf,
+            audio_copy=audio_copy,
+            generate_social_copy=True,
+            use_llm_social_copy=use_llm,
+            llm_model=llm_model,
+            llm_temperature=llm_temperature,
+            llm_api_key=api_key,
+            artifact_dir=artifact_dir,
+            use_hw_accel=use_hw_accel,
+            progress_callback=update_progress,
+        )
 
-            processed_path: Path
-            social: SocialCopy
+        processed_path: Path
+        social: SocialCopy
 
-            if isinstance(result, tuple):
-                processed_path, social = result
-            else:
-                processed_path = result
-                social = None  # type: ignore[assignment]
+        if isinstance(result, tuple):
+            processed_path, social = result
+        else:
+            processed_path = result
+            social = None  # type: ignore[assignment]
 
-            # Store results in session state
-            st.session_state["processed_path"] = str(processed_path)
-            st.session_state["social"] = social
-            st.session_state["artifact_dir"] = str(artifact_dir)
-            
-            st.session_state["processing_done"] = True
+        # Store results in session state
+        st.session_state["processed_path"] = str(processed_path)
+        st.session_state["social"] = social
+        st.session_state["artifact_dir"] = str(artifact_dir)
+        
+        try:
             st.session_state["processed_video_bytes"] = processed_path.read_bytes()
             st.session_state["processed_video_name"] = processed_path.name
-            
-            transcript_file = artifact_dir / "transcript.txt"
-            if transcript_file.exists():
-                st.session_state["transcript_bytes"] = transcript_file.read_bytes()
-            
-            social_json = artifact_dir / "social_copy.json"
-            if social_json.exists():
-                st.session_state["social_json_bytes"] = social_json.read_bytes()
-            
-            # Clear progress indicators and show success
-            progress_bar.empty()
-            status_text.empty()
-            time_text.empty()
-            st.toast("Processing Pipeline Completed Successfully", icon="✅")
+            st.session_state["processing_done"] = True
+        except FileNotFoundError as exc:
+            _log_ui_error(exc, {"processed_path": str(processed_path)})
+            st.error(f"Pipeline Error: Processed video missing at {processed_path}")
+            st.session_state["processing_done"] = False
+            raise
+
+        transcript_file = artifact_dir / "transcript.txt"
+        if transcript_file.exists():
+            st.session_state["transcript_bytes"] = transcript_file.read_bytes()
+        
+        social_json = artifact_dir / "social_copy.json"
+        if social_json.exists():
+            st.session_state["social_json_bytes"] = social_json.read_bytes()
+        
+        # Clear progress indicators and show success
+        progress_bar.empty()
+        status_text.empty()
+        time_text.empty()
+        st.toast("Processing Pipeline Completed Successfully", icon="✅")
 
     except Exception as exc:
         progress_bar.empty()
         status_text.empty()
         time_text.empty()
+        _log_ui_error(
+            exc,
+            {
+                "model_size": model_size,
+                "device": config.WHISPER_DEVICE,
+                "compute_type": config.WHISPER_COMPUTE_TYPE,
+                "use_hw_accel": use_hw_accel,
+                "beam_size": beam_size,
+                "best_of": best_of,
+                "chunk_length": chunk_length,
+                "condition_on_previous_text": condition_on_previous_text,
+                "video_crf": video_crf,
+                "audio_copy": audio_copy,
+            },
+        )
+        st.session_state["processing_done"] = False
         st.error(f"Pipeline Error: {exc}")
 
 # Results View
-if "processing_done" in st.session_state and st.session_state["processing_done"]:
+if st.session_state.get("processing_done"):
     
     # Top Row: Video + Downloads
     col_vid, col_actions = st.columns([1.5, 1])
     
     with col_vid:
-        st.video(st.session_state["processed_video_bytes"])
+        if "processed_video_bytes" in st.session_state:
+            st.video(st.session_state["processed_video_bytes"])
+        else:
+            st.info("Processed video is not available. Please re-run processing.")
     
     with col_actions:
         st.markdown("### Downloads")
-        
-        st.download_button(
-            "Download Video (MP4)",
-            data=st.session_state["processed_video_bytes"],
-            file_name=st.session_state["processed_video_name"],
-            mime="video/mp4",
-            key="btn_download_video",
-            use_container_width=True
-        )
+        if "processed_video_bytes" in st.session_state and "processed_video_name" in st.session_state:
+            st.download_button(
+                "Download Video (MP4)",
+                data=st.session_state["processed_video_bytes"],
+                file_name=st.session_state["processed_video_name"],
+                mime="video/mp4",
+                key="btn_download_video",
+                use_container_width=True
+            )
+        else:
+            st.caption("Video download unavailable due to a processing error.")
         
         if "transcript_bytes" in st.session_state:
             st.download_button(

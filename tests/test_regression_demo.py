@@ -21,6 +21,9 @@ def test_demo_video_transcription_matches_golden(tmp_path: Path) -> None:
         language="el",
         beam_size=5,
         best_of=1,
+        compute_type="int8",  # keep stable output for regression golden
+        vad_filter=False,  # avoid VAD shifts that move timestamps
+        chunk_length=None,  # use library default to match golden
         output_dir=tmp_path,
     )
 

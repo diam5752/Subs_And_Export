@@ -50,7 +50,7 @@ def test_generate_subtitles_from_audio_writes_srt(monkeypatch, tmp_path: Path) -
                 )
             ], None
 
-    monkeypatch.setattr(subtitles, "WhisperModel", StubModel)
+    monkeypatch.setattr(subtitles, "_get_whisper_model", lambda *a, **k: StubModel())
     srt_path, cues = subtitles.generate_subtitles_from_audio(
         audio_path, model_size="tiny", output_dir=tmp_path
     )
@@ -124,7 +124,7 @@ def test_generate_subtitles_from_audio_accepts_auto_language(monkeypatch, tmp_pa
         def transcribe(self, *_args, **_kwargs):
             return [], None
 
-    monkeypatch.setattr(subtitles, "WhisperModel", StubModel)
+    monkeypatch.setattr(subtitles, "_get_whisper_model", lambda *a, **k: StubModel())
     subtitles.generate_subtitles_from_audio(audio_path, language="auto", output_dir=tmp_path)
 
 
@@ -150,7 +150,7 @@ def test_generate_subtitles_from_audio_passes_decoding_params(monkeypatch, tmp_p
 
             return [Seg()], None
 
-    monkeypatch.setattr(subtitles, "WhisperModel", StubModel)
+    monkeypatch.setattr(subtitles, "_get_whisper_model", lambda *a, **k: StubModel())
 
     subtitles.generate_subtitles_from_audio(
         audio_path,
@@ -159,7 +159,45 @@ def test_generate_subtitles_from_audio_passes_decoding_params(monkeypatch, tmp_p
         beam_size=4,
         best_of=3,
         language="el",
+        temperature=0.2,
+        chunk_length=45,
+        condition_on_previous_text=True,
+        initial_prompt="hello",
+        vad_filter=False,
+        vad_parameters={"min_silence_duration_ms": 123},
     )
 
     assert transcribe_kwargs["beam_size"] == 4
     assert transcribe_kwargs["best_of"] == 3
+    assert transcribe_kwargs["temperature"] == 0.2
+    assert transcribe_kwargs["chunk_length"] == 45
+    assert transcribe_kwargs["condition_on_previous_text"] is True
+    assert transcribe_kwargs["initial_prompt"] == "hello"
+    assert transcribe_kwargs["vad_filter"] is False
+    assert transcribe_kwargs["vad_parameters"]["min_silence_duration_ms"] == 123
+
+
+def test_whisper_model_falls_back_on_compute_type(monkeypatch) -> None:
+    attempts: list[str] = []
+
+    def fake_cached(model_size: str, device: str, compute_type: str, cpu_threads: int):
+        attempts.append(compute_type)
+        if compute_type == "int8_float16":
+            raise ValueError("compute type not supported")
+
+        class StubModel:
+            pass
+
+        return StubModel()
+
+    monkeypatch.setattr(subtitles, "_get_whisper_model_cached", fake_cached)
+
+    model = subtitles._get_whisper_model(
+        model_size="tiny",
+        device="cpu",
+        compute_type="int8_float16",
+        cpu_threads=2,
+    )
+
+    assert isinstance(model, object)
+    assert attempts == ["int8_float16", "int8"]
