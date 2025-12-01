@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import shutil
 
 import httpx
 import pytest
@@ -11,6 +12,9 @@ from greek_sub_publisher import subtitles
 
 DEMO_VIDEO = Path("tests/data/demo.mp4")
 GOLDEN_DIR = Path("tests/data/demo_artifacts")
+
+
+pytestmark = pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg is required for demo regression")
 
 
 @pytest.mark.slow
