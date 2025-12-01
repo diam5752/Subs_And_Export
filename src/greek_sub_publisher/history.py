@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-import json
-from dataclasses import dataclass, asdict
-from pathlib import Path
+from dataclasses import dataclass
 from typing import Dict, List
 
 from . import config
 from .auth import User
+from .database import Database
 
 
 @dataclass
@@ -24,10 +23,10 @@ class HistoryEvent:
 
 
 class HistoryStore:
-    """Append-only JSONL store for user activity."""
+    """SQLite-backed append-only store for user activity."""
 
-    def __init__(self, path: Path | None = None) -> None:
-        self.path = path or (config.PROJECT_ROOT / "logs" / "user_history.jsonl")
+    def __init__(self, path: str | None = None, db: Database | None = None) -> None:
+        self.db = db or Database(path or (config.PROJECT_ROOT / "logs" / "app.db"))
 
     def record_event(
         self,
@@ -44,46 +43,59 @@ class HistoryStore:
             summary=summary,
             data=data,
         )
-        self._append(asdict(event))
+        with self.db.connect() as conn:
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO users(id, email, name, provider, created_at)
+                VALUES(?, ?, ?, ?, ?)
+                """,
+                (
+                    user.id,
+                    user.email,
+                    user.name,
+                    user.provider,
+                    user.created_at or event.ts,
+                ),
+            )
+            conn.execute(
+                """
+                INSERT INTO history(ts, user_id, email, kind, summary, data)
+                VALUES(?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    event.ts,
+                    event.user_id,
+                    event.email,
+                    event.kind,
+                    event.summary,
+                    self.db.dumps(event.data),
+                ),
+            )
         return event
 
     def recent_for_user(self, user: User, limit: int = 20) -> List[HistoryEvent]:
-        rows = self._read_all()
-        filtered = [row for row in rows if row.get("user_id") == user.id]
-        filtered = list(reversed(filtered))[:limit]
+        with self.db.connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT ts, user_id, email, kind, summary, data
+                FROM history
+                WHERE user_id = ?
+                ORDER BY ts DESC
+                LIMIT ?
+                """,
+                (user.id, limit),
+            ).fetchall()
         return [
             HistoryEvent(
-                ts=row.get("ts", ""),
-                user_id=row.get("user_id", ""),
-                email=row.get("email", ""),
-                kind=row.get("kind", ""),
-                summary=row.get("summary", ""),
-                data=row.get("data", {}) or {},
+                ts=row["ts"],
+                user_id=row["user_id"],
+                email=row["email"],
+                kind=row["kind"],
+                summary=row["summary"],
+                data=self.db.loads(row["data"]),
             )
-            for row in filtered
+            for row in rows
         ]
-
-    # Internal helpers
-    def _append(self, row: Dict) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self.path.open("a", encoding="utf-8") as fh:
-            fh.write(json.dumps(row, ensure_ascii=False))
-            fh.write("\n")
-
-    def _read_all(self) -> List[Dict]:
-        if not self.path.exists():
-            return []
-        rows: List[Dict] = []
-        try:
-            with self.path.open("r", encoding="utf-8") as fh:
-                for line in fh:
-                    try:
-                        rows.append(json.loads(line))
-                    except json.JSONDecodeError:
-                        continue
-        except Exception:
-            return []
-        return rows
 
 
 def _utc_iso() -> str:

@@ -59,7 +59,7 @@ SRC = ROOT / "src"
 if SRC.exists() and str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from greek_sub_publisher import auth, config, history, metrics, tiktok, login_ui  # type: ignore  # noqa: E402
+from greek_sub_publisher import auth, config, database, history, login_ui, metrics, tiktok  # type: ignore  # noqa: E402
 from greek_sub_publisher.subtitles import SocialCopy  # type: ignore  # noqa: E402
 from greek_sub_publisher.video_processing import (  # type: ignore  # noqa: E402
     normalize_and_stub_subtitles,
@@ -72,8 +72,10 @@ from greek_sub_publisher.ui import (  # type: ignore  # noqa: E402
     render_social_copy,
 )
 
-USER_STORE = auth.UserStore()
-HISTORY_STORE = history.HistoryStore()
+DB = database.Database()
+USER_STORE = auth.UserStore(db=DB)
+SESSION_STORE = auth.SessionStore(db=DB)
+HISTORY_STORE = history.HistoryStore(db=DB)
 
 
 def _get_query_params() -> dict[str, str]:
@@ -89,9 +91,13 @@ def _get_query_params() -> dict[str, str]:
     return normalized
 
 
-def _clear_query_params() -> None:
-    """Remove query params to avoid re-processing callbacks."""
-    st.query_params.clear()
+def _clear_query_params(preserve: set[str] | None = None) -> None:
+    """Remove transient params to avoid re-processing callbacks."""
+    preserve = preserve or {"auth_token"}
+    for key in list(st.query_params.keys()):
+        if key in preserve:
+            continue
+        st.query_params.pop(key, None)
 
 
 def _log_ui_error(exc: Exception, context: dict | None = None) -> None:
@@ -122,11 +128,33 @@ def _clear_processing_state() -> None:
         st.session_state.pop(k, None)
 
 
-def _set_current_user(user: auth.User) -> None:
+def _persist_session(user: auth.User) -> None:
+    token = SESSION_STORE.issue_session(user)
+    st.session_state["session_token"] = token
     st.session_state["user"] = user.to_session()
+    try:
+        st.query_params["auth_token"] = token
+    except Exception:
+        # Non-fatal when query params are unavailable (e.g., during tests)
+        pass
 
 
 def _current_user() -> auth.User | None:
+    token = st.session_state.get("session_token")
+    params = _get_query_params()
+    if params.get("auth_token"):
+        token = params["auth_token"]
+    if token:
+        user = SESSION_STORE.authenticate(str(token))
+        if user:
+            st.session_state["session_token"] = str(token)
+            st.session_state["user"] = user.to_session()
+            try:
+                st.query_params["auth_token"] = str(token)
+            except Exception:
+                pass
+            return user
+
     data = st.session_state.get("user")
     if not data:
         return None
@@ -142,8 +170,25 @@ def _current_user() -> auth.User | None:
 
 
 def _logout_user() -> None:
-    for key in ("user", "tiktok_tokens", "google_oauth_state", "google_auth_url", "tiktok_oauth_state", "tiktok_auth_url"):
+    token = st.session_state.pop("session_token", None)
+    if token:
+        try:
+            SESSION_STORE.revoke(str(token))
+        except Exception:
+            pass
+    for key in (
+        "user",
+        "tiktok_tokens",
+        "google_oauth_state",
+        "google_auth_url",
+        "tiktok_oauth_state",
+        "tiktok_auth_url",
+    ):
         st.session_state.pop(key, None)
+    try:
+        st.query_params.pop("auth_token", None)
+    except Exception:
+        pass
 
 
 def _handle_oauth_callbacks(params: dict[str, str]) -> None:
@@ -160,7 +205,7 @@ def _handle_oauth_callbacks(params: dict[str, str]) -> None:
                 user = USER_STORE.upsert_google_user(
                     profile["email"], profile["name"], profile.get("sub") or ""
                 )
-                _set_current_user(user)
+                _persist_session(user)
                 st.success(f"Signed in as {user.email}")
             except Exception as exc:
                 st.error(f"Google sign-in failed: {exc}")
@@ -178,7 +223,7 @@ def _handle_oauth_callbacks(params: dict[str, str]) -> None:
                 user = USER_STORE.upsert_google_user(
                     profile["email"], profile["name"], profile.get("sub") or ""
                 )
-                _set_current_user(user)
+                _persist_session(user)
                 st.success(f"Signed in as {user.email}")
             except Exception as exc:
                 st.error(f"Google sign-in failed: {exc}")
@@ -293,7 +338,7 @@ def run_app() -> None:  # pragma: no cover
         # Render the new centered login page
         authenticated_user = login_ui.render_login_page(USER_STORE)
         if authenticated_user:
-            _set_current_user(authenticated_user)
+            _persist_session(authenticated_user)
             st.rerun()
         st.stop()  # Stop rendering the rest of the app until logged in
     
