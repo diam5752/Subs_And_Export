@@ -1,6 +1,6 @@
 import pytest
 
-from greek_sub_publisher import auth, history, tiktok
+from greek_sub_publisher import auth, database, history, tiktok
 
 
 class DummyResponse:
@@ -17,13 +17,27 @@ class DummyResponse:
 
 
 def test_local_register_and_auth(tmp_path):
-    store = auth.UserStore(tmp_path / "users.json")
+    db = database.Database(tmp_path / "app.db")
+    store = auth.UserStore(db=db)
     user = store.register_local_user("Test@Example.com", "secret", "Tester")
     assert user.email == "test@example.com"
     authed = store.authenticate_local("test@example.com", "secret")
     assert authed and authed.email == "test@example.com"
     with pytest.raises(ValueError):
         store.register_local_user("test@example.com", "secret", "Tester")
+
+
+def test_session_roundtrip(tmp_path):
+    db = database.Database(tmp_path / "app.db")
+    store = auth.UserStore(db=db)
+    sessions = auth.SessionStore(db=db)
+    user = store.register_local_user("persist@example.com", "secret", "Persist")
+    token = sessions.issue_session(user, user_agent="pytest")
+    assert isinstance(token, str)
+    restored = sessions.authenticate(token)
+    assert restored and restored.email == user.email
+    sessions.revoke(token)
+    assert sessions.authenticate(token) is None
 
 
 def test_google_oauth_config(monkeypatch):
@@ -38,7 +52,8 @@ def test_google_oauth_config(monkeypatch):
 
 
 def test_history_store_roundtrip(tmp_path):
-    store = history.HistoryStore(tmp_path / "history.jsonl")
+    db = database.Database(tmp_path / "app.db")
+    store = history.HistoryStore(db=db)
     user = auth.User(id="u1", email="a@b.com", name="A", provider="local")
     store.record_event(user, "process", "ran", {"ok": True})
     events = store.recent_for_user(user, limit=5)

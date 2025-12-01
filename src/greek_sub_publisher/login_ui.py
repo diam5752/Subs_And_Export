@@ -96,7 +96,7 @@ def render_login_page(user_store: auth.UserStore) -> auth.User | None:
             st.session_state["show_register"] = False
             
         if st.button("Don't have an account? Sign up", type="secondary", use_container_width=True):
-             st.session_state["show_register"] = not st.session_state["show_register"]
+            st.session_state["show_register"] = not st.session_state["show_register"]
              
         if st.session_state["show_register"]:
             with st.form("register_form"):

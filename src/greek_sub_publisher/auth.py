@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import os
 import secrets
-from dataclasses import asdict, dataclass
-from pathlib import Path
-from typing import Dict, List, Optional
+import time
+from dataclasses import dataclass
+from typing import Dict, Optional
 
 from . import config
+from .database import Database
 
 
 @dataclass
@@ -36,28 +36,10 @@ class User:
 
 
 class UserStore:
-    """Simple JSON-backed user store."""
+    """SQLite-backed user store suitable for multi-user deployments."""
 
-    def __init__(self, path: Path | None = None) -> None:
-        self.path = path or (config.PROJECT_ROOT / "logs" / "users.json")
-
-    # Internal helpers
-    def _load(self) -> List[dict]:
-        if not self.path.exists():
-            return []
-        try:
-            with self.path.open("r", encoding="utf-8") as fh:
-                data = json.load(fh)
-            if isinstance(data, list):
-                return data
-        except Exception:
-            return []
-        return []
-
-    def _write(self, rows: List[dict]) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        with self.path.open("w", encoding="utf-8") as fh:
-            json.dump(rows, fh, ensure_ascii=False, indent=2)
+    def __init__(self, path: str | os.PathLike | None = None, db: Database | None = None) -> None:
+        self.db = db or Database(path)
 
     # Public API
     def register_local_user(self, email: str, password: str, name: str) -> User:
@@ -77,34 +59,60 @@ class UserStore:
             password_hash=_hash_password(password),
             created_at=_utc_iso(),
         )
-        rows = self._load()
-        rows.append(asdict(user))
-        self._write(rows)
+        with self.db.connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO users(id, email, name, provider, password_hash, google_sub, created_at)
+                VALUES(?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    user.id,
+                    user.email,
+                    user.name,
+                    user.provider,
+                    user.password_hash,
+                    user.google_sub,
+                    user.created_at,
+                ),
+            )
         return user
 
     def upsert_google_user(self, email: str, name: str, sub: str) -> User:
         email = email.strip().lower()
-        rows = self._load()
-        for idx, row in enumerate(rows):
-            if row.get("email") == email:
-                # Update existing
-                rows[idx]["name"] = name
-                rows[idx]["google_sub"] = sub
-                rows[idx]["provider"] = "google"
-                self._write(rows)
-                return _user_from_row(rows[idx])
+        with self.db.connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM users WHERE email = ?", (email,)
+            ).fetchone()
+            if row:
+                conn.execute(
+                    "UPDATE users SET name = ?, google_sub = ?, provider = ? WHERE email = ?",
+                    (name, sub, "google", email),
+                )
+                return _user_from_row(dict(row))
 
-        user = User(
-            id=secrets.token_hex(8),
-            email=email,
-            name=name.strip() or email.split("@")[0],
-            provider="google",
-            google_sub=sub,
-            created_at=_utc_iso(),
-        )
-        rows.append(asdict(user))
-        self._write(rows)
-        return user
+            user = User(
+                id=secrets.token_hex(8),
+                email=email,
+                name=name.strip() or email.split("@")[0],
+                provider="google",
+                google_sub=sub,
+                created_at=_utc_iso(),
+            )
+            conn.execute(
+                """
+                INSERT INTO users(id, email, name, provider, google_sub, created_at)
+                VALUES(?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    user.id,
+                    user.email,
+                    user.name,
+                    user.provider,
+                    user.google_sub,
+                    user.created_at,
+                ),
+            )
+            return user
 
     def authenticate_local(self, email: str, password: str) -> Optional[User]:
         email = email.strip().lower()
@@ -119,10 +127,60 @@ class UserStore:
 
     def get_user_by_email(self, email: str) -> Optional[User]:
         email = email.strip().lower()
-        for row in self._load():
-            if row.get("email") == email:
-                return _user_from_row(row)
-        return None
+        with self.db.connect() as conn:
+            row = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+        if not row:
+            return None
+        return _user_from_row(dict(row))
+
+
+class SessionStore:
+    """Persistent session tokens for automatic sign-in."""
+
+    SESSION_TTL_SECONDS = 60 * 60 * 24 * 30  # 30 days
+
+    def __init__(self, db: Database | None = None) -> None:
+        self.db = db or Database()
+
+    def issue_session(self, user: User, user_agent: str | None = None) -> str:
+        token = secrets.token_urlsafe(32)
+        token_hash = _hash_token(token)
+        now = int(time.time())
+        expires_at = now + self.SESSION_TTL_SECONDS
+        with self.db.connect() as conn:
+            conn.execute(
+                """
+                INSERT OR REPLACE INTO sessions(token_hash, user_id, created_at, expires_at, user_agent)
+                VALUES(?, ?, ?, ?, ?)
+                """,
+                (token_hash, user.id, now, expires_at, user_agent),
+            )
+        return token
+
+    def authenticate(self, token: str) -> Optional[User]:
+        if not token:
+            return None
+        token_hash = _hash_token(token)
+        now = int(time.time())
+        with self.db.connect() as conn:
+            row = conn.execute(
+                """
+                SELECT u.* FROM sessions s
+                JOIN users u ON u.id = s.user_id
+                WHERE s.token_hash = ? AND s.expires_at > ?
+                ORDER BY s.created_at DESC
+                LIMIT 1
+                """,
+                (token_hash, now),
+            ).fetchone()
+        if not row:
+            return None
+        return _user_from_row(dict(row))
+
+    def revoke(self, token: str) -> None:
+        token_hash = _hash_token(token)
+        with self.db.connect() as conn:
+            conn.execute("DELETE FROM sessions WHERE token_hash = ?", (token_hash,))
 
 
 def _user_from_row(row: Dict) -> User:
@@ -141,6 +199,10 @@ def _hash_password(password: str, salt: str | None = None) -> str:
     salt = salt or secrets.token_hex(8)
     digest = hashlib.sha256(f"{salt}:{password}".encode("utf-8")).hexdigest()
     return f"{salt}${digest}"
+
+
+def _hash_token(token: str) -> str:
+    return hashlib.sha256(f"session:{token}".encode("utf-8")).hexdigest()
 
 
 def _verify_password(password: str, encoded: str) -> bool:
