@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { api } from '@/lib/api';
 
 interface User {
@@ -26,7 +26,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
-    const refreshUser = async () => {
+    const refreshUser = useCallback(async () => {
         try {
             const userData = await api.getCurrentUser();
             setUser(userData);
@@ -34,7 +34,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             api.clearToken();
             setUser(null);
         }
-    };
+    }, []);
 
     useEffect(() => {
         // Check for existing session
@@ -43,7 +43,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 const userData = await api.getCurrentUser();
                 setUser(userData);
             } catch {
-                // Not authenticated
                 api.clearToken();
             } finally {
                 setIsLoading(false);
@@ -52,28 +51,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         checkAuth();
     }, []);
 
-    const login = async (email: string, password: string) => {
+    const login = useCallback(async (email: string, password: string) => {
         await api.login(email, password);
-        const userData = await api.getCurrentUser();
-        setUser(userData);
-    };
+        await refreshUser();
+    }, [refreshUser]);
 
-    const register = async (email: string, password: string, name: string) => {
+    const register = useCallback(async (email: string, password: string, name: string) => {
         await api.register(email, password, name);
-        // Automatically log in after registration
         await login(email, password);
-    };
+    }, [login]);
 
-    const googleLogin = async (code: string, state: string) => {
+    const googleLogin = useCallback(async (code: string, state: string) => {
         await api.googleCallback(code, state);
-        const userData = await api.getCurrentUser();
-        setUser(userData);
-    };
+        await refreshUser();
+    }, [refreshUser]);
 
-    const logout = () => {
+    const logout = useCallback(() => {
         api.clearToken();
         setUser(null);
-    };
+    }, []);
 
     return (
         <AuthContext.Provider value={{ user, isLoading, login, register, googleLogin, logout, refreshUser }}>

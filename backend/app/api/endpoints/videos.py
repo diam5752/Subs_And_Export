@@ -10,8 +10,9 @@ from ... import config
 from ...jobs import JobStore
 from ...video_processing import normalize_and_stub_subtitles
 from ...auth import User
+from ...history import HistoryStore
 from ...schemas import JobResponse
-from ..deps import get_current_user, get_job_store
+from ..deps import get_current_user, get_job_store, get_history_store
 
 router = APIRouter()
 
@@ -28,13 +29,32 @@ class ProcessingSettings(BaseModel):
     use_llm: bool = False
     context_prompt: str = ""
 
+
+def _record_event_safe(
+    history_store: HistoryStore | None,
+    user: User | None,
+    kind: str,
+    summary: str,
+    data: dict,
+) -> None:
+    """Best-effort history logger that never raises."""
+    if not history_store or not user:
+        return
+    try:
+        history_store.record_event(user, kind, summary, data)
+    except Exception:
+        return
+
 def run_video_processing(
     job_id: str,
     input_path: Path,
     output_path: Path,
     artifact_dir: Path,
     settings: ProcessingSettings,
-    job_store: JobStore
+    job_store: JobStore,
+    history_store: HistoryStore | None = None,
+    user: User | None = None,
+    original_name: str | None = None,
 ):
     """Background task to run the heavy video processing."""
     try:
@@ -50,6 +70,9 @@ def run_video_processing(
         model_size = settings.transcribe_model
         crf_map = {"low size": 28, "balanced": 23, "high quality": 18}
         video_crf = crf_map.get(settings.video_quality.lower(), 23)
+
+        artifact_dir.mkdir(parents=True, exist_ok=True)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
         
         result = normalize_and_stub_subtitles(
             input_path=input_path,
@@ -74,13 +97,38 @@ def run_video_processing(
         result_data = {
             "video_path": str(final_path.relative_to(config.PROJECT_ROOT.parent)), # Relative to backend root for serving
             "artifacts_dir": str(artifact_dir.relative_to(config.PROJECT_ROOT.parent)),
-            "social": social.tiktok.title if social else None # Just storing title for simple view now
+            "public_url": f"/static/{final_path.relative_to(DATA_DIR).as_posix()}",
+            "artifact_url": f"/static/{artifact_dir.relative_to(DATA_DIR).as_posix()}",
+            "social": social.tiktok.title if social else None, # Just storing title for simple view now
+            "original_filename": original_name or input_path.name,
+            "video_crf": video_crf,
+            "model_size": model_size,
         }
         
         job_store.update_job(job_id, status="completed", progress=100, message="Done!", result_data=result_data)
+        _record_event_safe(
+            history_store,
+            user,
+            "process_completed",
+            f"Processed {original_name or input_path.name}",
+            {
+                "job_id": job_id,
+                "model_size": model_size,
+                "video_crf": video_crf,
+                "output": result_data.get("public_url"),
+                "artifacts": result_data.get("artifact_url"),
+            },
+        )
 
     except Exception as e:
         job_store.update_job(job_id, status="failed", message=str(e))
+        _record_event_safe(
+            history_store,
+            user,
+            "process_failed",
+            f"Processing failed for {original_name or input_path.name}",
+            {"job_id": job_id, "error": str(e)},
+        )
 
 
 @router.post("/process", response_model=JobResponse)
@@ -92,7 +140,8 @@ async def process_video(
     use_llm: bool = Form(False),
     context_prompt: str = Form(""),
     current_user: User = Depends(get_current_user),
-    job_store: JobStore = Depends(get_job_store)
+    job_store: JobStore = Depends(get_job_store),
+    history_store: HistoryStore = Depends(get_history_store)
 ):
     """Upload a video and start processing."""
     job_id = str(uuid.uuid4())
@@ -112,6 +161,18 @@ async def process_video(
     
     # Create Job
     job = job_store.create_job(job_id, current_user.id)
+    _record_event_safe(
+        history_store,
+        current_user,
+        "process_started",
+        f"Queued {file.filename}",
+        {
+            "job_id": job_id,
+            "model_size": transcribe_model,
+            "video_quality": video_quality,
+            "use_llm": use_llm,
+        },
+    )
     
     # Enqueue Task
     settings = ProcessingSettings(
@@ -128,7 +189,10 @@ async def process_video(
         output_path,
         artifact_path,
         settings,
-        job_store
+        job_store,
+        history_store,
+        current_user,
+        file.filename,
     )
     
     return job

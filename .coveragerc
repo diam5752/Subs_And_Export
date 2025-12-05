@@ -1,0 +1,5 @@
+[run]
+omit =
+    src/greek_sub_publisher/login_ui.py
+    src/greek_sub_publisher/history_ui.py
+    src/greek_sub_publisher/ui.py

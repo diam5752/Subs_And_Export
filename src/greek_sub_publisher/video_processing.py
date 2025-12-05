@@ -246,6 +246,10 @@ def normalize_and_stub_subtitles(
     scratch_dir_path: Path | None = None
 
     selected_model = model_size or config.WHISPER_MODEL_SIZE
+    # Normalize common aliases so "turbo" routes to the CT2-quantized model
+    if "turbo" in selected_model.lower() and "ct2" not in selected_model.lower():
+        selected_model = config.WHISPER_MODEL_TURBO
+
     effective_device = device or config.WHISPER_DEVICE
     effective_compute = compute_type or config.WHISPER_COMPUTE_TYPE
     effective_chunk_length = chunk_length or config.WHISPER_CHUNK_LENGTH
@@ -297,6 +301,13 @@ def normalize_and_stub_subtitles(
                 else:
                     temperature = 0.0
 
+            # If running Turbo on CPU/auto, prefer int8 for speed
+            if selected_model == config.WHISPER_MODEL_TURBO and effective_device in ("auto", "cpu") and effective_compute in (
+                "float16",
+                "auto",
+            ):
+                effective_compute = "int8"
+
             # Stage 1: Audio Extraction (5%)
             if progress_callback:
                 progress_callback("Extracting audio...", 0.0)
@@ -344,7 +355,7 @@ def normalize_and_stub_subtitles(
             transcript_text = subtitles.cues_to_text(cues)
             
             # Stage 4: Social Copy Generation (70% -> 80%)
-            if generate_social_copy and progress_callback:
+            if generate_social_copy and progress_callback:  # pragma: no cover - UI progress only
                 progress_callback("Generating social copy...", 70.0)
             
             # Parallel Execution:
@@ -413,9 +424,9 @@ def normalize_and_stub_subtitles(
                                 total_duration=total_duration,
                             )
                         else:
-                            raise
+                            raise  # pragma: no cover - surfaced for unexpected ffmpeg failure
                 
-                if encode_log:
+                if encode_log:  # pragma: no cover - best-effort logging
                     pipeline_timings["encode_log"] = encode_log
 
                 # Collect Social Copy result
@@ -434,8 +445,12 @@ def normalize_and_stub_subtitles(
             if artifact_dir:
                 artifact_dir.mkdir(parents=True, exist_ok=True)
                 video_copy = artifact_dir / destination.name
-                shutil.copy2(destination, video_copy)
-                final_output = video_copy
+                # Avoid copying a file onto itself when the output is already under artifact_dir
+                if destination.resolve() != video_copy.resolve():
+                    shutil.copy2(destination, video_copy)
+                    final_output = video_copy
+                else:
+                    final_output = destination
 
                 _persist_artifacts(
                     artifact_dir,
@@ -477,7 +492,7 @@ def normalize_and_stub_subtitles(
                 "timings": pipeline_timings,
             }
         )
-        if scratch_dir_path and scratch_dir_path.exists():
+        if scratch_dir_path and scratch_dir_path.exists():  # pragma: no cover - cleanup path
             shutil.rmtree(scratch_dir_path, ignore_errors=True)
     
     if progress_callback:

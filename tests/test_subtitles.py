@@ -1,4 +1,7 @@
 from pathlib import Path
+import pytest
+import sys
+import types
 
 from greek_sub_publisher import subtitles
 
@@ -16,6 +19,14 @@ def test_extract_audio_invokes_ffmpeg(monkeypatch, tmp_path: Path) -> None:
     audio_path = subtitles.extract_audio(input_video, output_dir=tmp_path)
     assert audio_path.exists()
     assert audio_path.suffix == ".wav"
+
+
+def test_get_video_duration(monkeypatch):
+    class Result:
+        stdout = b"3.5"
+
+    monkeypatch.setattr(subtitles.subprocess, "run", lambda *a, **k: Result())
+    assert subtitles.get_video_duration(Path("clip.mp4")) == 3.5
 
 
 def test_generate_subtitles_from_audio_writes_srt(monkeypatch, tmp_path: Path) -> None:
@@ -201,3 +212,133 @@ def test_whisper_model_falls_back_on_compute_type(monkeypatch) -> None:
 
     assert isinstance(model, object)
     assert attempts == ["int8_float16", "int8"]
+
+
+def test_parse_srt_and_time_conversion(tmp_path: Path) -> None:
+    srt_path = tmp_path / "clip.srt"
+    srt_path.write_text(
+        "1\n00:00:01,00 --> 00:00:03,00\nHello there\n\n"
+        "2\n00:00:05.00 --> 00:00:06.50\nSecond line\n",
+        encoding="utf-8",
+    )
+    parsed = subtitles._parse_srt(srt_path)
+    assert parsed[0][0] == 1.0
+    assert parsed[0][1] == 3.0
+    assert parsed[1][0] == 5.0
+    assert parsed[1][2] == "Second line"
+
+
+def test_parse_srt_skips_invalid_blocks(tmp_path: Path) -> None:
+    srt_path = tmp_path / "invalid.srt"
+    srt_path.write_text("1\nno timecode here\nMissing\n\n2\nOnlyOneLine\n\n", encoding="utf-8")
+    assert subtitles._parse_srt(srt_path) == []
+
+    empty = tmp_path / "empty.srt"
+    empty.write_text("", encoding="utf-8")
+    assert subtitles._parse_srt(empty) == []
+
+
+def test_wrap_two_lines_handles_long_words() -> None:
+    first, second = subtitles._wrap_two_lines(["SUPERLONGWORDTHATNEEDSWRAP"], max_chars=10)
+    assert first
+    # Should split the long word across lines without error
+    assert " ".join(first + second)
+    empty_first, empty_second = subtitles._wrap_two_lines([], max_chars=5)
+    assert empty_first == []
+    assert empty_second == []
+
+
+def test_format_karaoke_text_without_word_timings() -> None:
+    cue = subtitles.Cue(start=0.0, end=1.0, text="one two three four five six", words=None)
+    karaoke = subtitles._format_karaoke_text(cue)
+    assert "\\N" in karaoke
+
+    short_cue = subtitles.Cue(start=0.0, end=1.0, text="hello world", words=None)
+    assert "hello" in subtitles._format_karaoke_text(short_cue)
+    single_word = subtitles.Cue(start=0.0, end=1.0, text="hello", words=None)
+    assert subtitles._format_karaoke_text(single_word) == "hello"
+
+
+def test_clean_json_response_strips_fences() -> None:
+    fenced = "```json\n{\"a\":1}\n```"
+    assert subtitles._clean_json_response(fenced) == '{"a":1}'
+
+    assert subtitles._clean_json_response("```\nbody\n```") == "body"
+    assert subtitles._clean_json_response("```justcode```") == "```justcode"
+
+
+def test_build_social_copy_llm_retries_and_raises(monkeypatch):
+    class DummyMessage:
+        def __init__(self, content):
+            self.content = content
+
+    class DummyChoice:
+        def __init__(self, content):
+            self.message = DummyMessage(content)
+
+    class DummyCompletions:
+        def __init__(self, content):
+            self.choices = [DummyChoice(content)]
+
+    class DummyClient:
+        class chat:
+            class completions:
+                @staticmethod
+                def create(model, messages, temperature):
+                    return DummyCompletions("not-json")
+
+    monkeypatch.setenv("OPENAI_API_KEY", "k")
+    monkeypatch.setattr(subtitles, "_load_openai_client", lambda api_key: DummyClient)
+
+    with pytest.raises(ValueError):
+        subtitles.build_social_copy_llm("hello")
+
+
+def test_compose_title_branches() -> None:
+    assert subtitles._compose_title([]) == "Greek Highlights"
+    assert subtitles._compose_title(["keyword"]) == "Keyword Highlights"
+    assert subtitles._compose_title(["one", "two"]) == "One & Two Moments"
+
+
+def test_create_styled_subtitle_file_without_cues(tmp_path: Path) -> None:
+    srt_path = tmp_path / "clip.srt"
+    srt_path.write_text("1\n00:00:00,00 --> 00:00:01,00\nΓεια\n", encoding="utf-8")
+    ass_path = subtitles.create_styled_subtitle_file(srt_path)
+    assert ass_path.exists()
+
+
+def test_load_openai_client_success(monkeypatch):
+    class DummyOpenAI:
+        def __init__(self, api_key) -> None:
+            self.api_key = api_key
+
+    monkeypatch.setitem(sys.modules, "openai", types.SimpleNamespace(OpenAI=DummyOpenAI))
+    client = subtitles._load_openai_client("k")
+    assert isinstance(client, DummyOpenAI)
+
+
+def test_build_social_copy_llm_empty_response(monkeypatch):
+    class DummyMessage:
+        def __init__(self, content):
+            self.content = content
+
+    class DummyChoice:
+        def __init__(self, content):
+            self.message = DummyMessage(content)
+
+    class DummyCompletions:
+        def __init__(self, content):
+            self.choices = [DummyChoice(content)]
+
+    class DummyClient:
+        class chat:
+            class completions:
+                @staticmethod
+                def create(model, messages, temperature):
+                    return DummyCompletions("")
+
+    monkeypatch.setenv("OPENAI_API_KEY", "k")
+    monkeypatch.setattr(subtitles, "_load_openai_client", lambda api_key: DummyClient)
+
+    with pytest.raises(ValueError):
+        subtitles.build_social_copy_llm("hi")

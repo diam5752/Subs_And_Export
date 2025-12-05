@@ -1,5 +1,3 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-
 // Mock fetch globally
 global.fetch = jest.fn();
 

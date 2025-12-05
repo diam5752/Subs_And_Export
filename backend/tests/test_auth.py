@@ -1,7 +1,12 @@
 """Tests for the auth API endpoints."""
+import sys
+import types
 import pytest
 from fastapi.testclient import TestClient
 from backend.main import app
+from backend.app import auth as backend_auth
+from backend.app.api.endpoints import auth as auth_ep
+from backend.app.database import Database
 
 
 
@@ -242,3 +247,115 @@ class TestUserUpdates:
             headers={"Authorization": f"Bearer {token}"}
         )
         assert response.status_code == 400
+
+    def test_update_password_external_provider_rejected(self, client, test_user_data, monkeypatch):
+        """Password updates are not allowed for non-local users."""
+        client.post("/auth/register", json=test_user_data)
+        login_response = client.post(
+            "/auth/token",
+            data={
+                "username": test_user_data["email"],
+                "password": test_user_data["password"]
+            }
+        )
+        token = login_response.json()["access_token"]
+
+        # Flip the provider to google directly in the DB to simulate external account
+        db = Database()
+        with db.connect() as conn:
+            conn.execute("UPDATE users SET provider = 'google' WHERE email = ?", (test_user_data["email"],))
+
+        response = client.put(
+            "/auth/password",
+            json={"password": "newpass", "confirm_password": "newpass"},
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        assert response.status_code == 400
+
+
+class TestGoogleOAuthEndpoints:
+    def test_google_url_requires_config(self, client, monkeypatch):
+        monkeypatch.delenv("GOOGLE_CLIENT_ID", raising=False)
+        monkeypatch.delenv("GOOGLE_CLIENT_SECRET", raising=False)
+        monkeypatch.delenv("GOOGLE_REDIRECT_URI", raising=False)
+        monkeypatch.setattr(auth_ep, "google_oauth_config", lambda: None)
+        resp = client.get("/auth/google/url")
+        assert resp.status_code == 503
+
+    def test_google_url_builds_auth_link(self, client, monkeypatch):
+        monkeypatch.setenv("GOOGLE_CLIENT_ID", "cid")
+        monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "sec")
+        monkeypatch.setenv("GOOGLE_REDIRECT_URI", "http://localhost")
+
+        class DummyFlow:
+            called = False
+
+            @classmethod
+            def from_client_config(cls, cfg, scopes, redirect_uri=None):
+                cls.called = True
+                inst = cls()
+                inst.cfg = cfg
+                inst.scopes = scopes
+                inst.redirect_uri = redirect_uri
+                return inst
+
+            def authorization_url(self, **kwargs):
+                return "http://example.com/auth", None
+
+        # Inject fake Flow into the module import path used by build_google_flow
+        fake_module = types.SimpleNamespace(Flow=DummyFlow)
+        monkeypatch.setitem(sys.modules, "google_auth_oauthlib.flow", fake_module)
+
+        resp = client.get("/auth/google/url")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["auth_url"].startswith("http://example.com/auth")
+        assert body["state"]
+        assert DummyFlow.called is True
+
+    def test_google_callback_requires_config(self, client, monkeypatch):
+        monkeypatch.setattr(auth_ep, "google_oauth_config", lambda: None)
+        resp = client.post("/auth/google/callback", json={"code": "c", "state": "s"})
+        assert resp.status_code == 503
+
+    def test_google_callback_success_and_failure(self, client, monkeypatch):
+        monkeypatch.setenv("GOOGLE_CLIENT_ID", "cid")
+        monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "sec")
+        monkeypatch.setenv("GOOGLE_REDIRECT_URI", "http://localhost")
+
+        # Stub out flow + token verification
+        class FakeFlow:
+            def __init__(self):
+                self.credentials = types.SimpleNamespace(id_token="tok")
+
+            def fetch_token(self, code):
+                self.fetched = code
+
+        monkeypatch.setitem(
+            sys.modules,
+            "google_auth_oauthlib.flow",
+            types.SimpleNamespace(Flow=types.SimpleNamespace(from_client_config=lambda cfg, scopes, redirect_uri=None: FakeFlow())),
+        )
+        monkeypatch.setitem(
+            sys.modules,
+            "google.auth.transport.requests",
+            types.SimpleNamespace(Request=lambda: "req"),
+        )
+        monkeypatch.setitem(
+            sys.modules,
+            "google.oauth2.id_token",
+            types.SimpleNamespace(verify_oauth2_token=lambda tok, req, client_id: {"email": "g@example.com", "name": None, "sub": "subid"}),
+        )
+
+        # Patch exchange to exercise both success and error branches
+        monkeypatch.setattr(auth_ep, "exchange_google_code", backend_auth.exchange_google_code)
+
+        # Success path
+        resp = client.post("/auth/google/callback", json={"code": "123", "state": "s"})
+        assert resp.status_code == 200
+        assert resp.json()["access_token"]
+
+        # Failure path
+        monkeypatch.setattr(auth_ep, "exchange_google_code", lambda cfg, code: (_ for _ in ()).throw(RuntimeError("boom")))
+        resp_fail = client.post("/auth/google/callback", json={"code": "bad", "state": "s"})
+        assert resp_fail.status_code == 400

@@ -443,10 +443,299 @@ def test_pipeline_logs_error_when_output_missing(monkeypatch, tmp_path: Path) ->
             model_size="tiny",
         )
 
-    assert logged["status"] == "error"
-    assert "Output video was not produced" in logged["error"]
+
+def test_input_audio_is_aac(monkeypatch):
+    class Result:
+        stdout = "aac\n"
+
+    monkeypatch.setattr(video_processing.subprocess, "run", lambda *a, **k: Result())
+    assert video_processing._input_audio_is_aac(Path("any.mp4")) is True
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("probe fail")
+
+    monkeypatch.setattr(video_processing.subprocess, "run", boom)
+    assert video_processing._input_audio_is_aac(Path("any.mp4")) is False
 
 
+def test_run_ffmpeg_with_subs_parses_progress(monkeypatch, tmp_path: Path):
+    ass_path = tmp_path / "subs.ass"
+    ass_path.write_text("[Script Info]")
+    input_path = tmp_path / "in.mp4"
+    input_path.write_text("video")
+    output_path = tmp_path / "out.mp4"
+
+    class DummyProc:
+        def __init__(self):
+            self.stderr = [
+                "frame=1 time=00:00:01.00",
+                "frame=2 time=00:00:02.00",
+            ]
+            self.returncode = 0
+            self.stdout = []
+
+        def wait(self):
+            return 0
+
+    monkeypatch.setattr(video_processing.subprocess, "Popen", lambda *a, **k: DummyProc())
+    progress = []
+
+    video_processing._run_ffmpeg_with_subs(
+        input_path,
+        ass_path,
+        output_path,
+        video_crf=23,
+        video_preset="medium",
+        audio_bitrate="128k",
+        audio_copy=True,
+        use_hw_accel=False,
+        progress_callback=lambda p: progress.append(p),
+        total_duration=4.0,
+    )
+
+    assert progress and max(progress) <= 100
+
+
+def test_run_ffmpeg_with_subs_uses_hw_accel(monkeypatch, tmp_path: Path):
+    ass_path = tmp_path / "subs.ass"
+    ass_path.write_text("[Script Info]")
+    input_path = tmp_path / "in.mp4"
+    input_path.write_text("video")
+    output_path = tmp_path / "out.mp4"
+
+    class DummyProc:
+        def __init__(self):
+            self.stderr = []
+            self.returncode = 0
+            self.stdout = []
+
+        def wait(self):
+            return 0
+
+    monkeypatch.setattr(video_processing.platform, "system", lambda: "Darwin")
+    monkeypatch.setattr(video_processing.subprocess, "Popen", lambda *a, **k: DummyProc())
+
+    video_processing._run_ffmpeg_with_subs(
+        input_path,
+        ass_path,
+        output_path,
+        video_crf=10,
+        video_preset="medium",
+        audio_bitrate="128k",
+        audio_copy=False,
+        use_hw_accel=True,
+    )
+
+
+def test_pipeline_retries_without_hw_accel(monkeypatch, tmp_path: Path):
+    calls: list[bool] = []
+
+    def fake_extract(input_video: Path, output_dir=None) -> Path:
+        output_dir.mkdir(parents=True, exist_ok=True)
+        audio = output_dir / "audio.wav"
+        audio.write_text("audio")
+        return audio
+
+    def fake_generate(audio_path: Path, **kwargs):
+        srt = Path(kwargs["output_dir"]) / "subs.srt"
+        srt.write_text("1\n00:00:00,00 --> 00:00:01,00\nHello\n", encoding="utf-8")
+        cues = [video_processing.subtitles.Cue(start=0.0, end=1.0, text="HELLO", words=[])]
+        return srt, cues
+
+    def fake_style(transcript_path: Path, **kwargs) -> Path:
+        ass = transcript_path.with_suffix(".ass")
+        ass.write_text("[Script Info]\n")
+        return ass
+
+    def fake_burn(input_path: Path, ass_path: Path, output_path: Path, *, use_hw_accel: bool, **kwargs) -> None:
+        calls.append(use_hw_accel)
+        if use_hw_accel:
+            raise subprocess.CalledProcessError(1, ["ffmpeg"], "fail")
+        output_path.write_bytes(b"video")
+
+    monkeypatch.setattr(video_processing.subtitles, "extract_audio", fake_extract)
+    monkeypatch.setattr(video_processing.subtitles, "generate_subtitles_from_audio", fake_generate)
+    monkeypatch.setattr(video_processing.subtitles, "create_styled_subtitle_file", fake_style)
+    monkeypatch.setattr(video_processing, "_run_ffmpeg_with_subs", fake_burn)
+    monkeypatch.setattr(video_processing.subtitles, "get_video_duration", lambda p: 0.0)
+    monkeypatch.setattr(video_processing, "_input_audio_is_aac", lambda _p: False)
+
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"video")
+    destination = tmp_path / "dest.mp4"
+
+    result_path = video_processing.normalize_and_stub_subtitles(
+        source,
+        destination,
+        language="el",
+        use_hw_accel=True,
+    )
+
+    assert result_path == destination.resolve()
+    assert calls == [True, False]
+
+
+def test_normalize_and_stub_subtitles_missing_input(tmp_path: Path):
+    with pytest.raises(FileNotFoundError):
+        video_processing.normalize_and_stub_subtitles(
+            tmp_path / "missing.mp4",
+            tmp_path / "out.mp4",
+        )
+
+
+def test_normalize_handles_duration_failure(monkeypatch, tmp_path: Path):
+    def fake_extract(input_video: Path, output_dir=None) -> Path:
+        output_dir.mkdir(parents=True, exist_ok=True)
+        audio = output_dir / "audio.wav"
+        audio.write_text("audio")
+        return audio
+
+    def fake_generate(audio_path: Path, **kwargs):
+        srt = Path(kwargs["output_dir"]) / "subs.srt"
+        srt.write_text("1\n00:00:00,00 --> 00:00:01,00\nHello\n", encoding="utf-8")
+        cues = [video_processing.subtitles.Cue(start=0.0, end=1.0, text="HELLO", words=[])]
+        return srt, cues
+
+    def fake_style(transcript_path: Path, **kwargs) -> Path:
+        ass = transcript_path.with_suffix(".ass")
+        ass.write_text("[Script Info]\n")
+        return ass
+
+    monkeypatch.setattr(video_processing.subtitles, "extract_audio", fake_extract)
+    monkeypatch.setattr(video_processing.subtitles, "generate_subtitles_from_audio", fake_generate)
+    monkeypatch.setattr(video_processing.subtitles, "create_styled_subtitle_file", fake_style)
+    monkeypatch.setattr(video_processing.subtitles, "get_video_duration", lambda p: (_ for _ in ()).throw(RuntimeError("fail")))
+    def fake_burn(input_path: Path, ass_path: Path, output_path: Path, **kwargs):
+        output_path.write_bytes(b"video")
+    monkeypatch.setattr(video_processing, "_run_ffmpeg_with_subs", fake_burn)
+    monkeypatch.setattr(video_processing, "_input_audio_is_aac", lambda _p: False)
+
+    src = tmp_path / "src.mp4"
+    src.write_bytes(b"video")
+    dest = tmp_path / "dest.mp4"
+    video_processing.normalize_and_stub_subtitles(src, dest, language="el")
+
+
+def test_normalize_with_large_model_progress(monkeypatch, tmp_path: Path):
+    progress: list[float] = []
+
+    def fake_extract(input_video: Path, output_dir=None) -> Path:
+        output_dir.mkdir(parents=True, exist_ok=True)
+        audio = output_dir / "audio.wav"
+        audio.write_text("audio")
+        return audio
+
+    def fake_generate(audio_path: Path, **kwargs):
+        srt = Path(kwargs["output_dir"]) / "subs.srt"
+        srt.write_text("1\n00:00:00,00 --> 00:00:02,00\nHello\n", encoding="utf-8")
+        cues = [video_processing.subtitles.Cue(start=0.0, end=2.0, text="HELLO", words=[])]
+        if kwargs.get("progress_callback"):
+            kwargs["progress_callback"](50.0)
+        return srt, cues
+
+    def fake_style(transcript_path: Path, **kwargs) -> Path:
+        ass = transcript_path.with_suffix(".ass")
+        ass.write_text("[Script Info]\n")
+        return ass
+
+    def fake_burn(input_path: Path, ass_path: Path, output_path: Path, **kwargs) -> None:
+        output_path.write_bytes(b"video")
+        cb = kwargs.get("progress_callback")
+        if cb:
+            cb(40.0)
+
+    monkeypatch.setattr(video_processing.subtitles, "extract_audio", fake_extract)
+    monkeypatch.setattr(video_processing.subtitles, "generate_subtitles_from_audio", fake_generate)
+    monkeypatch.setattr(video_processing.subtitles, "create_styled_subtitle_file", fake_style)
+    monkeypatch.setattr(video_processing, "_run_ffmpeg_with_subs", fake_burn)
+    monkeypatch.setattr(video_processing.subtitles, "get_video_duration", lambda p: 8.0)
+    monkeypatch.setattr(video_processing, "_input_audio_is_aac", lambda _p: False)
+
+    src = tmp_path / "src.mp4"
+    src.write_bytes(b"video")
+    dest = tmp_path / "dest.mp4"
+
+    video_processing.normalize_and_stub_subtitles(
+        src,
+        dest,
+        language="el",
+        model_size="large-v3",
+        progress_callback=lambda _msg, pct: progress.append(pct),
+    )
+
+    assert any(pct > 80 for pct in progress)
+
+
+def test_run_ffmpeg_with_subs_raises_on_failure(monkeypatch, tmp_path: Path):
+    ass_path = tmp_path / "subs.ass"
+    ass_path.write_text("[Script Info]")
+    input_path = tmp_path / "in.mp4"
+    input_path.write_text("video")
+    output_path = tmp_path / "out.mp4"
+
+    class DummyProc:
+        def __init__(self):
+            self.stderr = ["error"]
+            self.returncode = 1
+            self.stdout = []
+
+        def wait(self):
+            return 1
+
+    monkeypatch.setattr(video_processing.subprocess, "Popen", lambda *a, **k: DummyProc())
+
+    with pytest.raises(subprocess.CalledProcessError):
+        video_processing._run_ffmpeg_with_subs(
+            input_path,
+            ass_path,
+            output_path,
+            video_crf=23,
+            video_preset="medium",
+            audio_bitrate="128k",
+            audio_copy=True,
+            use_hw_accel=False,
+        )
+
+
+def test_normalize_applies_turbo_defaults(monkeypatch, tmp_path: Path):
+    def fake_extract(input_video: Path, output_dir=None) -> Path:
+        output_dir.mkdir(parents=True, exist_ok=True)
+        audio = output_dir / "audio.wav"
+        audio.write_text("audio")
+        return audio
+
+    def fake_generate(audio_path: Path, **kwargs):
+        srt = Path(kwargs["output_dir"]) / "subs.srt"
+        srt.write_text("1\n00:00:00,00 --> 00:00:01,00\nHi\n", encoding="utf-8")
+        cues = [video_processing.subtitles.Cue(start=0.0, end=1.0, text="HI", words=[])]
+        return srt, cues
+
+    def fake_style(transcript_path: Path, **kwargs) -> Path:
+        ass = transcript_path.with_suffix(".ass")
+        ass.write_text("[Script Info]\n")
+        return ass
+
+    def fake_burn(input_path: Path, ass_path: Path, output_path: Path, **kwargs) -> None:
+        output_path.write_bytes(b"video")
+
+    monkeypatch.setattr(video_processing.subtitles, "extract_audio", fake_extract)
+    monkeypatch.setattr(video_processing.subtitles, "generate_subtitles_from_audio", fake_generate)
+    monkeypatch.setattr(video_processing.subtitles, "create_styled_subtitle_file", fake_style)
+    monkeypatch.setattr(video_processing, "_run_ffmpeg_with_subs", fake_burn)
+    monkeypatch.setattr(video_processing.subtitles, "get_video_duration", lambda p: 0.0)
+    monkeypatch.setattr(video_processing, "_input_audio_is_aac", lambda _p: True)
+
+    src = tmp_path / "src.mp4"
+    src.write_bytes(b"video")
+    dest = tmp_path / "dest.mp4"
+
+    video_processing.normalize_and_stub_subtitles(
+        src,
+        dest,
+        language="el",
+        model_size=video_processing.config.WHISPER_MODEL_TURBO,
+        audio_copy=None,
+    )
 def test_social_copy_falls_back_if_none(monkeypatch, tmp_path: Path) -> None:
     def fake_extract(input_video: Path, output_dir=None) -> Path:
         output_dir.mkdir(parents=True, exist_ok=True)

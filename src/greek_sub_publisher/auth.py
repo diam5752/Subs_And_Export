@@ -7,7 +7,9 @@ import os
 import secrets
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Dict, Optional
+import tomllib
 
 from . import config
 from .database import Database
@@ -88,7 +90,11 @@ class UserStore:
                     "UPDATE users SET name = ?, google_sub = ?, provider = ? WHERE email = ?",
                     (name, sub, "google", email),
                 )
-                return _user_from_row(dict(row))
+                updated = conn.execute(
+                    "SELECT * FROM users WHERE email = ?",
+                    (email,),
+                ).fetchone()
+                return _user_from_row(dict(updated)) if updated else _user_from_row(dict(row))
 
             user = User(
                 id=secrets.token_hex(8),
@@ -236,12 +242,34 @@ def _utc_iso() -> str:
 
 
 def _get_secret(key: str) -> str | None:
-    """Safely read a Streamlit secret if available."""
+    """Safely read a Streamlit secret if available or fall back to a secrets file.
+
+    The optional env var ``GSP_SECRETS_FILE`` can point to a specific secrets file.
+    Set ``GSP_USE_FILE_SECRETS=0`` to skip the file fallback (useful in tests).
+    """
     try:
         import streamlit as st  # Local import to avoid hard dependency outside UI
 
         if hasattr(st, "secrets") and key in st.secrets:
             return str(st.secrets.get(key))
+    except Exception:
+        # Ignore streamlit access errors and try file fallback
+        pass
+
+    if os.getenv("GSP_USE_FILE_SECRETS", "1") == "0":
+        return None
+
+    try:
+        secrets_path = os.getenv("GSP_SECRETS_FILE")
+        if secrets_path:
+            path = Path(secrets_path)
+        else:
+            path = config.PROJECT_ROOT.parent.parent / ".streamlit" / "secrets.toml"
+
+        if path.exists():
+            data = tomllib.loads(path.read_text())
+            if key in data:
+                return str(data[key])
     except Exception:
         return None
     return None
@@ -257,11 +285,11 @@ def google_oauth_config() -> dict[str, str] | None:
         GOOGLE_REDIRECT_URI  (should point back to the running Streamlit app)
     """
     client_id = os.getenv("GOOGLE_CLIENT_ID") or _get_secret("GOOGLE_CLIENT_ID")
-    client_secret = os.getenv("GOOGLE_CLIENT_SECRET") or _get_secret(
-        "GOOGLE_CLIENT_SECRET"
-    )
-    redirect_uri = os.getenv("GOOGLE_REDIRECT_URI") or _get_secret(
-        "GOOGLE_REDIRECT_URI"
+    client_secret = os.getenv("GOOGLE_CLIENT_SECRET") or _get_secret("GOOGLE_CLIENT_SECRET")
+    redirect_uri = (
+        os.getenv("GOOGLE_REDIRECT_URI")
+        or _get_secret("GOOGLE_REDIRECT_URI")
+        or _derive_frontend_redirect()
     )
     if not (client_id and client_secret and redirect_uri):
         return None
@@ -270,6 +298,18 @@ def google_oauth_config() -> dict[str, str] | None:
         "client_secret": client_secret,
         "redirect_uri": redirect_uri,
     }
+
+
+def _derive_frontend_redirect() -> str | None:
+    """Best-effort fallback to build a redirect URI from a frontend base URL."""
+    base = (
+        os.getenv("FRONTEND_URL")
+        or os.getenv("NEXT_PUBLIC_SITE_URL")
+        or os.getenv("NEXT_PUBLIC_APP_URL")
+    )
+    if not base:
+        return None
+    return base.rstrip("/") + "/login"
 
 
 def build_google_flow(cfg: dict[str, str]):

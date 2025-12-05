@@ -1,4 +1,6 @@
 import pytest
+import sys
+import types
 
 from greek_sub_publisher import auth, database, history, tiktok
 
@@ -105,6 +107,8 @@ def test_google_oauth_config(monkeypatch):
     # ensuring we don't accidentally read real local secrets.
     import streamlit as st
     monkeypatch.delattr(st, "secrets", raising=False)
+    monkeypatch.setenv("GSP_USE_FILE_SECRETS", "0")
+    monkeypatch.delenv("GSP_SECRETS_FILE", raising=False)
 
     for key in ("GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REDIRECT_URI"):
         monkeypatch.delenv(key, raising=False)
@@ -118,6 +122,24 @@ def test_google_oauth_config(monkeypatch):
     monkeypatch.setenv("GOOGLE_REDIRECT_URI", "http://localhost")
     cfg = auth.google_oauth_config()
     assert cfg and cfg["client_id"] == "cid"
+
+
+def test_get_secret_reads_streamlit(monkeypatch):
+    fake_st = types.SimpleNamespace(secrets={"MY_KEY": "value"})
+    monkeypatch.setitem(sys.modules, "streamlit", fake_st)
+    assert auth._get_secret("MY_KEY") == "value"
+
+
+def test_get_secret_handles_exception(monkeypatch):
+    class BrokenSecrets:
+        def __contains__(self, key):
+            raise RuntimeError("boom")
+
+    class BrokenSt:
+        secrets = BrokenSecrets()
+
+    monkeypatch.setitem(sys.modules, "streamlit", BrokenSt())
+    assert auth._get_secret("ANY") is None
 
 
 def test_history_store_roundtrip(tmp_path):
@@ -218,3 +240,74 @@ def test_tiktok_refresh_error(monkeypatch):
     with pytest.raises(tiktok.TikTokError):
         tiktok.refresh_access_token(cfg, "bad_refresh")
 
+
+def test_tiktok_refresh_success(monkeypatch):
+    cfg = {"client_key": "k", "client_secret": "s", "redirect_uri": "u"}
+
+    def fake_post(url, data=None, files=None, timeout=None):
+        return DummyResponse({"data": {"access_token": "new", "refresh_token": "r", "expires_in": 10}})
+
+    monkeypatch.setattr(tiktok.requests, "post", fake_post)
+    tokens = tiktok.refresh_access_token(cfg, "refresh")
+    assert tokens.access_token == "new"
+    assert tokens.refresh_token == "r"
+
+
+def test_upload_video_missing_file(tmp_path):
+    tokens = tiktok.TikTokTokens(access_token="tok", refresh_token=None, expires_in=100, obtained_at=0)
+    with pytest.raises(FileNotFoundError):
+        tiktok.upload_video(tokens, tmp_path / "missing.mp4", "t", "d")
+
+
+def test_user_store_validation_and_google_update(tmp_path):
+    db = database.Database(tmp_path / "app.db")
+    store = auth.UserStore(db=db)
+
+    with pytest.raises(ValueError):
+        store.register_local_user("   ", "pw", "Name")
+    with pytest.raises(ValueError):
+        store.register_local_user("person@example.com", "", "Name")
+
+    first = store.upsert_google_user("g@example.com", "G Name", "sub1")
+    updated = store.upsert_google_user("g@example.com", "New Name", "sub2")
+    assert updated.id == first.id
+    assert updated.name == "New Name"
+    assert updated.google_sub == "sub2"
+
+    # Google users don't have passwords, so authenticate_local should fail
+    assert store.authenticate_local("g@example.com", "anything") is None
+
+
+def test_session_store_and_password_helpers(tmp_path):
+    db = database.Database(tmp_path / "app.db")
+    store = auth.UserStore(db=db)
+    sessions = auth.SessionStore(db=db)
+
+    user = store.register_local_user("pwcheck@example.com", "pw", "Pw")
+    token = sessions.issue_session(user)
+    assert sessions.authenticate(token)
+    assert sessions.authenticate("") is None
+
+    assert auth._verify_password("pw", "not-a-hash") is False
+
+
+def test_exchange_google_code_missing_id_token(monkeypatch):
+    cfg = {"client_id": "cid", "client_secret": "sec", "redirect_uri": "http://localhost"}
+
+    class FakeFlow:
+        def __init__(self):
+            self.credentials = None
+
+        def fetch_token(self, code):
+            self.credentials = type("C", (), {"id_token": None})()
+
+    fake_flow_mod = type("m", (), {"Flow": type("F", (), {"from_client_config": staticmethod(lambda cfg, scopes, redirect_uri=None: FakeFlow())})})
+    fake_req_mod = type("m", (), {"Request": lambda: "req"})
+    fake_id_token_mod = type("m", (), {"verify_oauth2_token": lambda token, req, cid: {}})
+
+    monkeypatch.setitem(sys.modules, "google_auth_oauthlib.flow", fake_flow_mod)
+    monkeypatch.setitem(sys.modules, "google.auth.transport.requests", fake_req_mod)
+    monkeypatch.setitem(sys.modules, "google.oauth2.id_token", fake_id_token_mod)
+
+    with pytest.raises(RuntimeError):
+        auth.exchange_google_code(cfg, "code")

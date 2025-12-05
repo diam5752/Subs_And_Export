@@ -92,6 +92,19 @@ class Database:
             CREATE INDEX IF NOT EXISTS idx_history_user_ts ON history(user_id, ts DESC);
             CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
             CREATE INDEX IF NOT EXISTS idx_users_google_sub ON users(google_sub);
+
+            CREATE TABLE IF NOT EXISTS jobs (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                status TEXT NOT NULL, -- pending, processing, completed, failed
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL,
+                progress INTEGER DEFAULT 0,
+                message TEXT,
+                result_data TEXT, -- JSON blob for output paths etc.
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_jobs_user ON jobs(user_id, created_at DESC);
             """
         )
 

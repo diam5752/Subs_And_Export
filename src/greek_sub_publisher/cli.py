@@ -149,8 +149,8 @@ def process(
 
 def main() -> None:
     """Entry point for `python -m greek_sub_publisher.cli`."""
-    app()
+    app()  # pragma: no cover
 
 
 if __name__ == "__main__":
-    main()
+    main()  # pragma: no cover

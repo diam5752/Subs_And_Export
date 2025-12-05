@@ -12,7 +12,7 @@ export default function LoginPage() {
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [googleLoading, setGoogleLoading] = useState(false);
-    const { login } = useAuth();
+    const { login, googleLogin } = useAuth();
     const router = useRouter();
     const searchParams = useSearchParams();
 
@@ -24,7 +24,7 @@ export default function LoginPage() {
 
         if (code && state && storedState === state) {
             setGoogleLoading(true);
-            api.googleCallback(code, state)
+            googleLogin(code, state)
                 .then(() => {
                     localStorage.removeItem('google_oauth_state');
                     router.push('/');
@@ -35,7 +35,7 @@ export default function LoginPage() {
                 })
                 .finally(() => setGoogleLoading(false));
         }
-    }, [searchParams, router]);
+    }, [searchParams, router, googleLogin]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();

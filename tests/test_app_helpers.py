@@ -1,4 +1,5 @@
 import app as streamlit_app
+from greek_sub_publisher import database
 
 
 def test_has_secret_key_handles_missing(monkeypatch):
@@ -61,3 +62,7 @@ def test_should_autorun_follows_runtime(monkeypatch):
 
     monkeypatch.setattr(streamlit_app.st.runtime, "exists", lambda: False)
     assert streamlit_app._should_autorun() is False
+
+
+def test_database_loads_invalid_json_returns_empty():
+    assert database.Database.loads("not valid") == {}

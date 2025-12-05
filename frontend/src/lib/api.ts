@@ -1,10 +1,40 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+export const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 interface TokenResponse {
     access_token: string;
     token_type: string;
     user_id: string;
     name: string;
+}
+
+export interface JobResultData {
+    video_path: string;
+    artifacts_dir: string;
+    public_url?: string;
+    artifact_url?: string;
+    social?: string | null;
+    original_filename?: string | null;
+    video_crf?: number;
+    model_size?: string;
+}
+
+export interface JobResponse {
+    id: string;
+    status: string;
+    progress: number;
+    message: string | null;
+    created_at: number;
+    updated_at: number;
+    result_data: JobResultData | null;
+}
+
+export interface HistoryEvent {
+    ts: string;
+    user_id: string;
+    email: string;
+    kind: string;
+    summary: string;
+    data: Record<string, unknown>;
 }
 
 interface UserResponse {
@@ -114,7 +144,7 @@ class ApiClient {
         video_quality?: string;
         use_llm?: boolean;
         context_prompt?: string;
-    }): Promise<{ id: string }> {
+    }): Promise<JobResponse> {
         const formData = new FormData();
         formData.append('file', file);
         formData.append('transcribe_model', settings.transcribe_model || 'medium');
@@ -122,24 +152,54 @@ class ApiClient {
         formData.append('use_llm', String(settings.use_llm || false));
         formData.append('context_prompt', settings.context_prompt || '');
 
-        return this.request('/videos/process', {
+        return this.request<JobResponse>('/videos/process', {
             method: 'POST',
             body: formData,
         });
     }
 
-    async getJobStatus(jobId: string): Promise<{
-        id: string;
-        status: string;
-        progress: number;
-        message: string | null;
-        result_data: Record<string, unknown> | null;
-    }> {
-        return this.request(`/videos/jobs/${jobId}`);
+    async getJobStatus(jobId: string): Promise<JobResponse> {
+        return this.request<JobResponse>(`/videos/jobs/${jobId}`);
     }
 
-    async getJobs(): Promise<Array<{ id: string; status: string; progress: number }>> {
-        return this.request('/videos/jobs');
+    async getJobs(): Promise<JobResponse[]> {
+        return this.request<JobResponse[]>('/videos/jobs');
+    }
+
+    async updateProfile(name: string): Promise<UserResponse> {
+        return this.request<UserResponse>('/auth/me', {
+            method: 'PUT',
+            body: JSON.stringify({ name }),
+        });
+    }
+
+    async updatePassword(password: string, confirm_password: string): Promise<{ status: string }> {
+        return this.request('/auth/password', {
+            method: 'PUT',
+            body: JSON.stringify({ password, confirm_password }),
+        });
+    }
+
+    async getHistory(limit: number = 50): Promise<HistoryEvent[]> {
+        return this.request<HistoryEvent[]>(`/history/?limit=${limit}`);
+    }
+
+    async getTikTokAuthUrl(): Promise<{ auth_url: string; state: string }> {
+        return this.request('/tiktok/url');
+    }
+
+    async tiktokCallback(code: string, state: string): Promise<{ access_token: string }> {
+        return this.request('/tiktok/callback', {
+            method: 'POST',
+            body: JSON.stringify({ code, state }),
+        });
+    }
+
+    async uploadToTikTok(access_token: string, video_path: string, title: string, description: string): Promise<unknown> {
+        return this.request('/tiktok/upload', {
+            method: 'POST',
+            body: JSON.stringify({ access_token, video_path, title, description }),
+        });
     }
 
     async getGoogleAuthUrl(): Promise<{ auth_url: string; state: string }> {
