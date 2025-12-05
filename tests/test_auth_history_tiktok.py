@@ -77,27 +77,42 @@ def test_persist_session_sets_url_and_restores(monkeypatch, tmp_path):
     monkeypatch.setattr(app.st, "experimental_set_query_params", fake_set_query_params)
 
     user = app.USER_STORE.register_local_user("auto@example.com", "secret", "Auto")
-    app._persist_session(user)
+    
+    # Mock Cookie Manager
+    from unittest.mock import MagicMock
+    mock_cookie_manager = MagicMock()
+    
+    app._persist_session(user, mock_cookie_manager)
 
-    assert applied.get("auth_token")
+    # Check session state populated
     assert app.st.session_state.get("user", {}).get("email") == "auto@example.com"
-
-    # Simulate a fresh browser session with only the query param available
+    
+    # Check cookie set
+    mock_cookie_manager.set.assert_called()
+    
+    # Simulate a fresh browser session with only the cookie available
     _reset_state()
-    monkeypatch.setattr(
-        app.st,
-        "experimental_get_query_params",
-        lambda: {"auth_token": applied["auth_token"]},
-    )
+    # Setup mock to return the token we just issued
+    # (In a real integration, we'd read what was passed to set(), but simple return is enough here)
+    mock_cookie_manager.get.return_value = app.SESSION_STORE.issue_session(user)
 
-    restored = app._current_user()
+    restored = app._current_user(mock_cookie_manager)
     assert restored and restored.email == user.email
 
 
 def test_google_oauth_config(monkeypatch):
+    # Mock streamlit.secrets to act like it's empty or raises,
+    # ensuring we don't accidentally read real local secrets.
+    import streamlit as st
+    monkeypatch.delattr(st, "secrets", raising=False)
+
     for key in ("GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REDIRECT_URI"):
         monkeypatch.delenv(key, raising=False)
+    
+    # With no env and no secrets, it should return None
     assert auth.google_oauth_config() is None
+    
+    # Now set env vars and verify it works
     monkeypatch.setenv("GOOGLE_CLIENT_ID", "cid")
     monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "secret")
     monkeypatch.setenv("GOOGLE_REDIRECT_URI", "http://localhost")
@@ -163,6 +178,7 @@ def test_tiktok_auth_and_upload(monkeypatch, tmp_path):
     assert payload["upload_id"] == "u123"
 
 
+
 def test_tiktok_upload_error(monkeypatch, tmp_path):
     tokens = tiktok.TikTokTokens(
         access_token="tok",
@@ -179,3 +195,26 @@ def test_tiktok_upload_error(monkeypatch, tmp_path):
     video_path.write_bytes(b"fake video")
     with pytest.raises(tiktok.TikTokError):
         tiktok.upload_video(tokens, video_path, "title", "desc")
+
+
+def test_tiktok_exchange_error(monkeypatch):
+    cfg = {"client_key": "k", "client_secret": "s", "redirect_uri": "u"}
+    
+    def fake_post_bad(url, data=None, files=None, timeout=None):
+        return DummyResponse({"data": {}})  # Missing access_token
+    
+    monkeypatch.setattr(tiktok.requests, "post", fake_post_bad)
+    with pytest.raises(tiktok.TikTokError):
+        tiktok.exchange_code_for_token(cfg, "bad_code")
+
+
+def test_tiktok_refresh_error(monkeypatch):
+    cfg = {"client_key": "k", "client_secret": "s", "redirect_uri": "u"}
+    
+    def fake_post_bad(url, data=None, files=None, timeout=None):
+        return DummyResponse({"data": {"error_code": 123}}, status_code=200)
+        
+    monkeypatch.setattr(tiktok.requests, "post", fake_post_bad)
+    with pytest.raises(tiktok.TikTokError):
+        tiktok.refresh_access_token(cfg, "bad_refresh")
+

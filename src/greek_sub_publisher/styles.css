@@ -1,372 +1,276 @@
 /* 
-    THEME: Premium Technical SaaS
-    Background: #09090b (Zinc 950)
-    Surface: #18181b (Zinc 900)
-    Border: #27272a (Zinc 800)
-    Text: #e4e4e7 (Zinc 200)
-    Accent: #6366f1 (Indigo 500)
-    Success: #10b981 (Emerald 500)
-    Font: 'Inter', -apple-system, monospace
+    THEME: Minimal Dark (OpenAI / Apple Inspired)
+    A clean, elegant dark theme with subtle glassmorphism.
 */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
-/* Global Reset */
+/* --- Global Reset & Typography --- */
 html,
 body,
 [class*="css"] {
-    font-family: 'Inter', -apple-system, sans-serif;
-    color: #e4e4e7;
-    background-color: #09090b;
-    font-size: 14px;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    color: #ececf1;
+    background-color: #0d0d0d;
+    font-size: 15px;
     letter-spacing: -0.01em;
     -webkit-font-smoothing: antialiased;
 }
 
-/* Sidebar Styling */
+/* --- Hide Streamlit Branding --- */
+#MainMenu,
+footer,
+header[data-testid="stHeader"] {
+    visibility: hidden;
+}
+
+/* --- Sidebar Styling --- */
 [data-testid="stSidebar"] {
-    background-color: #0c0c0e;
-    border-right: 1px solid #27272a;
-    min-width: 380px !important;
-    max-width: 380px !important;
+    background-color: #171717;
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 [data-testid="stSidebar"] hr {
-    border-color: #27272a;
-    margin: 2rem 0;
-    opacity: 0.5;
+    border-color: rgba(255, 255, 255, 0.08);
+    margin: 1.5rem 0;
 }
 
-/* Gamified Radio Buttons (Pills) */
-[data-testid="stRadio"]>div {
-    display: flex;
-    gap: 6px;
-    background-color: #18181b;
-    padding: 4px;
-    border-radius: 10px;
-    border: 1px solid #27272a;
-}
-
-[data-testid="stRadio"] label {
-    flex: 1;
-    text-align: center;
-    background-color: transparent;
-    border-radius: 8px;
-    padding: 8px 12px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    border: 1px solid transparent;
-    font-weight: 500;
-    color: #a1a1aa;
-}
-
-[data-testid="stRadio"] label:hover {
-    color: #e4e4e7;
-    background-color: #27272a;
-}
-
-/* Headings */
+/* --- Headings --- */
 h1,
 h2,
-h3 {
+h3,
+h4,
+h5,
+h6 {
     color: #ffffff !important;
     font-weight: 600 !important;
-    letter-spacing: -0.025em;
+    letter-spacing: -0.03em;
 }
 
 h1 {
     font-size: 28px !important;
-    margin-bottom: 0.75rem !important;
 }
 
 h2 {
-    font-size: 20px !important;
-    margin-top: 2rem !important;
-    margin-bottom: 1rem !important;
+    font-size: 22px !important;
+    margin-top: 1.5rem !important;
 }
 
 h3 {
-    font-size: 16px !important;
-    font-weight: 600 !important;
-    color: #d4d4d8 !important;
-    margin-bottom: 0.75rem !important;
+    font-size: 17px !important;
+    color: #ececf1 !important;
 }
 
-/* Inputs - Technical & Precise */
+h4 {
+    font-size: 15px !important;
+    color: #a1a1aa !important;
+    font-weight: 500 !important;
+}
+
+/* --- Inputs --- */
 .stTextInput>div>div>input,
 .stNumberInput>div>div>input,
 .stSelectbox>div>div>div,
 .stTextArea>div>div>textarea {
-    background-color: #18181b;
-    color: #e4e4e7;
-    border: 1px solid #27272a;
+    background-color: #202020;
+    color: #ececf1;
+    border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 8px;
-    font-size: 13px;
-    transition: all 0.15s ease;
+    font-size: 15px;
+    padding: 12px 14px;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .stTextInput>div>div>input:focus,
-.stNumberInput>div>div>input:focus,
-.stSelectbox>div>div>div:focus-within,
 .stTextArea>div>div>textarea:focus {
-    border-color: #6366f1;
-    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
-    background-color: #1c1c20;
+    border-color: #10a37f;
+    box-shadow: 0 0 0 3px rgba(16, 163, 127, 0.15);
+    outline: none;
 }
 
-/* Buttons */
+.stTextInput>div>div>input::placeholder,
+.stTextArea>div>div>textarea::placeholder {
+    color: #6b6b6b;
+}
+
+/* --- Buttons --- */
 .stButton>button {
     border-radius: 8px;
-    font-weight: 500;
-    font-size: 14px;
-    padding: 0.6rem 1.2rem;
-    transition: all 0.2s ease;
+    font-weight: 600;
+    font-size: 15px;
+    padding: 12px 20px;
+    transition: all 0.15s ease;
     letter-spacing: -0.01em;
+    border: none;
 }
 
-/* Primary Button */
+/* Primary Button (OpenAI Green) */
 .stButton>button[kind="primary"] {
-    background: linear-gradient(180deg, #6366f1 0%, #4f46e5 100%);
+    background-color: #10a37f;
     color: #ffffff;
-    border: 1px solid #4f46e5;
-    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 
 .stButton>button[kind="primary"]:hover {
-    background: linear-gradient(180deg, #5558e6 0%, #4338ca 100%);
-    border-color: #4338ca;
-    transform: translateY(-1px);
+    background-color: #1a7f64;
 }
 
 .stButton>button[kind="primary"]:active {
-    transform: translateY(0);
+    transform: scale(0.98);
 }
 
-/* Secondary/Ghost Button */
+/* Secondary Button */
 .stButton>button[kind="secondary"] {
-    background-color: #18181b;
-    color: #e4e4e7;
-    border: 1px solid #27272a;
+    background-color: transparent;
+    color: #ececf1;
+    border: 1px solid rgba(255, 255, 255, 0.15);
 }
 
 .stButton>button[kind="secondary"]:hover {
-    background-color: #27272a;
-    border-color: #3f3f46;
-    color: #ffffff;
+    background-color: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.25);
 }
 
-/* File Uploader - Minimal */
+/* --- File Uploader --- */
 .stFileUploader {
-    background-color: #121214;
-    border: 1px dashed #3f3f46;
+    background-color: #171717;
+    border: 1px dashed rgba(255, 255, 255, 0.15);
     border-radius: 12px;
-    padding: 2rem;
+    padding: 2.5rem 2rem;
     text-align: center;
     transition: all 0.2s ease;
 }
 
 .stFileUploader:hover {
-    border-color: #6366f1;
-    background-color: #18181b;
+    border-color: #10a37f;
+    background-color: #1a1a1a;
 }
 
-/* Expanders - Clean Accordion */
+/* --- Expanders --- */
 .streamlit-expanderHeader {
     background-color: transparent;
-    color: #e4e4e7;
+    color: #ececf1;
     font-size: 14px;
     font-weight: 500;
-    border: none;
-    padding-left: 0;
+    border-radius: 8px;
+}
+
+.streamlit-expanderHeader:hover {
+    background-color: rgba(255, 255, 255, 0.05);
 }
 
 .streamlit-expanderContent {
-    border-left: 1px solid #27272a;
+    border-left: 2px solid rgba(255, 255, 255, 0.1);
     margin-left: 8px;
     padding-left: 16px;
 }
 
-/* Dashboard Cards */
-.dashboard-card {
-    background-color: #121214;
-    border: 1px solid #27272a;
-    border-radius: 12px;
-    padding: 24px;
-    height: 100%;
-    transition: border-color 0.2s ease;
-}
-
-.dashboard-card:hover {
-    border-color: #3f3f46;
-}
-
-.stat-value {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 28px;
-    font-weight: 600;
-    color: #ffffff;
-    margin-top: 8px;
-    letter-spacing: -0.03em;
-}
-
-.stat-label {
-    font-size: 12px;
-    color: #a1a1aa;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    font-weight: 600;
-}
-
-/* Video Player */
+/* --- Video Player --- */
 video {
     border-radius: 12px;
-    border: 1px solid #27272a;
-    max-height: 600px !important;
-    width: auto !important;
-    margin: 0 auto;
-    display: block;
-    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 10px 40px -15px rgba(0, 0, 0, 0.5);
 }
 
-.stVideo {
-    background-color: #0c0c0e;
-    border: 1px solid #27272a;
-    border-radius: 12px;
-    padding: 24px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
-
-/* Code/Monospace */
-code {
-    font-family: 'JetBrains Mono', monospace;
-    background-color: #27272a;
-    color: #e4e4e7;
-    padding: 2px 6px;
-    border-radius: 6px;
-    font-size: 13px;
-}
-
-/* Tabs */
-.stTabs [data-baseweb="tab-list"] {
-    gap: 24px;
-    border-bottom: 1px solid #27272a;
-    padding-bottom: 0;
-}
-
-.stTabs [data-baseweb="tab"] {
-    height: 44px;
-    background-color: transparent;
-    border: none;
-    color: #a1a1aa;
-    font-size: 14px;
-    font-weight: 500;
-    padding: 0 4px;
-    transition: color 0.2s ease;
-}
-
-.stTabs [data-baseweb="tab"]:hover {
-    color: #e4e4e7;
-}
-
-.stTabs [aria-selected="true"] {
-    color: #ffffff;
-    border-bottom: 2px solid #6366f1;
-}
-
-/* Status Dots */
-.status-dot {
-    height: 8px;
-    width: 8px;
-    background-color: #10b981;
-    border-radius: 50%;
-    display: inline-block;
-    margin-right: 8px;
-    box-shadow: 0 0 8px rgba(16, 185, 129, 0.4);
-}
-
-.status-dot.processing {
-    background-color: #eab308;
-    box-shadow: 0 0 8px rgba(234, 179, 8, 0.4);
-    animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-    0% {
-        opacity: 1;
-    }
-
-    50% {
-        opacity: 0.5;
-    }
-
-    100% {
-        opacity: 1;
-    }
-}
-
-/* Custom Scrollbar */
+/* --- Custom Scrollbar --- */
 ::-webkit-scrollbar {
     width: 8px;
     height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-    background: #09090b;
+    background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-    background: #27272a;
+    background: #3a3a3a;
     border-radius: 4px;
 }
 
+::-webkit-scrollbar-thumb:hover {
+    background: #4a4a4a;
+}
 
-/* Login Page Styling */
-.login-container {
+/* ============================================= */
+/*               LOGIN PAGE STYLES               */
+/* ============================================= */
+
+.login-page-wrapper {
+    min-height: 80vh;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding-top: 10vh;
-    max-width: 400px;
-    margin: 0 auto;
-}
-
-.login-logo {
-    font-size: 48px;
-    margin-bottom: 24px;
-    text-align: center;
-}
-
-.login-title {
-    font-size: 32px;
-    font-weight: 700;
-    color: #ffffff;
-    text-align: center;
-    margin-bottom: 12px;
-    letter-spacing: -0.02em;
-}
-
-.login-subtitle {
-    font-size: 16px;
-    color: #a1a1aa;
-    text-align: center;
-    margin-bottom: 32px;
+    padding: 2rem;
 }
 
 .login-card {
     width: 100%;
-    background-color: transparent;
+    max-width: 400px;
+    padding: 40px;
+    background-color: #171717;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 16px;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
 }
 
+.login-logo {
+    font-size: 48px;
+    text-align: center;
+    margin-bottom: 16px;
+}
+
+.login-title {
+    font-size: 26px;
+    font-weight: 700;
+    color: #ffffff;
+    text-align: center;
+    margin-bottom: 8px;
+    letter-spacing: -0.03em;
+}
+
+.login-subtitle {
+    font-size: 15px;
+    color: #8e8e8e;
+    text-align: center;
+    margin-bottom: 32px;
+}
+
+/* --- Google Sign-In Button --- */
+.google-signin-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    width: 100%;
+    padding: 14px 20px;
+    background-color: #ffffff;
+    color: #1f1f1f;
+    font-weight: 600;
+    font-size: 15px;
+    border-radius: 8px;
+    text-decoration: none;
+    transition: background-color 0.15s ease, box-shadow 0.15s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.google-signin-btn:hover {
+    background-color: #f7f7f7;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.google-signin-btn svg {
+    width: 20px;
+    height: 20px;
+}
+
+/* --- OR Divider --- */
 .login-divider {
     display: flex;
     align-items: center;
     text-align: center;
-    color: #52525b;
-    margin: 24px 0;
-    font-size: 12px;
+    margin: 28px 0;
+    color: #6b6b6b;
+    font-size: 13px;
+    font-weight: 500;
     text-transform: uppercase;
     letter-spacing: 0.05em;
 }
@@ -375,13 +279,126 @@ code {
 .login-divider::after {
     content: '';
     flex: 1;
-    border-bottom: 1px solid #27272a;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .login-divider::before {
-    margin-right: 12px;
+    margin-right: 16px;
 }
 
 .login-divider::after {
-    margin-left: 12px;
+    margin-left: 16px;
+}
+
+/* --- Radio (Segmented Control) --- */
+[data-testid="stRadio"]>div {
+    display: flex;
+    gap: 0;
+    background-color: #202020;
+    padding: 3px;
+    border-radius: 8px;
+}
+
+[data-testid="stRadio"] label {
+    flex: 1;
+    text-align: center;
+    background-color: transparent;
+    border-radius: 6px;
+    padding: 8px 14px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-weight: 500;
+    font-size: 14px;
+    color: #8e8e8e;
+}
+
+[data-testid="stRadio"] label:hover {
+    color: #ececf1;
+}
+
+[data-testid="stRadio"] label[data-checked="true"],
+[data-testid="stRadio"] div[role="radiogroup"]>label:has(input:checked) {
+    background-color: #10a37f;
+    color: #ffffff;
+}
+
+/* --- Tabs --- */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 8px;
+}
+
+.stTabs [data-baseweb="tab"] {
+    height: 38px;
+    border-radius: 6px;
+    padding: 0 16px;
+    background-color: transparent;
+    color: #8e8e8e;
+    font-weight: 500;
+    border: none;
+    transition: all 0.15s ease;
+}
+
+.stTabs [data-baseweb="tab"]:hover {
+    color: #ffffff;
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.stTabs [aria-selected="true"] {
+    color: #ffffff;
+    background-color: #10a37f;
+}
+
+/* --- Dashboard Cards --- */
+.dashboard-card {
+    background: #171717;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 24px;
+}
+
+.stat-value {
+    font-family: 'Inter', monospace;
+    font-feature-settings: "tnum";
+    font-size: 32px;
+    font-weight: 700;
+    color: #ffffff;
+    margin-top: 8px;
+}
+
+.stat-label {
+    font-size: 12px;
+    color: #8e8e8e;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+}
+
+/* --- Upload Hero Section --- */
+.upload-hero {
+    text-align: center;
+    padding: 60px 20px;
+    background: linear-gradient(180deg, rgba(16, 163, 127, 0.05) 0%, transparent 100%);
+    border-radius: 16px;
+    border: 1px dashed rgba(255, 255, 255, 0.1);
+    margin-bottom: 24px;
+}
+
+.upload-hero-icon {
+    font-size: 56px;
+    margin-bottom: 16px;
+    opacity: 0.8;
+}
+
+.upload-hero-title {
+    font-size: 22px;
+    font-weight: 600;
+    color: #ffffff;
+    margin-bottom: 8px;
+}
+
+.upload-hero-subtitle {
+    font-size: 15px;
+    color: #8e8e8e;
 }

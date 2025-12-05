@@ -114,6 +114,23 @@ class UserStore:
             )
             return user
 
+
+    
+    def update_name(self, user_id: str, new_name: str) -> None:
+        with self.db.connect() as conn:
+            conn.execute(
+                "UPDATE users SET name = ? WHERE id = ?",
+                (new_name.strip(), user_id),
+            )
+
+    def update_password(self, user_id: str, new_password: str) -> None:
+        p_hash = _hash_password(new_password)
+        with self.db.connect() as conn:
+            conn.execute(
+                "UPDATE users SET password_hash = ? WHERE id = ?",
+                (p_hash, user_id),
+            )
+
     def authenticate_local(self, email: str, password: str) -> Optional[User]:
         email = email.strip().lower()
         user = self.get_user_by_email(email)
