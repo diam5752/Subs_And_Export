@@ -242,55 +242,47 @@ def _utc_iso() -> str:
 
 
 def _get_secret(key: str) -> str | None:
-    """Safely read a Streamlit secret if available or fall back to a secrets file.
+    """Read a secret from environment or a local TOML file.
 
     The optional env var ``GSP_SECRETS_FILE`` can point to a specific secrets file.
     Set ``GSP_USE_FILE_SECRETS=0`` to skip the file fallback (useful in tests).
     """
-    try:
-        import streamlit as st  # Local import to avoid hard dependency outside UI
-
-        if hasattr(st, "secrets") and key in st.secrets:
-            return str(st.secrets.get(key))
-    except Exception:
-        # Ignore streamlit access errors and try file fallback
-        pass
+    env_override = os.getenv(key)
+    if env_override:
+        return env_override
 
     if os.getenv("GSP_USE_FILE_SECRETS", "1") == "0":
         return None
 
-    try:
-        secrets_path = os.getenv("GSP_SECRETS_FILE")
-        if secrets_path:
-            path = Path(secrets_path)
-        else:
-            path = config.PROJECT_ROOT.parent.parent / ".streamlit" / "secrets.toml"
+    candidate = os.getenv("GSP_SECRETS_FILE")
+    search_paths = []
+    if candidate:
+        search_paths.append(Path(candidate))
+    search_paths.append(config.PROJECT_ROOT.parent.parent / "config" / "secrets.toml")
 
-        if path.exists():
+    for path in search_paths:
+        try:
+            if not path.exists():
+                continue
             data = tomllib.loads(path.read_text())
             if key in data:
                 return str(data[key])
-    except Exception:
-        return None
+        except Exception:
+            return None
     return None
 
 
 def google_oauth_config() -> dict[str, str] | None:
-    """
-    Read Google OAuth configuration from environment or Streamlit secrets.
+    """Read Google OAuth configuration from environment or a secrets file.
 
     Required:
         GOOGLE_CLIENT_ID
         GOOGLE_CLIENT_SECRET
-        GOOGLE_REDIRECT_URI  (should point back to the running Streamlit app)
+        GOOGLE_REDIRECT_URI (should point back to the running frontend)
     """
-    client_id = os.getenv("GOOGLE_CLIENT_ID") or _get_secret("GOOGLE_CLIENT_ID")
-    client_secret = os.getenv("GOOGLE_CLIENT_SECRET") or _get_secret("GOOGLE_CLIENT_SECRET")
-    redirect_uri = (
-        os.getenv("GOOGLE_REDIRECT_URI")
-        or _get_secret("GOOGLE_REDIRECT_URI")
-        or _derive_frontend_redirect()
-    )
+    client_id = _get_secret("GOOGLE_CLIENT_ID")
+    client_secret = _get_secret("GOOGLE_CLIENT_SECRET")
+    redirect_uri = _get_secret("GOOGLE_REDIRECT_URI") or _derive_frontend_redirect()
     if not (client_id and client_secret and redirect_uri):
         return None
     return {
@@ -346,7 +338,7 @@ def exchange_google_code(cfg: dict[str, str], code: str) -> dict:
     flow.fetch_token(code=code)
     creds = flow.credentials
     if not creds or not creds.id_token:
-        raise RuntimeError("Missing Google ID token")
+        raise ValueError("Missing Google ID token")
     idinfo = id_token.verify_oauth2_token(
         creds.id_token, Request(), cfg["client_id"]
     )
