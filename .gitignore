@@ -21,9 +21,10 @@ env/
 .vscode/
 *.swp
 
-# Streamlit secrets
+# Local secrets
 .streamlit/secrets.toml
 .streamlit/app_settings.toml
+config/secrets.toml
 
 # Local state/logs
 logs/

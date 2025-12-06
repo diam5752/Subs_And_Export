@@ -10,7 +10,6 @@ requires-python = ">=3.11"
 dependencies = [
   "typer>=0.12.5",
   "faster-whisper>=1.0.3",
-  "streamlit>=1.38.0",
   "requests>=2.31.0",
   "google-auth>=2.29.0",
   "google-auth-oauthlib>=1.2.0",

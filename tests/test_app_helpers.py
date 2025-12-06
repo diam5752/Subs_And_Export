@@ -1,67 +1,38 @@
-import app as streamlit_app
-from greek_sub_publisher import database
+from greek_sub_publisher import auth, database
 
 
-def test_has_secret_key_handles_missing(monkeypatch):
-    class RaisingSecrets(dict):
-        def __contains__(self, key):
-            raise RuntimeError("missing secrets")
+def test_get_secret_prefers_env_over_file(monkeypatch, tmp_path):
+    secrets_path = tmp_path / "secrets.toml"
+    secrets_path.write_text('MY_KEY = "file"')
+    monkeypatch.setenv("GSP_SECRETS_FILE", str(secrets_path))
+    monkeypatch.setenv("MY_KEY", "env-value")
 
-    monkeypatch.setattr(streamlit_app.st, "secrets", RaisingSecrets(), raising=False)
-
-    assert streamlit_app._has_secret_key("OPENAI_API_KEY") is False
-
-
-def test_resolve_openai_api_key_prioritizes_env(monkeypatch):
-    monkeypatch.setenv("OPENAI_API_KEY", "env-key")
-    monkeypatch.setattr(streamlit_app.st, "secrets", {"OPENAI_API_KEY": "secret-key"}, raising=False)
-
-    assert streamlit_app._resolve_openai_api_key() == "env-key"
+    assert auth._get_secret("MY_KEY") == "env-value"
 
 
+def test_get_secret_reads_local_file(monkeypatch, tmp_path):
+    secrets_path = tmp_path / "secrets.toml"
+    secrets_path.write_text('MY_KEY = "file-value"\nOTHER = 1')
+    monkeypatch.delenv("MY_KEY", raising=False)
+    monkeypatch.setenv("GSP_SECRETS_FILE", str(secrets_path))
 
-def test_resolve_openai_api_key_from_secrets(monkeypatch):
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    monkeypatch.setattr(streamlit_app.st, "secrets", {"OPENAI_API_KEY": "secret-key"}, raising=False)
-
-    assert streamlit_app._resolve_openai_api_key() == "secret-key"
-
-
-def test_resolve_openai_api_key_handles_secret_errors(monkeypatch):
-    class RaisingSecrets(dict):
-        def __contains__(self, key):
-            raise RuntimeError("missing secrets")
-
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    monkeypatch.setattr(streamlit_app.st, "secrets", RaisingSecrets(), raising=False)
-
-    assert streamlit_app._resolve_openai_api_key() is None
+    assert auth._get_secret("MY_KEY") == "file-value"
 
 
-def test_load_ai_settings_custom_path(tmp_path, monkeypatch):
-    settings_path = tmp_path / "app_settings.toml"
-    settings_path.write_text("""
-[ai]
-enable_by_default = true
-model = "gpt-custom"
-temperature = 0.75
-"""
-    )
+def test_get_secret_respects_disable_flag(monkeypatch):
+    monkeypatch.delenv("MY_KEY", raising=False)
+    monkeypatch.setenv("GSP_USE_FILE_SECRETS", "0")
+    monkeypatch.delenv("GSP_SECRETS_FILE", raising=False)
 
-    settings = streamlit_app._load_ai_settings(settings_path)
-
-    assert settings["enable_by_default"] is True
-    assert settings["model"] == "gpt-custom"
-    assert settings["temperature"] == 0.75
+    assert auth._get_secret("MY_KEY") is None
 
 
+def test_derive_frontend_redirect(monkeypatch):
+    monkeypatch.delenv("FRONTEND_URL", raising=False)
+    monkeypatch.delenv("NEXT_PUBLIC_SITE_URL", raising=False)
+    monkeypatch.setenv("NEXT_PUBLIC_APP_URL", "https://example.com")
 
-def test_should_autorun_follows_runtime(monkeypatch):
-    monkeypatch.setattr(streamlit_app.st.runtime, "exists", lambda: True)
-    assert streamlit_app._should_autorun() is True
-
-    monkeypatch.setattr(streamlit_app.st.runtime, "exists", lambda: False)
-    assert streamlit_app._should_autorun() is False
+    assert auth._derive_frontend_redirect() == "https://example.com/login"
 
 
 def test_database_loads_invalid_json_returns_empty():

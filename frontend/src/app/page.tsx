@@ -248,21 +248,27 @@ export default function DashboardPage() {
   if (!user) return null;
 
   return (
-    <div className="min-h-screen">
-      <nav className="border-b border-[var(--border)] px-6 py-4">
+    <div className="min-h-screen relative overflow-hidden">
+      <div className="pointer-events-none absolute -left-10 -top-10 h-64 w-64 rounded-full bg-[var(--accent)]/10 blur-3xl" />
+      <div className="pointer-events-none absolute right-0 top-20 h-56 w-56 rounded-full bg-[var(--accent-secondary)]/10 blur-3xl" />
+
+      <nav className="sticky top-0 z-20 backdrop-blur-xl bg-[var(--background)]/70 border-b border-[var(--border)]/60 px-6 py-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <span className="text-2xl">🎬</span>
-            <span className="text-xl font-semibold">Greek Sub Publisher</span>
+            <div className="h-11 w-11 rounded-2xl bg-white/5 border border-[var(--border)] flex items-center justify-center text-xl">🎥</div>
+            <div>
+              <p className="text-[var(--muted)] text-xs uppercase tracking-[0.2em]">Greek Sub Publisher</p>
+              <p className="text-xl font-semibold">Futurist Studio</p>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             {(['process', 'history', 'account'] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors border ${activeTab === tab
-                    ? 'bg-[var(--accent)] text-white border-transparent'
-                    : 'border-[var(--border)] text-[var(--muted)] hover:text-[var(--foreground)]'
+                className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${activeTab === tab
+                    ? 'bg-white text-[var(--background)] border-white'
+                    : 'border-[var(--border)] text-[var(--muted)] hover:text-[var(--foreground)] hover:border-[var(--accent)]/40'
                   }`}
               >
                 {tab === 'process' && 'Workspace'}
@@ -271,10 +277,10 @@ export default function DashboardPage() {
               </button>
             ))}
             <div className="h-6 w-px bg-[var(--border)]" />
-            <div className="flex items-center gap-2 text-sm">
-              <div className="px-3 py-2 rounded-lg bg-[var(--surface-elevated)] border border-[var(--border)]">
+            <div className="flex items-center gap-3 text-sm">
+              <div className="px-3 py-2 rounded-lg bg-white/5 border border-[var(--border)]">
                 <div className="font-semibold">{user.name}</div>
-                <div className="text-[var(--muted)] text-xs">Signed in via {user.provider}</div>
+                <div className="text-[var(--muted)] text-xs">{user.provider} session</div>
               </div>
               <button onClick={logout} className="btn-secondary text-sm py-2 px-4">
                 Sign Out
@@ -284,15 +290,48 @@ export default function DashboardPage() {
         </div>
       </nav>
 
-      <main className="max-w-6xl mx-auto px-6 py-10 space-y-8">
+      <main className="relative max-w-6xl mx-auto px-6 py-10 space-y-10">
+        <section className="card border-[var(--border)]/70 bg-white/5 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-3 max-w-2xl">
+            <p className="text-[var(--muted)] text-sm uppercase tracking-[0.25em]">Minimal, Apple-inspired flow</p>
+            <h1 className="text-4xl lg:text-5xl font-semibold leading-tight">
+              Slick subtitle lab inspired by the best of CapCut
+            </h1>
+            <p className="text-[var(--muted)] text-lg">
+              Drop your vertical clips, let the AI align Greek subtitles, and ship export-ready reels in a few clicks.
+            </p>
+            <div className="flex flex-wrap gap-3">
+              <span className="px-3 py-2 rounded-full bg-white/5 border border-[var(--border)] text-sm">Live sync + auto styling</span>
+              <span className="px-3 py-2 rounded-full bg-white/5 border border-[var(--border)] text-sm">TikTok-ready exports</span>
+              <span className="px-3 py-2 rounded-full bg-white/5 border border-[var(--border)] text-sm">LLM-powered hooks</span>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-3 w-full max-w-md">
+            <div className="card p-4 border-[var(--border)]/80">
+              <p className="text-[var(--muted)] text-xs">Latest status</p>
+              <p className="text-xl font-semibold">{statusMessage || (selectedJob?.status === 'completed' ? 'Completed' : 'Idle')}</p>
+              <p className="text-[var(--muted)] text-xs mt-1">{progress}% synced</p>
+            </div>
+            <div className="card p-4 border-[var(--border)]/80">
+              <p className="text-[var(--muted)] text-xs">Recent renders</p>
+              <p className="text-xl font-semibold">{recentJobs.length || 0}</p>
+              <p className="text-[var(--muted)] text-xs mt-1">kept for quick reuse</p>
+            </div>
+            <div className="card p-4 border-[var(--border)]/80">
+              <p className="text-[var(--muted)] text-xs">Mode</p>
+              <p className="text-xl font-semibold">{transcribeMode}</p>
+              <p className="text-[var(--muted)] text-xs mt-1">speed / accuracy preset</p>
+            </div>
+            <div className="card p-4 border-[var(--border)]/80">
+              <p className="text-[var(--muted)] text-xs">AI copy</p>
+              <p className="text-xl font-semibold">{useAI ? 'Enabled' : 'Manual'}</p>
+              <p className="text-[var(--muted)] text-xs mt-1">hooks + captions</p>
+            </div>
+          </div>
+        </section>
+
         {activeTab === 'process' && (
           <>
-            <div className="text-center">
-              <h1 className="text-4xl font-bold mb-3">Video Processing Studio</h1>
-              <p className="text-[var(--muted)] text-lg">
-                Upload your video and we&apos;ll add professional Greek subtitles with AI
-              </p>
-            </div>
 
             <div className="grid lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2 space-y-6">
