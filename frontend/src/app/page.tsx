@@ -6,6 +6,8 @@ import { useAuth } from '@/context/AuthContext';
 import { api, API_BASE, JobResponse, HistoryEvent } from '@/lib/api';
 
 type TabKey = 'process' | 'history' | 'account';
+type TranscribeMode = 'fast' | 'balanced' | 'turbo' | 'best';
+type TranscribeProvider = 'local' | 'openai';
 
 const statusStyles: Record<string, string> = {
   completed: 'bg-green-500/15 text-green-300 border-green-500/30',
@@ -52,7 +54,8 @@ export default function DashboardPage() {
 
   // Processing settings
   const [showSettings, setShowSettings] = useState(false);
-  const [transcribeMode, setTranscribeMode] = useState<'fast' | 'balanced' | 'turbo' | 'best'>('turbo');
+  const [transcribeMode, setTranscribeMode] = useState<TranscribeMode>('turbo');
+  const [transcribeProvider, setTranscribeProvider] = useState<TranscribeProvider>('local');
   const [outputQuality, setOutputQuality] = useState<'low size' | 'balanced' | 'high quality'>('balanced');
   const [useAI, setUseAI] = useState(false);
   const [contextPrompt, setContextPrompt] = useState('');
@@ -82,8 +85,11 @@ export default function DashboardPage() {
     setJobsLoading(true);
     try {
       const jobs = await api.getJobs();
-      setRecentJobs(jobs);
-      const latest = jobs.find((job) => job.status === 'completed' && job.result_data);
+      const sorted = [...jobs].sort(
+        (a, b) => (b.updated_at || b.created_at) - (a.updated_at || a.created_at)
+      );
+      setRecentJobs(sorted);
+      const latest = sorted.find((job) => job.status === 'completed' && job.result_data);
       if (latest && !selectedJob) {
         setSelectedJob(latest);
       }
@@ -172,16 +178,21 @@ export default function DashboardPage() {
     setStatusMessage('Uploading...');
 
     // Map transcribe mode to model size
-    const modelMap: Record<string, string> = {
+    const modelMap: Record<TranscribeMode, string> = {
       fast: 'tiny',
       balanced: 'medium',
       turbo: 'deepdml/faster-whisper-large-v3-turbo-ct2',
       best: 'large-v3',
     };
+    const hostedModel = 'openai/gpt-4o-mini-transcribe';
+    const provider = transcribeProvider;
+    const selectedModel = provider === 'openai' ? hostedModel : modelMap[transcribeMode];
 
     try {
       const result = await api.processVideo(selectedFile, {
-        transcribe_model: modelMap[transcribeMode],
+        transcribe_model: selectedModel,
+        transcribe_provider: provider,
+        openai_model: provider === 'openai' ? hostedModel : undefined,
         video_quality: outputQuality,
         use_llm: useAI,
         context_prompt: contextPrompt,
@@ -253,33 +264,35 @@ export default function DashboardPage() {
       <div className="pointer-events-none absolute right-0 top-20 h-56 w-56 rounded-full bg-[var(--accent-secondary)]/10 blur-3xl" />
 
       <nav className="sticky top-0 z-20 backdrop-blur-xl bg-[var(--background)]/70 border-b border-[var(--border)]/60 px-6 py-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
+        <div className="max-w-7xl mx-auto grid gap-3 md:grid-cols-[auto,1fr] md:items-center">
+          <div className="flex items-center gap-3 min-w-0">
             <div className="h-11 w-11 rounded-2xl bg-white/5 border border-[var(--border)] flex items-center justify-center text-xl">🎥</div>
             <div>
               <p className="text-[var(--muted)] text-xs uppercase tracking-[0.2em]">Greek Sub Publisher</p>
               <p className="text-xl font-semibold">Futurist Studio</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            {(['process', 'history', 'account'] as const).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${activeTab === tab
-                    ? 'bg-white text-[var(--background)] border-white'
-                    : 'border-[var(--border)] text-[var(--muted)] hover:text-[var(--foreground)] hover:border-[var(--accent)]/40'
-                  }`}
-              >
-                {tab === 'process' && 'Workspace'}
-                {tab === 'history' && 'History'}
-                {tab === 'account' && 'Account'}
-              </button>
-            ))}
-            <div className="h-6 w-px bg-[var(--border)]" />
-            <div className="flex items-center gap-3 text-sm">
-              <div className="px-3 py-2 rounded-lg bg-white/5 border border-[var(--border)]">
-                <div className="font-semibold">{user.name}</div>
+          <div className="flex flex-wrap items-center gap-2 justify-start md:justify-end min-w-0">
+            <div className="flex flex-wrap gap-2">
+              {(['process', 'history', 'account'] as const).map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${activeTab === tab
+                      ? 'bg-white text-[var(--background)] border-white'
+                      : 'border-[var(--border)] text-[var(--muted)] hover:text-[var(--foreground)] hover:border-[var(--accent)]/40'
+                    }`}
+                >
+                  {tab === 'process' && 'Workspace'}
+                  {tab === 'history' && 'History'}
+                  {tab === 'account' && 'Account'}
+                </button>
+              ))}
+            </div>
+            <div className="hidden md:block h-6 w-px bg-[var(--border)]" />
+            <div className="flex flex-wrap items-center gap-3 text-sm justify-end min-w-[240px] md:min-w-0">
+              <div className="px-3 py-2 rounded-lg bg-white/5 border border-[var(--border)] min-w-[170px]">
+                <div className="font-semibold break-words">{user.name}</div>
                 <div className="text-[var(--muted)] text-xs">{user.provider} session</div>
               </div>
               <button onClick={logout} className="btn-secondary text-sm py-2 px-4">
@@ -319,8 +332,12 @@ export default function DashboardPage() {
             </div>
             <div className="card p-4 border-[var(--border)]/80">
               <p className="text-[var(--muted)] text-xs">Mode</p>
-              <p className="text-xl font-semibold">{transcribeMode}</p>
-              <p className="text-[var(--muted)] text-xs mt-1">speed / accuracy preset</p>
+              <p className="text-xl font-semibold">
+                {transcribeProvider === 'openai' ? 'ChatGPT API' : transcribeMode}
+              </p>
+              <p className="text-[var(--muted)] text-xs mt-1">
+                {transcribeProvider === 'openai' ? 'Hosted gpt-4o-mini-transcribe' : 'speed / accuracy preset'}
+              </p>
             </div>
             <div className="card p-4 border-[var(--border)]/80">
               <p className="text-[var(--muted)] text-xs">AI copy</p>
@@ -350,7 +367,7 @@ export default function DashboardPage() {
                   {selectedFile ? (
                     <div className="py-8">
                       <div className="text-6xl mb-4">🎥</div>
-                      <p className="text-xl font-medium">{selectedFile.name}</p>
+                      <p className="text-xl font-medium break-words [overflow-wrap:anywhere]">{selectedFile.name}</p>
                       <p className="text-[var(--muted)] mt-2">
                         {(selectedFile.size / (1024 * 1024)).toFixed(1)} MB
                       </p>
@@ -367,7 +384,7 @@ export default function DashboardPage() {
 
                 {selectedFile && !isProcessing && (
                   <div className="card space-y-4">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="font-semibold flex items-center gap-2">
                         <span>⚙️</span> Processing Settings
                       </div>
@@ -383,25 +400,56 @@ export default function DashboardPage() {
                       <div className="space-y-5 pt-2 border-t border-[var(--border)]">
                         <div>
                           <label className="block text-sm font-medium text-[var(--muted)] mb-2">
-                            Speed / Accuracy
+                            Engine
                           </label>
-                          <div className="grid grid-cols-4 gap-2">
-                            {(['fast', 'balanced', 'turbo', 'best'] as const).map((mode) => (
+                          <div className="grid grid-cols-2 gap-2">
+                            {(['local', 'openai'] as const).map((provider) => (
                               <button
-                                key={mode}
-                                onClick={() => setTranscribeMode(mode)}
-                                className={`py-2 px-3 rounded-lg text-sm font-medium transition-colors ${transcribeMode === mode
+                                key={provider}
+                                onClick={() => setTranscribeProvider(provider)}
+                                className={`py-2 px-3 rounded-lg text-sm font-medium transition-colors ${transcribeProvider === provider
                                     ? 'bg-[var(--accent)] text-white'
                                     : 'bg-[var(--surface-elevated)] text-[var(--muted)] hover:text-[var(--foreground)]'
                                   }`}
                               >
-                                {mode.charAt(0).toUpperCase() + mode.slice(1)}
+                                {provider === 'local' ? 'Local (fast)' : 'ChatGPT API'}
                               </button>
                             ))}
                           </div>
                           <p className="text-xs text-[var(--muted)] mt-1">
-                            Turbo provides the best balance of speed and accuracy
+                            Local keeps media on-device. ChatGPT uses your server-side OPENAI_API_KEY for hosted transcription.
                           </p>
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-[var(--muted)] mb-2">
+                            Speed / Accuracy
+                          </label>
+                          {transcribeProvider === 'local' ? (
+                            <>
+                              <div className="grid grid-cols-4 gap-2">
+                                {(['fast', 'balanced', 'turbo', 'best'] as const).map((mode) => (
+                                  <button
+                                    key={mode}
+                                    onClick={() => setTranscribeMode(mode)}
+                                    className={`py-2 px-3 rounded-lg text-sm font-medium transition-colors ${transcribeMode === mode
+                                        ? 'bg-[var(--accent)] text-white'
+                                        : 'bg-[var(--surface-elevated)] text-[var(--muted)] hover:text-[var(--foreground)]'
+                                      }`}
+                                  >
+                                    {mode.charAt(0).toUpperCase() + mode.slice(1)}
+                                  </button>
+                                ))}
+                              </div>
+                              <p className="text-xs text-[var(--muted)] mt-1">
+                                Turbo uses a CT2-quantized Large V3 preset tuned for sharper Greek accuracy without slowing down.
+                              </p>
+                            </>
+                          ) : (
+                            <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3 text-sm text-left">
+                              Using ChatGPT&apos;s hosted `gpt-4o-mini-transcribe` for clean Greek speech-to-text. Ideal when local models drift.
+                            </div>
+                          )}
                         </div>
 
                         <div>
@@ -464,7 +512,7 @@ export default function DashboardPage() {
 
                 {isProcessing && (
                   <div className="card">
-                    <div className="flex items-center justify-between mb-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                       <span className="font-medium">{statusMessage || 'Processing...'}</span>
                       <span className="text-[var(--accent)]">{progress}%</span>
                     </div>
@@ -499,56 +547,88 @@ export default function DashboardPage() {
 
                 {selectedJob && selectedJob.status === 'completed' && (
                   <div className="card bg-[var(--accent-secondary)]/10 border-[var(--accent-secondary)]/30">
-                    <div className="flex items-center justify-between mb-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                       <div>
                         <p className="text-sm text-[var(--muted)]">Latest render</p>
-                        <h3 className="text-2xl font-bold">
+                        <h3 className="text-2xl font-bold break-words [overflow-wrap:anywhere]">
                           {selectedJob.result_data?.original_filename || 'Processed video'}
                         </h3>
+                        <p className="text-xs text-[var(--muted)]">Trimmed preview with safe subtitle margins</p>
                       </div>
                       <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${statusStyles[selectedJob.status] || ''}`}>
                         {selectedJob.status.toUpperCase()}
                       </span>
                     </div>
-                    {videoUrl ? (
-                      <video
-                        className="w-full rounded-lg border border-[var(--border)]"
-                        src={videoUrl}
-                        controls
-                      />
-                    ) : (
-                      <p className="text-[var(--muted)]">Video ready — download below.</p>
-                    )}
-                    <div className="flex flex-wrap gap-3 mt-4">
-                      {videoUrl && (
-                        <>
-                          <a
-                            className="btn-primary"
-                            href={videoUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            View video
-                          </a>
-                          <a
-                            className="btn-secondary"
-                            href={videoUrl}
-                            download={selectedJob.result_data?.original_filename || 'processed.mp4'}
-                          >
-                            Download MP4
-                          </a>
-                        </>
-                      )}
-                      {artifactUrl && (
-                        <a
-                          className="btn-secondary"
-                          href={artifactUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          Artifacts folder
-                        </a>
-                      )}
+                    <div className="grid lg:grid-cols-[440px,1fr] gap-6 items-start">
+                      <div className="w-full max-w-[440px] mx-auto">
+                        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-elevated)] overflow-hidden shadow-2xl">
+                          {videoUrl ? (
+                            <video
+                              className="w-full aspect-[9/16] object-contain bg-black"
+                              src={videoUrl}
+                              controls
+                            />
+                          ) : (
+                            <div className="aspect-[9/16] flex items-center justify-center text-[var(--muted)] text-sm">
+                              Video ready — download below.
+                            </div>
+                          )}
+                        </div>
+                        <p className="text-xs text-[var(--muted)] mt-2 text-center">
+                          Player is capped to a phone viewport so subtitles stay inside the frame.
+                        </p>
+                      </div>
+                      <div className="space-y-3">
+                        <div className="grid sm:grid-cols-2 gap-3">
+                          <div className="p-3 rounded-lg bg-[var(--surface-elevated)] border border-[var(--border)]">
+                            <div className="text-xs text-[var(--muted)] uppercase tracking-wide">Engine</div>
+                            <div className="font-semibold">
+                              {(selectedJob.result_data?.transcribe_provider || 'local') === 'openai' ? 'ChatGPT API' : 'Local turbo'}
+                            </div>
+                            <div className="text-[var(--muted)] text-xs mt-1">
+                              {selectedJob.result_data?.model_size || 'model'}
+                            </div>
+                          </div>
+                          <div className="p-3 rounded-lg bg-[var(--surface-elevated)] border border-[var(--border)]">
+                            <div className="text-xs text-[var(--muted)] uppercase tracking-wide">Quality</div>
+                            <div className="font-semibold">CRF {selectedJob.result_data?.video_crf || '?'}</div>
+                            <div className="text-[var(--muted)] text-xs mt-1">
+                              {selectedJob.result_data?.video_path || 'n/a'}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-3">
+                          {videoUrl && (
+                            <>
+                              <a
+                                className="btn-primary"
+                                href={videoUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                View video
+                              </a>
+                              <a
+                                className="btn-secondary"
+                                href={videoUrl}
+                                download={selectedJob.result_data?.original_filename || 'processed.mp4'}
+                              >
+                                Download MP4
+                              </a>
+                            </>
+                          )}
+                          {artifactUrl && (
+                            <a
+                              className="btn-secondary"
+                              href={artifactUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                            >
+                              Artifacts folder
+                            </a>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -556,7 +636,7 @@ export default function DashboardPage() {
 
               <div className="space-y-4">
                 <div className="card">
-                  <div className="flex items-center justify-between mb-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                     <h3 className="text-lg font-semibold">Recent jobs</h3>
                     {jobsLoading && <span className="text-xs text-[var(--muted)]">Refreshing…</span>}
                   </div>
@@ -569,17 +649,20 @@ export default function DashboardPage() {
                       return (
                         <div
                           key={job.id}
-                          className="flex items-center justify-between p-3 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)]"
+                          data-testid={`recent-job-${job.id}`}
+                          className="flex flex-wrap sm:flex-nowrap items-start sm:items-center justify-between gap-3 p-3 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)]"
                         >
-                          <div>
-                            <div className="font-semibold">
+                          <div className="min-w-0 flex-1">
+                            <div className="font-semibold break-words [overflow-wrap:anywhere]">
                               {job.result_data?.original_filename || `Job ${job.id.slice(0, 6)}`}
                             </div>
-                            <div className="text-xs text-[var(--muted)]">
+                            <div className="text-xs text-[var(--muted)] mt-1 leading-snug break-words [overflow-wrap:anywhere]">
                               {formatDate((job.updated_at || job.created_at) * 1000)}
+                              {' · '}
+                              {(job.result_data?.transcribe_provider || 'local') === 'openai' ? 'ChatGPT API' : (job.result_data?.model_size || 'model')}
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap sm:justify-end flex-shrink-0">
                             <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${statusStyles[job.status] || ''}`}>
                               {job.status}
                             </span>
@@ -605,7 +688,7 @@ export default function DashboardPage() {
         {activeTab === 'history' && (
           <div className="grid lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 card">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                 <div>
                   <h2 className="text-2xl font-bold">Activity</h2>
                   <p className="text-[var(--muted)]">Processing, uploads, and OAuth events.</p>
@@ -631,9 +714,9 @@ export default function DashboardPage() {
                     key={`${evt.ts}-${evt.kind}`}
                     className="p-3 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)]"
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="font-semibold">{evt.summary}</div>
-                      <span className="text-xs text-[var(--muted)]">{formatDate(evt.ts)}</span>
+                    <div className="flex flex-wrap items-start sm:items-center justify-between gap-2">
+                      <div className="font-semibold break-words [overflow-wrap:anywhere]">{evt.summary}</div>
+                      <span className="text-xs text-[var(--muted)] sm:text-right">{formatDate(evt.ts)}</span>
                     </div>
                     <div className="text-xs text-[var(--muted)] mt-1 uppercase tracking-wide">
                       {evt.kind.replace(/_/g, ' ')}
@@ -644,7 +727,7 @@ export default function DashboardPage() {
             </div>
 
             <div className="card">
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                 <h3 className="text-lg font-semibold">Job Summary</h3>
                 {jobsLoading && <span className="text-xs text-[var(--muted)]">Refreshing…</span>}
               </div>
@@ -653,12 +736,16 @@ export default function DashboardPage() {
               )}
               <div className="space-y-2">
                 {recentJobs.map((job) => (
-                  <div key={job.id} className="flex items-center justify-between p-3 rounded-lg bg-[var(--surface-elevated)] border border-[var(--border)]">
-                    <div>
-                      <div className="font-semibold text-sm">
+                  <div
+                    key={job.id}
+                    data-testid={`job-summary-${job.id}`}
+                    className="flex flex-wrap sm:flex-nowrap items-start sm:items-center justify-between gap-2 p-3 rounded-lg bg-[var(--surface-elevated)] border border-[var(--border)]"
+                  >
+                    <div className="min-w-0">
+                      <div className="font-semibold text-sm break-words [overflow-wrap:anywhere]">
                         {job.result_data?.original_filename || job.id.slice(0, 6)}
                       </div>
-                      <div className="text-xs text-[var(--muted)]">
+                      <div className="text-xs text-[var(--muted)] leading-snug break-words [overflow-wrap:anywhere]">
                         {job.result_data?.model_size || 'model'} · {job.result_data?.video_crf ? `CRF ${job.result_data.video_crf}` : ''}
                       </div>
                     </div>
@@ -744,7 +831,7 @@ export default function DashboardPage() {
               <div className="card">
                 <h3 className="text-lg font-semibold mb-2">Session</h3>
                 <p className="text-[var(--muted)] text-sm">You are signed in via {user.provider}.</p>
-                <div className="flex gap-3 mt-3">
+                <div className="flex flex-wrap gap-3 mt-3">
                   <button className="btn-secondary" onClick={refreshUser}>
                     Refresh session
                   </button>
@@ -756,12 +843,14 @@ export default function DashboardPage() {
               <div className="card">
                 <h3 className="text-lg font-semibold mb-2">Recent history</h3>
                 {historyItems.slice(0, 5).map((evt) => (
-                  <div key={`${evt.ts}-${evt.kind}`} className="flex items-center justify-between py-2 border-b border-[var(--border)] last:border-0">
-                    <div>
-                      <div className="font-semibold text-sm">{evt.summary}</div>
+                  <div key={`${evt.ts}-${evt.kind}`} className="flex flex-wrap items-start sm:items-center justify-between gap-2 py-2 border-b border-[var(--border)] last:border-0">
+                    <div className="min-w-0">
+                      <div className="font-semibold text-sm break-words [overflow-wrap:anywhere]">{evt.summary}</div>
                       <div className="text-xs text-[var(--muted)]">{formatDate(evt.ts)}</div>
                     </div>
-                    <span className="text-[var(--muted)] text-xs uppercase">{evt.kind.replace(/_/g, ' ')}</span>
+                    <span className="text-[var(--muted)] text-xs uppercase break-words [overflow-wrap:anywhere]">
+                      {evt.kind.replace(/_/g, ' ')}
+                    </span>
                   </div>
                 ))}
                 {historyItems.length === 0 && (

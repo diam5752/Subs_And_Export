@@ -2,7 +2,7 @@
 
 ## Overview
 
-This application uses OpenAI's GPT models for AI-powered social media copy generation. The integration favors secure defaults and keeps keys out of source control.
+This application uses OpenAI's GPT models for AI-powered social media copy generation and (optionally) hosted speech-to-text when you pick the ChatGPT engine in the UI. The integration favors secure defaults and keeps keys out of source control.
 
 ## Quick Start
 
@@ -42,7 +42,7 @@ Point the app at a custom path with `GSP_SECRETS_FILE=/path/to/secrets.toml`.
 Add the file to `.gitignore` so it never lands in version control.
 
 ### 3. Verify setup
-Run a quick LLM invocation via the CLI:
+Run a quick LLM invocation via the CLI (social copy) or flip the "ChatGPT API" engine in the web UI to verify hosted transcription:
 ```bash
 python -m greek_sub_publisher.cli tests/data/demo.mp4 --output /tmp/out.mp4 --llm-social-copy --artifacts /tmp/artifacts
 ```

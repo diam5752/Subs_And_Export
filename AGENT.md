@@ -1,6 +1,11 @@
 Notes for Codex agent
 ---------------------
-- Always run the full test suite (`python3 -m pytest`) before and after any code changes to confirm green builds.
+- Always run the full test suite (`python3 -m pytest`) before and after any code changes to confirm green builds, and refresh all automated tests (unit, integration, e2e, snapshots) whenever you touch code.
 - Add or update unit tests for every new code path you introduce; aim for 100% coverage and no untested branches.
 - If you change execution defaults (performance/accuracy knobs), add regression-style tests or fakes to cover fallbacks.
 - Keep reminders in sync with the current repo state; update this doc when workflows change.
+- Run linting and formatting with fail-fast semantics; do not leave warnings unresolved.
+- Scan for secrets before committing (e.g., detect-secrets or gitleaks) and avoid committing any `.env*` content.
+- For schema changes, include migrations, seed updates, and rollback coverage; verify up/down paths locally.
+- Update lockfiles and run dependency vulnerability scans when touching dependencies.
+- In PRs, always capture reproduction steps plus expected vs. actual behavior for any bugfix.

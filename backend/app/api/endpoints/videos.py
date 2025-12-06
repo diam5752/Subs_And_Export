@@ -20,15 +20,30 @@ router = APIRouter()
 APP_SETTINGS = load_app_settings()
 MAX_UPLOAD_BYTES = APP_SETTINGS.max_upload_mb * 1024 * 1024
 
-# Ensure data directories exist
-DATA_DIR = config.PROJECT_ROOT.parent / "data"
-UPLOADS_DIR = DATA_DIR / "uploads"
-ARTIFACTS_DIR = DATA_DIR / "artifacts"
-UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
-ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
+def _data_roots() -> tuple[Path, Path, Path]:
+    """Resolve data directories relative to the configured project root."""
+    data_dir = config.PROJECT_ROOT.parent / "data"
+    uploads_dir = data_dir / "uploads"
+    artifacts_dir = data_dir / "artifacts"
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    return data_dir, uploads_dir, artifacts_dir
+
+
+def _relpath_safe(path: Path, base: Path) -> Path:
+    """Return ``path`` relative to ``base`` when possible, otherwise the absolute path."""
+    try:
+        return path.relative_to(base)
+    except ValueError:
+        return path
+
+# Initialize directories on import
+DATA_DIR, UPLOADS_DIR, ARTIFACTS_DIR = _data_roots()
 
 class ProcessingSettings(BaseModel):
     transcribe_model: str = "medium"
+    transcribe_provider: str = "local"
+    openai_model: str | None = None
     video_quality: str = "balanced"
     use_llm: bool = APP_SETTINGS.use_llm_by_default
     context_prompt: str = ""
@@ -89,9 +104,12 @@ def run_video_processing(
             # But let's just write.
             job_store.update_job(job_id, progress=int(percent), message=msg)
 
+        data_dir, _, _ = _data_roots()
+
         # Map settings to internal params
         # (Simplified logic from original app.py)
-        model_size = settings.transcribe_model
+        model_size = settings.openai_model or settings.transcribe_model
+        provider = settings.transcribe_provider or "local"
         crf_map = {"low size": 28, "balanced": 23, "high quality": 18}
         video_crf = crf_map.get(settings.video_quality.lower(), 23)
 
@@ -109,6 +127,7 @@ def run_video_processing(
             artifact_dir=artifact_dir,
             video_crf=video_crf,
             initial_prompt=settings.context_prompt,
+            transcribe_provider=provider,
             progress_callback=progress_callback
         )
         
@@ -119,16 +138,20 @@ def run_video_processing(
             final_path, social = result
         else:
             final_path = result
-            
+        
+        public_path = _relpath_safe(final_path, data_dir).as_posix()
+        artifact_public = _relpath_safe(artifact_dir, data_dir).as_posix()
+
         result_data = {
             "video_path": str(final_path.relative_to(config.PROJECT_ROOT.parent)), # Relative to backend root for serving
             "artifacts_dir": str(artifact_dir.relative_to(config.PROJECT_ROOT.parent)),
-            "public_url": f"/static/{final_path.relative_to(DATA_DIR).as_posix()}",
-            "artifact_url": f"/static/{artifact_dir.relative_to(DATA_DIR).as_posix()}",
+            "public_url": f"/static/{public_path}",
+            "artifact_url": f"/static/{artifact_public}",
             "social": social.tiktok.title if social else None, # Just storing title for simple view now
             "original_filename": original_name or input_path.name,
             "video_crf": video_crf,
             "model_size": model_size,
+            "transcribe_provider": provider,
         }
         
         job_store.update_job(job_id, status="completed", progress=100, message="Done!", result_data=result_data)
@@ -140,6 +163,7 @@ def run_video_processing(
             {
                 "job_id": job_id,
                 "model_size": model_size,
+                "provider": provider,
                 "video_crf": video_crf,
                 "output": result_data.get("public_url"),
                 "artifacts": result_data.get("artifact_url"),
@@ -160,25 +184,28 @@ def run_video_processing(
 @router.post("/process", response_model=JobResponse)
 async def process_video(
     background_tasks: BackgroundTasks,
+    request: Request,
     file: UploadFile = File(...),
     transcribe_model: str = Form("medium"),
+    transcribe_provider: str = Form("local"),
+    openai_model: str = Form(""),
     video_quality: str = Form("balanced"),
     use_llm: bool = Form(APP_SETTINGS.use_llm_by_default),
     context_prompt: str = Form(""),
-    request: Request,
     current_user: User = Depends(get_current_user),
     job_store: JobStore = Depends(get_job_store),
     history_store: HistoryStore = Depends(get_history_store)
 ):
     """Upload a video and start processing."""
     job_id = str(uuid.uuid4())
+    data_dir, uploads_dir, artifacts_root = _data_roots()
     
     # Save Upload
     file_ext = Path(file.filename).suffix
     if file_ext not in [".mp4", ".mov", ".mkv"]:
         raise HTTPException(400, "Invalid file type")
     
-    input_path = UPLOADS_DIR / f"{job_id}_input{file_ext}"
+    input_path = uploads_dir / f"{job_id}_input{file_ext}"
     content_length = request.headers.get("content-length")
     if content_length:
         try:
@@ -192,8 +219,8 @@ async def process_video(
     _save_upload_with_limit(file, input_path)
         
     # Prepare Output
-    output_path = ARTIFACTS_DIR / job_id / f"processed.mp4"
-    artifact_path = ARTIFACTS_DIR / job_id 
+    output_path = artifacts_root / job_id / f"processed.mp4"
+    artifact_path = artifacts_root / job_id 
     
     # Create Job
     job = job_store.create_job(job_id, current_user.id)
@@ -203,16 +230,19 @@ async def process_video(
         "process_started",
         f"Queued {file.filename}",
         {
-            "job_id": job_id,
-            "model_size": transcribe_model,
-            "video_quality": video_quality,
-            "use_llm": use_llm,
-        },
+        "job_id": job_id,
+        "model_size": transcribe_model,
+        "provider": transcribe_provider or "local",
+        "video_quality": video_quality,
+        "use_llm": use_llm,
+    },
     )
     
     # Enqueue Task
     settings = ProcessingSettings(
         transcribe_model=transcribe_model,
+        transcribe_provider=transcribe_provider,
+        openai_model=openai_model or None,
         video_quality=video_quality,
         use_llm=use_llm,
         context_prompt=context_prompt

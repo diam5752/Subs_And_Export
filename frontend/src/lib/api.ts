@@ -16,6 +16,7 @@ export interface JobResultData {
     original_filename?: string | null;
     video_crf?: number;
     model_size?: string;
+    transcribe_provider?: string;
 }
 
 export interface JobResponse {
@@ -141,6 +142,8 @@ class ApiClient {
 
     async processVideo(file: File, settings: {
         transcribe_model?: string;
+        transcribe_provider?: string;
+        openai_model?: string;
         video_quality?: string;
         use_llm?: boolean;
         context_prompt?: string;
@@ -148,6 +151,8 @@ class ApiClient {
         const formData = new FormData();
         formData.append('file', file);
         formData.append('transcribe_model', settings.transcribe_model || 'medium');
+        formData.append('transcribe_provider', settings.transcribe_provider || 'local');
+        formData.append('openai_model', settings.openai_model || '');
         formData.append('video_quality', settings.video_quality || 'balanced');
         formData.append('use_llm', String(settings.use_llm || false));
         formData.append('context_prompt', settings.context_prompt || '');

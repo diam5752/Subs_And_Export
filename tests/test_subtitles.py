@@ -121,7 +121,8 @@ def test_format_karaoke_wraps_long_lines() -> None:
 
     karaoke = subtitles._format_karaoke_text(cue)
 
-    assert karaoke.count("\\N") == 1  # exactly two lines
+    breaks = karaoke.count("\\N")
+    assert 1 <= breaks <= 6  # wrapped into safe multi-line block without overflowing
 
 
 def test_generate_subtitles_from_audio_accepts_auto_language(monkeypatch, tmp_path: Path) -> None:
@@ -238,14 +239,12 @@ def test_parse_srt_skips_invalid_blocks(tmp_path: Path) -> None:
     assert subtitles._parse_srt(empty) == []
 
 
-def test_wrap_two_lines_handles_long_words() -> None:
-    first, second = subtitles._wrap_two_lines(["SUPERLONGWORDTHATNEEDSWRAP"], max_chars=10)
-    assert first
-    # Should split the long word across lines without error
-    assert " ".join(first + second)
-    empty_first, empty_second = subtitles._wrap_two_lines([], max_chars=5)
-    assert empty_first == []
-    assert empty_second == []
+def test_wrap_lines_handles_long_words() -> None:
+    lines = subtitles._wrap_lines(["SUPERLONGWORDTHATNEEDSWRAP"], max_chars=10)
+    assert lines and "SUPERLONGWORDTHATNEEDSWRAP"[:5] in " ".join(" ".join(line) for line in lines)
+    # Should keep each line within the safe char window
+    assert all(len(" ".join(line)) <= 10 for line in lines)
+    assert subtitles._wrap_lines([], max_chars=5) == []
 
 
 def test_format_karaoke_text_without_word_timings() -> None:

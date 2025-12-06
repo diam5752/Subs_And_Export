@@ -9,12 +9,46 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-      - name: Run tests
-        run: pytest -m "not slow"
+
+      - name: Run backend tests (including slow)
+        run: pytest
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install Playwright (Chromium) + deps
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Run frontend unit tests (Jest)
+        working-directory: frontend
+        env:
+          CI: 'true'
+        run: npm test -- --runInBand
+
+      - name: Run frontend e2e (Playwright)
+        working-directory: frontend
+        env:
+          CI: 'true'
+        run: npm run e2e

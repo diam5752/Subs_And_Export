@@ -7,6 +7,7 @@ import os
 import re
 import subprocess
 import tempfile
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterable, List, Optional, Sequence, Tuple
@@ -192,6 +193,8 @@ def generate_subtitles_from_audio(
     initial_prompt: str | None = None,
     vad_filter: bool = True,
     vad_parameters: dict | None = None,
+    provider: str = "local",
+    openai_api_key: str | None = None,
 ) -> Tuple[Path, List[Cue]]:  # pragma: no cover
     """
     Transcribe Greek speech to an SRT subtitle file using faster-whisper.
@@ -199,8 +202,23 @@ def generate_subtitles_from_audio(
     Returns the path to the SRT file and the structured cues (with word timings
     when available) to support karaoke-style highlighting.
     """
-    if language and language.lower() == "auto":
-        language = None
+    if not language or language.lower() == "auto":
+        language = config.WHISPER_LANGUAGE
+
+    wants_openai = provider == "openai" or _model_uses_openai(model_size)
+    output_dir = output_dir or Path(tempfile.mkdtemp())
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    if wants_openai:
+        return _transcribe_with_openai(
+            audio_path,
+            model_name=model_size or config.OPENAI_TRANSCRIBE_MODEL,
+            language=language,
+            prompt=initial_prompt,
+            output_dir=output_dir,
+            progress_callback=progress_callback,
+            api_key=openai_api_key,
+        )
     
     # Optimize CPU threads: Use all available cores (capped at 8 to avoid overhead)
     threads = min(8, os.cpu_count() or 4)
@@ -214,7 +232,8 @@ def generate_subtitles_from_audio(
     )
     
     transcribe_kwargs = {
-        "language": language,
+        "language": language or config.WHISPER_LANGUAGE,
+        "task": "transcribe",
         "word_timestamps": True,
         "vad_filter": vad_filter,
         "vad_parameters": vad_parameters or dict(min_silence_duration_ms=700),
@@ -253,8 +272,6 @@ def generate_subtitles_from_audio(
             progress = min(100.0, (seg.end / total_duration) * 100.0)
             progress_callback(progress)
 
-    output_dir = output_dir or Path(tempfile.mkdtemp())
-    output_dir.mkdir(parents=True, exist_ok=True)
     srt_path = output_dir / f"{audio_path.stem}.srt"
     _write_srt_from_segments(timed_text, srt_path)
     return srt_path, cues
@@ -376,33 +393,16 @@ def create_styled_subtitle_file(
     return ass_path
 
 
-def _wrap_two_lines(words: List[str], max_chars: int = config.MAX_SUB_LINE_CHARS) -> Tuple[List[str], List[str]]:
+def _wrap_lines(words: List[str], max_chars: int = config.MAX_SUB_LINE_CHARS) -> List[List[str]]:
     """
-    Wrap into up to two lines, trying to balance lengths and avoid overflow.
+    Wrap words into multiple lines without overflowing the safe width.
+
+    Returns a list of lines (each line is a list of words). The number of lines
+    is flexible (2-3 typical) but each line stays within the configured width.
     """
-    def line_len(ws: List[str]) -> int:
-        if not ws:  # pragma: no cover - defensive guard
-            return 0
-        return sum(len(w) for w in ws) + (len(ws) - 1)
+    if not words:
+        return []
 
-    # Try all splits; choose minimal overflow, then best balance.
-    best_split = None
-    best_score = None  # (overflow, balance)
-    for i in range(1, len(words)):
-        left = words[:i]
-        right = words[i:]
-        len_left = line_len(left)
-        len_right = line_len(right)
-        overflow = max(0, len_left - max_chars) + max(0, len_right - max_chars)
-        balance = abs(len_left - len_right)
-        score = (overflow, balance)
-        if best_score is None or score < best_score:
-            best_score = score
-            best_split = (left, right)
-    if best_split:
-        return best_split
-
-    # Fallback: textwrap with word breaking for long words
     text = " ".join(words)
     wrapped = textwrap.wrap(
         text,
@@ -412,12 +412,8 @@ def _wrap_two_lines(words: List[str], max_chars: int = config.MAX_SUB_LINE_CHARS
         drop_whitespace=True,
     )
     if not wrapped:
-        return [], []
-    if len(wrapped) == 1:
-        return wrapped[0].split(), []
-    if len(wrapped) > 2:
-        wrapped = [wrapped[0], " ".join(wrapped[1:])]
-    return wrapped[0].split(), wrapped[1].split()
+        return [words]
+    return [line.split() for line in wrapped]
 
 
 def _format_karaoke_text(
@@ -431,18 +427,21 @@ def _format_karaoke_text(
     """
     if cue.words:
         word_texts = [w.text for w in cue.words]
-        first_line_words, second_line_words = _wrap_two_lines(
-            word_texts, max_chars=config.MAX_SUB_LINE_CHARS
-        )
-        break_index = len(first_line_words) if second_line_words else None
+        wrapped_lines = _wrap_lines(word_texts, max_chars=config.MAX_SUB_LINE_CHARS)
+        break_indices: List[int] = []
+        running_total = 0
+        for line_words in wrapped_lines[:-1]:
+            running_total += len(line_words)
+            break_indices.append(running_total)
         words = cue.words
         segments = []
         for idx, word in enumerate(words):
             duration_cs = max(1, round((word.end - word.start) * 100))
             token = f"{{\\k{duration_cs}}}{{\\c{highlight_color}}}{word.text}{{\\c{secondary_color}}}"
             # insert line break before second line
-            if break_index is not None and idx == break_index:
+            if break_indices and idx == break_indices[0]:
                 segments.append("\\N")
+                break_indices.pop(0)
             segments.append(token)
             if idx != len(words) - 1:
                 segments.append(" ")
@@ -450,10 +449,11 @@ def _format_karaoke_text(
 
     # Fallback: no word timings, static text wrapped to two lines
     raw_words = cue.text.split()
-    first, second = _wrap_two_lines(raw_words, max_chars=config.MAX_SUB_LINE_CHARS)
-    if second:
-        return " ".join(first) + "\\N" + " ".join(second)
-    return " ".join(first)
+    wrapped_lines = _wrap_lines(raw_words, max_chars=config.MAX_SUB_LINE_CHARS)
+    if not wrapped_lines:
+        return ""
+    joined = [" ".join(line) for line in wrapped_lines]
+    return "\\N".join(joined)
 
 
 _STOPWORDS = {
@@ -592,6 +592,14 @@ def _load_openai_client(api_key: str):
     Raises:
         RuntimeError: If openai package is not installed
     """
+    api_key = _resolve_openai_api_key(api_key)
+    if not api_key:
+        raise RuntimeError(
+            "OpenAI API key is required for AI enrichment. Please set it via:\n"
+            "  1. Environment variable: export OPENAI_API_KEY='your-key'\n"
+            "  2. secrets file: config/secrets.toml with OPENAI_API_KEY\n"
+            "  3. Pass explicitly via api_key parameter"
+        )
     try:
         from openai import OpenAI
     except Exception as exc:  # pragma: no cover - exercised in tests via monkeypatch
@@ -715,3 +723,121 @@ def build_social_copy_llm(
                 continue
     
     raise ValueError("Failed to generate valid social copy after retries") from last_exc  # pragma: no cover
+
+
+def _resolve_openai_api_key(explicit: str | None = None) -> str | None:
+    """
+    Resolve an OpenAI key from (in order):
+    1. Explicit argument
+    2. Environment variable
+    3. secrets.toml (unless GSP_USE_FILE_SECRETS=0)
+    """
+    if explicit:
+        return explicit
+
+    env_key = os.getenv("OPENAI_API_KEY")
+    if env_key:
+        return env_key
+
+    if os.getenv("GSP_USE_FILE_SECRETS", "1") == "0":
+        return None
+
+    search_paths: list[Path] = []
+    override = os.getenv("GSP_SECRETS_FILE")
+    if override:
+        search_paths.append(Path(override))
+    search_paths.append(config.PROJECT_ROOT.parent.parent / "config" / "secrets.toml")
+
+    for path in search_paths:
+        try:
+            if not path.exists():
+                continue
+            data = tomllib.loads(path.read_text())
+            if "OPENAI_API_KEY" in data:
+                return str(data["OPENAI_API_KEY"])
+        except Exception:
+            continue
+    return None
+
+
+def _model_uses_openai(model_size: str | None) -> bool:
+    """Detect whether the requested model should use hosted OpenAI STT."""
+    if not model_size:
+        return False
+    lowered = model_size.lower()
+    return (
+        lowered.startswith("openai/")
+        or lowered.startswith("gpt-4o")
+        or lowered == "whisper-1"
+        or "transcribe" in lowered
+    )
+
+
+def should_use_openai(model_size: str | None) -> bool:
+    """Public helper for deciding whether to route STT through OpenAI."""
+    return _model_uses_openai(model_size)
+
+
+def _transcribe_with_openai(
+    audio_path: Path,
+    *,
+    model_name: str | None = None,
+    language: str | None = None,
+    prompt: str | None = None,
+    output_dir: Path,
+    progress_callback: Callable[[float], None] | None = None,
+    api_key: str | None = None,
+) -> tuple[Path, List[Cue]]:
+    """
+    Transcribe audio using OpenAI's hosted models and return SRT + cues.
+    """
+    client = _load_openai_client(api_key)
+    resolved_model = model_name or config.OPENAI_TRANSCRIBE_MODEL
+    lang = language or config.WHISPER_LANGUAGE
+
+    if progress_callback:
+        progress_callback(10.0)
+
+    guard_prompt = (
+        "Transcribe only Greek speech. Do not translate to English. "
+        "Keep original Greek words and casing; no summaries."
+    )
+    composed_prompt = f"{(prompt or '').strip()}\n{guard_prompt}".strip()
+
+    with audio_path.open("rb") as audio_file:
+        response = client.audio.transcriptions.create(
+            model=resolved_model,
+            file=audio_file,
+            language=lang,
+            response_format="verbose_json",
+            temperature=0.0,
+            prompt=composed_prompt or None,
+        )
+
+    segments = getattr(response, "segments", None) or []
+    timed_text: list[TimeRange] = []
+    cues: list[Cue] = []
+
+    if segments:
+        for seg in segments:
+            start = float(seg.get("start", 0.0))
+            end = float(seg.get("end", start + 0.6))
+            text = _normalize_text(seg.get("text", ""))
+            timed_text.append((start, end, text))
+            cues.append(Cue(start=start, end=end, text=text, words=None))
+    elif getattr(response, "text", ""):
+        text = _normalize_text(response.text)
+        duration = max(1.0, len(text.split()) * 0.45)
+        timed_text.append((0.0, duration, text))
+        cues.append(Cue(start=0.0, end=duration, text=text, words=None))
+    else:  # pragma: no cover - defensive guard
+        raise ValueError("OpenAI transcription returned no text")
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    srt_path = output_dir / f"{audio_path.stem}.srt"
+    _write_srt_from_segments(timed_text, srt_path)
+
+    if progress_callback:
+        progress_callback(100.0)
+
+    return srt_path, cues

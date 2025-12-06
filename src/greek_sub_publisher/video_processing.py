@@ -224,6 +224,8 @@ def normalize_and_stub_subtitles(
     initial_prompt: str | None = None,
     vad_filter: bool | None = None,
     vad_parameters: dict | None = None,
+    transcribe_provider: str | None = None,
+    openai_api_key: str | None = None,
 ) -> Path | tuple[Path, subtitles.SocialCopy]:
     """
     Normalize video to 9:16, generate Greek subs, and burn them into the output.
@@ -249,6 +251,11 @@ def normalize_and_stub_subtitles(
     # Normalize common aliases so "turbo" routes to the CT2-quantized model
     if "turbo" in selected_model.lower() and "ct2" not in selected_model.lower():
         selected_model = config.WHISPER_MODEL_TURBO
+
+    # Allow explicit provider override, but auto-route if the model hints at OpenAI
+    effective_provider = (
+        transcribe_provider or ("openai" if subtitles.should_use_openai(selected_model) else "local")
+    )
 
     effective_device = device or config.WHISPER_DEVICE
     effective_compute = compute_type or config.WHISPER_COMPUTE_TYPE
@@ -306,7 +313,7 @@ def normalize_and_stub_subtitles(
                 "float16",
                 "auto",
             ):
-                effective_compute = "int8"
+                effective_compute = config.WHISPER_COMPUTE_TYPE_TURBO
 
             # Stage 1: Audio Extraction (5%)
             if progress_callback:
@@ -343,6 +350,8 @@ def normalize_and_stub_subtitles(
                     initial_prompt=initial_prompt,
                     vad_filter=effective_vad_filter,
                     vad_parameters=effective_vad_parameters,
+                    provider=effective_provider,
+                    openai_api_key=openai_api_key,
                 )
             
             # Stage 3: Subtitle Styling (65% -> 70%)
@@ -479,6 +488,7 @@ def normalize_and_stub_subtitles(
                 "chunk_length": effective_chunk_length,
                 "condition_on_previous_text": condition_on_previous_text,
                 "initial_prompt": bool(initial_prompt),
+                "transcribe_provider": effective_provider,
                 "use_hw_accel": use_hw_accel,
                 "audio_copy": effective_audio_copy,
                 "language": language or config.WHISPER_LANGUAGE,
