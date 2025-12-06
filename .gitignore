@@ -22,9 +22,8 @@ env/
 *.swp
 
 # Local secrets
-.streamlit/secrets.toml
-.streamlit/app_settings.toml
 config/secrets.toml
+config/app_settings.toml
 
 # Local state/logs
 logs/
@@ -33,3 +32,8 @@ logs/
 # Generated media outputs
 tests/data/*_subbed*.mp4
 tests/data/*_output*.mp4
+
+# Runtime data artifacts
+backend/data/artifacts/
+backend/data/uploads/
+src/greek_sub_publisher/logs/

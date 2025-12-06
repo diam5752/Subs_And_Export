@@ -1,10 +1,11 @@
-import shutil
 import uuid
 from pathlib import Path
-from typing import Any, List
+from typing import List
 
-from fastapi import APIRouter, Depends, UploadFile, File, Form, BackgroundTasks, HTTPException
+from fastapi import APIRouter, Depends, UploadFile, File, Form, BackgroundTasks, HTTPException, Request
 from pydantic import BaseModel
+
+from greek_sub_publisher.app_settings import load_app_settings
 
 from ... import config
 from ...jobs import JobStore
@@ -16,6 +17,9 @@ from ..deps import get_current_user, get_job_store, get_history_store
 
 router = APIRouter()
 
+APP_SETTINGS = load_app_settings()
+MAX_UPLOAD_BYTES = APP_SETTINGS.max_upload_mb * 1024 * 1024
+
 # Ensure data directories exist
 DATA_DIR = config.PROJECT_ROOT.parent / "data"
 UPLOADS_DIR = DATA_DIR / "uploads"
@@ -26,8 +30,28 @@ ARTIFACTS_DIR.mkdir(parents=True, exist_ok=True)
 class ProcessingSettings(BaseModel):
     transcribe_model: str = "medium"
     video_quality: str = "balanced"
-    use_llm: bool = False
+    use_llm: bool = APP_SETTINGS.use_llm_by_default
     context_prompt: str = ""
+    llm_model: str = APP_SETTINGS.llm_model
+    llm_temperature: float = APP_SETTINGS.llm_temperature
+
+
+def _save_upload_with_limit(upload: UploadFile, destination: Path) -> None:
+    """Write an upload to disk while enforcing the configured size limit."""
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    total = 0
+    upload.file.seek(0)
+    with destination.open("wb") as buffer:
+        for chunk in iter(lambda: upload.file.read(1024 * 1024), b""):
+            total += len(chunk)
+            if total > MAX_UPLOAD_BYTES:
+                buffer.close()
+                destination.unlink(missing_ok=True)
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"File too large; limit is {APP_SETTINGS.max_upload_mb}MB",
+                )
+            buffer.write(chunk)
 
 
 def _record_event_safe(
@@ -80,6 +104,8 @@ def run_video_processing(
             model_size=model_size,
             generate_social_copy=settings.use_llm,
             use_llm_social_copy=settings.use_llm,
+            llm_model=settings.llm_model,
+            llm_temperature=settings.llm_temperature,
             artifact_dir=artifact_dir,
             video_crf=video_crf,
             initial_prompt=settings.context_prompt,
@@ -137,8 +163,9 @@ async def process_video(
     file: UploadFile = File(...),
     transcribe_model: str = Form("medium"),
     video_quality: str = Form("balanced"),
-    use_llm: bool = Form(False),
+    use_llm: bool = Form(APP_SETTINGS.use_llm_by_default),
     context_prompt: str = Form(""),
+    request: Request,
     current_user: User = Depends(get_current_user),
     job_store: JobStore = Depends(get_job_store),
     history_store: HistoryStore = Depends(get_history_store)
@@ -152,8 +179,17 @@ async def process_video(
         raise HTTPException(400, "Invalid file type")
     
     input_path = UPLOADS_DIR / f"{job_id}_input{file_ext}"
-    with input_path.open("wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+    content_length = request.headers.get("content-length")
+    if content_length:
+        try:
+            if int(content_length) > MAX_UPLOAD_BYTES:
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"Request too large; limit is {APP_SETTINGS.max_upload_mb}MB",
+                )
+        except ValueError:
+            pass
+    _save_upload_with_limit(file, input_path)
         
     # Prepare Output
     output_path = ARTIFACTS_DIR / job_id / f"processed.mp4"

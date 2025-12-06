@@ -1,8 +1,8 @@
 """
-Backend authentication helpers reuse the core Streamlit implementations.
+Backend authentication helpers reuse the shared core implementation.
 
-By importing directly from ``greek_sub_publisher.auth`` we avoid maintaining two
-copies of the same logic while keeping the FastAPI API behavior identical.
+Importing directly from ``greek_sub_publisher.auth`` keeps the FastAPI API in
+sync with the CLI and avoids maintaining duplicate logic.
 """
 from greek_sub_publisher.auth import (  # noqa: F401
     User,

@@ -1,0 +1,10 @@
+# Deployment defaults for the FastAPI + Next.js stack
+[ai]
+# Toggle AI social copy generation by default in the UI/back-end
+enable_by_default = false
+model = "gpt-4o-mini"
+temperature = 0.6
+
+[uploads]
+# Cap upload size (MB) for video ingestion
+max_upload_mb = 500

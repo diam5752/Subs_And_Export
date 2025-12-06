@@ -17,6 +17,10 @@ python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
+## Configuration
+- Secrets: set env vars (e.g., `OPENAI_API_KEY`, `GOOGLE_CLIENT_ID`) or copy `config/secrets.example.toml` to `config/secrets.toml` (override path via `GSP_SECRETS_FILE`).
+- App defaults: copy `config/app_settings.example.toml` to `config/app_settings.toml` to set the default AI toggle, model/temperature, and upload size cap for the FastAPI/Next.js stack (`GSP_APP_SETTINGS_FILE` overrides the path).
+
 ## Usage
 ```bash
 python -m greek_sub_publisher.cli INPUT.mp4 --output OUTPUT.mp4 --artifacts ./artifacts \

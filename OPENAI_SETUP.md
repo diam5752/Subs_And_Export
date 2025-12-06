@@ -83,4 +83,4 @@ Keys are resolved in this order:
 2. Environment variable (`OPENAI_API_KEY`)
 3. Secrets file (`GSP_SECRETS_FILE` if set, otherwise `config/secrets.toml` if present)
 
-Legacy Streamlit-specific setup steps are preserved in `docs/streamlit-archive.md` for reference.
+UI defaults for the FastAPI/Next.js app (AI toggle, model, temperature, upload cap) live in `config/app_settings.toml`; copy `config/app_settings.example.toml` to get started.

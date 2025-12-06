@@ -1,5 +1,0 @@
-# AI settings for Streamlit UI (non-secret)
-[ai]
-enable_by_default = false
-model = "gpt-4o-mini"
-temperature = 0.6

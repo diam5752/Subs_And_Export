@@ -1,4 +1,4 @@
-"""Lightweight authentication helpers for Streamlit UI."""
+"""Lightweight authentication helpers shared across CLI and backend."""
 
 from __future__ import annotations
 
