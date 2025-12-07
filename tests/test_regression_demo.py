@@ -12,9 +12,20 @@ from greek_sub_publisher import subtitles
 
 DEMO_VIDEO = Path("tests/data/demo.mp4")
 GOLDEN_DIR = Path("tests/data/demo_artifacts")
+TIMESTAMP_TOLERANCE = 0.05  # 50ms drift allowance between platforms
 
 
 pytestmark = pytest.mark.skipif(shutil.which("ffmpeg") is None, reason="ffmpeg is required for demo regression")
+
+
+def _assert_srt_matches_with_tolerance(actual_path: Path, expected_path: Path, tolerance: float) -> None:
+    expected = subtitles._parse_srt(expected_path)
+    actual = subtitles._parse_srt(actual_path)
+    assert len(actual) == len(expected)
+    for (a_start, a_end, a_text), (e_start, e_end, e_text) in zip(actual, expected):
+        assert a_text == e_text
+        assert abs(a_start - e_start) <= tolerance
+        assert abs(a_end - e_end) <= tolerance
 
 
 @pytest.mark.slow
@@ -35,9 +46,7 @@ def test_demo_video_transcription_matches_golden(tmp_path: Path) -> None:
     except httpx.HTTPError as exc:  # pragma: no cover - network dependent
         pytest.skip(f"Model download not available in test environment: {exc}")
 
-    expected_srt = (GOLDEN_DIR / "demo.srt").read_text(encoding="utf-8").strip()
-    actual_srt = srt_path.read_text(encoding="utf-8").strip()
-    assert actual_srt == expected_srt
+    _assert_srt_matches_with_tolerance(srt_path, GOLDEN_DIR / "demo.srt", tolerance=TIMESTAMP_TOLERANCE)
 
     transcript_text = subtitles.cues_to_text(cues)
     expected_transcript = (GOLDEN_DIR / "transcript.txt").read_text(encoding="utf-8").strip()
