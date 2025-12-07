@@ -34,7 +34,7 @@ for (const [label, viewport] of Object.entries(viewports)) {
       await page.getByRole('heading', { name: /sign in to your account/i }).waitFor();
       await stabilizeUi(page);
       await expectNoHorizontalOverflow(page);
-      await expect(page).toHaveScreenshot(`login-${label}.png`, { fullPage: true });
+      await expect(page).toHaveScreenshot(`login-${label}.png`);
     });
 
     test('register page layout stays contained', async ({ page }) => {
@@ -43,7 +43,7 @@ for (const [label, viewport] of Object.entries(viewports)) {
       await page.getByRole('heading', { name: /create account/i }).waitFor();
       await stabilizeUi(page);
       await expectNoHorizontalOverflow(page);
-      await expect(page).toHaveScreenshot(`register-${label}.png`, { fullPage: true });
+      await expect(page).toHaveScreenshot(`register-${label}.png`);
     });
 
     test('workspace tab renders jobs and settings without overflow', async ({ page }) => {
@@ -66,7 +66,7 @@ for (const [label, viewport] of Object.entries(viewports)) {
       const longJobCard = page.getByTestId('recent-job-job-long-form');
       await longJobCard.waitFor();
       await expectLocatorWithinBounds(longJobCard);
-      await expect(page).toHaveScreenshot(`dashboard-process-${label}.png`, { fullPage: true });
+      await expect(page).toHaveScreenshot(`dashboard-process-${label}.png`);
     });
 
     test('history tab shows event cards neatly', async ({ page }) => {
@@ -81,7 +81,6 @@ for (const [label, viewport] of Object.entries(viewports)) {
       await summaryRow.waitFor();
       await expectLocatorWithinBounds(summaryRow);
       await expect(page).toHaveScreenshot(`dashboard-history-${label}.png`, {
-        fullPage: true,
         // Allow a bit more cross-platform rendering variance for this view (fonts/AA drift).
         maxDiffPixelRatio: 0.04,
       });
@@ -96,7 +95,7 @@ for (const [label, viewport] of Object.entries(viewports)) {
       await page.getByText('Signed in from Chrome on macOS').waitFor();
       await stabilizeUi(page);
       await expectNoHorizontalOverflow(page);
-      await expect(page).toHaveScreenshot(`dashboard-account-${label}.png`, { fullPage: true });
+      await expect(page).toHaveScreenshot(`dashboard-account-${label}.png`);
     });
   });
 }
