@@ -61,9 +61,11 @@ SECURE_HEADERS = Secure(
     hsts=StrictTransportSecurity().max_age(63072000).include_subdomains().preload(),
     xfo=XFrameOptions().deny(),
     referrer=ReferrerPolicy().strict_origin_when_cross_origin(),
-    csp=ContentSecurityPolicy(
-        "default-src 'self'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self'"
-    ),
+    csp=ContentSecurityPolicy()
+    .default_src("'self'")
+    .img_src("'self'", "data:")
+    .media_src("'self'", "blob:")
+    .connect_src("'self'"),
     xcto=XContentTypeOptions().nosniff(),
 )
 
