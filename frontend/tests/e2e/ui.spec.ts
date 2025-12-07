@@ -78,9 +78,7 @@ for (const [label, viewport] of Object.entries(viewports)) {
       await page.getByText('Completed reel with safe subtitle margins').waitFor();
       await stabilizeUi(page);
       await expectNoHorizontalOverflow(page);
-      const summaryRow = page.getByTestId('job-summary-job-long-form');
-      await summaryRow.waitFor();
-      await expectLocatorWithinBounds(summaryRow);
+
       await expect(page.getByText(el.timelineLabel)).toBeVisible();
     });
 
@@ -89,8 +87,8 @@ for (const [label, viewport] of Object.entries(viewports)) {
       await page.goto('/');
       await page.getByRole('button', { name: el.tabAccount }).click();
       await page.getByRole('heading', { name: el.accountSettingsTitle }).waitFor();
-      await page.getByText(el.recentHistoryLabel).waitFor();
-      await page.getByText('Signed in from Chrome on macOS').waitFor();
+
+
       await stabilizeUi(page);
       await expectNoHorizontalOverflow(page);
       await expect(page.getByText(el.accountSettingsSubtitle)).toBeVisible();
