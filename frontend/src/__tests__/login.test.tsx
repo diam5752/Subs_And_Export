@@ -58,6 +58,7 @@ beforeEach(() => {
     localStorage.clear();
     searchParamsState.code = null;
     searchParamsState.state = null;
+    loginMock.mockResolvedValue(undefined);
     googleLoginMock.mockResolvedValue(undefined);
     getGoogleAuthUrlMock.mockReset();
 });
@@ -91,4 +92,17 @@ it('requests Google auth URL and redirects when button is clicked', async () => 
     await waitFor(() => expect(getGoogleAuthUrlMock).toHaveBeenCalled());
     expect(localStorage.getItem('google_oauth_state')).toBe('generated_state');
     consoleSpy.mockRestore();
+});
+
+it('submits email/password through the login handler', async () => {
+    render(<LoginPage />);
+
+    fireEvent.change(screen.getByLabelText(/Email Address/i), { target: { value: 'you@example.com' } });
+    fireEvent.change(screen.getByLabelText(/Password/i), { target: { value: 'hunter2' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /Sign In/i }));
+
+    await waitFor(() => {
+        expect(loginMock).toHaveBeenCalledWith('you@example.com', 'hunter2');
+    });
 });

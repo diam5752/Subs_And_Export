@@ -260,27 +260,28 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen relative overflow-hidden">
-      <div className="pointer-events-none absolute -left-10 -top-10 h-64 w-64 rounded-full bg-[var(--accent)]/10 blur-3xl" />
-      <div className="pointer-events-none absolute right-0 top-20 h-56 w-56 rounded-full bg-[var(--accent-secondary)]/10 blur-3xl" />
+      <div className="pointer-events-none absolute -left-16 -top-10 h-80 w-80 rounded-full bg-[var(--accent)]/12 blur-3xl" />
+      <div className="pointer-events-none absolute right-4 top-40 h-72 w-72 rounded-full bg-[var(--accent-secondary)]/14 blur-3xl" />
+      <div className="pointer-events-none absolute -right-10 bottom-0 h-96 w-96 rounded-full bg-[#6aa4ff]/10 blur-3xl" />
 
-      <nav className="sticky top-0 z-20 backdrop-blur-xl bg-[var(--background)]/70 border-b border-[var(--border)]/60 px-6 py-4">
-        <div className="max-w-7xl mx-auto grid gap-3 md:grid-cols-[auto,1fr] md:items-center">
+      <nav className="sticky top-0 z-20 backdrop-blur-2xl bg-[var(--background)]/75 border-b border-[var(--border)]/60 px-6 py-4">
+        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="h-11 w-11 rounded-2xl bg-white/5 border border-[var(--border)] flex items-center justify-center text-xl">🎥</div>
+            <div className="h-11 w-11 rounded-2xl bg-white/5 border border-[var(--border)] flex items-center justify-center text-xl shadow-inner">🎛️</div>
             <div>
-              <p className="text-[var(--muted)] text-xs uppercase tracking-[0.2em]">Greek Sub Publisher</p>
-              <p className="text-xl font-semibold">Futurist Studio</p>
+              <p className="text-[var(--muted)] text-xs uppercase tracking-[0.35em]">Subtitle desk</p>
+              <p className="text-xl font-semibold leading-tight">Futurist Studio</p>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2 justify-start md:justify-end min-w-0">
-            <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-3 justify-end min-w-0">
+            <div className="flex items-center gap-1 bg-white/5 border border-[var(--border)] rounded-full p-1">
               {(['process', 'history', 'account'] as const).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
-                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors border ${activeTab === tab
-                      ? 'bg-white text-[var(--background)] border-white'
-                      : 'border-[var(--border)] text-[var(--muted)] hover:text-[var(--foreground)] hover:border-[var(--accent)]/40'
+                  className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${activeTab === tab
+                      ? 'bg-white text-[var(--background)] shadow-[0_10px_40px_rgba(255,255,255,0.07)]'
+                      : 'text-[var(--muted)] hover:text-[var(--foreground)]'
                     }`}
                 >
                   {tab === 'process' && 'Workspace'}
@@ -289,11 +290,11 @@ export default function DashboardPage() {
                 </button>
               ))}
             </div>
-            <div className="hidden md:block h-6 w-px bg-[var(--border)]" />
-            <div className="flex flex-wrap items-center gap-3 text-sm justify-end min-w-[240px] md:min-w-0">
-              <div className="px-3 py-2 rounded-lg bg-white/5 border border-[var(--border)] min-w-[170px]">
-                <div className="font-semibold break-words">{user.name}</div>
-                <div className="text-[var(--muted)] text-xs">{user.provider} session</div>
+            <div className="hidden md:block h-8 w-px bg-[var(--border)]" />
+            <div className="flex items-center gap-3 text-sm min-w-[230px]">
+              <div className="px-3 py-2 rounded-xl bg-white/5 border border-[var(--border)] min-w-[170px]">
+                <div className="font-semibold truncate">{user.name}</div>
+                <div className="text-[var(--muted)] text-xs uppercase tracking-wide">{user.provider} session</div>
               </div>
               <button onClick={logout} className="btn-secondary text-sm py-2 px-4">
                 Sign Out
@@ -303,44 +304,47 @@ export default function DashboardPage() {
         </div>
       </nav>
 
-      <main className="relative max-w-6xl mx-auto px-6 py-10 space-y-10">
-        <section className="card border-[var(--border)]/70 bg-white/5 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-          <div className="space-y-3 max-w-2xl">
-            <p className="text-[var(--muted)] text-sm uppercase tracking-[0.25em]">Minimal, Apple-inspired flow</p>
+      <main className="relative max-w-6xl mx-auto px-6 py-10 space-y-8">
+        <section className="card border-[var(--border)]/70 bg-white/[0.02] flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-4 max-w-2xl">
+            <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border)]/70 bg-white/[0.03] px-3 py-1 text-xs uppercase tracking-[0.3em] text-[var(--muted)]">
+              <span className="h-2 w-2 rounded-full bg-[var(--accent)] shadow-[0_0_0_3px_rgba(141,247,223,0.25)]" />
+              Precision Greek captions
+            </div>
             <h1 className="text-4xl lg:text-5xl font-semibold leading-tight">
-              Slick subtitle lab inspired by the best of CapCut
+              Build export-ready shorts without leaving the browser.
             </h1>
             <p className="text-[var(--muted)] text-lg">
-              Drop your vertical clips, let the AI align Greek subtitles, and ship export-ready reels in a few clicks.
+              Drop a clip, auto-align Greek subs, and ship a TikTok-ready render with AI hooks for your description.
             </p>
-            <div className="flex flex-wrap gap-3">
-              <span className="px-3 py-2 rounded-full bg-white/5 border border-[var(--border)] text-sm">Live sync + auto styling</span>
-              <span className="px-3 py-2 rounded-full bg-white/5 border border-[var(--border)] text-sm">TikTok-ready exports</span>
-              <span className="px-3 py-2 rounded-full bg-white/5 border border-[var(--border)] text-sm">LLM-powered hooks</span>
+            <div className="flex flex-wrap gap-2 text-sm">
+              <span className="px-3 py-1 rounded-full bg-[var(--surface-elevated)] border border-[var(--border)]">Phone-safe framing</span>
+              <span className="px-3 py-1 rounded-full bg-[var(--surface-elevated)] border border-[var(--border)]">LLM pre-cuts</span>
+              <span className="px-3 py-1 rounded-full bg-[var(--surface-elevated)] border border-[var(--border)]">One-click export</span>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3 w-full max-w-md">
             <div className="card p-4 border-[var(--border)]/80">
-              <p className="text-[var(--muted)] text-xs">Latest status</p>
-              <p className="text-xl font-semibold">{statusMessage || (selectedJob?.status === 'completed' ? 'Completed' : 'Idle')}</p>
+              <p className="text-[var(--muted)] text-xs uppercase tracking-wide">Pipeline</p>
+              <p className="text-xl font-semibold">{statusMessage || (isProcessing ? 'Processing' : selectedJob?.status === 'completed' ? 'Completed' : 'Idle')}</p>
               <p className="text-[var(--muted)] text-xs mt-1">{progress}% synced</p>
             </div>
             <div className="card p-4 border-[var(--border)]/80">
-              <p className="text-[var(--muted)] text-xs">Recent renders</p>
+              <p className="text-[var(--muted)] text-xs uppercase tracking-wide">Recent renders</p>
               <p className="text-xl font-semibold">{recentJobs.length || 0}</p>
               <p className="text-[var(--muted)] text-xs mt-1">kept for quick reuse</p>
             </div>
             <div className="card p-4 border-[var(--border)]/80">
-              <p className="text-[var(--muted)] text-xs">Mode</p>
+              <p className="text-[var(--muted)] text-xs uppercase tracking-wide">Engine</p>
               <p className="text-xl font-semibold">
                 {transcribeProvider === 'openai' ? 'ChatGPT API' : transcribeMode}
               </p>
               <p className="text-[var(--muted)] text-xs mt-1">
-                {transcribeProvider === 'openai' ? 'Hosted gpt-4o-mini-transcribe' : 'speed / accuracy preset'}
+                {transcribeProvider === 'openai' ? 'Hosted gpt-4o-mini-transcribe' : 'Local tuned preset'}
               </p>
             </div>
             <div className="card p-4 border-[var(--border)]/80">
-              <p className="text-[var(--muted)] text-xs">AI copy</p>
+              <p className="text-[var(--muted)] text-xs uppercase tracking-wide">AI copy</p>
               <p className="text-xl font-semibold">{useAI ? 'Enabled' : 'Manual'}</p>
               <p className="text-[var(--muted)] text-xs mt-1">hooks + captions</p>
             </div>
@@ -348,350 +352,381 @@ export default function DashboardPage() {
         </section>
 
         {activeTab === 'process' && (
-          <>
-
-            <div className="grid lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2 space-y-6">
-                <div
-                  className="card text-center cursor-pointer hover:border-[var(--accent)] transition-colors"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="video/mp4,video/quicktime,video/x-matroska"
-                    onChange={handleFileSelect}
-                    className="hidden"
-                  />
-
-                  {selectedFile ? (
-                    <div className="py-8">
-                      <div className="text-6xl mb-4">🎥</div>
-                      <p className="text-xl font-medium break-words [overflow-wrap:anywhere]">{selectedFile.name}</p>
-                      <p className="text-[var(--muted)] mt-2">
-                        {(selectedFile.size / (1024 * 1024)).toFixed(1)} MB
-                      </p>
+          <div className="grid xl:grid-cols-[1.05fr,0.95fr] gap-6">
+            <div className="space-y-4">
+              <div
+                className="card relative overflow-hidden cursor-pointer group transition-all hover:border-[var(--accent)]/60"
+                data-clickable="true"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-br from-[var(--accent)]/5 via-transparent to-[var(--accent-secondary)]/10 pointer-events-none" />
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="video/mp4,video/quicktime,video/x-matroska"
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+                {selectedFile ? (
+                  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between relative">
+                    <div className="flex items-start gap-3">
+                      <div className="text-4xl">🎥</div>
+                      <div>
+                        <p className="text-xl font-semibold break-words [overflow-wrap:anywhere]">{selectedFile.name}</p>
+                        <p className="text-[var(--muted)] mt-1">
+                          {(selectedFile.size / (1024 * 1024)).toFixed(1)} MB · MP4 / MOV / MKV
+                        </p>
+                      </div>
                     </div>
-                  ) : (
-                    <div className="py-12">
-                      <div className="text-6xl mb-4 opacity-50">📤</div>
-                      <p className="text-xl font-medium mb-2">Drop your video here</p>
-                      <p className="text-[var(--muted)]">or click to browse</p>
-                      <p className="text-sm text-[var(--muted)] mt-4">Supports MP4, MOV, MKV</p>
+                    <div className="flex items-center gap-2 text-sm text-[var(--muted)]">
+                      <span className="h-2 w-2 rounded-full bg-[var(--accent)] animate-pulse" />
+                      Ready to send through the pipeline
                     </div>
-                  )}
+                  </div>
+                ) : (
+                  <div className="text-center py-12 relative">
+                    <div className="text-6xl mb-3 opacity-80">📤</div>
+                    <p className="text-2xl font-semibold mb-1">Drop your vertical clip</p>
+                    <p className="text-[var(--muted)]">Tap to browse or drag a file from Finder</p>
+                    <p className="text-xs text-[var(--muted)] mt-4">We keep the frame at 9:16 for clean subtitle padding.</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="card space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Controls</p>
+                    <h3 className="text-xl font-semibold">Processing kit</h3>
+                  </div>
+                  <button
+                    onClick={() => setShowSettings(!showSettings)}
+                    className="text-sm text-[var(--muted)] hover:text-[var(--foreground)]"
+                  >
+                    {showSettings ? 'Hide detail' : 'Tune detail'}
+                  </button>
                 </div>
 
-                {selectedFile && !isProcessing && (
-                  <div className="card space-y-4">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="font-semibold flex items-center gap-2">
-                        <span>⚙️</span> Processing Settings
+                <div className="grid md:grid-cols-2 gap-3">
+                  <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-3">
+                    <p className="text-xs text-[var(--muted)] uppercase tracking-wide">Engine</p>
+                    <p className="font-semibold">
+                      {transcribeProvider === 'openai' ? 'ChatGPT API' : 'Local (turbo)'}
+                    </p>
+                    <p className="text-xs text-[var(--muted)] mt-1">
+                      {transcribeProvider === 'openai' ? 'gpt-4o-mini-transcribe' : transcribeMode}
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-3">
+                    <p className="text-xs text-[var(--muted)] uppercase tracking-wide">Quality</p>
+                    <p className="font-semibold capitalize">{outputQuality}</p>
+                    <p className="text-xs text-[var(--muted)] mt-1">{useAI ? 'AI hooks on' : 'Manual copy'}</p>
+                  </div>
+                </div>
+
+                {showSettings && (
+                  <div className="space-y-5 pt-3 border-t border-[var(--border)]">
+                    <div>
+                      <label className="block text-sm font-medium text-[var(--muted)] mb-2">
+                        Engine
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        {(['local', 'openai'] as const).map((provider) => (
+                          <button
+                            key={provider}
+                            onClick={() => setTranscribeProvider(provider)}
+                            className={`py-2 px-3 rounded-lg text-sm font-medium transition-colors ${transcribeProvider === provider
+                                ? 'bg-[var(--accent)] text-black'
+                                : 'bg-[var(--surface-elevated)] text-[var(--muted)] hover:text-[var(--foreground)]'
+                              }`}
+                          >
+                            {provider === 'local' ? 'Local (fast)' : 'ChatGPT API'}
+                          </button>
+                        ))}
                       </div>
-                      <button
-                        onClick={() => setShowSettings(!showSettings)}
-                        className="text-sm text-[var(--muted)] hover:text-[var(--foreground)]"
-                      >
-                        {showSettings ? 'Hide' : 'Show'}
-                      </button>
+                      <p className="text-xs text-[var(--muted)] mt-1">
+                        Local keeps media on-device. ChatGPT uses your server-side OPENAI_API_KEY for hosted transcription.
+                      </p>
                     </div>
 
-                    {showSettings && (
-                      <div className="space-y-5 pt-2 border-t border-[var(--border)]">
-                        <div>
-                          <label className="block text-sm font-medium text-[var(--muted)] mb-2">
-                            Engine
-                          </label>
-                          <div className="grid grid-cols-2 gap-2">
-                            {(['local', 'openai'] as const).map((provider) => (
+                    <div>
+                      <label className="block text-sm font-medium text-[var(--muted)] mb-2">
+                        Speed / Accuracy
+                      </label>
+                      {transcribeProvider === 'local' ? (
+                        <>
+                          <div className="grid grid-cols-4 gap-2">
+                            {(['fast', 'balanced', 'turbo', 'best'] as const).map((mode) => (
                               <button
-                                key={provider}
-                                onClick={() => setTranscribeProvider(provider)}
-                                className={`py-2 px-3 rounded-lg text-sm font-medium transition-colors ${transcribeProvider === provider
-                                    ? 'bg-[var(--accent)] text-white'
+                                key={mode}
+                                onClick={() => setTranscribeMode(mode)}
+                                className={`py-2 px-3 rounded-lg text-sm font-medium transition-colors ${transcribeMode === mode
+                                    ? 'bg-[var(--accent)] text-black'
                                     : 'bg-[var(--surface-elevated)] text-[var(--muted)] hover:text-[var(--foreground)]'
                                   }`}
                               >
-                                {provider === 'local' ? 'Local (fast)' : 'ChatGPT API'}
+                                {mode.charAt(0).toUpperCase() + mode.slice(1)}
                               </button>
                             ))}
                           </div>
                           <p className="text-xs text-[var(--muted)] mt-1">
-                            Local keeps media on-device. ChatGPT uses your server-side OPENAI_API_KEY for hosted transcription.
+                            Turbo uses a CT2-quantized Large V3 preset tuned for sharper Greek accuracy without slowing down.
                           </p>
+                        </>
+                      ) : (
+                        <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3 text-sm text-left">
+                          Using ChatGPT&apos;s hosted `gpt-4o-mini-transcribe` for clean Greek speech-to-text. Ideal when local models drift.
                         </div>
+                      )}
+                    </div>
 
-                        <div>
-                          <label className="block text-sm font-medium text-[var(--muted)] mb-2">
-                            Speed / Accuracy
-                          </label>
-                          {transcribeProvider === 'local' ? (
-                            <>
-                              <div className="grid grid-cols-4 gap-2">
-                                {(['fast', 'balanced', 'turbo', 'best'] as const).map((mode) => (
-                                  <button
-                                    key={mode}
-                                    onClick={() => setTranscribeMode(mode)}
-                                    className={`py-2 px-3 rounded-lg text-sm font-medium transition-colors ${transcribeMode === mode
-                                        ? 'bg-[var(--accent)] text-white'
-                                        : 'bg-[var(--surface-elevated)] text-[var(--muted)] hover:text-[var(--foreground)]'
-                                      }`}
-                                  >
-                                    {mode.charAt(0).toUpperCase() + mode.slice(1)}
-                                  </button>
-                                ))}
-                              </div>
-                              <p className="text-xs text-[var(--muted)] mt-1">
-                                Turbo uses a CT2-quantized Large V3 preset tuned for sharper Greek accuracy without slowing down.
-                              </p>
-                            </>
-                          ) : (
-                            <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3 text-sm text-left">
-                              Using ChatGPT&apos;s hosted `gpt-4o-mini-transcribe` for clean Greek speech-to-text. Ideal when local models drift.
-                            </div>
-                          )}
+                    <div>
+                      <label className="block text-sm font-medium text-[var(--muted)] mb-2">
+                        Output Quality
+                      </label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {(['low size', 'balanced', 'high quality'] as const).map((quality) => (
+                          <button
+                            key={quality}
+                            onClick={() => setOutputQuality(quality)}
+                            className={`py-2 px-3 rounded-lg text-sm font-medium transition-colors ${outputQuality === quality
+                                ? 'bg-[var(--accent)] text-black'
+                                : 'bg-[var(--surface-elevated)] text-[var(--muted)] hover:text-[var(--foreground)]'
+                              }`}
+                          >
+                            {quality
+                              .split(' ')
+                              .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                              .join(' ')}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <div
+                          onClick={() => setUseAI(!useAI)}
+                          className={`w-11 h-6 rounded-full transition-colors relative ${useAI ? 'bg-[var(--accent)]' : 'bg-[var(--surface-elevated)]'}`}
+                        >
+                          <div
+                            className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${useAI ? 'translate-x-6' : 'translate-x-1'}`}
+                          />
                         </div>
+                        <span className="font-medium">AI Viral Intelligence</span>
+                      </label>
+                      <p className="text-xs text-[var(--muted)] mt-1 ml-14">
+                        Generate viral titles and descriptions using GPT-4
+                      </p>
+                    </div>
 
-                        <div>
-                          <label className="block text-sm font-medium text-[var(--muted)] mb-2">
-                            Output Quality
-                          </label>
-                          <div className="grid grid-cols-3 gap-2">
-                            {(['low size', 'balanced', 'high quality'] as const).map((quality) => (
-                              <button
-                                key={quality}
-                                onClick={() => setOutputQuality(quality)}
-                                className={`py-2 px-3 rounded-lg text-sm font-medium transition-colors ${outputQuality === quality
-                                    ? 'bg-[var(--accent)] text-white'
-                                    : 'bg-[var(--surface-elevated)] text-[var(--muted)] hover:text-[var(--foreground)]'
-                                  }`}
-                              >
-                                {quality
-                                  .split(' ')
-                                  .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-                                  .join(' ')}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-
-                        <div>
-                          <label className="flex items-center gap-3 cursor-pointer">
-                            <div
-                              onClick={() => setUseAI(!useAI)}
-                              className={`w-11 h-6 rounded-full transition-colors relative ${useAI ? 'bg-[var(--accent)]' : 'bg-[var(--surface-elevated)]'}`}
-                            >
-                              <div
-                                className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${useAI ? 'translate-x-6' : 'translate-x-1'}`}
-                              />
-                            </div>
-                            <span className="font-medium">AI Viral Intelligence</span>
-                          </label>
-                          <p className="text-xs text-[var(--muted)] mt-1 ml-14">
-                            Generate viral titles and descriptions using GPT-4
-                          </p>
-                        </div>
-
-                        {useAI && (
-                          <div>
-                            <label className="block text-sm font-medium text-[var(--muted)] mb-2">
-                              Context Hints
-                            </label>
-                            <textarea
-                              value={contextPrompt}
-                              onChange={(e) => setContextPrompt(e.target.value)}
-                              placeholder="Names, specific terms, topics..."
-                              className="input-field h-20 resize-none"
-                            />
-                          </div>
-                        )}
+                    {useAI && (
+                      <div>
+                        <label className="block text-sm font-medium text-[var(--muted)] mb-2">
+                          Context Hints
+                        </label>
+                        <textarea
+                          value={contextPrompt}
+                          onChange={(e) => setContextPrompt(e.target.value)}
+                          placeholder="Names, specific terms, topics..."
+                          className="input-field h-20 resize-none"
+                        />
                       </div>
                     )}
                   </div>
                 )}
+              </div>
+
+              {error && (
+                <div className="bg-[var(--danger)]/10 border border-[var(--danger)]/30 text-[var(--danger)] px-6 py-4 rounded-xl">
+                  {error}
+                </div>
+              )}
+
+              {selectedFile && !isProcessing && (
+                <div className="flex flex-wrap items-center gap-3">
+                  <button onClick={handleProcess} className="btn-primary text-lg px-8 py-4">
+                    ✨ Start processing
+                  </button>
+                  <button
+                    onClick={resetProcessing}
+                    className="btn-secondary text-sm"
+                  >
+                    Reset
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-4">
+              <div className="card space-y-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Live output</p>
+                    <h3 className="text-2xl font-semibold break-words [overflow-wrap:anywhere]">
+                      {selectedJob?.result_data?.original_filename || 'Preview + render drops here'}
+                    </h3>
+                    <p className="text-sm text-[var(--muted)]">We keep the frame tight so the subtitles never clip on phones.</p>
+                  </div>
+                  <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${statusStyles[selectedJob?.status || (isProcessing ? 'processing' : 'pending')] || ''}`}>
+                    {selectedJob?.status ? selectedJob.status.toUpperCase() : isProcessing ? 'PROCESSING' : 'IDLE'}
+                  </span>
+                </div>
 
                 {isProcessing && (
-                  <div className="card">
-                    <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                  <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3 space-y-2">
+                    <div className="flex items-center justify-between text-sm">
                       <span className="font-medium">{statusMessage || 'Processing...'}</span>
-                      <span className="text-[var(--accent)]">{progress}%</span>
+                      <span className="text-[var(--accent)] font-semibold">{progress}%</span>
                     </div>
-                    <div className="w-full bg-[var(--surface-elevated)] rounded-full h-2">
+                    <div className="w-full bg-[var(--surface)] rounded-full h-2 overflow-hidden">
                       <div
-                        className="bg-[var(--accent)] h-2 rounded-full transition-all duration-300"
+                        className="bg-gradient-to-r from-[var(--accent)] to-[var(--accent-secondary)] h-2 rounded-full transition-all duration-300"
                         style={{ width: `${progress}%` }}
                       />
                     </div>
                   </div>
                 )}
 
-                {error && (
-                  <div className="bg-[var(--danger)]/10 border border-[var(--danger)]/30 text-[var(--danger)] px-6 py-4 rounded-xl">
-                    {error}
-                  </div>
-                )}
-
-                {selectedFile && !isProcessing && (
-                  <div className="text-left">
-                    <button onClick={handleProcess} className="btn-primary text-lg px-8 py-4">
-                      ✨ Start Magic Processing
-                    </button>
-                    <button
-                      onClick={resetProcessing}
-                      className="btn-secondary ml-3 text-sm"
-                    >
-                      Reset
-                    </button>
-                  </div>
-                )}
-
-                {selectedJob && selectedJob.status === 'completed' && (
-                  <div className="card bg-[var(--accent-secondary)]/10 border-[var(--accent-secondary)]/30">
-                    <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-                      <div>
-                        <p className="text-sm text-[var(--muted)]">Latest render</p>
-                        <h3 className="text-2xl font-bold break-words [overflow-wrap:anywhere]">
-                          {selectedJob.result_data?.original_filename || 'Processed video'}
-                        </h3>
-                        <p className="text-xs text-[var(--muted)]">Trimmed preview with safe subtitle margins</p>
+                {selectedJob && selectedJob.status === 'completed' ? (
+                  <div className="grid lg:grid-cols-[420px,1fr] gap-6 items-start">
+                    <div className="w-full max-w-[440px] mx-auto">
+                      <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-elevated)] overflow-hidden shadow-2xl">
+                        {videoUrl ? (
+                          <video
+                            className="w-full aspect-[9/16] object-contain bg-black"
+                            src={videoUrl}
+                            controls
+                          />
+                        ) : (
+                          <div className="aspect-[9/16] flex items-center justify-center text-[var(--muted)] text-sm">
+                            Video ready — download below.
+                          </div>
+                        )}
                       </div>
-                      <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${statusStyles[selectedJob.status] || ''}`}>
-                        {selectedJob.status.toUpperCase()}
-                      </span>
+                      <p className="text-xs text-[var(--muted)] mt-2 text-center">
+                        Player is capped to a phone viewport so subtitles stay inside the frame.
+                      </p>
                     </div>
-                    <div className="grid lg:grid-cols-[440px,1fr] gap-6 items-start">
-                      <div className="w-full max-w-[440px] mx-auto">
-                        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-elevated)] overflow-hidden shadow-2xl">
-                          {videoUrl ? (
-                            <video
-                              className="w-full aspect-[9/16] object-contain bg-black"
-                              src={videoUrl}
-                              controls
-                            />
-                          ) : (
-                            <div className="aspect-[9/16] flex items-center justify-center text-[var(--muted)] text-sm">
-                              Video ready — download below.
-                            </div>
-                          )}
+                    <div className="space-y-3">
+                      <div className="grid sm:grid-cols-2 gap-3">
+                        <div className="p-3 rounded-lg bg-[var(--surface-elevated)] border border-[var(--border)]">
+                          <div className="text-xs text-[var(--muted)] uppercase tracking-wide">Engine</div>
+                          <div className="font-semibold">
+                            {(selectedJob.result_data?.transcribe_provider || 'local') === 'openai' ? 'ChatGPT API' : 'Local turbo'}
+                          </div>
+                          <div className="text-[var(--muted)] text-xs mt-1">
+                            {selectedJob.result_data?.model_size || 'model'}
+                          </div>
                         </div>
-                        <p className="text-xs text-[var(--muted)] mt-2 text-center">
-                          Player is capped to a phone viewport so subtitles stay inside the frame.
-                        </p>
+                        <div className="p-3 rounded-lg bg-[var(--surface-elevated)] border border-[var(--border)]">
+                          <div className="text-xs text-[var(--muted)] uppercase tracking-wide">Quality</div>
+                          <div className="font-semibold">CRF {selectedJob.result_data?.video_crf || '?'}</div>
+                          <div className="text-[var(--muted)] text-xs mt-1">
+                            {selectedJob.result_data?.video_path || 'n/a'}
+                          </div>
+                        </div>
                       </div>
-                      <div className="space-y-3">
-                        <div className="grid sm:grid-cols-2 gap-3">
-                          <div className="p-3 rounded-lg bg-[var(--surface-elevated)] border border-[var(--border)]">
-                            <div className="text-xs text-[var(--muted)] uppercase tracking-wide">Engine</div>
-                            <div className="font-semibold">
-                              {(selectedJob.result_data?.transcribe_provider || 'local') === 'openai' ? 'ChatGPT API' : 'Local turbo'}
-                            </div>
-                            <div className="text-[var(--muted)] text-xs mt-1">
-                              {selectedJob.result_data?.model_size || 'model'}
-                            </div>
-                          </div>
-                          <div className="p-3 rounded-lg bg-[var(--surface-elevated)] border border-[var(--border)]">
-                            <div className="text-xs text-[var(--muted)] uppercase tracking-wide">Quality</div>
-                            <div className="font-semibold">CRF {selectedJob.result_data?.video_crf || '?'}</div>
-                            <div className="text-[var(--muted)] text-xs mt-1">
-                              {selectedJob.result_data?.video_path || 'n/a'}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap gap-3">
-                          {videoUrl && (
-                            <>
-                              <a
-                                className="btn-primary"
-                                href={videoUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                              >
-                                View video
-                              </a>
-                              <a
-                                className="btn-secondary"
-                                href={videoUrl}
-                                download={selectedJob.result_data?.original_filename || 'processed.mp4'}
-                              >
-                                Download MP4
-                              </a>
-                            </>
-                          )}
-                          {artifactUrl && (
+                      <div className="flex flex-wrap gap-3">
+                        {videoUrl && (
+                          <>
                             <a
-                              className="btn-secondary"
-                              href={artifactUrl}
+                              className="btn-primary"
+                              href={videoUrl}
                               target="_blank"
                               rel="noreferrer"
                             >
-                              Artifacts folder
+                              View video
                             </a>
-                          )}
-                        </div>
+                            <a
+                              className="btn-secondary"
+                              href={videoUrl}
+                              download={selectedJob.result_data?.original_filename || 'processed.mp4'}
+                            >
+                              Download MP4
+                            </a>
+                          </>
+                        )}
+                        {artifactUrl && (
+                          <a
+                            className="btn-secondary"
+                            href={artifactUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            Artifacts folder
+                          </a>
+                        )}
                       </div>
                     </div>
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-6 text-[var(--muted)] text-sm text-center">
+                    Your render preview will appear here once a job completes. Hit &ldquo;Start processing&rdquo; to send the clip through.
                   </div>
                 )}
               </div>
 
-              <div className="space-y-4">
-                <div className="card">
-                  <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+              <div className="card">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Logbook</p>
                     <h3 className="text-lg font-semibold">Recent jobs</h3>
-                    {jobsLoading && <span className="text-xs text-[var(--muted)]">Refreshing…</span>}
                   </div>
-                  {recentJobs.length === 0 && (
-                    <p className="text-[var(--muted)] text-sm">No runs yet — upload a video to get started.</p>
-                  )}
-                  <div className="space-y-3">
-                    {recentJobs.map((job) => {
-                      const publicUrl = buildStaticUrl(job.result_data?.public_url || job.result_data?.video_path);
-                      return (
-                        <div
-                          key={job.id}
-                          data-testid={`recent-job-${job.id}`}
-                          className="flex flex-wrap sm:flex-nowrap items-start sm:items-center justify-between gap-3 p-3 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)]"
-                        >
-                          <div className="min-w-0 flex-1">
-                            <div className="font-semibold break-words [overflow-wrap:anywhere]">
-                              {job.result_data?.original_filename || `Job ${job.id.slice(0, 6)}`}
-                            </div>
-                            <div className="text-xs text-[var(--muted)] mt-1 leading-snug break-words [overflow-wrap:anywhere]">
-                              {formatDate((job.updated_at || job.created_at) * 1000)}
-                              {' · '}
-                              {(job.result_data?.transcribe_provider || 'local') === 'openai' ? 'ChatGPT API' : (job.result_data?.model_size || 'model')}
-                            </div>
+                  {jobsLoading && <span className="text-xs text-[var(--muted)]">Refreshing…</span>}
+                </div>
+                {recentJobs.length === 0 && (
+                  <p className="text-[var(--muted)] text-sm">No runs yet — upload a video to get started.</p>
+                )}
+                <div className="space-y-3">
+                  {recentJobs.map((job) => {
+                    const publicUrl = buildStaticUrl(job.result_data?.public_url || job.result_data?.video_path);
+                    return (
+                      <div
+                        key={job.id}
+                        data-testid={`recent-job-${job.id}`}
+                        className="flex flex-wrap sm:flex-nowrap items-start sm:items-center justify-between gap-3 p-3 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)]"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="font-semibold break-words [overflow-wrap:anywhere]">
+                            {job.result_data?.original_filename || `Job ${job.id.slice(0, 6)}`}
                           </div>
-                          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap sm:justify-end flex-shrink-0">
-                            <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${statusStyles[job.status] || ''}`}>
-                              {job.status}
-                            </span>
-                            {job.status === 'completed' && publicUrl && (
-                              <button
-                                onClick={() => setSelectedJob(job)}
-                                className="btn-secondary text-xs"
-                              >
-                                View
-                              </button>
-                            )}
+                          <div className="text-xs text-[var(--muted)] mt-1 leading-snug break-words [overflow-wrap:anywhere]">
+                            {formatDate((job.updated_at || job.created_at) * 1000)}
+                            {' · '}
+                            {(job.result_data?.transcribe_provider || 'local') === 'openai' ? 'ChatGPT API' : (job.result_data?.model_size || 'model')}
                           </div>
                         </div>
-                      );
-                    })}
-                  </div>
+                        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap sm:justify-end flex-shrink-0">
+                          <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${statusStyles[job.status] || ''}`}>
+                            {job.status}
+                          </span>
+                          {job.status === 'completed' && publicUrl && (
+                            <button
+                              onClick={() => setSelectedJob(job)}
+                              className="btn-secondary text-xs"
+                            >
+                              View
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>
-          </>
+          </div>
         )}
 
         {activeTab === 'history' && (
-          <div className="grid lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2 card">
+          <div className="grid lg:grid-cols-[1.05fr,0.95fr] gap-6">
+            <div className="card">
               <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                 <div>
+                  <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Timeline</p>
                   <h2 className="text-2xl font-bold">Activity</h2>
-                  <p className="text-[var(--muted)]">Processing, uploads, and OAuth events.</p>
+                  <p className="text-[var(--muted)] text-sm">Processing, uploads, and OAuth events.</p>
                 </div>
                 <button
                   className="btn-secondary text-sm"
@@ -728,7 +763,10 @@ export default function DashboardPage() {
 
             <div className="card">
               <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                <h3 className="text-lg font-semibold">Job Summary</h3>
+                <div>
+                  <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Snapshot</p>
+                  <h3 className="text-lg font-semibold">Job summary</h3>
+                </div>
                 {jobsLoading && <span className="text-xs text-[var(--muted)]">Refreshing…</span>}
               </div>
               {recentJobs.length === 0 && (
@@ -763,8 +801,9 @@ export default function DashboardPage() {
           <div className="grid lg:grid-cols-2 gap-6">
             <div className="card space-y-4">
               <div>
-                <p className="text-sm text-[var(--muted)]">Profile</p>
+                <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Profile</p>
                 <h2 className="text-2xl font-bold">Account settings</h2>
+                <p className="text-sm text-[var(--muted)]">Update your name and password. Email is fixed to your login provider.</p>
               </div>
               <form className="space-y-4" onSubmit={handleProfileSave}>
                 <div>
@@ -829,7 +868,8 @@ export default function DashboardPage() {
 
             <div className="space-y-4">
               <div className="card">
-                <h3 className="text-lg font-semibold mb-2">Session</h3>
+                <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Session</p>
+                <h3 className="text-lg font-semibold mb-2">Current session</h3>
                 <p className="text-[var(--muted)] text-sm">You are signed in via {user.provider}.</p>
                 <div className="flex flex-wrap gap-3 mt-3">
                   <button className="btn-secondary" onClick={refreshUser}>
@@ -841,7 +881,8 @@ export default function DashboardPage() {
                 </div>
               </div>
               <div className="card">
-                <h3 className="text-lg font-semibold mb-2">Recent history</h3>
+                <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Recent history</p>
+                <h3 className="text-lg font-semibold mb-2">Latest events</h3>
                 {historyItems.slice(0, 5).map((evt) => (
                   <div key={`${evt.ts}-${evt.kind}`} className="flex flex-wrap items-start sm:items-center justify-between gap-2 py-2 border-b border-[var(--border)] last:border-0">
                     <div className="min-w-0">

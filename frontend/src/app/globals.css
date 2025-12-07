@@ -1,17 +1,17 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
 :root {
-  /* Apple-Inspired Colors - Dark Mode First */
-  --background: #04060d;
-  --foreground: #e8ecf3;
-  --surface: #0c111d;
-  --surface-elevated: #111827;
-  --accent: #7ce8ff;
-  --accent-secondary: #9ef5c0;
-  --border: #1c2335;
-  --muted: #8b93a7;
-  --danger: #ff5c5c;
+  /* Midnight studio palette */
+  --background: #03050b;
+  --foreground: #f4f7fd;
+  --surface: #0b0f1a;
+  --surface-elevated: #10172a;
+  --accent: #8df7df;
+  --accent-secondary: #ffd479;
+  --border: #1a2339;
+  --muted: #9aa6c3;
+  --danger: #ff6b6b;
+  --glow: 0 20px 70px rgba(141, 247, 223, 0.18);
 
   /* UI Variables */
   --radius: 12px;
@@ -28,18 +28,20 @@
   --color-border: var(--border);
   --color-muted: var(--muted);
   --color-danger: var(--danger);
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-sans: var(--font-display), 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
 }
 
 body {
-  background: radial-gradient(circle at 20% 20%, rgba(124, 232, 255, 0.08), transparent 30%),
-    radial-gradient(circle at 80% 0%, rgba(158, 245, 192, 0.08), transparent 25%),
-    radial-gradient(circle at 50% 80%, rgba(124, 232, 255, 0.05), transparent 30%),
-    var(--background);
+  background:
+    radial-gradient(circle at 18% 18%, rgba(141, 247, 223, 0.08), transparent 30%),
+    radial-gradient(circle at 82% 12%, rgba(255, 212, 121, 0.14), transparent 26%),
+    radial-gradient(circle at 48% 78%, rgba(106, 164, 255, 0.09), transparent 30%),
+    linear-gradient(145deg, #050814 0%, #02040c 55%, #03050b 100%);
   color: var(--foreground);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font-family: var(--font-display), 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  letter-spacing: 0.01em;
 }
 
 /* Custom Scrollbar - Apple Style */
@@ -73,40 +75,41 @@ body {
 
 /* Button Styles */
 .btn-primary {
-  background: var(--accent);
-  color: white;
+  background: linear-gradient(125deg, #8df7df 0%, #6ddaff 60%, #7fa8ff 100%);
+  color: #031018;
   font-weight: 600;
   padding: 12px 24px;
   border-radius: var(--radius);
   border: none;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 12px 32px rgba(124, 232, 255, 0.25);
+  box-shadow: var(--glow);
 }
 
 .btn-primary:hover {
-  filter: brightness(1.1);
-  transform: translateY(-1px);
+  filter: brightness(1.05);
+  transform: translateY(-1px) scale(1.01);
+  box-shadow: 0 25px 70px rgba(109, 218, 255, 0.25);
 }
 
 .btn-secondary {
-  background: var(--surface-elevated);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.02), rgba(255, 255, 255, 0.01));
   color: var(--foreground);
   font-weight: 500;
   padding: 12px 24px;
   border-radius: var(--radius);
-  border: 1px solid var(--border);
+  border: 1px solid rgba(255, 255, 255, 0.05);
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .btn-secondary:hover {
-  background: var(--border);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 /* Input Styles */
 .input-field {
-  background: var(--surface);
+  background: rgba(255, 255, 255, 0.02);
   color: var(--foreground);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -122,18 +125,26 @@ body {
 }
 
 .input-field:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.3);
+  border-color: rgba(141, 247, 223, 0.6);
+  box-shadow: 0 0 0 4px rgba(141, 247, 223, 0.18);
 }
 
 /* Card Component */
 .card {
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.02), rgba(124, 232, 255, 0.03));
-  border: 1px solid var(--border);
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.025), rgba(141, 247, 223, 0.03));
+  border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: var(--radius-lg);
   padding: 24px;
-  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.35);
-  backdrop-filter: blur(16px);
+  box-shadow: var(--glow);
+  backdrop-filter: blur(18px);
+}
+
+/* Make all obvious click targets show a hand cursor */
+button,
+a,
+[role="button"],
+[data-clickable="true"] {
+  cursor: pointer;
 }
 
 /* Fade In Animation */

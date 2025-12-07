@@ -105,3 +105,11 @@ it('exposes account tab with profile fields', async () => {
     expect(await screen.findByDisplayValue('t@e.com')).toBeInTheDocument();
     expect(screen.getByDisplayValue('Tester')).toBeInTheDocument();
 });
+
+it('shows the updated hero and clickable dropzone', async () => {
+    render(<DashboardPage />);
+
+    expect(await screen.findByText(/Build export-ready shorts/i)).toBeInTheDocument();
+    const dropCopy = await screen.findByText(/Drop your vertical clip/i);
+    expect(dropCopy.closest('[data-clickable="true"]')).not.toBeNull();
+});
