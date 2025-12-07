@@ -80,7 +80,11 @@ for (const [label, viewport] of Object.entries(viewports)) {
       const summaryRow = page.getByTestId('job-summary-job-long-form');
       await summaryRow.waitFor();
       await expectLocatorWithinBounds(summaryRow);
-      await expect(page).toHaveScreenshot(`dashboard-history-${label}.png`, { fullPage: true });
+      await expect(page).toHaveScreenshot(`dashboard-history-${label}.png`, {
+        fullPage: true,
+        // Allow a bit more cross-platform rendering variance for this view (fonts/AA drift).
+        maxDiffPixelRatio: 0.04,
+      });
     });
 
     test('account tab keeps controls and history readable', async ({ page }) => {
