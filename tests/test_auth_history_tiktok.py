@@ -19,19 +19,19 @@ class DummyResponse:
 def test_local_register_and_auth(tmp_path):
     db = database.Database(tmp_path / "app.db")
     store = auth.UserStore(db=db)
-    user = store.register_local_user("Test@Example.com", "secret", "Tester")
+    user = store.register_local_user("Test@Example.com", "StrongerPass123", "Tester")
     assert user.email == "test@example.com"
-    authed = store.authenticate_local("test@example.com", "secret")
+    authed = store.authenticate_local("test@example.com", "StrongerPass123")
     assert authed and authed.email == "test@example.com"
     with pytest.raises(ValueError):
-        store.register_local_user("test@example.com", "secret", "Tester")
+        store.register_local_user("test@example.com", "StrongerPass123", "Tester")
 
 
 def test_session_roundtrip(tmp_path):
     db = database.Database(tmp_path / "app.db")
     store = auth.UserStore(db=db)
     sessions = auth.SessionStore(db=db)
-    user = store.register_local_user("persist@example.com", "secret", "Persist")
+    user = store.register_local_user("persist@example.com", "Persist123456", "Persist")
     token = sessions.issue_session(user, user_agent="pytest")
     assert isinstance(token, str)
     restored = sessions.authenticate(token)
@@ -198,6 +198,30 @@ def test_user_store_validation_and_google_update(tmp_path):
     with pytest.raises(ValueError):
         store.register_local_user("person@example.com", "", "Name")
 
+
+def test_password_policy_and_legacy_hash(tmp_path):
+    db = database.Database(tmp_path / "app.db")
+    store = auth.UserStore(db=db)
+
+    with pytest.raises(ValueError):
+        store.register_local_user("weak@example.com", "short", "Weak")
+    with pytest.raises(ValueError):
+        store.register_local_user("weak2@example.com", "alllettersNOdigits", "Weak")
+
+    strong = store.register_local_user("strong@example.com", "SafePass12345", "Strong")
+    assert strong.password_hash.startswith("scrypt$")
+    assert store.authenticate_local("strong@example.com", "SafePass12345")
+
+    # Legacy SHA-based hashes remain compatible for existing records
+    legacy_salt = "abc123ef"
+    legacy_hash = auth._hash_password_legacy("OldPassword9", legacy_salt)
+    with store.db.connect() as conn:
+        conn.execute(
+            "INSERT INTO users(id, email, name, provider, password_hash) VALUES(?, ?, ?, ?, ?)",
+            ("legacy1", "legacy@example.com", "Legacy", "local", legacy_hash),
+        )
+    assert store.authenticate_local("legacy@example.com", "OldPassword9")
+
     first = store.upsert_google_user("g@example.com", "G Name", "sub1")
     updated = store.upsert_google_user("g@example.com", "New Name", "sub2")
     assert updated.id == first.id
@@ -213,12 +237,12 @@ def test_session_store_and_password_helpers(tmp_path):
     store = auth.UserStore(db=db)
     sessions = auth.SessionStore(db=db)
 
-    user = store.register_local_user("pwcheck@example.com", "pw", "Pw")
+    user = store.register_local_user("pwcheck@example.com", "StrongPW456789", "Pw")
     token = sessions.issue_session(user)
     assert sessions.authenticate(token)
     assert sessions.authenticate("") is None
 
-    assert auth._verify_password("pw", "not-a-hash") is False
+    assert auth._verify_password("StrongPW456789", "not-a-hash") is False
 
 
 def test_exchange_google_code_missing_id_token(monkeypatch):
