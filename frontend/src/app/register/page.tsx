@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
+import { useI18n } from '@/context/I18nContext';
 
 export default function RegisterPage() {
     const [name, setName] = useState('');
@@ -13,6 +14,7 @@ export default function RegisterPage() {
     const [isLoading, setIsLoading] = useState(false);
     const { register } = useAuth();
     const router = useRouter();
+    const { t } = useI18n();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -23,7 +25,7 @@ export default function RegisterPage() {
             await register(email, password, name);
             router.push('/');
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Registration failed');
+            setError(err instanceof Error ? err.message : t('registerError'));
         } finally {
             setIsLoading(false);
         }
@@ -37,8 +39,8 @@ export default function RegisterPage() {
                     <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[var(--accent)] mb-6">
                         <span className="text-3xl">🎬</span>
                     </div>
-                    <h1 className="text-3xl font-bold text-[var(--foreground)]">Create Account</h1>
-                    <p className="text-[var(--muted)] mt-2">Join to start transforming your videos</p>
+                    <h1 className="text-3xl font-bold text-[var(--foreground)]">{t('registerTitle')}</h1>
+                    <p className="text-[var(--muted)] mt-2">{t('registerSubtitle')}</p>
                 </div>
 
                 {/* Register Card */}
@@ -46,7 +48,7 @@ export default function RegisterPage() {
                     <form onSubmit={handleSubmit} className="space-y-5">
                         <div>
                             <label htmlFor="name" className="block text-sm font-medium text-[var(--muted)] mb-2">
-                                Full Name
+                                {t('registerNameLabel')}
                             </label>
                             <input
                                 id="name"
@@ -54,14 +56,14 @@ export default function RegisterPage() {
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
                                 className="input-field"
-                                placeholder="John Doe"
+                                placeholder={t('registerNamePlaceholder')}
                                 required
                             />
                         </div>
 
                         <div>
                             <label htmlFor="email" className="block text-sm font-medium text-[var(--muted)] mb-2">
-                                Email Address
+                                {t('registerEmailLabel')}
                             </label>
                             <input
                                 id="email"
@@ -69,14 +71,14 @@ export default function RegisterPage() {
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 className="input-field"
-                                placeholder="you@example.com"
+                                placeholder={t('registerEmailPlaceholder')}
                                 required
                             />
                         </div>
 
                         <div>
                             <label htmlFor="password" className="block text-sm font-medium text-[var(--muted)] mb-2">
-                                Password
+                                {t('registerPasswordLabel')}
                             </label>
                             <input
                                 id="password"
@@ -84,7 +86,7 @@ export default function RegisterPage() {
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 className="input-field"
-                                placeholder="••••••••"
+                                placeholder={t('registerPasswordPlaceholder')}
                                 minLength={6}
                                 required
                             />
@@ -101,15 +103,15 @@ export default function RegisterPage() {
                             disabled={isLoading}
                             className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            {isLoading ? 'Creating account...' : 'Create Account'}
+                            {isLoading ? t('registerSubmitting') : t('registerSubmit')}
                         </button>
                     </form>
 
                     <div className="mt-6 text-center">
                         <p className="text-[var(--muted)]">
-                            Already have an account?{' '}
+                            {t('registerHaveAccount')}{' '}
                             <Link href="/login" className="text-[var(--accent)] hover:underline font-medium">
-                                Sign in
+                                {t('registerSignIn')}
                             </Link>
                         </p>
                     </div>
@@ -117,7 +119,7 @@ export default function RegisterPage() {
 
                 {/* Footer */}
                 <p className="text-center text-[var(--muted)] text-sm mt-8">
-                    © 2024 Greek Sub Publisher. All rights reserved.
+                    {t('loginFooter')}
                 </p>
             </div>
         </div>

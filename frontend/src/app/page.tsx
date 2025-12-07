@@ -96,11 +96,11 @@ export default function DashboardPage() {
         setSelectedJob(latest);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unable to load recent jobs');
+      setError(err instanceof Error ? err.message : t('jobsErrorFallback'));
     } finally {
       setJobsLoading(false);
     }
-  }, [user, selectedJob]);
+  }, [user, selectedJob, t]);
 
   const loadHistory = useCallback(async () => {
     if (!user) return;
@@ -110,11 +110,11 @@ export default function DashboardPage() {
       const data = await api.getHistory(50);
       setHistoryItems(data);
     } catch (err) {
-      setHistoryError(err instanceof Error ? err.message : 'Unable to load history');
+      setHistoryError(err instanceof Error ? err.message : t('historyErrorFallback'));
     } finally {
       setHistoryLoading(false);
     }
-  }, [user]);
+  }, [user, t]);
 
   const refreshActivity = useCallback(async () => {
     await loadJobs();
@@ -136,7 +136,7 @@ export default function DashboardPage() {
       try {
         const job = await api.getJobStatus(jobId);
         setProgress(job.progress);
-        setStatusMessage(job.message || (job.status === 'processing' ? 'Processing...' : ''));
+        setStatusMessage(job.message || (job.status === 'processing' ? t('statusProcessingEllipsis') : ''));
 
         if (job.status === 'completed') {
           setIsProcessing(false);
@@ -146,7 +146,7 @@ export default function DashboardPage() {
           clearInterval(pollInterval);
           refreshActivity();
         } else if (job.status === 'failed') {
-          setError(job.message || 'Processing failed');
+          setError(job.message || t('statusFailedFallback'));
           setIsProcessing(false);
           setJobId(null);
           clearInterval(pollInterval);
@@ -155,12 +155,12 @@ export default function DashboardPage() {
       } catch {
         clearInterval(pollInterval);
         setIsProcessing(false);
-        setError('Failed to check job status');
+        setError(t('statusCheckFailed'));
       }
     }, 1000);
 
     return () => clearInterval(pollInterval);
-  }, [jobId, refreshActivity]);
+  }, [jobId, refreshActivity, t]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -177,7 +177,7 @@ export default function DashboardPage() {
     setError('');
     setProgress(0);
     setSelectedJob(null);
-    setStatusMessage('Uploading...');
+    setStatusMessage(t('statusUploading'));
 
     // Map transcribe mode to model size
     const modelMap: Record<TranscribeMode, string> = {
@@ -201,7 +201,7 @@ export default function DashboardPage() {
       });
       setJobId(result.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to start processing');
+      setError(err instanceof Error ? err.message : t('startProcessingError'));
       setIsProcessing(false);
     }
   };
@@ -218,22 +218,22 @@ export default function DashboardPage() {
       if (profileName && profileName !== user.name) {
         await api.updateProfile(profileName);
         await refreshUser();
-        setAccountMessage('Profile updated');
+        setAccountMessage(t('profileUpdated'));
       }
 
       if (user.provider === 'local' && (password || confirmPassword)) {
         if (password !== confirmPassword) {
-          setAccountError('Passwords do not match');
+          setAccountError(t('passwordsMismatch'));
           setAccountSaving(false);
           return;
         }
         await api.updatePassword(password, confirmPassword);
         setPassword('');
         setConfirmPassword('');
-        setAccountMessage('Password updated');
+        setAccountMessage(t('passwordUpdated'));
       }
     } catch (err) {
-      setAccountError(err instanceof Error ? err.message : 'Unable to update account');
+      setAccountError(err instanceof Error ? err.message : t('accountUpdateError'));
     } finally {
       setAccountSaving(false);
     }
@@ -253,7 +253,7 @@ export default function DashboardPage() {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-[var(--muted)]">Loading...</div>
+        <div className="text-[var(--muted)]">{t('loading')}</div>
       </div>
     );
   }
@@ -272,7 +272,7 @@ export default function DashboardPage() {
             <div className="h-11 w-11 rounded-2xl bg-white/5 border border-[var(--border)] flex items-center justify-center text-xl shadow-inner">🎛️</div>
             <div>
               <p className="text-[var(--muted)] text-xs uppercase tracking-[0.35em]">{t('subtitleDesk')}</p>
-              <p className="text-xl font-semibold leading-tight">Futurist Studio</p>
+              <p className="text-xl font-semibold leading-tight">{t('brandName')}</p>
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-3 justify-end min-w-0">
@@ -296,7 +296,9 @@ export default function DashboardPage() {
             <div className="flex items-center gap-3 text-sm min-w-[230px]">
               <div className="px-3 py-2 rounded-xl bg-white/5 border border-[var(--border)] min-w-[170px]">
                 <div className="font-semibold truncate">{user.name}</div>
-                <div className="text-[var(--muted)] text-xs uppercase tracking-wide">{user.provider} session</div>
+                <div className="text-[var(--muted)] text-xs uppercase tracking-wide">
+                  {t('sessionLabelProvider').replace('{provider}', user.provider)}
+                </div>
               </div>
               <button onClick={logout} className="btn-secondary text-sm py-2 px-4">
                 {t('signOut')}
@@ -311,44 +313,44 @@ export default function DashboardPage() {
           <div className="space-y-4 max-w-2xl">
             <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border)]/70 bg-white/[0.03] px-3 py-1 text-xs uppercase tracking-[0.3em] text-[var(--muted)]">
               <span className="h-2 w-2 rounded-full bg-[var(--accent)] shadow-[0_0_0_3px_rgba(141,247,223,0.25)]" />
-              Precision Greek captions
+              {t('brandBadge')}
             </div>
             <h1 className="text-4xl lg:text-5xl font-semibold leading-tight">
-              Build export-ready shorts without leaving the browser.
+              {t('heroTitle')}
             </h1>
             <p className="text-[var(--muted)] text-lg">
-              Drop a clip, auto-align Greek subs, and ship a TikTok-ready render with AI hooks for your description.
+              {t('heroSubtitle')}
             </p>
             <div className="flex flex-wrap gap-2 text-sm">
-              <span className="px-3 py-1 rounded-full bg-[var(--surface-elevated)] border border-[var(--border)]">Phone-safe framing</span>
-              <span className="px-3 py-1 rounded-full bg-[var(--surface-elevated)] border border-[var(--border)]">LLM pre-cuts</span>
-              <span className="px-3 py-1 rounded-full bg-[var(--surface-elevated)] border border-[var(--border)]">One-click export</span>
+              <span className="px-3 py-1 rounded-full bg-[var(--surface-elevated)] border border-[var(--border)]">{t('heroFeaturePhone')}</span>
+              <span className="px-3 py-1 rounded-full bg-[var(--surface-elevated)] border border-[var(--border)]">{t('heroFeatureCuts')}</span>
+              <span className="px-3 py-1 rounded-full bg-[var(--surface-elevated)] border border-[var(--border)]">{t('heroFeatureExport')}</span>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3 w-full max-w-md">
             <div className="card p-4 border-[var(--border)]/80">
-              <p className="text-[var(--muted)] text-xs uppercase tracking-wide">Pipeline</p>
-              <p className="text-xl font-semibold">{statusMessage || (isProcessing ? 'Processing' : selectedJob?.status === 'completed' ? 'Completed' : 'Idle')}</p>
-              <p className="text-[var(--muted)] text-xs mt-1">{progress}% synced</p>
+              <p className="text-[var(--muted)] text-xs uppercase tracking-wide">{t('pipelineLabel')}</p>
+              <p className="text-xl font-semibold">{statusMessage || (isProcessing ? t('statusProcessing') : selectedJob?.status === 'completed' ? t('statusCompleted') : t('statusIdle'))}</p>
+              <p className="text-[var(--muted)] text-xs mt-1">{progress}% {t('statusSynced')}</p>
             </div>
             <div className="card p-4 border-[var(--border)]/80">
-              <p className="text-[var(--muted)] text-xs uppercase tracking-wide">Recent renders</p>
+              <p className="text-[var(--muted)] text-xs uppercase tracking-wide">{t('recentRendersLabel')}</p>
               <p className="text-xl font-semibold">{recentJobs.length || 0}</p>
-              <p className="text-[var(--muted)] text-xs mt-1">kept for quick reuse</p>
+              <p className="text-[var(--muted)] text-xs mt-1">{t('recentRendersNote')}</p>
             </div>
             <div className="card p-4 border-[var(--border)]/80">
-              <p className="text-[var(--muted)] text-xs uppercase tracking-wide">Engine</p>
+              <p className="text-[var(--muted)] text-xs uppercase tracking-wide">{t('engineLabel')}</p>
               <p className="text-xl font-semibold">
-                {transcribeProvider === 'openai' ? 'ChatGPT API' : transcribeMode}
+                {transcribeProvider === 'openai' ? t('engineHostedName') : transcribeMode}
               </p>
               <p className="text-[var(--muted)] text-xs mt-1">
-                {transcribeProvider === 'openai' ? 'Hosted gpt-4o-mini-transcribe' : 'Local tuned preset'}
+                {transcribeProvider === 'openai' ? t('engineHostedSubtitle') : t('engineLocalSubtitle')}
               </p>
             </div>
             <div className="card p-4 border-[var(--border)]/80">
-              <p className="text-[var(--muted)] text-xs uppercase tracking-wide">AI copy</p>
-              <p className="text-xl font-semibold">{useAI ? 'Enabled' : 'Manual'}</p>
-              <p className="text-[var(--muted)] text-xs mt-1">hooks + captions</p>
+              <p className="text-[var(--muted)] text-xs uppercase tracking-wide">{t('aiCopyLabel')}</p>
+              <p className="text-xl font-semibold">{useAI ? t('statusCompleted') : t('statusIdle')}</p>
+              <p className="text-[var(--muted)] text-xs mt-1">{t('aiCopyNote')}</p>
             </div>
           </div>
         </section>
@@ -380,81 +382,81 @@ export default function DashboardPage() {
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-[var(--muted)]">
-                      <span className="h-2 w-2 rounded-full bg-[var(--accent)] animate-pulse" />
-                      Ready to send through the pipeline
-                    </div>
+                  <div className="flex items-center gap-2 text-sm text-[var(--muted)]">
+                    <span className="h-2 w-2 rounded-full bg-[var(--accent)] animate-pulse" />
+                    {t('uploadReady')}
                   </div>
-                ) : (
-                  <div className="text-center py-12 relative">
-                    <div className="text-6xl mb-3 opacity-80">📤</div>
-                    <p className="text-2xl font-semibold mb-1">Drop your vertical clip</p>
-                    <p className="text-[var(--muted)]">Tap to browse or drag a file from Finder</p>
-                    <p className="text-xs text-[var(--muted)] mt-4">We keep the frame at 9:16 for clean subtitle padding.</p>
-                  </div>
-                )}
+                </div>
+              ) : (
+                <div className="text-center py-12 relative">
+                  <div className="text-6xl mb-3 opacity-80">📤</div>
+                  <p className="text-2xl font-semibold mb-1">{t('uploadDropTitle')}</p>
+                  <p className="text-[var(--muted)]">{t('uploadDropSubtitle')}</p>
+                  <p className="text-xs text-[var(--muted)] mt-4">{t('uploadDropFootnote')}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="card space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">{t('controlsLabel')}</p>
+                  <h3 className="text-xl font-semibold">{t('controlsTitle')}</h3>
+                </div>
+                <button
+                  onClick={() => setShowSettings(!showSettings)}
+                  className="text-sm text-[var(--muted)] hover:text-[var(--foreground)]"
+                >
+                  {showSettings ? t('controlsHideDetails') : t('controlsShowDetails')}
+                </button>
               </div>
 
-              <div className="card space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="grid md:grid-cols-2 gap-3">
+                <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-3">
+                  <p className="text-xs text-[var(--muted)] uppercase tracking-wide">{t('engineLabel')}</p>
+                  <p className="font-semibold">
+                    {transcribeProvider === 'openai' ? t('engineHostedName') : t('engineLocalTurbo')}
+                  </p>
+                  <p className="text-xs text-[var(--muted)] mt-1">
+                    {transcribeProvider === 'openai' ? 'gpt-4o-mini-transcribe' : transcribeMode}
+                  </p>
+                </div>
+                <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-3">
+                  <p className="text-xs text-[var(--muted)] uppercase tracking-wide">{t('qualityLabel')}</p>
+                  <p className="font-semibold capitalize">{outputQuality}</p>
+                  <p className="text-xs text-[var(--muted)] mt-1">{useAI ? t('aiToggleLabel') : t('aiCopyLabel')}</p>
+                </div>
+              </div>
+
+              {showSettings && (
+                <div className="space-y-5 pt-3 border-t border-[var(--border)]">
                   <div>
-                    <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Controls</p>
-                    <h3 className="text-xl font-semibold">Processing kit</h3>
-                  </div>
-                  <button
-                    onClick={() => setShowSettings(!showSettings)}
-                    className="text-sm text-[var(--muted)] hover:text-[var(--foreground)]"
-                  >
-                    {showSettings ? 'Hide detail' : 'Tune detail'}
-                  </button>
-                </div>
-
-                <div className="grid md:grid-cols-2 gap-3">
-                  <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-3">
-                    <p className="text-xs text-[var(--muted)] uppercase tracking-wide">Engine</p>
-                    <p className="font-semibold">
-                      {transcribeProvider === 'openai' ? 'ChatGPT API' : 'Local (turbo)'}
-                    </p>
-                    <p className="text-xs text-[var(--muted)] mt-1">
-                      {transcribeProvider === 'openai' ? 'gpt-4o-mini-transcribe' : transcribeMode}
-                    </p>
-                  </div>
-                  <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] px-3 py-3">
-                    <p className="text-xs text-[var(--muted)] uppercase tracking-wide">Quality</p>
-                    <p className="font-semibold capitalize">{outputQuality}</p>
-                    <p className="text-xs text-[var(--muted)] mt-1">{useAI ? 'AI hooks on' : 'Manual copy'}</p>
-                  </div>
-                </div>
-
-                {showSettings && (
-                  <div className="space-y-5 pt-3 border-t border-[var(--border)]">
-                    <div>
-                      <label className="block text-sm font-medium text-[var(--muted)] mb-2">
-                        Engine
-                      </label>
-                      <div className="grid grid-cols-2 gap-2">
-                        {(['local', 'openai'] as const).map((provider) => (
-                          <button
-                            key={provider}
-                            onClick={() => setTranscribeProvider(provider)}
-                            className={`py-2 px-3 rounded-lg text-sm font-medium transition-colors ${transcribeProvider === provider
-                                ? 'bg-[var(--accent)] text-black'
-                                : 'bg-[var(--surface-elevated)] text-[var(--muted)] hover:text-[var(--foreground)]'
-                              }`}
-                          >
-                            {provider === 'local' ? 'Local (fast)' : 'ChatGPT API'}
-                          </button>
-                        ))}
-                      </div>
+                    <label className="block text-sm font-medium text-[var(--muted)] mb-2">
+                      {t('engineLabel')}
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {(['local', 'openai'] as const).map((provider) => (
+                        <button
+                          key={provider}
+                          onClick={() => setTranscribeProvider(provider)}
+                          className={`py-2 px-3 rounded-lg text-sm font-medium transition-colors ${transcribeProvider === provider
+                              ? 'bg-[var(--accent)] text-black'
+                              : 'bg-[var(--surface-elevated)] text-[var(--muted)] hover:text-[var(--foreground)]'
+                            }`}
+                        >
+                          {provider === 'local' ? t('engineToggleLocal') : t('engineToggleHosted')}
+                        </button>
+                      ))}
                     </div>
+                  </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-[var(--muted)] mb-2">
-                        Speed / Accuracy
-                      </label>
-                      {transcribeProvider === 'local' ? (
-                        <>
-                          <div className="grid grid-cols-4 gap-2">
+                  <div>
+                    <label className="block text-sm font-medium text-[var(--muted)] mb-2">
+                      {t('speedAccuracyLabel')}
+                    </label>
+                    {transcribeProvider === 'local' ? (
+                      <>
+                        <div className="grid grid-cols-4 gap-2">
                             {(['fast', 'balanced', 'turbo', 'best'] as const).map((mode) => (
                               <button
                                 key={mode}
@@ -471,17 +473,17 @@ export default function DashboardPage() {
                         </>
                       ) : (
                         <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3 text-sm text-left">
-                          Using ChatGPT&apos;s hosted `gpt-4o-mini-transcribe` for clean Greek speech-to-text. Ideal when local models drift.
+                          {t('hostedNote')}
                         </div>
                       )}
-                    </div>
+                  </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-[var(--muted)] mb-2">
-                        Output Quality
-                      </label>
-                      <div className="grid grid-cols-3 gap-2">
-                        {(['low size', 'balanced', 'high quality'] as const).map((quality) => (
+                  <div>
+                    <label className="block text-sm font-medium text-[var(--muted)] mb-2">
+                      {t('qualityLabel')}
+                    </label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {(['low size', 'balanced', 'high quality'] as const).map((quality) => (
                           <button
                             key={quality}
                             onClick={() => setOutputQuality(quality)}
@@ -500,36 +502,34 @@ export default function DashboardPage() {
                     </div>
 
                     <div>
-                      <label className="flex items-center gap-3 cursor-pointer">
-                        <div
-                          onClick={() => setUseAI(!useAI)}
-                          className={`w-11 h-6 rounded-full transition-colors relative ${useAI ? 'bg-[var(--accent)]' : 'bg-[var(--surface-elevated)]'}`}
-                        >
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <div
+                        onClick={() => setUseAI(!useAI)}
+                        className={`w-11 h-6 rounded-full transition-colors relative ${useAI ? 'bg-[var(--accent)]' : 'bg-[var(--surface-elevated)]'}`}
+                      >
                           <div
-                            className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${useAI ? 'translate-x-6' : 'translate-x-1'}`}
-                          />
-                        </div>
-                        <span className="font-medium">AI Viral Intelligence</span>
-                      </label>
-                      <p className="text-xs text-[var(--muted)] mt-1 ml-14">
-                        Generate viral titles and descriptions using GPT-4
-                      </p>
-                    </div>
-
-                    {useAI && (
-                      <div>
-                        <label className="block text-sm font-medium text-[var(--muted)] mb-2">
-                          Context Hints
-                        </label>
-                        <textarea
-                          value={contextPrompt}
-                          onChange={(e) => setContextPrompt(e.target.value)}
-                          placeholder="Names, specific terms, topics..."
-                          className="input-field h-20 resize-none"
+                          className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${useAI ? 'translate-x-6' : 'translate-x-1'}`}
                         />
                       </div>
-                    )}
+                      <span className="font-medium">{t('aiToggleLabel')}</span>
+                    </label>
+                    <p className="text-xs text-[var(--muted)] mt-1 ml-14">{t('aiToggleDescription')}</p>
                   </div>
+
+                  {useAI && (
+                    <div>
+                      <label className="block text-sm font-medium text-[var(--muted)] mb-2">
+                        {t('contextLabel')}
+                      </label>
+                      <textarea
+                        value={contextPrompt}
+                        onChange={(e) => setContextPrompt(e.target.value)}
+                        placeholder={t('contextPlaceholder')}
+                        className="input-field h-20 resize-none"
+                      />
+                    </div>
+                  )}
+                </div>
                 )}
               </div>
 
@@ -542,13 +542,13 @@ export default function DashboardPage() {
               {selectedFile && !isProcessing && (
                 <div className="flex flex-wrap items-center gap-3">
                   <button onClick={handleProcess} className="btn-primary text-lg px-8 py-4">
-                    ✨ Start processing
+                    ✨ {t('processingStart')}
                   </button>
                   <button
                     onClick={resetProcessing}
                     className="btn-secondary text-sm"
                   >
-                    Reset
+                    {t('processingReset')}
                   </button>
                 </div>
               )}
@@ -558,21 +558,21 @@ export default function DashboardPage() {
               <div className="card space-y-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Live output</p>
+                    <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">{t('liveOutputLabel')}</p>
                     <h3 className="text-2xl font-semibold break-words [overflow-wrap:anywhere]">
-                      {selectedJob?.result_data?.original_filename || 'Preview + render drops here'}
+                      {selectedJob?.result_data?.original_filename || t('liveOutputPlaceholderTitle')}
                     </h3>
-                    <p className="text-sm text-[var(--muted)]">We keep the frame tight so the subtitles never clip on phones.</p>
+                    <p className="text-sm text-[var(--muted)]">{t('liveOutputSubtitle')}</p>
                   </div>
                   <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${statusStyles[selectedJob?.status || (isProcessing ? 'processing' : 'pending')] || ''}`}>
-                    {selectedJob?.status ? selectedJob.status.toUpperCase() : isProcessing ? 'PROCESSING' : 'IDLE'}
+                    {selectedJob?.status ? selectedJob.status.toUpperCase() : isProcessing ? t('liveOutputStatusProcessing') : t('liveOutputStatusIdle')}
                   </span>
                 </div>
 
                 {isProcessing && (
                   <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3 space-y-2">
                     <div className="flex items-center justify-between text-sm">
-                      <span className="font-medium">{statusMessage || 'Processing...'}</span>
+                      <span className="font-medium">{statusMessage || t('progressLabel')}</span>
                       <span className="text-[var(--accent)] font-semibold">{progress}%</span>
                     </div>
                     <div className="w-full bg-[var(--surface)] rounded-full h-2 overflow-hidden">
@@ -596,18 +596,14 @@ export default function DashboardPage() {
                           />
                         ) : (
                           <div className="aspect-[9/16] flex items-center justify-center text-[var(--muted)] text-sm">
-                            Video ready — download below.
+                            {t('videoReadyPlaceholder')}
                           </div>
                         )}
                       </div>
-                      <p className="text-xs text-[var(--muted)] mt-2 text-center">
-                        Player is capped to a phone viewport so subtitles stay inside the frame.
-                      </p>
+                      <p className="text-xs text-[var(--muted)] mt-2 text-center">{t('playerNote')}</p>
                     </div>
                     <div className="space-y-3">
-                      <p className="text-sm text-[var(--muted)]">
-                        Render finished. Download the MP4 or open the exported folder to grab subtitles and assets.
-                      </p>
+                      <p className="text-sm text-[var(--muted)]">{t('renderFinishedDescription')}</p>
                       <div className="flex flex-wrap gap-3">
                         {videoUrl && (
                           <>
@@ -617,14 +613,14 @@ export default function DashboardPage() {
                               target="_blank"
                               rel="noreferrer"
                             >
-                              View video
+                              {t('viewVideo')}
                             </a>
                             <a
                               className="btn-secondary"
                               href={videoUrl}
                               download={selectedJob.result_data?.original_filename || 'processed.mp4'}
                             >
-                              Download MP4
+                              {t('downloadMp4')}
                             </a>
                           </>
                         )}
@@ -635,7 +631,7 @@ export default function DashboardPage() {
                             target="_blank"
                             rel="noreferrer"
                           >
-                            Artifacts folder
+                            {t('artifactsFolder')}
                           </a>
                         )}
                       </div>
@@ -643,22 +639,22 @@ export default function DashboardPage() {
                   </div>
                 ) : (
                   <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-6 text-[var(--muted)] text-sm text-center">
-                    Your render preview will appear here once a job completes. Hit &ldquo;Start processing&rdquo; to send the clip through.
+                    {t('renderPlaceholder')}
                   </div>
                 )}
               </div>
 
-              <div className="card">
-                <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Logbook</p>
-                    <h3 className="text-lg font-semibold">Recent jobs</h3>
-                  </div>
-                  {jobsLoading && <span className="text-xs text-[var(--muted)]">Refreshing…</span>}
+            <div className="card">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">{t('logbookLabel')}</p>
+                  <h3 className="text-lg font-semibold">{t('recentJobsTitle')}</h3>
                 </div>
-                {recentJobs.length === 0 && (
-                  <p className="text-[var(--muted)] text-sm">No runs yet — upload a video to get started.</p>
-                )}
+                {jobsLoading && <span className="text-xs text-[var(--muted)]">{t('refreshingLabel')}</span>}
+              </div>
+              {recentJobs.length === 0 && (
+                <p className="text-[var(--muted)] text-sm">{t('noRunsYet')}</p>
+              )}
                 <div className="space-y-3">
                   {recentJobs.map((job) => {
                     const publicUrl = buildStaticUrl(job.result_data?.public_url || job.result_data?.video_path);
@@ -670,29 +666,29 @@ export default function DashboardPage() {
                       >
                         <div className="min-w-0 flex-1">
                           <div className="font-semibold break-words [overflow-wrap:anywhere]">
-                            {job.result_data?.original_filename || `Job ${job.id.slice(0, 6)}`}
-                          </div>
-                          <div className="text-xs text-[var(--muted)] mt-1 leading-snug break-words [overflow-wrap:anywhere]">
-                            {formatDate((job.updated_at || job.created_at) * 1000)}
-                            {' · '}
-                            {(job.result_data?.transcribe_provider || 'local') === 'openai' ? 'ChatGPT API' : (job.result_data?.model_size || 'model')}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap sm:justify-end flex-shrink-0">
-                          <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${statusStyles[job.status] || ''}`}>
-                            {job.status}
-                          </span>
-                          {job.status === 'completed' && publicUrl && (
-                            <button
-                              onClick={() => setSelectedJob(job)}
-                              className="btn-secondary text-xs"
-                            >
-                              View
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
+                            {job.result_data?.original_filename || `${t('recentJobsTitle')} ${job.id.slice(0, 6)}`}
+                  </div>
+                  <div className="text-xs text-[var(--muted)] mt-1 leading-snug break-words [overflow-wrap:anywhere]">
+                    {formatDate((job.updated_at || job.created_at) * 1000)}
+                    {' · '}
+                    {(job.result_data?.transcribe_provider || 'local') === 'openai' ? t('engineHostedName') : (job.result_data?.model_size || 'model')}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap sm:justify-end flex-shrink-0">
+                  <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${statusStyles[job.status] || ''}`}>
+                    {job.status}
+                  </span>
+                  {job.status === 'completed' && publicUrl && (
+                    <button
+                      onClick={() => setSelectedJob(job)}
+                      className="btn-secondary text-xs"
+                    >
+                      {t('jobView')}
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
                   })}
                 </div>
               </div>
@@ -705,24 +701,24 @@ export default function DashboardPage() {
             <div className="card">
               <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Timeline</p>
-                  <h2 className="text-2xl font-bold">Activity</h2>
-                  <p className="text-[var(--muted)] text-sm">Processing, uploads, and OAuth events.</p>
+                  <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">{t('timelineLabel')}</p>
+                  <h2 className="text-2xl font-bold">{t('activityTitle')}</h2>
+                  <p className="text-[var(--muted)] text-sm">{t('activitySubtitle')}</p>
                 </div>
                 <button
                   className="btn-secondary text-sm"
                   onClick={loadHistory}
                   disabled={historyLoading}
                 >
-                  Refresh
+                  {t('refresh')}
                 </button>
               </div>
-              {historyLoading && <p className="text-[var(--muted)]">Loading history...</p>}
+              {historyLoading && <p className="text-[var(--muted)]">{t('loadingHistory')}</p>}
               {historyError && (
                 <p className="text-[var(--danger)] text-sm">{historyError}</p>
               )}
               {!historyLoading && historyItems.length === 0 && (
-                <p className="text-[var(--muted)]">No history yet.</p>
+                <p className="text-[var(--muted)]">{t('noHistory')}</p>
               )}
               <div className="space-y-3">
                 {historyItems.map((evt) => (
@@ -745,13 +741,13 @@ export default function DashboardPage() {
             <div className="card">
               <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                 <div>
-                  <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Snapshot</p>
-                  <h3 className="text-lg font-semibold">Job summary</h3>
+                  <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">{t('snapshotLabel')}</p>
+                  <h3 className="text-lg font-semibold">{t('jobSummaryTitle')}</h3>
                 </div>
-                {jobsLoading && <span className="text-xs text-[var(--muted)]">Refreshing…</span>}
+                {jobsLoading && <span className="text-xs text-[var(--muted)]">{t('refreshingLabel')}</span>}
               </div>
               {recentJobs.length === 0 && (
-                <p className="text-[var(--muted)] text-sm">No jobs logged.</p>
+                <p className="text-[var(--muted)] text-sm">{t('noJobsLogged')}</p>
               )}
               <div className="space-y-2">
                 {recentJobs.map((job) => (
@@ -782,14 +778,14 @@ export default function DashboardPage() {
           <div className="grid lg:grid-cols-2 gap-6">
             <div className="card space-y-4">
               <div>
-                <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Profile</p>
-                <h2 className="text-2xl font-bold">Account settings</h2>
-                <p className="text-sm text-[var(--muted)]">Update your name and password. Email is fixed to your login provider.</p>
+                <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">{t('profileLabel')}</p>
+                <h2 className="text-2xl font-bold">{t('accountSettingsTitle')}</h2>
+                <p className="text-sm text-[var(--muted)]">{t('accountSettingsSubtitle')}</p>
               </div>
               <form className="space-y-4" onSubmit={handleProfileSave}>
                 <div>
                   <label className="block text-sm font-medium text-[var(--muted)] mb-2">
-                    Display name
+                    {t('displayNameLabel')}
                   </label>
                   <input
                     className="input-field"
@@ -799,7 +795,7 @@ export default function DashboardPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-[var(--muted)] mb-2">
-                    Email
+                    {t('emailLabel')}
                   </label>
                   <input className="input-field" value={user.email} disabled />
                 </div>
@@ -807,7 +803,7 @@ export default function DashboardPage() {
                   <>
                     <div>
                       <label className="block text-sm font-medium text-[var(--muted)] mb-2">
-                        New password
+                        {t('newPasswordLabel')}
                       </label>
                       <input
                         type="password"
@@ -819,7 +815,7 @@ export default function DashboardPage() {
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-[var(--muted)] mb-2">
-                        Confirm password
+                        {t('confirmPasswordLabel')}
                       </label>
                       <input
                         type="password"
@@ -842,23 +838,21 @@ export default function DashboardPage() {
                   </div>
                 )}
                 <button type="submit" className="btn-primary" disabled={accountSaving}>
-                  Save changes
+                  {t('saveChanges')}
                 </button>
               </form>
             </div>
 
             <div className="space-y-4">
               <div className="card">
-                <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Session</p>
-                <h3 className="text-lg font-semibold mb-2">Current session</h3>
-                <p className="text-[var(--muted)] text-sm">You are signed in via {user.provider}.</p>
-                <p className="text-[var(--muted)] text-sm mt-3">
-                  Use the top right sign out button if you need to exit. Your session refreshes automatically.
-                </p>
+                <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">{t('sessionLabel')}</p>
+                <h3 className="text-lg font-semibold mb-2">{t('currentSessionTitle')}</h3>
+                <p className="text-[var(--muted)] text-sm">{t('currentSessionDescription').replace('{provider}', user.provider)}</p>
+                <p className="text-[var(--muted)] text-sm mt-3">{t('signOutReminder')}</p>
               </div>
               <div className="card">
-                <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Recent history</p>
-                <h3 className="text-lg font-semibold mb-2">Latest events</h3>
+                <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">{t('recentHistoryLabel')}</p>
+                <h3 className="text-lg font-semibold mb-2">{t('latestEventsTitle')}</h3>
                 {historyItems.slice(0, 5).map((evt) => (
                   <div key={`${evt.ts}-${evt.kind}`} className="flex flex-wrap items-start sm:items-center justify-between gap-2 py-2 border-b border-[var(--border)] last:border-0">
                     <div className="min-w-0">
@@ -871,7 +865,7 @@ export default function DashboardPage() {
                   </div>
                 ))}
                 {historyItems.length === 0 && (
-                  <p className="text-[var(--muted)] text-sm">No events yet.</p>
+                  <p className="text-[var(--muted)] text-sm">{t('noEventsYet')}</p>
                 )}
               </div>
             </div>

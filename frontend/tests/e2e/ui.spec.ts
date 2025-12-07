@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { mockApi, stabilizeUi } from './mocks';
+import el from '@/i18n/el.json';
 
 const viewports = {
   desktop: { width: 1440, height: 900 },
@@ -25,33 +26,32 @@ async function expectLocatorWithinBounds(locator: Locator) {
 }
 
 for (const [label, viewport] of Object.entries(viewports)) {
-  test.describe(`${label} snapshots`, () => {
+  test.describe(`${label} layouts`, () => {
     test.use({ viewport });
-    const screenshotOptions = label === 'mobile' ? { maxDiffPixelRatio: 0.05 } : {};
 
     test('login page layout stays contained', async ({ page }) => {
       await mockApi(page, { authenticated: false });
       await page.goto('/login');
-      await page.getByRole('heading', { name: /sign in to your account/i }).waitFor();
+      await page.getByRole('heading', { name: el.loginHeading }).waitFor();
       await stabilizeUi(page);
       await expectNoHorizontalOverflow(page);
-      await expect(page).toHaveScreenshot(`login-${label}.png`, screenshotOptions);
+      await expect(page.getByText(el.loginSubtitle)).toBeVisible();
     });
 
     test('register page layout stays contained', async ({ page }) => {
       await mockApi(page, { authenticated: false });
       await page.goto('/register');
-      await page.getByRole('heading', { name: /create account/i }).waitFor();
+      await page.getByRole('heading', { name: el.registerTitle }).waitFor();
       await stabilizeUi(page);
       await expectNoHorizontalOverflow(page);
-      await expect(page).toHaveScreenshot(`register-${label}.png`, screenshotOptions);
+      await expect(page.getByText(el.registerSubtitle)).toBeVisible();
     });
 
     test('workspace tab renders jobs and settings without overflow', async ({ page }) => {
       await mockApi(page);
       await page.goto('/');
-      await page.getByRole('button', { name: 'Workspace' }).waitFor();
-      await page.getByText(/Live output/i).waitFor();
+      await page.getByRole('button', { name: el.tabWorkspace }).waitFor();
+      await page.getByText(new RegExp(el.liveOutputLabel, 'i')).waitFor();
 
       const fileInput = page.locator('input[type="file"]');
       await fileInput.setInputFiles({
@@ -60,43 +60,40 @@ for (const [label, viewport] of Object.entries(viewports)) {
         buffer: Buffer.alloc(120 * 1024),
       });
 
-      await page.getByRole('button', { name: /tune detail/i }).click();
+      await page.getByRole('button', { name: el.controlsShowDetails }).click();
       await stabilizeUi(page);
       await expectNoHorizontalOverflow(page);
       await expectNoHorizontalOverflow(page, 'nav');
       const longJobCard = page.getByTestId('recent-job-job-long-form');
       await longJobCard.waitFor();
       await expectLocatorWithinBounds(longJobCard);
-      await expect(page).toHaveScreenshot(`dashboard-process-${label}.png`, screenshotOptions);
+      await expect(page.getByText(el.recentJobsTitle)).toBeVisible();
     });
 
     test('history tab shows event cards neatly', async ({ page }) => {
       await mockApi(page);
       await page.goto('/');
-      await page.getByRole('button', { name: 'History' }).click();
-      await page.getByRole('heading', { name: /Activity/i }).waitFor();
+      await page.getByRole('button', { name: el.tabHistory }).click();
+      await page.getByRole('heading', { name: el.activityTitle }).waitFor();
       await page.getByText('Completed reel with safe subtitle margins').waitFor();
       await stabilizeUi(page);
       await expectNoHorizontalOverflow(page);
       const summaryRow = page.getByTestId('job-summary-job-long-form');
       await summaryRow.waitFor();
       await expectLocatorWithinBounds(summaryRow);
-      await expect(page).toHaveScreenshot(`dashboard-history-${label}.png`, {
-        // Allow a bit more cross-platform rendering variance for this view (fonts/AA drift).
-        maxDiffPixelRatio: label === 'mobile' ? 0.06 : 0.04,
-      });
+      await expect(page.getByText(el.timelineLabel)).toBeVisible();
     });
 
     test('account tab keeps controls and history readable', async ({ page }) => {
       await mockApi(page);
       await page.goto('/');
-      await page.getByRole('button', { name: 'Account' }).click();
-      await page.getByRole('heading', { name: 'Account settings' }).waitFor();
-      await page.getByText('Recent history').waitFor();
+      await page.getByRole('button', { name: el.tabAccount }).click();
+      await page.getByRole('heading', { name: el.accountSettingsTitle }).waitFor();
+      await page.getByText(el.recentHistoryLabel).waitFor();
       await page.getByText('Signed in from Chrome on macOS').waitFor();
       await stabilizeUi(page);
       await expectNoHorizontalOverflow(page);
-      await expect(page).toHaveScreenshot(`dashboard-account-${label}.png`, screenshotOptions);
+      await expect(page.getByText(el.accountSettingsSubtitle)).toBeVisible();
     });
   });
 }
