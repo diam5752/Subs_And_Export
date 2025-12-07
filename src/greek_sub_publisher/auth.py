@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import os
 import secrets
 import time
@@ -50,6 +51,7 @@ class UserStore:
             raise ValueError("Email is required")
         if not password:
             raise ValueError("Password is required")
+        _validate_password_strength(password)
         existing = self.get_user_by_email(email)
         if existing:
             raise ValueError("User already exists")
@@ -130,6 +132,7 @@ class UserStore:
             )
 
     def update_password(self, user_id: str, new_password: str) -> None:
+        _validate_password_strength(new_password)
         p_hash = _hash_password(new_password)
         with self.db.connect() as conn:
             conn.execute(
@@ -219,7 +222,22 @@ def _user_from_row(row: Dict) -> User:
 
 
 def _hash_password(password: str, salt: str | None = None) -> str:
-    salt = salt or secrets.token_hex(8)
+    salt_bytes = bytes.fromhex(salt) if salt else secrets.token_bytes(16)
+    params = {
+        "n": 2 ** 14,
+        "r": 8,
+        "p": 1,
+        "dklen": 64,
+    }
+    digest = hashlib.scrypt(password.encode("utf-8"), salt=salt_bytes, **params)
+    return "scrypt${n}${r}${p}${salt}${digest}".format(
+        salt=salt_bytes.hex(),
+        digest=digest.hex(),
+        **params,
+    )
+
+
+def _hash_password_legacy(password: str, salt: str) -> str:
     digest = hashlib.sha256(f"{salt}:{password}".encode("utf-8")).hexdigest()
     return f"{salt}${digest}"
 
@@ -229,10 +247,38 @@ def _hash_token(token: str) -> str:
 
 
 def _verify_password(password: str, encoded: str) -> bool:
+    if encoded.startswith("scrypt$"):
+        try:
+            _, n, r, p, salt_hex, stored = encoded.split("$", 5)
+            salt_bytes = bytes.fromhex(salt_hex)
+            expected = bytes.fromhex(stored)
+            derived = hashlib.scrypt(
+                password.encode("utf-8"),
+                salt=salt_bytes,
+                n=int(n),
+                r=int(r),
+                p=int(p),
+                dklen=len(expected),
+            )
+            return hmac.compare_digest(derived, expected)
+        except Exception:
+            return False
+
     if "$" not in encoded:
         return False
     salt, digest = encoded.split("$", 1)
-    return _hash_password(password, salt) == encoded and bool(digest)
+    legacy_hash = _hash_password_legacy(password, salt)
+    return hmac.compare_digest(legacy_hash, encoded) and bool(digest)
+
+
+def _validate_password_strength(password: str) -> None:
+    """Enforce a minimum password policy for interactive accounts."""
+    if len(password) < 12:
+        raise ValueError("Password must be at least 12 characters long")
+    has_letter = any(ch.isalpha() for ch in password)
+    has_digit = any(ch.isdigit() for ch in password)
+    if not (has_letter and has_digit):
+        raise ValueError("Password must include both letters and numbers")
 
 
 def _utc_iso() -> str:
