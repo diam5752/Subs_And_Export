@@ -444,9 +444,6 @@ export default function DashboardPage() {
                           </button>
                         ))}
                       </div>
-                      <p className="text-xs text-[var(--muted)] mt-1">
-                        Local keeps media on-device. ChatGPT uses your server-side OPENAI_API_KEY for hosted transcription.
-                      </p>
                     </div>
 
                     <div>
@@ -469,9 +466,6 @@ export default function DashboardPage() {
                               </button>
                             ))}
                           </div>
-                          <p className="text-xs text-[var(--muted)] mt-1">
-                            Turbo uses a CT2-quantized Large V3 preset tuned for sharper Greek accuracy without slowing down.
-                          </p>
                         </>
                       ) : (
                         <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3 text-sm text-left">
@@ -609,24 +603,9 @@ export default function DashboardPage() {
                       </p>
                     </div>
                     <div className="space-y-3">
-                      <div className="grid sm:grid-cols-2 gap-3">
-                        <div className="p-3 rounded-lg bg-[var(--surface-elevated)] border border-[var(--border)]">
-                          <div className="text-xs text-[var(--muted)] uppercase tracking-wide">Engine</div>
-                          <div className="font-semibold">
-                            {(selectedJob.result_data?.transcribe_provider || 'local') === 'openai' ? 'ChatGPT API' : 'Local turbo'}
-                          </div>
-                          <div className="text-[var(--muted)] text-xs mt-1">
-                            {selectedJob.result_data?.model_size || 'model'}
-                          </div>
-                        </div>
-                        <div className="p-3 rounded-lg bg-[var(--surface-elevated)] border border-[var(--border)]">
-                          <div className="text-xs text-[var(--muted)] uppercase tracking-wide">Quality</div>
-                          <div className="font-semibold">CRF {selectedJob.result_data?.video_crf || '?'}</div>
-                          <div className="text-[var(--muted)] text-xs mt-1">
-                            {selectedJob.result_data?.video_path || 'n/a'}
-                          </div>
-                        </div>
-                      </div>
+                      <p className="text-sm text-[var(--muted)]">
+                        Render finished. Download the MP4 or open the exported folder to grab subtitles and assets.
+                      </p>
                       <div className="flex flex-wrap gap-3">
                         {videoUrl && (
                           <>
@@ -871,14 +850,9 @@ export default function DashboardPage() {
                 <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Session</p>
                 <h3 className="text-lg font-semibold mb-2">Current session</h3>
                 <p className="text-[var(--muted)] text-sm">You are signed in via {user.provider}.</p>
-                <div className="flex flex-wrap gap-3 mt-3">
-                  <button className="btn-secondary" onClick={refreshUser}>
-                    Refresh session
-                  </button>
-                  <button className="btn-secondary" onClick={logout}>
-                    Sign out everywhere
-                  </button>
-                </div>
+                <p className="text-[var(--muted)] text-sm mt-3">
+                  Use the top right sign out button if you need to exit. Your session refreshes automatically.
+                </p>
               </div>
               <div className="card">
                 <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">Recent history</p>
