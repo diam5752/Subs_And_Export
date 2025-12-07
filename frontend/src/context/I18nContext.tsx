@@ -1,9 +1,9 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { defaultLocale, locales, messages, Locale } from './i18nMessages';
+import { defaultLocale, locales, messages, Locale, Messages } from './i18nMessages';
 
-type MessageKey = keyof (typeof messages)[keyof typeof messages];
+type MessageKey = keyof Messages;
 
 interface I18nContextType {
   locale: Locale;

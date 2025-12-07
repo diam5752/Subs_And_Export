@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
+import { useI18n } from '@/context/I18nContext';
 
 export default function LoginPage() {
     const [email, setEmail] = useState('');
@@ -15,6 +16,7 @@ export default function LoginPage() {
     const { login, googleLogin } = useAuth();
     const router = useRouter();
     const searchParams = useSearchParams();
+    const { t } = useI18n();
 
     // Handle Google OAuth callback
     useEffect(() => {
@@ -30,12 +32,12 @@ export default function LoginPage() {
                     router.push('/');
                 })
                 .catch((err) => {
-                    setError(err.message || 'Google login failed');
+                    setError(err.message || t('loginErrorGoogle'));
                     localStorage.removeItem('google_oauth_state');
                 })
                 .finally(() => setGoogleLoading(false));
         }
-    }, [searchParams, router, googleLogin]);
+    }, [searchParams, router, googleLogin, t]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -46,7 +48,7 @@ export default function LoginPage() {
             await login(email, password);
             router.push('/');
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Login failed');
+            setError(err instanceof Error ? err.message : t('loginErrorGeneral'));
         } finally {
             setIsLoading(false);
         }
@@ -60,7 +62,7 @@ export default function LoginPage() {
             localStorage.setItem('google_oauth_state', state);
             window.location.href = auth_url;
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Google login not available');
+            setError(err instanceof Error ? err.message : t('loginGoogleUnavailable'));
             setGoogleLoading(false);
         }
     };
@@ -73,13 +75,13 @@ export default function LoginPage() {
                     <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[var(--accent)] mb-6">
                         <span className="text-3xl">🎬</span>
                     </div>
-                    <h1 className="text-3xl font-bold text-[var(--foreground)]">Greek Sub Publisher</h1>
-                    <p className="text-[var(--muted)] mt-2">Transform your videos with AI-powered Greek subtitles</p>
+                    <h1 className="text-3xl font-bold text-[var(--foreground)]">{t('loginTitle')}</h1>
+                    <p className="text-[var(--muted)] mt-2">{t('loginSubtitle')}</p>
                 </div>
 
                 {/* Login Card */}
                 <div className="card">
-                    <h2 className="text-xl font-semibold mb-6 text-center">Sign in to your account</h2>
+                    <h2 className="text-xl font-semibold mb-6 text-center">{t('loginHeading')}</h2>
 
                     {/* Google Login Button */}
                     <button
@@ -93,7 +95,7 @@ export default function LoginPage() {
                             <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
                             <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
                         </svg>
-                        {googleLoading ? 'Signing in...' : 'Continue with Google'}
+                        {googleLoading ? t('loginGoogleSigningIn') : t('loginGoogleCta')}
                     </button>
 
                     <div className="relative mb-6">
@@ -101,14 +103,14 @@ export default function LoginPage() {
                             <div className="w-full border-t border-[var(--border)]"></div>
                         </div>
                         <div className="relative flex justify-center text-sm">
-                            <span className="px-4 bg-[var(--surface)] text-[var(--muted)]">or continue with email</span>
+                            <span className="px-4 bg-[var(--surface)] text-[var(--muted)]">{t('loginOrEmail')}</span>
                         </div>
                     </div>
 
                     <form onSubmit={handleSubmit} className="space-y-5">
                         <div>
                             <label htmlFor="email" className="block text-sm font-medium text-[var(--muted)] mb-2">
-                                Email Address
+                                {t('loginEmailLabel')}
                             </label>
                             <input
                                 id="email"
@@ -116,14 +118,14 @@ export default function LoginPage() {
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 className="input-field"
-                                placeholder="you@example.com"
+                                placeholder={t('loginEmailPlaceholder')}
                                 required
                             />
                         </div>
 
                         <div>
                             <label htmlFor="password" className="block text-sm font-medium text-[var(--muted)] mb-2">
-                                Password
+                                {t('loginPasswordLabel')}
                             </label>
                             <input
                                 id="password"
@@ -131,7 +133,7 @@ export default function LoginPage() {
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 className="input-field"
-                                placeholder="••••••••"
+                                placeholder={t('loginPasswordPlaceholder')}
                                 required
                             />
                         </div>
@@ -147,15 +149,15 @@ export default function LoginPage() {
                             disabled={isLoading}
                             className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            {isLoading ? 'Signing in...' : 'Sign In'}
+                            {isLoading ? t('loginSigningIn') : t('loginSubmit')}
                         </button>
                     </form>
 
                     <div className="mt-6 text-center">
                         <p className="text-[var(--muted)]">
-                            Don&apos;t have an account?{' '}
+                            {t('loginNoAccount')}{' '}
                             <Link href="/register" className="text-[var(--accent)] hover:underline font-medium">
-                                Create one
+                                {t('loginCreateOne')}
                             </Link>
                         </p>
                     </div>
@@ -163,7 +165,7 @@ export default function LoginPage() {
 
                 {/* Footer */}
                 <p className="text-center text-[var(--muted)] text-sm mt-8">
-                    © 2024 Greek Sub Publisher. All rights reserved.
+                    {t('loginFooter')}
                 </p>
             </div>
         </div>

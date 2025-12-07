@@ -3,6 +3,7 @@
  */
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import LoginPage from '@/app/login/page';
+import { I18nProvider } from '@/context/I18nContext';
 
 const searchParamsState: { code: string | null; state: string | null } = {
     code: null,
@@ -53,6 +54,12 @@ const loginMock = __loginMock as jest.Mock;
 const googleLoginMock = __googleLoginMock as jest.Mock;
 const getGoogleAuthUrlMock = __getGoogleAuthUrlMock as jest.Mock;
 
+const renderLogin = () => render(
+    <I18nProvider initialLocale="en">
+        <LoginPage />
+    </I18nProvider>
+);
+
 beforeEach(() => {
     jest.clearAllMocks();
     localStorage.clear();
@@ -68,7 +75,7 @@ it('invokes Google login when callback params match stored state', async () => {
     searchParamsState.state = 'state123';
     localStorage.setItem('google_oauth_state', 'state123');
 
-    render(<LoginPage />);
+    renderLogin();
 
     await waitFor(() => {
         expect(googleLoginMock).toHaveBeenCalledWith('abc', 'state123');
@@ -84,7 +91,7 @@ it('requests Google auth URL and redirects when button is clicked', async () => 
 
     const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
 
-    render(<LoginPage />);
+    renderLogin();
 
     const btn = screen.getByRole('button', { name: /Continue with Google/i });
     fireEvent.click(btn);
@@ -95,7 +102,7 @@ it('requests Google auth URL and redirects when button is clicked', async () => 
 });
 
 it('submits email/password through the login handler', async () => {
-    render(<LoginPage />);
+    renderLogin();
 
     fireEvent.change(screen.getByLabelText(/Email Address/i), { target: { value: 'you@example.com' } });
     fireEvent.change(screen.getByLabelText(/Password/i), { target: { value: 'hunter2' } });
