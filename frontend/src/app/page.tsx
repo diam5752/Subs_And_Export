@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { api, API_BASE, JobResponse, HistoryEvent } from '@/lib/api';
+import { useI18n } from '@/context/I18nContext';
 
 type TabKey = 'process' | 'history' | 'account';
 type TranscribeMode = 'fast' | 'balanced' | 'turbo' | 'best';
@@ -35,6 +36,7 @@ export default function DashboardPage() {
   const { user, isLoading, logout, refreshUser } = useAuth();
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { t } = useI18n();
 
   const [activeTab, setActiveTab] = useState<TabKey>('process');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -269,7 +271,7 @@ export default function DashboardPage() {
           <div className="flex items-center gap-3 min-w-0">
             <div className="h-11 w-11 rounded-2xl bg-white/5 border border-[var(--border)] flex items-center justify-center text-xl shadow-inner">🎛️</div>
             <div>
-              <p className="text-[var(--muted)] text-xs uppercase tracking-[0.35em]">Subtitle desk</p>
+              <p className="text-[var(--muted)] text-xs uppercase tracking-[0.35em]">{t('subtitleDesk')}</p>
               <p className="text-xl font-semibold leading-tight">Futurist Studio</p>
             </div>
           </div>
@@ -284,9 +286,9 @@ export default function DashboardPage() {
                       : 'text-[var(--muted)] hover:text-[var(--foreground)]'
                     }`}
                 >
-                  {tab === 'process' && 'Workspace'}
-                  {tab === 'history' && 'History'}
-                  {tab === 'account' && 'Account'}
+                  {tab === 'process' && t('tabWorkspace')}
+                  {tab === 'history' && t('tabHistory')}
+                  {tab === 'account' && t('tabAccount')}
                 </button>
               ))}
             </div>
@@ -297,7 +299,7 @@ export default function DashboardPage() {
                 <div className="text-[var(--muted)] text-xs uppercase tracking-wide">{user.provider} session</div>
               </div>
               <button onClick={logout} className="btn-secondary text-sm py-2 px-4">
-                Sign Out
+                {t('signOut')}
               </button>
             </div>
           </div>

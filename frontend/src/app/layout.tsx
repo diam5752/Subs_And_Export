@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
+import { I18nProvider } from "@/context/I18nContext";
+import { LanguageToggle } from "@/components/LanguageToggle";
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ["latin"],
@@ -20,11 +22,16 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="el">
       <body className={`${spaceGrotesk.variable} antialiased`}>
-        <AuthProvider>
-          {children}
-        </AuthProvider>
+        <I18nProvider>
+          <div className="fixed right-4 top-4 z-50">
+            <LanguageToggle />
+          </div>
+          <AuthProvider>
+            {children}
+          </AuthProvider>
+        </I18nProvider>
       </body>
     </html>
   );
