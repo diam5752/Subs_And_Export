@@ -50,7 +50,7 @@ for (const [label, viewport] of Object.entries(viewports)) {
       await mockApi(page);
       await page.goto('/');
       await page.getByRole('button', { name: 'Workspace' }).waitFor();
-      await page.getByText('Latest render').waitFor();
+      await page.getByText(/Live output/i).waitFor();
 
       const fileInput = page.locator('input[type="file"]');
       await fileInput.setInputFiles({
@@ -59,7 +59,7 @@ for (const [label, viewport] of Object.entries(viewports)) {
         buffer: Buffer.alloc(120 * 1024),
       });
 
-      await page.getByRole('button', { name: /show/i }).click();
+      await page.getByRole('button', { name: /tune detail/i }).click();
       await stabilizeUi(page);
       await expectNoHorizontalOverflow(page);
       await expectNoHorizontalOverflow(page, 'nav');
@@ -73,7 +73,7 @@ for (const [label, viewport] of Object.entries(viewports)) {
       await mockApi(page);
       await page.goto('/');
       await page.getByRole('button', { name: 'History' }).click();
-      await page.getByRole('heading', { name: 'Activity' }).waitFor();
+      await page.getByRole('heading', { name: /Activity/i }).waitFor();
       await page.getByText('Completed reel with safe subtitle margins').waitFor();
       await stabilizeUi(page);
       await expectNoHorizontalOverflow(page);
