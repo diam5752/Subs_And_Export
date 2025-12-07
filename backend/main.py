@@ -5,7 +5,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.staticfiles import StaticFiles
-from starlette.middleware.security import SecurityMiddleware
+from secure import (
+    ContentSecurityPolicy,
+    ReferrerPolicy,
+    Secure,
+    StrictTransportSecurity,
+    XContentTypeOptions,
+    XFrameOptions,
+)
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.types import ASGIApp
 
 from .app.api.endpoints import auth, videos, tiktok, history
 from .app import config
@@ -47,14 +57,36 @@ trusted_hosts = _env_list(
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=trusted_hosts)
 
 # Harden default security headers; CSP is conservative for API-only responses
+SECURE_HEADERS = Secure(
+    hsts=StrictTransportSecurity().max_age(63072000).include_subdomains().preload(),
+    xfo=XFrameOptions().deny(),
+    referrer=ReferrerPolicy().strict_origin_when_cross_origin(),
+    csp=ContentSecurityPolicy(
+        "default-src 'self'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self'"
+    ),
+    xcto=XContentTypeOptions().nosniff(),
+)
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    def __init__(self, app: ASGIApp, secure_headers: Secure) -> None:
+        super().__init__(app)
+        self.secure_headers = secure_headers
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        await self.secure_headers.set_headers_async(response)
+        # Avoid sending HSTS on cleartext requests to keep dev/proxy setups flexible.
+        if request.url.scheme not in ("https", "wss"):
+            if "Strict-Transport-Security" in response.headers:
+                del response.headers["Strict-Transport-Security"]
+        return response
+
+
 app.add_middleware(
-    SecurityMiddleware,
-    sts_seconds=63072000,
-    sts_include_subdomains=True,
-    sts_preload=True,
-    frame_deny=True,
-    referrer_policy="strict-origin-when-cross-origin",
-    content_security_policy="default-src 'self'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self'",
+    # Use the dedicated `secure` package to apply hardened headers.
+    SecurityHeadersMiddleware,
+    secure_headers=SECURE_HEADERS,
 )
 
 if os.getenv("GSP_FORCE_HTTPS", "0") == "1":
