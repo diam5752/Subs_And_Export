@@ -3,6 +3,7 @@
  */
 import { render, screen, fireEvent } from '@testing-library/react';
 import DashboardPage from '@/app/page';
+import { I18nProvider } from '@/context/I18nContext';
 
 jest.mock('@/context/AuthContext', () => {
     const logoutMock = jest.fn();
@@ -78,7 +79,11 @@ beforeEach(() => {
 });
 
 it('renders workspace with recent jobs', async () => {
-    render(<DashboardPage />);
+    render(
+        <I18nProvider initialLocale="en">
+            <DashboardPage />
+        </I18nProvider>,
+    );
 
     expect(await screen.findByText(/Recent jobs/i)).toBeInTheDocument();
     const occurrences = await screen.findAllByText('demo.mp4');
@@ -87,7 +92,11 @@ it('renders workspace with recent jobs', async () => {
 });
 
 it('shows history tab with logged events', async () => {
-    render(<DashboardPage />);
+    render(
+        <I18nProvider initialLocale="en">
+            <DashboardPage />
+        </I18nProvider>,
+    );
 
     const historyTab = screen.getByRole('button', { name: /History/i });
     fireEvent.click(historyTab);
@@ -97,7 +106,11 @@ it('shows history tab with logged events', async () => {
 });
 
 it('exposes account tab with profile fields', async () => {
-    render(<DashboardPage />);
+    render(
+        <I18nProvider initialLocale="en">
+            <DashboardPage />
+        </I18nProvider>,
+    );
 
     const accountTab = screen.getByRole('button', { name: /Account/i });
     fireEvent.click(accountTab);
@@ -107,7 +120,11 @@ it('exposes account tab with profile fields', async () => {
 });
 
 it('shows the updated hero and clickable dropzone', async () => {
-    render(<DashboardPage />);
+    render(
+        <I18nProvider initialLocale="en">
+            <DashboardPage />
+        </I18nProvider>,
+    );
 
     expect(await screen.findByText(/Build export-ready shorts/i)).toBeInTheDocument();
     const dropCopy = await screen.findByText(/Drop your vertical clip/i);
