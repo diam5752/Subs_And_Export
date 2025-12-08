@@ -16,17 +16,19 @@ const I18N_STORAGE_KEY = 'preferredLocale';
 const I18nContext = createContext<I18nContextType | null>(null);
 
 export function I18nProvider({ children, initialLocale }: { children: React.ReactNode; initialLocale?: Locale }) {
-  const [locale, setLocaleState] = useState<Locale>(() => {
-    if (initialLocale && locales.includes(initialLocale)) {
-      return initialLocale;
-    }
+  const [locale, setLocaleState] = useState<Locale>(() =>
+    initialLocale && locales.includes(initialLocale) ? initialLocale : defaultLocale,
+  );
 
-    const storedLocale = typeof window !== 'undefined' ? localStorage.getItem(I18N_STORAGE_KEY) : null;
+  useEffect(() => {
+    if (initialLocale) return;
+    if (typeof window === 'undefined') return;
+
+    const storedLocale = localStorage.getItem(I18N_STORAGE_KEY);
     if (storedLocale && locales.includes(storedLocale as Locale)) {
-      return storedLocale as Locale;
+      setLocaleState(storedLocale as Locale);
     }
-    return defaultLocale;
-  });
+  }, [initialLocale]);
 
   useEffect(() => {
     if (typeof document === 'undefined') return;
