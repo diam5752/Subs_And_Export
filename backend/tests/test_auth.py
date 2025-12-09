@@ -359,3 +359,74 @@ class TestGoogleOAuthEndpoints:
         monkeypatch.setattr(auth_ep, "exchange_google_code", lambda cfg, code: (_ for _ in ()).throw(RuntimeError("boom")))
         resp_fail = client.post("/auth/google/callback", json={"code": "bad", "state": "s"})
         assert resp_fail.status_code == 400
+
+
+class TestDeleteAccount:
+    """Test account deletion endpoint."""
+
+    def test_delete_account_success(self, client, test_user_data):
+        """Test successful account deletion."""
+        # Register user
+        client.post("/auth/register", json=test_user_data)
+        # Login
+        login_response = client.post(
+            "/auth/token",
+            data={
+                "username": test_user_data["email"],
+                "password": test_user_data["password"]
+            }
+        )
+        token = login_response.json()["access_token"]
+        
+        # Delete account
+        response = client.delete(
+            "/auth/me",
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "deleted"
+        
+        # Verify user can't login anymore
+        login_again = client.post(
+            "/auth/token",
+            data={
+                "username": test_user_data["email"],
+                "password": test_user_data["password"]
+            }
+        )
+        assert login_again.status_code == 400
+
+    def test_delete_account_unauthorized(self, client):
+        """Test that deleting account requires authentication."""
+        response = client.delete("/auth/me")
+        assert response.status_code == 401
+
+
+class TestDeleteJob:
+    """Test job deletion endpoint."""
+
+    def test_delete_job_not_found(self, client, test_user_data):
+        """Test deleting non-existent job."""
+        # Register and login
+        client.post("/auth/register", json=test_user_data)
+        login_response = client.post(
+            "/auth/token",
+            data={
+                "username": test_user_data["email"],
+                "password": test_user_data["password"]
+            }
+        )
+        token = login_response.json()["access_token"]
+        
+        # Try to delete non-existent job
+        response = client.delete(
+            "/videos/jobs/nonexistent-job-id",
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        assert response.status_code == 404
+
+    def test_delete_job_unauthorized(self, client):
+        """Test that deleting job requires authentication."""
+        response = client.delete("/videos/jobs/some-job-id")
+        assert response.status_code == 401

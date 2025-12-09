@@ -6,6 +6,8 @@ import tempfile
 # Set test environment
 os.environ["APP_ENV"] = "test"
 os.environ["PIPELINE_LOGGING"] = "0"
+# Allow test client hosts in TrustedHostMiddleware
+os.environ["GSP_TRUSTED_HOSTS"] = "localhost,127.0.0.1,testserver,testclient"
 
 
 @pytest.fixture(scope="session", autouse=True)

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { api, JobResponse } from '@/lib/api';
 import { useI18n } from '@/context/I18nContext';
 import { VideoModal } from './VideoModal';
@@ -53,6 +53,7 @@ export function ProcessView({
 }: ProcessViewProps) {
     const { t } = useI18n();
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const validationRequestId = useRef(0);
 
     // Local state for options
     const [showPreview, setShowPreview] = useState(false);
@@ -64,10 +65,140 @@ export function ProcessView({
     const [outputQuality, setOutputQuality] = useState<'low size' | 'balanced' | 'high quality'>('balanced');
     const [useAI, setUseAI] = useState(false);
     const [contextPrompt, setContextPrompt] = useState('');
+    const [videoInfo, setVideoInfo] = useState<{ width: number; height: number; aspectWarning: boolean; thumbnailUrl: string | null } | null>(null);
+    const [isDownloading, setIsDownloading] = useState(false);
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Validate video aspect ratio (9:16 for vertical content) and generate thumbnail
+    const validateVideoAspectRatio = (file: File): Promise<{ width: number; height: number; aspectWarning: boolean; thumbnailUrl: string | null }> => {
+        return new Promise((resolve) => {
+            const video = document.createElement('video');
+            const objectUrl = URL.createObjectURL(file);
+            let resolved = false;
+            let fallbackTimeout: number | undefined;
+
+            video.preload = 'auto';
+            video.muted = true;
+            video.playsInline = true;
+
+            const cleanup = () => {
+                if (fallbackTimeout) {
+                    window.clearTimeout(fallbackTimeout);
+                }
+                URL.revokeObjectURL(objectUrl);
+                video.removeAttribute('src');
+                video.load();
+            };
+
+            const finish = (thumbnailUrl: string | null) => {
+                if (resolved) return;
+                resolved = true;
+                const width = video.videoWidth || 0;
+                const height = video.videoHeight || 0;
+                const ratio = width && height ? width / height : 0;
+                const is916 = ratio >= 0.5 && ratio <= 0.625;
+                cleanup();
+                resolve({ width, height, aspectWarning: !is916, thumbnailUrl });
+            };
+
+            const captureFrame = () => {
+                if (resolved) return;
+                if (!video.videoWidth || !video.videoHeight) {
+                    finish(null);
+                    return;
+                }
+                const canvas = document.createElement('canvas');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                    finish(null);
+                    return;
+                }
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                finish(canvas.toDataURL('image/jpeg', 0.7));
+            };
+
+            video.addEventListener(
+                'loadedmetadata',
+                () => {
+                    const duration = Number.isFinite(video.duration) ? video.duration : 0;
+                    const targetTime = duration > 1 ? Math.min(0.5, duration - 0.1) : 0;
+                    // Fallback in case the seek never resolves
+                    fallbackTimeout = window.setTimeout(() => captureFrame(), 1200);
+                    try {
+                        video.currentTime = targetTime;
+                    } catch {
+                        captureFrame();
+                    }
+                },
+                { once: true }
+            );
+
+            video.addEventListener('seeked', captureFrame, { once: true });
+            video.addEventListener(
+                'error',
+                () => {
+                    finish(null);
+                },
+                { once: true }
+            );
+
+            video.src = objectUrl;
+            video.load();
+        });
+    };
+
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0] || null;
+        const requestId = ++validationRequestId.current;
+        if (file) {
+            const info = await validateVideoAspectRatio(file);
+            if (requestId === validationRequestId.current) {
+                setVideoInfo(info);
+            }
+        } else {
+            setVideoInfo(null);
+        }
         onFileSelect(file);
+    };
+
+    useEffect(() => {
+        if (!selectedFile) {
+            validationRequestId.current += 1;
+            setVideoInfo(null);
+        }
+    }, [selectedFile]);
+
+    const handleResetSelection = () => {
+        validationRequestId.current += 1;
+        setVideoInfo(null);
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
+        onReset();
+    };
+
+    // Instant download handler - forces download instead of opening in browser
+    const handleDownload = async (url: string, filename: string) => {
+        setIsDownloading(true);
+        try {
+            const response = await fetch(url);
+            const blob = await response.blob();
+            const blobUrl = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = blobUrl;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(blobUrl);
+        } catch (err) {
+            console.error('Download failed:', err);
+            // Fallback: open in new tab
+            window.open(url, '_blank');
+        } finally {
+            setIsDownloading(false);
+        }
     };
 
     const handleStart = () => {
@@ -105,24 +236,45 @@ export function ProcessView({
 
                         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between relative">
                             <div className="flex items-start gap-3">
-                                <div className="text-4xl">🎥</div>
+                                {/* Video Thumbnail */}
+                                {videoInfo?.thumbnailUrl ? (
+                                    <div className="w-16 h-16 rounded-lg overflow-hidden bg-black/40 flex-shrink-0">
+                                        <img
+                                            src={videoInfo.thumbnailUrl}
+                                            alt="Video thumbnail"
+                                            className="w-full h-full object-cover"
+                                        />
+                                    </div>
+                                ) : (
+                                    <div className="text-4xl">🎥</div>
+                                )}
                                 <div>
                                     <p className="text-xl font-semibold break-words [overflow-wrap:anywhere]">{selectedFile.name}</p>
                                     <p className="text-[var(--muted)] mt-1">
-                                        {(selectedFile.size / (1024 * 1024)).toFixed(1)} MB · MP4 / MOV / MKV
+                                        {(selectedFile.size / (1024 * 1024)).toFixed(1)} MB · {selectedFile.name.split('.').pop()?.toUpperCase() || 'VIDEO'}
+                                        {videoInfo && videoInfo.width > 0 && (
+                                            <span className="ml-2">· {videoInfo.width}×{videoInfo.height}</span>
+                                        )}
                                     </p>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-2 text-sm text-[var(--muted)]">
-                                <span className="h-2 w-2 rounded-full bg-[var(--accent)] animate-pulse" />
-                                {t('uploadReady')}
+                            <div className="flex flex-col items-end gap-1">
+                                <div className="flex items-center gap-2 text-sm text-[var(--muted)]">
+                                    <span className="h-2 w-2 rounded-full bg-[var(--accent)] animate-pulse" />
+                                    {t('uploadReady')}
+                                </div>
+                                {videoInfo?.aspectWarning && (
+                                    <div className="text-xs text-amber-400 flex items-center gap-1">
+                                        ⚠️ Not 9:16 — subtitles may overflow
+                                    </div>
+                                )}
                             </div>
                         </div>
                     ) : (
                         <div className="text-center py-12 relative">
                             <div className="text-6xl mb-3 opacity-80">📤</div>
                             <p className="text-2xl font-semibold mb-1">{t('uploadDropTitle')}</p>
-                            <p className="text-[var(--muted)]">{t('uploadDropSubtitle')}</p>
+                            <p className="text-[var(--muted)}">{t('uploadDropSubtitle')}</p>
                             <p className="text-xs text-[var(--muted)] mt-4">{t('uploadDropFootnote')}</p>
                         </div>
                     )}
@@ -242,10 +394,7 @@ export function ProcessView({
                                 <button
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        if (fileInputRef.current) {
-                                            fileInputRef.current.value = '';
-                                        }
-                                        onReset();
+                                        handleResetSelection();
                                     }}
                                     className="btn-secondary"
                                 >
@@ -358,24 +507,34 @@ export function ProcessView({
                                             <h4 className="text-xl font-semibold mb-2 line-clamp-2 bg-gradient-to-r from-white to-white/80 bg-clip-text">
                                                 {selectedJob.result_data?.original_filename || "Processed Video.mp4"}
                                             </h4>
-                                            <div className="flex gap-4 text-sm text-[var(--muted)] mb-6">
+                                            <div className="flex flex-wrap gap-4 text-sm text-[var(--muted)] mb-6">
                                                 <span className="flex items-center gap-1.5">
                                                     <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent)]" />
                                                     MP4
                                                 </span>
                                                 <span>•</span>
                                                 <span>{((selectedJob.result_data?.output_size || selectedFile?.size || 0) / (1024 * 1024)).toFixed(1)} MB</span>
+                                                {selectedJob.result_data?.resolution && (
+                                                    <>
+                                                        <span>•</span>
+                                                        <span className="text-[var(--accent)]">{selectedJob.result_data.resolution}</span>
+                                                    </>
+                                                )}
                                             </div>
 
                                             <div className="flex flex-wrap gap-3">
                                                 {videoUrl && (
-                                                    <a
-                                                        className="btn-primary items-center gap-2 inline-flex"
-                                                        href={videoUrl}
-                                                        download={selectedJob.result_data?.original_filename || 'processed.mp4'}
+                                                    <button
+                                                        className="btn-primary items-center gap-2 inline-flex disabled:opacity-50"
+                                                        onClick={() => handleDownload(videoUrl, selectedJob.result_data?.original_filename || 'processed.mp4')}
+                                                        disabled={isDownloading}
                                                     >
-                                                        ⬇️ Download MP4
-                                                    </a>
+                                                        {isDownloading ? (
+                                                            <><span className="animate-spin">⏳</span> Downloading...</>
+                                                        ) : (
+                                                            <>⬇️ Download MP4</>
+                                                        )}
+                                                    </button>
                                                 )}
                                                 <button
                                                     onClick={() => videoUrl && setShowPreview(true)}
@@ -456,6 +615,10 @@ export function ProcessView({
                                                                 setDeletingJobId(job.id);
                                                                 try {
                                                                     await api.deleteJob(job.id);
+                                                                    if (selectedJob?.id === job.id) {
+                                                                        onJobSelect(null);
+                                                                        setShowPreview(false);
+                                                                    }
                                                                     setConfirmDeleteId(null);
                                                                     // Refresh jobs list without page reload
                                                                     await onRefreshJobs();

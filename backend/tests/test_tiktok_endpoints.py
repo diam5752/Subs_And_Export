@@ -8,8 +8,8 @@ class TestTikTokEndpoints:
     def test_get_url_no_config(self, client):
         """Test URL generation fails gracefully without config."""
         # Need to login first
-        client.post("/auth/register", json={"email": "nocfg@e.com", "password": "p", "name": "NC"})
-        token = client.post("/auth/token", data={"username": "nocfg@e.com", "password": "p"}).json()["access_token"]
+        client.post("/auth/register", json={"email": "nocfg@e.com", "password": "testpassword123", "name": "NC"})
+        token = client.post("/auth/token", data={"username": "nocfg@e.com", "password": "testpassword123"}).json()["access_token"]
         
         response = client.get("/tiktok/url", headers={"Authorization": f"Bearer {token}"})
         # In test env we might not have secrets, should be 503
@@ -22,8 +22,8 @@ class TestTikTokEndpoints:
         monkeypatch.setenv("TIKTOK_REDIRECT_URI", "uri")
         
         # Must be logged in
-        client.post("/auth/register", json={"email": "tt@e.com", "password": "p", "name": "TT"})
-        token = client.post("/auth/token", data={"username": "tt@e.com", "password": "p"}).json()["access_token"]
+        client.post("/auth/register", json={"email": "tt@e.com", "password": "testpassword123", "name": "TT"})
+        token = client.post("/auth/token", data={"username": "tt@e.com", "password": "testpassword123"}).json()["access_token"]
         
         response = client.get("/tiktok/url", headers={"Authorization": f"Bearer {token}"})
         assert response.status_code == 200
@@ -42,8 +42,8 @@ class TestTikTokEndpoints:
         monkeypatch.setattr(tiktok, "exchange_code_for_token", lambda c, code: mock_tokens)
         
         # Login
-        client.post("/auth/register", json={"email": "c@e.com", "password": "p", "name": "C"})
-        token = client.post("/auth/token", data={"username": "c@e.com", "password": "p"}).json()["access_token"]
+        client.post("/auth/register", json={"email": "c@e.com", "password": "testpassword123", "name": "C"})
+        token = client.post("/auth/token", data={"username": "c@e.com", "password": "testpassword123"}).json()["access_token"]
         
         response = client.post(
             "/tiktok/callback",
@@ -79,8 +79,8 @@ class TestTikTokEndpoints:
         monkeypatch.setattr(tiktok, "upload_video", lambda t, p, title, desc: {"id": "vid1"})
         
         # Login
-        client.post("/auth/register", json={"email": "u@e.com", "password": "p", "name": "U"})
-        token = client.post("/auth/token", data={"username": "u@e.com", "password": "p"}).json()["access_token"]
+        client.post("/auth/register", json={"email": "u@e.com", "password": "testpassword123", "name": "U"})
+        token = client.post("/auth/token", data={"username": "u@e.com", "password": "testpassword123"}).json()["access_token"]
         
         # Create fake video in data dir
         # endpoint looks at: config.PROJECT_ROOT.parent / "data"

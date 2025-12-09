@@ -11,10 +11,10 @@ from backend.main import app
 
 
 def _auth_header(client: TestClient, email: str = "video@example.com") -> dict[str, str]:
-    client.post("/auth/register", json={"email": email, "password": "p", "name": "Video"})
+    client.post("/auth/register", json={"email": email, "password": "testpassword123", "name": "Video"})
     token = client.post(
         "/auth/token",
-        data={"username": email, "password": "p"},
+        data={"username": email, "password": "testpassword123"},
     ).json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
 
@@ -24,7 +24,7 @@ def test_job_store_lifecycle(tmp_path: Path):
     store = jobs.JobStore(db)
 
     user_id = backend_auth.UserStore(db=db).register_local_user(
-        "job@example.com", "pw", "Job"
+        "job@example.com", "testpassword123", "Job"
     ).id
 
     job = store.create_job("j1", user_id)
@@ -47,7 +47,7 @@ def test_run_video_processing_success(monkeypatch, tmp_path: Path):
     db = Database(tmp_path / "vid.db")
     store = jobs.JobStore(db)
     user_id = backend_auth.UserStore(db=db).register_local_user(
-        "runner@example.com", "pw", "Runner"
+        "runner@example.com", "testpassword123", "Runner"
     ).id
     job = store.create_job("job-success", user_id)
 
@@ -78,7 +78,7 @@ def test_run_video_processing_failure(monkeypatch, tmp_path: Path):
     db = Database(tmp_path / "vid_fail.db")
     store = jobs.JobStore(db)
     user_id = backend_auth.UserStore(db=db).register_local_user(
-        "runner2@example.com", "pw", "Runner"
+        "runner2@example.com", "testpassword123", "Runner"
     ).id
     job = store.create_job("job-fail", user_id)
 
@@ -103,7 +103,7 @@ def test_run_video_processing_handles_path_only(monkeypatch, tmp_path: Path):
     db = Database(tmp_path / "vid_path.db")
     store = jobs.JobStore(db)
     user_id = backend_auth.UserStore(db=db).register_local_user(
-        "runner3@example.com", "pw", "Runner"
+        "runner3@example.com", "testpassword123", "Runner"
     ).id
     job = store.create_job("job-path", user_id)
 

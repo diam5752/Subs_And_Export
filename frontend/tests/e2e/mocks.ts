@@ -273,7 +273,6 @@ export async function stabilizeUi(page: Page): Promise<void> {
   await page.waitForLoadState('networkidle');
   await page.evaluate(async () => {
     if ('fonts' in document) {
-      // @ts-expect-error fonts is available in modern browsers
       await document.fonts.ready;
     }
   });

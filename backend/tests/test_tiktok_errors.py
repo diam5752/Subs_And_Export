@@ -7,8 +7,8 @@ from backend.main import app
 
 
 def _auth_header(client: TestClient, email: str = "tt-errors@example.com") -> dict[str, str]:
-    client.post("/auth/register", json={"email": email, "password": "p", "name": "TikTok"})
-    token = client.post("/auth/token", data={"username": email, "password": "p"}).json()["access_token"]
+    client.post("/auth/register", json={"email": email, "password": "testpassword123", "name": "TikTok"})
+    token = client.post("/auth/token", data={"username": email, "password": "testpassword123"}).json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
 
 

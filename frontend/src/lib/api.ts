@@ -18,6 +18,7 @@ export interface JobResultData {
     model_size?: string;
     transcribe_provider?: string;
     output_size?: number;
+    resolution?: string;
 }
 
 export interface JobResponse {

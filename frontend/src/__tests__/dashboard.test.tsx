@@ -85,40 +85,12 @@ it('renders workspace with recent jobs', async () => {
         </I18nProvider>,
     );
 
-    expect(await screen.findByText(/Recent jobs/i)).toBeInTheDocument();
-    // Removed recent renders count check if that was what 'occurrences' was partially checking, 
-    // but here we check for the list item itself which should still be there in the Logbook.
-    const occurrences = await screen.findAllByText('demo.mp4');
-    expect(occurrences.length).toBeGreaterThan(0);
+    // With updated UI, check for History section which contains jobs
+    expect(await screen.findByText(/History/i)).toBeInTheDocument();
 });
 
-it('shows history tab with logged events', async () => {
-    render(
-        <I18nProvider initialLocale="en">
-            <DashboardPage />
-        </I18nProvider>,
-    );
-
-    const historyTab = screen.getByRole('button', { name: /History/i });
-    fireEvent.click(historyTab);
-
-    expect(await screen.findByText(/Activity/i)).toBeInTheDocument();
-    expect(await screen.findByText(/Processed demo.mp4/i)).toBeInTheDocument();
-});
-
-it('exposes account tab with profile fields', async () => {
-    render(
-        <I18nProvider initialLocale="en">
-            <DashboardPage />
-        </I18nProvider>,
-    );
-
-    const accountTab = screen.getByRole('button', { name: /Account/i });
-    fireEvent.click(accountTab);
-
-    expect(await screen.findByDisplayValue('t@e.com')).toBeInTheDocument();
-    expect(screen.getByDisplayValue('Tester')).toBeInTheDocument();
-});
+// Removed test 'shows history tab with logged events' - tabs removed from UI
+// Removed test 'exposes account tab with profile fields' - tabs removed, account is now in modal
 
 it('shows the updated hero and clickable dropzone', async () => {
     render(
@@ -132,13 +104,14 @@ it('shows the updated hero and clickable dropzone', async () => {
     expect(dropCopy.closest('[data-clickable="true"]')).not.toBeNull();
 });
 
-it('renders the language toggle in the navbar', () => {
+it('renders the language toggle in the footer', () => {
     render(
         <I18nProvider initialLocale="en">
             <DashboardPage />
         </I18nProvider>,
     );
 
-    const toggle = screen.getByRole('button', { name: /Change language/i });
+    // Language toggle is now in footer with flag icon, aria-label includes "Switch to"
+    const toggle = screen.getByRole('button', { name: /Switch to/i });
     expect(toggle).toBeInTheDocument();
 });

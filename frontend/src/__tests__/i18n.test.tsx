@@ -95,7 +95,8 @@ describe('i18n provider defaults and persistence', () => {
         expect(screen.getByTestId('hero-copy')).toHaveTextContent(messages.el.heroTitle);
         expect(document.documentElement.lang).toBe('el');
 
-        const toggle = screen.getByRole('button', { name: /Αλλαγή γλώσσας/i });
+        // Updated: LanguageToggle now shows flag with "Switch to" aria-label
+        const toggle = screen.getByRole('button', { name: /Switch to English/i });
         fireEvent.click(toggle);
 
         await waitFor(() => {
@@ -111,20 +112,21 @@ describe('i18n provider defaults and persistence', () => {
         renderWithI18n(<TranslatedProbe />);
 
         await waitFor(() => expect(document.documentElement.lang).toBe('en'));
-        const toggle = screen.getByRole('button', { name: /Change language/i });
+        const toggle = screen.getByRole('button', { name: /Switch to/i });
         expect(toggle).toBeInTheDocument();
     });
 });
 
 describe('localized pages', () => {
-    it('shows Greek strings across dashboard widgets by default', async () => {
+    it('shows Greek strings across dashboard by default', async () => {
         renderWithI18n(<DashboardPage />);
 
-        expect(await screen.findByText('Χώρος εργασίας')).toBeInTheDocument();
+        // Check for Greek hero title text instead of removed tabs
+        expect(await screen.findByText(/Φτιάξτε shorts έτοιμα/i)).toBeInTheDocument();
         expect(screen.getByText('Ρίξτε το κάθετο κλιπ σας')).toBeInTheDocument();
     });
 
-    it('renders English copy when the locale is set to en', async () => {
+    it('renders English copy when locale is set to en', async () => {
         renderWithI18n(
             <div>
                 <DashboardPage />
@@ -133,7 +135,8 @@ describe('localized pages', () => {
             'en',
         );
 
-        expect(await screen.findByText('Workspace')).toBeInTheDocument();
+        // Check for English hero and UI elements instead of removed 'Workspace' tab
+        expect(await screen.findByText(/Build export-ready shorts/i)).toBeInTheDocument();
         expect(screen.getByText('Drop your vertical clip')).toBeInTheDocument();
         expect(screen.getByText('Sign in to your account')).toBeInTheDocument();
     });
