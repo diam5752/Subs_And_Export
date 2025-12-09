@@ -29,9 +29,42 @@ export interface ProcessingOptions {
     transcribeMode: TranscribeMode;
     transcribeProvider: TranscribeProvider;
     outputQuality: 'low size' | 'balanced' | 'high quality';
+    outputResolution: '1080x1920' | '2160x3840';
     useAI: boolean;
     contextPrompt: string;
 }
+
+const parseResolutionString = (resolution?: string | null): { width: number; height: number } | null => {
+    if (!resolution) return null;
+    const match = resolution.match(/(\d+)\s*[x×]\s*(\d+)/i);
+    if (!match) return null;
+    const width = Number(match[1]);
+    const height = Number(match[2]);
+    if (!Number.isFinite(width) || !Number.isFinite(height)) return null;
+    return { width, height };
+};
+
+const describeResolution = (width?: number, height?: number): { text: string; label: string } | null => {
+    if (!width || !height) return null;
+    const verticalLines = Math.min(width, height);
+    let label = 'SD';
+    if (verticalLines >= 2160) {
+        label = '4K / 2160p';
+    } else if (verticalLines >= 1440) {
+        label = 'QHD / 1440p';
+    } else if (verticalLines >= 1080) {
+        label = 'Full HD / 1080p';
+    } else if (verticalLines >= 720) {
+        label = 'HD / 720p';
+    }
+    return { text: `${width}×${height}`, label };
+};
+
+const describeResolutionString = (resolution?: string | null): { text: string; label: string } | null => {
+    const parsed = parseResolutionString(resolution);
+    if (!parsed) return null;
+    return describeResolution(parsed.width, parsed.height);
+};
 
 export function ProcessView({
     selectedFile,
@@ -63,10 +96,12 @@ export function ProcessView({
     const [transcribeMode, setTranscribeMode] = useState<TranscribeMode>('turbo');
     const [transcribeProvider, setTranscribeProvider] = useState<TranscribeProvider>('local');
     const [outputQuality, setOutputQuality] = useState<'low size' | 'balanced' | 'high quality'>('balanced');
+    const [outputResolutionChoice, setOutputResolutionChoice] = useState<'1080x1920' | '2160x3840'>('1080x1920');
     const [useAI, setUseAI] = useState(false);
     const [contextPrompt, setContextPrompt] = useState('');
     const [videoInfo, setVideoInfo] = useState<{ width: number; height: number; aspectWarning: boolean; thumbnailUrl: string | null } | null>(null);
     const [isDownloading, setIsDownloading] = useState(false);
+    const [outputResolutionInfo, setOutputResolutionInfo] = useState<{ text: string; label: string } | null>(null);
 
     // Validate video aspect ratio (9:16 for vertical content) and generate thumbnail
     const validateVideoAspectRatio = (file: File): Promise<{ width: number; height: number; aspectWarning: boolean; thumbnailUrl: string | null }> => {
@@ -172,6 +207,7 @@ export function ProcessView({
     const handleResetSelection = () => {
         validationRequestId.current += 1;
         setVideoInfo(null);
+        setOutputResolutionChoice('1080x1920');
         if (fileInputRef.current) {
             fileInputRef.current.value = '';
         }
@@ -206,6 +242,7 @@ export function ProcessView({
             transcribeMode,
             transcribeProvider,
             outputQuality,
+            outputResolution: outputResolutionChoice,
             useAI,
             contextPrompt,
         });
@@ -213,6 +250,51 @@ export function ProcessView({
 
     const videoUrl = buildStaticUrl(selectedJob?.result_data?.public_url || selectedJob?.result_data?.video_path);
     const artifactUrl = buildStaticUrl(selectedJob?.result_data?.artifact_url || selectedJob?.result_data?.artifacts_dir);
+    const uploadResolution = videoInfo ? describeResolution(videoInfo.width, videoInfo.height) : null;
+    const jobResolution = describeResolutionString(selectedJob?.result_data?.resolution);
+    const displayResolution = jobResolution || outputResolutionInfo || uploadResolution;
+
+    // Derive resolution from processed video metadata if API did not provide it
+    useEffect(() => {
+        setOutputResolutionInfo(null);
+        if (!videoUrl) return;
+
+        let cancelled = false;
+        const video = document.createElement('video');
+        video.preload = 'metadata';
+
+        const cleanup = () => {
+            video.removeAttribute('src');
+        };
+
+        video.addEventListener(
+            'loadedmetadata',
+            () => {
+                if (cancelled) return;
+                const info = describeResolution(video.videoWidth, video.videoHeight);
+                if (info) {
+                    setOutputResolutionInfo(info);
+                }
+                cleanup();
+            },
+            { once: true }
+        );
+
+        video.addEventListener(
+            'error',
+            () => {
+                cleanup();
+            },
+            { once: true }
+        );
+
+        video.src = videoUrl;
+
+        return () => {
+            cancelled = true;
+            cleanup();
+        };
+    }, [videoUrl]);
 
     return (
         <div className="grid xl:grid-cols-[1.05fr,0.95fr] gap-6">
@@ -252,8 +334,8 @@ export function ProcessView({
                                     <p className="text-xl font-semibold break-words [overflow-wrap:anywhere]">{selectedFile.name}</p>
                                     <p className="text-[var(--muted)] mt-1">
                                         {(selectedFile.size / (1024 * 1024)).toFixed(1)} MB · {selectedFile.name.split('.').pop()?.toUpperCase() || 'VIDEO'}
-                                        {videoInfo && videoInfo.width > 0 && (
-                                            <span className="ml-2">· {videoInfo.width}×{videoInfo.height}</span>
+                                        {uploadResolution && (
+                                            <span className="ml-2">· {uploadResolution.text} ({uploadResolution.label})</span>
                                         )}
                                     </p>
                                 </div>
@@ -355,6 +437,33 @@ export function ProcessView({
                                                     }`}
                                             >
                                                 {q}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label className="block text-sm font-medium text-[var(--muted)] mb-2">
+                                        {t('resolutionLabel')}
+                                    </label>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        {([
+                                            { value: '1080x1920', label: t('resolution1080') },
+                                            { value: '2160x3840', label: t('resolution4k') },
+                                        ] as const).map(({ value, label }) => (
+                                            <button
+                                                key={value}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setOutputResolutionChoice(value);
+                                                }}
+                                                className={`p-3 rounded-lg border text-left transition-all ${outputResolutionChoice === value
+                                                    ? 'border-[var(--accent)] bg-[var(--accent)]/10 ring-1 ring-[var(--accent)]'
+                                                    : 'border-[var(--border)] hover:border-[var(--accent)]/50'
+                                                    }`}
+                                            >
+                                                <div className="font-semibold">{label}</div>
+                                                <div className="text-xs text-[var(--muted)]">{value.replace('x', '×')}</div>
                                             </button>
                                         ))}
                                     </div>
@@ -514,10 +623,17 @@ export function ProcessView({
                                                 </span>
                                                 <span>•</span>
                                                 <span>{((selectedJob.result_data?.output_size || selectedFile?.size || 0) / (1024 * 1024)).toFixed(1)} MB</span>
-                                                {selectedJob.result_data?.resolution && (
+                                                {(displayResolution || selectedJob.result_data?.resolution) && (
                                                     <>
                                                         <span>•</span>
-                                                        <span className="text-[var(--accent)]">{selectedJob.result_data.resolution}</span>
+                                                        {displayResolution ? (
+                                                            <>
+                                                                <span className="text-[var(--accent)]">{displayResolution.text}</span>
+                                                                <span className="text-[var(--muted)]">({displayResolution.label})</span>
+                                                            </>
+                                                        ) : (
+                                                            <span className="text-[var(--accent)]">{selectedJob.result_data?.resolution}</span>
+                                                        )}
                                                     </>
                                                 )}
                                             </div>

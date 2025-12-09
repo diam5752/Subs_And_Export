@@ -45,6 +45,8 @@ class ProcessingSettings(BaseModel):
     transcribe_provider: str = "local"
     openai_model: str | None = None
     video_quality: str = "balanced"
+    target_width: int = config.DEFAULT_WIDTH
+    target_height: int = config.DEFAULT_HEIGHT
     use_llm: bool = APP_SETTINGS.use_llm_by_default
     context_prompt: str = ""
     llm_model: str = APP_SETTINGS.llm_model
@@ -84,6 +86,24 @@ def _record_event_safe(
     except Exception:
         return
 
+
+def _parse_resolution(res_str: str | None) -> tuple[int, int]:
+    """Parse resolution strings like '1080x1920' or '2160×3840'. Defaults to configured size on failure."""
+    if not res_str:
+        return config.DEFAULT_WIDTH, config.DEFAULT_HEIGHT
+    cleaned = res_str.lower().replace("×", "x")
+    parts = cleaned.split("x")
+    if len(parts) != 2:
+        return config.DEFAULT_WIDTH, config.DEFAULT_HEIGHT
+    try:
+        w = int(parts[0])
+        h = int(parts[1])
+        if w > 0 and h > 0:
+            return w, h
+    except Exception:
+        pass
+    return config.DEFAULT_WIDTH, config.DEFAULT_HEIGHT
+
 def run_video_processing(
     job_id: str,
     input_path: Path,
@@ -112,6 +132,8 @@ def run_video_processing(
         provider = settings.transcribe_provider or "local"
         crf_map = {"low size": 28, "balanced": 20, "high quality": 12}
         video_crf = crf_map.get(settings.video_quality.lower(), 23)
+        target_width = settings.target_width or config.DEFAULT_WIDTH
+        target_height = settings.target_height or config.DEFAULT_HEIGHT
 
         artifact_dir.mkdir(parents=True, exist_ok=True)
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -128,7 +150,9 @@ def run_video_processing(
             video_crf=video_crf,
             initial_prompt=settings.context_prompt,
             transcribe_provider=provider,
-            progress_callback=progress_callback
+            progress_callback=progress_callback,
+            output_width=target_width,
+            output_height=target_height,
         )
         
         # Result unpacking
@@ -153,6 +177,7 @@ def run_video_processing(
             "model_size": model_size,
             "transcribe_provider": provider,
             "output_size": final_path.stat().st_size if final_path.exists() else 0,
+            "resolution": f"{target_width}x{target_height}",
         }
         
         job_store.update_job(job_id, status="completed", progress=100, message="Done!", result_data=result_data)
@@ -191,6 +216,7 @@ async def process_video(
     transcribe_provider: str = Form("local"),
     openai_model: str = Form(""),
     video_quality: str = Form("balanced"),
+    video_resolution: str = Form(""),
     use_llm: bool = Form(APP_SETTINGS.use_llm_by_default),
     context_prompt: str = Form(""),
     current_user: User = Depends(get_current_user),
@@ -235,16 +261,20 @@ async def process_video(
         "model_size": transcribe_model,
         "provider": transcribe_provider or "local",
         "video_quality": video_quality,
+        "video_resolution": video_resolution,
         "use_llm": use_llm,
     },
     )
     
     # Enqueue Task
+    target_width, target_height = _parse_resolution(video_resolution)
     settings = ProcessingSettings(
         transcribe_model=transcribe_model,
         transcribe_provider=transcribe_provider,
         openai_model=openai_model or None,
         video_quality=video_quality,
+        target_width=target_width,
+        target_height=target_height,
         use_llm=use_llm,
         context_prompt=context_prompt
     )

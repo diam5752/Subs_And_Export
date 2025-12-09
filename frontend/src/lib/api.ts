@@ -147,6 +147,7 @@ class ApiClient {
         transcribe_provider?: string;
         openai_model?: string;
         video_quality?: string;
+        video_resolution?: string;
         use_llm?: boolean;
         context_prompt?: string;
     }): Promise<JobResponse> {
@@ -156,6 +157,7 @@ class ApiClient {
         formData.append('transcribe_provider', settings.transcribe_provider || 'local');
         formData.append('openai_model', settings.openai_model || '');
         formData.append('video_quality', settings.video_quality || 'balanced');
+        formData.append('video_resolution', settings.video_resolution || '');
         formData.append('use_llm', String(settings.use_llm || false));
         formData.append('context_prompt', settings.context_prompt || '');
 

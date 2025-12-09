@@ -17,15 +17,17 @@ from . import config, subtitles
 from . import metrics
 
 
-def _build_filtergraph(ass_path: Path) -> str:
+def _build_filtergraph(ass_path: Path, *, target_width: int | None = None, target_height: int | None = None) -> str:
     ass_file = ass_path.as_posix().replace("'", r"\'")
     ass_filter = f"ass='{ass_file}'"
+    width = target_width or config.DEFAULT_WIDTH
+    height = target_height or config.DEFAULT_HEIGHT
     scale = (
-        f"scale={config.DEFAULT_WIDTH}:-2:force_original_aspect_ratio=decrease"
+        f"scale={width}:-2:force_original_aspect_ratio=decrease"
     )
     pad = (
-        f"pad={config.DEFAULT_WIDTH}:{config.DEFAULT_HEIGHT}:"
-        f"({config.DEFAULT_WIDTH}-iw)/2:({config.DEFAULT_HEIGHT}-ih)/2"
+        f"pad={width}:{height}:"
+        f"({width}-iw)/2:({height}-ih)/2"
     )
     graph = ",".join([scale, pad, "format=yuv420p", ass_filter])
     return graph
@@ -43,8 +45,10 @@ def _run_ffmpeg_with_subs(
     use_hw_accel: bool = False,
     progress_callback: Callable[[float], None] | None = None,
     total_duration: float | None = None,
+    output_width: int | None = None,
+    output_height: int | None = None,
 ) -> str:
-    filtergraph = _build_filtergraph(ass_path)
+    filtergraph = _build_filtergraph(ass_path, target_width=output_width, target_height=output_height)
     cmd = [
         "ffmpeg",
         "-y",
@@ -226,6 +230,8 @@ def normalize_and_stub_subtitles(
     vad_parameters: dict | None = None,
     transcribe_provider: str | None = None,
     openai_api_key: str | None = None,
+    output_width: int | None = None,
+    output_height: int | None = None,
 ) -> Path | tuple[Path, subtitles.SocialCopy]:
     """
     Normalize video to 9:16, generate Greek subs, and burn them into the output.
@@ -414,6 +420,8 @@ def normalize_and_stub_subtitles(
                             use_hw_accel=use_hw_accel,
                             progress_callback=_encode_progress if total_duration > 0 else None,
                             total_duration=total_duration,
+                            output_width=output_width,
+                            output_height=output_height,
                         )
                     except subprocess.CalledProcessError as exc:
                         encode_log = exc.output or ""
@@ -431,6 +439,8 @@ def normalize_and_stub_subtitles(
                                 use_hw_accel=False,
                                 progress_callback=_encode_progress if total_duration > 0 else None,
                                 total_duration=total_duration,
+                                output_width=output_width,
+                                output_height=output_height,
                             )
                         else:
                             raise  # pragma: no cover - surfaced for unexpected ffmpeg failure
@@ -496,6 +506,8 @@ def normalize_and_stub_subtitles(
                 "use_llm_social_copy": use_llm_social_copy,
                 "video_preset": video_preset or config.DEFAULT_VIDEO_PRESET,
                 "video_crf": video_crf or config.DEFAULT_VIDEO_CRF,
+                "output_width": output_width or config.DEFAULT_WIDTH,
+                "output_height": output_height or config.DEFAULT_HEIGHT,
                 "input_bytes": input_path.stat().st_size if input_path.exists() else None,
                 "output_bytes": final_output.stat().st_size if 'final_output' in locals() and final_output.exists() else None,
                 "duration_s": total_duration,

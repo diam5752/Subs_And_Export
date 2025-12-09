@@ -37,7 +37,7 @@ export function VideoModal({ isOpen, onClose, videoUrl }: VideoModalProps) {
         };
     }, [isOpen, handleKeyDown]);
 
-    if (!visible) return null;
+    if (!visible || !videoUrl) return null;
 
     return (
         <div
@@ -93,4 +93,3 @@ export function VideoModal({ isOpen, onClose, videoUrl }: VideoModalProps) {
         </div>
     );
 }
-

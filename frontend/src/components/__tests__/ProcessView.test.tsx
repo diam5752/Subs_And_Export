@@ -85,41 +85,27 @@ type VideoMock = {
 
 function setupVideoMock({ width = 1080, height = 1920, duration = 2 }: { width?: number; height?: number; duration?: number } = {}): VideoMock {
     const realCreateElement = document.createElement.bind(document);
-    const listeners: Record<string, Array<() => void>> = {};
-
-    const videoStub: Partial<HTMLVideoElement> & Record<string, unknown> = {
-        videoWidth: width,
-        videoHeight: height,
-        duration,
-        muted: false,
-        playsInline: false,
-        preload: '',
-        _src: '',
-        set src(value: string) {
-            this._src = value;
-        },
-        get src() {
-            return this._src as string;
-        },
-        addEventListener: (type: string, cb: () => void) => {
-            listeners[type] = listeners[type] || [];
-            listeners[type].push(cb);
-        },
-        removeAttribute: jest.fn(),
-        load: jest.fn(),
-    };
+    let lastVideo: HTMLVideoElement | null = null;
 
     const createSpy = jest.spyOn(document, 'createElement');
     createSpy.mockImplementation((tagName: string, options?: ElementCreationOptions) => {
         if (tagName === 'video') {
-            return videoStub as HTMLVideoElement;
+            const el = realCreateElement(tagName, options) as HTMLVideoElement;
+            Object.defineProperty(el, 'videoWidth', { configurable: true, get: () => width });
+            Object.defineProperty(el, 'videoHeight', { configurable: true, get: () => height });
+            Object.defineProperty(el, 'duration', { configurable: true, get: () => duration });
+            el.load = jest.fn();
+            lastVideo = el;
+            return el;
         }
         return realCreateElement(tagName, options);
     });
 
     return {
         trigger: (event: string) => {
-            (listeners[event] || []).forEach((fn) => fn());
+            if (lastVideo) {
+                lastVideo.dispatchEvent(new Event(event));
+            }
         },
         restore: () => createSpy.mockRestore(),
     };
@@ -152,22 +138,26 @@ afterEach(() => {
 
 it('generates and renders a thumbnail after loading video metadata', async () => {
     const videoMock = setupVideoMock();
-    const file = new File(['video-bytes'], 'demo.mp4', { type: 'video/mp4' });
+    try {
+        const file = new File(['video-bytes'], 'demo.mp4', { type: 'video/mp4' });
 
-    const { container } = renderProcessView();
-    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
+        const { container } = renderProcessView();
+        const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
 
-    await act(async () => {
-        fireEvent.change(fileInput, { target: { files: [file] } });
-    });
+        await act(async () => {
+            fireEvent.change(fileInput, { target: { files: [file] } });
+        });
 
-    await act(async () => {
-        videoMock.trigger('loadedmetadata');
-        videoMock.trigger('seeked');
-    });
+        await act(async () => {
+            videoMock.trigger('loadedmetadata');
+            videoMock.trigger('seeked');
+        });
 
-    expect(await screen.findByAltText(/video thumbnail/i)).toBeInTheDocument();
+        expect(await screen.findByAltText(/video thumbnail/i)).toBeInTheDocument();
+    expect(screen.getByText(/Full HD \/ 1080p/i)).toBeInTheDocument();
+  } finally {
     videoMock.restore();
+  }
 });
 
 it('clears preview and selection when deleting the currently selected job', async () => {
@@ -186,6 +176,7 @@ it('clears preview and selection when deleting the currently selected job', asyn
             model_size: 'medium',
             video_crf: 23,
             output_size: 10_000_000,
+            resolution: '2160x3840',
         },
     };
 
@@ -208,4 +199,89 @@ it('clears preview and selection when deleting the currently selected job', asyn
     await waitFor(() => expect(onJobSelect).toHaveBeenLastCalledWith(null));
     await waitFor(() => expect(onRefreshJobs).toHaveBeenCalled());
     await waitFor(() => expect(screen.queryByLabelText(/Close video/i)).not.toBeInTheDocument());
+});
+
+it('shows the edited file resolution with a friendly label', async () => {
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const job: JobResponse = {
+        id: 'job-resolution',
+        status: 'completed',
+        progress: 100,
+        message: 'Ready',
+        created_at: nowSeconds,
+        updated_at: nowSeconds,
+        result_data: {
+            original_filename: 'final.mp4',
+            public_url: 'https://example.com/final.mp4',
+            video_path: 'https://example.com/final.mp4',
+            model_size: 'large',
+            video_crf: 18,
+            output_size: 20_000_000,
+            resolution: '3840x2160',
+        },
+    };
+
+    renderProcessView({
+        selectedJob: job,
+        recentJobs: [job],
+    });
+
+    expect(await screen.findByText(/Live preview/i)).toBeInTheDocument();
+    expect(screen.getByText(/Watch the clip as soon as it is ready/i)).toBeInTheDocument();
+    expect(await screen.findByText(/3840×2160/i)).toBeInTheDocument();
+    expect(screen.getByText(/\(4K \/ 2160p\)/i)).toBeInTheDocument();
+});
+
+it('derives processed resolution from video metadata when API omits it', async () => {
+    const videoMock = setupVideoMock({ width: 2560, height: 1440 });
+    try {
+        const nowSeconds = Math.floor(Date.now() / 1000);
+        const job: JobResponse = {
+            id: 'job-derived',
+            status: 'completed',
+            progress: 100,
+            message: 'Ready',
+            created_at: nowSeconds,
+            updated_at: nowSeconds,
+            result_data: {
+                original_filename: 'derived.mp4',
+                public_url: 'https://example.com/derived.mp4',
+                video_path: 'https://example.com/derived.mp4',
+                model_size: 'medium',
+                video_crf: 23,
+                output_size: 12_000_000,
+            },
+        };
+
+        renderProcessView({
+            selectedJob: job,
+            recentJobs: [job],
+        });
+
+        await act(async () => {
+            videoMock.trigger('loadedmetadata');
+        });
+
+        expect(await screen.findByText(/2560×1440/i)).toBeInTheDocument();
+        expect(screen.getByText(/\(QHD \/ 1440p\)/i)).toBeInTheDocument();
+    } finally {
+        videoMock.restore();
+    }
+});
+
+it('sends the chosen output resolution to the start handler', async () => {
+    const onStartProcessing = jest.fn();
+    const file = new File(['video'], 'demo.mp4', { type: 'video/mp4' });
+
+    renderProcessView({
+        selectedFile: file,
+        onStartProcessing,
+    });
+
+    fireEvent.click(screen.getByText(/4K/i));
+    fireEvent.click(screen.getByRole('button', { name: /Start Processing/i }));
+
+    expect(onStartProcessing).toHaveBeenCalledWith(
+        expect.objectContaining({ outputResolution: '2160x3840' })
+    );
 });

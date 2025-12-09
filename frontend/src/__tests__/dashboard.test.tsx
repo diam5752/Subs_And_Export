@@ -115,3 +115,16 @@ it('renders the language toggle in the footer', () => {
     const toggle = screen.getByRole('button', { name: /Switch to/i });
     expect(toggle).toBeInTheDocument();
 });
+
+it('shows a profile button with an avatar icon and accessible label', async () => {
+    render(
+        <I18nProvider initialLocale="en">
+            <DashboardPage />
+        </I18nProvider>,
+    );
+
+    const profileButton = await screen.findByLabelText(/Account settings/i);
+    expect(profileButton).toBeInTheDocument();
+    expect(profileButton.textContent).toContain('Tester');
+    expect(profileButton.querySelector('[aria-hidden="true"]')).not.toBeNull();
+});
