@@ -105,6 +105,28 @@ def update_password(
     return {"status": "success"}
 
 
+@router.delete("/me", response_model=Any)
+def delete_account(
+    current_user: User = Depends(get_current_user),
+    user_store: UserStore = Depends(get_user_store),
+    session_store: SessionStore = Depends(get_session_store),
+) -> Any:
+    """Delete current user account and all associated data (GDPR compliance)."""
+    try:
+        # Revoke all sessions
+        session_store.revoke_all_sessions(current_user.id)
+        
+        # Delete user (this should cascade to delete jobs, history, etc.)
+        user_store.delete_user(current_user.id)
+        
+        return {"status": "deleted", "message": "Account and all data have been permanently deleted"}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete account: {str(e)}"
+        )
+
+
 # Google OAuth
 import secrets
 from ...auth import google_oauth_config, build_google_flow, exchange_google_code

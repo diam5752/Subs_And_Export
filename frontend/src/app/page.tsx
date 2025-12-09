@@ -60,6 +60,7 @@ export default function DashboardPage() {
   const [accountMessage, setAccountMessage] = useState('');
   const [accountError, setAccountError] = useState('');
   const [accountSaving, setAccountSaving] = useState(false);
+  const [showAccountPanel, setShowAccountPanel] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -239,29 +240,34 @@ export default function DashboardPage() {
       <div className="pointer-events-none absolute -right-10 bottom-0 h-96 w-96 rounded-full bg-[#6aa4ff]/10 blur-3xl" />
 
       <nav className="sticky top-0 z-20 backdrop-blur-2xl bg-[var(--background)]/75 border-b border-[var(--border)]/60 px-6 py-4">
-        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3 min-w-0">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
+          {/* Left: User Profile - Clickable */}
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <button
+              onClick={() => setShowAccountPanel(!showAccountPanel)}
+              className="px-3 py-2 rounded-xl bg-white/5 border border-[var(--border)] hover:bg-white/10 hover:border-[var(--accent)]/50 transition-all cursor-pointer text-left"
+            >
+              <div className="font-semibold text-sm truncate">{user.name}</div>
+              <div className="text-[var(--muted)] text-xs uppercase tracking-wide">
+                {t('sessionLabelProvider').replace('{provider}', user.provider)}
+              </div>
+            </button>
+          </div>
+
+          {/* Center: Logo/Brand */}
+          <div className="flex items-center gap-3 justify-center">
             <div className="h-11 w-11 rounded-2xl bg-white/5 border border-[var(--border)] flex items-center justify-center text-xl shadow-inner">🎛️</div>
-            <div>
+            <div className="text-center">
               <p className="text-[var(--muted)] text-xs uppercase tracking-[0.35em]">{t('subtitleDesk')}</p>
               <p className="text-xl font-semibold leading-tight">{t('brandName')}</p>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-3 justify-end min-w-0">
-            <LanguageToggle />
-            {/* Tabs removed */}
-            <div className="hidden md:block h-8 w-px bg-[var(--border)]" />
-            <div className="flex items-center gap-3 text-sm min-w-[230px]">
-              <div className="px-3 py-2 rounded-xl bg-white/5 border border-[var(--border)] min-w-[170px]">
-                <div className="font-semibold truncate">{user.name}</div>
-                <div className="text-[var(--muted)] text-xs uppercase tracking-wide">
-                  {t('sessionLabelProvider').replace('{provider}', user.provider)}
-                </div>
-              </div>
-              <button onClick={logout} className="btn-secondary text-sm py-2 px-4">
-                {t('signOut')}
-              </button>
-            </div>
+
+          {/* Right: Sign Out */}
+          <div className="flex items-center gap-3 justify-end flex-1">
+            <button onClick={logout} className="btn-secondary text-sm py-2 px-4">
+              {t('signOut')}
+            </button>
           </div>
         </div>
       </nav>
@@ -301,8 +307,48 @@ export default function DashboardPage() {
           statusStyles={statusStyles}
           formatDate={formatDate}
           buildStaticUrl={buildStaticUrl}
+          onRefreshJobs={loadJobs}
         />
       </main>
+
+      {/* Footer with language toggle - Apple style */}
+      <footer className="fixed bottom-4 right-4 z-20">
+        <LanguageToggle />
+      </footer>
+
+      {/* Account Settings Panel */}
+      {showAccountPanel && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center pt-20">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowAccountPanel(false)}
+          />
+          {/* Panel */}
+          <div className="relative z-10 w-full max-w-2xl mx-4 animate-fade-in">
+            <div className="bg-[var(--surface-elevated)] border border-[var(--border)] rounded-2xl shadow-2xl overflow-hidden">
+              <div className="flex items-center justify-between p-4 border-b border-[var(--border)]">
+                <h2 className="text-lg font-semibold">{t('accountSettingsTitle')}</h2>
+                <button
+                  onClick={() => setShowAccountPanel(false)}
+                  className="p-2 rounded-lg hover:bg-white/10 transition-colors"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="p-4 max-h-[70vh] overflow-y-auto">
+                <AccountView
+                  user={user}
+                  onSaveProfile={handleProfileSave}
+                  accountMessage={accountMessage}
+                  accountError={accountError}
+                  accountSaving={accountSaving}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

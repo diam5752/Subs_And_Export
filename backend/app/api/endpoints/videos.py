@@ -306,3 +306,46 @@ def get_job(
     if not job or job.user_id != current_user.id:
         raise HTTPException(404, "Job not found")
     return _ensure_job_size(job)
+
+
+@router.delete("/jobs/{job_id}")
+def delete_job(
+    job_id: str,
+    current_user: User = Depends(get_current_user),
+    job_store: JobStore = Depends(get_job_store),
+    history_store: HistoryStore = Depends(get_history_store)
+):
+    """Delete a job and its associated files."""
+    import shutil
+    
+    job = job_store.get_job(job_id)
+    if not job or job.user_id != current_user.id:
+        raise HTTPException(404, "Job not found")
+    
+    # Delete associated files
+    data_dir, uploads_dir, artifacts_root = _data_roots()
+    
+    # Delete artifact directory
+    artifact_dir = artifacts_root / job_id
+    if artifact_dir.exists():
+        shutil.rmtree(artifact_dir, ignore_errors=True)
+    
+    # Delete input files
+    for ext in [".mp4", ".mov", ".mkv"]:
+        input_file = uploads_dir / f"{job_id}_input{ext}"
+        if input_file.exists():
+            input_file.unlink(missing_ok=True)
+    
+    # Delete job from store
+    job_store.delete_job(job_id)
+    
+    # Record deletion in history
+    _record_event_safe(
+        history_store,
+        current_user,
+        "job_deleted",
+        f"Deleted job {job_id}",
+        {"job_id": job_id},
+    )
+    
+    return {"status": "deleted", "job_id": job_id}

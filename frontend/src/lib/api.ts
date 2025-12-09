@@ -220,6 +220,20 @@ class ApiClient {
         this.setToken(response.access_token);
         return response;
     }
+
+    async deleteAccount(): Promise<{ status: string; message: string }> {
+        const response = await this.request<{ status: string; message: string }>('/auth/me', {
+            method: 'DELETE',
+        });
+        this.clearToken();
+        return response;
+    }
+
+    async deleteJob(jobId: string): Promise<{ status: string; job_id: string }> {
+        return this.request<{ status: string; job_id: string }>(`/videos/jobs/${jobId}`, {
+            method: 'DELETE',
+        });
+    }
 }
 
 export const api = new ApiClient();

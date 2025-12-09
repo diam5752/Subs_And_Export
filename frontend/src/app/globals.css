@@ -39,9 +39,42 @@ body {
     linear-gradient(145deg, #050814 0%, #02040c 55%, #03050b 100%);
   color: var(--foreground);
   font-family: var(--font-display), 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  font-feature-settings: 'kern' 1, 'liga' 1;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   letter-spacing: 0.01em;
+}
+
+/* Consistent text rendering for Greek and English */
+* {
+  text-rendering: optimizeLegibility;
+}
+
+/* Normalize font metrics for consistent Greek/English heights */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p,
+span,
+div,
+button,
+a {
+  line-height: 1.4;
+  font-synthesis: none;
+}
+
+/* Large headings need tighter control */
+.text-xl,
+.text-2xl,
+.text-3xl,
+.text-4xl {
+  line-height: 1.2;
+  letter-spacing: -0.01em;
 }
 
 /* Custom Scrollbar - Apple Style */
@@ -162,4 +195,19 @@ a,
 
 .animate-fade-in {
   animation: fadeIn 0.3s ease-out;
+}
+
+/* Shimmer Animation for completed video card */
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 3s linear infinite;
 }

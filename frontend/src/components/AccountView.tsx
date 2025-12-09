@@ -2,6 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { useI18n } from '@/context/I18nContext';
 import { User } from '@/context/AuthContext';
+import { api } from '@/lib/api';
+import { useRouter } from 'next/navigation';
 
 interface AccountViewProps {
     user: User;
@@ -19,11 +21,15 @@ export function AccountView({
     accountSaving,
 }: AccountViewProps) {
     const { t } = useI18n();
+    const router = useRouter();
     const [profileName, setProfileName] = useState(user.name);
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [deleting, setDeleting] = useState(false);
+    const [deleteError, setDeleteError] = useState('');
 
-    // Sync profile name if user updates from outside (optional, but good practice)
+    // Sync profile name if user updates from outside
     useEffect(() => {
         setProfileName(user.name);
     }, [user.name]);
@@ -34,6 +40,18 @@ export function AccountView({
         if (!accountError) {
             setPassword('');
             setConfirmPassword('');
+        }
+    };
+
+    const handleDeleteAccount = async () => {
+        setDeleting(true);
+        setDeleteError('');
+        try {
+            await api.deleteAccount();
+            router.push('/login');
+        } catch (err) {
+            setDeleteError(err instanceof Error ? err.message : t('deleteAccountError'));
+            setDeleting(false);
         }
     };
 
@@ -108,6 +126,48 @@ export function AccountView({
                         </button>
                     </div>
                 </form>
+            </div>
+
+            {/* Danger Zone */}
+            <div className="card border-[var(--danger)]/30 space-y-4">
+                <div>
+                    <p className="text-xs uppercase tracking-[0.28em] text-[var(--danger)]">{t('dangerZone')}</p>
+                    <h3 className="text-lg font-semibold text-[var(--danger)]">{t('deleteAccount')}</h3>
+                    <p className="text-sm text-[var(--muted)]">{t('deleteAccountDescription')}</p>
+                </div>
+
+                {deleteError && (
+                    <p className="text-[var(--danger)] text-sm">{deleteError}</p>
+                )}
+
+                {!showDeleteConfirm ? (
+                    <button
+                        onClick={() => setShowDeleteConfirm(true)}
+                        className="px-4 py-2 rounded-lg border border-[var(--danger)]/50 text-[var(--danger)] hover:bg-[var(--danger)]/10 transition-colors"
+                    >
+                        {t('deleteAccount')}
+                    </button>
+                ) : (
+                    <div className="bg-[var(--danger)]/10 border border-[var(--danger)]/30 rounded-xl p-4 space-y-3">
+                        <p className="text-sm font-medium">{t('deleteAccountConfirm')}</p>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={handleDeleteAccount}
+                                disabled={deleting}
+                                className="px-4 py-2 rounded-lg bg-[var(--danger)] text-white font-medium hover:bg-[var(--danger)]/90 transition-colors disabled:opacity-50"
+                            >
+                                {deleting ? t('deleting') : t('confirm')}
+                            </button>
+                            <button
+                                onClick={() => setShowDeleteConfirm(false)}
+                                disabled={deleting}
+                                className="px-4 py-2 rounded-lg border border-[var(--border)] hover:bg-white/5 transition-colors"
+                            >
+                                {t('cancel')}
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

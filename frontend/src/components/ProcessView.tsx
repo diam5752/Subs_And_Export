@@ -22,6 +22,7 @@ interface ProcessViewProps {
     statusStyles: Record<string, string>;
     formatDate: (ts: string | number) => string;
     buildStaticUrl: (path?: string | null) => string | null;
+    onRefreshJobs: () => Promise<void>;
 }
 
 export interface ProcessingOptions {
@@ -48,12 +49,16 @@ export function ProcessView({
     statusStyles,
     formatDate,
     buildStaticUrl,
+    onRefreshJobs,
 }: ProcessViewProps) {
     const { t } = useI18n();
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     // Local state for options
     const [showPreview, setShowPreview] = useState(false);
+    const [showSettings, setShowSettings] = useState(true);
+    const [deletingJobId, setDeletingJobId] = useState<string | null>(null);
+    const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
     const [transcribeMode, setTranscribeMode] = useState<TranscribeMode>('turbo');
     const [transcribeProvider, setTranscribeProvider] = useState<TranscribeProvider>('local');
     const [outputQuality, setOutputQuality] = useState<'low size' | 'balanced' | 'high quality'>('balanced');
@@ -126,102 +131,139 @@ export function ProcessView({
                 {/* Controls Card - Only show when file is selected */}
                 {selectedFile && !isProcessing && (
                     <div className="card space-y-4 animate-fade-in">
-                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] pb-3">
-                            <div>
-                                <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">{t('controlsLabel')}</p>
-                                <h3 className="text-xl font-semibold">{t('controlsTitle')}</h3>
+                        <div
+                            className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] pb-3 cursor-pointer group"
+                            onClick={() => setShowSettings(!showSettings)}
+                        >
+                            <div className="flex items-center gap-3">
+                                <div>
+                                    <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">{t('controlsLabel')}</p>
+                                    <h3 className="text-xl font-semibold">{t('controlsTitle')}</h3>
+                                </div>
+                            </div>
+                            <div className={`transition-transform duration-200 ${showSettings ? 'rotate-180' : ''}`}>
+                                <svg className="w-5 h-5 text-[var(--muted)] group-hover:text-[var(--foreground)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
                             </div>
                         </div>
 
-                        <div className="space-y-5 pt-1 animate-fade-in">
-                            <div>
-                                <label className="block text-sm font-medium text-[var(--muted)] mb-2">
-                                    {t('engineLabel')}
-                                </label>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <button
-                                        onClick={() => {
-                                            setTranscribeProvider('local');
-                                            setTranscribeMode('turbo');
-                                        }}
-                                        className={`p-3 rounded-lg border text-left transition-all ${transcribeProvider === 'local'
-                                            ? 'border-[var(--accent)] bg-[var(--accent)]/10 ring-1 ring-[var(--accent)]'
-                                            : 'border-[var(--border)] hover:border-[var(--accent)]/50'
-                                            }`}
-                                    >
-                                        <div className="font-semibold">{t('engineLocalTurbo')}</div>
-                                        <div className="text-xs text-[var(--muted)]">{t('engineLocalDesc')}</div>
-                                    </button>
-                                    <button
-                                        onClick={() => setTranscribeProvider('openai')}
-                                        className={`p-3 rounded-lg border text-left transition-all ${transcribeProvider === 'openai'
-                                            ? 'border-[var(--accent)] bg-[var(--accent)]/10 ring-1 ring-[var(--accent)]'
-                                            : 'border-[var(--border)] hover:border-[var(--accent)]/50'
-                                            }`}
-                                    >
-                                        <div className="font-semibold">{t('engineHostedName')}</div>
-                                        <div className="text-xs text-[var(--muted)]">{t('engineHostedDesc')}</div>
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-[var(--muted)] mb-2">
-                                    {t('qualityLabel')}
-                                </label>
-                                <div className="grid grid-cols-3 gap-3">
-                                    {(['low size', 'balanced', 'high quality'] as const).map((q) => (
+                        {showSettings && (
+                            <div className="space-y-5 pt-1 animate-fade-in">
+                                <div>
+                                    <label className="block text-sm font-medium text-[var(--muted)] mb-2">
+                                        {t('engineLabel')}
+                                    </label>
+                                    <div className="grid grid-cols-2 gap-3">
                                         <button
-                                            key={q}
-                                            onClick={() => setOutputQuality(q)}
-                                            className={`p-2 rounded-lg border text-center text-sm capitalize transition-all ${outputQuality === q
-                                                ? 'border-[var(--accent)] bg-[var(--accent)]/10 ring-1 ring-[var(--accent)] font-medium'
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setTranscribeProvider('local');
+                                                setTranscribeMode('turbo');
+                                            }}
+                                            className={`p-3 rounded-lg border text-left transition-all ${transcribeProvider === 'local'
+                                                ? 'border-[var(--accent)] bg-[var(--accent)]/10 ring-1 ring-[var(--accent)]'
                                                 : 'border-[var(--border)] hover:border-[var(--accent)]/50'
                                                 }`}
                                         >
-                                            {q}
+                                            <div className="font-semibold">{t('engineLocalTurbo')}</div>
+                                            <div className="text-xs text-[var(--muted)]">{t('engineLocalDesc')}</div>
                                         </button>
-                                    ))}
-                                </div>
-                            </div>
-
-                            <div className="pt-2">
-                                <label className="flex items-center gap-3 cursor-pointer group">
-                                    <div
-                                        onClick={() => setUseAI(!useAI)}
-                                        className={`w-12 h-6 rounded-full transition-colors relative ${useAI ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'}`}
-                                    >
-                                        <div className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${useAI ? 'translate-x-6' : ''}`} />
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setTranscribeProvider('openai');
+                                            }}
+                                            className={`p-3 rounded-lg border text-left transition-all ${transcribeProvider === 'openai'
+                                                ? 'border-[var(--accent)] bg-[var(--accent)]/10 ring-1 ring-[var(--accent)]'
+                                                : 'border-[var(--border)] hover:border-[var(--accent)]/50'
+                                                }`}
+                                        >
+                                            <div className="font-semibold">{t('engineHostedName')}</div>
+                                            <div className="text-xs text-[var(--muted)]">{t('engineHostedDesc')}</div>
+                                        </button>
                                     </div>
-                                    <span className="font-medium">{t('aiToggleLabel')}</span>
-                                </label>
-                                <p className="text-xs text-[var(--muted)] mt-1 ml-14">{t('aiToggleDescription')}</p>
-                            </div>
-
-                            {useAI && (
-                                <div className="animate-fade-in">
-                                    <label className="block text-sm font-medium text-[var(--muted)] mb-2">
-                                        {t('contextLabel')}
-                                    </label>
-                                    <textarea
-                                        value={contextPrompt}
-                                        onChange={(e) => setContextPrompt(e.target.value)}
-                                        placeholder={t('contextPlaceholder')}
-                                        className="input-field h-20 resize-none"
-                                    />
                                 </div>
-                            )}
-                        </div>
 
-                        <div className="flex justify-end pt-2">
-                            <button
-                                onClick={handleStart}
-                                disabled={isProcessing}
-                                className="btn-primary w-full sm:w-auto px-8"
-                            >
-                                {t('controlsStart')}
-                            </button>
-                        </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-[var(--muted)] mb-2">
+                                        {t('qualityLabel')}
+                                    </label>
+                                    <div className="grid grid-cols-3 gap-3">
+                                        {(['low size', 'balanced', 'high quality'] as const).map((q) => (
+                                            <button
+                                                key={q}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setOutputQuality(q);
+                                                }}
+                                                className={`p-2 rounded-lg border text-center text-sm capitalize transition-all ${outputQuality === q
+                                                    ? 'border-[var(--accent)] bg-[var(--accent)]/10 ring-1 ring-[var(--accent)] font-medium'
+                                                    : 'border-[var(--border)] hover:border-[var(--accent)]/50'
+                                                    }`}
+                                            >
+                                                {q}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="pt-2">
+                                    <label className="flex items-center gap-3 cursor-pointer group" onClick={(e) => e.stopPropagation()}>
+                                        <div
+                                            onClick={() => setUseAI(!useAI)}
+                                            className={`w-12 h-6 rounded-full transition-colors relative ${useAI ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'}`}
+                                        >
+                                            <div className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${useAI ? 'translate-x-6' : ''}`} />
+                                        </div>
+                                        <span className="font-medium">{t('aiToggleLabel')}</span>
+                                    </label>
+                                    <p className="text-xs text-[var(--muted)] mt-1 ml-14">{t('aiToggleDescription')}</p>
+                                </div>
+
+                                {useAI && (
+                                    <div className="animate-fade-in" onClick={(e) => e.stopPropagation()}>
+                                        <label className="block text-sm font-medium text-[var(--muted)] mb-2">
+                                            {t('contextLabel')}
+                                        </label>
+                                        <textarea
+                                            value={contextPrompt}
+                                            onChange={(e) => setContextPrompt(e.target.value)}
+                                            placeholder={t('contextPlaceholder')}
+                                            className="input-field h-20 resize-none"
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {showSettings && (
+                            <div className="flex justify-end gap-3 pt-2">
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (fileInputRef.current) {
+                                            fileInputRef.current.value = '';
+                                        }
+                                        onReset();
+                                    }}
+                                    className="btn-secondary"
+                                >
+                                    {t('processingReset')}
+                                </button>
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setShowSettings(false);
+                                        handleStart();
+                                    }}
+                                    disabled={isProcessing}
+                                    className="btn-primary w-full sm:w-auto px-8"
+                                >
+                                    {t('controlsStart')}
+                                </button>
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -231,19 +273,7 @@ export function ProcessView({
                     </div>
                 )}
 
-                {selectedFile && !isProcessing && (
-                    <div className="flex flex-wrap items-center gap-3 animate-fade-in">
-                        <button onClick={handleStart} className="btn-primary text-lg px-8 py-4">
-                            ✨ {t('processingStart')}
-                        </button>
-                        <button
-                            onClick={onReset}
-                            className="btn-secondary text-sm"
-                        >
-                            {t('processingReset')}
-                        </button>
-                    </div>
-                )}
+
             </div>
 
             <div className="space-y-4">
@@ -278,11 +308,19 @@ export function ProcessView({
                         )}
 
                         {selectedJob && selectedJob.status === 'completed' ? (
-                            <div className="animate-fade-in">
-                                <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-elevated)] overflow-hidden shadow-2xl relative animate-pulse-border ring-[var(--accent)] ring-offset-2 ring-offset-[var(--background)] ring-opacity-50" style={{ boxShadow: '0 0 40px -10px var(--accent)' }}>
+                            <div className="animate-fade-in relative">
+                                {/* Animated shimmer border */}
+                                <div className="absolute -inset-[2px] rounded-2xl bg-gradient-to-r from-[var(--accent)] via-[var(--accent-secondary)] to-[var(--accent)] bg-[length:200%_100%] animate-shimmer opacity-80" />
+
+                                {/* Inner glow */}
+                                <div className="absolute inset-0 rounded-2xl" style={{ boxShadow: '0 0 60px -15px var(--accent), 0 0 30px -10px var(--accent-secondary)' }} />
+
+                                <div className="relative rounded-2xl border border-white/10 bg-[var(--surface-elevated)] overflow-hidden">
+                                    {/* Success badge */}
                                     <div className="absolute top-0 right-0 p-4 z-10">
-                                        <div className={`text-xs px-3 py-1 rounded-full border bg-black/60 backdrop-blur-md text-white border-white/10`}>
-                                            Ready for Download
+                                        <div className="flex items-center gap-2 text-xs px-3 py-1.5 rounded-full bg-gradient-to-r from-emerald-500/20 to-[var(--accent)]/20 backdrop-blur-md text-emerald-300 border border-emerald-500/30">
+                                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                                            Subtitles Ready
                                         </div>
                                     </div>
 
@@ -296,7 +334,7 @@ export function ProcessView({
                                             {videoUrl ? (
                                                 <video
                                                     src={`${videoUrl}#t=0.5`}
-                                                    className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-80 transition-opacity"
+                                                    className="absolute inset-0 w-full h-full object-cover opacity-70 group-hover:opacity-90 transition-opacity duration-300"
                                                     muted
                                                     playsInline
                                                     preload="metadata"
@@ -305,23 +343,26 @@ export function ProcessView({
                                                 <div className="absolute inset-0 bg-gradient-to-br from-[var(--accent)]/20 to-[var(--accent-secondary)]/20 opacity-50" />
                                             )}
 
-                                            {/* Play Button */}
-                                            <div className="relative z-10 w-16 h-16 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center group-hover:scale-110 transition-transform shadow-xl">
+                                            {/* Play Button with glow */}
+                                            <div className="relative z-10 w-16 h-16 rounded-full bg-white/15 backdrop-blur-sm border border-white/25 flex items-center justify-center group-hover:scale-110 group-hover:bg-white/25 transition-all duration-300" style={{ boxShadow: '0 0 25px rgba(255,255,255,0.2)' }}>
                                                 <div className="w-0 h-0 border-t-[10px] border-t-transparent border-l-[18px] border-l-white border-b-[10px] border-b-transparent ml-1" />
                                             </div>
 
-                                            <div className="absolute bottom-3 left-3 text-xs font-medium text-white/80 z-10 drop-shadow-md">
-                                                Preview Video
+                                            <div className="absolute bottom-3 left-3 text-xs font-medium text-white/90 z-10 drop-shadow-lg">
+                                                Click to Preview
                                             </div>
                                         </div>
 
                                         {/* Details Area */}
                                         <div className="p-6 flex-1 flex flex-col justify-center">
-                                            <h4 className="text-xl font-semibold mb-2 line-clamp-2">
+                                            <h4 className="text-xl font-semibold mb-2 line-clamp-2 bg-gradient-to-r from-white to-white/80 bg-clip-text">
                                                 {selectedJob.result_data?.original_filename || "Processed Video.mp4"}
                                             </h4>
                                             <div className="flex gap-4 text-sm text-[var(--muted)] mb-6">
-                                                <span>MP4</span>
+                                                <span className="flex items-center gap-1.5">
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent)]" />
+                                                    MP4
+                                                </span>
                                                 <span>•</span>
                                                 <span>{((selectedJob.result_data?.output_size || selectedFile?.size || 0) / (1024 * 1024)).toFixed(1)} MB</span>
                                             </div>
@@ -333,19 +374,15 @@ export function ProcessView({
                                                         href={videoUrl}
                                                         download={selectedJob.result_data?.original_filename || 'processed.mp4'}
                                                     >
-                                                        Download MP4
+                                                        ⬇️ Download MP4
                                                     </a>
                                                 )}
                                                 <button
                                                     onClick={() => videoUrl && setShowPreview(true)}
                                                     className="btn-secondary"
                                                 >
-                                                    Open Preview
+                                                    ▶️ Preview
                                                 </button>
-                                            </div>
-
-                                            <div className="mt-4 flex items-center gap-2 text-xs text-[var(--muted)]/60">
-                                                <span>⚠️ Expires in 24h</span>
                                             </div>
                                         </div>
                                     </div>
@@ -410,6 +447,44 @@ export function ProcessView({
                                                             View
                                                         </button>
                                                     </>
+                                                )}
+                                                {/* Delete button */}
+                                                {confirmDeleteId === job.id ? (
+                                                    <div className="flex items-center gap-1">
+                                                        <button
+                                                            onClick={async () => {
+                                                                setDeletingJobId(job.id);
+                                                                try {
+                                                                    await api.deleteJob(job.id);
+                                                                    setConfirmDeleteId(null);
+                                                                    // Refresh jobs list without page reload
+                                                                    await onRefreshJobs();
+                                                                } catch (err) {
+                                                                    console.error('Delete failed:', err);
+                                                                } finally {
+                                                                    setDeletingJobId(null);
+                                                                }
+                                                            }}
+                                                            disabled={deletingJobId === job.id}
+                                                            className="text-xs px-2 py-1 rounded bg-[var(--danger)] text-white hover:bg-[var(--danger)]/80 disabled:opacity-50"
+                                                        >
+                                                            {deletingJobId === job.id ? '...' : '✓'}
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setConfirmDeleteId(null)}
+                                                            className="text-xs px-2 py-1 rounded border border-[var(--border)] hover:bg-white/5"
+                                                        >
+                                                            ✕
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <button
+                                                        onClick={() => setConfirmDeleteId(job.id)}
+                                                        className="text-xs px-2 py-1 rounded border border-[var(--border)] hover:border-[var(--danger)] hover:text-[var(--danger)] transition-colors"
+                                                        title={t('deleteJob')}
+                                                    >
+                                                        🗑️
+                                                    </button>
                                                 )}
                                             </>
                                         )}

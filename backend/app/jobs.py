@@ -104,3 +104,13 @@ class JobStore:
             )
             for row in rows
         ]
+
+    def delete_job(self, job_id: str) -> None:
+        """Delete a job from the database."""
+        with self.db.connect() as conn:
+            conn.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
+
+    def delete_jobs_for_user(self, user_id: str) -> None:
+        """Delete all jobs for a user (for account deletion)."""
+        with self.db.connect() as conn:
+            conn.execute("DELETE FROM jobs WHERE user_id = ?", (user_id,))

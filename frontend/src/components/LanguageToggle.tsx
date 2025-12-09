@@ -2,10 +2,9 @@
 
 import { useMemo } from 'react';
 import { useI18n } from '@/context/I18nContext';
-import { messages } from '@/context/i18nMessages';
 
 export function LanguageToggle() {
-  const { locale, setLocale, t } = useI18n();
+  const { locale, setLocale } = useI18n();
 
   const nextLocale = useMemo(() => (locale === 'el' ? 'en' : 'el'), [locale]);
 
@@ -13,14 +12,12 @@ export function LanguageToggle() {
     <button
       type="button"
       onClick={() => setLocale(nextLocale)}
-      className="flex items-center gap-2 rounded-full bg-white/10 border border-[var(--border)] px-3 py-2 text-sm shadow-lg hover:bg-white/15 transition-colors"
-      aria-label={`${t('languageToggleLabel')}: ${messages[nextLocale].languageNameEn}`}
+      className="flex items-center gap-1.5 rounded-full bg-white/5 border border-[var(--border)] px-2.5 py-1.5 text-sm hover:bg-white/10 transition-all duration-200"
+      aria-label={`Switch to ${nextLocale === 'el' ? 'Greek' : 'English'}`}
     >
-      <span className="text-xs uppercase tracking-wide text-[var(--muted)]">
-        {t('languageToggleLabel')}
-      </span>
-      <span className="font-semibold">
-        {nextLocale === 'el' ? 'ΕΛ' : 'EN'}
+      <span className="text-lg leading-none">{locale === 'el' ? '🇬🇷' : '🇬🇧'}</span>
+      <span className="text-xs font-medium text-[var(--muted)] uppercase tracking-wide">
+        {locale === 'el' ? 'ΕΛ' : 'EN'}
       </span>
     </button>
   );

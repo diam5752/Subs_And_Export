@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import { Space_Grotesk } from "next/font/google";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { I18nProvider } from "@/context/I18nContext";
 
 
-const spaceGrotesk = Space_Grotesk({
-  subsets: ["latin"],
+const inter = Inter({
+  subsets: ["latin", "greek"],
   weight: ["400", "500", "600", "700"],
   variable: "--font-display",
 });
@@ -23,7 +23,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="el" suppressHydrationWarning>
-      <body className={`${spaceGrotesk.variable} antialiased`}>
+      <body className={`${inter.variable} antialiased`}>
         <I18nProvider>
           <AuthProvider>
             {children}

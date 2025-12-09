@@ -159,6 +159,18 @@ class UserStore:
             return None
         return _user_from_row(dict(row))
 
+    def delete_user(self, user_id: str) -> None:
+        """Delete a user and all associated data (GDPR compliance)."""
+        with self.db.connect() as conn:
+            # Delete associated sessions
+            conn.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
+            # Delete associated jobs
+            conn.execute("DELETE FROM jobs WHERE user_id = ?", (user_id,))
+            # Delete associated history
+            conn.execute("DELETE FROM history WHERE user_id = ?", (user_id,))
+            # Delete the user
+            conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+
 
 class SessionStore:
     """Persistent session tokens for automatic sign-in."""
@@ -207,6 +219,11 @@ class SessionStore:
         token_hash = _hash_token(token)
         with self.db.connect() as conn:
             conn.execute("DELETE FROM sessions WHERE token_hash = ?", (token_hash,))
+
+    def revoke_all_sessions(self, user_id: str) -> None:
+        """Revoke all sessions for a user (for account deletion or security)."""
+        with self.db.connect() as conn:
+            conn.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
 
 
 def _user_from_row(row: Dict) -> User:
