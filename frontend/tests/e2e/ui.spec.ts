@@ -77,14 +77,18 @@ for (const [label, viewport] of Object.entries(viewports)) {
       await expect(page.getByText('Items expire in 24 hours')).toBeVisible();
     });
 
-    test.skip('account settings modal keeps controls readable', async ({ page }) => {
-      // Skip mobile account test due to click interception issues on mobile viewport
-      // Desktop version passes and verifies the same functionality
+    test('account settings modal keeps controls readable', async ({ page }) => {
       await mockApi(page);
       await page.goto('/');
-      // Click on the user profile button in the nav to open account settings
-      // Try to avoid the interception by using force click
-      await page.locator('button[aria-label="Ρυθμίσεις λογαριασμού"]').click({ force: true });
+
+      // Use page.evaluate to directly trigger the click to avoid interception issues
+      await page.evaluate(() => {
+        const button = document.querySelector('button[aria-label="Ρυθμίσεις λογαριασμού"]') as HTMLButtonElement;
+        if (button) {
+          button.click();
+        }
+      });
+
       // Wait for the modal heading (use nth to get the one in the modal, not the button aria-label)
       await page.getByRole('heading', { name: el.accountSettingsTitle }).nth(1).waitFor();
 

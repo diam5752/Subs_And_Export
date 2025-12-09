@@ -50,6 +50,15 @@ class SocialCopy:
     instagram: PlatformCopy
 
 
+@dataclass
+class ViralMetadata:
+    hooks: List[str]
+    caption_hook: str
+    caption_body: str
+    cta: str
+    hashtags: List[str]
+
+
 def _normalize_text(text: str) -> str:
     """
     Uppercase + strip accents for consistent, bold subtitle styling.
@@ -416,11 +425,7 @@ def _wrap_lines(words: List[str], max_chars: int = config.MAX_SUB_LINE_CHARS) ->
     return [line.split() for line in wrapped]
 
 
-def _format_karaoke_text(
-    cue: Cue,
-    highlight_color: str = config.DEFAULT_HIGHLIGHT_COLOR,
-    secondary_color: str = config.DEFAULT_SUB_SECONDARY_COLOR,
-) -> str:
+def _format_karaoke_text(cue: Cue) -> str:
     """
     Build ASS karaoke text with per-word highlighting. If word timings are not
     available, falls back to plain text with simple 2-line wrapping.
@@ -437,7 +442,8 @@ def _format_karaoke_text(
         segments = []
         for idx, word in enumerate(words):
             duration_cs = max(1, round((word.end - word.start) * 100))
-            token = f"{{\\k{duration_cs}}}{{\\c{highlight_color}}}{word.text}{{\\c{secondary_color}}}"
+            # Standard ASS karaoke: \k fills from Secondary to Primary color
+            token = f"{{\\k{duration_cs}}}{word.text}"
             # insert line break before second line
             if break_indices and idx == break_indices[0]:
                 segments.append("\\N")
@@ -725,6 +731,87 @@ def build_social_copy_llm(
     raise ValueError("Failed to generate valid social copy after retries") from last_exc  # pragma: no cover
 
 
+def generate_viral_metadata(
+    transcript_text: str,
+    *,
+    api_key: str | None = None,
+    model: str | None = None,
+    temperature: float = 0.7,
+) -> ViralMetadata:
+    """
+    Generate viral TikTok metadata (hooks, caption, hashtags) using a specific Greek persona.
+    """
+    
+    if not api_key:
+        api_key = _resolve_openai_api_key()
+
+    if not api_key:
+        raise RuntimeError("OpenAI API key is required for Viral Intelligence.")
+
+    model_name = model or config.SOCIAL_LLM_MODEL
+    client = _load_openai_client(api_key)
+
+    system_prompt = (
+        "### ROLE\n"
+        "You are an expert Greek Social Media Manager and Content Creator specialized in TikTok growth. "
+        "You understand the Greek digital landscape, current slang, and the TikTok algorithm's preference for high-retention \"hooks.\"\n\n"
+        "### INPUT\n"
+        "You will receive a raw text transcription (from OpenAI Whisper) of a video in Greek.\n"
+        "Note: The text may lack punctuation, contain run-on sentences, or have minor transcription errors.\n\n"
+        "### TASK\n"
+        "Your goal is to analyze the transcript and generate the perfect TikTok metadata to maximize views and engagement.\n\n"
+        "### OUTPUT FORMAT\n"
+        "You must respond ONLY with a VALID JSON object using the following structure:\n"
+        "{\n"
+        '  "hooks": ["Option 1", "Option 2", "Option 3"],\n'
+        '  "caption_hook": "Strong hook expanding on title",\n'
+        '  "caption_body": "Brief summary with emojis",\n'
+        '  "cta": "Call to action question",\n'
+        '  "hashtags": ["#tag1", "#tag2", ...]\n'
+        "}\n\n"
+        "### TONE GUIDELINES\n"
+        "* Language: Modern Greek (Demotic).\n"
+        "* Style: Casual, energetic, and authentic to TikTok. Avoid formal/robotic Greek.\n"
+        "* Formatting: Use line breaks in the body if needed (encoded as \\n)."
+    )
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": transcript_text.strip()},
+    ]
+
+    max_retries = 1
+    last_exc = None
+
+    for attempt in range(max_retries + 1):
+        try:
+            response = client.chat.completions.create(
+                model=model_name,
+                messages=messages,
+                temperature=temperature,
+                response_format={"type": "json_object"},
+            )
+            content = response.choices[0].message.content
+            if not content:
+                raise ValueError("Empty response from LLM")
+            
+            parsed = json.loads(content)
+            
+            return ViralMetadata(
+                hooks=parsed.get("hooks", []),
+                caption_hook=parsed.get("caption_hook", ""),
+                caption_body=parsed.get("caption_body", ""),
+                cta=parsed.get("cta", ""),
+                hashtags=parsed.get("hashtags", []),
+            )
+        except (json.JSONDecodeError, KeyError, ValueError) as exc:
+            last_exc = exc
+            if attempt < max_retries:
+                continue
+    
+    raise ValueError("Failed to generate viral metadata") from last_exc
+
+
 def _resolve_openai_api_key(explicit: str | None = None) -> str | None:
     """
     Resolve an OpenAI key from (in order):
@@ -746,7 +833,11 @@ def _resolve_openai_api_key(explicit: str | None = None) -> str | None:
     override = os.getenv("GSP_SECRETS_FILE")
     if override:
         search_paths.append(Path(override))
+    
+    # 1. Project root (source)
     search_paths.append(config.PROJECT_ROOT.parent.parent / "config" / "secrets.toml")
+    # 2. Current working directory (deployment/venv)
+    search_paths.append(Path.cwd() / "config" / "secrets.toml")
 
     for path in search_paths:
         try:
@@ -804,34 +895,125 @@ def _transcribe_with_openai(
     )
     composed_prompt = f"{(prompt or '').strip()}\n{guard_prompt}".strip()
 
-    with audio_path.open("rb") as audio_file:
-        response = client.audio.transcriptions.create(
-            model=resolved_model,
-            file=audio_file,
-            language=lang,
-            response_format="verbose_json",
-            temperature=0.0,
-            prompt=composed_prompt or None,
-        )
+    # Determine response format based on model capabilities
+    # Only whisper-1 is known to support verbose_json for timing information
+    # Newer gpt-4o-transcribe models only support json/text
+    # For OpenAI, only whisper-1 supports verbose format for karaoke
+    models_supporting_verbose = {"whisper-1"}
+    
+    # Strip namespace prefix if present (e.g. "openai/whisper-1" -> "whisper-1")
+    if resolved_model and resolved_model.startswith("openai/"):
+        resolved_model = resolved_model.replace("openai/", "")
+        
+    use_verbose_format = resolved_model in models_supporting_verbose
+    response_format = "verbose_json" if use_verbose_format else "json"
 
-    segments = getattr(response, "segments", None) or []
+    with audio_path.open("rb") as audio_file:
+        transcription_kwargs = {
+            "model": resolved_model,
+            "file": audio_file,
+            "language": lang,
+            "response_format": response_format,
+            "temperature": 0.0,
+            "prompt": composed_prompt or None,
+        }
+        
+        # Explicitly request word-level timestamps for karaoke support
+        # This is required for whisper-1 to return "words" in verbose_json
+        if use_verbose_format:
+            transcription_kwargs["timestamp_granularities"] = ["word"]
+        
+        # DEBUG: Write call details to file
+        try:
+             debug_path = config.PROJECT_ROOT.parent / "debug_openai.txt"
+             with debug_path.open("w") as f:
+                 f.write(f"Model: {resolved_model}\nFormat: {response_format}\nVerbose: {use_verbose_format}\n")
+                 f.write(f"Kwargs: {transcription_kwargs}\n")
+        except Exception:
+             pass
+
+        response = client.audio.transcriptions.create(**transcription_kwargs)
+
+    # Handle different response formats
     timed_text: list[TimeRange] = []
     cues: list[Cue] = []
 
-    if segments:
-        for seg in segments:
-            start = float(seg.get("start", 0.0))
-            end = float(seg.get("end", start + 0.6))
-            text = _normalize_text(seg.get("text", ""))
-            timed_text.append((start, end, text))
-            cues.append(Cue(start=start, end=end, text=text, words=None))
-    elif getattr(response, "text", ""):
-        text = _normalize_text(response.text)
-        duration = max(1.0, len(text.split()) * 0.45)
-        timed_text.append((0.0, duration, text))
-        cues.append(Cue(start=0.0, end=duration, text=text, words=None))
-    else:  # pragma: no cover - defensive guard
-        raise ValueError("OpenAI transcription returned no text")
+    if use_verbose_format:
+        # verbose_json format provides segments with timing
+        segments = getattr(response, "segments", None) or []
+        
+        # Also try to get words directly if available (granular timestamps)
+        all_words = getattr(response, "words", None) or []
+        
+        if segments:
+            for seg in segments:
+                # Handle both dict and object attribute access
+                if hasattr(seg, 'get'):  # dict-like
+                    start = float(seg.get("start", 0.0))
+                    end = float(seg.get("end", start + 0.6))
+                    text = _normalize_text(seg.get("text", ""))
+                else:  # object with attributes
+                    start = float(getattr(seg, "start", 0.0))
+                    end = float(getattr(seg, "end", start + 0.6))
+                    text = _normalize_text(getattr(seg, "text", ""))
+                
+                # Assign words to this segment if available
+                segment_words = None
+                if all_words:
+                    # Filter words that fall within this segment's time range
+                    current_words = []
+                    for w in all_words:
+                        w_start = float(w.get("start", 0.0) if hasattr(w, "get") else getattr(w, "start", 0.0))
+                        w_end = float(w.get("end", 0.0) if hasattr(w, "get") else getattr(w, "end", 0.0))
+                        w_text = _normalize_text(w.get("word", "") if hasattr(w, "get") else getattr(w, "word", ""))
+                        
+                        # Match word to segment with slight tolerance
+                        if w_start >= start - 0.1 and w_end <= end + 0.1:
+                            current_words.append(WordTiming(start=w_start, end=w_end, text=w_text))
+                    
+                    if current_words:
+                        segment_words = current_words
+
+                timed_text.append((start, end, text))
+                cues.append(Cue(start=start, end=end, text=text, words=segment_words))
+        else:
+            # Fallback if no segments despite verbose format
+            # If we have words (e.g. valid OpenAI response for short audio), use them!
+            text = _normalize_text(getattr(response, "text", ""))
+            
+            if all_words:
+                 converted_words = []
+                 for w in all_words:
+                      w_start = float(w.get("start", 0.0) if hasattr(w, "get") else getattr(w, "start", 0.0))
+                      w_end = float(w.get("end", 0.0) if hasattr(w, "get") else getattr(w, "end", 0.0))
+                      w_text = _normalize_text(w.get("word", "") if hasattr(w, "get") else getattr(w, "word", ""))
+                      converted_words.append(WordTiming(start=w_start, end=w_end, text=w_text))
+                 
+                 if converted_words:
+                     start_time = converted_words[0].start
+                     end_time = converted_words[-1].end
+                     # Ensure meaningful duration
+                     if end_time <= start_time:
+                         end_time = start_time + max(1.0, len(text.split()) * 0.45)
+                     
+                     cues.append(Cue(start=start_time, end=end_time, text=text, words=converted_words))
+                     timed_text.append((start_time, end_time, text))
+            else:
+                 duration = max(1.0, len(text.split()) * 0.45)
+                 timed_text.append((0.0, duration, text))
+                 cues.append(Cue(start=0.0, end=duration, text=text, words=None))
+    else:
+        # json/text format - no word-level timing available, karaoke disabled
+        text = _normalize_text(getattr(response, "text", ""))
+        if text:
+            # Simple timing estimation: ~150 words per minute = ~0.4 seconds per word
+            words = text.split()
+            duration = max(1.0, len(words) * 0.4)
+            timed_text.append((0.0, duration, text))
+            # No karaoke timing available - words=None disables karaoke highlighting
+            cues.append(Cue(start=0.0, end=duration, text=text, words=None))
+        else:  # pragma: no cover - defensive guard
+            raise ValueError("OpenAI transcription returned no text")
 
     output_dir.mkdir(parents=True, exist_ok=True)
     srt_path = output_dir / f"{audio_path.stem}.srt"

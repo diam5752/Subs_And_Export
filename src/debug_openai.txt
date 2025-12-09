@@ -1,0 +1,4 @@
+Model: whisper-1
+Format: verbose_json
+Verbose: True
+Kwargs: {'model': 'whisper-1', 'file': <_io.BufferedReader name='/var/folders/y8/9bzg4q690gqf30jgf2hgqt4h0000gn/T/tmpoguph5wn/1e41266c-d99f-4546-91e4-87f505594762_input.wav'>, 'language': 'el', 'response_format': 'verbose_json', 'temperature': 0.0, 'prompt': 'Transcribe only Greek speech. Do not translate to English. Keep original Greek words and casing; no summaries.', 'timestamp_granularities': ['word']}

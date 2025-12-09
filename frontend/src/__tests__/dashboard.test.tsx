@@ -85,12 +85,42 @@ it('renders workspace with recent jobs', async () => {
         </I18nProvider>,
     );
 
-    // With updated UI, check for History section which contains jobs
-    expect(await screen.findByText(/History/i)).toBeInTheDocument();
+    // With updated UI, we have a History tab and a History section title (Recent Jobs)
+    // Detailed verification of "Recent Jobs" history section in Process view
+    const recentJobsHeader = await screen.findByRole('heading', { name: /History/i });
+    expect(recentJobsHeader).toBeInTheDocument();
+
+    // Verify Tab Interaction
+    const historyTab = screen.getByRole('button', { name: 'History' });
+    fireEvent.click(historyTab);
+
+    // After clicking, HistoryView should render
+    // We expect the "Activity Timeline" (activityTitle) or similar to appear
+    // The mock returns an event with "Processed demo.mp4"
+    expect(await screen.findByText('Processed demo.mp4')).toBeInTheDocument();
 });
 
-// Removed test 'shows history tab with logged events' - tabs removed from UI
-// Removed test 'exposes account tab with profile fields' - tabs removed, account is now in modal
+it('switches between tabs', async () => {
+    render(
+        <I18nProvider initialLocale="en">
+            <DashboardPage />
+        </I18nProvider>,
+    );
+
+    const processTab = screen.getByRole('button', { name: 'Process' });
+    const historyTab = screen.getByRole('button', { name: 'History' });
+
+    // Default is process
+    expect(processTab).toHaveClass('bg-[var(--accent)]');
+
+    // Switch to history
+    fireEvent.click(historyTab);
+    expect(historyTab).toHaveClass('bg-[var(--accent)]');
+
+    // Switch back
+    fireEvent.click(processTab);
+    expect(processTab).toHaveClass('bg-[var(--accent)]');
+});
 
 it('shows the updated hero and clickable dropzone', async () => {
     render(

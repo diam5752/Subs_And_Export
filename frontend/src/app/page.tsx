@@ -3,14 +3,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { api, API_BASE, JobResponse, HistoryEvent } from '@/lib/api';
+import { api, API_BASE, JobResponse } from '@/lib/api';
 import { useI18n } from '@/context/I18nContext';
 import { LanguageToggle } from '@/components/LanguageToggle';
 import { ProcessView, ProcessingOptions } from '@/components/ProcessView';
-import { HistoryView } from '@/components/HistoryView';
 import { AccountView } from '@/components/AccountView';
-
-// type TabKey = 'process' | 'history' | 'account'; // Removed
+import { useJobs } from '@/hooks/useJobs';
 
 const statusStyles: Record<string, string> = {
   completed: 'bg-green-500/15 text-green-300 border-green-500/30',
@@ -39,28 +37,31 @@ export default function DashboardPage() {
   const router = useRouter();
   const { t } = useI18n();
 
-  // const [activeTab, setActiveTab] = useState<TabKey>('process'); // Removed
 
-  // Job / Process State (Managed here to persist across tabs if needed, though simpler now)
+
+  // Custom Hooks
+  const {
+    selectedJob,
+    setSelectedJob,
+    recentJobs,
+    jobsLoading,
+    loadJobs,
+  } = useJobs();
+
+
+  // Local Processing State
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [jobId, setJobId] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const [statusMessage, setStatusMessage] = useState('');
-  const [error, setError] = useState('');
+  const [processError, setProcessError] = useState('');
 
-  const [selectedJob, setSelectedJob] = useState<JobResponse | null>(null);
-  const [recentJobs, setRecentJobs] = useState<JobResponse[]>([]);
-  const [jobsLoading, setJobsLoading] = useState(false);
-
-  const [historyItems, setHistoryItems] = useState<HistoryEvent[]>([]);
-  const [historyLoading, setHistoryLoading] = useState(false);
-  const [historyError, setHistoryError] = useState('');
-
+  // Account Modal State
+  const [showAccountPanel, setShowAccountPanel] = useState(false);
   const [accountMessage, setAccountMessage] = useState('');
   const [accountError, setAccountError] = useState('');
   const [accountSaving, setAccountSaving] = useState(false);
-  const [showAccountPanel, setShowAccountPanel] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -68,53 +69,14 @@ export default function DashboardPage() {
     }
   }, [user, isLoading, router]);
 
-  const loadJobs = useCallback(async () => {
-    if (!user) return;
-    setJobsLoading(true);
-    try {
-      const jobs = await api.getJobs();
-      const sorted = [...jobs].sort(
-        (a, b) => (b.updated_at || b.created_at) - (a.updated_at || a.created_at)
-      );
-      setRecentJobs(sorted);
-      const latest = sorted.find((job) => job.status === 'completed' && job.result_data);
-      // Only auto-select if we don't have a file staged and don't have a job selected
-      if (latest && !selectedJob && !selectedFile) {
-        setSelectedJob(latest);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t('jobsErrorFallback'));
-    } finally {
-      setJobsLoading(false);
-    }
-  }, [user, selectedJob, t]);
-
-  const loadHistory = useCallback(async () => {
-    if (!user) return;
-    setHistoryLoading(true);
-    setHistoryError('');
-    try {
-      const data = await api.getHistory(50);
-      setHistoryItems(data);
-    } catch (err) {
-      setHistoryError(err instanceof Error ? err.message : t('historyErrorFallback'));
-    } finally {
-      setHistoryLoading(false);
-    }
-  }, [user, t]);
+  // Refresh data
+  useEffect(() => {
+    loadJobs();
+  }, [loadJobs]);
 
   const refreshActivity = useCallback(async () => {
     await loadJobs();
-    await loadHistory();
-  }, [loadJobs, loadHistory]);
-
-  useEffect(() => {
-    if (!user || isLoading) return;
-    loadJobs();
-    // if (activeTab !== 'process') {
-    //   loadHistory();
-    // }
-  }, [user, isLoading, loadJobs]);
+  }, [loadJobs]);
 
   // Polling for job status
   useEffect(() => {
@@ -130,11 +92,11 @@ export default function DashboardPage() {
           setIsProcessing(false);
           setJobId(null);
           setSelectedJob(job);
-          setError('');
+          setProcessError('');
           clearInterval(pollInterval);
           refreshActivity();
         } else if (job.status === 'failed') {
-          setError(job.message || t('statusFailedFallback'));
+          setProcessError(job.message || t('statusFailedFallback'));
           setIsProcessing(false);
           setJobId(null);
           clearInterval(pollInterval);
@@ -143,18 +105,18 @@ export default function DashboardPage() {
       } catch {
         clearInterval(pollInterval);
         setIsProcessing(false);
-        setError(t('statusCheckFailed'));
+        setProcessError(t('statusCheckFailed'));
       }
     }, 1000);
 
     return () => clearInterval(pollInterval);
-  }, [jobId, refreshActivity, t]);
+  }, [jobId, refreshActivity, t, setSelectedJob]);
 
   const handleStartProcessing = async (options: ProcessingOptions) => {
     if (!selectedFile) return;
 
     setIsProcessing(true);
-    setError('');
+    setProcessError('');
     setProgress(0);
     setSelectedJob(null);
     setStatusMessage(t('statusUploading'));
@@ -165,15 +127,17 @@ export default function DashboardPage() {
       turbo: 'deepdml/faster-whisper-large-v3-turbo-ct2',
       best: 'large-v3',
     };
-    const hostedModel = 'openai/gpt-4o-mini-transcribe';
+
     const provider = options.transcribeProvider;
-    const selectedModel = provider === 'openai' ? hostedModel : modelMap[options.transcribeMode];
+    // Robustly handle OpenAI model selection: Always use whisper-1 regardless of current transcribeMode
+    // This fixes the issue where having 'turbo' selected then switching to OpenAI resulted in undefined model mapping
+    const selectedModel = provider === 'openai' ? 'openai/whisper-1' : modelMap[options.transcribeMode];
 
     try {
       const result = await api.processVideo(selectedFile, {
         transcribe_model: selectedModel,
         transcribe_provider: provider,
-        openai_model: provider === 'openai' ? hostedModel : undefined,
+        openai_model: provider === 'openai' ? selectedModel.replace('openai/', '') : undefined,
         video_quality: options.outputQuality,
         video_resolution: options.outputResolution,
         use_llm: options.useAI,
@@ -181,7 +145,7 @@ export default function DashboardPage() {
       });
       setJobId(result.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t('startProcessingError'));
+      setProcessError(err instanceof Error ? err.message : t('startProcessingError'));
       setIsProcessing(false);
     }
   };
@@ -221,7 +185,7 @@ export default function DashboardPage() {
     setProgress(0);
     setJobId(null);
     setStatusMessage('');
-    setError('');
+    setProcessError('');
   };
 
   if (isLoading) {
@@ -242,7 +206,6 @@ export default function DashboardPage() {
 
       <nav className="sticky top-0 z-20 backdrop-blur-2xl bg-[var(--background)]/75 border-b border-[var(--border)]/60 px-6 py-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
-          {/* Left: User Profile - Clickable */}
           <div className="flex items-center gap-3 min-w-0 flex-1">
             <button
               onClick={() => setShowAccountPanel(!showAccountPanel)}
@@ -264,16 +227,18 @@ export default function DashboardPage() {
             </button>
           </div>
 
-          {/* Center: Logo/Brand */}
-          <div className="flex items-center gap-3 justify-center">
-            <div className="h-11 w-11 rounded-2xl bg-white/5 border border-[var(--border)] flex items-center justify-center text-xl shadow-inner">🎛️</div>
+          <button
+            onClick={() => window.location.reload()}
+            className="flex items-center gap-3 justify-center px-4 py-2 rounded-xl hover:bg-white/10 transition-all duration-200 cursor-pointer group"
+            aria-label="Reload page"
+          >
+            <div className="h-11 w-11 rounded-2xl bg-white/5 border border-[var(--border)] flex items-center justify-center text-xl shadow-inner group-hover:bg-white/10 transition-colors">🎛️</div>
             <div className="text-center">
-              <p className="text-[var(--muted)] text-xs uppercase tracking-[0.35em]">{t('subtitleDesk')}</p>
-              <p className="text-xl font-semibold leading-tight">{t('brandName')}</p>
+              <p className="text-[var(--muted)] text-xs uppercase tracking-[0.35em] group-hover:text-[var(--foreground)] transition-colors">{t('subtitleDesk')}</p>
+              <p className="text-xl font-semibold leading-tight group-hover:text-[var(--accent)] transition-colors">{t('brandName')}</p>
             </div>
-          </div>
+          </button>
 
-          {/* Right: Sign Out */}
           <div className="flex items-center gap-3 justify-end flex-1">
             <button onClick={logout} className="btn-secondary text-sm py-2 px-4">
               {t('signOut')}
@@ -296,6 +261,8 @@ export default function DashboardPage() {
               {t('heroSubtitle')}
             </p>
           </div>
+
+          {/* Tab Navigation Removed */}
         </section>
 
         <ProcessView
@@ -307,7 +274,7 @@ export default function DashboardPage() {
           isProcessing={isProcessing}
           progress={progress}
           statusMessage={statusMessage}
-          error={error}
+          error={processError}
           onStartProcessing={handleStartProcessing}
           onReset={resetProcessing}
           selectedJob={selectedJob}
@@ -317,24 +284,20 @@ export default function DashboardPage() {
           statusStyles={statusStyles}
           formatDate={formatDate}
           buildStaticUrl={buildStaticUrl}
-          onRefreshJobs={loadJobs}
+          onRefreshJobs={async () => { await loadJobs(false); }}
         />
       </main>
 
-      {/* Footer with language toggle - Apple style */}
       <footer className="fixed bottom-4 right-4 z-20">
         <LanguageToggle />
       </footer>
 
-      {/* Account Settings Panel */}
       {showAccountPanel && (
         <div className="fixed inset-0 z-50 flex items-start justify-center pt-20">
-          {/* Backdrop */}
           <div
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={() => setShowAccountPanel(false)}
           />
-          {/* Panel */}
           <div className="relative z-10 w-full max-w-2xl mx-4 animate-fade-in">
             <div className="bg-[var(--surface-elevated)] border border-[var(--border)] rounded-2xl shadow-2xl overflow-hidden">
               <div className="flex items-center justify-between p-4 border-b border-[var(--border)]">

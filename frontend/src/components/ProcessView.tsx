@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { api, JobResponse } from '@/lib/api';
 import { useI18n } from '@/context/I18nContext';
 import { VideoModal } from './VideoModal';
+import { ViralIntelligence } from './ViralIntelligence';
 
 type TranscribeMode = 'fast' | 'balanced' | 'turbo' | 'best';
 type TranscribeProvider = 'local' | 'openai';
@@ -238,6 +239,7 @@ export function ProcessView({
     };
 
     const handleStart = () => {
+        setShowPreview(false); // Hide any previous preview
         onStartProcessing({
             transcribeMode,
             transcribeProvider,
@@ -407,17 +409,51 @@ export function ProcessView({
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 setTranscribeProvider('openai');
+                                                setTranscribeMode('balanced'); // Always use whisper-1 for ChatGPT API
                                             }}
                                             className={`p-3 rounded-lg border text-left transition-all ${transcribeProvider === 'openai'
                                                 ? 'border-[var(--accent)] bg-[var(--accent)]/10 ring-1 ring-[var(--accent)]'
                                                 : 'border-[var(--border)] hover:border-[var(--accent)]/50'
                                                 }`}
                                         >
-                                            <div className="font-semibold">{t('engineHostedName')}</div>
-                                            <div className="text-xs text-[var(--muted)]">{t('engineHostedDesc')}</div>
+                                            <div className="font-semibold">ChatGPT API</div>
+                                            <div className="text-xs text-[var(--muted)]">whisper-1 with karaoke</div>
                                         </button>
                                     </div>
                                 </div>
+
+                                {/* Removed OpenAI transcription quality controls - only whisper-1 available */}
+
+                                {transcribeProvider === 'local' && (
+                                    <div>
+                                        <label className="block text-sm font-medium text-[var(--muted)] mb-2">
+                                            Transcription Quality
+                                        </label>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            {([
+                                                { mode: 'fast', label: 'Fast', desc: 'tiny model' },
+                                                { mode: 'balanced', label: 'Balanced', desc: 'medium model' },
+                                                { mode: 'turbo', label: 'Turbo', desc: 'large-v3-turbo' },
+                                                { mode: 'best', label: 'Best', desc: 'large-v3' },
+                                            ] as const).map(({ mode, label, desc }) => (
+                                                <button
+                                                    key={mode}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setTranscribeMode(mode as TranscribeMode);
+                                                    }}
+                                                    className={`p-2 rounded-lg border text-center text-sm transition-all ${transcribeMode === mode
+                                                        ? 'border-[var(--accent)] bg-[var(--accent)]/10 ring-1 ring-[var(--accent)] font-medium'
+                                                        : 'border-[var(--border)] hover:border-[var(--accent)]/50'
+                                                        }`}
+                                                >
+                                                    <div>{label}</div>
+                                                    <div className="text-xs text-[var(--muted)]">{desc}</div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
 
                                 <div>
                                     <label className="block text-sm font-medium text-[var(--muted)] mb-2">
@@ -539,9 +575,11 @@ export function ProcessView({
                     <div className="card space-y-4">
                         <div className="flex flex-wrap items-start justify-between gap-3">
                             <div>
-                                <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">{t('liveOutputLabel')}</p>
+                                <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">
+                                    {selectedJob?.status === 'completed' ? t('liveOutputLabel') : t('statusProcessing')}
+                                </p>
                                 <h3 className="text-2xl font-semibold break-words [overflow-wrap:anywhere]">
-                                    {selectedJob?.result_data?.original_filename || t('liveOutputPlaceholderTitle')}
+                                    {selectedJob?.result_data?.original_filename || (isProcessing ? t('statusProcessingEllipsis') : t('liveOutputPlaceholderTitle'))}
                                 </h3>
                                 <p className="text-sm text-[var(--muted)]">{t('liveOutputSubtitle')}</p>
                             </div>
@@ -565,7 +603,8 @@ export function ProcessView({
                             </div>
                         )}
 
-                        {selectedJob && selectedJob.status === 'completed' ? (
+                        {/* Strict check: Only show preview if NOT processing and job is completed */}
+                        {!isProcessing && selectedJob && selectedJob.status === 'completed' ? (
                             <div className="animate-fade-in relative">
                                 {/* Animated shimmer border */}
                                 <div className="absolute -inset-[2px] rounded-2xl bg-gradient-to-r from-[var(--accent)] via-[var(--accent-secondary)] to-[var(--accent)] bg-[length:200%_100%] animate-shimmer opacity-80" />
@@ -659,6 +698,8 @@ export function ProcessView({
                                                     ▶️ Preview
                                                 </button>
                                             </div>
+
+                                            <ViralIntelligence jobId={selectedJob.id} />
                                         </div>
                                     </div>
                                 </div>

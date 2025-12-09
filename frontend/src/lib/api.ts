@@ -47,6 +47,14 @@ interface UserResponse {
     provider: string;
 }
 
+export interface ViralMetadataResponse {
+    hooks: string[];
+    caption_hook: string;
+    caption_body: string;
+    cta: string;
+    hashtags: string[];
+}
+
 class ApiClient {
     private token: string | null = null;
 
@@ -235,6 +243,12 @@ class ApiClient {
     async deleteJob(jobId: string): Promise<{ status: string; job_id: string }> {
         return this.request<{ status: string; job_id: string }>(`/videos/jobs/${jobId}`, {
             method: 'DELETE',
+        });
+    }
+
+    async generateViralMetadata(jobId: string): Promise<ViralMetadataResponse> {
+        return this.request<ViralMetadataResponse>(`/videos/jobs/${jobId}/viral-metadata`, {
+            method: 'POST',
         });
     }
 }

@@ -1,4 +1,4 @@
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 from pydantic import BaseModel
 
 class JobResponse(BaseModel):
@@ -9,3 +9,10 @@ class JobResponse(BaseModel):
     created_at: int
     updated_at: int
     result_data: Optional[Dict]
+
+class ViralMetadataResponse(BaseModel):
+    hooks: List[str]
+    caption_hook: str
+    caption_body: str
+    cta: str
+    hashtags: List[str]
