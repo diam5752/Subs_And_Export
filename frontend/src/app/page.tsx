@@ -175,6 +175,7 @@ export default function DashboardPage() {
         transcribe_provider: provider,
         openai_model: provider === 'openai' ? hostedModel : undefined,
         video_quality: options.outputQuality,
+        video_resolution: options.outputResolution,
         use_llm: options.useAI,
         context_prompt: options.contextPrompt,
       });
@@ -245,11 +246,20 @@ export default function DashboardPage() {
           <div className="flex items-center gap-3 min-w-0 flex-1">
             <button
               onClick={() => setShowAccountPanel(!showAccountPanel)}
-              className="px-3 py-2 rounded-xl bg-white/5 border border-[var(--border)] hover:bg-white/10 hover:border-[var(--accent)]/50 transition-all cursor-pointer text-left"
+              className="px-3 py-2 rounded-xl bg-white/5 border border-[var(--border)] hover:bg-white/10 hover:border-[var(--accent)]/50 transition-all cursor-pointer text-left flex items-center gap-3"
+              aria-label={t('accountSettingsTitle')}
             >
-              <div className="font-semibold text-sm truncate">{user.name}</div>
-              <div className="text-[var(--muted)] text-xs uppercase tracking-wide">
-                {t('sessionLabelProvider').replace('{provider}', user.provider)}
+              <span
+                className="h-10 w-10 rounded-full bg-white/10 border border-[var(--border)] flex items-center justify-center text-lg shadow-inner"
+                aria-hidden="true"
+              >
+                👤
+              </span>
+              <div className="min-w-0">
+                <div className="font-semibold text-sm truncate">{user.name}</div>
+                <div className="text-[var(--muted)] text-xs uppercase tracking-wide">
+                  {t('sessionLabelProvider').replace('{provider}', user.provider)}
+                </div>
               </div>
             </button>
           </div>
