@@ -41,6 +41,9 @@
   "engineToggleLocal": "Τοπικό (γρήγορο)",
   "engineToggleHosted": "ChatGPT API",
   "engineLocalTurbo": "Τοπικό (turbo)",
+  "engineLocalDesc": "Ιδανικό για γρήγορα αποτελέσματα",
+  "engineHostedDesc": "Μέγιστη ακρίβεια με gpt-4o",
+  "controlsStart": "Έναρξη επεξεργασίας",
   "speedAccuracyLabel": "Ταχύτητα / Ακρίβεια",
   "hostedNote": "Χρήση του φιλοξενούμενου `gpt-4o-mini-transcribe` της ChatGPT για καθαρό ελληνικό speech-to-text. Ιδανικό όταν τα τοπικά μοντέλα αποκλίνουν.",
   "qualityLabel": "Ποιότητα εξόδου",
@@ -134,5 +137,6 @@
   "registerError": "Η εγγραφή απέτυχε",
   "jobsEmptyMessage": "Η προεπισκόπηση θα εμφανιστεί μόλις ολοκληρωθεί μια εργασία. Πατήστε \"Έναρξη επεξεργασίας\" για να στείλετε το κλιπ.",
   "noJobsYet": "Δεν υπάρχουν εκτελέσεις — ανεβάστε ένα βίντεο για να ξεκινήσετε.",
-  "sessionLabelProvider": "συνεδρία {provider}"
+  "sessionLabelProvider": "συνεδρία {provider}",
+  "saving": "Αποθήκευση..."
 }

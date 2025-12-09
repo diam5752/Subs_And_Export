@@ -17,6 +17,7 @@ export interface JobResultData {
     video_crf?: number;
     model_size?: string;
     transcribe_provider?: string;
+    output_size?: number;
 }
 
 export interface JobResponse {

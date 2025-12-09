@@ -134,5 +134,6 @@
   "registerError": "Registration failed",
   "jobsEmptyMessage": "Your render preview will appear here once a job completes. Hit “Start processing” to send the clip through.",
   "noJobsYet": "No runs yet — upload a video to get started.",
-  "sessionLabelProvider": "{provider} session"
+  "sessionLabelProvider": "{provider} session",
+  "saving": "Saving..."
 }

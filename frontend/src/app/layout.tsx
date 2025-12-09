@@ -22,7 +22,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="el">
+    <html lang="el" suppressHydrationWarning>
       <body className={`${spaceGrotesk.variable} antialiased`}>
         <I18nProvider>
           <AuthProvider>

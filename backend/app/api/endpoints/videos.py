@@ -110,7 +110,7 @@ def run_video_processing(
         # (Simplified logic from original app.py)
         model_size = settings.openai_model or settings.transcribe_model
         provider = settings.transcribe_provider or "local"
-        crf_map = {"low size": 28, "balanced": 23, "high quality": 18}
+        crf_map = {"low size": 28, "balanced": 20, "high quality": 12}
         video_crf = crf_map.get(settings.video_quality.lower(), 23)
 
         artifact_dir.mkdir(parents=True, exist_ok=True)
@@ -152,6 +152,7 @@ def run_video_processing(
             "video_crf": video_crf,
             "model_size": model_size,
             "transcribe_provider": provider,
+            "output_size": final_path.stat().st_size if final_path.exists() else 0,
         }
         
         job_store.update_job(job_id, status="completed", progress=100, message="Done!", result_data=result_data)
@@ -260,7 +261,31 @@ async def process_video(
         current_user,
         file.filename,
     )
+
+    # Trigger Cleanup
+    from ...cleanup import cleanup_old_jobs
+    background_tasks.add_task(
+        cleanup_old_jobs,
+        uploads_dir,
+        artifacts_root,
+        24 # 24 hours retention
+    )
     
+    return job
+
+def _ensure_job_size(job):
+    """Helper to backfill output_size for legacy jobs."""
+    if job.status == "completed" and job.result_data:
+        if not job.result_data.get("output_size"):
+             video_path = job.result_data.get("video_path")
+             if video_path:
+                 try:
+                     full_path = config.PROJECT_ROOT.parent / video_path
+                     if full_path.exists():
+                         # Update in-memory object (and potentially could save back, but for now just serving)
+                         job.result_data["output_size"] = full_path.stat().st_size
+                 except Exception:
+                     pass
     return job
 
 @router.get("/jobs", response_model=List[JobResponse])
@@ -268,7 +293,8 @@ def list_jobs(
     current_user: User = Depends(get_current_user),
     job_store: JobStore = Depends(get_job_store)
 ):
-    return job_store.list_jobs_for_user(current_user.id)
+    jobs = job_store.list_jobs_for_user(current_user.id)
+    return [_ensure_job_size(job) for job in jobs]
 
 @router.get("/jobs/{job_id}", response_model=JobResponse)
 def get_job(
@@ -279,4 +305,4 @@ def get_job(
     job = job_store.get_job(job_id)
     if not job or job.user_id != current_user.id:
         raise HTTPException(404, "Job not found")
-    return job
+    return _ensure_job_size(job)
