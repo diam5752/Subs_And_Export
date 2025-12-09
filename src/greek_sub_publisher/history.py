@@ -7,7 +7,7 @@ from typing import Dict, List
 
 from . import config
 from .auth import User
-from .database import Database
+from backend.app.database import Database
 
 
 @dataclass

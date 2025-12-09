@@ -13,7 +13,7 @@ from typing import Dict, Optional
 import tomllib
 
 from . import config
-from .database import Database
+from backend.app.database import Database
 
 
 @dataclass
