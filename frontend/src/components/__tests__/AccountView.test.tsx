@@ -51,7 +51,7 @@ describe('AccountView', () => {
         expect(screen.getByDisplayValue('test@example.com')).toBeInTheDocument();
     });
 
-    it('calls onSaveProfile with updated name', () => {
+    it('calls onSaveProfile with updated name', async () => {
         const onSaveProfile = jest.fn();
         renderAccountView({ onSaveProfile });
 
@@ -60,7 +60,7 @@ describe('AccountView', () => {
 
         fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
 
-        expect(onSaveProfile).toHaveBeenCalledWith('New Name', '', '');
+        await waitFor(() => expect(onSaveProfile).toHaveBeenCalledWith('New Name', '', ''));
     });
 
     it('renders password fields only for local provider', () => {

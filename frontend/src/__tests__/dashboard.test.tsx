@@ -23,6 +23,10 @@ jest.mock('@/context/I18nContext', () => ({
     useI18n: () => ({ t: (key: string) => key }),
 }));
 
+jest.mock('@/hooks/useJobs', () => ({
+    useJobs: jest.fn(),
+}));
+
 jest.mock('@/components/AccountView', () => ({
     AccountView: () => <div data-testid="account-view">AccountView</div>,
 }));
@@ -35,8 +39,11 @@ jest.mock('@/components/ProcessView', () => ({
     ),
 }));
 
+import { useJobs } from '@/hooks/useJobs';
+
 describe('DashboardPage', () => {
     const mockUser = { id: '1', name: 'Test User', email: 'test@example.com' };
+    const mockLoadJobs = jest.fn();
 
     beforeEach(() => {
         jest.clearAllMocks();
@@ -45,56 +52,44 @@ describe('DashboardPage', () => {
             isLoading: false,
             refreshUser: jest.fn(),
         });
-        (api.getJobs as jest.Mock).mockResolvedValue([]);
-        (api.getHistory as jest.Mock).mockResolvedValue([]);
+        (useJobs as jest.Mock).mockReturnValue({
+            selectedJob: null,
+            setSelectedJob: jest.fn(),
+            recentJobs: [],
+            jobsLoading: false,
+            jobsError: '',
+            loadJobs: mockLoadJobs,
+        });
     });
 
-    it('renders dashboard components', async () => {
-        await act(async () => {
-            render(<DashboardPage />);
-        });
+    afterEach(() => {
+        // Ensure timers are restored if a test used them
+        jest.useRealTimers();
+    });
 
-        expect(screen.getByText('appName')).toBeInTheDocument();
+    it('renders dashboard components', () => {
+        render(<DashboardPage />);
+
+        expect(screen.getByText('brandName')).toBeInTheDocument();
         expect(screen.getByTestId('process-view')).toBeInTheDocument();
-        // Tabs should be visible
-        expect(screen.getByText('navWorkspace')).toBeInTheDocument();
-        expect(screen.getByText('navAccount')).toBeInTheDocument();
+        // Profile button should be visible (part of nav)
+        expect(screen.getByLabelText('accountSettingsTitle')).toBeInTheDocument();
+        expect(mockLoadJobs).toHaveBeenCalled();
     });
 
-    it('navigates between tabs', async () => {
-        await act(async () => {
-            render(<DashboardPage />);
-        });
+    it('opens account settings modal', () => {
+        render(<DashboardPage />);
 
-        // Default is workspace
+        // ProcessView should be visible
         expect(screen.getByTestId('process-view')).toBeInTheDocument();
         expect(screen.queryByTestId('account-view')).not.toBeInTheDocument();
 
-        // Switch to account
-        fireEvent.click(screen.getByText('navAccount'));
+        // Click profile button to open account settings
+        fireEvent.click(screen.getByLabelText('accountSettingsTitle'));
         expect(screen.getByTestId('account-view')).toBeInTheDocument();
-        expect(screen.queryByTestId('process-view')).not.toBeInTheDocument();
 
-        // Switch back
-        fireEvent.click(screen.getByText('navWorkspace'));
-        expect(screen.getByTestId('process-view')).toBeInTheDocument();
-    });
-
-    it('handles polling for job status', async () => {
-        jest.useFakeTimers();
-        (api.getJobs as jest.Mock).mockResolvedValue([{ id: 'job1', status: 'pending' }]);
-        (api.getJobStatus as jest.Mock).mockResolvedValue({ id: 'job1', status: 'completed' });
-
-        await act(async () => {
-            render(<DashboardPage />);
-        });
-
-        // Should poll
-        await act(async () => {
-            jest.advanceTimersByTime(3000);
-        });
-
-        expect(api.getJobs).toHaveBeenCalled();
-        jest.useRealTimers();
+        // Click close button
+        fireEvent.click(screen.getByText('✕'));
+        expect(screen.queryByTestId('account-view')).not.toBeInTheDocument();
     });
 });
