@@ -89,29 +89,8 @@ describe('AccountView', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Delete Account' }));
         expect(screen.getByText(/this action cannot be undone/i)).toBeInTheDocument();
 
-        // Confirm delete
-        const confirmBtn = screen.getByRole('button', { name: /confirm/i });
-        // Use more specific selector if multiple buttons have similar text, 
-        // but here the red delete button appears in the confirm zone.
-        // Actually, the button text is "Confirm" in the code: {t('confirm')}
-        // Let's verify translation or props. In AccountView code: {deleting ? t('deleting') : t('confirm')}
-        // I18nContext default mock might return key or simple English. 
-
-        // Let's look at AccountView structure:
-        // Inside confirmation: <button ...>{t('confirm')}</button>
-        // Depending on I18n mock, it usually returns the key or a stub. 
-        // The I18nProvider in tests likely uses the real simple en dictionary or identity.
-        // Assuming 'confirm' key translates to 'Confirm'.
-
-        // Wait, the I18nContext mock in dashboard tests suggests it uses keys or real phrases.
-        // Let's check `src/context/I18nContext.tsx` or assume standard keys. 
-        // In AccountView.tsx: `t('confirm')`
-
-        // Let's try to find by text 'Confirm' or check the implementation of I18nContext if needed.
-        // Safe bet: The Confirm button is red (bg-[var(--danger)]).
-
-        const confirmButton = screen.getByRole('button', { name: /confirm/i });
-        fireEvent.click(confirmButton);
+        // Confirm delete - click the confirm button directly
+        fireEvent.click(screen.getByRole('button', { name: /confirm/i }));
 
         await waitFor(() => expect(api.deleteAccount).toHaveBeenCalled());
         await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/login'));

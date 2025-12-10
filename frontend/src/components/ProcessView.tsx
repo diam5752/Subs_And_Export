@@ -256,7 +256,6 @@ export function ProcessView({
     };
 
     const videoUrl = buildStaticUrl(selectedJob?.result_data?.public_url || selectedJob?.result_data?.video_path);
-    const artifactUrl = buildStaticUrl(selectedJob?.result_data?.artifact_url || selectedJob?.result_data?.artifacts_dir);
     const uploadResolution = videoInfo ? describeResolution(videoInfo.width, videoInfo.height) : null;
     const jobResolution = describeResolutionString(selectedJob?.result_data?.resolution);
     const displayResolution = jobResolution || outputResolutionInfo || uploadResolution;
@@ -349,6 +348,7 @@ export function ProcessView({
                                 {/* Video Thumbnail */}
                                 {videoInfo?.thumbnailUrl ? (
                                     <div className="w-16 h-16 rounded-lg overflow-hidden bg-black/40 flex-shrink-0">
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
                                         <img
                                             src={videoInfo.thumbnailUrl}
                                             alt="Video thumbnail"
@@ -704,7 +704,7 @@ export function ProcessView({
                                 </div>
                                 <div className="w-full bg-[var(--surface)] rounded-full h-2 overflow-hidden">
                                     <div
-                                        className="bg-gradient-to-r from-[var(--accent)] to-[var(--accent-secondary)] h-2 rounded-full transition-all duration-300"
+                                        className="progress-bar bg-gradient-to-r from-[var(--accent)] to-[var(--accent-secondary)] h-2 rounded-full"
                                         style={{ width: `${progress}%` }}
                                     />
                                 </div>
@@ -718,7 +718,7 @@ export function ProcessView({
                                 <div className="absolute -inset-[2px] rounded-2xl bg-gradient-to-r from-[var(--accent)] via-[var(--accent-secondary)] to-[var(--accent)] bg-[length:200%_100%] animate-shimmer opacity-80" />
 
                                 {/* Inner glow */}
-                                <div className="absolute inset-0 rounded-2xl" style={{ boxShadow: '0 0 60px -15px var(--accent), 0 0 30px -10px var(--accent-secondary)' }} />
+                                <div className="preview-card-glow absolute inset-0 rounded-2xl" />
 
                                 <div className="relative rounded-2xl border border-white/10 bg-[var(--surface-elevated)] overflow-hidden">
                                     {/* Success badge */}
@@ -749,7 +749,7 @@ export function ProcessView({
                                             )}
 
                                             {/* Play Button with glow */}
-                                            <div className="relative z-10 w-16 h-16 rounded-full bg-white/15 backdrop-blur-sm border border-white/25 flex items-center justify-center group-hover:scale-110 group-hover:bg-white/25 transition-all duration-300" style={{ boxShadow: '0 0 25px rgba(255,255,255,0.2)' }}>
+                                            <div className="play-button-glow relative z-10 w-16 h-16 rounded-full bg-white/15 backdrop-blur-sm border border-white/25 flex items-center justify-center group-hover:scale-110 group-hover:bg-white/25 transition-all duration-300">
                                                 <div className="w-0 h-0 border-t-[10px] border-t-transparent border-l-[18px] border-l-white border-b-[10px] border-b-transparent ml-1" />
                                             </div>
 

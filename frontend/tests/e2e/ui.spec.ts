@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { mockApi, stabilizeUi } from './mocks';
 import el from '@/i18n/el.json';
 
@@ -14,14 +14,6 @@ async function expectNoHorizontalOverflow(page: Page, selector?: string) {
     const clientWidth = target.clientWidth || window.innerWidth;
     return target.scrollWidth - clientWidth;
   }, selector);
-  expect(overflow).toBeLessThanOrEqual(1);
-}
-
-async function expectLocatorWithinBounds(locator: Locator) {
-  const overflow = await locator.evaluate((node) => {
-    const el = node as HTMLElement;
-    return el.scrollWidth - el.clientWidth;
-  });
   expect(overflow).toBeLessThanOrEqual(1);
 }
 

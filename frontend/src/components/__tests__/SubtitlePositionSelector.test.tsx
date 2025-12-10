@@ -1,0 +1,108 @@
+import { render, screen, fireEvent } from '@testing-library/react';
+import { SubtitlePositionSelector } from '../SubtitlePositionSelector';
+
+describe('SubtitlePositionSelector', () => {
+    const defaultProps = {
+        value: 'default',
+        onChange: jest.fn(),
+    };
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+    });
+
+    it('renders all three position options', () => {
+        render(<SubtitlePositionSelector {...defaultProps} />);
+
+        expect(screen.getByText('Social Default')).toBeInTheDocument();
+        expect(screen.getByText('Middle / Upper')).toBeInTheDocument();
+        expect(screen.getByText('Movie Style')).toBeInTheDocument();
+    });
+
+    it('highlights the selected option', () => {
+        render(<SubtitlePositionSelector {...defaultProps} value="top" />);
+
+        const topButton = screen.getByText('Middle / Upper').closest('button');
+        expect(topButton?.className).toContain('border-[var(--accent)]');
+    });
+
+    it('calls onChange when option is clicked', () => {
+        const onChange = jest.fn();
+        render(<SubtitlePositionSelector {...defaultProps} onChange={onChange} />);
+
+        fireEvent.click(screen.getByText('Movie Style'));
+        expect(onChange).toHaveBeenCalledWith('bottom');
+    });
+
+    it('renders subtitle preview bar at correct position for default', () => {
+        const { container } = render(<SubtitlePositionSelector {...defaultProps} value="default" />);
+
+        const previewBar = container.querySelector('.subtitle-preview-bar');
+        expect(previewBar).toHaveStyle({ bottom: '16%' });
+    });
+
+    it('renders subtitle preview bar at correct position for top', () => {
+        const { container } = render(<SubtitlePositionSelector {...defaultProps} value="top" />);
+
+        const previewBar = container.querySelector('.subtitle-preview-bar');
+        expect(previewBar).toHaveStyle({ bottom: '32%' });
+    });
+
+    it('renders subtitle preview bar at correct position for bottom', () => {
+        const { container } = render(<SubtitlePositionSelector {...defaultProps} value="bottom" />);
+
+        const previewBar = container.querySelector('.subtitle-preview-bar');
+        expect(previewBar).toHaveStyle({ bottom: '6%' });
+    });
+
+    it('renders thumbnail when provided', () => {
+        render(<SubtitlePositionSelector {...defaultProps} thumbnailUrl="data:image/png;base64,test" />);
+
+        const img = screen.getByAltText('Video preview');
+        expect(img).toBeInTheDocument();
+        expect(img).toHaveAttribute('src', 'data:image/png;base64,test');
+    });
+
+    it('renders fallback gradient when no thumbnail', () => {
+        const { container } = render(<SubtitlePositionSelector {...defaultProps} thumbnailUrl={null} />);
+
+        // Should have the fallback gradient div
+        const fallbackGradient = container.querySelector('.bg-gradient-to-br');
+        expect(fallbackGradient).toBeInTheDocument();
+    });
+
+    it('stops propagation on button click', () => {
+        const parentClick = jest.fn();
+        const onChange = jest.fn();
+
+        render(
+            <div onClick={parentClick}>
+                <SubtitlePositionSelector {...defaultProps} onChange={onChange} />
+            </div>
+        );
+
+        fireEvent.click(screen.getByText('Middle / Upper'));
+
+        expect(onChange).toHaveBeenCalledWith('top');
+        expect(parentClick).not.toHaveBeenCalled();
+    });
+
+    it('renders descriptive text for each option', () => {
+        render(<SubtitlePositionSelector {...defaultProps} />);
+
+        expect(screen.getByText('Optimized for Reels/TikTok UI')).toBeInTheDocument();
+        expect(screen.getByText('Higher up for better visibility')).toBeInTheDocument();
+        expect(screen.getByText('Cinematic low placement')).toBeInTheDocument();
+    });
+
+    it('renders phone mockup UI elements', () => {
+        const { container } = render(<SubtitlePositionSelector {...defaultProps} />);
+
+        // Check for notch
+        expect(container.querySelector('.rounded-full.bg-black\\/60')).toBeInTheDocument();
+
+        // Check for social sidebar dots
+        const sidebarDots = container.querySelectorAll('.bg-white\\/40.rounded-full');
+        expect(sidebarDots.length).toBe(3);
+    });
+});

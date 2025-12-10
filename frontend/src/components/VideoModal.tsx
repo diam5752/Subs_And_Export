@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useCallback, useRef } from 'react';
 
 interface VideoModalProps {
     isOpen: boolean;
@@ -7,8 +7,7 @@ interface VideoModalProps {
 }
 
 export function VideoModal({ isOpen, onClose, videoUrl }: VideoModalProps) {
-    const [visible, setVisible] = useState(false);
-    const [animating, setAnimating] = useState(false);
+    const containerRef = useRef<HTMLDivElement>(null);
 
     // Handle escape key to close modal
     const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -17,19 +16,14 @@ export function VideoModal({ isOpen, onClose, videoUrl }: VideoModalProps) {
         }
     }, [onClose]);
 
+    // Sync external systems only (DOM event listeners, body scroll)
     useEffect(() => {
         if (isOpen) {
-            setVisible(true);
-            requestAnimationFrame(() => setAnimating(true));
             document.addEventListener('keydown', handleKeyDown);
-            // Prevent body scroll when modal is open
             document.body.style.overflow = 'hidden';
         } else {
-            setAnimating(false);
             document.removeEventListener('keydown', handleKeyDown);
             document.body.style.overflow = '';
-            const timer = setTimeout(() => setVisible(false), 300);
-            return () => clearTimeout(timer);
         }
         return () => {
             document.removeEventListener('keydown', handleKeyDown);
@@ -37,26 +31,22 @@ export function VideoModal({ isOpen, onClose, videoUrl }: VideoModalProps) {
         };
     }, [isOpen, handleKeyDown]);
 
-    if (!visible || !videoUrl) return null;
+    // Don't render if not open and no video
+    if (!isOpen || !videoUrl) return null;
 
     return (
         <div
-            className={`fixed inset-0 z-50 flex items-center justify-center p-4 transition-all duration-300 ease-out cursor-pointer ${animating
-                    ? 'bg-black/95 backdrop-blur-2xl opacity-100'
-                    : 'bg-black/0 backdrop-blur-none opacity-0'
-                }`}
+            ref={containerRef}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 transition-all duration-300 ease-out cursor-pointer bg-black/95 backdrop-blur-2xl"
             onClick={onClose}
         >
             {/* Cinematic vignette overlay */}
             <div
-                className={`absolute inset-0 pointer-events-none transition-opacity duration-500 ${animating ? 'opacity-100' : 'opacity-0'}`}
-                style={{
-                    background: 'radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.6) 100%)'
-                }}
+                className="vignette-overlay absolute inset-0 pointer-events-none"
             />
 
             {/* Click outside hint - bottom center */}
-            <div className={`absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-2 text-white/50 text-sm transition-all duration-500 ${animating ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}>
+            <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-2 text-white/50 text-sm">
                 <span className="px-3 py-1.5 rounded-full bg-white/10 backdrop-blur-sm border border-white/10">
                     Click outside or press <kbd className="px-1.5 py-0.5 mx-1 rounded bg-white/20 text-white/70 text-xs font-mono">ESC</kbd> to close
                 </span>
@@ -64,11 +54,7 @@ export function VideoModal({ isOpen, onClose, videoUrl }: VideoModalProps) {
 
             {/* Video container */}
             <div
-                className={`relative w-full max-w-5xl aspect-video rounded-2xl overflow-hidden shadow-2xl transition-all duration-300 ease-out transform cursor-default ${animating ? 'scale-100 translate-y-0' : 'scale-95 translate-y-8'
-                    }`}
-                style={{
-                    boxShadow: animating ? '0 0 100px 20px rgba(0,0,0,0.8), 0 0 60px 10px var(--accent)' : 'none'
-                }}
+                className="video-container-glow relative w-full max-w-5xl aspect-video rounded-2xl overflow-hidden shadow-2xl cursor-default"
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Close button */}

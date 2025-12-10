@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useI18n } from '@/context/I18nContext';
 import { User } from '@/context/AuthContext';
 import { api } from '@/lib/api';
@@ -22,17 +22,13 @@ export function AccountView({
 }: AccountViewProps) {
     const { t } = useI18n();
     const router = useRouter();
+    // Use user.name as key to reset state when user changes - avoids setState in effect
     const [profileName, setProfileName] = useState(user.name);
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [deleting, setDeleting] = useState(false);
     const [deleteError, setDeleteError] = useState('');
-
-    // Sync profile name if user updates from outside
-    useEffect(() => {
-        setProfileName(user.name);
-    }, [user.name]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();

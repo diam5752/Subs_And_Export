@@ -58,6 +58,7 @@ export function SubtitlePositionSelector({ value, onChange, thumbnailUrl }: Subt
                         {/* Video Thumbnail as Background */}
                         {thumbnailUrl ? (
                             <>
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img
                                     src={thumbnailUrl}
                                     alt="Video preview"
@@ -90,11 +91,8 @@ export function SubtitlePositionSelector({ value, onChange, thumbnailUrl }: Subt
 
                         {/* Subtitle Bar - Animated with glow */}
                         <div
-                            className="absolute left-1.5 right-1.5 h-4 bg-[var(--accent)] rounded-sm transition-all duration-300 ease-out flex items-center justify-center"
-                            style={{
-                                bottom: getPreviewBottom(value),
-                                boxShadow: '0 0 8px rgba(141, 247, 223, 0.5), 0 2px 4px rgba(0,0,0,0.3)'
-                            }}
+                            className="subtitle-preview-bar absolute left-1.5 right-1.5 h-4 bg-[var(--accent)] rounded-sm transition-all duration-300 ease-out flex items-center justify-center"
+                            style={{ bottom: getPreviewBottom(value) }}
                         >
                             <div className="w-4/5 h-0.5 bg-white/90 rounded-full" />
                         </div>

@@ -15,24 +15,31 @@ interface I18nContextType {
 const I18N_STORAGE_KEY = 'preferredLocale';
 const I18nContext = createContext<I18nContextType | null>(null);
 
+// Get stored locale - only call on client
+function getStoredLocale(): Locale | null {
+  if (typeof window === 'undefined') return null;
+  const stored = localStorage.getItem(I18N_STORAGE_KEY);
+  if (stored && locales.includes(stored as Locale)) {
+    return stored as Locale;
+  }
+  return null;
+}
+
 export function I18nProvider({ children, initialLocale }: { children: React.ReactNode; initialLocale?: Locale }) {
-  const [locale, setLocaleState] = useState<Locale>(() =>
-    initialLocale && locales.includes(initialLocale) ? initialLocale : defaultLocale,
-  );
-
-  useEffect(() => {
-    if (initialLocale) return;
-    if (typeof window === 'undefined') return;
-
-    const storedLocale = localStorage.getItem(I18N_STORAGE_KEY);
-    if (storedLocale && locales.includes(storedLocale as Locale)) {
-      setLocaleState(storedLocale as Locale);
+  // Initialize with prop or default; client hydration will pick up localStorage
+  const [locale, setLocaleState] = useState<Locale>(() => {
+    if (initialLocale && locales.includes(initialLocale)) {
+      return initialLocale;
     }
-  }, [initialLocale]);
+    // During SSR this returns defaultLocale; on client it may differ
+    return getStoredLocale() ?? defaultLocale;
+  });
 
+  // Sync TO external systems (document.lang, localStorage) - this is the valid use of useEffect
   useEffect(() => {
-    if (typeof document === 'undefined') return;
-    document.documentElement.lang = locale;
+    if (typeof document !== 'undefined') {
+      document.documentElement.lang = locale;
+    }
     if (typeof window !== 'undefined') {
       localStorage.setItem(I18N_STORAGE_KEY, locale);
     }

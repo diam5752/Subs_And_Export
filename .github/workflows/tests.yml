@@ -30,8 +30,15 @@ jobs:
           pip install -r requirements.txt
           pip install pytest pytest-cov httpx
 
-      - name: Run tests
-        run: pytest
+      - name: Run tests with coverage
+        run: pytest --cov=app --cov-report=term --cov-report=xml
+
+      - name: Coverage Summary
+        run: |
+          echo "## Backend Coverage" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          pytest --cov=app --cov-report=term-missing --cov-fail-under=60 2>&1 | tail -30 >> $GITHUB_STEP_SUMMARY || true
+          echo '```' >> $GITHUB_STEP_SUMMARY
 
   frontend-tests:
     runs-on: ubuntu-latest
@@ -53,8 +60,15 @@ jobs:
       - name: Install Playwright
         run: npx playwright install --with-deps chromium
 
-      - name: Run Unit Tests
-        run: npm test -- --runInBand
+      - name: Run Unit Tests with Coverage
+        run: npm test -- --coverage --watchAll=false --coverageReporters=text --coverageReporters=lcov
+
+      - name: Coverage Summary
+        run: |
+          echo "## Frontend Coverage" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          npm test -- --coverage --watchAll=false --coverageReporters=text 2>&1 | grep -A 50 "^-" | head -30 >> $GITHUB_STEP_SUMMARY || true
+          echo '```' >> $GITHUB_STEP_SUMMARY
 
       - name: Run E2E Tests
         env:

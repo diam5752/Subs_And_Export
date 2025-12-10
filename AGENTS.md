@@ -9,6 +9,17 @@
 **Follow `.agent/rules/000-universal-sync.md` above all else.**
 This repository is governed by strict constitutional rules that apply to ALL AI models (Gemini, Claude, Copilot, etc.).
 
+## 🔗 Agent Config Files
+All these files point to `.agent/rules/` as the Single Source of Truth:
+- `.cursorrules` (Cursor)
+- `.windsurfrules` (Windsurf)
+- `.copilot-instructions` (GitHub Copilot)
+- `.geminirules` (Gemini)
+
+## 📂 Workflows
+Reusable procedures live in `.agent/workflows/`:
+- `/read-rules` - Ingest all governance rules
+
 ## 📚 Rule Index
 1.  **[Universal Sync](.agent/rules/000-universal-sync.md):** Keep all config files in sync.
 2.  **[Core Architecture](.agent/rules/00-core-architecture.md):** Local-First, Next.js + Python split. Refactor legacy code on sight.

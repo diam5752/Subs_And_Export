@@ -16,8 +16,9 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
         try {
             const result = await api.generateViralMetadata(jobId);
             setMetadata(result);
-        } catch (err: any) {
-            setError(err.message || 'Failed to generate metadata');
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : 'Failed to generate metadata';
+            setError(message);
         } finally {
             setLoading(false);
         }
