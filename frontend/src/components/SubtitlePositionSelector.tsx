@@ -133,7 +133,7 @@ export function SubtitlePositionSelector({ value, onChange, lines, onChangeLines
                         {/* Subtitle Bar - Animated with glow */}
                         {/* We render a bar per line to visualize stacking */}
                         <div
-                            className="absolute left-3 right-3 flex flex-col gap-1 items-center transition-all duration-300 ease-out"
+                            className="absolute left-3 right-3 flex flex-col gap-1 items-center transition-all duration-300 ease-out subtitle-preview-bar"
                             style={{ bottom: getPreviewBottom(value) }}
                         >
                             {Array.from({ length: lines }).map((_, i) => (

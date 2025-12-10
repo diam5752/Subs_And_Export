@@ -641,7 +641,10 @@ def _wrap_lines(
     # If 1 line: we allow SLIGHTLY wider text (up to ~42 chars) to try and fit it, but not 60.
     # 60 chars causes overflow on vertical video with this font size.
     # If >1 lines: we strictly follow MAX_SUB_LINE_CHARS (40) to ensure safety.
-    max_width_cap = int(config.MAX_SUB_LINE_CHARS * 1.05) if max_lines == 1 else config.MAX_SUB_LINE_CHARS
+    # If 1 line: we allow SLIGHTLY wider text (up to ~42 chars) to try and fit it, but not 60.
+    # 60 chars causes overflow on vertical video with this font size.
+    # If >1 lines: we strictly follow max_chars (40) to ensure safety.
+    max_width_cap = int(max_chars * 1.05) if max_lines == 1 else max_chars
     
     # Define text variable early
     text = " ".join(words)
