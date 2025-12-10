@@ -50,7 +50,7 @@ function ProcessViewWrapper(props: WrapperProps) {
             progress={props.progress ?? 0}
             statusMessage={props.statusMessage ?? ''}
             error={props.error ?? ''}
-            onStartProcessing={props.onStartProcessing ?? (async () => {})}
+            onStartProcessing={props.onStartProcessing ?? (async () => { })}
             onReset={() => {
                 setSelectedFile(null);
                 props.onReset?.();
@@ -65,7 +65,7 @@ function ProcessViewWrapper(props: WrapperProps) {
             statusStyles={props.statusStyles ?? statusStyles}
             formatDate={props.formatDate ?? formatDate}
             buildStaticUrl={props.buildStaticUrl ?? buildStaticUrl}
-            onRefreshJobs={props.onRefreshJobs ?? (async () => {})}
+            onRefreshJobs={props.onRefreshJobs ?? (async () => { })}
         />
     );
 }
@@ -121,13 +121,11 @@ beforeAll(() => {
     HTMLCanvasElement.prototype.toDataURL = jest.fn(() => 'data:image/jpeg;base64,thumb');
 
     // Ensure requestAnimationFrame exists for modal animations
-    // @ts-expect-error requestAnimationFrame is missing in jsdom by default
     global.requestAnimationFrame = (cb: FrameRequestCallback) => setTimeout(cb, 0);
 });
 
 beforeEach(() => {
     deleteJobMock.mockResolvedValue(undefined);
-    // @ts-expect-error createObjectURL is missing in jsdom
     global.URL.createObjectURL = jest.fn(() => 'blob:mock');
     global.URL.revokeObjectURL = jest.fn();
 });
@@ -154,10 +152,10 @@ it('generates and renders a thumbnail after loading video metadata', async () =>
         });
 
         expect(await screen.findByAltText(/video thumbnail/i)).toBeInTheDocument();
-    expect(screen.getByText(/Full HD \/ 1080p/i)).toBeInTheDocument();
-  } finally {
-    videoMock.restore();
-  }
+        expect(screen.getByText(/Full HD \/ 1080p/i)).toBeInTheDocument();
+    } finally {
+        videoMock.restore();
+    }
 });
 
 it('clears preview and selection when deleting the currently selected job', async () => {
@@ -177,11 +175,12 @@ it('clears preview and selection when deleting the currently selected job', asyn
             video_crf: 23,
             output_size: 10_000_000,
             resolution: '2160x3840',
+            artifacts_dir: '/tmp/artifacts',
         },
     };
 
     const onJobSelect = jest.fn();
-    const onRefreshJobs = jest.fn(async () => {});
+    const onRefreshJobs = jest.fn(async () => { });
 
     renderProcessView({
         recentJobs: [job],
@@ -218,6 +217,7 @@ it('shows the edited file resolution with a friendly label', async () => {
             video_crf: 18,
             output_size: 20_000_000,
             resolution: '3840x2160',
+            artifacts_dir: '/tmp/artifacts',
         },
     };
 
@@ -250,6 +250,7 @@ it('derives processed resolution from video metadata when API omits it', async (
                 model_size: 'medium',
                 video_crf: 23,
                 output_size: 12_000_000,
+                artifacts_dir: '/tmp/artifacts',
             },
         };
 
@@ -283,5 +284,81 @@ it('sends the chosen output resolution to the start handler', async () => {
 
     expect(onStartProcessing).toHaveBeenCalledWith(
         expect.objectContaining({ outputResolution: '2160x3840' })
+    );
+});
+
+it('correctly sets transcription provider and mode when selecting Medium model', async () => {
+    const onStartProcessing = jest.fn();
+    const file = new File(['video'], 'demo.mp4', { type: 'video/mp4' });
+
+    renderProcessView({
+        selectedFile: file,
+        onStartProcessing,
+    });
+
+    fireEvent.click(screen.getByTestId('model-medium'));
+    fireEvent.click(screen.getByRole('button', { name: /Start Processing/i }));
+    expect(onStartProcessing).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+            transcribeProvider: 'local',
+            transcribeMode: 'balanced',
+        })
+    );
+});
+
+it('correctly sets transcription provider and mode when selecting ChatGPT model', async () => {
+    const onStartProcessing = jest.fn();
+    const file = new File(['video'], 'demo.mp4', { type: 'video/mp4' });
+
+    renderProcessView({
+        selectedFile: file,
+        onStartProcessing,
+    });
+
+    fireEvent.click(screen.getByTestId('model-chatgpt'));
+    fireEvent.click(screen.getByRole('button', { name: /Start Processing/i }));
+    expect(onStartProcessing).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+            transcribeProvider: 'openai',
+            transcribeMode: 'balanced',
+        })
+    );
+});
+
+it('correctly sets transcription provider and mode when selecting Turbo model', async () => {
+    const onStartProcessing = jest.fn();
+    const file = new File(['video'], 'demo.mp4', { type: 'video/mp4' });
+
+    renderProcessView({
+        selectedFile: file,
+        onStartProcessing,
+    });
+
+    fireEvent.click(screen.getByTestId('model-turbo'));
+    fireEvent.click(screen.getByRole('button', { name: /Start Processing/i }));
+    expect(onStartProcessing).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+            transcribeProvider: 'local',
+            transcribeMode: 'turbo',
+        })
+    );
+});
+
+it('correctly sets transcription provider and mode when selecting Best model', async () => {
+    const onStartProcessing = jest.fn();
+    const file = new File(['video'], 'demo.mp4', { type: 'video/mp4' });
+
+    renderProcessView({
+        selectedFile: file,
+        onStartProcessing,
+    });
+
+    fireEvent.click(screen.getByTestId('model-best'));
+    fireEvent.click(screen.getByRole('button', { name: /Start Processing/i }));
+    expect(onStartProcessing).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+            transcribeProvider: 'local',
+            transcribeMode: 'best',
+        })
     );
 });
