@@ -609,6 +609,7 @@ export function ProcessView({
                                     <SubtitlePositionSelector
                                         value={subtitlePosition}
                                         onChange={setSubtitlePosition}
+                                        thumbnailUrl={videoInfo?.thumbnailUrl}
                                     />
                                 </div>
 

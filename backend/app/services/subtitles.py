@@ -501,16 +501,21 @@ def create_styled_subtitle_file(
     output_dir.mkdir(parents=True, exist_ok=True)
     ass_path = output_dir / f"{transcript_path.stem}.ass"
 
-    # Map position to margin_v
+    # Map position to margin_v and alignment
+    # ASS alignment: 2 = bottom center (MarginV from bottom), 8 = top center (MarginV from top)
     final_margin_v = margin_v
+    final_alignment = alignment  # Default alignment (2 = bottom center)
+    
     if subtitle_position == "top":
-         # Near middle/upper (approx 45% of height 1920 ~ 860px from bottom)
-         # Using 850 as planned
-        final_margin_v = 850
+        # Middle area - just above default, still using bottom center alignment
+        final_alignment = 2  # Bottom center
+        final_margin_v = 615  # ~32% from bottom on 1920px height (1920 * 0.32 ≈ 614)
     elif subtitle_position == "bottom":
-        # Movie style (low)
-        final_margin_v = 120
+        # Movie style (low) - keep bottom center alignment
+        final_alignment = 2  # Bottom center
+        final_margin_v = 120  # Close to bottom
     # else "default" uses the passed margin_v (defaulting to config.DEFAULT_SUB_MARGIN_V = 320)
+    # with bottom center alignment (2)
 
     header = _ass_header(
         font=font,
@@ -520,7 +525,7 @@ def create_styled_subtitle_file(
         outline_color=outline_color,
         back_color=back_color,
         outline=outline,
-        alignment=alignment,
+        alignment=final_alignment,
         margin_v=final_margin_v,
         margin_l=margin_l,
         margin_r=margin_r,

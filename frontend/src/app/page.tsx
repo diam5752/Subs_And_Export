@@ -142,6 +142,7 @@ export default function DashboardPage() {
         video_resolution: options.outputResolution,
         use_llm: options.useAI,
         context_prompt: options.contextPrompt,
+        subtitle_position: options.subtitle_position,
       });
       setJobId(result.id);
     } catch (err) {
