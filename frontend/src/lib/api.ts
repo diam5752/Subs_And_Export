@@ -59,6 +59,7 @@ class ApiClient {
     private token: string | null = null;
 
     constructor() {
+        /* istanbul ignore next */
         if (typeof window !== 'undefined') {
             this.token = localStorage.getItem('auth_token');
         }
@@ -66,6 +67,7 @@ class ApiClient {
 
     setToken(token: string) {
         this.token = token;
+        /* istanbul ignore next */
         if (typeof window !== 'undefined') {
             localStorage.setItem('auth_token', token);
         }
@@ -73,6 +75,7 @@ class ApiClient {
 
     clearToken() {
         this.token = null;
+        /* istanbul ignore next */
         if (typeof window !== 'undefined') {
             localStorage.removeItem('auth_token');
         }

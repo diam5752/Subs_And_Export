@@ -114,6 +114,25 @@ describe('API Client', () => {
             expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/videos/process'), expect.objectContaining({ method: 'POST' }));
             expect(result.id).toBe('job-123');
         });
+
+        it('should use default settings when optional values are missing', async () => {
+            const mockResponse = { id: 'job-def', status: 'pending', progress: 0, message: null, created_at: Date.now(), updated_at: Date.now(), result_data: null };
+            (fetch as jest.Mock).mockResolvedValueOnce({ ok: true, json: async () => mockResponse });
+
+            const { api } = await import('@/lib/api');
+            const file = new File(['video'], 'default.mp4', { type: 'video/mp4' });
+            await api.processVideo(file, {});
+
+            const callArgs = (fetch as jest.Mock).mock.calls[0];
+            const formData = callArgs[1].body as FormData;
+
+            // Check defaults
+            expect(formData.get('transcribe_model')).toBe('medium');
+            expect(formData.get('transcribe_provider')).toBe('local');
+            expect(formData.get('video_quality')).toBe('balanced');
+            expect(formData.get('subtitle_position')).toBe('default');
+            expect(formData.get('max_subtitle_lines')).toBe('2');
+        });
     });
 
     describe('getJobStatus', () => {
@@ -169,7 +188,7 @@ describe('API Client', () => {
     });
 
     describe('getHistory', () => {
-        it('should fetch history events', async () => {
+        it('should fetch history events with custom limit', async () => {
             const mockHistory = [{ ts: '2024-01-01', user_id: '123', email: 'test@test.com', kind: 'video_processed', summary: 'Test', data: {} }];
             (fetch as jest.Mock).mockResolvedValueOnce({ ok: true, json: async () => mockHistory });
 
@@ -178,6 +197,13 @@ describe('API Client', () => {
 
             expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/history/?limit=10'), expect.anything());
             expect(result).toHaveLength(1);
+        });
+
+        it('should fetch history events with default limit', async () => {
+            (fetch as jest.Mock).mockResolvedValueOnce({ ok: true, json: async () => [] });
+            const { api } = await import('@/lib/api');
+            await api.getHistory();
+            expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/history/?limit=50'), expect.anything());
         });
     });
 
@@ -309,6 +335,27 @@ describe('API Client', () => {
 
             const { api } = await import('@/lib/api');
             await expect(api.getCurrentUser()).rejects.toThrow('Request failed');
+        });
+
+        it('should handle error object with detail as object', async () => {
+            (fetch as jest.Mock).mockResolvedValueOnce({
+                ok: false,
+                json: async () => ({ detail: { info: 'Complex error' } })
+            });
+
+            const { api } = await import('@/lib/api');
+            await expect(api.getCurrentUser()).rejects.toThrow('{"info":"Complex error"}');
+        });
+
+        it('should handle error with message property', async () => {
+            (fetch as jest.Mock).mockResolvedValue({
+                ok: false,
+                json: async () => ({ message: 'Error message prop' }),
+            });
+            const { api } = await import('@/lib/api');
+            // Assuming we can use processVideo or simply check request generally
+            // But we need to call something that uses request(). getCurrentUser does.
+            await expect(api.getCurrentUser()).rejects.toThrow('Error message prop');
         });
     });
 });

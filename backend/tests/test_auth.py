@@ -402,6 +402,33 @@ class TestDeleteAccount:
         response = client.delete("/auth/me")
         assert response.status_code == 401
 
+    def test_delete_account_error(self, client, test_user_data, monkeypatch):
+        """Test 500 error when delete account fails (e.g. session revocation fails)."""
+        # Register and login
+        client.post("/auth/register", json=test_user_data)
+        login_response = client.post(
+            "/auth/token",
+            data={
+                "username": test_user_data["email"],
+                "password": test_user_data["password"]
+            }
+        )
+        token = login_response.json()["access_token"]
+        
+        from backend.app.core.auth import SessionStore
+        
+        def mock_revoke_all(*args, **kwargs):
+            raise Exception("Database connection failed")
+            
+        monkeypatch.setattr(SessionStore, "revoke_all_sessions", mock_revoke_all)
+        
+        response = client.delete(
+            "/auth/me",
+            headers={"Authorization": f"Bearer {token}"}
+        )
+        assert response.status_code == 500
+        assert "Failed to delete account" in response.json()["detail"]
+
 
 class TestDeleteJob:
     """Test job deletion endpoint."""

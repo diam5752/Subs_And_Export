@@ -35,10 +35,23 @@ def test_job_store_lifecycle(tmp_path: Path):
     assert updated.progress == 25
     assert updated.result_data["a"] == 1
 
+
     # Calling update with no changes is a no-op
     store.update_job(job.id)
     listed = store.list_jobs_for_user(user_id)
     assert listed and listed[0].id == job.id
+
+    # Test delete_job
+    store.delete_job(job.id)
+    assert store.get_job(job.id) is None
+    
+    # Test delete_jobs_for_user
+    j2 = store.create_job("j2", user_id)
+    j3 = store.create_job("j3", user_id)
+    store.delete_jobs_for_user(user_id)
+    assert store.get_job("j2") is None
+    assert store.get_job("j3") is None
+    assert len(store.list_jobs_for_user(user_id)) == 0
 
 
 def test_run_video_processing_success(monkeypatch, tmp_path: Path):

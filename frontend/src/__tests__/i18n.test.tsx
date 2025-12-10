@@ -1,5 +1,6 @@
 import React from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import '@testing-library/jest-dom';
 import DashboardPage from '@/app/page';
 import LoginPage from '@/app/login/page';
 import { LanguageToggle } from '@/components/LanguageToggle';
@@ -139,5 +140,19 @@ describe('localized pages', () => {
         expect(await screen.findByText(/Build export-ready shorts/i)).toBeInTheDocument();
         expect(screen.getByText('Drop your vertical clip')).toBeInTheDocument();
         expect(screen.getByText('Sign in to your account')).toBeInTheDocument();
+    });
+
+    it('throws error when useI18n is used outside of I18nProvider', () => {
+        // Prevent console.error from cluttering the test output
+        const consoleError = jest.spyOn(console, 'error').mockImplementation(() => { });
+
+        const BadComponent = () => {
+            useI18n();
+            return null;
+        };
+
+        expect(() => render(<BadComponent />)).toThrow('useI18n must be used within an I18nProvider');
+
+        consoleError.mockRestore();
     });
 });

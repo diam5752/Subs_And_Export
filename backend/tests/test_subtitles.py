@@ -344,3 +344,170 @@ def test_build_social_copy_llm_empty_response(monkeypatch):
 
     with pytest.raises(ValueError):
         subtitles.build_social_copy_llm("hi")
+
+
+def test_transcribe_openai_error(monkeypatch, tmp_path):
+    """Test OpenAI transcription failure."""
+    class Boom:
+        def create(self, *args, **kwargs):
+            raise Exception("API Error")
+            
+    class DummyClient:
+        class audio:
+            class transcriptions:
+                create = Boom().create
+
+    monkeypatch.setenv("OPENAI_API_KEY", "k")
+    monkeypatch.setattr(subtitles, "_load_openai_client", lambda api_key: DummyClient())
+
+    with pytest.raises(RuntimeError) as exc:
+        subtitles._transcribe_with_openai(
+            tmp_path / "audio.wav", 
+            "whisper-1", 
+            "el", 
+            None, 
+            tmp_path
+        )
+    assert "OpenAI transcription failed" in str(exc.value)
+
+def test_resolve_openai_api_key(monkeypatch, tmp_path):
+    """Test API key resolution."""
+    # 1. Explicit
+    assert subtitles._resolve_openai_api_key("key") == "key"
+    
+    # 2. Env
+    monkeypatch.setenv("OPENAI_API_KEY", "env_key")
+    assert subtitles._resolve_openai_api_key() == "env_key"
+    
+    # 3. File
+    monkeypatch.delenv("OPENAI_API_KEY")
+    secrets = tmp_path / "secrets.toml"
+    secrets.write_text('OPENAI_API_KEY="file_key"')
+    monkeypatch.setattr(subtitles.config, "PROJECT_ROOT", tmp_path / "project")
+    # Mocking config lookup path which is config.PROJECT_ROOT / "config" / "secrets.toml"
+    # We need to align the path
+    config_dir = tmp_path / "project/config"
+    config_dir.mkdir(parents=True)
+    (config_dir / "secrets.toml").write_text('OPENAI_API_KEY="file_key"')
+    
+    assert subtitles._resolve_openai_api_key() == "file_key"
+
+def test_create_styled_subtitle_max_lines_1(tmp_path):
+    """Test max_lines=1 triggers cue splitting."""
+    # Long text that needs splitting, needs word timings for logic to work
+    long_text = "A very long sentence"
+    # Create enough words to force split with max_chars=40 (hardcoded in max_lines=1 mode)
+    # Actually logic uses 40 chars limit.
+    # "A very long sentence" is short. we need longer.
+    long_text = "A very long sentence that definitely exceeds the character limit for a single line on TikTok style subtitles"
+    
+    # We need dummy words for splitting to work
+    # Just split by space and assign dummy times
+    words = []
+    current_time = 0.0
+    for w in long_text.split():
+        words.append(subtitles.WordTiming(current_time, current_time+0.1, w.upper()))
+        current_time += 0.1
+        
+    cue = subtitles.Cue(start=0, end=current_time, text=long_text.upper(), words=words)
+    
+    srt = tmp_path / "test.srt"
+    srt.write_text(f"1\n00:00:00,000 --> 00:00:10,000\n{long_text}\n", encoding="utf-8")
+    
+    ass = subtitles.create_styled_subtitle_file(srt, cues=[cue], max_lines=1)
+    content = ass.read_text("utf-8")
+    
+    # Verify we have multiple events (split)
+    assert content.count("Dialogue:") > 1
+
+def test_subtitle_position_logic(tmp_path):
+    """Test vertical positioning logic."""
+    srt = tmp_path / "dummy.srt"
+    srt.write_text("1\n00:00,00 --> 00:01,00\nHi", "utf-8")
+    
+    # Top: MarginV=615
+    ass_top = subtitles.create_styled_subtitle_file(srt, subtitle_position="top")
+    # Check Style definition line for MarginV (21st parameter)
+    # Style: Default,Arial,20,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,1,1,4,2,60,60,615,0
+    assert ",615,0" in ass_top.read_text("utf-8")
+    
+    # Bottom: MarginV=120
+    ass_bottom = subtitles.create_styled_subtitle_file(srt, subtitle_position="bottom")
+    assert ",120,0" in ass_bottom.read_text("utf-8")
+
+def test_wrap_lines_empty():
+    """Test empty input handling."""
+    assert subtitles._wrap_lines([]) == []
+
+def test_split_long_cues_logic():
+    """Test splitting logic."""
+    # 1. With words
+    words = [
+        subtitles.WordTiming(0, 1, "Short"),
+        subtitles.WordTiming(1, 2, "And"),
+        subtitles.WordTiming(2, 3, "Sweet"),
+    ]
+    cue = subtitles.Cue(0, 3, "SHORT AND SWEET", words=words)
+    # Split small
+    split = subtitles._split_long_cues([cue], max_chars=5)
+    assert len(split) > 1
+    assert split[0].text == "Short"
+    assert split[1].text == "And"
+    
+    # 2. Without words
+    cue_no_words = subtitles.Cue(0, 3, "SHORT AND SWEET", words=None)
+    split_nw = subtitles._split_long_cues([cue_no_words], max_chars=5)
+    # Fallback keeps it as is currently implementation
+    assert len(split_nw) == 1
+
+def test_transcribe_with_openai_success(monkeypatch, tmp_path):
+    """Test successful OpenAI transcription."""
+    from backend.app.services import subtitles
+    
+    class MockSegment:
+        def __init__(self, start, end, text, words=None):
+            self.start = start
+            self.end = end
+            self.text = text
+            self.words = words
+            
+    class MockWord:
+        def __init__(self, start, end, word):
+            self.start = start
+            self.end = end
+            self.word = word
+            
+    class MockTranscript:
+        segments = [
+            MockSegment(0.0, 1.0, "Hello world", words=[
+                MockWord(0.0, 0.5, "Hello"),
+                MockWord(0.5, 1.0, "world")
+            ])
+        ]
+        # Also simulate top-level words for robustness
+        words = [
+            MockWord(0.0, 0.5, "Hello"),
+            MockWord(0.5, 1.0, "world")
+        ]
+        
+    class Client:
+        class audio:
+            class transcriptions:
+                @staticmethod
+                def create(*args, **kwargs):
+                    return MockTranscript()
+                    
+    monkeypatch.setenv("OPENAI_API_KEY", "testkey")
+    monkeypatch.setattr(subtitles, "_load_openai_client", lambda k: Client())
+    
+    audio_path = tmp_path / "test.wav"
+    audio_path.touch()
+    
+    srt_path, cues = subtitles._transcribe_with_openai(
+        audio_path, "whisper-1", "en", None, tmp_path
+    )
+    
+    assert srt_path.exists()
+    assert len(cues) == 1
+    assert cues[0].text == "HELLO WORLD"
+    assert len(cues[0].words) == 2

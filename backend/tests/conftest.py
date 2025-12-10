@@ -29,3 +29,25 @@ def client():
     from fastapi.testclient import TestClient
     from backend.main import app
     return TestClient(app)
+
+
+@pytest.fixture
+def user_auth_headers(client):
+    """Return auth headers for a test user."""
+    email = "test@example.com"
+    password = "testpassword123"
+    client.post("/auth/register", json={"email": email, "password": password, "name": "Test User"})
+    response = client.post(
+        "/auth/token",
+        data={"username": email, "password": password}
+    )
+    token = response.json().get("access_token")
+    if not token:
+        # If user already exists (shared db), try login
+        response = client.post(
+            "/auth/token",
+            data={"username": email, "password": password}
+        )
+        token = response.json().get("access_token")
+        
+    return {"Authorization": f"Bearer {token}"}
