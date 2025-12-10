@@ -81,13 +81,8 @@ for (const [label, viewport] of Object.entries(viewports)) {
       await mockApi(page);
       await page.goto('/');
 
-      // Use page.evaluate to directly trigger the click to avoid interception issues
-      await page.evaluate(() => {
-        const button = document.querySelector('button[aria-label="Ρυθμίσεις λογαριασμού"]') as HTMLButtonElement;
-        if (button) {
-          button.click();
-        }
-      });
+      // Wait for the account settings button to be rendered (after auth check) and click it
+      await page.getByRole('button', { name: el.accountSettingsTitle }).click();
 
       // Wait for the modal heading (the modal title is the first one visible)
       await page.getByRole('heading', { name: el.accountSettingsTitle }).first().waitFor({ timeout: 5000 });
