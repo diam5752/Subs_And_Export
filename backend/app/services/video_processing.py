@@ -233,6 +233,7 @@ def normalize_and_stub_subtitles(
     openai_api_key: str | None = None,
     output_width: int | None = None,
     output_height: int | None = None,
+    subtitle_position: str = "default",
 ) -> Path | tuple[Path, subtitles.SocialCopy]:
     """
     Normalize video to 9:16, generate Greek subs, and burn them into the output.
@@ -366,7 +367,11 @@ def normalize_and_stub_subtitles(
                 progress_callback("Styling subtitles...", 65.0)
             
             with metrics.measure_time(pipeline_timings, "style_subs_s"):
-                ass_path = subtitles.create_styled_subtitle_file(srt_path, cues=cues)
+                ass_path = subtitles.create_styled_subtitle_file(
+                    srt_path, 
+                    cues=cues,
+                    subtitle_position=subtitle_position,
+                )
 
             transcript_text = subtitles.cues_to_text(cues)
             

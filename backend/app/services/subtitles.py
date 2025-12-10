@@ -481,6 +481,7 @@ def create_styled_subtitle_file(
     margin_v: int = config.DEFAULT_SUB_MARGIN_V,
     margin_l: int = config.DEFAULT_SUB_MARGIN_L,
     margin_r: int = config.DEFAULT_SUB_MARGIN_R,
+    subtitle_position: str = "default",  # "default", "top", "bottom"
     output_dir: Path | None = None,
 ) -> Path:
     """
@@ -500,6 +501,17 @@ def create_styled_subtitle_file(
     output_dir.mkdir(parents=True, exist_ok=True)
     ass_path = output_dir / f"{transcript_path.stem}.ass"
 
+    # Map position to margin_v
+    final_margin_v = margin_v
+    if subtitle_position == "top":
+         # Near middle/upper (approx 45% of height 1920 ~ 860px from bottom)
+         # Using 850 as planned
+        final_margin_v = 850
+    elif subtitle_position == "bottom":
+        # Movie style (low)
+        final_margin_v = 120
+    # else "default" uses the passed margin_v (defaulting to config.DEFAULT_SUB_MARGIN_V = 320)
+
     header = _ass_header(
         font=font,
         font_size=font_size,
@@ -509,7 +521,7 @@ def create_styled_subtitle_file(
         back_color=back_color,
         outline=outline,
         alignment=alignment,
-        margin_v=margin_v,
+        margin_v=final_margin_v,
         margin_l=margin_l,
         margin_r=margin_r,
     )

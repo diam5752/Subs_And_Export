@@ -3,6 +3,7 @@ import { api, JobResponse } from '@/lib/api';
 import { useI18n } from '@/context/I18nContext';
 import { VideoModal } from './VideoModal';
 import { ViralIntelligence } from './ViralIntelligence';
+import { SubtitlePositionSelector } from './SubtitlePositionSelector';
 
 type TranscribeMode = 'fast' | 'balanced' | 'turbo' | 'best';
 type TranscribeProvider = 'local' | 'openai';
@@ -33,6 +34,7 @@ export interface ProcessingOptions {
     outputResolution: '1080x1920' | '2160x3840';
     useAI: boolean;
     contextPrompt: string;
+    subtitle_position: string;
 }
 
 const parseResolutionString = (resolution?: string | null): { width: number; height: number } | null => {
@@ -98,6 +100,7 @@ export function ProcessView({
     const [transcribeProvider, setTranscribeProvider] = useState<TranscribeProvider>('local');
     const [outputQuality, setOutputQuality] = useState<'low size' | 'balanced' | 'high quality'>('balanced');
     const [outputResolutionChoice, setOutputResolutionChoice] = useState<'1080x1920' | '2160x3840'>('1080x1920');
+    const [subtitlePosition, setSubtitlePosition] = useState('default');
     const [useAI, setUseAI] = useState(false);
     const [contextPrompt, setContextPrompt] = useState('');
     const [videoInfo, setVideoInfo] = useState<{ width: number; height: number; aspectWarning: boolean; thumbnailUrl: string | null } | null>(null);
@@ -209,6 +212,7 @@ export function ProcessView({
         validationRequestId.current += 1;
         setVideoInfo(null);
         setOutputResolutionChoice('1080x1920');
+        setSubtitlePosition('default');
         if (fileInputRef.current) {
             fileInputRef.current.value = '';
         }
@@ -247,6 +251,7 @@ export function ProcessView({
             outputResolution: outputResolutionChoice,
             useAI,
             contextPrompt,
+            subtitle_position: subtitlePosition,
         });
     };
 
@@ -598,6 +603,13 @@ export function ProcessView({
                                             </button>
                                         ))}
                                     </div>
+                                </div>
+
+                                <div>
+                                    <SubtitlePositionSelector
+                                        value={subtitlePosition}
+                                        onChange={setSubtitlePosition}
+                                    />
                                 </div>
 
                                 <div className="pt-2">

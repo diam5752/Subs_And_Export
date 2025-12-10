@@ -1,0 +1,53 @@
+#!/bin/bash
+
+# Function to handle cleanup on exit
+cleanup() {
+    echo ""
+    echo "🛑 Stopping servers..."
+    if [ ! -z "$BACKEND_PID" ]; then
+        kill $BACKEND_PID
+    fi
+    if [ ! -z "$FRONTEND_PID" ]; then
+        kill $FRONTEND_PID
+    fi
+    exit
+}
+
+# Trap signals
+trap cleanup SIGINT SIGTERM
+
+echo "🚀 Starting Full Stack Environment..."
+
+# Activate virtual environment if it exists
+if [ -d "venv" ]; then
+    echo "🐍 Activating virtual environment..."
+    source venv/bin/activate
+else
+    echo "⚠️  No venv found in root. Assuming python/pip are in path or handled otherwise."
+fi
+
+echo "🧹 Killing old servers on ports 8000 and 3000..."
+lsof -ti:8000 | xargs kill -9 2>/dev/null || true
+lsof -ti:3000 | xargs kill -9 2>/dev/null || true
+
+
+# Start Backend
+echo "⚙️  Starting Backend (Port 8000)..."
+# Run as module from root so relative imports in main.py work
+uvicorn backend.main:app --reload --port 8000 &
+BACKEND_PID=$!
+
+# Start Frontend
+echo "🎨 Starting Frontend (Port 3000)..."
+cd frontend
+npm run dev &
+FRONTEND_PID=$!
+cd ..
+
+echo "✅ Servers are running!"
+echo "   Backend: http://localhost:8000"
+echo "   Frontend: http://localhost:3000"
+echo "   Press Ctrl+C to stop both."
+
+# Wait for processes
+wait

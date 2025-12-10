@@ -52,6 +52,7 @@ class ProcessingSettings(BaseModel):
     context_prompt: str = ""
     llm_model: str = APP_SETTINGS.llm_model
     llm_temperature: float = APP_SETTINGS.llm_temperature
+    subtitle_position: str = "default"
 
 
 def _save_upload_with_limit(upload: UploadFile, destination: Path) -> None:
@@ -154,6 +155,7 @@ def run_video_processing(
             progress_callback=progress_callback,
             output_width=target_width,
             output_height=target_height,
+            subtitle_position=settings.subtitle_position,
         )
         
         # Result unpacking
@@ -220,6 +222,7 @@ async def process_video(
     video_resolution: str = Form(""),
     use_llm: bool = Form(APP_SETTINGS.use_llm_by_default),
     context_prompt: str = Form(""),
+    subtitle_position: str = Form("default"),
     current_user: User = Depends(get_current_user),
     job_store: JobStore = Depends(get_job_store),
     history_store: HistoryStore = Depends(get_history_store)
@@ -277,7 +280,8 @@ async def process_video(
         target_width=target_width,
         target_height=target_height,
         use_llm=use_llm,
-        context_prompt=context_prompt
+        context_prompt=context_prompt,
+        subtitle_position=subtitle_position,
     )
     
     background_tasks.add_task(
