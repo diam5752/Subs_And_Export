@@ -7,9 +7,10 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks
 from pydantic import BaseModel
 
-from ... import tiktok, config
-from ...auth import User, UserStore, SessionStore
-from ...history import HistoryStore
+from ...services import tiktok
+from ...core import config
+from ...core.auth import User, UserStore, SessionStore
+from ...services.history import HistoryStore
 from ..deps import get_current_user, get_user_store, get_history_store
 
 router = APIRouter()

@@ -5,17 +5,16 @@ from typing import List
 from fastapi import APIRouter, Depends, UploadFile, File, Form, BackgroundTasks, HTTPException, Request
 from pydantic import BaseModel
 
-from greek_sub_publisher.app_settings import load_app_settings
+from ...core.settings import load_app_settings
 
-from ... import config
-from ...jobs import JobStore
-from ...video_processing import normalize_and_stub_subtitles
-from ...auth import User
-from ...history import HistoryStore
-from ...history import HistoryStore
-from ...schemas import JobResponse, ViralMetadataResponse
+from ...core import config
+from ...services.jobs import JobStore
+from ...services.video_processing import normalize_and_stub_subtitles
+from ...core.auth import User
+from ...services.history import HistoryStore
+from ...schemas.base import JobResponse, ViralMetadataResponse
 from ..deps import get_current_user, get_job_store, get_history_store
-from greek_sub_publisher.subtitles import generate_viral_metadata
+from ...services.subtitles import generate_viral_metadata
 
 router = APIRouter()
 
@@ -295,7 +294,7 @@ async def process_video(
     )
 
     # Trigger Cleanup
-    from ...cleanup import cleanup_old_jobs
+    from ...common.cleanup import cleanup_old_jobs
     background_tasks.add_task(
         cleanup_old_jobs,
         uploads_dir,

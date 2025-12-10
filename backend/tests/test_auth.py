@@ -4,9 +4,9 @@ import types
 import pytest
 from fastapi.testclient import TestClient
 from backend.main import app
-from backend.app import auth as backend_auth
+from backend.app.core import auth as backend_auth
 from backend.app.api.endpoints import auth as auth_ep
-from backend.app.database import Database
+from backend.app.core.database import Database
 
 
 

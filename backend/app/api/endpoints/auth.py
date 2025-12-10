@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
 
-from ...auth import UserStore, SessionStore, User
+from ...core.auth import UserStore, SessionStore, User
 from ..deps import get_user_store, get_session_store, get_current_user
 
 router = APIRouter()
@@ -129,7 +129,7 @@ def delete_account(
 
 # Google OAuth
 import secrets
-from ...auth import google_oauth_config, build_google_flow, exchange_google_code
+from ...core.auth import google_oauth_config, build_google_flow, exchange_google_code
 
 class GoogleAuthURL(BaseModel):
     auth_url: str

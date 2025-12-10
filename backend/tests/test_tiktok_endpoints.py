@@ -2,7 +2,7 @@
 import pytest
 from pathlib import Path
 from unittest.mock import MagicMock
-from backend.app import tiktok
+from backend.app.services import tiktok
 
 class TestTikTokEndpoints:
     def test_get_url_no_config(self, client):
@@ -68,7 +68,7 @@ class TestTikTokEndpoints:
         monkeypatch.setenv("TIKTOK_REDIRECT_URI", "uri")
         
         # Patch PROJECT_ROOT to verify path security logic works with tmp paths
-        from backend.app import config
+        from backend.app.core import config
         # Structure: root/parent/data
         # We need config.PROJECT_ROOT.parent to exist
         fake_app_dir = tmp_path / "backend" / "app"

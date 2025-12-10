@@ -1,7 +1,0 @@
-typer>=0.12.5
-pytest>=7.4
-pytest-cov>=5.0
-faster-whisper>=1.0.3
-requests>=2.31.0
-google-auth>=2.29.0
-google-auth-oauthlib>=1.2.0

@@ -1,8 +1,8 @@
 from pathlib import Path
 from fastapi.testclient import TestClient
 from backend.app.api.endpoints import tiktok as tiktok_ep
-from backend.app import tiktok
-from backend.app import config as backend_config
+from backend.app.services import tiktok
+from backend.app.core import config as backend_config
 from backend.main import app
 
 

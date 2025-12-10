@@ -4,11 +4,11 @@ from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from pydantic import ValidationError
 
-from ..database import Database
-from ..auth import UserStore, SessionStore, User
-from ..jobs import JobStore
-from ..history import HistoryStore
-from .. import config
+from ..core.database import Database
+from ..core.auth import UserStore, SessionStore, User
+from ..services.jobs import JobStore
+from ..services.history import HistoryStore
+from ..core import config
 
 # Simple OAuth2 scheme (Password flow) for Swagger UI
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")

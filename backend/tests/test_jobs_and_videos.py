@@ -3,8 +3,9 @@ import types
 import uuid
 from pathlib import Path
 
-from backend.app import jobs, auth as backend_auth
-from backend.app.database import Database
+from backend.app.services import jobs
+from backend.app.core import auth as backend_auth
+from backend.app.core.database import Database
 from backend.app.api.endpoints import videos
 from fastapi.testclient import TestClient
 from backend.main import app
@@ -163,8 +164,8 @@ def test_get_job_not_found(client: TestClient):
 
 
 def test_backend_wrappers_import():
-    from backend.app import metrics as backend_metrics
-    from backend.app import subtitles as backend_subtitles
+    from backend.app.common import metrics as backend_metrics
+    from backend.app.services import subtitles as backend_subtitles
 
     assert hasattr(backend_metrics, "should_log_metrics")
     assert hasattr(backend_subtitles, "create_styled_subtitle_file")

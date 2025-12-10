@@ -1,51 +1,61 @@
 # Greek Sub Publisher
 
-Local-first tooling to normalize vertical videos, transcribe Greek audio with faster-whisper, burn styled subtitles (ASS), and generate social copy.
+Local-first tooling for Greek subtitles and vertical video prep.
 
-## Requirements
+## Project Structure
+
+This project follows a clean monorepo structure:
+
+- **`backend/`**: FastAPI backend service.
+    - `app/core`: Configuration, Auth, Database.
+    - `app/services`: Business logic (Video Processing, Subtitles).
+    - `app/api`: REST Endpoints.
+- **`frontend/`**: Next.js frontend application.
+- **`docker-compose.yml`**: orchestration for the full stack.
+
+## Quick Start (Docker)
+
+The easiest way to run the project is with Docker:
+
+```bash
+make docker-up
+```
+This will build and start both backend (port 8000) and frontend (port 3000).
+
+## Local Development
+
+### Prerequisites
 - Python 3.11+
-- ffmpeg available on PATH
-- Optional for LLM copy: `OPENAI_API_KEY` and `pip install openai` (see `OPENAI_SETUP.md` for secure setup tips)
-- Optional for auth/publishing:
-  - Google OAuth: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI`
-  - TikTok publishing: `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET`, `TIKTOK_REDIRECT_URI`
-    (register an app in TikTok Dev Console; enable the `video.upload` scope)
+- Node.js 20+
+- FFmpeg installed (`brew install ffmpeg`)
 
-Install deps:
+### Setup
+
 ```bash
-python -m pip install --upgrade pip
-pip install -r requirements.txt
+make install
 ```
 
-## Configuration
-- Secrets: set env vars (e.g., `OPENAI_API_KEY`, `GOOGLE_CLIENT_ID`) or copy `config/secrets.example.toml` to `config/secrets.toml` (override path via `GSP_SECRETS_FILE`).
-- App defaults: copy `config/app_settings.example.toml` to `config/app_settings.toml` to set the default AI toggle, model/temperature, and upload size cap for the FastAPI/Next.js stack (`GSP_APP_SETTINGS_FILE` overrides the path).
+### Running
 
-## Usage
+To run the backend locally:
 ```bash
-python -m greek_sub_publisher.cli INPUT.mp4 --output OUTPUT.mp4 --artifacts ./artifacts \
-  --model medium --language el --beam-size 5 --best-of 1
+make run
 ```
-Add `--llm-social-copy` (and optionally `--llm-model`, `--llm-temperature`) to draft social copy via an OpenAI-compatible LLM.
 
-Artifacts directory will contain WAV/SRT/ASS/transcript and social_copy files.
+To run the frontend:
+```bash
+cd frontend && npm run dev
+```
 
-Need help configuring OpenAI? Check `OPENAI_SETUP.md` for environment variable and secrets instructions.
+### Testing
 
-## Auth, sessions, and TikTok uploads
-- Users can sign in with Google or a local email/password account (hashed + salted). The app now uses a SQLite database (`logs/app.db` by default) instead of loose JSON files. Override the path with `GSP_DATABASE_PATH` to place the DB on a persistent volume (e.g., an EBS mount in AWS).
-- All processing/publishing runs are tied to the signed-in user and logged to the `history` table. Session tokens are hashed at rest; they auto-issue on both Google and local logins so returning users are signed in automatically in the web UI.
-- TikTok uploads stay inside the app: connect your TikTok account (OAuth) and upload the processed MP4 directly after a run. Tokens are stored in session only; reconnect when expired.
+Run the full backend test suite:
+```bash
+make test
+```
 
-## Production readiness
-- **Scalability**: SQLite is opened in WAL mode with a busy-timeout for better concurrency; for heavier multi-instance deployments point `GSP_DATABASE_PATH` at a shared filesystem path or swap to a managed SQL backend by reusing the `Database` helper.
-- **Security & privacy**: Passwords and session tokens are hashed; Google OAuth IDs are stored for account linking only. Audit logs stay local-first. Review your privacy policy and OAuth consent screen before publishing.
-- **Cloud deployment**: On AWS/other clouds, run the FastAPI backend (`uvicorn backend.main:app`) behind TLS alongside the Next.js frontend. Persist `logs/app.db` on durable storage and set env vars or `config/secrets.toml` values for Google/TikTok OAuth secrets. Add network egress controls if processing sensitive media.
-
-## Tests
-- Fast suite (CI default): `pytest -m "not slow"`
-- Full suite (includes regression on `tests/data/demo.mp4` and Whisper run): `pytest`
-- LLM path is tested with stubs; no network required.
-
-## CI
-GitHub Actions workflow `.github/workflows/tests.yml` installs deps and runs `pytest -m "not slow"` to avoid downloading large Whisper models. Run the full suite locally before releases.***
+## Features
+- **Auto-Subtitles**: Generates Greek subtitles using Faster-Whisper.
+- **Vertical Crop**: Intelligently crops videos for TikTok/Reels.
+- **Social Upload**: Uploads directly to TikTok.
+- **Viral Intelligence**: Generates viral hooks and captions/hashtags.

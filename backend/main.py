@@ -18,7 +18,7 @@ from starlette.requests import Request
 from starlette.types import ASGIApp
 
 from .app.api.endpoints import auth, videos, tiktok, history
-from .app import config
+from .app.core import config
 
 app = FastAPI(
     title="Greek Sub Publisher API",
