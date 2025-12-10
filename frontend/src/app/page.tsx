@@ -1,14 +1,16 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { api, API_BASE } from '@/lib/api';
+import { api, JobResponse } from '@/lib/api';
+import { formatDate, buildStaticUrl } from '@/lib/utils';
 import { useI18n } from '@/context/I18nContext';
 import { LanguageToggle } from '@/components/LanguageToggle';
 import { ProcessView, ProcessingOptions } from '@/components/ProcessView';
 import { AccountView } from '@/components/AccountView';
 import { useJobs } from '@/hooks/useJobs';
+import { useJobPolling, JobPollingCallbacks } from '@/hooks/useJobPolling';
 
 const statusStyles: Record<string, string> = {
   completed: 'bg-green-500/15 text-green-300 border-green-500/30',
@@ -17,25 +19,20 @@ const statusStyles: Record<string, string> = {
   failed: 'bg-[var(--danger)]/15 text-[var(--danger)] border-[var(--danger)]/40',
 };
 
-function formatDate(ts: string | number): string {
-  const d = new Date(ts);
-  if (Number.isNaN(d.getTime())) return ts.toString();
-  return d.toLocaleString();
-}
-
-function buildStaticUrl(path?: string | null): string | null {
-  if (!path) return null;
-  const cleaned = path.replace(/^https?:\/\/[^/]+/i, '');
-  const withPrefix = cleaned.startsWith('/static/')
-    ? cleaned
-    : `/static/${cleaned.replace(/^\/?data\//, '').replace(/^\/?static\//, '')}`;
-  return `${API_BASE}${withPrefix}`;
-}
-
 export default function DashboardPage() {
   const { user, isLoading, logout, refreshUser } = useAuth();
   const router = useRouter();
   const { t } = useI18n();
+
+  // Handler functions (extracted for testability)
+  /* istanbul ignore next -- browser reload not testable in JSDOM */
+  const handleReloadPage = useCallback(() => {
+    window.location.reload();
+  }, []);
+
+  const handleCloseAccountPanel = useCallback(() => {
+    setShowAccountPanel(false);
+  }, []);
 
 
 
@@ -78,39 +75,37 @@ export default function DashboardPage() {
     await loadJobs();
   }, [loadJobs]);
 
-  // Polling for job status
-  useEffect(() => {
-    if (!jobId) return;
+  // Polling callbacks
+  const pollingCallbacks = useMemo<JobPollingCallbacks>(() => ({
+    onProgress: (progress: number, message: string) => {
+      setProgress(progress);
+      setStatusMessage(message);
+    },
+    onComplete: (job: JobResponse) => {
+      setIsProcessing(false);
+      setJobId(null);
+      setSelectedJob(job);
+      setProcessError('');
+      refreshActivity();
+    },
+    onFailed: (errorMessage: string) => {
+      setProcessError(errorMessage);
+      setIsProcessing(false);
+      setJobId(null);
+      refreshActivity();
+    },
+    onError: (errorMessage: string) => {
+      setIsProcessing(false);
+      setProcessError(errorMessage);
+    },
+  }), [refreshActivity, setSelectedJob]);
 
-    const pollInterval = setInterval(async () => {
-      try {
-        const job = await api.getJobStatus(jobId);
-        setProgress(job.progress);
-        setStatusMessage(job.message || (job.status === 'processing' ? t('statusProcessingEllipsis') : ''));
-
-        if (job.status === 'completed') {
-          setIsProcessing(false);
-          setJobId(null);
-          setSelectedJob(job);
-          setProcessError('');
-          clearInterval(pollInterval);
-          refreshActivity();
-        } else if (job.status === 'failed') {
-          setProcessError(job.message || t('statusFailedFallback'));
-          setIsProcessing(false);
-          setJobId(null);
-          clearInterval(pollInterval);
-          refreshActivity();
-        }
-      } catch {
-        clearInterval(pollInterval);
-        setIsProcessing(false);
-        setProcessError(t('statusCheckFailed'));
-      }
-    }, 1000);
-
-    return () => clearInterval(pollInterval);
-  }, [jobId, refreshActivity, t, setSelectedJob]);
+  // Use the polling hook
+  useJobPolling({
+    jobId,
+    callbacks: pollingCallbacks,
+    t: t as (key: string) => string,
+  });
 
   const handleStartProcessing = async (options: ProcessingOptions) => {
     if (!selectedFile) return;
@@ -230,7 +225,7 @@ export default function DashboardPage() {
           </div>
 
           <button
-            onClick={() => window.location.reload()}
+            onClick={handleReloadPage}
             className="flex items-center gap-3 justify-center px-4 py-2 rounded-xl hover:bg-white/10 transition-all duration-200 cursor-pointer group"
             aria-label="Reload page"
           >
@@ -298,14 +293,14 @@ export default function DashboardPage() {
         <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 px-4">
           <div
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={() => setShowAccountPanel(false)}
+            onClick={handleCloseAccountPanel}
           />
           <div className="relative z-10 w-full max-w-2xl animate-fade-in">
             <div className="bg-[var(--surface-elevated)] border border-[var(--border)] rounded-2xl shadow-2xl overflow-hidden">
               <div className="flex items-center justify-between p-4 border-b border-[var(--border)]">
                 <h2 className="text-lg font-semibold">{t('accountSettingsTitle')}</h2>
                 <button
-                  onClick={() => setShowAccountPanel(false)}
+                  onClick={handleCloseAccountPanel}
                   className="p-2 rounded-lg hover:bg-white/10 transition-colors"
                 >
                   ✕

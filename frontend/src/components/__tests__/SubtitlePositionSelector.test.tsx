@@ -115,4 +115,14 @@ describe('SubtitlePositionSelector', () => {
         const sidebarDots = container.querySelectorAll('.bg-white\\/30.rounded-full');
         expect(sidebarDots.length).toBe(4);
     });
+
+    it('calls onChangeLines when line option button is clicked', () => {
+        const onChangeLines = jest.fn();
+        render(<SubtitlePositionSelector {...defaultProps} lines={2} onChangeLines={onChangeLines} />);
+
+        // Find line option button labeled "1 Line"
+        const lineButton1 = screen.getByRole('button', { name: '1 Line' });
+        fireEvent.click(lineButton1);
+        expect(onChangeLines).toHaveBeenCalledWith(1);
+    });
 });

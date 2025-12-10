@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 
 interface SubtitlePositionSelectorProps {
     value: string;
@@ -27,6 +27,11 @@ export function SubtitlePositionSelector({ value, onChange, lines, onChangeLines
         { id: 'top', label: 'Middle', desc: 'Higher positioning' },
         { id: 'bottom', label: 'Low', desc: 'Cinematic style' },
     ];
+
+    const handleLineChange = useCallback((num: number) => (e: React.MouseEvent) => {
+        e.stopPropagation();
+        onChangeLines(num);
+    }, [onChangeLines]);
 
     const lineOptions = [1, 2, 3];
 
@@ -74,10 +79,7 @@ export function SubtitlePositionSelector({ value, onChange, lines, onChangeLines
                             {lineOptions.map((num) => (
                                 <button
                                     key={num}
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        onChangeLines(num);
-                                    }}
+                                    onClick={handleLineChange(num)}
                                     className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${lines === num
                                         ? 'bg-[var(--accent)]/20 text-[var(--foreground)] ring-1 ring-[var(--accent)] shadow-sm'
                                         : 'text-[var(--muted)] hover:text-[var(--foreground)]'

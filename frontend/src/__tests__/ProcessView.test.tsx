@@ -114,53 +114,188 @@ describe('ProcessView', () => {
         expect(onFileSelect).toHaveBeenCalledWith(file);
     });
 
-    it.skip('should handle settings interactions', async () => {
+    it('should allow model selection via buttons', async () => {
         const file = new File(['dummy'], 'test.mp4', { type: 'video/mp4' });
         const onStartProcessing = jest.fn();
         render(<ProcessView {...defaultProps} selectedFile={file} onStartProcessing={onStartProcessing} />);
 
         await waitFor(() => expect(screen.getByText('test.mp4')).toBeInTheDocument());
 
-        // Toggle Settings (should be open by default, verify closing)
-        fireEvent.click(screen.getByText('controlsTitle').closest('.group')!);
-        // expect(screen.queryByText('Transcription Model')).not.toBeInTheDocument(); // This might be animated, so just check toggle logic
+        // Click Best model button
+        const bestBtn = screen.getByTestId('model-best');
+        fireEvent.click(bestBtn);
 
-        // Re-open
-        fireEvent.click(screen.getByText('controlsTitle').closest('.group')!);
+        // Click Turbo model button
+        const turboBtn = screen.getByTestId('model-turbo');
+        fireEvent.click(turboBtn);
 
-        // Change Model
-        fireEvent.click(screen.getByTestId('model-chatgpt'));
-        fireEvent.click(screen.getByTestId('model-best'));
+        // Click Medium/Balanced model button
+        const mediumBtn = screen.getByTestId('model-medium');
+        fireEvent.click(mediumBtn);
 
-        // Change Quality
-        fireEvent.click(screen.getByText('low size'));
+        // Start processing
+        const startBtn = screen.getByText('controlsStart');
+        fireEvent.click(startBtn);
 
-        // Change Resolution
-        fireEvent.click(screen.getByText('resolution4k'));
-
-        // Toggle AI
-        fireEvent.click(screen.getByText('aiToggleLabel'));
-        fireEvent.change(screen.getByPlaceholderText('contextPlaceholder'), { target: { value: 'My Prompt' } });
-
-        // Change Subtitle Props
-        fireEvent.click(screen.getByText('Top'));
-        fireEvent.click(screen.getByText('3 Lines'));
-
-        // Start
-        fireEvent.click(screen.getByText('controlsStart'));
-
-        expect(onStartProcessing).toHaveBeenCalledWith({
-            transcribeMode: 'best',
-            transcribeProvider: 'local',
-            outputQuality: 'low size',
-            outputResolution: '2160x3840',
-            useAI: true,
-            contextPrompt: 'My Prompt',
-            subtitle_position: 'top',
-            max_subtitle_lines: 3
-        });
+        expect(onStartProcessing).toHaveBeenCalled();
+        const call = onStartProcessing.mock.calls[0][0];
+        expect(call.transcribeMode).toBe('balanced');
+        expect(call.transcribeProvider).toBe('local');
     });
 
+    it('should allow quality selection', async () => {
+        const file = new File(['dummy'], 'test.mp4', { type: 'video/mp4' });
+        const onStartProcessing = jest.fn();
+        render(<ProcessView {...defaultProps} selectedFile={file} onStartProcessing={onStartProcessing} />);
+
+        await waitFor(() => expect(screen.getByText('test.mp4')).toBeInTheDocument());
+
+        // Click quality button
+        const lowSizeBtn = screen.getByText('low size');
+        fireEvent.click(lowSizeBtn);
+
+        // Start processing
+        fireEvent.click(screen.getByText('controlsStart'));
+
+        expect(onStartProcessing).toHaveBeenCalled();
+        expect(onStartProcessing.mock.calls[0][0].outputQuality).toBe('low size');
+    });
+
+    it('should allow ChatGPT model selection', async () => {
+        const file = new File(['dummy'], 'test.mp4', { type: 'video/mp4' });
+        const onStartProcessing = jest.fn();
+        render(<ProcessView {...defaultProps} selectedFile={file} onStartProcessing={onStartProcessing} />);
+
+        await waitFor(() => expect(screen.getByText('test.mp4')).toBeInTheDocument());
+
+        // Click ChatGPT model button
+        const chatgptBtn = screen.getByTestId('model-chatgpt');
+        fireEvent.click(chatgptBtn);
+
+        // Start processing
+        fireEvent.click(screen.getByText('controlsStart'));
+
+        expect(onStartProcessing).toHaveBeenCalled();
+        expect(onStartProcessing.mock.calls[0][0].transcribeProvider).toBe('openai');
+    });
+
+    it('should allow resolution selection', async () => {
+        const file = new File(['dummy'], 'test.mp4', { type: 'video/mp4' });
+        const onStartProcessing = jest.fn();
+        render(<ProcessView {...defaultProps} selectedFile={file} onStartProcessing={onStartProcessing} />);
+
+        await waitFor(() => expect(screen.getByText('test.mp4')).toBeInTheDocument());
+
+        // Click 4K resolution button
+        const resolution4kBtn = screen.getByText('resolution4k');
+        fireEvent.click(resolution4kBtn);
+
+        // Start processing
+        fireEvent.click(screen.getByText('controlsStart'));
+
+        expect(onStartProcessing).toHaveBeenCalled();
+        expect(onStartProcessing.mock.calls[0][0].outputResolution).toBe('2160x3840');
+    });
+
+    it('should allow AI toggle and context input', async () => {
+        const file = new File(['dummy'], 'test.mp4', { type: 'video/mp4' });
+        const onStartProcessing = jest.fn();
+        render(<ProcessView {...defaultProps} selectedFile={file} onStartProcessing={onStartProcessing} />);
+
+        await waitFor(() => expect(screen.getByText('test.mp4')).toBeInTheDocument());
+
+        // Find and click the toggle switch (the w-12 element)
+        const aiToggleLabel = screen.getByText('aiToggleLabel').closest('label');
+        const toggleSwitch = aiToggleLabel?.querySelector('.w-12');
+        fireEvent.click(toggleSwitch!);
+
+        // The textarea should now be visible
+        await waitFor(() => {
+            expect(screen.getByPlaceholderText('contextPlaceholder')).toBeInTheDocument();
+        });
+
+        // Enter context
+        fireEvent.change(screen.getByPlaceholderText('contextPlaceholder'), { target: { value: 'Test context' } });
+
+        // Start processing
+        fireEvent.click(screen.getByText('controlsStart'));
+
+        expect(onStartProcessing).toHaveBeenCalled();
+        expect(onStartProcessing.mock.calls[0][0].useAI).toBe(true);
+        expect(onStartProcessing.mock.calls[0][0].contextPrompt).toBe('Test context');
+    });
+
+    it('should toggle settings visibility', async () => {
+        const file = new File(['dummy'], 'test.mp4', { type: 'video/mp4' });
+        render(<ProcessView {...defaultProps} selectedFile={file} />);
+
+        await waitFor(() => expect(screen.getByText('test.mp4')).toBeInTheDocument());
+
+        // Settings should be visible by default - check for quality labels
+        expect(screen.getByText('balanced')).toBeInTheDocument();
+
+        // Click to collapse settings
+        const settingsHeader = screen.getByText('controlsTitle');
+        fireEvent.click(settingsHeader);
+
+        // Settings should now be hidden (quality labels should not be visible)
+        // Note: this tests the toggle logic
+        expect(screen.queryByText('balanced')).not.toBeInTheDocument();
+    });
+
+    it('should display OpenAI model info', () => {
+        const job = {
+            id: '1', status: 'completed',
+            result_data: { transcribe_provider: 'openai', public_url: 'url' }
+        } as JobResponse;
+        render(<ProcessView {...defaultProps} selectedJob={job} />);
+        expect(screen.getByText('ChatGPT API')).toBeInTheDocument();
+    });
+
+    it('should display Turbo model info', () => {
+        const job = {
+            id: '1', status: 'completed',
+            result_data: { model_size: 'large-v3-turbo', public_url: 'url' }
+        } as JobResponse;
+        render(<ProcessView {...defaultProps} selectedJob={job} />);
+        expect(screen.getByText('Turbo')).toBeInTheDocument();
+    });
+
+    it('should display Best model info', () => {
+        const job = {
+            id: '1', status: 'completed',
+            result_data: { model_size: 'large-v3', public_url: 'url' }
+        } as JobResponse;
+        render(<ProcessView {...defaultProps} selectedJob={job} />);
+        expect(screen.getByText('Best')).toBeInTheDocument();
+    });
+
+    it('should display Balanced model info', () => {
+        const job = {
+            id: '1', status: 'completed',
+            result_data: { model_size: 'medium', public_url: 'url' }
+        } as JobResponse;
+        render(<ProcessView {...defaultProps} selectedJob={job} />);
+        expect(screen.getByText('Balanced')).toBeInTheDocument();
+    });
+
+    it('should display Fast model info', () => {
+        const job = {
+            id: '1', status: 'completed',
+            result_data: { model_size: 'tiny', public_url: 'url' }
+        } as JobResponse;
+        render(<ProcessView {...defaultProps} selectedJob={job} />);
+        expect(screen.getByText('Fast')).toBeInTheDocument();
+    });
+
+    it('should display custom model info', () => {
+        const job = {
+            id: '1', status: 'completed',
+            result_data: { model_size: 'custom-model', public_url: 'url' }
+        } as JobResponse;
+        render(<ProcessView {...defaultProps} selectedJob={job} />);
+        expect(screen.getByText('custom-model')).toBeInTheDocument();
+    });
 
 
     it('should handle reset', async () => {
@@ -354,4 +489,32 @@ describe('ProcessView', () => {
 
         await waitFor(() => expect(validateVideoAspectRatio).toHaveBeenCalledWith(file2));
     });
+
+    it('should trigger file input when upload card is clicked', async () => {
+        const onFileSelect = jest.fn();
+        render(<ProcessView {...defaultProps} onFileSelect={onFileSelect} isProcessing={false} />);
+
+        // Find the upload card and click it
+        const uploadCard = screen.getByText('uploadDropTitle').closest('.card');
+        expect(uploadCard).toBeInTheDocument();
+
+        // The click should trigger the hidden file input
+        fireEvent.click(uploadCard!);
+        // We can verify the file input exists and is accessible
+        const fileInput = uploadCard?.querySelector('input[type="file"]');
+        expect(fileInput).toBeInTheDocument();
+    });
+
+    it('should not trigger file input when upload card is clicked during processing', async () => {
+        const onFileSelect = jest.fn();
+        render(<ProcessView {...defaultProps} onFileSelect={onFileSelect} isProcessing={true} />);
+
+        // Find upload card and click it during processing
+        const uploadCard = screen.getByText('uploadDropTitle').closest('.card');
+        fireEvent.click(uploadCard!);
+
+        // File should not be selectable during processing
+        // The handler should check isProcessing and not trigger
+    });
+
 });

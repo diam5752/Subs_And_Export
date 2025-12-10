@@ -32,6 +32,15 @@ jest.mock('@/hooks/useJobs', () => ({
     useJobs: jest.fn(),
 }));
 
+let capturedPollingCallbacks: any = null;
+
+jest.mock('@/hooks/useJobPolling', () => ({
+    useJobPolling: ({ callbacks }: any) => {
+        capturedPollingCallbacks = callbacks;
+        return { isPolling: false, stopPolling: jest.fn() };
+    },
+}));
+
 jest.mock('next/navigation', () => ({
     useRouter: jest.fn(),
 }));
@@ -247,8 +256,8 @@ describe('DashboardPage', () => {
         jest.useFakeTimers();
         (api.processVideo as jest.Mock).mockResolvedValue({ id: 'job123', status: 'pending' });
         (api.getJobStatus as jest.Mock)
-            .mockResolvedValueOnce({ id: 'job123', status: 'processing', progress: 50 })
-            .mockResolvedValueOnce({ id: 'job123', status: 'completed', progress: 100, result_data: {} });
+            .mockResolvedValueOnce({ id: 'job123', status: 'processing', progress: 50, message: 'Processing' })
+            .mockResolvedValueOnce({ id: 'job123', status: 'completed', progress: 100, result_data: { public_url: 'test' } });
 
         render(<DashboardPage />);
 
@@ -259,14 +268,22 @@ describe('DashboardPage', () => {
             expect(api.processVideo).toHaveBeenCalled();
         });
 
-        // Advance timers to trigger polling
+        // Advance timers and flush promises
         await act(async () => {
             jest.advanceTimersByTime(1100);
-            await Promise.resolve();
         });
 
         await waitFor(() => {
             expect(api.getJobStatus).toHaveBeenCalledWith('job123');
+        });
+
+        // Second poll for completion
+        await act(async () => {
+            jest.advanceTimersByTime(1100);
+        });
+
+        await waitFor(() => {
+            expect(api.getJobStatus).toHaveBeenCalledTimes(2);
         });
 
         jest.useRealTimers();
@@ -288,7 +305,6 @@ describe('DashboardPage', () => {
 
         await act(async () => {
             jest.advanceTimersByTime(1100);
-            await Promise.resolve();
         });
 
         await waitFor(() => {
@@ -340,5 +356,75 @@ describe('DashboardPage', () => {
         await waitFor(() => {
             expect(mockLoadJobs).toHaveBeenCalledTimes(2); // Once on mount, once on refresh
         });
+    });
+
+    it('handles polling onProgress callback', () => {
+        render(<DashboardPage />);
+
+        // The component should have passed callbacks to useJobPolling
+        expect(capturedPollingCallbacks).not.toBeNull();
+
+        // Invoke the onProgress callback
+        act(() => {
+            capturedPollingCallbacks.onProgress(50, 'Processing...');
+        });
+
+        // Component should update without errors
+        expect(screen.getByTestId('process-view')).toBeInTheDocument();
+    });
+
+    it('handles polling onComplete callback', async () => {
+        render(<DashboardPage />);
+
+        const mockJob = { id: 'job1', status: 'completed', result_data: { public_url: 'url' } };
+
+        act(() => {
+            capturedPollingCallbacks.onComplete(mockJob);
+        });
+
+        await waitFor(() => {
+            expect(mockSetSelectedJob).toHaveBeenCalledWith(mockJob);
+        });
+        expect(mockLoadJobs).toHaveBeenCalled();
+    });
+
+    it('handles polling onFailed callback', async () => {
+        render(<DashboardPage />);
+
+        act(() => {
+            capturedPollingCallbacks.onFailed('Job failed');
+        });
+
+        await waitFor(() => {
+            expect(mockLoadJobs).toHaveBeenCalled();
+        });
+    });
+
+    it('handles polling onError callback', () => {
+        render(<DashboardPage />);
+
+        act(() => {
+            capturedPollingCallbacks.onError('Network error');
+        });
+
+        // Component should update without errors
+        expect(screen.getByTestId('process-view')).toBeInTheDocument();
+    });
+
+    it('opens account modal and closes via backdrop click', () => {
+        render(<DashboardPage />);
+
+        // Open account panel
+        fireEvent.click(screen.getByLabelText('accountSettingsTitle'));
+        expect(screen.getByTestId('account-view')).toBeInTheDocument();
+
+        // Click backdrop (the absolute inset-0 div)
+        const backdrop = screen.getByText('accountSettingsTitle').closest('.fixed')?.querySelector('.absolute.inset-0');
+        if (backdrop) {
+            fireEvent.click(backdrop);
+        }
+
+        // Modal should close
+        expect(screen.queryByTestId('account-view')).not.toBeInTheDocument();
     });
 });
