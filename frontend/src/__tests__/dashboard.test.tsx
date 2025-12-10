@@ -131,6 +131,51 @@ it('renders the language toggle in the footer', () => {
     expect(toggle).toBeInTheDocument();
 });
 
+it('displays the subtitle model used for completed jobs', async () => {
+    // Mock a completed job with specific model info
+    const mockJob = {
+        id: 'job-123',
+        status: 'completed',
+        progress: 100,
+        message: null,
+        created_at: Date.now() / 1000,
+        updated_at: Date.now() / 1000,
+        result_data: {
+            video_path: '/path/to/video.mp4',
+            artifacts_dir: '/path/to/artifacts',
+            original_filename: 'test_video.mp4',
+            transcribe_provider: 'local',
+            model_size: 'large-v3-turbo',
+            output_size: 1024 * 1024 * 5, // 5MB
+            resolution: '1080x1920'
+        }
+    };
+
+    // Use mockResolvedValue (not Once) to ensure any re-renders or multiple calls get the same data
+    getJobsMock.mockResolvedValue([mockJob]);
+
+    render(
+        <I18nProvider initialLocale="en">
+            <DashboardPage />
+        </I18nProvider>,
+    );
+
+    // Wait for the job to be rendered (it appears in multiple places: history list, main card header, details card)
+    const filenames = await screen.findAllByText('test_video.mp4');
+    expect(filenames.length).toBeGreaterThan(0);
+
+    // Check for the model label we expect from our logic
+    // "Turbo" comes from text, "Local" comes from label -> "Turbo (Local)"
+    expect(await screen.findByText('Turbo')).toBeInTheDocument();
+    expect(await screen.findByText('(Local)')).toBeInTheDocument();
+
+    // Wait for the loading state to finish (last state update in useJobs)
+    const loadingIndicator = screen.queryByTestId('jobs-loading');
+    if (loadingIndicator) {
+        await waitForElementToBeRemoved(loadingIndicator);
+    }
+});
+
 it('shows a profile button with an avatar icon and accessible label', async () => {
     render(
         <I18nProvider initialLocale="en">
@@ -143,3 +188,4 @@ it('shows a profile button with an avatar icon and accessible label', async () =
     expect(profileButton.textContent).toContain('Tester');
     expect(profileButton.querySelector('[aria-hidden="true"]')).not.toBeNull();
 });
+

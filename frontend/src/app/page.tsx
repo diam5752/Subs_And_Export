@@ -218,7 +218,7 @@ export default function DashboardPage() {
               >
                 👤
               </span>
-              <div className="min-w-0">
+              <div className="min-w-0 hidden sm:block">
                 <div className="font-semibold text-sm truncate">{user.name}</div>
                 <div className="text-[var(--muted)] text-xs uppercase tracking-wide">
                   {t('sessionLabelProvider').replace('{provider}', user.provider)}
@@ -233,7 +233,7 @@ export default function DashboardPage() {
             aria-label="Reload page"
           >
             <div className="h-11 w-11 rounded-2xl bg-white/5 border border-[var(--border)] flex items-center justify-center text-xl shadow-inner group-hover:bg-white/10 transition-colors">🎛️</div>
-            <div className="text-center">
+            <div className="text-center hidden sm:block">
               <p className="text-[var(--muted)] text-xs uppercase tracking-[0.35em] group-hover:text-[var(--foreground)] transition-colors">{t('subtitleDesk')}</p>
               <p className="text-xl font-semibold leading-tight group-hover:text-[var(--accent)] transition-colors">{t('brandName')}</p>
             </div>
@@ -248,8 +248,8 @@ export default function DashboardPage() {
       </nav>
 
       <main className="relative max-w-6xl mx-auto px-6 py-10 space-y-8">
-        <section className="card border-[var(--border)]/70 bg-white/[0.02] flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
-          <div className="space-y-4 max-w-2xl">
+        <section className="card border-[var(--border)]/70 bg-white/[0.02] flex flex-col gap-8">
+          <div className="space-y-4 w-full">
             <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border)]/70 bg-white/[0.03] px-3 py-1 text-xs uppercase tracking-[0.3em] text-[var(--muted)]">
               <span className="h-2 w-2 rounded-full bg-[var(--accent)] shadow-[0_0_0_3px_rgba(141,247,223,0.25)]" />
               {t('brandBadge')}
@@ -293,12 +293,12 @@ export default function DashboardPage() {
       </footer>
 
       {showAccountPanel && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center pt-20">
+        <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 px-4">
           <div
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={() => setShowAccountPanel(false)}
           />
-          <div className="relative z-10 w-full max-w-2xl mx-4 animate-fade-in">
+          <div className="relative z-10 w-full max-w-2xl animate-fade-in">
             <div className="bg-[var(--surface-elevated)] border border-[var(--border)] rounded-2xl shadow-2xl overflow-hidden">
               <div className="flex items-center justify-between p-4 border-b border-[var(--border)]">
                 <h2 className="text-lg font-semibold">{t('accountSettingsTitle')}</h2>

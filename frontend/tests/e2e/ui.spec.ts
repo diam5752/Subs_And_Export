@@ -89,8 +89,8 @@ for (const [label, viewport] of Object.entries(viewports)) {
         }
       });
 
-      // Wait for the modal heading (use nth to get the one in the modal, not the button aria-label)
-      await page.getByRole('heading', { name: el.accountSettingsTitle }).nth(1).waitFor();
+      // Wait for the modal heading (the modal title is the first one visible)
+      await page.getByRole('heading', { name: el.accountSettingsTitle }).first().waitFor({ timeout: 5000 });
 
       await stabilizeUi(page);
       await expectNoHorizontalOverflow(page);

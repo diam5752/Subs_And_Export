@@ -298,6 +298,27 @@ export function ProcessView({
         };
     }, [videoUrl]);
 
+    const describeModel = (provider?: string, model?: string): { text: string; label: string } | null => {
+        if (provider === 'openai') {
+            return { text: 'ChatGPT API', label: 'Cloud' };
+        }
+        if (model?.includes('large-v3-turbo')) {
+            return { text: 'Turbo', label: 'Local' };
+        }
+        if (model === 'large-v3') {
+            return { text: 'Best', label: 'Local' };
+        }
+        if (model === 'medium') {
+            return { text: 'Balanced', label: 'Local' };
+        }
+        if (model === 'tiny') {
+            return { text: 'Fast', label: 'Local' };
+        }
+        return model ? { text: model, label: 'Custom' } : null;
+    };
+
+    const modelInfo = describeModel(selectedJob?.result_data?.transcribe_provider, selectedJob?.result_data?.model_size);
+
     return (
         <div className="grid xl:grid-cols-[1.05fr,0.95fr] gap-6">
             <div className="space-y-4">
@@ -747,6 +768,18 @@ export function ProcessView({
                                                         ) : (
                                                             <span className="text-[var(--accent)]">{selectedJob.result_data?.resolution}</span>
                                                         )}
+                                                    </>
+                                                )}
+                                                {modelInfo && (
+                                                    <>
+                                                        <span>•</span>
+                                                        <span className="flex items-center gap-1.5">
+                                                            <svg className="w-4 h-4 text-[var(--accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                                            </svg>
+                                                            <span className="text-[var(--accent)]">{modelInfo.text}</span>
+                                                            <span className="text-[var(--muted)]">({modelInfo.label})</span>
+                                                        </span>
                                                     </>
                                                 )}
                                             </div>
