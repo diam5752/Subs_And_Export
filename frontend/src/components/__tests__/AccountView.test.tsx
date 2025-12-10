@@ -51,16 +51,20 @@ describe('AccountView', () => {
         expect(screen.getByDisplayValue('test@example.com')).toBeInTheDocument();
     });
 
-    it('calls onSaveProfile with updated name', async () => {
+    it('calls onSaveProfile with updated name and password', async () => {
         const onSaveProfile = jest.fn();
         renderAccountView({ onSaveProfile });
 
         const nameInput = screen.getByDisplayValue('Test User');
         fireEvent.change(nameInput, { target: { value: 'New Name' } });
 
+        const passwordInputs = screen.getAllByPlaceholderText('••••••••');
+        fireEvent.change(passwordInputs[0], { target: { value: 'newpass123' } });
+        fireEvent.change(passwordInputs[1], { target: { value: 'newpass123' } });
+
         fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
 
-        await waitFor(() => expect(onSaveProfile).toHaveBeenCalledWith('New Name', '', ''));
+        await waitFor(() => expect(onSaveProfile).toHaveBeenCalledWith('New Name', 'newpass123', 'newpass123'));
     });
 
     it('renders password fields only for local provider', () => {
@@ -94,5 +98,30 @@ describe('AccountView', () => {
 
         await waitFor(() => expect(api.deleteAccount).toHaveBeenCalled());
         await waitFor(() => expect(mockPush).toHaveBeenCalledWith('/login'));
+    });
+
+    it('handles account deletion error', async () => {
+        (api.deleteAccount as jest.Mock).mockRejectedValue(new Error('Delete failed'));
+        renderAccountView();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Delete Account' }));
+        fireEvent.click(screen.getByRole('button', { name: /confirm/i }));
+
+        await waitFor(() => expect(screen.getByText('Delete failed')).toBeInTheDocument());
+        // Verify delete was cancelled (button should be "Delete Account" again or close state)
+        // Based on UI logic, it just sets error and unsets deleting state.
+        // The modal stays open? Let's check AccountView.tsx logic if needed, but error message check is sufficient for lines 49-50.
+    });
+
+    it('cancels account deletion', () => {
+        renderAccountView();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Delete Account' }));
+
+        // Cancel button
+        fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
+
+        // Confirmation should disappear
+        expect(screen.queryByText(/this action cannot be undone/i)).not.toBeInTheDocument();
     });
 });

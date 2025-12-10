@@ -103,6 +103,26 @@ describe('API Client', () => {
     });
 
     describe('processVideo', () => {
+        it('handles request failure with message property', async () => {
+            const { api } = await import('@/lib/api');
+            (global.fetch as jest.Mock).mockResolvedValue({
+                ok: false,
+                json: async () => ({ message: 'Custom error message' }),
+            });
+            const file = new File(['video'], 'test.mp4', { type: 'video/mp4' });
+            await expect(api.processVideo(file, {})).rejects.toThrow('Custom error message');
+        });
+
+        it('handles request failure with string error', async () => {
+            const { api } = await import('@/lib/api');
+            (global.fetch as jest.Mock).mockResolvedValue({
+                ok: false,
+                json: jest.fn().mockResolvedValue('Generic error string'),
+            });
+            const file = new File(['video'], 'test.mp4', { type: 'video/mp4' });
+            await expect(api.processVideo(file, {})).rejects.toThrow('Generic error string');
+        });
+
         it('should upload video with settings', async () => {
             const mockResponse = { id: 'job-123', status: 'pending', progress: 0, message: null, created_at: Date.now(), updated_at: Date.now(), result_data: null };
             (fetch as jest.Mock).mockResolvedValueOnce({ ok: true, json: async () => mockResponse });

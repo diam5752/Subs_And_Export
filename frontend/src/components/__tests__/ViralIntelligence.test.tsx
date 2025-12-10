@@ -88,5 +88,9 @@ describe('ViralIntelligence', () => {
 
         fireEvent.click(screen.getByText('Hook 1'));
         expect(mockWriteText).toHaveBeenCalledWith('Hook 1');
+
+        // Copy Full Caption
+        fireEvent.click(screen.getByText('Copy Full Caption'));
+        expect(mockWriteText).toHaveBeenCalledWith(expect.stringContaining('Hook\n\nBody'));
     });
 });
