@@ -10,8 +10,8 @@ import pytest
 from backend.app.services import subtitles
 
 
-DEMO_VIDEO = Path("tests/data/demo.mp4")
-GOLDEN_DIR = Path("tests/data/demo_artifacts")
+DEMO_VIDEO = Path(__file__).parent / "data/demo.mp4"
+GOLDEN_DIR = Path(__file__).parent / "data/demo_artifacts"
 TIMESTAMP_TOLERANCE = 0.05  # 50ms drift allowance between platforms
 
 

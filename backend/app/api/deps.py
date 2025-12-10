@@ -1,8 +1,7 @@
 from typing import Generator, Annotated
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from jose import jwt, JWTError
-from pydantic import ValidationError
+
 
 from ..core.database import Database
 from ..core.auth import UserStore, SessionStore, User
