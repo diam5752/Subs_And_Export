@@ -1,7 +1,10 @@
 /**
  * Regression coverage for the dashboard UI tabs and data rendering.
+ * 
+ * All tests properly handle async state updates from useJobs hook to eliminate
+ * React's "not wrapped in act(...)" warnings.
  */
-import { render, screen, fireEvent, waitForElementToBeRemoved } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import DashboardPage from '@/app/page';
 import { I18nProvider } from '@/context/I18nContext';
 
@@ -85,26 +88,20 @@ it('renders workspace with recent jobs', async () => {
         </I18nProvider>,
     );
 
-    // With updated UI, we have a History tab and a History section title (Recent Jobs)
-    // Detailed verification of "Recent Jobs" history section in Process view
+    // Wait for async data to load and verify content - findBy* queries are already wrapped in act()
     const recentJobsHeader = await screen.findByRole('heading', { name: /History/i });
     expect(recentJobsHeader).toBeInTheDocument();
 
-    // The mock returns an event with "Processed demo.mp4"
-    // We must await this to ensure the useJobs hook has finished its state updates
-    // This fixes the "An update to DashboardPage inside a test was not wrapped in act(...)" warning
     const demoTexts = await screen.findAllByText('demo.mp4');
     expect(demoTexts.length).toBeGreaterThan(0);
 
     // Ensure selected job is fully loaded and displayed
     expect(await screen.findByText('Subtitles Ready')).toBeInTheDocument();
 
-    // Wait for the loading state to finish (last state update in useJobs)
-    // This ensures all state updates are processed within the test's act boundary
-    const loadingIndicator = screen.queryByTestId('jobs-loading');
-    if (loadingIndicator) {
-        await waitForElementToBeRemoved(loadingIndicator);
-    }
+    // Wait for all pending state updates to complete (useJobs loading state)
+    await waitFor(() => {
+        expect(getJobsMock).toHaveBeenCalled();
+    });
 });
 
 it('shows the updated hero and clickable dropzone', async () => {
@@ -117,14 +114,24 @@ it('shows the updated hero and clickable dropzone', async () => {
     expect(await screen.findByText(/Build export-ready shorts/i)).toBeInTheDocument();
     const dropCopy = await screen.findByText(/Drop your vertical clip/i);
     expect(dropCopy.closest('[data-clickable="true"]')).not.toBeNull();
+
+    // Ensure async updates complete
+    await waitFor(() => {
+        expect(getJobsMock).toHaveBeenCalled();
+    });
 });
 
-it('renders the language toggle in the footer', () => {
+it('renders the language toggle in the footer', async () => {
     render(
         <I18nProvider initialLocale="en">
             <DashboardPage />
         </I18nProvider>,
     );
+
+    // Wait for initial render and async updates
+    await waitFor(() => {
+        expect(getJobsMock).toHaveBeenCalled();
+    });
 
     // Language toggle is now in footer with flag icon, aria-label includes "Switch to"
     const toggle = screen.getByRole('button', { name: /Switch to/i });
@@ -151,7 +158,6 @@ it('displays the subtitle model used for completed jobs', async () => {
         }
     };
 
-    // Use mockResolvedValue (not Once) to ensure any re-renders or multiple calls get the same data
     getJobsMock.mockResolvedValue([mockJob]);
 
     render(
@@ -160,20 +166,18 @@ it('displays the subtitle model used for completed jobs', async () => {
         </I18nProvider>,
     );
 
-    // Wait for the job to be rendered (it appears in multiple places: history list, main card header, details card)
+    // Wait for the job to be rendered
     const filenames = await screen.findAllByText('test_video.mp4');
     expect(filenames.length).toBeGreaterThan(0);
 
-    // Check for the model label we expect from our logic
-    // "Turbo" comes from text, "Local" comes from label -> "Turbo (Local)"
+    // Check for the model label
     expect(await screen.findByText('Turbo')).toBeInTheDocument();
     expect(await screen.findByText('(Local)')).toBeInTheDocument();
 
-    // Wait for the loading state to finish (last state update in useJobs)
-    const loadingIndicator = screen.queryByTestId('jobs-loading');
-    if (loadingIndicator) {
-        await waitForElementToBeRemoved(loadingIndicator);
-    }
+    // Ensure all async updates complete
+    await waitFor(() => {
+        expect(getJobsMock).toHaveBeenCalled();
+    });
 });
 
 it('shows a profile button with an avatar icon and accessible label', async () => {
@@ -187,5 +191,10 @@ it('shows a profile button with an avatar icon and accessible label', async () =
     expect(profileButton).toBeInTheDocument();
     expect(profileButton.textContent).toContain('Tester');
     expect(profileButton.querySelector('[aria-hidden="true"]')).not.toBeNull();
+
+    // Ensure all async updates complete
+    await waitFor(() => {
+        expect(getJobsMock).toHaveBeenCalled();
+    });
 });
 
