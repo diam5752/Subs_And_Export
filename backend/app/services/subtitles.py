@@ -498,13 +498,12 @@ def create_styled_subtitle_file(
             for s, e, t in _parse_srt(transcript_path)
         ]
 
-    # SPECIAL HANDLING FOR 1 LINE MODE:
-    # If max_lines=1, we split long cues into multiple sequential cues 
-    # instead of wrapping text to a second line.
-    if max_lines == 1:
-        # Use a safe char limit (40) to trigger splitting.
-        # This creates the "TikTok" style fast-paced subtitles.
-        parsed_cues = _split_long_cues(parsed_cues, max_chars=40)
+    # SPLIT LONG CUES FOR ALL MAX_LINES VALUES:
+    # If text doesn't fit within max_lines, split into separate subtitle events
+    # rather than overflowing to more lines than user selected.
+    # Calculate max_chars based on max_lines to respect user's line limit.
+    max_chars_per_cue = config.MAX_SUB_LINE_CHARS * max_lines
+    parsed_cues = _split_long_cues(parsed_cues, max_chars=max_chars_per_cue)
 
     output_dir = output_dir or transcript_path.parent
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -670,11 +669,10 @@ def _wrap_lines(
     if not wrapped:
         return [words]
     
-    # NOTE: We do NOT strictly enforce max_lines slice here anymore.
-    # If textwrap needed more lines to respect the width safety (effective_width),
-    # we yield those extra lines rather than truncating the content or overflowing the screen.
-    # This means selecting "1 Line" might result in 2 lines for very long sentences,
-    # but that is preferable to text going off-screen or being deleted.
+    # Enforce max_lines strictly by slicing.
+    # Since long cues are now split in create_styled_subtitle_file,
+    # this ensures we never exceed the user's selected line count.
+    wrapped = wrapped[:max_lines]
     
     return [line.split() for line in wrapped]
 

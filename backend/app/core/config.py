@@ -15,9 +15,9 @@ DEFAULT_SUB_BACK_COLOR = "&H96000000"
 DEFAULT_SUB_STROKE_WIDTH = 3
 DEFAULT_SUB_ALIGNMENT = 2  # bottom center
 DEFAULT_SUB_MARGIN_V = 320  # lift higher to avoid UI chrome
-DEFAULT_SUB_MARGIN_L = 60  # ~5.5% margin for 88% width utilization
-DEFAULT_SUB_MARGIN_R = 60  # ~5.5% margin for 88% width utilization
-MAX_SUB_LINE_CHARS = 40  # Wider text per line, enforces max 2 lines
+DEFAULT_SUB_MARGIN_L = 80  # ~7.5% margin for safe text area on vertical video
+DEFAULT_SUB_MARGIN_R = 80  # ~7.5% margin for safe text area on vertical video
+MAX_SUB_LINE_CHARS = 32  # Safe width for Greek uppercase text without edge cutoff
 
 DEFAULT_OUTPUT_SUFFIX = "_subbed"
 

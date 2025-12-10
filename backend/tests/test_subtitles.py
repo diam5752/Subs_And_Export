@@ -511,3 +511,132 @@ def test_transcribe_with_openai_success(monkeypatch, tmp_path):
     assert len(cues) == 1
     assert cues[0].text == "HELLO WORLD"
     assert len(cues[0].words) == 2
+
+
+# === REGRESSION TESTS FOR MAX_LINES ENFORCEMENT ===
+# These tests ensure that the max_lines setting is strictly enforced.
+# Bug: User selected 3 lines but got 4 lines; text was cut off at edges.
+
+
+def test_wrap_lines_strictly_enforces_max_lines():
+    """
+    REGRESSION: max_lines must be strictly enforced.
+    If user selects 3 lines, result must NEVER have 4+ lines.
+    """
+    # Very long Greek text that would normally need 4+ lines
+    long_words = [
+        "ΕΧΩ", "ΑΚΟΥΣΕΙ", "ΑΠΟ", "ΠΑΡΑ", "ΠΟΛΛΟΥΣ",
+        "ΑΝΘΡΩΠΟΥΣ", "ΣΕ", "ΔΙΑΦΟΡΕΣ", "ΣΥΖΗΤΗΣΕΙΣ", "ΠΟΥ",
+        "ΕΧΩ", "ΚΑΝΕΙ", "ΟΤΙ", "Ο", "ΚΑΠΙΤΑΛΙΣΜΟΣ", "ΕΙΝΑΙ",
+        "Ο", "ΛΟΓΟΣ", "ΓΙΑ", "ΤΟΝ", "ΟΠΟΙΟ", "ΕΧΟΥΜΕ",
+        "ΕΞΕΛΙΧΘΕΙ", "ΣΗΜΕΡΑ"
+    ]
+    
+    # Test max_lines=1
+    result_1 = subtitles._wrap_lines(long_words, max_chars=32, max_lines=1)
+    assert len(result_1) == 1, f"max_lines=1 but got {len(result_1)} lines"
+    
+    # Test max_lines=2
+    result_2 = subtitles._wrap_lines(long_words, max_chars=32, max_lines=2)
+    assert len(result_2) <= 2, f"max_lines=2 but got {len(result_2)} lines"
+    
+    # Test max_lines=3
+    result_3 = subtitles._wrap_lines(long_words, max_chars=32, max_lines=3)
+    assert len(result_3) <= 3, f"max_lines=3 but got {len(result_3)} lines"
+
+
+def test_cue_splitting_works_for_all_max_lines(tmp_path):
+    """
+    REGRESSION: Cue splitting must work for max_lines=2 and max_lines=3,
+    not just max_lines=1.
+    """
+    # Create a very long cue that needs splitting
+    long_text = "ΕΧΩ ΑΚΟΥΣΕΙ ΑΠΟ ΠΑΡΑ ΠΟΛΛΟΥΣ ΑΝΘΡΩΠΟΥΣ ΣΕ ΔΙΑΦΟΡΕΣ ΣΥΖΗΤΗΣΕΙΣ ΠΟΥ ΕΧΩ ΚΑΝΕΙ ΟΤΙ Ο ΚΑΠΙΤΑΛΙΣΜΟΣ ΕΙΝΑΙ Ο ΛΟΓΟΣ ΓΙΑ ΤΟΝ ΟΠΟΙΟ ΕΧΟΥΜΕ ΕΞΕΛΙΧΘΕΙ ΣΗΜΕΡΑ"
+    words = []
+    current_time = 0.0
+    for w in long_text.split():
+        words.append(subtitles.WordTiming(current_time, current_time + 0.1, w))
+        current_time += 0.1
+    
+    cue = subtitles.Cue(start=0, end=current_time, text=long_text, words=words)
+    
+    srt = tmp_path / "test.srt"
+    srt.write_text(f"1\n00:00:00,000 --> 00:00:10,000\n{long_text}\n", encoding="utf-8")
+    
+    # Test max_lines=2: should split into multiple cues
+    ass_2 = subtitles.create_styled_subtitle_file(srt, cues=[cue], max_lines=2)
+    content_2 = ass_2.read_text("utf-8")
+    dialogue_count_2 = content_2.count("Dialogue:")
+    assert dialogue_count_2 > 1, f"max_lines=2: Expected multiple cues but got {dialogue_count_2}"
+    
+    # Verify each dialogue has at most 2 lines (1 line break = \N)
+    for line in content_2.split("\n"):
+        if line.startswith("Dialogue:"):
+            line_breaks = line.count("\\N")
+            assert line_breaks <= 1, f"max_lines=2: Found {line_breaks + 1} lines in dialogue"
+    
+    # Test max_lines=3: should also split if needed
+    ass_3 = subtitles.create_styled_subtitle_file(srt, cues=[cue], max_lines=3)
+    content_3 = ass_3.read_text("utf-8")
+    
+    for line in content_3.split("\n"):
+        if line.startswith("Dialogue:"):
+            line_breaks = line.count("\\N")
+            assert line_breaks <= 2, f"max_lines=3: Found {line_breaks + 1} lines in dialogue"
+
+
+def test_greek_text_fits_within_config_width():
+    """
+    REGRESSION: Greek uppercase text must not overflow video edges.
+    With MAX_SUB_LINE_CHARS=32 and margins=80px, text should fit.
+    """
+    # Verify config values are safe
+    assert config.MAX_SUB_LINE_CHARS <= 35, f"MAX_SUB_LINE_CHARS={config.MAX_SUB_LINE_CHARS} is too wide for Greek text"
+    assert config.DEFAULT_SUB_MARGIN_L >= 60, f"Left margin {config.DEFAULT_SUB_MARGIN_L}px is too small"
+    assert config.DEFAULT_SUB_MARGIN_R >= 60, f"Right margin {config.DEFAULT_SUB_MARGIN_R}px is too small"
+    
+    # Test that wrapping respects the char limit
+    greek_words = ["ΑΝΘΡΩΠΟΥΣ", "ΔΙΑΦΟΡΕΣ", "ΣΥΖΗΤΗΣΕΙΣ", "ΚΑΠΙΤΑΛΙΣΜΟΣ"]
+    result = subtitles._wrap_lines(greek_words, max_chars=config.MAX_SUB_LINE_CHARS, max_lines=2)
+    
+    for line_words in result:
+        line_text = " ".join(line_words)
+        # Allow slight overflow due to textwrap behavior with long words
+        assert len(line_text) <= config.MAX_SUB_LINE_CHARS + 15, \
+            f"Line '{line_text}' has {len(line_text)} chars, exceeds safe limit"
+
+
+def test_format_karaoke_text_respects_max_lines():
+    """
+    REGRESSION: _format_karaoke_text must respect max_lines parameter.
+    """
+    # Create words that would need many lines
+    words = [
+        subtitles.WordTiming(i * 0.1, (i + 1) * 0.1, w)
+        for i, w in enumerate([
+            "ΕΧΩ", "ΑΚΟΥΣΕΙ", "ΑΠΟ", "ΠΑΡΑ", "ΠΟΛΛΟΥΣ",
+            "ΑΝΘΡΩΠΟΥΣ", "ΣΕ", "ΔΙΑΦΟΡΕΣ", "ΣΥΖΗΤΗΣΕΙΣ", "ΠΟΥ"
+        ])
+    ]
+    cue = subtitles.Cue(start=0.0, end=1.0, text="", words=words)
+    
+    # Test with max_lines=2
+    karaoke_2 = subtitles._format_karaoke_text(cue, max_lines=2)
+    line_breaks_2 = karaoke_2.count("\\N")
+    assert line_breaks_2 <= 1, f"max_lines=2 but got {line_breaks_2 + 1} lines"
+    
+    # Test with max_lines=3
+    karaoke_3 = subtitles._format_karaoke_text(cue, max_lines=3)
+    line_breaks_3 = karaoke_3.count("\\N")
+    assert line_breaks_3 <= 2, f"max_lines=3 but got {line_breaks_3 + 1} lines"
+
+
+def test_short_text_stays_on_single_line():
+    """
+    Ensure short text that fits on one line doesn't get unnecessarily split.
+    """
+    short_words = ["ΓΕΙΑ", "ΣΟΥ"]
+    result = subtitles._wrap_lines(short_words, max_chars=32, max_lines=2)
+    assert len(result) == 1, "Short text should stay on one line"
+    assert result[0] == ["ΓΕΙΑ", "ΣΟΥ"]
+
