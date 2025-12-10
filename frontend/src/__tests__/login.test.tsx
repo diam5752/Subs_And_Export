@@ -5,7 +5,7 @@ import '@testing-library/jest-dom';
 import LoginPage from '@/app/login/page';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 // Mocks
 jest.mock('@/lib/api', () => ({
@@ -28,16 +28,18 @@ jest.mock('@/context/I18nContext', () => ({
 
 jest.mock('next/navigation', () => ({
     useRouter: jest.fn(),
-    useSearchParams: () => ({ get: () => null }),
+    useSearchParams: jest.fn(),
 }));
 
 describe('LoginPage', () => {
     const mockLogin = jest.fn();
     const mockGoogleLogin = jest.fn();
     const mockPush = jest.fn();
+    const mockSearchParamsGet = jest.fn();
 
     beforeEach(() => {
         jest.clearAllMocks();
+        localStorage.clear();
         (useAuth as jest.Mock).mockReturnValue({
             login: mockLogin,
             googleLogin: mockGoogleLogin,
@@ -45,8 +47,10 @@ describe('LoginPage', () => {
             isLoading: false,
         });
         (useRouter as jest.Mock).mockReturnValue({ push: mockPush });
+        (useSearchParams as jest.Mock).mockReturnValue({ get: mockSearchParamsGet });
         (api.getCurrentUser as jest.Mock).mockResolvedValue({ id: '1', name: 'Test' });
         (api.getGoogleAuthUrl as jest.Mock).mockResolvedValue({ auth_url: 'http://foo.com', state: 'xyz' });
+        mockSearchParamsGet.mockReturnValue(null);
     });
 
     it('renders login form by default', () => {
@@ -75,17 +79,70 @@ describe('LoginPage', () => {
         });
     });
 
-    it('handles google login start', async () => {
-        // We cannot easily test window.location.href assignment in JSDOM cleanly.
-        // We verify the API is called and proper state handling logic runs.
+    it('handles login error', async () => {
+        mockLogin.mockRejectedValue(new Error('Invalid credentials'));
+        render(<LoginPage />);
 
+        fireEvent.change(screen.getByPlaceholderText('loginEmailPlaceholder'), { target: { value: 'test@test.com' } });
+        fireEvent.change(screen.getByPlaceholderText('loginPasswordPlaceholder'), { target: { value: 'wrong' } });
+        fireEvent.click(screen.getByRole('button', { name: 'loginSubmit' }));
+
+        await waitFor(() => {
+            expect(screen.getByText('Invalid credentials')).toBeInTheDocument();
+        });
+    });
+
+    it('handles google login start', async () => {
         render(<LoginPage />);
         fireEvent.click(screen.getByText('loginGoogleCta'));
 
         await waitFor(() => {
             expect(api.getGoogleAuthUrl).toHaveBeenCalled();
-            // Expect loading state?
             expect(screen.getByText('loginGoogleSigningIn')).toBeInTheDocument();
+        });
+    });
+
+    it('handles google login error', async () => {
+        (api.getGoogleAuthUrl as jest.Mock).mockRejectedValue(new Error('Google auth unavailable'));
+        render(<LoginPage />);
+
+        fireEvent.click(screen.getByText('loginGoogleCta'));
+
+        await waitFor(() => {
+            expect(screen.getByText('Google auth unavailable')).toBeInTheDocument();
+        });
+    });
+
+    it('handles OAuth callback success', async () => {
+        localStorage.setItem('google_oauth_state', 'test-state');
+        mockSearchParamsGet.mockImplementation((key: string) => {
+            if (key === 'code') return 'auth-code';
+            if (key === 'state') return 'test-state';
+            return null;
+        });
+        mockGoogleLogin.mockResolvedValue({ id: '1', name: 'Test' });
+
+        render(<LoginPage />);
+
+        await waitFor(() => {
+            expect(mockGoogleLogin).toHaveBeenCalledWith('auth-code', 'test-state');
+            expect(mockPush).toHaveBeenCalledWith('/');
+        });
+    });
+
+    it('handles OAuth callback error', async () => {
+        localStorage.setItem('google_oauth_state', 'test-state');
+        mockSearchParamsGet.mockImplementation((key: string) => {
+            if (key === 'code') return 'auth-code';
+            if (key === 'state') return 'test-state';
+            return null;
+        });
+        mockGoogleLogin.mockRejectedValue(new Error('OAuth failed'));
+
+        render(<LoginPage />);
+
+        await waitFor(() => {
+            expect(screen.getByText('OAuth failed')).toBeInTheDocument();
         });
     });
 });

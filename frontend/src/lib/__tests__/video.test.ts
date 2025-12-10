@@ -1,5 +1,5 @@
 
-import { parseResolutionString, describeResolution, validateVideoAspectRatio } from '../video';
+import { parseResolutionString, describeResolution, describeResolutionString, validateVideoAspectRatio } from '../video';
 
 describe('video utils', () => {
     describe('parseResolutionString', () => {
@@ -7,10 +7,13 @@ describe('video utils', () => {
             expect(parseResolutionString('1920x1080')).toEqual({ width: 1920, height: 1080 });
             expect(parseResolutionString('1280X720')).toEqual({ width: 1280, height: 720 });
             expect(parseResolutionString(' 1080 x 1920 ')).toEqual({ width: 1080, height: 1920 });
+            expect(parseResolutionString('1080×1920')).toEqual({ width: 1080, height: 1920 }); // Unicode ×
         });
 
         it('should return null for invalid strings', () => {
             expect(parseResolutionString('')).toBeNull();
+            expect(parseResolutionString(null)).toBeNull();
+            expect(parseResolutionString(undefined)).toBeNull();
             expect(parseResolutionString('invalid')).toBeNull();
             expect(parseResolutionString('100x')).toBeNull();
         });
@@ -28,6 +31,21 @@ describe('video utils', () => {
         it('should return null for invalid dimensions', () => {
             expect(describeResolution(0, 100)).toBeNull();
             expect(describeResolution(100, 0)).toBeNull();
+            expect(describeResolution(undefined, 100)).toBeNull();
+            expect(describeResolution(100, undefined)).toBeNull();
+        });
+    });
+
+    describe('describeResolutionString', () => {
+        it('should describe valid resolution strings', () => {
+            expect(describeResolutionString('1920x1080')).toEqual({ text: '1920×1080', label: 'Full HD / 1080p' });
+            expect(describeResolutionString('1080x1920')).toEqual({ text: '1080×1920', label: 'Full HD / 1080p' });
+        });
+
+        it('should return null for invalid strings', () => {
+            expect(describeResolutionString('')).toBeNull();
+            expect(describeResolutionString(null)).toBeNull();
+            expect(describeResolutionString('invalid')).toBeNull();
         });
     });
 
@@ -47,6 +65,10 @@ describe('video utils', () => {
                 videoHeight: 0,
                 duration: 10,
                 currentTime: 0,
+                preload: '',
+                muted: false,
+                playsInline: false,
+                src: '',
                 addEventListener: jest.fn((event, handler) => {
                     events[event] = handler;
                 }),
@@ -83,19 +105,16 @@ describe('video utils', () => {
             const file = new File([''], 'test.mp4', { type: 'video/mp4' });
             const promise = validateVideoAspectRatio(file);
 
-            // Trigger metadata loaded
             mockVideo.videoWidth = 1080;
             mockVideo.videoHeight = 1920;
             events['loadedmetadata']();
-
-            // Trigger seeked (thumbnail capture)
             events['seeked']();
 
             const result = await promise;
             expect(result).toEqual({
                 width: 1080,
                 height: 1920,
-                aspectWarning: false, // 1080/1920 = 0.5625 which is within bounds
+                aspectWarning: false,
                 thumbnailUrl: 'data:image/jpeg;base64,test',
             });
         });
@@ -126,6 +145,82 @@ describe('video utils', () => {
                 aspectWarning: true,
                 thumbnailUrl: null,
             });
+        });
+
+        it('should handle captureFrame with no video dimensions', async () => {
+            const file = new File([''], 'test.mp4', { type: 'video/mp4' });
+            const promise = validateVideoAspectRatio(file);
+
+            // Trigger metadata but leave dimensions at 0
+            mockVideo.videoWidth = 0;
+            mockVideo.videoHeight = 0;
+            events['loadedmetadata']();
+            events['seeked']();
+
+            const result = await promise;
+            expect(result.thumbnailUrl).toBeNull();
+            expect(result.width).toBe(0);
+        });
+
+        it('should handle canvas.getContext returning null', async () => {
+            mockCanvas.getContext = jest.fn(() => null);
+
+            const file = new File([''], 'test.mp4', { type: 'video/mp4' });
+            const promise = validateVideoAspectRatio(file);
+
+            mockVideo.videoWidth = 1080;
+            mockVideo.videoHeight = 1920;
+            events['loadedmetadata']();
+            events['seeked']();
+
+            const result = await promise;
+            expect(result.thumbnailUrl).toBeNull();
+        });
+
+        it('should handle currentTime setter throwing', async () => {
+            Object.defineProperty(mockVideo, 'currentTime', {
+                set: () => { throw new Error('Seek not supported'); },
+                get: () => 0,
+            });
+
+            const file = new File([''], 'test.mp4', { type: 'video/mp4' });
+            const promise = validateVideoAspectRatio(file);
+
+            mockVideo.videoWidth = 1080;
+            mockVideo.videoHeight = 1920;
+            events['loadedmetadata']();
+
+            const result = await promise;
+            expect(result.width).toBe(1080);
+        });
+
+        it('should handle video.load throwing', async () => {
+            const consoleSpy = jest.spyOn(console, 'warn').mockImplementation(() => { });
+            mockVideo.load = jest.fn(() => { throw new Error('Load failed'); });
+
+            const file = new File([''], 'test.mp4', { type: 'video/mp4' });
+            const promise = validateVideoAspectRatio(file);
+
+            events['error']();
+
+            const result = await promise;
+            expect(result.thumbnailUrl).toBeNull();
+            consoleSpy.mockRestore();
+        });
+
+        it('should handle short video duration', async () => {
+            mockVideo.duration = 0.5; // Less than 1 second
+
+            const file = new File([''], 'test.mp4', { type: 'video/mp4' });
+            const promise = validateVideoAspectRatio(file);
+
+            mockVideo.videoWidth = 1080;
+            mockVideo.videoHeight = 1920;
+            events['loadedmetadata']();
+            events['seeked']();
+
+            const result = await promise;
+            expect(result.width).toBe(1080);
         });
     });
 });
