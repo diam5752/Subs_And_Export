@@ -159,6 +159,7 @@ class ApiClient {
         use_llm?: boolean;
         context_prompt?: string;
         subtitle_position?: string;
+        max_subtitle_lines?: number;
     }): Promise<JobResponse> {
         const formData = new FormData();
         formData.append('file', file);
@@ -170,6 +171,7 @@ class ApiClient {
         formData.append('use_llm', String(settings.use_llm || false));
         formData.append('context_prompt', settings.context_prompt || '');
         formData.append('subtitle_position', settings.subtitle_position || 'default');
+        formData.append('max_subtitle_lines', String(settings.max_subtitle_lines || 2));
 
         return this.request<JobResponse>('/videos/process', {
             method: 'POST',

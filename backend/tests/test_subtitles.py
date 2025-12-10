@@ -249,7 +249,9 @@ def test_wrap_lines_handles_long_words() -> None:
 
 
 def test_format_karaoke_text_without_word_timings() -> None:
-    cue = subtitles.Cue(start=0.0, end=1.0, text="one two three four five six", words=None)
+    # Use text long enough to require line wrap with 40-char limit
+    long_text = "one two three four five six seven eight nine ten eleven twelve"
+    cue = subtitles.Cue(start=0.0, end=1.0, text=long_text, words=None)
     karaoke = subtitles._format_karaoke_text(cue)
     assert "\\N" in karaoke
 

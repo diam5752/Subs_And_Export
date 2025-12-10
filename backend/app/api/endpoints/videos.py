@@ -53,6 +53,7 @@ class ProcessingSettings(BaseModel):
     llm_model: str = APP_SETTINGS.llm_model
     llm_temperature: float = APP_SETTINGS.llm_temperature
     subtitle_position: str = "default"
+    max_subtitle_lines: int = 2
 
 
 def _save_upload_with_limit(upload: UploadFile, destination: Path) -> None:
@@ -156,7 +157,9 @@ def run_video_processing(
             output_width=target_width,
             output_height=target_height,
             subtitle_position=settings.subtitle_position,
+            max_subtitle_lines=settings.max_subtitle_lines,
         )
+        print(f"DEBUG_VIDEOS: normalize called with max_subtitle_lines={settings.max_subtitle_lines}")
         
         # Result unpacking
         social = None
@@ -223,6 +226,7 @@ async def process_video(
     use_llm: bool = Form(APP_SETTINGS.use_llm_by_default),
     context_prompt: str = Form(""),
     subtitle_position: str = Form("default"),
+    max_subtitle_lines: int = Form(2),
     current_user: User = Depends(get_current_user),
     job_store: JobStore = Depends(get_job_store),
     history_store: HistoryStore = Depends(get_history_store)
@@ -282,7 +286,9 @@ async def process_video(
         use_llm=use_llm,
         context_prompt=context_prompt,
         subtitle_position=subtitle_position,
+        max_subtitle_lines=max_subtitle_lines,
     )
+    print(f"DEBUG_API: Received process request max_lines={max_subtitle_lines}")
     
     background_tasks.add_task(
         run_video_processing,

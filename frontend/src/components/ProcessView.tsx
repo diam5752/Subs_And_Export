@@ -35,6 +35,7 @@ export interface ProcessingOptions {
     useAI: boolean;
     contextPrompt: string;
     subtitle_position: string;
+    max_subtitle_lines: number;
 }
 
 const parseResolutionString = (resolution?: string | null): { width: number; height: number } | null => {
@@ -101,6 +102,7 @@ export function ProcessView({
     const [outputQuality, setOutputQuality] = useState<'low size' | 'balanced' | 'high quality'>('balanced');
     const [outputResolutionChoice, setOutputResolutionChoice] = useState<'1080x1920' | '2160x3840'>('1080x1920');
     const [subtitlePosition, setSubtitlePosition] = useState('default');
+    const [maxSubtitleLines, setMaxSubtitleLines] = useState(2);
     const [useAI, setUseAI] = useState(false);
     const [contextPrompt, setContextPrompt] = useState('');
     const [videoInfo, setVideoInfo] = useState<{ width: number; height: number; aspectWarning: boolean; thumbnailUrl: string | null } | null>(null);
@@ -213,6 +215,7 @@ export function ProcessView({
         setVideoInfo(null);
         setOutputResolutionChoice('1080x1920');
         setSubtitlePosition('default');
+        setMaxSubtitleLines(2);
         if (fileInputRef.current) {
             fileInputRef.current.value = '';
         }
@@ -252,6 +255,7 @@ export function ProcessView({
             useAI,
             contextPrompt,
             subtitle_position: subtitlePosition,
+            max_subtitle_lines: maxSubtitleLines,
         });
     };
 
@@ -609,6 +613,8 @@ export function ProcessView({
                                     <SubtitlePositionSelector
                                         value={subtitlePosition}
                                         onChange={setSubtitlePosition}
+                                        lines={maxSubtitleLines}
+                                        onChangeLines={setMaxSubtitleLines}
                                         thumbnailUrl={videoInfo?.thumbnailUrl}
                                     />
                                 </div>

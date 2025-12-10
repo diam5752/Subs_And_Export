@@ -143,6 +143,7 @@ export default function DashboardPage() {
         use_llm: options.useAI,
         context_prompt: options.contextPrompt,
         subtitle_position: options.subtitle_position,
+        max_subtitle_lines: options.max_subtitle_lines,
       });
       setJobId(result.id);
     } catch (err) {

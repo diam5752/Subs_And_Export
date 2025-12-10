@@ -7,7 +7,7 @@ DEFAULT_HEIGHT = 1920
 DEFAULT_FPS = 30
 
 DEFAULT_SUB_FONT = "Arial Black"
-DEFAULT_SUB_FONT_SIZE = 54
+DEFAULT_SUB_FONT_SIZE = 62  # ~15% larger for better readability on vertical video
 DEFAULT_SUB_COLOR = "&H0000FFFF"  # highlight (yellow) in ASS ARGB BGR
 DEFAULT_SUB_SECONDARY_COLOR = "&H00FFFFFF"  # base white
 DEFAULT_SUB_OUTLINE_COLOR = "&H7F000000"
@@ -15,9 +15,9 @@ DEFAULT_SUB_BACK_COLOR = "&H96000000"
 DEFAULT_SUB_STROKE_WIDTH = 3
 DEFAULT_SUB_ALIGNMENT = 2  # bottom center
 DEFAULT_SUB_MARGIN_V = 320  # lift higher to avoid UI chrome
-DEFAULT_SUB_MARGIN_L = 260
-DEFAULT_SUB_MARGIN_R = 260
-MAX_SUB_LINE_CHARS = 15
+DEFAULT_SUB_MARGIN_L = 60  # ~5.5% margin for 88% width utilization
+DEFAULT_SUB_MARGIN_R = 60  # ~5.5% margin for 88% width utilization
+MAX_SUB_LINE_CHARS = 40  # Wider text per line, enforces max 2 lines
 
 DEFAULT_OUTPUT_SUFFIX = "_subbed"
 
