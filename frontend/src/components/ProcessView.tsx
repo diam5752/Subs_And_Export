@@ -789,7 +789,7 @@ export function ProcessView({
                             <h3 className="text-lg font-semibold">History</h3>
                             <p className="text-xs text-[var(--muted)]">Items expire in 24 hours</p>
                         </div>
-                        {jobsLoading && <span className="text-xs text-[var(--muted)]">{t('refreshingLabel')}</span>}
+                        {jobsLoading && <span data-testid="jobs-loading" className="text-xs text-[var(--muted)]">{t('refreshingLabel')}</span>}
                     </div>
                     {recentJobs.length === 0 && (
                         <p className="text-[var(--muted)] text-sm">{t('noRunsYet')}</p>

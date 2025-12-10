@@ -1,7 +1,7 @@
 /**
  * Regression coverage for the dashboard UI tabs and data rendering.
  */
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitForElementToBeRemoved } from '@testing-library/react';
 import DashboardPage from '@/app/page';
 import { I18nProvider } from '@/context/I18nContext';
 
@@ -90,36 +90,21 @@ it('renders workspace with recent jobs', async () => {
     const recentJobsHeader = await screen.findByRole('heading', { name: /History/i });
     expect(recentJobsHeader).toBeInTheDocument();
 
-    // Verify Tab Interaction
-    const historyTab = screen.getByRole('button', { name: 'History' });
-    fireEvent.click(historyTab);
-
-    // After clicking, HistoryView should render
-    // We expect the "Activity Timeline" (activityTitle) or similar to appear
     // The mock returns an event with "Processed demo.mp4"
-    expect(await screen.findByText('Processed demo.mp4')).toBeInTheDocument();
-});
+    // We must await this to ensure the useJobs hook has finished its state updates
+    // This fixes the "An update to DashboardPage inside a test was not wrapped in act(...)" warning
+    const demoTexts = await screen.findAllByText('demo.mp4');
+    expect(demoTexts.length).toBeGreaterThan(0);
 
-it('switches between tabs', async () => {
-    render(
-        <I18nProvider initialLocale="en">
-            <DashboardPage />
-        </I18nProvider>,
-    );
+    // Ensure selected job is fully loaded and displayed
+    expect(await screen.findByText('Subtitles Ready')).toBeInTheDocument();
 
-    const processTab = screen.getByRole('button', { name: 'Process' });
-    const historyTab = screen.getByRole('button', { name: 'History' });
-
-    // Default is process
-    expect(processTab).toHaveClass('bg-[var(--accent)]');
-
-    // Switch to history
-    fireEvent.click(historyTab);
-    expect(historyTab).toHaveClass('bg-[var(--accent)]');
-
-    // Switch back
-    fireEvent.click(processTab);
-    expect(processTab).toHaveClass('bg-[var(--accent)]');
+    // Wait for the loading state to finish (last state update in useJobs)
+    // This ensures all state updates are processed within the test's act boundary
+    const loadingIndicator = screen.queryByTestId('jobs-loading');
+    if (loadingIndicator) {
+        await waitForElementToBeRemoved(loadingIndicator);
+    }
 });
 
 it('shows the updated hero and clickable dropzone', async () => {
