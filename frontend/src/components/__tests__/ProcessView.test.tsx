@@ -122,6 +122,9 @@ beforeAll(() => {
 
     // Ensure requestAnimationFrame exists for modal animations
     global.requestAnimationFrame = (cb: FrameRequestCallback) => setTimeout(cb, 0);
+
+    // Mock scrollIntoView globally for all tests
+    Element.prototype.scrollIntoView = jest.fn();
 });
 
 beforeEach(() => {
@@ -361,4 +364,43 @@ it('correctly sets transcription provider and mode when selecting Best model', a
             transcribeMode: 'best',
         })
     );
+});
+
+it('scrolls the results section into view when processing starts', async () => {
+    // scrollIntoView is mocked in beforeAll
+
+    const { rerender } = renderProcessView({
+        isProcessing: false,
+    });
+
+    // Start processing
+    rerender(
+        <I18nProvider initialLocale="en">
+            <ProcessViewWrapper isProcessing={true} />
+        </I18nProvider>
+    );
+
+    await waitFor(() => {
+        expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({
+            behavior: 'smooth',
+            block: 'start',
+        });
+    });
+});
+
+it('scrolls to results immediately when clicking Start Processing', async () => {
+    const onStartProcessing = jest.fn();
+    const file = new File(['video'], 'demo.mp4', { type: 'video/mp4' });
+
+    renderProcessView({
+        selectedFile: file,
+        onStartProcessing,
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Start Processing/i }));
+
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({
+        behavior: 'smooth',
+        block: 'start',
+    });
 });

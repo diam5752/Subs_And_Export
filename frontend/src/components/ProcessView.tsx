@@ -90,6 +90,7 @@ export function ProcessView({
 }: ProcessViewProps) {
     const { t } = useI18n();
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const resultsRef = useRef<HTMLDivElement>(null);
     const validationRequestId = useRef(0);
 
     // Local state for options
@@ -247,6 +248,13 @@ export function ProcessView({
 
     const handleStart = () => {
         setShowPreview(false); // Hide any previous preview
+
+        // Force scroll immediately for better UX
+        resultsRef.current?.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start',
+        });
+
         onStartProcessing({
             transcribeMode,
             transcribeProvider,
@@ -305,6 +313,19 @@ export function ProcessView({
             cleanup();
         };
     }, [videoUrl]);
+
+    // Auto-scroll to results when processing starts
+    useEffect(() => {
+        if (isProcessing && resultsRef.current) {
+            // Small delay to ensure render cycle is complete and UI is ready
+            setTimeout(() => {
+                resultsRef.current?.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'start',
+                });
+            }, 100);
+        }
+    }, [isProcessing]);
 
     const describeModel = (provider?: string, model?: string): { text: string; label: string } | null => {
         if (provider === 'openai') {
@@ -684,7 +705,7 @@ export function ProcessView({
 
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-4" ref={resultsRef} style={{ scrollMarginTop: '100px' }}>
                 {(isProcessing || (selectedJob && selectedJob.status !== 'pending')) && (
                     <div className="card space-y-4">
                         <div className="flex flex-wrap items-start justify-between gap-3">
