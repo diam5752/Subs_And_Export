@@ -35,7 +35,7 @@ describe('useJobs Hook', () => {
             ],
             total: 2,
             page: 1,
-            page_size: 10,
+            page_size: 5,
             total_pages: 1,
         };
         (api.getJobsPaginated as jest.Mock).mockResolvedValue(paginatedResponse);
@@ -99,7 +99,7 @@ describe('useJobs Hook', () => {
             ],
             total: 3,
             page: 1,
-            page_size: 10,
+            page_size: 5,
             total_pages: 1,
         };
         (api.getJobsPaginated as jest.Mock).mockResolvedValue(paginatedResponse);
@@ -117,16 +117,16 @@ describe('useJobs Hook', () => {
     it('should navigate to next page', async () => {
         const page1Response = {
             items: [{ id: '1', created_at: 100, status: 'completed' }],
-            total: 15,
+            total: 6,
             page: 1,
-            page_size: 10,
+            page_size: 5,
             total_pages: 2,
         };
         const page2Response = {
             items: [{ id: '11', created_at: 200, status: 'completed' }],
-            total: 15,
+            total: 6,
             page: 2,
-            page_size: 10,
+            page_size: 5,
             total_pages: 2,
         };
         (api.getJobsPaginated as jest.Mock)
@@ -152,16 +152,16 @@ describe('useJobs Hook', () => {
     it('should navigate to previous page', async () => {
         const page2Response = {
             items: [{ id: '11', created_at: 200, status: 'completed' }],
-            total: 15,
+            total: 6,
             page: 2,
-            page_size: 10,
+            page_size: 5,
             total_pages: 2,
         };
         const page1Response = {
             items: [{ id: '1', created_at: 100, status: 'completed' }],
-            total: 15,
+            total: 6,
             page: 1,
-            page_size: 10,
+            page_size: 5,
             total_pages: 2,
         };
         (api.getJobsPaginated as jest.Mock)

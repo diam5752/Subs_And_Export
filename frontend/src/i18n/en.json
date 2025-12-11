@@ -173,5 +173,6 @@
   "nextPage": "Next",
   "pageOf": "Page",
   "dropFileHere": "Drop your video here!",
-  "releaseToUpload": "Release to upload"
+  "releaseToUpload": "Release to upload",
+  "paginationShowing": "Showing {start}-{end} of {total}"
 }

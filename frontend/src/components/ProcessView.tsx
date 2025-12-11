@@ -31,6 +31,8 @@ interface ProcessViewProps {
     totalPages: number;
     onNextPage: () => void;
     onPrevPage: () => void;
+    totalJobs: number;
+    pageSize: number;
 }
 
 export interface ProcessingOptions {
@@ -63,6 +65,8 @@ export function ProcessView({
     onRefreshJobs,
     currentPage,
     totalPages,
+    totalJobs,
+    pageSize,
     onNextPage,
     onPrevPage,
 }: ProcessViewProps) {
@@ -968,30 +972,24 @@ export function ProcessView({
                             return (
                                 <div
                                     key={job.id}
+                                    onClick={() => {
+                                        if (selectionMode) {
+                                            const newSet = new Set(selectedJobIds);
+                                            if (isSelected) {
+                                                newSet.delete(job.id);
+                                            } else {
+                                                newSet.add(job.id);
+                                            }
+                                            setSelectedJobIds(newSet);
+                                        }
+                                    }}
                                     className={`flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 p-3 rounded-lg border ${isSelected
                                         ? 'border-[var(--accent)] bg-[var(--accent)]/5'
                                         : isExpired
                                             ? 'border-[var(--border)]/30 bg-[var(--surface)] text-[var(--muted)]'
                                             : 'border-[var(--border)] bg-[var(--surface-elevated)]'
-                                        } transition-colors`}
+                                        } transition-colors ${selectionMode ? 'cursor-pointer hover:bg-[var(--accent)]/5' : ''}`}
                                 >
-                                    {/* Checkbox for selection mode */}
-                                    {selectionMode && (
-                                        <input
-                                            type="checkbox"
-                                            checked={isSelected}
-                                            onChange={(e) => {
-                                                const newSet = new Set(selectedJobIds);
-                                                if (e.target.checked) {
-                                                    newSet.add(job.id);
-                                                } else {
-                                                    newSet.delete(job.id);
-                                                }
-                                                setSelectedJobIds(newSet);
-                                            }}
-                                            className="w-4 h-4 rounded border-[var(--border)] accent-[var(--accent)] flex-shrink-0"
-                                        />
-                                    )}
                                     <div className="min-w-0 flex-1">
                                         <div className="font-semibold text-sm truncate">
                                             {job.result_data?.original_filename || job.id}
@@ -1002,6 +1000,15 @@ export function ProcessView({
                                     </div>
 
                                     <div className="flex items-center gap-2">
+                                        {/* Checkbox for selection mode - Moved to right */}
+                                        {selectionMode && (
+                                            <input
+                                                type="checkbox"
+                                                checked={isSelected}
+                                                onChange={() => { }} // Handled by onClick of parent
+                                                className="w-4 h-4 rounded border-[var(--border)] accent-[var(--accent)] flex-shrink-0 cursor-pointer"
+                                            />
+                                        )}
                                         {isExpired ? (
                                             <span className="text-xs bg-[var(--surface)] border border-[var(--border)] px-2 py-1 rounded text-[var(--muted)]">
                                                 {t('expired') || 'Expired'}
@@ -1088,7 +1095,13 @@ export function ProcessView({
                                 ← {t('previousPage') || 'Previous'}
                             </button>
                             <span className="text-sm text-[var(--muted)]">
-                                {t('pageOf') || `Page ${currentPage} of ${totalPages}`}
+                                {(() => {
+                                    const start = (currentPage - 1) * pageSize + 1;
+                                    const end = Math.min(currentPage * pageSize, totalJobs);
+                                    return t('paginationShowing')
+                                        ? t('paginationShowing').replace('{start}', String(start)).replace('{end}', String(end)).replace('{total}', String(totalJobs))
+                                        : `Showing ${start}-${end} of ${totalJobs}`;
+                                })()}
                             </span>
                             <button
                                 onClick={onNextPage}

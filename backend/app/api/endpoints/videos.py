@@ -341,7 +341,7 @@ def list_jobs(
 @router.get("/jobs/paginated", response_model=PaginatedJobsResponse)
 def list_jobs_paginated(
     page: int = 1,
-    page_size: int = 10,
+    page_size: int = 5,
     current_user: User = Depends(get_current_user),
     job_store: JobStore = Depends(get_job_store)
 ):

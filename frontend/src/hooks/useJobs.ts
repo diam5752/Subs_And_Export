@@ -3,7 +3,7 @@ import { api, JobResponse } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { useI18n } from '@/context/I18nContext';
 
-const DEFAULT_PAGE_SIZE = 10;
+const DEFAULT_PAGE_SIZE = 5;
 
 export function useJobs() {
     const { user } = useAuth();

@@ -204,7 +204,7 @@ class ApiClient {
         return this.request<JobResponse[]>('/videos/jobs');
     }
 
-    async getJobsPaginated(page: number = 1, pageSize: number = 10): Promise<PaginatedJobsResponse> {
+    async getJobsPaginated(page: number = 1, pageSize: number = 5): Promise<PaginatedJobsResponse> {
         return this.request<PaginatedJobsResponse>(`/videos/jobs/paginated?page=${page}&page_size=${pageSize}`);
     }
 

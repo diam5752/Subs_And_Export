@@ -241,7 +241,7 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
         items: mockJobs,
         total: mockJobs.length,
         page: 1,
-        page_size: 10,
+        page_size: 5,
         total_pages: 1,
       }));
       return;

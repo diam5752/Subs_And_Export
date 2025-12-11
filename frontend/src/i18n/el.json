@@ -173,5 +173,6 @@
   "nextPage": "Επόμενη",
   "pageOf": "Σελίδα",
   "dropFileHere": "Αφήστε το βίντεό σας εδώ!",
-  "releaseToUpload": "Αφήστε για μεταφόρτωση"
+  "releaseToUpload": "Αφήστε για μεταφόρτωση",
+  "paginationShowing": "Εμφάνιση {start}-{end} από {total}"
 }

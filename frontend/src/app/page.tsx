@@ -47,6 +47,8 @@ export default function DashboardPage() {
     totalPages,
     nextPage,
     prevPage,
+    totalJobs,
+    pageSize,
   } = useJobs();
 
 
@@ -291,6 +293,8 @@ export default function DashboardPage() {
           totalPages={totalPages}
           onNextPage={nextPage}
           onPrevPage={prevPage}
+          totalJobs={totalJobs}
+          pageSize={pageSize}
         />
       </main>
 
