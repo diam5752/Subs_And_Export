@@ -677,12 +677,14 @@ def _ass_header(
     margin_l: int,
     margin_r: int,
     shadow_strength: int = 4,
+    play_res_x: int = config.DEFAULT_WIDTH,
+    play_res_y: int = config.DEFAULT_HEIGHT,
 ) -> str:
     return (
         "[Script Info]\n"
         "ScriptType: v4.00+\n"
-        f"PlayResX: {config.DEFAULT_WIDTH}\n"
-        f"PlayResY: {config.DEFAULT_HEIGHT}\n"
+        f"PlayResX: {play_res_x}\n"
+        f"PlayResY: {play_res_y}\n"
         "WrapStyle: 2\n"
         "ScaledBorderAndShadow: yes\n\n"
         "[V4+ Styles]\n"
@@ -717,6 +719,8 @@ def create_styled_subtitle_file(
     subtitle_position: str = "default",  # "default", "top", "bottom"
     max_lines: int = 2,
     shadow_strength: int = 4,
+    play_res_x: int = config.DEFAULT_WIDTH,
+    play_res_y: int = config.DEFAULT_HEIGHT,
     output_dir: Path | None = None,
 ) -> Path:
     """
@@ -759,11 +763,11 @@ def create_styled_subtitle_file(
     if subtitle_position == "top":
         # Middle area - just above default, still using bottom center alignment
         final_alignment = 2  # Bottom center
-        final_margin_v = 615  # ~32% from bottom on 1920px height (1920 * 0.32 ≈ 614)
+        final_margin_v = int(play_res_y * 0.32)  # ~32% from bottom
     elif subtitle_position == "bottom":
         # Movie style (low) - keep bottom center alignment
         final_alignment = 2  # Bottom center
-        final_margin_v = 120  # Close to bottom
+        final_margin_v = int(play_res_y * 0.0625)  # ~6.25% from bottom (120/1920)
     # else "default" uses the passed margin_v (defaulting to config.DEFAULT_SUB_MARGIN_V = 320)
     # with bottom center alignment (2)
 
@@ -780,6 +784,8 @@ def create_styled_subtitle_file(
         margin_l=margin_l,
         margin_r=margin_r,
         shadow_strength=shadow_strength,
+        play_res_x=play_res_x,
+        play_res_y=play_res_y,
     )
     lines = [header]
     for cue in parsed_cues:

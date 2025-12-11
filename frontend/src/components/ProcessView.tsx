@@ -87,7 +87,6 @@ export function ProcessView({
     const [transcribeProvider, setTranscribeProvider] = useState<TranscribeProvider>('local');
     // outputQuality state removed as it is now always high quality
     // const [outputQuality, setOutputQuality] = useState<'low size' | 'balanced' | 'high quality'>('balanced');
-    const [outputResolutionChoice, setOutputResolutionChoice] = useState<'1080x1920' | '2160x3840'>('1080x1920');
     const [subtitlePosition, setSubtitlePosition] = useState('default');
     const [maxSubtitleLines, setMaxSubtitleLines] = useState(2);
     const [subtitleColor, setSubtitleColor] = useState<string>('#FFFF00'); // Default Yellow
@@ -96,6 +95,7 @@ export function ProcessView({
     const [contextPrompt, setContextPrompt] = useState('');
     const [videoInfo, setVideoInfo] = useState<{ width: number; height: number; aspectWarning: boolean; thumbnailUrl: string | null } | null>(null);
     const [isDownloading, setIsDownloading] = useState(false);
+    const [exportingResolutions, setExportingResolutions] = useState<Record<string, boolean>>({});
     const [outputResolutionInfo, setOutputResolutionInfo] = useState<{ text: string; label: string } | null>(null);
 
     // Color Palette
@@ -179,7 +179,6 @@ export function ProcessView({
     const handleResetSelection = () => {
         validationRequestId.current += 1;
         setVideoInfo(null);
-        setOutputResolutionChoice('1080x1920');
         setSubtitlePosition('default');
         setMaxSubtitleLines(2);
         if (fileInputRef.current) {
@@ -211,6 +210,30 @@ export function ProcessView({
         }
     };
 
+    const handleExport = async (resolution: string) => {
+        if (!selectedJob) return;
+
+        // If we already have this variant, just download it
+        if (selectedJob.result_data?.variants?.[resolution]) {
+            const url = buildStaticUrl(selectedJob.result_data.variants[resolution]);
+            if (url) {
+                handleDownload(url, `processed_${resolution}.mp4`);
+                return;
+            }
+        }
+
+        // Otherwise, trigger export
+        setExportingResolutions(prev => ({ ...prev, [resolution]: true }));
+        try {
+            const updatedJob = await api.exportVideo(selectedJob.id, resolution);
+            onJobSelect(updatedJob);
+        } catch (err) {
+            console.error('Export failed:', err);
+        } finally {
+            setExportingResolutions(prev => ({ ...prev, [resolution]: false }));
+        }
+    };
+
     const handleStart = () => {
         setShowPreview(false); // Hide any previous preview
 
@@ -225,8 +248,8 @@ export function ProcessView({
         onStartProcessing({
             transcribeMode,
             transcribeProvider,
-            outputQuality: 'high quality', // Force High Quality
-            outputResolution: outputResolutionChoice,
+            outputQuality: 'high quality',
+            outputResolution: '1080x1920', // Always preview in 1080p
             useAI,
             contextPrompt,
             subtitle_position: subtitlePosition,
@@ -664,32 +687,7 @@ export function ProcessView({
                                 </div>
 
 
-                                <div>
-                                    <label className="block text-sm font-medium text-[var(--muted)] mb-2">
-                                        {t('resolutionLabel')}
-                                    </label>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        {([
-                                            { value: '1080x1920', label: t('resolution1080') },
-                                            { value: '2160x3840', label: t('resolution4k') },
-                                        ] as const).map(({ value, label }) => (
-                                            <button
-                                                key={value}
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setOutputResolutionChoice(value);
-                                                }}
-                                                className={`p-3 rounded-lg border text-left transition-all ${outputResolutionChoice === value
-                                                    ? 'border-[var(--accent)] bg-[var(--accent)]/10 ring-1 ring-[var(--accent)]'
-                                                    : 'border-[var(--border)] hover:border-[var(--accent)]/50'
-                                                    }`}
-                                            >
-                                                <div className="font-semibold">{label}</div>
-                                                <div className="text-xs text-[var(--muted)]">{value.replace('x', '×')}</div>
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
+
 
                                 {/* AI & Context */}
                                 <div className="pt-2">
@@ -737,7 +735,7 @@ export function ProcessView({
                                         disabled={isProcessing}
                                         className="btn-primary w-full sm:w-auto px-8"
                                     >
-                                        {t('controlsStart')}
+                                        {t('controlsStart') || 'Generate Preview'}
                                     </button>
                                 </div>
                             </div>
@@ -877,13 +875,29 @@ export function ProcessView({
                                                             onClick={() => handleDownload(videoUrl, selectedJob.result_data?.original_filename || 'processed.mp4')}
                                                             disabled={isDownloading}
                                                         >
-                                                            {isDownloading ? (
-                                                                <><span className="animate-spin">⏳</span> Downloading...</>
+                                                            ⬇️ Download HD (1080p)
+                                                        </button>
+                                                    )}
+
+                                                    {videoUrl && (
+                                                        <button
+                                                            className={`items-center gap-2 inline-flex disabled:opacity-50 px-4 py-2 rounded-lg font-medium transition-colors ${selectedJob.result_data?.variants?.['2160x3840']
+                                                                ? 'bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 border border-purple-500/30'
+                                                                : 'bg-transparent border border-[var(--border)] hover:bg-white/5 text-[var(--muted)]'
+                                                                }`}
+                                                            onClick={() => handleExport('2160x3840')}
+                                                            disabled={exportingResolutions['2160x3840']}
+                                                        >
+                                                            {exportingResolutions['2160x3840'] ? (
+                                                                <><span className="animate-spin">⏳</span> Generating 4K...</>
+                                                            ) : selectedJob.result_data?.variants?.['2160x3840'] ? (
+                                                                <>⬇️ Download 4K</>
                                                             ) : (
-                                                                <>⬇️ Download MP4</>
+                                                                <>✨ Export 4K</>
                                                             )}
                                                         </button>
                                                     )}
+
                                                     <button
                                                         onClick={handleOpenPreview}
                                                         className="btn-secondary"
@@ -1163,7 +1177,7 @@ export function ProcessView({
                     onClose={handleClosePreview}
                     videoUrl={videoUrl || ''}
                 />
-            </div >
-        </div >
+            </div>
+        </div>
     );
 }

@@ -523,3 +523,75 @@ def create_viral_metadata(
         )
     except Exception as e:
         raise HTTPException(500, f"Failed to generate metadata: {str(e)}")
+
+
+class ExportRequest(BaseModel):
+    resolution: str
+
+
+@router.post("/jobs/{job_id}/export", response_model=JobResponse)
+def export_video(
+    job_id: str,
+    request: ExportRequest,
+    current_user: User = Depends(get_current_user),
+    job_store: JobStore = Depends(get_job_store),
+):
+    """
+    Export a video variant (e.g. 4K) from an existing job.
+    """
+    job = job_store.get_job(job_id)
+    if not job or job.user_id != current_user.id:
+        raise HTTPException(404, "Job not found")
+
+    if job.status != "completed":
+        raise HTTPException(400, "Job must be completed to export")
+
+    data_dir, uploads_dir, artifacts_root = _data_roots()
+    artifact_dir = artifacts_root / job_id
+    
+    # Locate original input
+    input_video = None
+    for ext in [".mp4", ".mov", ".mkv"]:
+        candidate = uploads_dir / f"{job_id}_input{ext}"
+        if candidate.exists():
+            input_video = candidate
+            break
+            
+    if not input_video:
+        raise HTTPException(404, "Original input video not found")
+
+    from ...services.video_processing import generate_video_variant
+    
+    try:
+        # Note: This is synchronous/blocking for now as per MVP plan.
+        # Ideally this should be a background task that updates job status.
+        output_path = generate_video_variant(
+            job_id,
+            input_video,
+            artifact_dir,
+            request.resolution,
+            job_store,
+            current_user.id
+        )
+        
+        # Update job result data with the new variant info
+        # We can store variants in a dict in result_data
+        result_data = job.result_data.copy() if job.result_data else {}
+        variants = result_data.get("variants", {})
+        
+        public_path = _relpath_safe(output_path, data_dir).as_posix()
+        variants[request.resolution] = f"/static/{public_path}"
+        result_data["variants"] = variants
+        
+        # We assume the user might want this to be the 'main' video now?
+        # Or just return the link.
+        # Let's just update variants.
+        
+        job_store.update_job(job_id, result_data=result_data, status="completed", progress=100)
+        
+        # Reload job
+        updated_job = job_store.get_job(job_id)
+        return _ensure_job_size(updated_job)
+        
+    except Exception as e:
+        raise HTTPException(500, f"Export failed: {str(e)}")

@@ -19,6 +19,7 @@ export interface JobResultData {
     transcribe_provider?: string;
     output_size?: number;
     resolution?: string;
+    variants?: Record<string, string>;
 }
 
 export interface JobResponse {
@@ -283,6 +284,13 @@ class ApiClient {
     async deleteJob(jobId: string): Promise<{ status: string; job_id: string }> {
         return this.request<{ status: string; job_id: string }>(`/videos/jobs/${jobId}`, {
             method: 'DELETE',
+        });
+    }
+
+    async exportVideo(jobId: string, resolution: string): Promise<JobResponse> {
+        return this.request<JobResponse>(`/videos/jobs/${jobId}/export`, {
+            method: 'POST',
+            body: JSON.stringify({ resolution }),
         });
     }
 
