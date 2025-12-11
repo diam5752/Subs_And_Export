@@ -106,6 +106,21 @@ export default function DashboardPage() {
     },
   }), [refreshActivity, setSelectedJob]);
 
+  // Cancel processing handler
+  const handleCancelProcessing = useCallback(async () => {
+    if (!jobId) return;
+    try {
+      await api.cancelJob(jobId);
+      setIsProcessing(false);
+      setJobId(null);
+      setProcessError('Processing cancelled');
+      refreshActivity();
+    } catch (err) {
+      // If cancel fails, just continue polling
+      console.error('Cancel failed:', err);
+    }
+  }, [jobId, refreshActivity]);
+
   // Use the polling hook
   useJobPolling({
     jobId,
@@ -283,6 +298,7 @@ export default function DashboardPage() {
           error={processError}
           onStartProcessing={handleStartProcessing}
           onReset={resetProcessing}
+          onCancelProcessing={handleCancelProcessing}
           selectedJob={selectedJob}
           onJobSelect={setSelectedJob}
           recentJobs={recentJobs}

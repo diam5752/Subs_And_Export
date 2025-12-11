@@ -182,3 +182,39 @@ def test_backend_wrappers_import():
 
     assert hasattr(backend_metrics, "should_log_metrics")
     assert hasattr(backend_subtitles, "create_styled_subtitle_file")
+
+
+def test_cancel_job_success(client: TestClient, monkeypatch, tmp_path: Path):
+    """Test successful job cancellation."""
+    headers = _auth_header(client, email="cancel@example.com")
+    called: dict[str, str] = {}
+
+    def fake_run(job_id, *_args, **_kwargs):
+        called["job"] = job_id
+
+    monkeypatch.setattr(videos, "run_video_processing", fake_run)
+    
+    # Create a job via process endpoint
+    resp = client.post(
+        "/videos/process",
+        headers=headers,
+        files={"file": ("clip.mp4", io.BytesIO(b"123"), "video/mp4")},
+    )
+    assert resp.status_code == 200
+    job_id = resp.json()["id"]
+    
+    # Cancel the job (it should be in pending or processing)
+    cancel_resp = client.post(f"/videos/jobs/{job_id}/cancel", headers=headers)
+    assert cancel_resp.status_code == 200
+    data = cancel_resp.json()
+    assert data["id"] == job_id
+    assert data["status"] == "cancelled"
+    assert data["message"] == "Cancelled by user"
+
+
+def test_cancel_job_not_found(client: TestClient):
+    """Test cancel for non-existent job."""
+    headers = _auth_header(client, email="cancel_notfound@example.com")
+    resp = client.post(f"/videos/jobs/{uuid.uuid4()}/cancel", headers=headers)
+    assert resp.status_code == 404
+

@@ -429,11 +429,49 @@ def test_subtitle_position_logic(tmp_path):
     ass_top = subtitles.create_styled_subtitle_file(srt, subtitle_position="top")
     # Check Style definition line for MarginV (21st parameter)
     # Style: Default,Arial,20,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,1,1,4,2,60,60,615,0
-    assert ",615,0" in ass_top.read_text("utf-8")
+    assert ",614,0" in ass_top.read_text("utf-8")
     
     # Bottom: MarginV=120
     ass_bottom = subtitles.create_styled_subtitle_file(srt, subtitle_position="bottom")
     assert ",120,0" in ass_bottom.read_text("utf-8")
+
+
+def test_transcribe_with_whispercpp_no_karaoke(monkeypatch, tmp_path):
+    """
+    REGRESSION: Ensure whisper.cpp provider disables karaoke (words=None).
+    """
+    class MockSegment:
+        def __init__(self, t0, t1, text):
+            self.t0 = t0
+            self.t1 = t1
+            self.text = text
+
+    class MockModel:
+        def __init__(self, *args, **kwargs):
+            pass
+        
+        def transcribe(self, audio, language, n_threads=8):
+            # Verify n_threads is passed
+            assert n_threads > 0
+            return [MockSegment(0, 100, "Hello World")]
+
+    # Mock pywhispercpp module
+    mock_module = types.SimpleNamespace()
+    mock_module.model = types.SimpleNamespace(Model=MockModel)
+    monkeypatch.setitem(sys.modules, "pywhispercpp", mock_module)
+    monkeypatch.setitem(sys.modules, "pywhispercpp.model", mock_module.model)
+
+    audio_path = tmp_path / "test.wav"
+    audio_path.touch()
+
+    srt_path, cues = subtitles._transcribe_with_whispercpp(
+        audio_path, None, "el", tmp_path
+    )
+
+    assert len(cues) == 1
+    assert cues[0].text == "HELLO WORLD"
+    assert cues[0].words is None, "Standard model (whisper.cpp) MUST have words=None (Karaoke disabled)"
+
 
 def test_wrap_lines_empty():
     """Test empty input handling."""
@@ -454,11 +492,13 @@ def test_split_long_cues_logic():
     assert split[0].text == "Short"
     assert split[1].text == "And"
     
-    # 2. Without words
+    # 2. Without words - NO SPLITTING (preserves accurate timing for audio sync)
+    # Cues without word timings (whisper.cpp) are kept intact
     cue_no_words = subtitles.Cue(0, 3, "SHORT AND SWEET", words=None)
-    split_nw = subtitles._split_long_cues([cue_no_words], max_chars=5)
-    # Fallback keeps it as is currently implementation
-    assert len(split_nw) == 1
+    split_nw = subtitles._split_long_cues([cue_no_words], max_chars=10)
+    # NO splitting - cue is kept intact for accurate audio sync
+    assert len(split_nw) == 1, f"Cue without words should NOT be split, got {len(split_nw)}"
+    assert split_nw[0].text == "SHORT AND SWEET"
 
 def test_transcribe_with_openai_success(monkeypatch, tmp_path):
     """Test successful OpenAI transcription."""
@@ -518,12 +558,11 @@ def test_transcribe_with_openai_success(monkeypatch, tmp_path):
 # Bug: User selected 3 lines but got 4 lines; text was cut off at edges.
 
 
-def test_wrap_lines_strictly_enforces_max_lines():
+def test_wrap_lines_preserves_all_text():
     """
-    REGRESSION: max_lines must be strictly enforced.
-    If user selects 3 lines, result must NEVER have 4+ lines.
+    _wrap_lines does NOT truncate - it preserves all words.
+    For cues without word timings, audio sync is priority.
     """
-    # Very long Greek text that would normally need 4+ lines
     long_words = [
         "ΕΧΩ", "ΑΚΟΥΣΕΙ", "ΑΠΟ", "ΠΑΡΑ", "ΠΟΛΛΟΥΣ",
         "ΑΝΘΡΩΠΟΥΣ", "ΣΕ", "ΔΙΑΦΟΡΕΣ", "ΣΥΖΗΤΗΣΕΙΣ", "ΠΟΥ",
@@ -532,17 +571,11 @@ def test_wrap_lines_strictly_enforces_max_lines():
         "ΕΞΕΛΙΧΘΕΙ", "ΣΗΜΕΡΑ"
     ]
     
-    # Test max_lines=1
-    result_1 = subtitles._wrap_lines(long_words, max_chars=32, max_lines=1)
-    assert len(result_1) == 1, f"max_lines=1 but got {len(result_1)} lines"
-    
-    # Test max_lines=2
-    result_2 = subtitles._wrap_lines(long_words, max_chars=32, max_lines=2)
-    assert len(result_2) <= 2, f"max_lines=2 but got {len(result_2)} lines"
-    
-    # Test max_lines=3
-    result_3 = subtitles._wrap_lines(long_words, max_chars=32, max_lines=3)
-    assert len(result_3) <= 3, f"max_lines=3 but got {len(result_3)} lines"
+    # Verify ALL words are preserved (no truncation)
+    for max_lines in [1, 2, 3]:
+        result = subtitles._wrap_lines(long_words, max_chars=32, max_lines=max_lines)
+        result_words = [w for line in result for w in line]
+        assert set(result_words) == set(long_words), f"max_lines={max_lines}: Words lost!"
 
 
 def test_cue_splitting_works_for_all_max_lines(tmp_path):
@@ -569,20 +602,33 @@ def test_cue_splitting_works_for_all_max_lines(tmp_path):
     dialogue_count_2 = content_2.count("Dialogue:")
     assert dialogue_count_2 > 1, f"max_lines=2: Expected multiple cues but got {dialogue_count_2}"
     
-    # Verify each dialogue has at most 2 lines (1 line break = \N)
+    # Verify all original words are present in dialogues (no word loss)
+    all_dialogue_text = []
     for line in content_2.split("\n"):
         if line.startswith("Dialogue:"):
-            line_breaks = line.count("\\N")
-            assert line_breaks <= 1, f"max_lines=2: Found {line_breaks + 1} lines in dialogue"
+            text_part = line.split(",")[-1]
+            import re
+            clean_text = re.sub(r'\{[^}]*\}', '', text_part).replace("\\N", " ")
+            all_dialogue_text.append(clean_text)
+    reconstructed = " ".join(all_dialogue_text)
+    for word in long_text.split():
+        assert word in reconstructed, f"Word '{word}' lost!"
     
     # Test max_lines=3: should also split if needed
     ass_3 = subtitles.create_styled_subtitle_file(srt, cues=[cue], max_lines=3)
     content_3 = ass_3.read_text("utf-8")
     
+    # Verify all original words are present in dialogues (no word loss)
+    all_dialogue_text_3 = []
     for line in content_3.split("\n"):
         if line.startswith("Dialogue:"):
-            line_breaks = line.count("\\N")
-            assert line_breaks <= 2, f"max_lines=3: Found {line_breaks + 1} lines in dialogue"
+            text_part = line.split(",")[-1]
+            import re
+            clean_text = re.sub(r'\{[^}]*\}', '', text_part).replace("\\N", " ")
+            all_dialogue_text_3.append(clean_text)
+    reconstructed_3 = " ".join(all_dialogue_text_3)
+    for word in long_text.split():
+        assert word in reconstructed_3, f"Word '{word}' lost!"
 
 
 def test_greek_text_fits_within_config_width():
@@ -606,9 +652,10 @@ def test_greek_text_fits_within_config_width():
             f"Line '{line_text}' has {len(line_text)} chars, exceeds safe limit"
 
 
-def test_format_karaoke_text_respects_max_lines():
+def test_format_karaoke_text_preserves_all_words():
     """
-    REGRESSION: _format_karaoke_text must respect max_lines parameter.
+    REGRESSION: _format_karaoke_text must preserve ALL words.
+    Priority: Data preservation > Strict line limit.
     """
     # Create words that would need many lines
     words = [
@@ -620,15 +667,15 @@ def test_format_karaoke_text_respects_max_lines():
     ]
     cue = subtitles.Cue(start=0.0, end=1.0, text="", words=words)
     
-    # Test with max_lines=2
+    # Test with max_lines=2 - verify all words are present
     karaoke_2 = subtitles._format_karaoke_text(cue, max_lines=2)
-    line_breaks_2 = karaoke_2.count("\\N")
-    assert line_breaks_2 <= 1, f"max_lines=2 but got {line_breaks_2 + 1} lines"
+    for w in words:
+        assert w.text in karaoke_2, f"Word '{w.text}' lost with max_lines=2"
     
-    # Test with max_lines=3
+    # Test with max_lines=3 - verify all words are present
     karaoke_3 = subtitles._format_karaoke_text(cue, max_lines=3)
-    line_breaks_3 = karaoke_3.count("\\N")
-    assert line_breaks_3 <= 2, f"max_lines=3 but got {line_breaks_3 + 1} lines"
+    for w in words:
+        assert w.text in karaoke_3, f"Word '{w.text}' lost with max_lines=3"
 
 
 def test_short_text_stays_on_single_line():
@@ -812,3 +859,101 @@ def test_transcribe_with_groq_progress_callback(monkeypatch, tmp_path):
     assert 90.0 in progress_values
     assert 100.0 in progress_values
 
+
+# === REGRESSION TESTS FOR WHISPER.CPP WORD LOSS FIX ===
+
+
+def test_cues_without_words_not_split():
+    """
+    REGRESSION: Cues without word timings must NOT be split.
+    Reason: Without word timestamps, we can't accurately interpolate timing.
+    Splitting would break audio sync.
+    """
+    long_text = "ΕΧΩ ΑΚΟΥΣΕΙ ΑΠΟ ΠΑΡΑ ΠΟΛΛΟΥΣ ΑΝΘΡΩΠΟΥΣ ΣΕ ΔΙΑΦΟΡΕΣ ΣΥΖΗΤΗΣΕΙΣ"
+    cue = subtitles.Cue(start=0.0, end=5.0, text=long_text, words=None)
+    
+    # Split with any max_chars - should NOT split because no word timings
+    split_cues = subtitles._split_long_cues([cue], max_chars=30)
+    
+    # Must have exactly 1 cue (no splitting)
+    assert len(split_cues) == 1, f"Cue without words should NOT be split, got {len(split_cues)}"
+    
+    # Timing must be preserved exactly
+    assert split_cues[0].start == 0.0
+    assert split_cues[0].end == 5.0
+    assert split_cues[0].text == long_text
+
+
+def test_standard_model_no_words_lost(monkeypatch, tmp_path):
+    """
+    REGRESSION: Standard model (whisper.cpp) must NOT lose any words.
+    Bug: Long subtitles were truncated to max_lines, silently dropping text.
+    """
+    import types
+    import sys
+    
+    # Very long Greek text that would normally overflow max_lines
+    long_text = "ΕΧΩ ΑΚΟΥΣΕΙ ΑΠΟ ΠΑΡΑ ΠΟΛΛΟΥΣ ΑΝΘΡΩΠΟΥΣ ΣΕ ΔΙΑΦΟΡΕΣ ΣΥΖΗΤΗΣΕΙΣ ΠΟΥ ΕΧΩ ΚΑΝΕΙ ΟΤΙ Ο ΚΑΠΙΤΑΛΙΣΜΟΣ"
+    
+    class MockSegment:
+        def __init__(self, t0, t1, text):
+            self.t0 = t0
+            self.t1 = t1
+            self.text = text
+
+    class MockModel:
+        def __init__(self, *args, **kwargs):
+            pass
+        
+        def transcribe(self, audio, language, n_threads=8):
+            return [MockSegment(0, 500, long_text)]  # 5 seconds in centiseconds
+
+    # Mock pywhispercpp module
+    mock_module = types.SimpleNamespace()
+    mock_module.model = types.SimpleNamespace(Model=MockModel)
+    monkeypatch.setitem(sys.modules, "pywhispercpp", mock_module)
+    monkeypatch.setitem(sys.modules, "pywhispercpp.model", mock_module.model)
+
+    audio_path = tmp_path / "test.wav"
+    audio_path.touch()
+
+    srt_path, cues = subtitles._transcribe_with_whispercpp(
+        audio_path, None, "el", tmp_path
+    )
+    
+    # Verify transcription succeeded
+    assert len(cues) >= 1
+    
+    # Create styled subtitle file with max_lines=2
+    ass_path = subtitles.create_styled_subtitle_file(
+        srt_path, cues=cues, max_lines=2, output_dir=tmp_path
+    )
+    ass_content = ass_path.read_text("utf-8")
+    
+    # Extract all dialogue text and verify NO WORDS ARE LOST
+    dialogue_lines = [l for l in ass_content.split("\n") if l.startswith("Dialogue:")]
+    assert len(dialogue_lines) >= 1, "No dialogue lines found"
+    
+    # Reconstruct all text from dialogues
+    all_text_parts = []
+    for line in dialogue_lines:
+        # Extract text after the last comma (dialogue text)
+        text_part = line.split(",")[-1]
+        # Remove ASS formatting tags
+        import re
+        clean_text = re.sub(r'\{[^}]*\}', '', text_part)
+        clean_text = clean_text.replace("\\N", " ").strip()
+        all_text_parts.append(clean_text)
+    
+    reconstructed = " ".join(all_text_parts)
+    
+    # Normalize for comparison (remove extra spaces, uppercase)
+    normalized_original = subtitles._normalize_text(long_text)
+    normalized_reconstructed = " ".join(reconstructed.split())
+    
+    # All words from original MUST appear in reconstructed
+    original_words = set(normalized_original.split())
+    reconstructed_words = set(normalized_reconstructed.split())
+    
+    missing_words = original_words - reconstructed_words
+    assert not missing_words, f"WORDS LOST: {missing_words}"

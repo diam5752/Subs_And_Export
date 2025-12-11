@@ -7,9 +7,10 @@ interface SubtitlePositionSelectorProps {
     onChangeLines: (lines: number) => void;
     thumbnailUrl?: string | null;
     previewColor?: string;
+    disableMaxLines?: boolean;
 }
 
-export function SubtitlePositionSelector({ value, onChange, lines, onChangeLines, thumbnailUrl, previewColor, subtitleColor, onChangeColor, colors }: SubtitlePositionSelectorProps & { subtitleColor?: string, onChangeColor?: (color: string) => void, colors?: Array<{ label: string; value: string; ass: string }> }) {
+export function SubtitlePositionSelector({ value, onChange, lines, onChangeLines, thumbnailUrl, previewColor, subtitleColor, onChangeColor, colors, disableMaxLines }: SubtitlePositionSelectorProps & { subtitleColor?: string, onChangeColor?: (color: string) => void, colors?: Array<{ label: string; value: string; ass: string }> }) {
     // Map position to CSS 'bottom' percentage for the preview
     // These are visual approximations to match the backend logic
     // Default (MarginV 320 on 1920 height) ~= 16%
@@ -24,9 +25,9 @@ export function SubtitlePositionSelector({ value, onChange, lines, onChangeLines
     };
 
     const options = [
-        { id: 'bottom', label: 'Low', desc: 'Cinematic style' },
-        { id: 'default', label: 'Default', desc: 'Social Standard' },
         { id: 'top', label: 'Middle', desc: 'Higher positioning' },
+        { id: 'default', label: 'Default', desc: 'Social Standard' },
+        { id: 'bottom', label: 'Low', desc: 'Cinematic style' },
     ];
 
     const handleLineChange = useCallback((num: number) => (e: React.MouseEvent) => {
@@ -80,26 +81,39 @@ export function SubtitlePositionSelector({ value, onChange, lines, onChangeLines
                         <label className="block text-sm font-medium text-[var(--muted)] mb-3">
                             Max Lines
                         </label>
-                        <div className="flex flex-col gap-2">
-                            {lineOptions.map((opt) => (
-                                <button
-                                    key={opt.value}
-                                    onClick={handleLineChange(opt.value)}
-                                    className={`p-3 rounded-xl border text-left transition-all flex items-center justify-between group ${lines === opt.value
-                                        ? 'border-[var(--accent)] bg-[var(--accent)]/5 ring-1 ring-[var(--accent)] shadow-[0_0_15px_rgba(var(--accent-rgb),0.1)]'
-                                        : 'border-[var(--border)] hover:border-[var(--accent)]/40 hover:bg-[var(--surface-elevated)]'
-                                        }`}
-                                >
-                                    <div>
-                                        <div className={`font-medium text-sm transition-colors ${lines === opt.value ? 'text-[var(--accent)]' : ''}`}>{opt.label}</div>
-                                        <div className="text-xs text-[var(--muted)]/80">{opt.desc}</div>
-                                    </div>
-                                    {lines === opt.value && (
-                                        <div className="w-2 h-2 rounded-full bg-[var(--accent)] shadow-sm animate-scale-in" />
-                                    )}
-                                </button>
-                            ))}
-                        </div>
+                        {disableMaxLines ? (
+                            /* Disabled state for Standard model */
+                            <div className="p-4 rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface)]/50">
+                                <div className="flex items-center gap-2 mb-2">
+                                    <span className="text-lg">🎯</span>
+                                    <span className="font-medium text-sm text-[var(--muted)]">Auto (Sync Priority)</span>
+                                </div>
+                                <p className="text-xs text-[var(--muted)]/70">
+                                    Standard model prioritizes audio sync over line limits for accuracy.
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col gap-2">
+                                {lineOptions.map((opt) => (
+                                    <button
+                                        key={opt.value}
+                                        onClick={handleLineChange(opt.value)}
+                                        className={`p-3 rounded-xl border text-left transition-all flex items-center justify-between group ${lines === opt.value
+                                            ? 'border-[var(--accent)] bg-[var(--accent)]/5 ring-1 ring-[var(--accent)] shadow-[0_0_15px_rgba(var(--accent-rgb),0.1)]'
+                                            : 'border-[var(--border)] hover:border-[var(--accent)]/40 hover:bg-[var(--surface-elevated)]'
+                                            }`}
+                                    >
+                                        <div>
+                                            <div className={`font-medium text-sm transition-colors ${lines === opt.value ? 'text-[var(--accent)]' : ''}`}>{opt.label}</div>
+                                            <div className="text-xs text-[var(--muted)]/80">{opt.desc}</div>
+                                        </div>
+                                        {lines === opt.value && (
+                                            <div className="w-2 h-2 rounded-full bg-[var(--accent)] shadow-sm animate-scale-in" />
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
                     {/* Style / Color Selector */}

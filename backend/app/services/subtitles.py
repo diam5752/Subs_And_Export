@@ -450,13 +450,13 @@ def _transcribe_with_whispercpp(
     segments = model.transcribe(
         str(audio_path),
         language=language or config.WHISPERCPP_LANGUAGE,
+        n_threads=min(8, os.cpu_count() or 4),  # Use available threads up to 8
     )
 
     if progress_callback:
         progress_callback(85.0)
 
-    # Convert segments to Cues with interpolated word-level timing
-    # Word timings are interpolated based on character position within each segment
+    # Convert segments to Cues WITHOUT word-level timing (Standard model = No Karaoke)
     cues: List[Cue] = []
     timed_text: List[TimeRange] = []
     
@@ -473,34 +473,8 @@ def _transcribe_with_whispercpp(
         if not normalized_text:
             continue
         
-        # Split into words and interpolate timing based on character positions
-        words = normalized_text.split()
-        if not words:
-            cues.append(Cue(start=seg_start, end=seg_end, text=normalized_text, words=None))
-            timed_text.append((seg_start, seg_end, seg_text))
-            continue
-        
-        # Calculate total characters (excluding spaces for weight calculation)
-        total_chars = sum(len(w) for w in words)
-        if total_chars == 0:
-            cues.append(Cue(start=seg_start, end=seg_end, text=normalized_text, words=None))
-            timed_text.append((seg_start, seg_end, seg_text))
-            continue
-        
-        segment_duration = seg_end - seg_start
-        word_timings: List[WordTiming] = []
-        
-        # Interpolate word start/end times based on character position
-        char_position = 0
-        for word in words:
-            # Calculate proportional timing based on character position
-            word_start = seg_start + (char_position / total_chars) * segment_duration
-            char_position += len(word)
-            word_end = seg_start + (char_position / total_chars) * segment_duration
-            
-            word_timings.append(WordTiming(start=word_start, end=word_end, text=word))
-        
-        cues.append(Cue(start=seg_start, end=seg_end, text=normalized_text, words=word_timings))
+        # Standard model: No word columns, just block text
+        cues.append(Cue(start=seg_start, end=seg_end, text=normalized_text, words=None))
         timed_text.append((seg_start, seg_end, seg_text))
 
     if progress_callback:
@@ -739,15 +713,18 @@ def create_styled_subtitle_file(
     # SPLIT LONG CUES FOR ALL MAX_LINES VALUES:
     # If text doesn't fit within max_lines, split into separate subtitle events
     # rather than overflowing to more lines than user selected.
-    # Calculate max_chars based on max_lines to respect user's line limit.
     # 
-    # IMPORTANT: Use a reduced threshold (85%) because textwrap.wrap() doesn't
-    # fill each line to max capacity. Without this reduction, a 60-char text
-    # at width=30 with max_lines=2 (threshold=64) would NOT be split, but
-    # textwrap.wrap would produce 3 lines, causing the 3rd line to be lost.
-    # With 85% reduction: threshold = 32 * 2 * 0.85 = 54 chars, so 60-char
-    # text WILL be split, preventing data loss.
-    wrap_efficiency = 0.85  # Account for textwrap not filling lines optimally
+    # IMPORTANT: _wrap_lines uses "balanced wrapping" which calculates
+    # target_width = total_len / max_lines. This can produce MORE lines than
+    # expected when textwrap doesn't fill lines optimally.
+    # 
+    # Example: 54-char cue with max_lines=2 → target_width=27 → but textwrap
+    # might produce 3 lines if words don't break evenly.
+    #
+    # Solution: Use 70% efficiency factor to ensure cues are small enough
+    # that balanced wrapping always fits in max_lines.
+    # For max_lines=2 and MAX_SUB_LINE_CHARS=32: 32 * 2 * 0.70 = 44.8 ≈ 44 chars
+    wrap_efficiency = 0.70  # Aggressive factor to handle balanced wrapping edge cases
     max_chars_per_cue = int(config.MAX_SUB_LINE_CHARS * max_lines * wrap_efficiency)
     parsed_cues = _split_long_cues(parsed_cues, max_chars=max_chars_per_cue)
 
@@ -856,11 +833,13 @@ def _split_long_cues(cues: Sequence[Cue], max_chars: int = 40) -> List[Cue]:
                 ))
 
         else:
-            # Fallback: No word timings (Linear Interpolation)
-            # Naive split by splitting text roughly in half or chunks
-            # For now, just append original to avoid breaking. 
-            # Ideally we would linear interpolate time based on char length.
-            new_cues.append(cue) 
+            # NO SPLITTING for cues without word timings (e.g., whisper.cpp)
+            # Reason: Without word-level timestamps, we cannot accurately split
+            # the timing. Any interpolation would be a guess and break audio sync.
+            # 
+            # Trade-off: Subtitle may exceed max_lines, but timing is accurate.
+            # This is better than showing subtitles out of sync with audio.
+            new_cues.append(cue)
 
     return new_cues
 
@@ -911,17 +890,14 @@ def _wrap_lines(
         break_on_hyphens=False,
         drop_whitespace=True,
     )
-    
-    # DEBUG LOGGING (Temporary)
-    print(f"DEBUG_SUBTITLES: max_lines={max_lines} | total_len={total_len} | target={target_width} | effective={effective_width} | resulting_lines={len(wrapped) if wrapped else 0}")
 
     if not wrapped:
         return [words]
     
-    # Enforce max_lines strictly by slicing.
-    # Since long cues are now split in create_styled_subtitle_file,
-    # this ensures we never exceed the user's selected line count.
-    wrapped = wrapped[:max_lines]
+    # NO TRUNCATION: We do not enforce max_lines by truncating.
+    # For cues without word timings (whisper.cpp), we preserve all text
+    # to maintain accurate audio sync. The subtitle may show more lines
+    # than max_lines, but this is preferable to losing words or breaking sync.
     
     return [line.split() for line in wrapped]
 

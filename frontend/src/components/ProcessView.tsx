@@ -18,6 +18,7 @@ interface ProcessViewProps {
     error: string;
     onStartProcessing: (options: ProcessingOptions) => Promise<void>;
     onReset: () => void;
+    onCancelProcessing?: () => void;
     selectedJob: JobResponse | null;
     onJobSelect: (job: JobResponse | null) => void;
     recentJobs: JobResponse[];
@@ -57,6 +58,7 @@ export function ProcessView({
     error,
     onStartProcessing,
     onReset,
+    onCancelProcessing,
     selectedJob,
     onJobSelect,
     recentJobs,
@@ -477,7 +479,7 @@ export function ProcessView({
                                                 badgeColor: 'text-[var(--muted)] bg-[var(--surface)]',
                                                 provider: 'whispercpp',
                                                 mode: 'turbo',
-                                                stats: { speed: 4, accuracy: 3, karaoke: false },
+                                                stats: { speed: 4, accuracy: 3, karaoke: false, linesControl: false },
                                                 icon: (selected: boolean) => (
                                                     <div className={`p-2 rounded-lg ${selected ? 'bg-cyan-500/20 text-cyan-300' : 'bg-cyan-500/10 text-cyan-500'}`}>
                                                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -497,7 +499,7 @@ export function ProcessView({
                                                 badgeColor: 'text-amber-400 bg-amber-400/10',
                                                 provider: 'local',
                                                 mode: 'turbo',
-                                                stats: { speed: 2, accuracy: 5, karaoke: true },
+                                                stats: { speed: 2, accuracy: 5, karaoke: true, linesControl: true },
                                                 icon: (selected: boolean) => (
                                                     <div className={`p-2 rounded-lg ${selected ? 'bg-violet-500/20 text-violet-300' : 'bg-violet-500/10 text-violet-500'}`}>
                                                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -517,7 +519,7 @@ export function ProcessView({
                                                 badgeColor: 'text-purple-400 bg-purple-500/10',
                                                 provider: 'groq',
                                                 mode: 'turbo',
-                                                stats: { speed: 5, accuracy: 5, karaoke: true },
+                                                stats: { speed: 5, accuracy: 5, karaoke: true, linesControl: true },
                                                 icon: (selected: boolean) => (
                                                     <div className={`p-2 rounded-lg ${selected ? 'bg-purple-500/20 text-purple-300' : 'bg-purple-500/10 text-purple-400'}`}>
                                                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -590,6 +592,12 @@ export function ProcessView({
                                                                 {model.stats.karaoke ? 'SUPPORTED' : 'NO'}
                                                             </div>
                                                         </div>
+                                                        <div className="grid grid-cols-[60px,1fr] items-center gap-2">
+                                                            <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">Lines</span>
+                                                            <div className={`text-[10px] font-bold ${model.stats.linesControl ? 'text-emerald-500' : 'text-cyan-400'}`}>
+                                                                {model.stats.linesControl ? 'CUSTOM' : 'AUTO'}
+                                                            </div>
+                                                        </div>
                                                     </div>
 
                                                     <div className="flex items-center gap-2 text-xs pt-3 border-t border-[var(--border)]/50">
@@ -615,6 +623,7 @@ export function ProcessView({
                                         subtitleColor={subtitleColor}
                                         onChangeColor={setSubtitleColor}
                                         colors={SUBTITLE_COLORS}
+                                        disableMaxLines={transcribeProvider === 'whispercpp'}
                                     />
                                 </div>
 
@@ -768,7 +777,7 @@ export function ProcessView({
                             </div>
 
                             {isProcessing && (
-                                <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3 space-y-2 animate-fade-in">
+                                <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3 space-y-3 animate-fade-in">
                                     <div className="flex items-center justify-between text-sm">
                                         <span className="font-medium">{statusMessage || t('progressLabel')}</span>
                                         <span className="text-[var(--accent)] font-semibold">{progress}%</span>
@@ -779,6 +788,16 @@ export function ProcessView({
                                             style={{ width: `${progress}%` }}
                                         />
                                     </div>
+                                    {onCancelProcessing && (
+                                        <div className="flex justify-end pt-1">
+                                            <button
+                                                onClick={onCancelProcessing}
+                                                className="px-4 py-1.5 rounded-lg text-sm font-medium bg-[var(--danger)]/10 text-[var(--danger)] hover:bg-[var(--danger)]/20 border border-[var(--danger)]/30 transition-colors"
+                                            >
+                                                {t('cancelProcessing')}
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             )}
 

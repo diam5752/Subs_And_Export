@@ -174,5 +174,6 @@
   "pageOf": "Page",
   "dropFileHere": "Drop your video here!",
   "releaseToUpload": "Release to upload",
-  "paginationShowing": "Showing {start}-{end} of {total}"
+  "paginationShowing": "Showing {start}-{end} of {total}",
+  "cancelProcessing": "Cancel"
 }

@@ -287,6 +287,12 @@ class ApiClient {
         });
     }
 
+    async cancelJob(jobId: string): Promise<JobResponse> {
+        return this.request<JobResponse>(`/videos/jobs/${jobId}/cancel`, {
+            method: 'POST',
+        });
+    }
+
     async exportVideo(jobId: string, resolution: string): Promise<JobResponse> {
         return this.request<JobResponse>(`/videos/jobs/${jobId}/export`, {
             method: 'POST',

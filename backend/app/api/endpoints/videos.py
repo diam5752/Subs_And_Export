@@ -489,7 +489,36 @@ def delete_job(
     return {"status": "deleted", "job_id": job_id}
 
 
-@router.post("/jobs/{job_id}/viral-metadata", response_model=ViralMetadataResponse)
+@router.post("/jobs/{job_id}/cancel", response_model=JobResponse)
+def cancel_job(
+    job_id: str,
+    current_user: User = Depends(get_current_user),
+    job_store: JobStore = Depends(get_job_store),
+    history_store: HistoryStore = Depends(get_history_store)
+):
+    """Cancel a processing job."""
+    job = job_store.get_job(job_id)
+    if not job or job.user_id != current_user.id:
+        raise HTTPException(404, "Job not found")
+    
+    # Only allow cancelling pending or processing jobs
+    if job.status not in ("pending", "processing"):
+        raise HTTPException(400, f"Cannot cancel job with status '{job.status}'")
+    
+    job_store.update_job(job_id, status="cancelled", message="Cancelled by user")
+    
+    _record_event_safe(
+        history_store,
+        current_user,
+        "job_cancelled",
+        f"Cancelled job {job_id}",
+        {"job_id": job_id},
+    )
+    
+    updated_job = job_store.get_job(job_id)
+    return _ensure_job_size(updated_job)
+
+
 def create_viral_metadata(
     job_id: str,
     current_user: User = Depends(get_current_user),
