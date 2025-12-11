@@ -715,18 +715,21 @@ def create_styled_subtitle_file(
     # max_lines=1/2/3: Standard line-based mode - cues are split to fit in max_lines
     has_word_timings = any(cue.words for cue in parsed_cues)
     
-    if max_lines == 0 and has_word_timings:
+    
+    if max_lines == 0:
         # "1 WORD AT A TIME" MODE:
-        # Each word becomes its own subtitle event, appearing exactly when spoken.
-        # This creates a true karaoke effect with each word in Primary color.
-        parsed_cues = _split_long_cues(parsed_cues, max_chars=1)
+        # If words exist: Real Karaoke (per-word timing)
+        # If no words (Standard model): Linear Interpolation fallback (1 word per cue approximation)
+        # We pass max_chars=1 to force splitting at every word (or even char, but _split_long_cues handles words)
+        parsed_cues = _split_long_cues(parsed_cues, max_chars=1, max_lines=1)
     elif max_lines > 0:
         # STANDARD LINE-BASED MODE:
-        # Split long cues to fit within max_lines using a 90% efficiency factor
-        # to ensure wrapping exploits most of the available lines without premature splitting.
-        wrap_efficiency = 0.90  
-        max_chars_per_cue = int(config.MAX_SUB_LINE_CHARS * max_lines * wrap_efficiency)
-        parsed_cues = _split_long_cues(parsed_cues, max_chars=max_chars_per_cue)
+        # Split cues to ensure they fit strictly within max_lines.
+        parsed_cues = _split_long_cues(
+            parsed_cues, 
+            max_chars=config.MAX_SUB_LINE_CHARS, 
+            max_lines=max_lines
+        )
     # For cues without word timings (Standard model), don't split regardless of max_lines
 
     output_dir = output_dir or transcript_path.parent
@@ -773,48 +776,98 @@ def create_styled_subtitle_file(
     return ass_path
 
 
-def _split_long_cues(cues: Sequence[Cue], max_chars: int = 40) -> List[Cue]:
+def _split_long_cues(
+    cues: Sequence[Cue], 
+    max_chars: int = config.MAX_SUB_LINE_CHARS, 
+    max_lines: int = 2
+) -> List[Cue]:
     """
-    Split long cues into multiple shorter cues based on max_chars.
-    Uses word-level timestamps to determine split points and maintain timing accuracy.
+    Split long cues into multiple shorter cues to ensure they fit within max_lines.
+    
+    Args:
+        cues: List of input cues
+        max_chars: Maximum characters per line (e.g., 32)
+        max_lines: Maximum number of lines allowed (e.g., 2)
     """
     new_cues = []
     
     for cue in cues:
-        # If short enough, keep it
-        if len(cue.text) <= max_chars:
+        # 1. First check if the WHOLE cue fits (optimization)
+        # using the same wrapping logic we'll use for display
+        cues_text_words = cue.text.split()
+        full_wrapped = _wrap_lines(cues_text_words, max_chars=max_chars, max_lines=max_lines)
+        if len(full_wrapped) <= max_lines:
             new_cues.append(cue)
             continue
             
-        # Strategy: Use word timings if available
+        # 2. If it doesn't fit, we need to split it
         if cue.words:
-            current_words = []
-            current_len = 0
+            current_words: List[WordTiming] = []
             
-            # Group words into chunks <= max_chars
             for w in cue.words:
-                w_len = len(w.text) + 1 # +space
+                # Special handling for "phrase-words" (tokens containing spaces)
+                # If we are in restricted mode (e.g. max_lines=1), a multi-word token
+                # might inherently break the limit even if it's a single "word" object.
+                # We should expand it into sub-words.
                 
-                # If adding this word exceeds limit, push current chunk as new cue
-                if current_words and (current_len + w_len > max_chars):
-                    # Create cue from current_words
-                    chunk_text = " ".join([cw.text for cw in current_words])
-                    chunk_start = current_words[0].start
-                    chunk_end = current_words[-1].end
+                expanded_words = [w]
+                if " " in w.text.strip():
+                     # It's a phrase. Split it.
+                     sub_texts = w.text.split()
+                     if len(sub_texts) > 1:
+                         # Linear interpolation for sub-words
+                         total_dur = w.end - w.start
+                         total_chars = len(w.text.replace(" ", ""))
+                         current_sub_start = w.start
+                         
+                         new_sub_words = []
+                         for sw_text in sub_texts:
+                             char_count = len(sw_text)
+                             # avoid div by zero
+                             frac = (char_count / total_chars) if total_chars > 0 else (1.0/len(sub_texts))
+                             dur = total_dur * frac
+                             
+                             new_sub_words.append(WordTiming(
+                                 start=current_sub_start,
+                                 end=min(current_sub_start + dur, w.end),
+                                 text=sw_text
+                             ))
+                             current_sub_start += dur
+                         
+                         # Ensure last one aligns perfectly
+                         if new_sub_words:
+                             new_sub_words[-1].end = w.end
+                             
+                         expanded_words = new_sub_words
+
+                for sub_w in expanded_words:
+                    test_words = current_words + [sub_w]
+                    test_text_words = [tw.text for tw in test_words]
                     
-                    new_cues.append(Cue(
-                        start=chunk_start,
-                        end=chunk_end,
-                        text=chunk_text,
-                        words=list(current_words)
-                    ))
+                    # Check if this chunk would exceed max_lines
+                    wrapped = _wrap_lines(test_text_words, max_chars=max_chars, max_lines=max_lines)
                     
-                    # Reset
-                    current_words = [w]
-                    current_len = w_len
-                else:
-                    current_words.append(w)
-                    current_len += w_len
+                    if len(wrapped) > max_lines:
+                        # Adding this word breaks the limit. 
+                        # Commit current_words as a cue (if any)
+                        if current_words:
+                            chunk_text = " ".join([cw.text for cw in current_words])
+                            chunk_start = current_words[0].start
+                            # End at the last word's end
+                            chunk_end = current_words[-1].end
+                            
+                            new_cues.append(Cue(
+                                start=chunk_start,
+                                end=chunk_end,
+                                text=chunk_text,
+                                words=list(current_words)
+                            ))
+                        
+                        # Start new chunk with the current word 'sub_w'
+                        current_words = [sub_w]
+                    else:
+                        # Fits, keep accumulating
+                        current_words.append(sub_w)
             
             # Flush final chunk
             if current_words:
@@ -822,8 +875,8 @@ def _split_long_cues(cues: Sequence[Cue], max_chars: int = 40) -> List[Cue]:
                 chunk_start = current_words[0].start
                 chunk_end = current_words[-1].end
                 
-                # Trust the original cue end for the final chunk primarily, 
-                # but ensure we don't end before the last word
+                # Ensure we don't drop the official end time if it's longer
+                # (unless we split, in which case the last chunk ends at cue.end)
                 chunk_end = max(chunk_end, cue.end)
                 
                 new_cues.append(Cue(
@@ -833,14 +886,69 @@ def _split_long_cues(cues: Sequence[Cue], max_chars: int = 40) -> List[Cue]:
                     words=list(current_words)
                 ))
 
-        else:
-            # NO SPLITTING for cues without word timings (e.g., whisper.cpp)
-            # Reason: Without word-level timestamps, we cannot accurately split
-            # the timing. Any interpolation would be a guess and break audio sync.
-            # 
-            # Trade-off: Subtitle may exceed max_lines, but timing is accurate.
-            # This is better than showing subtitles out of sync with audio.
-            new_cues.append(cue)
+        elif max_lines > 0:
+            # Fallback for standard model (no words) - Use Linear Interpolation
+            # We must split to respect max_lines, even if timing is a guess.
+            
+            cues_text_words = cue.text.split()
+            full_wrapped = _wrap_lines(cues_text_words, max_chars=max_chars, max_lines=max_lines)
+            if len(full_wrapped) <= max_lines:
+                new_cues.append(cue)
+                continue
+                
+            # It needs splitting.
+            # Simple greedy accumulation with linear time interpolation.
+            current_words = []
+            cue_duration = cue.end - cue.start
+            total_chars = len(cue.text.replace(" ", "")) # Approximation
+            if total_chars == 0: total_chars = 1
+            
+            # Helper to calculate time for a chunk of text
+            def estimate_duration(text_chunk):
+                chunk_chars = len(text_chunk.replace(" ", ""))
+                return (chunk_chars / total_chars) * cue_duration
+            
+            current_start = cue.start
+            
+            for w in cues_text_words:
+                test_words = current_words + [w]
+                wrapped = _wrap_lines(test_words, max_chars=max_chars, max_lines=max_lines)
+                
+                if len(wrapped) > max_lines:
+                    # Commit current chunk
+                    if current_words:
+                        chunk_text = " ".join(current_words)
+                        duration = estimate_duration(chunk_text)
+                        chunk_end = current_start + duration
+                        
+                        # Clamp
+                        chunk_end = min(chunk_end, cue.end)
+                        
+                        new_cues.append(Cue(
+                            start=current_start,
+                            end=chunk_end,
+                            text=chunk_text,
+                            words=None
+                        ))
+                        
+                        current_start = chunk_end
+                        current_words = [w]
+                    else:
+                         # Single word exceeds limit? Should not happen with sane max_lines
+                         current_words = [w]
+                else:
+                    current_words.append(w)
+            
+            # Flush final
+            if current_words:
+                chunk_text = " ".join(current_words)
+                new_cues.append(Cue(
+                    start=current_start,
+                    end=cue.end,
+                    text=chunk_text,
+                    words=None
+                ))
+
 
     return new_cues
 
@@ -895,16 +1003,38 @@ def _format_karaoke_text(cue: Cue, max_lines: int = 2) -> str:
             break_indices.append(running_total)
         words = cue.words
         segments = []
+        previous_end = cue.start
         for idx, word in enumerate(words):
             # Insert line break before second line
             if break_indices and idx == break_indices[0]:
                 segments.append("\\N")
                 break_indices.pop(0)
             
-            # Simple text - no karaoke fill effects
-            # Words appear in Primary color (yellow) immediately
-            # Each cue shows all its words at once; cue splitting handles timing
-            segments.append(word.text)
+            # KARAOKE EFFECT
+            # Calculate duration relative to previous word end or cue start
+            # ASS \k tags are in centiseconds (1/100th sec)
+            
+            # Logic:
+            # 1. Fill from 'previous_end' to 'word.end'
+            # 2. But we only highlight the WORD.
+            # 3. If there's a gap between previous_end and word.start, it's silence/space.
+            #    We can attach that duration to the word or a space?
+            #    Simpler: Just fill from previous_end to word.end. This ensures continuous flow.
+            
+            # Current time pointer
+            current_end = word.end
+            duration_s = current_end - previous_end
+            
+            # Clamp duration to be at least 0
+            if duration_s < 0:
+                duration_s = 0
+                
+            # Convert to centiseconds
+            k_duration = int(duration_s * 100)
+            
+            segments.append(f"{{\\k{k_duration}}}{word.text}")
+            
+            previous_end = current_end
             
             if idx != len(words) - 1:
                 segments.append(" ")
@@ -916,6 +1046,17 @@ def _format_karaoke_text(cue: Cue, max_lines: int = 2) -> str:
     if not wrapped_lines:
         return ""
     joined = [" ".join(line) for line in wrapped_lines]
+    
+    # Fallback: If max_lines=0 (1 Word Mode) and no word timings (Standard Model),
+    # we still want the visual "fill" effect. Treating the whole cue as one "word".
+    if max_lines == 0:
+        duration_s = cue.end - cue.start
+        if duration_s < 0: duration_s = 0
+        k_duration = int(duration_s * 100)
+        # Apply strict \k tag to the single line
+        # Note: joined should be length 1 here due to splitting logic
+        return f"{{\\k{k_duration}}}{joined[0]}"
+        
     return "\\N".join(joined)
 
 

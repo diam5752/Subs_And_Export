@@ -488,18 +488,18 @@ def test_split_long_cues_logic():
     ]
     cue = subtitles.Cue(0, 3, "SHORT AND SWEET", words=words)
     # Split small
-    split = subtitles._split_long_cues([cue], max_chars=5)
+    split = subtitles._split_long_cues([cue], max_chars=5, max_lines=1)
     assert len(split) > 1
     assert split[0].text == "Short"
     assert split[1].text == "And"
     
-    # 2. Without words - NO SPLITTING (preserves accurate timing for audio sync)
-    # Cues without word timings (whisper.cpp) are kept intact
+    # 2. Without words - SPLITTING via Linear Interpolation
+    # Cues without word timings (whisper.cpp) are now split to respect UI max_lines
     cue_no_words = subtitles.Cue(0, 3, "SHORT AND SWEET", words=None)
-    split_nw = subtitles._split_long_cues([cue_no_words], max_chars=10)
-    # NO splitting - cue is kept intact for accurate audio sync
-    assert len(split_nw) == 1, f"Cue without words should NOT be split, got {len(split_nw)}"
-    assert split_nw[0].text == "SHORT AND SWEET"
+    split_nw = subtitles._split_long_cues([cue_no_words], max_chars=10, max_lines=1)
+    # Cue should be split
+    assert len(split_nw) > 1, f"Cue without words SHOULD be split, got {len(split_nw)}"
+    assert "SHORT" in split_nw[0].text
 
 def test_transcribe_with_openai_success(monkeypatch, tmp_path):
     """Test successful OpenAI transcription."""
@@ -864,25 +864,32 @@ def test_transcribe_with_groq_progress_callback(monkeypatch, tmp_path):
 # === REGRESSION TESTS FOR WHISPER.CPP WORD LOSS FIX ===
 
 
-def test_cues_without_words_not_split():
+def test_cues_without_words_DO_split_interpolated():
     """
-    REGRESSION: Cues without word timings must NOT be split.
-    Reason: Without word timestamps, we can't accurately interpolate timing.
-    Splitting would break audio sync.
+    REGRESSION: Cues without word timings MUST be split to respect UI line limits.
+    Reason: User prefers strict line limits over perfect sync for Standard model.
     """
     long_text = "ΕΧΩ ΑΚΟΥΣΕΙ ΑΠΟ ΠΑΡΑ ΠΟΛΛΟΥΣ ΑΝΘΡΩΠΟΥΣ ΣΕ ΔΙΑΦΟΡΕΣ ΣΥΖΗΤΗΣΕΙΣ"
+    # Logic uses 32 chars width by default.
+    # Text len is ~60. 
+    # max_lines=1 -> needs splitting.
+    
     cue = subtitles.Cue(start=0.0, end=5.0, text=long_text, words=None)
     
-    # Split with any max_chars - should NOT split because no word timings
-    split_cues = subtitles._split_long_cues([cue], max_chars=30)
+    # Split with max_lines=1 to force split
+    split_cues = subtitles._split_long_cues([cue], max_chars=30, max_lines=1)
     
-    # Must have exactly 1 cue (no splitting)
-    assert len(split_cues) == 1, f"Cue without words should NOT be split, got {len(split_cues)}"
+    # Must have > 1 cue (splitting happened)
+    assert len(split_cues) > 1, f"Cue without words SHOULD be split, got {len(split_cues)}"
     
-    # Timing must be preserved exactly
-    assert split_cues[0].start == 0.0
-    assert split_cues[0].end == 5.0
-    assert split_cues[0].text == long_text
+    # Timing should be interpolated
+    # First chunk end should be > start and < end
+    assert split_cues[0].end > 0.0
+    assert split_cues[0].end < 5.0
+    
+    # Text check
+    reconstructed = " ".join(c.text for c in split_cues)
+    assert reconstructed == long_text
 
 
 def test_standard_model_no_words_lost(monkeypatch, tmp_path):
@@ -992,3 +999,38 @@ def test_per_word_karaoke():
     assert split_cues[2].start == 1.4
     assert split_cues[2].end == 2.0  # Uses original cue end for last word
 
+
+import pytest
+from backend.app.services import subtitles
+
+def test_1_word_mode_splitting_standard_model():
+    """
+    REGRESSION: "1 Word" mode (max_lines=0) must split into single words even without word timings.
+    Bug: Previously fell through to no-split, resulting in 3+ lines for long text.
+    """
+    # Simulate create_styled_subtitle_file logic call to _split_long_cues(max_chars=1, max_lines=1)
+    
+    long_text = "ONE TWO THREE FOUR"
+    cue = subtitles.Cue(start=0.0, end=4.0, text=long_text, words=None)
+    
+    # max_chars=1 forces split at every word boundary (roughly)
+    # This simulates what create_styled_subtitle_file calls when max_lines=0
+    split_cues = subtitles._split_long_cues([cue], max_chars=1, max_lines=1)
+    
+    # Should have 4 cues (one per word)
+    assert len(split_cues) == 4, f"Should split into 4 cues, got {len(split_cues)}"
+    assert split_cues[0].text == "ONE"
+    assert split_cues[1].text == "TWO"
+    assert split_cues[2].text == "THREE"
+    assert split_cues[3].text == "FOUR"
+    
+    # Durations should be interpolated linearly based on char count
+    # "ONE" is 3 chars. Total chars (no spaces) is 15. Duration 4.0s.
+    # 3/15 * 4.0 = 0.8s
+    assert split_cues[0].end == pytest.approx(0.8, 0.1)
+    # "TWO" is 3 chars -> +0.8s -> 1.6s
+    assert split_cues[1].end == pytest.approx(1.6, 0.1)
+    # "THREE" is 5 chars -> 5/15 * 4 = 1.33s -> 2.93s
+    assert split_cues[2].end == pytest.approx(2.93, 0.1)
+    # "FOUR" is 4 chars -> 4/15 * 4 = 1.06s -> 4.0s
+    assert split_cues[3].end == pytest.approx(4.0, 0.1)

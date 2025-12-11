@@ -191,7 +191,7 @@ class ApiClient {
         formData.append('use_llm', String(settings.use_llm || false));
         formData.append('context_prompt', settings.context_prompt || '');
         formData.append('subtitle_position', settings.subtitle_position || 'default');
-        formData.append('max_subtitle_lines', String(settings.max_subtitle_lines || 2));
+        formData.append('max_subtitle_lines', String(settings.max_subtitle_lines ?? 2));
         if (settings.subtitle_color) {
             formData.append('subtitle_color', settings.subtitle_color);
         }

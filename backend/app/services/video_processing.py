@@ -599,17 +599,25 @@ def generate_video_variant(
     
     # 2025-12-11: We will rely on re-generating ASS from SRT.
     
+    # Try to recover settings from job.result_data
+    result_data = job.result_data or {}
+    max_lines = result_data.get("max_subtitle_lines", 2)
+    position = result_data.get("subtitle_position", "default")
+    color = result_data.get("subtitle_color", config.DEFAULT_SUB_COLOR)
+    shadow = result_data.get("shadow_strength", 4)
+
     output_filename = f"processed_{width}x{height}.mp4"
     destination = artifact_dir / output_filename
     
     # Regenerate ASS with new resolution
     # Note: We don't have the original cues in memory, so we parse SRT again.
-    # We limit max_lines to 2 by default unless we know otherwise.
     ass_path = subtitles.create_styled_subtitle_file(
         transcript_path,
         cues=None, # Will parse from SRT
-        subtitle_position="default", # Fallback
-        max_lines=2,
+        subtitle_position=position,
+        max_lines=max_lines,
+        primary_color=color,
+        shadow_strength=shadow,
         play_res_x=width,
         play_res_y=height,
         output_dir=artifact_dir

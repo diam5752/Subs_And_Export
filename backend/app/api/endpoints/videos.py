@@ -189,6 +189,11 @@ def run_video_processing(
             "transcribe_provider": provider,
             "output_size": final_path.stat().st_size if final_path.exists() else 0,
             "resolution": f"{target_width}x{target_height}",
+            # Persist styling settings for Export/Re-generation
+            "max_subtitle_lines": settings.max_subtitle_lines,
+            "subtitle_position": settings.subtitle_position,
+            "subtitle_color": settings.subtitle_color,
+            "shadow_strength": settings.shadow_strength,
         }
         
         job_store.update_job(job_id, status="completed", progress=100, message="Done!", result_data=result_data)
