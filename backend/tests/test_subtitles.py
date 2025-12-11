@@ -92,7 +92,8 @@ def test_create_styled_subtitle_file_generates_ass(tmp_path: Path) -> None:
     assert "[Script Info]" in ass_content
     assert "Style: Default" in ass_content
     assert "Dialogue:" in ass_content
-    assert "\\k" in ass_content
+    # Per-word karaoke: each word is its own dialogue event
+    assert ass_content.count("Dialogue:") == 2  # Two words = two events
 
 
 def test_format_karaoke_wraps_long_lines() -> None:
@@ -957,3 +958,37 @@ def test_standard_model_no_words_lost(monkeypatch, tmp_path):
     
     missing_words = original_words - reconstructed_words
     assert not missing_words, f"WORDS LOST: {missing_words}"
+
+
+def test_per_word_karaoke():
+    """
+    REGRESSION: Karaoke uses per-word subtitle events.
+    Each word becomes its own dialogue event with exact timing.
+    """
+    # Words with gaps: 0.0-0.5s, 0.8-1.2s, 1.4-1.8s
+    words = [
+        subtitles.WordTiming(start=0.0, end=0.5, text='HELLO'),
+        subtitles.WordTiming(start=0.8, end=1.2, text='WORLD'),
+        subtitles.WordTiming(start=1.4, end=1.8, text='TEST'),
+    ]
+    cue = subtitles.Cue(start=0, end=2.0, text='HELLO WORLD TEST', words=words)
+    
+    # Split into per-word cues
+    split_cues = subtitles._split_long_cues([cue], max_chars=1)
+    
+    # Should have one cue per word
+    assert len(split_cues) == 3, f"Expected 3 cues, got {len(split_cues)}"
+    
+    # Each cue should have correct timing
+    assert split_cues[0].text == 'HELLO'
+    assert split_cues[0].start == 0.0
+    assert split_cues[0].end == 0.5
+    
+    assert split_cues[1].text == 'WORLD'
+    assert split_cues[1].start == 0.8
+    assert split_cues[1].end == 1.2
+    
+    assert split_cues[2].text == 'TEST'
+    assert split_cues[2].start == 1.4
+    assert split_cues[2].end == 2.0  # Uses original cue end for last word
+

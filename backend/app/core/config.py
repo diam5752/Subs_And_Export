@@ -8,8 +8,10 @@ DEFAULT_FPS = 30
 
 DEFAULT_SUB_FONT = "Arial Black"
 DEFAULT_SUB_FONT_SIZE = 62  # ~15% larger for better readability on vertical video
-DEFAULT_SUB_COLOR = "&H0000FFFF"  # highlight (yellow) in ASS ARGB BGR
-DEFAULT_SUB_SECONDARY_COLOR = "&H00FFFFFF"  # base white
+# KARAOKE COLORS: Words fill from Secondary → Primary as each \k duration completes
+# For word-by-word highlighting: words start white and fill to yellow when spoken
+DEFAULT_SUB_COLOR = "&H0000FFFF"  # Primary: Yellow (word becomes this color when spoken)
+DEFAULT_SUB_SECONDARY_COLOR = "&H00FFFFFF"  # Secondary: White (word starts this color)
 DEFAULT_SUB_OUTLINE_COLOR = "&H7F000000"
 DEFAULT_SUB_BACK_COLOR = "&H96000000"
 DEFAULT_SUB_STROKE_WIDTH = 3

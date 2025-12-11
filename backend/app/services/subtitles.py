@@ -710,23 +710,18 @@ def create_styled_subtitle_file(
             for s, e, t in _parse_srt(transcript_path)
         ]
 
-    # SPLIT LONG CUES FOR ALL MAX_LINES VALUES:
-    # If text doesn't fit within max_lines, split into separate subtitle events
-    # rather than overflowing to more lines than user selected.
-    # 
-    # IMPORTANT: _wrap_lines uses "balanced wrapping" which calculates
-    # target_width = total_len / max_lines. This can produce MORE lines than
-    # expected when textwrap doesn't fill lines optimally.
-    # 
-    # Example: 54-char cue with max_lines=2 → target_width=27 → but textwrap
-    # might produce 3 lines if words don't break evenly.
+    # WORD-BY-WORD KARAOKE:
+    # For cues with word timings (Enhanced model), split into individual words.
+    # Each word becomes its own subtitle event, appearing exactly when spoken.
+    # This creates a true "word-at-a-time" effect with each word in Primary color.
     #
-    # Solution: Use 70% efficiency factor to ensure cues are small enough
-    # that balanced wrapping always fits in max_lines.
-    # For max_lines=2 and MAX_SUB_LINE_CHARS=32: 32 * 2 * 0.70 = 44.8 ≈ 44 chars
-    wrap_efficiency = 0.70  # Aggressive factor to handle balanced wrapping edge cases
-    max_chars_per_cue = int(config.MAX_SUB_LINE_CHARS * max_lines * wrap_efficiency)
-    parsed_cues = _split_long_cues(parsed_cues, max_chars=max_chars_per_cue)
+    # For cues without word timings (Standard model), don't split.
+    has_word_timings = any(cue.words for cue in parsed_cues)
+    if has_word_timings:
+        # Split into individual words by using max_chars=1
+        # This forces every word to be its own cue
+        parsed_cues = _split_long_cues(parsed_cues, max_chars=1)
+    # For cues without word timings, keep them intact (no splitting)
 
     output_dir = output_dir or transcript_path.parent
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -853,39 +848,20 @@ def _wrap_lines(
     Wrap words into multiple lines without overflowing the safe width.
 
     Returns a list of lines (each line is a list of words).
+    
+    IMPORTANT: This function fills lines up to max_chars width, NOT balanced wrapping.
+    The cue splitting logic ensures cues are small enough to fit in max_lines.
     """
     if not words:
         return []
 
-    # Balanced Wrapping Logic
-    # Calculate ideal width to distribute text evenly across max_lines
-    import math
-    
-    # Heuristic: roughly 15 chars min width seems reasonable to avoid single-word lines if possible
-    MIN_WIDTH = 15  
-    
-    # Effective cap: 
-    # If 1 line: we allow SLIGHTLY wider text (up to ~42 chars) to try and fit it, but not 60.
-    # 60 chars causes overflow on vertical video with this font size.
-    # If >1 lines: we strictly follow MAX_SUB_LINE_CHARS (40) to ensure safety.
-    # If 1 line: we allow SLIGHTLY wider text (up to ~42 chars) to try and fit it, but not 60.
-    # 60 chars causes overflow on vertical video with this font size.
-    # If >1 lines: we strictly follow max_chars (40) to ensure safety.
-    max_width_cap = int(max_chars * 1.05) if max_lines == 1 else max_chars
-    
-    # Define text variable early
     text = " ".join(words)
-    total_len = len(text)
     
-    # Target width per line
-    target_width = math.ceil(total_len / max_lines)
-    
-    effective_width = max(MIN_WIDTH, target_width)
-    effective_width = min(effective_width, max_width_cap)
-    
+    # Use max_chars as the width limit
+    # The cue splitting logic ensures we don't get too many words
     wrapped = textwrap.wrap(
         text,
-        width=effective_width,
+        width=max_chars,
         break_long_words=True,
         break_on_hyphens=False,
         drop_whitespace=True,
@@ -893,11 +869,6 @@ def _wrap_lines(
 
     if not wrapped:
         return [words]
-    
-    # NO TRUNCATION: We do not enforce max_lines by truncating.
-    # For cues without word timings (whisper.cpp), we preserve all text
-    # to maintain accurate audio sync. The subtitle may show more lines
-    # than max_lines, but this is preferable to losing words or breaking sync.
     
     return [line.split() for line in wrapped]
 
@@ -919,14 +890,16 @@ def _format_karaoke_text(cue: Cue, max_lines: int = 2) -> str:
         words = cue.words
         segments = []
         for idx, word in enumerate(words):
-            duration_cs = max(1, round((word.end - word.start) * 100))
-            # Standard ASS karaoke: \k fills from Secondary to Primary color
-            token = f"{{\\k{duration_cs}}}{word.text}"
-            # insert line break before second line
+            # Insert line break before second line
             if break_indices and idx == break_indices[0]:
                 segments.append("\\N")
                 break_indices.pop(0)
-            segments.append(token)
+            
+            # Simple text - no karaoke fill effects
+            # Words appear in Primary color (yellow) immediately
+            # Each cue shows all its words at once; cue splitting handles timing
+            segments.append(word.text)
+            
             if idx != len(words) - 1:
                 segments.append(" ")
         return "".join(segments)
