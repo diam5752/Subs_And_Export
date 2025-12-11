@@ -9,7 +9,7 @@ interface SubtitlePositionSelectorProps {
     previewColor?: string;
 }
 
-export function SubtitlePositionSelector({ value, onChange, lines, onChangeLines, thumbnailUrl, previewColor }: SubtitlePositionSelectorProps) {
+export function SubtitlePositionSelector({ value, onChange, lines, onChangeLines, thumbnailUrl, previewColor, subtitleColor, onChangeColor, colors }: SubtitlePositionSelectorProps & { subtitleColor?: string, onChangeColor?: (color: string) => void, colors?: Array<{ label: string; value: string; ass: string }> }) {
     // Map position to CSS 'bottom' percentage for the preview
     // These are visual approximations to match the backend logic
     // Default (MarginV 320 on 1920 height) ~= 16%
@@ -24,9 +24,9 @@ export function SubtitlePositionSelector({ value, onChange, lines, onChangeLines
     };
 
     const options = [
+        { id: 'bottom', label: 'Low', desc: 'Cinematic style' },
         { id: 'default', label: 'Default', desc: 'Social Standard' },
         { id: 'top', label: 'Middle', desc: 'Higher positioning' },
-        { id: 'bottom', label: 'Low', desc: 'Cinematic style' },
     ];
 
     const handleLineChange = useCallback((num: number) => (e: React.MouseEvent) => {
@@ -34,19 +34,23 @@ export function SubtitlePositionSelector({ value, onChange, lines, onChangeLines
         onChangeLines(num);
     }, [onChangeLines]);
 
-    const lineOptions = [1, 2, 3];
+    const lineOptions = [
+        { value: 1, label: 'Single Line', desc: 'Minimalist look' },
+        { value: 2, label: 'Double Line', desc: 'Standard balance' },
+        { value: 3, label: 'Three Lines', desc: 'Maximum context' },
+    ];
 
     return (
         <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row gap-5">
+            <div className="flex flex-col xl:flex-row gap-5">
                 {/* Controls Area */}
-                <div className="flex-1 space-y-5">
+                <div className="flex-1 flex flex-col md:flex-row gap-6">
                     {/* Position Selector */}
-                    <div>
-                        <label className="block text-sm font-medium text-[var(--muted)] mb-2">
+                    <div className="flex-1 min-w-[200px]">
+                        <label className="block text-sm font-medium text-[var(--muted)] mb-3">
                             Subtitle Position
                         </label>
-                        <div className="grid grid-cols-1 gap-2">
+                        <div className="flex flex-col gap-2">
                             {options.map((opt) => (
                                 <button
                                     key={opt.id}
@@ -54,17 +58,17 @@ export function SubtitlePositionSelector({ value, onChange, lines, onChangeLines
                                         e.stopPropagation();
                                         onChange(opt.id);
                                     }}
-                                    className={`p-3 rounded-lg border text-left transition-all flex items-center justify-between ${value === opt.id
-                                        ? 'border-[var(--accent)]/40 bg-[var(--accent)]/10 ring-1 ring-[var(--accent)]/40'
-                                        : 'border-[var(--border)] hover:border-[var(--accent)]/50 hover:bg-[var(--surface-elevated)]'
+                                    className={`p-3 rounded-xl border text-left transition-all flex items-center justify-between group ${value === opt.id
+                                        ? 'border-[var(--accent)] bg-[var(--accent)]/5 ring-1 ring-[var(--accent)] shadow-[0_0_15px_rgba(var(--accent-rgb),0.1)]'
+                                        : 'border-[var(--border)] hover:border-[var(--accent)]/40 hover:bg-[var(--surface-elevated)]'
                                         }`}
                                 >
                                     <div>
-                                        <div className="font-medium text-sm">{opt.label}</div>
-                                        <div className="text-xs text-[var(--muted)]">{opt.desc}</div>
+                                        <div className={`font-medium text-sm transition-colors ${value === opt.id ? 'text-[var(--accent)]' : ''}`}>{opt.label}</div>
+                                        <div className="text-xs text-[var(--muted)]/80">{opt.desc}</div>
                                     </div>
                                     {value === opt.id && (
-                                        <div className="w-2 h-2 rounded-full bg-[var(--accent)] shadow-sm" />
+                                        <div className="w-2 h-2 rounded-full bg-[var(--accent)] shadow-sm animate-scale-in" />
                                     )}
                                 </button>
                             ))}
@@ -72,28 +76,68 @@ export function SubtitlePositionSelector({ value, onChange, lines, onChangeLines
                     </div>
 
                     {/* Lines Selector */}
-                    <div>
-                        <label className="block text-sm font-medium text-[var(--muted)] mb-2">
-                            Max Lines per Subtitle
+                    <div className="flex-1 min-w-[200px]">
+                        <label className="block text-sm font-medium text-[var(--muted)] mb-3">
+                            Max Lines
                         </label>
-                        <div className="flex bg-[var(--surface-elevated)] p-1 rounded-lg border border-[var(--border)]">
-                            {lineOptions.map((num) => (
+                        <div className="flex flex-col gap-2">
+                            {lineOptions.map((opt) => (
                                 <button
-                                    key={num}
-                                    onClick={handleLineChange(num)}
-                                    className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${lines === num
-                                        ? 'bg-[var(--accent)]/20 text-[var(--foreground)] ring-1 ring-[var(--accent)] shadow-sm'
-                                        : 'text-[var(--muted)] hover:text-[var(--foreground)]'
+                                    key={opt.value}
+                                    onClick={handleLineChange(opt.value)}
+                                    className={`p-3 rounded-xl border text-left transition-all flex items-center justify-between group ${lines === opt.value
+                                        ? 'border-[var(--accent)] bg-[var(--accent)]/5 ring-1 ring-[var(--accent)] shadow-[0_0_15px_rgba(var(--accent-rgb),0.1)]'
+                                        : 'border-[var(--border)] hover:border-[var(--accent)]/40 hover:bg-[var(--surface-elevated)]'
                                         }`}
                                 >
-                                    {num} Line{num > 1 ? 's' : ''}
+                                    <div>
+                                        <div className={`font-medium text-sm transition-colors ${lines === opt.value ? 'text-[var(--accent)]' : ''}`}>{opt.label}</div>
+                                        <div className="text-xs text-[var(--muted)]/80">{opt.desc}</div>
+                                    </div>
+                                    {lines === opt.value && (
+                                        <div className="w-2 h-2 rounded-full bg-[var(--accent)] shadow-sm animate-scale-in" />
+                                    )}
                                 </button>
                             ))}
                         </div>
-                        <p className="text-xs text-[var(--muted)] mt-2">
-                            Controls how much text appears at once.
-                        </p>
                     </div>
+
+                    {/* Style / Color Selector */}
+                    {colors && onChangeColor && (
+                        <div className="flex-1 min-w-[200px]">
+                            <label className="block text-sm font-medium text-[var(--muted)] mb-3">
+                                Subtitle Style
+                            </label>
+                            <div className="flex flex-col gap-2">
+                                {colors.map((c) => (
+                                    <button
+                                        key={c.value}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onChangeColor(c.value);
+                                        }}
+                                        className={`p-3 rounded-xl border text-left transition-all flex items-center justify-between group ${subtitleColor === c.value
+                                            ? 'border-[var(--accent)] bg-[var(--accent)]/5 ring-1 ring-[var(--accent)] shadow-[0_0_15px_rgba(var(--accent-rgb),0.1)]'
+                                            : 'border-[var(--border)] hover:border-[var(--accent)]/40 hover:bg-[var(--surface-elevated)]'
+                                            }`}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div
+                                                className={`w-4 h-4 rounded-full border border-black/10 shadow-sm transition-transform ${subtitleColor === c.value ? 'scale-110 ring-2 ring-offset-1 ring-[var(--accent)]' : ''}`}
+                                                style={{ backgroundColor: c.value }}
+                                            />
+                                            <div className={`font-medium text-sm transition-colors ${subtitleColor === c.value ? 'text-[var(--accent)]' : ''}`}>
+                                                {c.label}
+                                            </div>
+                                        </div>
+                                        {subtitleColor === c.value && (
+                                            <div className="w-2 h-2 rounded-full bg-[var(--accent)] shadow-sm animate-scale-in" />
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Visual Preview - Phone Mockup with optional video thumbnail */}

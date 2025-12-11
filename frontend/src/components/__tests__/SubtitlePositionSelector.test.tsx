@@ -116,12 +116,35 @@ describe('SubtitlePositionSelector', () => {
         expect(sidebarDots.length).toBe(4);
     });
 
+    it('renders color picker when colors are provided', () => {
+        const colors = [{ label: 'Yellow', value: '#FFFF00', ass: '&H0000FFFF' }];
+        const onChangeColor = jest.fn();
+        render(<SubtitlePositionSelector {...defaultProps} colors={colors} onChangeColor={onChangeColor} />);
+
+        const colorButton = screen.getByRole('button', { name: 'Yellow' });
+        expect(colorButton).toBeInTheDocument();
+
+        // Find the swatch inside the button (it has the background color style)
+        const swatch = colorButton.querySelector('div[style*="background-color"]');
+        expect(swatch).toHaveStyle({ backgroundColor: '#FFFF00' });
+    });
+
+    it('calls onChangeColor when color is clicked', () => {
+        const colors = [{ label: 'Yellow', value: '#FFFF00', ass: '&H0000FFFF' }];
+        const onChangeColor = jest.fn();
+        render(<SubtitlePositionSelector {...defaultProps} colors={colors} onChangeColor={onChangeColor} />);
+
+        const colorButton = screen.getByRole('button', { name: 'Yellow' });
+        fireEvent.click(colorButton);
+        expect(onChangeColor).toHaveBeenCalledWith('#FFFF00');
+    });
+
     it('calls onChangeLines when line option button is clicked', () => {
         const onChangeLines = jest.fn();
         render(<SubtitlePositionSelector {...defaultProps} lines={2} onChangeLines={onChangeLines} />);
 
-        // Find line option button labeled "1 Line"
-        const lineButton1 = screen.getByRole('button', { name: '1 Line' });
+        // Find line option button labeled "Single Line"
+        const lineButton1 = screen.getByRole('button', { name: /Single Line/i });
         fireEvent.click(lineButton1);
         expect(onChangeLines).toHaveBeenCalledWith(1);
     });

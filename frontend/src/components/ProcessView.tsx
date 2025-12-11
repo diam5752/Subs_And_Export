@@ -445,109 +445,138 @@ export function ProcessView({
                                         Transcription Model
                                     </label>
                                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                        {/* Option 1: Turbo (Local) */}
-                                        <button
-                                            data-testid="model-turbo"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                setTranscribeProvider('local');
-                                                setTranscribeMode('turbo');
-                                            }}
-                                            className={`p-4 rounded-xl border text-left transition-all relative overflow-hidden group ${transcribeProvider === 'local' && transcribeMode === 'turbo'
-                                                ? 'border-[var(--accent)] bg-[var(--accent)]/10 ring-1 ring-[var(--accent)]'
-                                                : 'border-[var(--border)] hover:border-[var(--accent)]/50 hover:bg-[var(--surface-elevated)]'
-                                                }`}
-                                        >
-                                            <div className="flex items-start justify-between mb-2">
-                                                <div className="p-2 rounded-lg bg-violet-500/10 text-violet-500">
-                                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-                                                    </svg>
-                                                </div>
-                                                {transcribeProvider === 'local' && transcribeMode === 'turbo' && (
-                                                    <div className="w-5 h-5 rounded-full bg-[var(--accent)] flex items-center justify-center">
-                                                        <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                        {[
+                                            {
+                                                id: 'standard',
+                                                name: 'Standard',
+                                                description: 'Unlimited. Reliable on-device.',
+                                                badge: 'No Karaoke',
+                                                badgeColor: 'text-[var(--muted)] bg-[var(--surface)]',
+                                                provider: 'whispercpp',
+                                                mode: 'turbo',
+                                                stats: { speed: 4, accuracy: 3, karaoke: false },
+                                                icon: (selected: boolean) => (
+                                                    <div className={`p-2 rounded-lg ${selected ? 'bg-cyan-500/20 text-cyan-300' : 'bg-cyan-500/10 text-cyan-500'}`}>
+                                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
                                                         </svg>
                                                     </div>
-                                                )}
-                                            </div>
-                                            <div className="font-semibold text-base mb-1">Turbo</div>
-                                            <div className="text-sm text-[var(--muted)] mb-2">Best local quality</div>
-                                            <div className="flex items-center gap-2 text-xs text-[var(--muted)]/80">
-                                                <span className="bg-violet-500/10 text-violet-500 px-1.5 py-0.5 rounded">large-v3-turbo</span>
-                                            </div>
-                                        </button>
-
-                                        {/* Option 2: Groq Turbo */}
-                                        <button
-                                            data-testid="model-groq"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                setTranscribeProvider('groq');
-                                                setTranscribeMode('turbo');
-                                            }}
-                                            className={`p-4 rounded-xl border text-left transition-all relative overflow-hidden group ${transcribeProvider === 'groq'
-                                                ? 'border-purple-500 bg-purple-500/10 ring-1 ring-purple-500'
-                                                : 'border-[var(--border)] hover:border-purple-500/50 hover:bg-purple-500/5'
-                                                }`}
-                                        >
-                                            <div className="flex items-start justify-between mb-2">
-                                                <div className="p-2 rounded-lg bg-gradient-to-br from-purple-500/20 to-pink-500/20 text-purple-400">
-                                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                                                    </svg>
-                                                </div>
-                                                {transcribeProvider === 'groq' && (
-                                                    <div className="w-5 h-5 rounded-full bg-purple-500 flex items-center justify-center">
-                                                        <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                                ),
+                                                colorClass: (selected: boolean) => selected
+                                                    ? 'border-cyan-500 bg-cyan-500/10 ring-1 ring-cyan-500'
+                                                    : 'border-[var(--border)] hover:border-cyan-500/50 hover:bg-cyan-500/5'
+                                            },
+                                            {
+                                                id: 'enhanced',
+                                                name: 'Enhanced',
+                                                description: 'High accuracy. Karaoke supported.',
+                                                badge: '2 Free Daily',
+                                                badgeColor: 'text-amber-400 bg-amber-400/10',
+                                                provider: 'local',
+                                                mode: 'turbo',
+                                                stats: { speed: 2, accuracy: 5, karaoke: true },
+                                                icon: (selected: boolean) => (
+                                                    <div className={`p-2 rounded-lg ${selected ? 'bg-violet-500/20 text-violet-300' : 'bg-violet-500/10 text-violet-500'}`}>
+                                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
                                                         </svg>
                                                     </div>
-                                                )}
-                                            </div>
-                                            <div className="font-semibold text-base mb-1">Groq Turbo</div>
-                                            <div className="text-sm text-[var(--muted)] mb-2">Lightning fast (~200x)</div>
-                                            <div className="flex items-center gap-2 text-xs text-[var(--muted)]/80">
-                                                <span className="bg-purple-500/10 text-purple-400 px-1.5 py-0.5 rounded">cloud</span>
-                                            </div>
-                                        </button>
-
-
-
-                                        {/* Option 3: whisper.cpp */}
-                                        <button
-                                            data-testid="model-whispercpp"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                setTranscribeProvider('whispercpp');
-                                                setTranscribeMode('turbo');
-                                            }}
-                                            className={`p-4 rounded-xl border text-left transition-all relative overflow-hidden group ${transcribeProvider === 'whispercpp'
-                                                ? 'border-cyan-500 bg-cyan-500/10 ring-1 ring-cyan-500'
-                                                : 'border-[var(--border)] hover:border-cyan-500/50 hover:bg-cyan-500/5'
-                                                }`}
-                                        >
-                                            <div className="flex items-start justify-between mb-2">
-                                                <div className="p-2 rounded-lg bg-gradient-to-br from-cyan-500/20 to-teal-500/20 text-cyan-400">
-                                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
-                                                    </svg>
-                                                </div>
-                                                {transcribeProvider === 'whispercpp' && (
-                                                    <div className="w-5 h-5 rounded-full bg-cyan-500 flex items-center justify-center">
-                                                        <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                                ),
+                                                colorClass: (selected: boolean) => selected
+                                                    ? 'border-[var(--accent)] bg-[var(--accent)]/10 ring-1 ring-[var(--accent)]'
+                                                    : 'border-[var(--border)] hover:border-[var(--accent)]/50 hover:bg-[var(--accent)]/5'
+                                            },
+                                            {
+                                                id: 'ultimate',
+                                                name: 'Ultimate',
+                                                description: 'Lightning fast (~200x). Cloud.',
+                                                badge: 'Premium Only',
+                                                badgeColor: 'text-purple-400 bg-purple-500/10',
+                                                provider: 'groq',
+                                                mode: 'turbo',
+                                                stats: { speed: 5, accuracy: 5, karaoke: true },
+                                                icon: (selected: boolean) => (
+                                                    <div className={`p-2 rounded-lg ${selected ? 'bg-purple-500/20 text-purple-300' : 'bg-purple-500/10 text-purple-400'}`}>
+                                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                                                         </svg>
                                                     </div>
-                                                )}
-                                            </div>
-                                            <div className="font-semibold text-base mb-1">whisper.cpp</div>
-                                            <div className="text-sm text-[var(--muted)] mb-2">Metal GPU accelerated</div>
-                                            <div className="flex items-center gap-2 text-xs text-[var(--muted)]/80">
-                                                <span className="bg-cyan-500/10 text-cyan-400 px-1.5 py-0.5 rounded">Apple Silicon</span>
-                                            </div>
-                                        </button>
+                                                ),
+                                                colorClass: (selected: boolean) => selected
+                                                    ? 'border-purple-500 bg-purple-500/10 ring-1 ring-purple-500'
+                                                    : 'border-[var(--border)] hover:border-purple-500/50 hover:bg-purple-500/5'
+                                            }
+                                        ].map((model) => {
+                                            const isSelected = transcribeProvider === model.provider && transcribeMode === model.mode;
+
+                                            // Helper for stat bars (5 dots)
+                                            const renderStat = (value: number, max: number = 5) => (
+                                                <div className="flex gap-0.5">
+                                                    {Array.from({ length: max }).map((_, i) => (
+                                                        <div
+                                                            key={i}
+                                                            className={`h-1.5 w-full rounded-full transition-colors ${i < value
+                                                                ? (isSelected ? 'bg-current opacity-80' : 'bg-[var(--foreground)] opacity-60')
+                                                                : 'bg-[var(--foreground)] opacity-20'
+                                                                }`}
+                                                        />
+                                                    ))}
+                                                </div>
+                                            );
+
+                                            return (
+                                                <button
+                                                    key={model.id}
+                                                    data-testid={`model-${model.provider === 'local' ? 'turbo' : model.provider}`}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setTranscribeProvider(model.provider as TranscribeProvider);
+                                                        setTranscribeMode(model.mode as TranscribeMode);
+                                                    }}
+                                                    className={`p-4 rounded-xl border text-left transition-all relative overflow-hidden group flex flex-col h-full ${model.colorClass(isSelected)}`}
+                                                >
+                                                    <div className="flex items-start justify-between mb-2 w-full">
+                                                        {model.icon(isSelected)}
+                                                        {isSelected && (
+                                                            <div className={`w-5 h-5 rounded-full flex items-center justify-center ${model.provider === 'groq' ? 'bg-purple-500' :
+                                                                model.provider === 'whispercpp' ? 'bg-cyan-500' :
+                                                                    'bg-[var(--accent)]'
+                                                                }`}>
+                                                                <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                                                </svg>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <div className="font-semibold text-base mb-1">{model.name}</div>
+                                                    <div className="text-sm text-[var(--muted)] mb-4">{model.description}</div>
+
+                                                    {/* Game-like Stats */}
+                                                    <div className="mt-auto space-y-2 mb-3">
+                                                        <div className="grid grid-cols-[60px,1fr] items-center gap-2">
+                                                            <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">Speed</span>
+                                                            {renderStat(model.stats.speed)}
+                                                        </div>
+                                                        <div className="grid grid-cols-[60px,1fr] items-center gap-2">
+                                                            <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">Accuracy</span>
+                                                            {renderStat(model.stats.accuracy)}
+                                                        </div>
+                                                        <div className="grid grid-cols-[60px,1fr] items-center gap-2">
+                                                            <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">Karaoke</span>
+                                                            <div className={`text-[10px] font-bold ${model.stats.karaoke ? 'text-emerald-500' : 'text-[var(--muted)]'}`}>
+                                                                {model.stats.karaoke ? 'SUPPORTED' : 'NO'}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex items-center gap-2 text-xs pt-3 border-t border-[var(--border)]/50">
+                                                        <span className={`px-2 py-0.5 rounded-full font-medium ${model.badgeColor}`}>
+                                                            {model.badge}
+                                                        </span>
+                                                    </div>
+                                                </button>
+                                            );
+                                        })}
                                     </div>
                                 </div>
 
@@ -560,33 +589,12 @@ export function ProcessView({
                                         onChangeLines={setMaxSubtitleLines}
                                         previewColor={subtitleColor}
                                         thumbnailUrl={videoInfo?.thumbnailUrl}
+                                        subtitleColor={subtitleColor}
+                                        onChangeColor={setSubtitleColor}
+                                        colors={SUBTITLE_COLORS}
                                     />
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-[var(--muted)] mb-2">
-                                        Subtitle Style
-                                    </label>
 
-                                    {/* Color Picker */}
-                                    <div className="flex gap-3 mb-4">
-                                        {SUBTITLE_COLORS.map((c) => (
-                                            <button
-                                                key={c.value}
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setSubtitleColor(c.value);
-                                                }}
-                                                className={`w-8 h-8 rounded-full border-2 transition-all ${subtitleColor === c.value
-                                                    ? 'border-[var(--accent)] ring-2 ring-[var(--accent)]/30 scale-110'
-                                                    : 'border-transparent hover:scale-105'
-                                                    }`}
-                                                style={{ backgroundColor: c.value }}
-                                                title={c.label}
-                                                aria-label={`Select ${c.label} color`}
-                                            />
-                                        ))}
-                                    </div>
-                                </div>
 
                                 {/* 🧪 Experimenting Section Toggle */}
                                 {/* 🧪 Experimenting Section Toggle */}

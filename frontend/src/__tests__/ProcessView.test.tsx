@@ -17,10 +17,13 @@ jest.mock('@/components/ViralIntelligence', () => ({
     )
 }));
 jest.mock('@/components/SubtitlePositionSelector', () => ({
-    SubtitlePositionSelector: ({ onChange, onChangeLines }: { onChange: (v: string) => void, onChangeLines: (v: number) => void }) => (
+    SubtitlePositionSelector: ({ onChange, onChangeLines, onChangeColor, colors }: any) => (
         <div data-testid="subtitle-selector">
             <button onClick={() => onChange('top')}>Top</button>
             <button onClick={() => onChangeLines(3)}>3 Lines</button>
+            {colors && colors.map((c: any) => (
+                <button key={c.value} aria-label={`Select ${c.label} color`} onClick={() => onChangeColor(c.value)}>Color</button>
+            ))}
         </div>
     ),
 }));
@@ -188,30 +191,27 @@ describe('ProcessView', () => {
             const expHeader = screen.getByText('Experimenting');
             expect(expHeader).toBeInTheDocument();
 
-            // Groq button should NOT be visible yet
-            expect(screen.queryByTestId('model-groq')).not.toBeInTheDocument();
+            // ChatGPT button should NOT be visible yet
+            expect(screen.queryByTestId('model-chatgpt')).not.toBeInTheDocument();
 
             // Toggle it open
             fireEvent.click(expHeader);
 
-            // Now Groq option should be visible
-            expect(screen.getByTestId('model-groq')).toBeInTheDocument();
-            expect(screen.getByText('Groq Turbo')).toBeInTheDocument();
+            // Now ChatGPT option should be visible
+            expect(screen.getByTestId('model-chatgpt')).toBeInTheDocument();
+            expect(screen.getByText('ChatGPT API')).toBeInTheDocument();
         });
 
         // ... existing experimental provider tests, but need to open toggle first ...
 
-        it('should allow Groq model selection', async () => {
+        it('should allow Ultimate (Groq) model selection', async () => {
             const file = new File(['dummy'], 'test.mp4', { type: 'video/mp4' });
             const onStartProcessing = jest.fn();
             render(<ProcessView {...defaultProps} selectedFile={file} onStartProcessing={onStartProcessing} />);
 
             await waitFor(() => expect(screen.getByText('test.mp4')).toBeInTheDocument());
 
-            // Open experiments
-            fireEvent.click(screen.getByText('Experimenting'));
-
-            // Click Groq button
+            // Click Ultimate/Groq button (now in main list)
             const groqBtn = screen.getByTestId('model-groq');
             fireEvent.click(groqBtn);
 
@@ -236,10 +236,6 @@ describe('ProcessView', () => {
         const greenBtn = screen.getByLabelText('Select Green color');
         fireEvent.click(greenBtn);
 
-        // Select 'Strong' shadow (value 8)
-        const strongShadowBtn = screen.getByText('Strong');
-        fireEvent.click(strongShadowBtn);
-
         // Start processing
         fireEvent.click(screen.getByText('controlsStart'));
 
@@ -247,7 +243,8 @@ describe('ProcessView', () => {
         const call = onStartProcessing.mock.calls[0][0];
         // Green ASS code: &H0000FF00
         expect(call.subtitle_color).toBe('&H0000FF00');
-        expect(call.shadow_strength).toBe(8);
+        // Shadow strength is default 4 as controls are removed
+        expect(call.shadow_strength).toBe(4);
     });
 
     it('should allow ChatGPT model selection', async () => {
@@ -763,7 +760,24 @@ describe('ProcessView', () => {
     // === EXPERIMENTAL PROVIDERS TESTS ===
 
     describe('Experimental Providers', () => {
-        it('should display Experimenting section with Groq option', async () => {
+        it('should allow Standard (whisper.cpp) model selection', async () => {
+            const file = new File(['dummy'], 'test.mp4', { type: 'video/mp4' });
+            render(<ProcessView {...defaultProps} selectedFile={file} />);
+
+            await waitFor(() => expect(screen.getByText('test.mp4')).toBeInTheDocument());
+
+            // Should show Standard option in main list
+            expect(screen.getByTestId('model-whispercpp')).toBeInTheDocument();
+            expect(screen.getByText('Standard')).toBeInTheDocument();
+            expect(screen.getByText('No Karaoke')).toBeInTheDocument();
+
+            // Stats check
+            // Stats check
+            expect(screen.getAllByText(/Speed/i).length).toBeGreaterThan(0);
+            expect(screen.getAllByText(/Accuracy/i).length).toBeGreaterThan(0);
+            expect(screen.getAllByText(/Karaoke/i).length).toBeGreaterThan(0);
+        });
+        it('should display Experimenting section with ChatGPT option', async () => {
             const file = new File(['dummy'], 'test.mp4', { type: 'video/mp4' });
             render(<ProcessView {...defaultProps} selectedFile={file} />);
 
@@ -776,22 +790,19 @@ describe('ProcessView', () => {
             // Toggle experiments open
             fireEvent.click(screen.getByText('Experimenting'));
 
-            // Should show Groq option
-            expect(screen.getByTestId('model-groq')).toBeInTheDocument();
-            expect(screen.getByText('Groq Turbo')).toBeInTheDocument();
+            // Should show ChatGPT option
+            expect(screen.getByTestId('model-chatgpt')).toBeInTheDocument();
+            expect(screen.getByText('ChatGPT API')).toBeInTheDocument();
         });
 
-        it('should allow Groq model selection', async () => {
+        it('should allow Ultimate (Groq) model selection', async () => {
             const file = new File(['dummy'], 'test.mp4', { type: 'video/mp4' });
             const onStartProcessing = jest.fn();
             render(<ProcessView {...defaultProps} selectedFile={file} onStartProcessing={onStartProcessing} />);
 
             await waitFor(() => expect(screen.getByText('test.mp4')).toBeInTheDocument());
 
-            // Toggle experiments open
-            fireEvent.click(screen.getByText('Experimenting'));
-
-            // Click Groq button
+            // Click Ultimate/Groq button (now in main list)
             const groqBtn = screen.getByTestId('model-groq');
             fireEvent.click(groqBtn);
 
@@ -811,18 +822,7 @@ describe('ProcessView', () => {
             expect(screen.getByText('Groq Turbo')).toBeInTheDocument();
         });
 
-        it('should display whisper.cpp option in Experimenting section', async () => {
-            const file = new File(['dummy'], 'test.mp4', { type: 'video/mp4' });
-            render(<ProcessView {...defaultProps} selectedFile={file} />);
 
-            await waitFor(() => expect(screen.getByText('test.mp4')).toBeInTheDocument());
-
-            // Should show whisper.cpp option
-            expect(screen.getByTestId('model-whispercpp')).toBeInTheDocument();
-            expect(screen.getByText('whisper.cpp')).toBeInTheDocument();
-            expect(screen.getByText('Metal GPU accelerated')).toBeInTheDocument();
-            expect(screen.getByText('Apple Silicon')).toBeInTheDocument();
-        });
 
         it('should allow whisper.cpp model selection', async () => {
             const file = new File(['dummy'], 'test.mp4', { type: 'video/mp4' });
