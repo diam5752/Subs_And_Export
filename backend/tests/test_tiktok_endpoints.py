@@ -69,11 +69,10 @@ class TestTikTokEndpoints:
         
         # Patch PROJECT_ROOT to verify path security logic works with tmp paths
         from backend.app.core import config
-        # Structure: root/parent/data
-        # We need config.PROJECT_ROOT.parent to exist
-        fake_app_dir = tmp_path / "backend" / "app"
-        fake_app_dir.mkdir(parents=True)
-        monkeypatch.setattr(config, "PROJECT_ROOT", fake_app_dir)
+        # The endpoint now uses config.PROJECT_ROOT / "data" instead of config.PROJECT_ROOT.parent / "data"
+        fake_project_root = tmp_path / "project"
+        fake_project_root.mkdir(parents=True)
+        monkeypatch.setattr(config, "PROJECT_ROOT", fake_project_root)
         
         # Mock Upload
         monkeypatch.setattr(tiktok, "upload_video", lambda t, p, title, desc: {"id": "vid1"})
@@ -83,21 +82,20 @@ class TestTikTokEndpoints:
         token = client.post("/auth/token", data={"username": "u@e.com", "password": "testpassword123"}).json()["access_token"]
         
         # Create fake video in data dir
-        # endpoint looks at: config.PROJECT_ROOT.parent / "data"
-        data_dir = fake_app_dir.parent / "data"
+        # endpoint looks at: config.PROJECT_ROOT / "data"
+        data_dir = fake_project_root / "data"
         data_dir.mkdir(parents=True, exist_ok=True)
         
         vid_path = data_dir / "test_vid.mp4"
         vid_path.write_bytes(b"video data")
         
         # The endpoint validates `str(full_path).startswith(str(data_dir.resolve()))`
-        # We send `video_path="data/test_vid.mp4"`? 
-        # If config.PROJECT_ROOT is /tmp/.../backend/app
-        # config.PROJECT_ROOT.parent is /tmp/.../backend
-        # data_dir is /tmp/.../backend/data
+        # We send `video_path="data/test_vid.mp4"`
+        # If config.PROJECT_ROOT is /tmp/.../project
+        # data_dir is /tmp/.../project/data
         # 
-        # The endpoint constructs: (config.PROJECT_ROOT.parent / req.video_path).resolve()
-        # If req.video_path is "data/test_vid.mp4", it becomes /tmp/.../backend/data/test_vid.mp4
+        # The endpoint constructs: (config.PROJECT_ROOT / req.video_path).resolve()
+        # If req.video_path is "data/test_vid.mp4", it becomes /tmp/.../project/data/test_vid.mp4
         # This matches data_dir/test_vid.mp4
         # So it should pass.
         

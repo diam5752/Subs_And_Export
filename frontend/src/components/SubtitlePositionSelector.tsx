@@ -36,6 +36,7 @@ export function SubtitlePositionSelector({ value, onChange, lines, onChangeLines
     }, [onChangeLines]);
 
     const lineOptions = [
+        { value: 0, label: '1 Word at a Time', desc: 'Karaoke style' },
         { value: 1, label: 'Single Line', desc: 'Minimalist look' },
         { value: 2, label: 'Double Line', desc: 'Standard balance' },
         { value: 3, label: 'Three Lines', desc: 'Maximum context' },
@@ -196,7 +197,7 @@ export function SubtitlePositionSelector({ value, onChange, lines, onChangeLines
                             className="absolute left-3 right-3 flex flex-col gap-1 items-center transition-all duration-300 ease-out subtitle-preview-bar"
                             style={{ bottom: getPreviewBottom(value) }}
                         >
-                            {Array.from({ length: lines }).map((_, i) => (
+                            {Array.from({ length: lines === 0 ? 1 : lines }).map((_, i) => (
                                 <div
                                     key={i}
                                     className={`h-3 rounded-sm shadow-lg w-full flex items-center justify-center opacity-90 animate-in fade-in slide-in-from-bottom-2 duration-300 fill-mode-backwards ${!previewColor ? 'bg-[var(--accent)]/60' : ''}`}

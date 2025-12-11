@@ -23,7 +23,8 @@ MAX_UPLOAD_BYTES = APP_SETTINGS.max_upload_mb * 1024 * 1024
 
 def _data_roots() -> tuple[Path, Path, Path]:
     """Resolve data directories relative to the configured project root."""
-    data_dir = config.PROJECT_ROOT.parent / "data"
+    # Use backend/data for all artifacts (not PROJECT_ROOT.parent)
+    data_dir = config.PROJECT_ROOT / "data"
     uploads_dir = data_dir / "uploads"
     artifacts_dir = data_dir / "artifacts"
     uploads_dir.mkdir(parents=True, exist_ok=True)
@@ -519,6 +520,7 @@ def cancel_job(
     return _ensure_job_size(updated_job)
 
 
+@router.post("/jobs/{job_id}/viral-metadata", response_model=ViralMetadataResponse)
 def create_viral_metadata(
     job_id: str,
     current_user: User = Depends(get_current_user),

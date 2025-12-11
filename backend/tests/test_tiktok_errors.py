@@ -60,7 +60,7 @@ def test_tiktok_upload_path_validation(client: TestClient, monkeypatch, tmp_path
     assert resp.status_code == 403
 
     # Missing file inside data dir triggers 404
-    data_dir = tmp_path.parent / "data"
+    data_dir = tmp_path / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
     resp2 = client.post(
         "/tiktok/upload",
@@ -74,7 +74,7 @@ def test_tiktok_upload_handles_errors(client: TestClient, monkeypatch, tmp_path:
     headers = _auth_header(client, email="uploaderr@example.com")
     monkeypatch.setattr(backend_config, "PROJECT_ROOT", tmp_path)
 
-    data_dir = tmp_path.parent / "data"
+    data_dir = tmp_path / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
     file_path = data_dir / "clip.mp4"
     file_path.write_bytes(b"video")
@@ -100,7 +100,7 @@ def test_tiktok_upload_generic_failure(client: TestClient, monkeypatch, tmp_path
     headers = _auth_header(client, email="uploadgeneric@example.com")
     monkeypatch.setattr(backend_config, "PROJECT_ROOT", tmp_path)
 
-    data_dir = tmp_path.parent / "data"
+    data_dir = tmp_path / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
     (data_dir / "clip2.mp4").write_bytes(b"video")
 

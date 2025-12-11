@@ -710,18 +710,24 @@ def create_styled_subtitle_file(
             for s, e, t in _parse_srt(transcript_path)
         ]
 
-    # WORD-BY-WORD KARAOKE:
-    # For cues with word timings (Enhanced model), split into individual words.
-    # Each word becomes its own subtitle event, appearing exactly when spoken.
-    # This creates a true "word-at-a-time" effect with each word in Primary color.
-    #
-    # For cues without word timings (Standard model), don't split.
+    # SUBTITLE SPLITTING MODES:
+    # max_lines=0: "1 word at a time" mode - each word is a separate subtitle event
+    # max_lines=1/2/3: Standard line-based mode - cues are split to fit in max_lines
     has_word_timings = any(cue.words for cue in parsed_cues)
-    if has_word_timings:
-        # Split into individual words by using max_chars=1
-        # This forces every word to be its own cue
+    
+    if max_lines == 0 and has_word_timings:
+        # "1 WORD AT A TIME" MODE:
+        # Each word becomes its own subtitle event, appearing exactly when spoken.
+        # This creates a true karaoke effect with each word in Primary color.
         parsed_cues = _split_long_cues(parsed_cues, max_chars=1)
-    # For cues without word timings, keep them intact (no splitting)
+    elif max_lines > 0:
+        # STANDARD LINE-BASED MODE:
+        # Split long cues to fit within max_lines using a 50% efficiency factor
+        # to ensure wrapping always produces <= max_lines lines.
+        wrap_efficiency = 0.50  # Aggressive factor to ensure max_lines is respected
+        max_chars_per_cue = int(config.MAX_SUB_LINE_CHARS * max_lines * wrap_efficiency)
+        parsed_cues = _split_long_cues(parsed_cues, max_chars=max_chars_per_cue)
+    # For cues without word timings (Standard model), don't split regardless of max_lines
 
     output_dir = output_dir or transcript_path.parent
     output_dir.mkdir(parents=True, exist_ok=True)

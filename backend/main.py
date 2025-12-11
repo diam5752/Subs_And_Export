@@ -95,8 +95,9 @@ if os.getenv("GSP_FORCE_HTTPS", "0") == "1":
     app.add_middleware(HTTPSRedirectMiddleware)
 
 # Mount Static Files with Directory Listing
-# config.PROJECT_ROOT is backend/app
-DATA_DIR = config.PROJECT_ROOT.parent / "data"
+# config.PROJECT_ROOT is the project root, e.g. /path/to/Subs_And_Export_Project
+# Use PROJECT_ROOT/data for all artifacts (consistent with videos.py)
+DATA_DIR = config.PROJECT_ROOT / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 from fastapi.responses import FileResponse, HTMLResponse

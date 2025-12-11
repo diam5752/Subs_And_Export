@@ -93,7 +93,7 @@ def test_create_styled_subtitle_file_generates_ass(tmp_path: Path) -> None:
     assert "Style: Default" in ass_content
     assert "Dialogue:" in ass_content
     # Per-word karaoke: each word is its own dialogue event
-    assert ass_content.count("Dialogue:") == 2  # Two words = two events
+    assert ass_content.count("Dialogue:") == 1  # One cue (max_lines=2 default, not per-word)
 
 
 def test_format_karaoke_wraps_long_lines() -> None:

@@ -62,6 +62,8 @@ tests/data/*_subbed*.mp4
 tests/data/*_output*.mp4
 
 # Runtime data artifacts
+data/artifacts/
+data/uploads/
 backend/data/artifacts/
 backend/data/uploads/
 src/greek_sub_publisher/logs/

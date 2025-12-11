@@ -88,15 +88,13 @@ def upload_video_tiktok(
 ) -> Any:
     """Upload a processed video to TikTok."""
     # Validate path prevents traversal
-    # allow paths under config.PROJECT_ROOT.parent / "data"
+    # allow paths under config.PROJECT_ROOT / "data"
     
-    data_dir = config.PROJECT_ROOT.parent / "data"
-    # We resolve the path relative to backend root/data to be safe?
-    # Actually the `result_data` from jobs gives path relative to backend root's parent (project root) usually.
-    # Let's assume input path is relative to project root.
+    data_dir = config.PROJECT_ROOT / "data"
+    # Security check: ensure path is within data directory
     
     # Security check:
-    full_path = (config.PROJECT_ROOT.parent / req.video_path).resolve()
+    full_path = (config.PROJECT_ROOT / req.video_path).resolve()
     if not str(full_path).startswith(str(data_dir.resolve())):
          raise HTTPException(status_code=403, detail="Invalid video path")
          
