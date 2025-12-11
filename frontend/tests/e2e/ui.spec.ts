@@ -51,22 +51,22 @@ for (const [label, viewport] of Object.entries(viewports)) {
       await expectNoHorizontalOverflow(page);
       await expectNoHorizontalOverflow(page, 'nav');
       // Check for History section which replaces the old recent jobs title
-      await expect(page.getByText('History')).toBeVisible();
+      await expect(page.getByText(el.historyTitle)).toBeVisible();
     });
 
     test('history section shows event cards neatly', async ({ page }) => {
       await mockApi(page);
       await page.goto('/');
       // History is now shown as a section within the main view
-      await page.getByText('History').waitFor();
-      await page.getByText('Items expire in 24 hours').waitFor();
+      await page.getByText(el.historyTitle).waitFor();
+      await page.getByText(el.historyExpiry).waitFor();
       await stabilizeUi(page);
       await expectNoHorizontalOverflow(page);
 
       // Check that the history section is properly laid out
       // The mock history data might not be loaded automatically, so just verify the section exists
-      await expect(page.getByText('History')).toBeVisible();
-      await expect(page.getByText('Items expire in 24 hours')).toBeVisible();
+      await expect(page.getByText(el.historyTitle)).toBeVisible();
+      await expect(page.getByText(el.historyExpiry)).toBeVisible();
     });
 
     test('account settings modal keeps controls readable', async ({ page }) => {

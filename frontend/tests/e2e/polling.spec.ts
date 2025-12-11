@@ -20,7 +20,7 @@ test.describe('Job Polling E2E', () => {
         await expect(page.getByText(el.uploadDropTitle)).toBeVisible();
 
         // History section should be visible with mocked jobs
-        await expect(page.getByText('History')).toBeVisible();
+        await expect(page.getByText(el.historyTitle)).toBeVisible();
     });
 
     test('dashboard handles authenticated state correctly', async ({ page }) => {
@@ -51,6 +51,6 @@ test.describe('Job Polling E2E', () => {
 
         // The mock includes jobs with various statuses (completed, processing, pending, failed)
         // History section should be visible
-        await expect(page.getByText('History')).toBeVisible();
+        await expect(page.getByText(el.historyTitle)).toBeVisible();
     });
 });

@@ -227,7 +227,7 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
     }));
   });
 
-  await page.route('**/videos/jobs*', async (route) => {
+  await page.route('**/videos/jobs**', async (route) => {
     if (await shortCircuitOptions(route)) return;
     if (!authenticated) {
       await route.fulfill(unauthorizedResponse);
@@ -235,6 +235,18 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
     }
 
     const url = new URL(route.request().url());
+
+    if (url.pathname.includes('/videos/jobs/paginated')) {
+      await route.fulfill(withCors({
+        items: mockJobs,
+        total: mockJobs.length,
+        page: 1,
+        page_size: 10,
+        total_pages: 1,
+      }));
+      return;
+    }
+
     if (url.pathname.startsWith('/videos/jobs/') && url.pathname !== '/videos/jobs') {
       const id = url.pathname.split('/').pop() ?? '';
       const job = jobLookup.get(id) ?? mockJobs[0];
