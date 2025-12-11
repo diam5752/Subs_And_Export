@@ -676,6 +676,7 @@ def _ass_header(
     margin_v: int,
     margin_l: int,
     margin_r: int,
+    shadow_strength: int = 4,
 ) -> str:
     return (
         "[Script Info]\n"
@@ -689,7 +690,7 @@ def _ass_header(
         "OutlineColour,BackColour,Bold,Italic,Underline,StrikeOut,ScaleX,ScaleY,"
         "Spacing,Angle,BorderStyle,Outline,Shadow,Alignment,MarginL,MarginR,MarginV,Encoding\n"
         f"Style: Default,{font},{font_size},{primary_color},{secondary_color},"
-        f"{outline_color},{back_color},1,0,0,0,100,100,0,0,1,{outline},4,{alignment},{margin_l},{margin_r},{margin_v},0\n\n"
+        f"{outline_color},{back_color},1,0,0,0,100,100,0,0,1,{outline},{shadow_strength},{alignment},{margin_l},{margin_r},{margin_v},0\n\n"
         "[Events]\n"
         "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
     )
@@ -715,6 +716,7 @@ def create_styled_subtitle_file(
     margin_r: int = config.DEFAULT_SUB_MARGIN_R,
     subtitle_position: str = "default",  # "default", "top", "bottom"
     max_lines: int = 2,
+    shadow_strength: int = 4,
     output_dir: Path | None = None,
 ) -> Path:
     """
@@ -777,6 +779,7 @@ def create_styled_subtitle_file(
         margin_v=final_margin_v,
         margin_l=margin_l,
         margin_r=margin_r,
+        shadow_strength=shadow_strength,
     )
     lines = [header]
     for cue in parsed_cues:

@@ -6,9 +6,10 @@ interface SubtitlePositionSelectorProps {
     lines: number;
     onChangeLines: (lines: number) => void;
     thumbnailUrl?: string | null;
+    previewColor?: string;
 }
 
-export function SubtitlePositionSelector({ value, onChange, lines, onChangeLines, thumbnailUrl }: SubtitlePositionSelectorProps) {
+export function SubtitlePositionSelector({ value, onChange, lines, onChangeLines, thumbnailUrl, previewColor }: SubtitlePositionSelectorProps) {
     // Map position to CSS 'bottom' percentage for the preview
     // These are visual approximations to match the backend logic
     // Default (MarginV 320 on 1920 height) ~= 16%
@@ -105,10 +106,9 @@ export function SubtitlePositionSelector({ value, onChange, lines, onChangeLines
                                 <img
                                     src={thumbnailUrl}
                                     alt="Video preview"
-                                    className="absolute inset-0 w-full h-full object-cover opacity-60"
+                                    className="absolute inset-0 w-full h-full object-cover opacity-100"
                                 />
-                                {/* Subtle gradient overlay for better UI visibility */}
-                                <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/60" />
+
                             </>
                         ) : (
                             /* Fallback gradient when no thumbnail */
@@ -141,10 +141,12 @@ export function SubtitlePositionSelector({ value, onChange, lines, onChangeLines
                             {Array.from({ length: lines }).map((_, i) => (
                                 <div
                                     key={i}
-                                    className="h-3 bg-[var(--accent)]/60 rounded-sm shadow-lg w-full flex items-center justify-center opacity-90 animate-in fade-in slide-in-from-bottom-2 duration-300 fill-mode-backwards"
+                                    className={`h-3 rounded-sm shadow-lg w-full flex items-center justify-center opacity-90 animate-in fade-in slide-in-from-bottom-2 duration-300 fill-mode-backwards ${!previewColor ? 'bg-[var(--accent)]/60' : ''}`}
                                     style={{
                                         width: `${85 - (i * 10)}%`, // Taper width for visual effect
-                                        animationDelay: `${i * 50}ms`
+                                        animationDelay: `${i * 50}ms`,
+                                        backgroundColor: previewColor ? previewColor : undefined,
+                                        boxShadow: previewColor ? `0 2px 4px ${previewColor}40` : undefined
                                     }}
                                 >
                                     <div className="w-[90%] h-[2px] bg-white/80 rounded-full" />

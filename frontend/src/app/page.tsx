@@ -145,6 +145,8 @@ export default function DashboardPage() {
         context_prompt: options.contextPrompt,
         subtitle_position: options.subtitle_position,
         max_subtitle_lines: options.max_subtitle_lines,
+        subtitle_color: options.subtitle_color,
+        shadow_strength: options.shadow_strength,
       });
       setJobId(result.id);
     } catch (err) {

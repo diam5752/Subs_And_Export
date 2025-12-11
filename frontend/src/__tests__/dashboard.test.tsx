@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
@@ -32,10 +31,10 @@ jest.mock('@/hooks/useJobs', () => ({
     useJobs: jest.fn(),
 }));
 
-let capturedPollingCallbacks: any = null;
+let capturedPollingCallbacks: { onProgress: (progress: number, message: string) => void; onComplete: (job: unknown) => void; onFailed: (error: string) => void; onError: (error: string) => void; } | null = null;
 
 jest.mock('@/hooks/useJobPolling', () => ({
-    useJobPolling: ({ callbacks }: any) => {
+    useJobPolling: ({ callbacks }: { callbacks: typeof capturedPollingCallbacks }) => {
         capturedPollingCallbacks = callbacks;
         return { isPolling: false, stopPolling: jest.fn() };
     },
@@ -48,7 +47,7 @@ jest.mock('next/navigation', () => ({
 let capturedOnReset: (() => void) | null = null;
 
 jest.mock('@/components/ProcessView', () => ({
-    ProcessView: ({ onStartProcessing, onRefreshJobs, onFileSelect, onReset }: any) => {
+    ProcessView: ({ onStartProcessing, onRefreshJobs, onFileSelect, onReset }: { onStartProcessing: (options: unknown) => void; onRefreshJobs: () => void; onFileSelect: (file: File) => void; onReset: () => void; }) => {
         capturedOnReset = onReset;
         return (
             <div data-testid="process-view">
@@ -58,8 +57,9 @@ jest.mock('@/components/ProcessView', () => ({
                     transcribeProvider: 'local',
                     outputQuality: 'balanced',
                     outputResolution: '1080x1920',
-                    useAI: false,
-                    contextPrompt: '',
+                    width: 1920,
+                    height: 1080,
+                    duration: 10,
                     subtitle_position: 'bottom',
                     max_subtitle_lines: 2
                 })}>Start Process</button>
@@ -71,7 +71,7 @@ jest.mock('@/components/ProcessView', () => ({
 }));
 
 jest.mock('@/components/AccountView', () => ({
-    AccountView: ({ onSaveProfile }: any) => (
+    AccountView: ({ onSaveProfile }: { onSaveProfile: (name: string, pass1: string, pass2: string) => void }) => (
         <div data-testid="account-view">
             <button data-testid="save-profile-btn" onClick={() => onSaveProfile('NewName', 'pass', 'pass')}>Save Profile</button>
             <button data-testid="save-mismatch-btn" onClick={() => onSaveProfile('Test User', 'pass', 'different')}>Save Mismatch</button>
@@ -375,7 +375,7 @@ describe('DashboardPage', () => {
 
         // Invoke the onProgress callback
         act(() => {
-            capturedPollingCallbacks.onProgress(50, 'Processing...');
+            capturedPollingCallbacks!.onProgress(50, 'Processing...');
         });
 
         // Component should update without errors
@@ -388,7 +388,7 @@ describe('DashboardPage', () => {
         const mockJob = { id: 'job1', status: 'completed', result_data: { public_url: 'url' } };
 
         act(() => {
-            capturedPollingCallbacks.onComplete(mockJob);
+            capturedPollingCallbacks!.onComplete(mockJob);
         });
 
         await waitFor(() => {
@@ -401,7 +401,7 @@ describe('DashboardPage', () => {
         render(<DashboardPage />);
 
         act(() => {
-            capturedPollingCallbacks.onFailed('Job failed');
+            capturedPollingCallbacks!.onFailed('Job failed');
         });
 
         await waitFor(() => {
@@ -413,7 +413,7 @@ describe('DashboardPage', () => {
         render(<DashboardPage />);
 
         act(() => {
-            capturedPollingCallbacks.onError('Network error');
+            capturedPollingCallbacks!.onError('Network error');
         });
 
         // Component should update without errors

@@ -1,23 +1,23 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { ProcessView, ProcessingOptions } from '@/components/ProcessView';
+import { ProcessView } from '@/components/ProcessView';
 import { JobResponse, api } from '@/lib/api';
-import { describeResolution, validateVideoAspectRatio, describeResolutionString } from '@/lib/video';
+import { describeResolution, validateVideoAspectRatio } from '@/lib/video';
 
 // Mock dependencies
 jest.mock('@/components/VideoModal', () => ({
     VideoModal: () => <div data-testid="video-modal">VideoModal</div>
 }));
 jest.mock('@/components/ViralIntelligence', () => ({
-    ViralIntelligence: ({ onClose }: any) => (
+    ViralIntelligence: ({ onClose }: { onClose: () => void }) => (
         <div data-testid="viral-intelligence">
             <button onClick={onClose}>Close Viral Intelligence</button>
         </div>
     )
 }));
 jest.mock('@/components/SubtitlePositionSelector', () => ({
-    SubtitlePositionSelector: ({ onChange, onChangeLines }: any) => (
+    SubtitlePositionSelector: ({ onChange, onChangeLines }: { onChange: (v: string) => void, onChangeLines: (v: number) => void }) => (
         <div data-testid="subtitle-selector">
             <button onClick={() => onChange('top')}>Top</button>
             <button onClick={() => onChangeLines(3)}>3 Lines</button>
@@ -25,7 +25,7 @@ jest.mock('@/components/SubtitlePositionSelector', () => ({
     ),
 }));
 jest.mock('@/context/I18nContext', () => ({
-    useI18n: () => ({ t: (key: string) => key }),
+    useI18n: () => ({ t: (key: string) => key === 'paginationShowing' ? null : key }),
 }));
 // Mock video utils
 jest.mock('@/lib/video');
@@ -69,6 +69,8 @@ describe('ProcessView', () => {
         totalPages: 1,
         onNextPage: jest.fn(),
         onPrevPage: jest.fn(),
+        totalJobs: 0,
+        pageSize: 10,
     };
 
     beforeEach(() => {
@@ -107,7 +109,6 @@ describe('ProcessView', () => {
         render(<ProcessView {...defaultProps} onFileSelect={onFileSelect} />);
 
         const file = new File(['dummy'], 'test.mp4', { type: 'video/mp4' });
-        const input = screen.getByText('uploadDropTitle').closest('div.card')?.querySelector('input') as HTMLInputElement;
 
         // Find input by digging into the drop zone structure if needed, or by class/type
         // The accessible way is tricky here because input is hidden.
@@ -140,22 +141,113 @@ describe('ProcessView', () => {
         expect(call.transcribeProvider).toBe('local');
     });
 
-    it('should allow quality selection', async () => {
+    it('should force high quality output', async () => {
         const file = new File(['dummy'], 'test.mp4', { type: 'video/mp4' });
         const onStartProcessing = jest.fn();
         render(<ProcessView {...defaultProps} selectedFile={file} onStartProcessing={onStartProcessing} />);
 
         await waitFor(() => expect(screen.getByText('test.mp4')).toBeInTheDocument());
 
-        // Click quality button
-        const lowSizeBtn = screen.getByText('low size');
-        fireEvent.click(lowSizeBtn);
+        // Start processing
+        fireEvent.click(screen.getByText('controlsStart'));
+
+        expect(onStartProcessing).toHaveBeenCalled();
+        expect(onStartProcessing.mock.calls[0][0].outputQuality).toBe('high quality');
+    });
+
+    it('should toggle settings visibility', async () => {
+        const file = new File(['dummy'], 'test.mp4', { type: 'video/mp4' });
+        render(<ProcessView {...defaultProps} selectedFile={file} />);
+
+        await waitFor(() => expect(screen.getByText('test.mp4')).toBeInTheDocument());
+
+        // Settings should be visible by default - check for a known label in settings
+        expect(screen.getByText('Transcription Model')).toBeInTheDocument();
+
+        // Click to collapse settings
+        const settingsHeader = screen.getByText('controlsTitle');
+        fireEvent.click(settingsHeader);
+
+        // Settings should now be hidden
+        expect(screen.queryByText('Transcription Model')).not.toBeInTheDocument();
+    });
+
+    // ... existing model display tests ...
+
+    // === EXPERIMENTAL PROVIDERS TESTS ===
+
+    describe('Experimental Providers', () => {
+        it('should display Experimenting section only when toggled', async () => {
+            const file = new File(['dummy'], 'test.mp4', { type: 'video/mp4' });
+            render(<ProcessView {...defaultProps} selectedFile={file} />);
+
+            await waitFor(() => expect(screen.getByText('test.mp4')).toBeInTheDocument());
+
+            // Initially Experimenting section content should be hidden (collapsed)
+            // But the header "Experimenting" is always visible to click
+            const expHeader = screen.getByText('Experimenting');
+            expect(expHeader).toBeInTheDocument();
+
+            // Groq button should NOT be visible yet
+            expect(screen.queryByTestId('model-groq')).not.toBeInTheDocument();
+
+            // Toggle it open
+            fireEvent.click(expHeader);
+
+            // Now Groq option should be visible
+            expect(screen.getByTestId('model-groq')).toBeInTheDocument();
+            expect(screen.getByText('Groq Turbo')).toBeInTheDocument();
+        });
+
+        // ... existing experimental provider tests, but need to open toggle first ...
+
+        it('should allow Groq model selection', async () => {
+            const file = new File(['dummy'], 'test.mp4', { type: 'video/mp4' });
+            const onStartProcessing = jest.fn();
+            render(<ProcessView {...defaultProps} selectedFile={file} onStartProcessing={onStartProcessing} />);
+
+            await waitFor(() => expect(screen.getByText('test.mp4')).toBeInTheDocument());
+
+            // Open experiments
+            fireEvent.click(screen.getByText('Experimenting'));
+
+            // Click Groq button
+            const groqBtn = screen.getByTestId('model-groq');
+            fireEvent.click(groqBtn);
+
+            // Start processing
+            fireEvent.click(screen.getByText('controlsStart'));
+
+            expect(onStartProcessing).toHaveBeenCalled();
+            expect(onStartProcessing.mock.calls[0][0].transcribeProvider).toBe('groq');
+        });
+
+        // ...
+    });
+
+    it('should allow subtitle color and shadow selection', async () => {
+        const file = new File(['dummy'], 'test.mp4', { type: 'video/mp4' });
+        const onStartProcessing = jest.fn();
+        render(<ProcessView {...defaultProps} selectedFile={file} onStartProcessing={onStartProcessing} />);
+
+        await waitFor(() => expect(screen.getByText('test.mp4')).toBeInTheDocument());
+
+        // Select 'Green' color
+        const greenBtn = screen.getByLabelText('Select Green color');
+        fireEvent.click(greenBtn);
+
+        // Select 'Strong' shadow (value 8)
+        const strongShadowBtn = screen.getByText('Strong');
+        fireEvent.click(strongShadowBtn);
 
         // Start processing
         fireEvent.click(screen.getByText('controlsStart'));
 
         expect(onStartProcessing).toHaveBeenCalled();
-        expect(onStartProcessing.mock.calls[0][0].outputQuality).toBe('low size');
+        const call = onStartProcessing.mock.calls[0][0];
+        // Green ASS code: &H0000FF00
+        expect(call.subtitle_color).toBe('&H0000FF00');
+        expect(call.shadow_strength).toBe(8);
     });
 
     it('should allow ChatGPT model selection', async () => {
@@ -164,6 +256,9 @@ describe('ProcessView', () => {
         render(<ProcessView {...defaultProps} selectedFile={file} onStartProcessing={onStartProcessing} />);
 
         await waitFor(() => expect(screen.getByText('test.mp4')).toBeInTheDocument());
+
+        // Open experiments
+        fireEvent.click(screen.getByText('Experimenting'));
 
         // Click ChatGPT model button
         const chatgptBtn = screen.getByTestId('model-chatgpt');
@@ -228,16 +323,15 @@ describe('ProcessView', () => {
 
         await waitFor(() => expect(screen.getByText('test.mp4')).toBeInTheDocument());
 
-        // Settings should be visible by default - check for quality labels
-        expect(screen.getByText('balanced')).toBeInTheDocument();
+        // Settings should be visible by default - check for a known label in settings
+        expect(screen.getByText('Transcription Model')).toBeInTheDocument();
 
         // Click to collapse settings
         const settingsHeader = screen.getByText('controlsTitle');
         fireEvent.click(settingsHeader);
 
-        // Settings should now be hidden (quality labels should not be visible)
-        // Note: this tests the toggle logic
-        expect(screen.queryByText('balanced')).not.toBeInTheDocument();
+        // Settings should now be hidden
+        expect(screen.queryByText('Transcription Model')).not.toBeInTheDocument();
     });
 
     it('should display OpenAI model info', () => {
@@ -645,6 +739,27 @@ describe('ProcessView', () => {
         });
     });
 
+    it('should display correct pagination text', () => {
+        const props = {
+            ...defaultProps,
+            currentPage: 2,
+            pageSize: 10,
+            totalJobs: 25,
+            totalPages: 3
+        };
+        render(<ProcessView {...props} />);
+
+        // Page 2 of 10 items per page with 25 total items
+        // Should show items 11-20
+        // Formula: start = (2-1)*10 + 1 = 11
+        //          end = min(2*10, 25) = 20
+        expect(screen.getByText('Showing 11-20 of 25')).toBeInTheDocument();
+    });
+
+
+
+
+
     // === EXPERIMENTAL PROVIDERS TESTS ===
 
     describe('Experimental Providers', () => {
@@ -658,6 +773,9 @@ describe('ProcessView', () => {
             expect(screen.getByText('Experimenting')).toBeInTheDocument();
             expect(screen.getByText('BETA')).toBeInTheDocument();
 
+            // Toggle experiments open
+            fireEvent.click(screen.getByText('Experimenting'));
+
             // Should show Groq option
             expect(screen.getByTestId('model-groq')).toBeInTheDocument();
             expect(screen.getByText('Groq Turbo')).toBeInTheDocument();
@@ -669,6 +787,9 @@ describe('ProcessView', () => {
             render(<ProcessView {...defaultProps} selectedFile={file} onStartProcessing={onStartProcessing} />);
 
             await waitFor(() => expect(screen.getByText('test.mp4')).toBeInTheDocument());
+
+            // Toggle experiments open
+            fireEvent.click(screen.getByText('Experimenting'));
 
             // Click Groq button
             const groqBtn = screen.getByTestId('model-groq');

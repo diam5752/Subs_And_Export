@@ -45,7 +45,7 @@ class ProcessingSettings(BaseModel):
     transcribe_model: str = "medium"
     transcribe_provider: str = "local"
     openai_model: str | None = None
-    video_quality: str = "balanced"
+    video_quality: str = "high quality"
     target_width: int = config.DEFAULT_WIDTH
     target_height: int = config.DEFAULT_HEIGHT
     use_llm: bool = APP_SETTINGS.use_llm_by_default
@@ -54,6 +54,8 @@ class ProcessingSettings(BaseModel):
     llm_temperature: float = APP_SETTINGS.llm_temperature
     subtitle_position: str = "default"
     max_subtitle_lines: int = 2
+    subtitle_color: str | None = None
+    shadow_strength: int = 4
 
 
 def _save_upload_with_limit(upload: UploadFile, destination: Path) -> None:
@@ -134,7 +136,7 @@ def run_video_processing(
         model_size = settings.openai_model or settings.transcribe_model
         provider = settings.transcribe_provider or "local"
         crf_map = {"low size": 28, "balanced": 20, "high quality": 12}
-        video_crf = crf_map.get(settings.video_quality.lower(), 23)
+        video_crf = crf_map.get(settings.video_quality.lower(), 12) # Default to high quality (12)
         target_width = settings.target_width or config.DEFAULT_WIDTH
         target_height = settings.target_height or config.DEFAULT_HEIGHT
 
@@ -158,8 +160,10 @@ def run_video_processing(
             output_height=target_height,
             subtitle_position=settings.subtitle_position,
             max_subtitle_lines=settings.max_subtitle_lines,
+            subtitle_color=settings.subtitle_color,
+            shadow_strength=settings.shadow_strength,
         )
-        print(f"DEBUG_VIDEOS: normalize called with max_subtitle_lines={settings.max_subtitle_lines}")
+        print(f"DEBUG_VIDEOS: normalize called with max_subtitle_lines={settings.max_subtitle_lines} color={settings.subtitle_color} shadow={settings.shadow_strength}")
         
         # Result unpacking
         social = None
@@ -221,12 +225,14 @@ async def process_video(
     transcribe_model: str = Form("medium"),
     transcribe_provider: str = Form("local"),
     openai_model: str = Form(""),
-    video_quality: str = Form("balanced"),
+    video_quality: str = Form("high quality"),
     video_resolution: str = Form(""),
     use_llm: bool = Form(APP_SETTINGS.use_llm_by_default),
     context_prompt: str = Form(""),
     subtitle_position: str = Form("default"),
     max_subtitle_lines: int = Form(2),
+    subtitle_color: str | None = Form(None),
+    shadow_strength: int = Form(4),
     current_user: User = Depends(get_current_user),
     job_store: JobStore = Depends(get_job_store),
     history_store: HistoryStore = Depends(get_history_store)
@@ -287,6 +293,8 @@ async def process_video(
         context_prompt=context_prompt,
         subtitle_position=subtitle_position,
         max_subtitle_lines=max_subtitle_lines,
+        subtitle_color=subtitle_color,
+        shadow_strength=shadow_strength,
     )
     print(f"DEBUG_API: Received process request max_lines={max_subtitle_lines}")
     

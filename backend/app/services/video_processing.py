@@ -235,6 +235,8 @@ def normalize_and_stub_subtitles(
     output_height: int | None = None,
     subtitle_position: str = "default",
     max_subtitle_lines: int = 2,
+    subtitle_color: str | None = None,
+    shadow_strength: int = 4,
 ) -> Path | tuple[Path, subtitles.SocialCopy]:
     """
     Normalize video to 9:16, generate Greek subs, and burn them into the output.
@@ -373,6 +375,8 @@ def normalize_and_stub_subtitles(
                     cues=cues,
                     subtitle_position=subtitle_position,
                     max_lines=max_subtitle_lines,
+                    shadow_strength=shadow_strength,
+                    primary_color=subtitle_color or config.DEFAULT_SUB_COLOR,
                 )
 
             transcript_text = subtitles.cues_to_text(cues)

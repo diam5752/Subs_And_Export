@@ -44,6 +44,8 @@ export interface ProcessingOptions {
     contextPrompt: string;
     subtitle_position: string;
     max_subtitle_lines: number;
+    subtitle_color: string;
+    shadow_strength: number;
 }
 
 export function ProcessView({
@@ -78,19 +80,32 @@ export function ProcessView({
     // Local state for options
     const [showPreview, setShowPreview] = useState(false);
     const [showSettings, setShowSettings] = useState(true);
+    const [showExperiments, setShowExperiments] = useState(false);
     const [deletingJobId, setDeletingJobId] = useState<string | null>(null);
     const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
     const [transcribeMode, setTranscribeMode] = useState<TranscribeMode>('turbo');
     const [transcribeProvider, setTranscribeProvider] = useState<TranscribeProvider>('local');
-    const [outputQuality, setOutputQuality] = useState<'low size' | 'balanced' | 'high quality'>('balanced');
+    // outputQuality state removed as it is now always high quality
+    // const [outputQuality, setOutputQuality] = useState<'low size' | 'balanced' | 'high quality'>('balanced');
     const [outputResolutionChoice, setOutputResolutionChoice] = useState<'1080x1920' | '2160x3840'>('1080x1920');
     const [subtitlePosition, setSubtitlePosition] = useState('default');
     const [maxSubtitleLines, setMaxSubtitleLines] = useState(2);
+    const [subtitleColor, setSubtitleColor] = useState<string>('#FFFF00'); // Default Yellow
+    const [shadowStrength] = useState<number>(4); // Default Normal
     const [useAI, setUseAI] = useState(false);
     const [contextPrompt, setContextPrompt] = useState('');
     const [videoInfo, setVideoInfo] = useState<{ width: number; height: number; aspectWarning: boolean; thumbnailUrl: string | null } | null>(null);
     const [isDownloading, setIsDownloading] = useState(false);
     const [outputResolutionInfo, setOutputResolutionInfo] = useState<{ text: string; label: string } | null>(null);
+
+    // Color Palette
+    const SUBTITLE_COLORS = [
+        { label: 'Yellow', value: '#FFFF00', ass: '&H0000FFFF' },
+        { label: 'White', value: '#FFFFFF', ass: '&H00FFFFFF' },
+        { label: 'Cyan', value: '#00FFFF', ass: '&H00FFFF00' },
+        { label: 'Green', value: '#00FF00', ass: '&H0000FF00' },
+        { label: 'Magenta', value: '#FF00FF', ass: '&H00FF00FF' },
+    ];
 
     // Selection mode state for batch delete
     const [selectionMode, setSelectionMode] = useState(false);
@@ -205,15 +220,19 @@ export function ProcessView({
             block: 'start',
         });
 
+        const colorObj = SUBTITLE_COLORS.find(c => c.value === subtitleColor) || SUBTITLE_COLORS[0];
+
         onStartProcessing({
             transcribeMode,
             transcribeProvider,
-            outputQuality,
+            outputQuality: 'high quality', // Force High Quality
             outputResolution: outputResolutionChoice,
             useAI,
             contextPrompt,
             subtitle_position: subtitlePosition,
             max_subtitle_lines: maxSubtitleLines,
+            subtitle_color: colorObj.ass,
+            shadow_strength: shadowStrength,
         });
     };
 
@@ -316,10 +335,7 @@ export function ProcessView({
         setShowPreview(false);
     }, []);
 
-    /* istanbul ignore next -- stopPropagation handler tested in E2E */
-    const handleContextAreaClick = useCallback((e: React.MouseEvent) => {
-        e.stopPropagation();
-    }, []);
+
 
     return (
         <div className="grid xl:grid-cols-[1.05fr,0.95fr] gap-6">
@@ -398,13 +414,11 @@ export function ProcessView({
                         <div className="text-center py-12 relative">
                             <div className="text-6xl mb-3 opacity-80">📤</div>
                             <p className="text-2xl font-semibold mb-1">{t('uploadDropTitle')}</p>
-                            <p className="text-[var(--muted)}">{t('uploadDropSubtitle')}</p>
+                            <p className="text-[var(--muted)]">{t('uploadDropSubtitle')}</p>
                             <p className="text-xs text-[var(--muted)] mt-4">{t('uploadDropFootnote')}</p>
                         </div>
                     )}
                 </div>
-
-                {/* Controls Card - Only show when file is selected */}
                 {selectedFile && !isProcessing && (
                     <div className="card space-y-4 animate-fade-in">
                         <div
@@ -499,6 +513,8 @@ export function ProcessView({
                                             </div>
                                         </button>
 
+
+
                                         {/* Option 3: whisper.cpp */}
                                         <button
                                             data-testid="model-whispercpp"
@@ -535,76 +551,110 @@ export function ProcessView({
                                     </div>
                                 </div>
 
-                                {/* 🧪 Experimenting Section */}
+                                {/* Subtitle Position & Max Lines */}
+                                <div onClick={(e) => e.stopPropagation()}>
+                                    <SubtitlePositionSelector
+                                        value={subtitlePosition}
+                                        onChange={setSubtitlePosition}
+                                        lines={maxSubtitleLines}
+                                        onChangeLines={setMaxSubtitleLines}
+                                        previewColor={subtitleColor}
+                                        thumbnailUrl={videoInfo?.thumbnailUrl}
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-[var(--muted)] mb-2">
+                                        Subtitle Style
+                                    </label>
+
+                                    {/* Color Picker */}
+                                    <div className="flex gap-3 mb-4">
+                                        {SUBTITLE_COLORS.map((c) => (
+                                            <button
+                                                key={c.value}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setSubtitleColor(c.value);
+                                                }}
+                                                className={`w-8 h-8 rounded-full border-2 transition-all ${subtitleColor === c.value
+                                                    ? 'border-[var(--accent)] ring-2 ring-[var(--accent)]/30 scale-110'
+                                                    : 'border-transparent hover:scale-105'
+                                                    }`}
+                                                style={{ backgroundColor: c.value }}
+                                                title={c.label}
+                                                aria-label={`Select ${c.label} color`}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* 🧪 Experimenting Section Toggle */}
+                                {/* 🧪 Experimenting Section Toggle */}
                                 <div className="border-t border-dashed border-[var(--border)] pt-4 mt-2">
-                                    <div className="flex items-center gap-2 mb-3">
+                                    <button
+                                        data-testid="experimenting-toggle"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setShowExperiments(!showExperiments);
+                                        }}
+                                        className="flex items-center gap-2 mb-3 w-full hover:opacity-80 transition-opacity"
+                                    >
                                         <span className="text-lg">🧪</span>
-                                        <label className="text-sm font-medium text-[var(--muted)]">
+                                        <label className="text-sm font-medium text-[var(--muted)] cursor-pointer">
                                             Experimenting
                                         </label>
                                         <span className="bg-purple-500/10 text-purple-400 text-[10px] px-1.5 py-0.5 rounded-full font-medium">
                                             BETA
                                         </span>
-                                    </div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                        {/* ChatGPT API */}
-                                        <button
-                                            data-testid="model-chatgpt"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                setTranscribeProvider('openai');
-                                                setTranscribeMode('balanced');
-                                            }}
-                                            className={`p-4 rounded-xl border border-dashed text-left transition-all relative overflow-hidden group ${transcribeProvider === 'openai'
-                                                ? 'border-emerald-500 bg-emerald-500/10 ring-1 ring-emerald-500'
-                                                : 'border-[var(--border)] hover:border-emerald-500/50 hover:bg-emerald-500/5'
-                                                }`}
+                                        <svg
+                                            className={`w-4 h-4 ml-auto text-[var(--muted)] transition-transform duration-200 ${showExperiments ? 'rotate-180' : ''}`}
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
                                         >
-                                            <div className="flex items-start justify-between mb-2">
-                                                <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500">
-                                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                                                    </svg>
-                                                </div>
-                                                {transcribeProvider === 'openai' && (
-                                                    <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center">
-                                                        <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                                        </svg>
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="font-semibold text-base mb-1">ChatGPT API</div>
-                                            <div className="text-sm text-[var(--muted)] mb-2">OpenAI cloud transcription</div>
-                                            <div className="flex items-center gap-2 text-xs text-[var(--muted)]/80">
-                                                <span className="bg-emerald-500/10 text-emerald-500 px-1.5 py-0.5 rounded">whisper-1</span>
-                                            </div>
-                                        </button>
-                                    </div>
-                                </div>
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                    </button>
 
-                                <div>
-                                    <label className="block text-sm font-medium text-[var(--muted)] mb-2">
-                                        {t('qualityLabel')}
-                                    </label>
-                                    <div className="grid grid-cols-3 gap-3">
-                                        {(['low size', 'balanced', 'high quality'] as const).map((q) => (
+                                    {showExperiments && (
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                                            {/* ChatGPT API */}
                                             <button
-                                                key={q}
+                                                data-testid="model-chatgpt"
                                                 onClick={(e) => {
                                                     e.stopPropagation();
-                                                    setOutputQuality(q);
+                                                    setTranscribeProvider('openai');
+                                                    setTranscribeMode('balanced');
                                                 }}
-                                                className={`p-2 rounded-lg border text-center text-sm capitalize transition-all ${outputQuality === q
-                                                    ? 'border-[var(--accent)] bg-[var(--accent)]/10 ring-1 ring-[var(--accent)] font-medium'
-                                                    : 'border-[var(--border)] hover:border-[var(--accent)]/50'
+                                                className={`p-4 rounded-xl border border-dashed text-left transition-all relative overflow-hidden group ${transcribeProvider === 'openai'
+                                                    ? 'border-emerald-500 bg-emerald-500/10 ring-1 ring-emerald-500'
+                                                    : 'border-[var(--border)] hover:border-emerald-500/50 hover:bg-emerald-500/5'
                                                     }`}
                                             >
-                                                {q}
+                                                <div className="flex items-start justify-between mb-2">
+                                                    <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500">
+                                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                                                        </svg>
+                                                    </div>
+                                                    {transcribeProvider === 'openai' && (
+                                                        <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center">
+                                                            <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                                            </svg>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="font-semibold text-base mb-1">ChatGPT API</div>
+                                                <div className="text-sm text-[var(--muted)] mb-2">OpenAI cloud transcription</div>
+                                                <div className="flex items-center gap-2 text-xs text-[var(--muted)]/80">
+                                                    <span className="bg-emerald-500/10 text-emerald-500 px-1.5 py-0.5 rounded">whisper-1</span>
+                                                </div>
                                             </button>
-                                        ))}
-                                    </div>
+                                        </div>
+                                    )}
                                 </div>
+
 
                                 <div>
                                     <label className="block text-sm font-medium text-[var(--muted)] mb-2">
@@ -633,16 +683,7 @@ export function ProcessView({
                                     </div>
                                 </div>
 
-                                <div>
-                                    <SubtitlePositionSelector
-                                        value={subtitlePosition}
-                                        onChange={setSubtitlePosition}
-                                        lines={maxSubtitleLines}
-                                        onChangeLines={setMaxSubtitleLines}
-                                        thumbnailUrl={videoInfo?.thumbnailUrl}
-                                    />
-                                </div>
-
+                                {/* AI & Context */}
                                 <div className="pt-2">
                                     <label className="flex items-center gap-3 cursor-pointer group" onClick={(e) => e.stopPropagation()}>
                                         <div
@@ -657,7 +698,7 @@ export function ProcessView({
                                 </div>
 
                                 {useAI && (
-                                    <div className="animate-fade-in" onClick={handleContextAreaClick}>
+                                    <div className="animate-fade-in" onClick={(e) => e.stopPropagation()}>
                                         <label className="block text-sm font-medium text-[var(--muted)] mb-2">
                                             {t('contextLabel')}
                                         </label>
@@ -669,449 +710,444 @@ export function ProcessView({
                                         />
                                     </div>
                                 )}
-                            </div>
-                        )}
-
-                        {showSettings && (
-                            <div className="flex justify-end gap-3 pt-2">
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleResetSelection();
-                                    }}
-                                    className="btn-secondary"
-                                >
-                                    {t('processingReset')}
-                                </button>
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        setShowSettings(false);
-                                        handleStart();
-                                    }}
-                                    disabled={isProcessing}
-                                    className="btn-primary w-full sm:w-auto px-8"
-                                >
-                                    {t('controlsStart')}
-                                </button>
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {error && (
-                    <div className="bg-[var(--danger)]/10 border border-[var(--danger)]/30 text-[var(--danger)] px-6 py-4 rounded-xl animate-fade-in">
-                        {error}
-                    </div>
-                )}
-
-
-            </div>
-
-            <div className="space-y-4" ref={resultsRef} style={{ scrollMarginTop: '100px' }}>
-                {(isProcessing || (selectedJob && selectedJob.status !== 'pending')) && (
-                    <div className="card space-y-4">
-                        <div className="flex flex-wrap items-start justify-between gap-3">
-                            <div>
-                                <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">
-                                    {selectedJob?.status === 'completed' ? t('liveOutputLabel') : t('statusProcessing')}
-                                </p>
-                                <h3 className="text-2xl font-semibold break-words [overflow-wrap:anywhere]">
-                                    {selectedJob?.result_data?.original_filename || (isProcessing ? t('statusProcessingEllipsis') : t('liveOutputPlaceholderTitle'))}
-                                </h3>
-                                <p className="text-sm text-[var(--muted)]">{t('liveOutputSubtitle')}</p>
-                            </div>
-                            <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${statusStyles[selectedJob?.status || (isProcessing ? 'processing' : 'pending')] || ''}`}>
-                                {selectedJob?.status ? selectedJob.status.toUpperCase() : isProcessing ? t('liveOutputStatusProcessing') : t('liveOutputStatusIdle')}
-                            </span>
-                        </div>
-
-                        {isProcessing && (
-                            <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3 space-y-2 animate-fade-in">
-                                <div className="flex items-center justify-between text-sm">
-                                    <span className="font-medium">{statusMessage || t('progressLabel')}</span>
-                                    <span className="text-[var(--accent)] font-semibold">{progress}%</span>
-                                </div>
-                                <div className="w-full bg-[var(--surface)] rounded-full h-2 overflow-hidden">
-                                    <div
-                                        className="progress-bar bg-gradient-to-r from-[var(--accent)] to-[var(--accent-secondary)] h-2 rounded-full"
-                                        style={{ width: `${progress}%` }}
-                                    />
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Strict check: Only show preview if NOT processing and job is completed */}
-                        {!isProcessing && selectedJob && selectedJob.status === 'completed' ? (
-                            <div className="animate-fade-in relative">
-                                {/* Animated shimmer border */}
-                                <div className="absolute -inset-[2px] rounded-2xl bg-gradient-to-r from-[var(--accent)] via-[var(--accent-secondary)] to-[var(--accent)] bg-[length:200%_100%] animate-shimmer opacity-80" />
-
-                                {/* Inner glow */}
-                                <div className="preview-card-glow absolute inset-0 rounded-2xl" />
-
-                                <div className="relative rounded-2xl border border-white/10 bg-[var(--surface-elevated)] overflow-hidden">
-                                    {/* Success badge */}
-                                    <div className="absolute top-0 right-0 p-4 z-10">
-                                        <div className="flex items-center gap-2 text-xs px-3 py-1.5 rounded-full bg-gradient-to-r from-emerald-500/20 to-[var(--accent)]/20 backdrop-blur-md text-emerald-300 border border-emerald-500/30">
-                                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                                            Subtitles Ready
-                                        </div>
-                                    </div>
-
-                                    <div className="flex flex-col sm:flex-row">
-                                        {/* Preview Thumbnail Area */}
-                                        <div
-                                            onClick={handleOpenPreview}
-                                            className="relative group cursor-pointer w-full sm:w-1/3 aspect-video sm:aspect-auto sm:h-auto min-h-[180px] bg-black/40 flex items-center justify-center overflow-hidden"
-                                        >
-                                            {/* Real Video Preview as Thumbnail */}
-                                            {videoUrl ? (
-                                                <video
-                                                    src={`${videoUrl}#t=0.5`}
-                                                    className="absolute inset-0 w-full h-full object-cover opacity-70 group-hover:opacity-90 transition-opacity duration-300"
-                                                    muted
-                                                    playsInline
-                                                    preload="metadata"
-                                                />
-                                            ) : (
-                                                <div className="absolute inset-0 bg-gradient-to-br from-[var(--accent)]/20 to-[var(--accent-secondary)]/20 opacity-50" />
-                                            )}
-
-                                            {/* Play Button with glow */}
-                                            <div className="play-button-glow relative z-10 w-16 h-16 rounded-full bg-white/15 backdrop-blur-sm border border-white/25 flex items-center justify-center group-hover:scale-110 group-hover:bg-white/25 transition-all duration-300">
-                                                <div className="w-0 h-0 border-t-[10px] border-t-transparent border-l-[18px] border-l-white border-b-[10px] border-b-transparent ml-1" />
-                                            </div>
-
-                                            <div className="absolute bottom-3 left-3 text-xs font-medium text-white/90 z-10 drop-shadow-lg">
-                                                Click to Preview
-                                            </div>
-                                        </div>
-
-                                        {/* Details Area */}
-                                        <div className="p-6 flex-1 flex flex-col justify-center">
-                                            <h4 className="text-xl font-semibold mb-2 line-clamp-2 bg-gradient-to-r from-white to-white/80 bg-clip-text">
-                                                {selectedJob.result_data?.original_filename || "Processed Video.mp4"}
-                                            </h4>
-                                            <div className="flex flex-wrap gap-4 text-sm text-[var(--muted)] mb-6">
-                                                <span className="flex items-center gap-1.5">
-                                                    <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent)]" />
-                                                    MP4
-                                                </span>
-                                                <span>•</span>
-                                                <span>{((selectedJob.result_data?.output_size || selectedFile?.size || 0) / (1024 * 1024)).toFixed(1)} MB</span>
-                                                {(displayResolution || selectedJob.result_data?.resolution) && (
-                                                    <>
-                                                        <span>•</span>
-                                                        {displayResolution ? (
-                                                            <>
-                                                                <span className="text-[var(--accent)]">{displayResolution.text}</span>
-                                                                <span className="text-[var(--muted)]">({displayResolution.label})</span>
-                                                            </>
-                                                        ) : (
-                                                            <span className="text-[var(--accent)]">{selectedJob.result_data?.resolution}</span>
-                                                        )}
-                                                    </>
-                                                )}
-                                                {modelInfo && (
-                                                    <>
-                                                        <span>•</span>
-                                                        <span className="flex items-center gap-1.5">
-                                                            <svg className="w-4 h-4 text-[var(--accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                                                            </svg>
-                                                            <span className="text-[var(--accent)]">{modelInfo.text}</span>
-                                                            <span className="text-[var(--muted)]">({modelInfo.label})</span>
-                                                        </span>
-                                                    </>
-                                                )}
-                                            </div>
-
-                                            <div className="flex flex-wrap gap-3">
-                                                {videoUrl && (
-                                                    <button
-                                                        className="btn-primary items-center gap-2 inline-flex disabled:opacity-50"
-                                                        onClick={() => handleDownload(videoUrl, selectedJob.result_data?.original_filename || 'processed.mp4')}
-                                                        disabled={isDownloading}
-                                                    >
-                                                        {isDownloading ? (
-                                                            <><span className="animate-spin">⏳</span> Downloading...</>
-                                                        ) : (
-                                                            <>⬇️ Download MP4</>
-                                                        )}
-                                                    </button>
-                                                )}
-                                                <button
-                                                    onClick={handleOpenPreview}
-                                                    className="btn-secondary"
-                                                >
-                                                    ▶️ Preview
-                                                </button>
-                                            </div>
-
-                                            <ViralIntelligence jobId={selectedJob.id} />
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        ) : null}
-                    </div>
-                )}
-
-                {/* Recent Jobs with Expiry */}
-                <div className="card mt-6 border-none bg-transparent shadow-none p-0">
-                    <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                        <div>
-                            <h3 className="text-lg font-semibold">{t('historyTitle') || 'History'}</h3>
-                            <p className="text-xs text-[var(--muted)]">{t('historyExpiry') || 'Items expire in 24 hours'}</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                            {jobsLoading && <span data-testid="jobs-loading" className="text-xs text-[var(--muted)]">{t('refreshingLabel')}</span>}
-                            {recentJobs.length > 0 && (
-                                <button
-                                    onClick={() => {
-                                        setSelectionMode(!selectionMode);
-                                        if (selectionMode) {
-                                            setSelectedJobIds(new Set());
-                                            setConfirmBatchDelete(false);
-                                        }
-                                    }}
-                                    className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${selectionMode
-                                        ? 'border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]'
-                                        : 'border-[var(--border)] hover:border-[var(--accent)]/50'
-                                        }`}
-                                >
-                                    {selectionMode ? (t('cancelSelect') || 'Cancel') : (t('selectMode') || 'Select')}
-                                </button>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Selection mode controls */}
-                    {selectionMode && recentJobs.length > 0 && (
-                        <div className="flex flex-wrap items-center gap-3 mb-3 p-3 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)]">
-                            <label className="flex items-center gap-2 cursor-pointer text-sm">
-                                <input
-                                    type="checkbox"
-                                    checked={selectedJobIds.size === recentJobs.length && recentJobs.length > 0}
-                                    onChange={(e) => {
-                                        if (e.target.checked) {
-                                            setSelectedJobIds(new Set(recentJobs.map(j => j.id)));
-                                        } else {
-                                            setSelectedJobIds(new Set());
-                                        }
-                                    }}
-                                    className="w-4 h-4 rounded border-[var(--border)] accent-[var(--accent)]"
-                                />
-                                {selectedJobIds.size === recentJobs.length
-                                    ? (t('deselectAll') || 'Deselect All')
-                                    : (t('selectAll') || 'Select All')}
-                            </label>
-                            <span className="text-xs text-[var(--muted)]">
-                                {selectedJobIds.size} {t('selected') || 'selected'}
-                            </span>
-                            <div className="flex-1" />
-                            {confirmBatchDelete ? (
-                                <div className="flex items-center gap-2">
-                                    <span className="text-xs text-[var(--danger)]">
-                                        {t('deleteSelectedConfirm') || `Delete ${selectedJobIds.size} items?`}
-                                    </span>
+                                <div className="flex justify-end gap-3 pt-2">
                                     <button
-                                        onClick={async () => {
-                                            setIsBatchDeleting(true);
-                                            try {
-                                                await api.deleteJobs(Array.from(selectedJobIds));
-                                                if (selectedJob && selectedJobIds.has(selectedJob.id)) {
-                                                    onJobSelect(null);
-                                                    setShowPreview(false);
-                                                }
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleResetSelection();
+                                        }}
+                                        className="btn-secondary"
+                                    >
+                                        {t('processingReset')}
+                                    </button>
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setShowSettings(false);
+                                            handleStart();
+                                        }}
+                                        disabled={isProcessing}
+                                        className="btn-primary w-full sm:w-auto px-8"
+                                    >
+                                        {t('controlsStart')}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {error && (
+                            <div className="bg-[var(--danger)]/10 border border-[var(--danger)]/30 text-[var(--danger)] px-6 py-4 rounded-xl animate-fade-in">
+                                {error}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                <div className="space-y-4" ref={resultsRef} style={{ scrollMarginTop: '100px' }}>
+                    {(isProcessing || (selectedJob && selectedJob.status !== 'pending')) && (
+                        <div className="card space-y-4">
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                                <div>
+                                    <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">
+                                        {selectedJob?.status === 'completed' ? t('liveOutputLabel') : t('statusProcessing')}
+                                    </p>
+                                    <h3 className="text-2xl font-semibold break-words [overflow-wrap:anywhere]">
+                                        {selectedJob?.result_data?.original_filename || (isProcessing ? t('statusProcessingEllipsis') : t('liveOutputPlaceholderTitle'))}
+                                    </h3>
+                                    <p className="text-sm text-[var(--muted)]">{t('liveOutputSubtitle')}</p>
+                                </div>
+                                <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${statusStyles[selectedJob?.status || (isProcessing ? 'processing' : 'pending')] || ''}`}>
+                                    {selectedJob?.status ? selectedJob.status.toUpperCase() : isProcessing ? t('liveOutputStatusProcessing') : t('liveOutputStatusIdle')}
+                                </span>
+                            </div>
+
+                            {isProcessing && (
+                                <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3 space-y-2 animate-fade-in">
+                                    <div className="flex items-center justify-between text-sm">
+                                        <span className="font-medium">{statusMessage || t('progressLabel')}</span>
+                                        <span className="text-[var(--accent)] font-semibold">{progress}%</span>
+                                    </div>
+                                    <div className="w-full bg-[var(--surface)] rounded-full h-2 overflow-hidden">
+                                        <div
+                                            className="progress-bar bg-gradient-to-r from-[var(--accent)] to-[var(--accent-secondary)] h-2 rounded-full"
+                                            style={{ width: `${progress}%` }}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Strict check: Only show preview if NOT processing and job is completed */}
+                            {!isProcessing && selectedJob && selectedJob.status === 'completed' ? (
+                                <div className="animate-fade-in relative">
+                                    {/* Animated shimmer border */}
+                                    <div className="absolute -inset-[2px] rounded-2xl bg-gradient-to-r from-[var(--accent)] via-[var(--accent-secondary)] to-[var(--accent)] bg-[length:200%_100%] animate-shimmer opacity-80" />
+
+                                    {/* Inner glow */}
+                                    <div className="preview-card-glow absolute inset-0 rounded-2xl" />
+
+                                    <div className="relative rounded-2xl border border-white/10 bg-[var(--surface-elevated)] overflow-hidden">
+                                        {/* Success badge */}
+                                        <div className="absolute top-0 right-0 p-4 z-10">
+                                            <div className="flex items-center gap-2 text-xs px-3 py-1.5 rounded-full bg-gradient-to-r from-emerald-500/20 to-[var(--accent)]/20 backdrop-blur-md text-emerald-300 border border-emerald-500/30">
+                                                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                                                Subtitles Ready
+                                            </div>
+                                        </div>
+
+                                        <div className="flex flex-col sm:flex-row">
+                                            {/* Preview Thumbnail Area */}
+                                            <div
+                                                onClick={handleOpenPreview}
+                                                className="relative group cursor-pointer w-full sm:w-1/3 aspect-video sm:aspect-auto sm:h-auto min-h-[180px] bg-black/40 flex items-center justify-center overflow-hidden"
+                                            >
+                                                {/* Real Video Preview as Thumbnail */}
+                                                {videoUrl ? (
+                                                    <video
+                                                        src={`${videoUrl}#t=0.5`}
+                                                        className="absolute inset-0 w-full h-full object-cover opacity-70 group-hover:opacity-90 transition-opacity duration-300"
+                                                        muted
+                                                        playsInline
+                                                        preload="metadata"
+                                                    />
+                                                ) : (
+                                                    <div className="absolute inset-0 bg-gradient-to-br from-[var(--accent)]/20 to-[var(--accent-secondary)]/20 opacity-50" />
+                                                )}
+
+                                                {/* Play Button with glow */}
+                                                <div className="play-button-glow relative z-10 w-16 h-16 rounded-full bg-white/15 backdrop-blur-sm border border-white/25 flex items-center justify-center group-hover:scale-110 group-hover:bg-white/25 transition-all duration-300">
+                                                    <div className="w-0 h-0 border-t-[10px] border-t-transparent border-l-[18px] border-l-white border-b-[10px] border-b-transparent ml-1" />
+                                                </div>
+
+                                                <div className="absolute bottom-3 left-3 text-xs font-medium text-white/90 z-10 drop-shadow-lg">
+                                                    Click to Preview
+                                                </div>
+                                            </div>
+
+                                            {/* Details Area */}
+                                            <div className="p-6 flex-1 flex flex-col justify-center">
+                                                <h4 className="text-xl font-semibold mb-2 line-clamp-2 bg-gradient-to-r from-white to-white/80 bg-clip-text">
+                                                    {selectedJob.result_data?.original_filename || "Processed Video.mp4"}
+                                                </h4>
+                                                <div className="flex flex-wrap gap-4 text-sm text-[var(--muted)] mb-6">
+                                                    <span className="flex items-center gap-1.5">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent)]" />
+                                                        MP4
+                                                    </span>
+                                                    <span>•</span>
+                                                    <span>{((selectedJob.result_data?.output_size || selectedFile?.size || 0) / (1024 * 1024)).toFixed(1)} MB</span>
+                                                    {(displayResolution || selectedJob.result_data?.resolution) && (
+                                                        <>
+                                                            <span>•</span>
+                                                            {displayResolution ? (
+                                                                <>
+                                                                    <span className="text-[var(--accent)]">{displayResolution.text}</span>
+                                                                    <span className="text-[var(--muted)]">({displayResolution.label})</span>
+                                                                </>
+                                                            ) : (
+                                                                <span className="text-[var(--accent)]">{selectedJob.result_data?.resolution}</span>
+                                                            )}
+                                                        </>
+                                                    )}
+                                                    {modelInfo && (
+                                                        <>
+                                                            <span>•</span>
+                                                            <span className="flex items-center gap-1.5">
+                                                                <svg className="w-4 h-4 text-[var(--accent)]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                                                </svg>
+                                                                <span className="text-[var(--accent)]">{modelInfo.text}</span>
+                                                                <span className="text-[var(--muted)]">({modelInfo.label})</span>
+                                                            </span>
+                                                        </>
+                                                    )}
+                                                </div>
+
+                                                <div className="flex flex-wrap gap-3">
+                                                    {videoUrl && (
+                                                        <button
+                                                            className="btn-primary items-center gap-2 inline-flex disabled:opacity-50"
+                                                            onClick={() => handleDownload(videoUrl, selectedJob.result_data?.original_filename || 'processed.mp4')}
+                                                            disabled={isDownloading}
+                                                        >
+                                                            {isDownloading ? (
+                                                                <><span className="animate-spin">⏳</span> Downloading...</>
+                                                            ) : (
+                                                                <>⬇️ Download MP4</>
+                                                            )}
+                                                        </button>
+                                                    )}
+                                                    <button
+                                                        onClick={handleOpenPreview}
+                                                        className="btn-secondary"
+                                                    >
+                                                        ▶️ Preview
+                                                    </button>
+                                                </div>
+
+                                                <ViralIntelligence jobId={selectedJob.id} />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : null}
+                        </div>
+                    )}
+
+                    {/* Recent Jobs with Expiry */}
+                    <div className="card mt-6 border-none bg-transparent shadow-none p-0">
+                        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                            <div>
+                                <h3 className="text-lg font-semibold">{t('historyTitle') || 'History'}</h3>
+                                <p className="text-xs text-[var(--muted)]">{t('historyExpiry') || 'Items expire in 24 hours'}</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                {jobsLoading && <span data-testid="jobs-loading" className="text-xs text-[var(--muted)]">{t('refreshingLabel')}</span>}
+                                {recentJobs.length > 0 && (
+                                    <button
+                                        onClick={() => {
+                                            setSelectionMode(!selectionMode);
+                                            if (selectionMode) {
                                                 setSelectedJobIds(new Set());
                                                 setConfirmBatchDelete(false);
-                                                setSelectionMode(false);
-                                                await onRefreshJobs();
-                                            } catch (err) {
-                                                console.error('Batch delete failed:', err);
-                                            } finally {
-                                                setIsBatchDeleting(false);
                                             }
                                         }}
-                                        disabled={isBatchDeleting}
-                                        className="text-xs px-3 py-1.5 rounded bg-[var(--danger)] text-white hover:bg-[var(--danger)]/80 disabled:opacity-50"
+                                        className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${selectionMode
+                                            ? 'border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]'
+                                            : 'border-[var(--border)] hover:border-[var(--accent)]/50'
+                                            }`}
                                     >
-                                        {isBatchDeleting ? '...' : (t('confirmDelete') || 'Confirm')}
+                                        {selectionMode ? (t('cancelSelect') || 'Cancel') : (t('selectMode') || 'Select')}
                                     </button>
-                                    <button
-                                        onClick={() => setConfirmBatchDelete(false)}
-                                        className="text-xs px-3 py-1.5 rounded border border-[var(--border)] hover:bg-white/5"
-                                    >
-                                        {t('cancel') || 'Cancel'}
-                                    </button>
-                                </div>
-                            ) : (
-                                <button
-                                    onClick={() => setConfirmBatchDelete(true)}
-                                    disabled={selectedJobIds.size === 0}
-                                    className="text-xs px-3 py-1.5 rounded border border-[var(--danger)] text-[var(--danger)] hover:bg-[var(--danger)]/10 disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                    🗑️ {t('deleteSelected') || 'Delete Selected'} ({selectedJobIds.size})
-                                </button>
-                            )}
+                                )}
+                            </div>
                         </div>
-                    )}
 
-                    {recentJobs.length === 0 && (
-                        <p className="text-[var(--muted)] text-sm">{t('noRunsYet')}</p>
-                    )}
-                    <div className="space-y-2">
-                        {recentJobs.map((job) => {
-                            const publicUrl = buildStaticUrl(job.result_data?.public_url || job.result_data?.video_path);
-                            const timestamp = (job.updated_at || job.created_at) * 1000;
-                            const isExpired = (Date.now() - timestamp) > 24 * 60 * 60 * 1000;
-                            const isSelected = selectedJobIds.has(job.id);
-
-                            return (
-                                <div
-                                    key={job.id}
-                                    onClick={() => {
-                                        if (selectionMode) {
-                                            const newSet = new Set(selectedJobIds);
-                                            if (isSelected) {
-                                                newSet.delete(job.id);
+                        {/* Selection mode controls */}
+                        {selectionMode && recentJobs.length > 0 && (
+                            <div className="flex flex-wrap items-center gap-3 mb-3 p-3 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)]">
+                                <label className="flex items-center gap-2 cursor-pointer text-sm">
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedJobIds.size === recentJobs.length && recentJobs.length > 0}
+                                        onChange={(e) => {
+                                            if (e.target.checked) {
+                                                setSelectedJobIds(new Set(recentJobs.map(j => j.id)));
                                             } else {
-                                                newSet.add(job.id);
+                                                setSelectedJobIds(new Set());
                                             }
-                                            setSelectedJobIds(newSet);
-                                        }
-                                    }}
-                                    className={`flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 p-3 rounded-lg border ${isSelected
-                                        ? 'border-[var(--accent)] bg-[var(--accent)]/5'
-                                        : isExpired
-                                            ? 'border-[var(--border)]/30 bg-[var(--surface)] text-[var(--muted)]'
-                                            : 'border-[var(--border)] bg-[var(--surface-elevated)]'
-                                        } transition-colors ${selectionMode ? 'cursor-pointer hover:bg-[var(--accent)]/5' : ''}`}
-                                >
-                                    <div className="min-w-0 flex-1">
-                                        <div className="font-semibold text-sm truncate">
-                                            {job.result_data?.original_filename || job.id}
-                                        </div>
-                                        <div className="text-xs text-[var(--muted)]">
-                                            {formatDate(timestamp)}
-                                        </div>
-                                    </div>
-
+                                        }}
+                                        className="w-4 h-4 rounded border-[var(--border)] accent-[var(--accent)]"
+                                    />
+                                    {selectedJobIds.size === recentJobs.length
+                                        ? (t('deselectAll') || 'Deselect All')
+                                        : (t('selectAll') || 'Select All')}
+                                </label>
+                                <span className="text-xs text-[var(--muted)]">
+                                    {selectedJobIds.size} {t('selected') || 'selected'}
+                                </span>
+                                <div className="flex-1" />
+                                {confirmBatchDelete ? (
                                     <div className="flex items-center gap-2">
-                                        {/* Checkbox for selection mode - Moved to right */}
-                                        {selectionMode && (
-                                            <input
-                                                type="checkbox"
-                                                checked={isSelected}
-                                                onChange={() => { }} // Handled by onClick of parent
-                                                className="w-4 h-4 rounded border-[var(--border)] accent-[var(--accent)] flex-shrink-0 cursor-pointer"
-                                            />
-                                        )}
-                                        {isExpired ? (
-                                            <span className="text-xs bg-[var(--surface)] border border-[var(--border)] px-2 py-1 rounded text-[var(--muted)]">
-                                                {t('expired') || 'Expired'}
-                                            </span>
-                                        ) : (
-                                            <>
-                                                {job.status === 'completed' && publicUrl && !selectionMode && (
-                                                    <>
-                                                        <a
-                                                            className="text-xs btn-primary py-1.5 px-3 h-auto"
-                                                            href={publicUrl}
-                                                            download={job.result_data?.original_filename || 'processed.mp4'}
-                                                        >
-                                                            {t('download') || 'Download'}
-                                                        </a>
-                                                        <button
-                                                            onClick={() => { onJobSelect(job); setShowPreview(true); }}
-                                                            className="text-xs btn-secondary py-1.5 px-3 h-auto"
-                                                        >
-                                                            {t('view') || 'View'}
-                                                        </button>
-                                                    </>
-                                                )}
-                                                {/* Delete button - hide in selection mode */}
-                                                {!selectionMode && (
-                                                    confirmDeleteId === job.id ? (
-                                                        <div className="flex items-center gap-1">
-                                                            <button
-                                                                onClick={async () => {
-                                                                    setDeletingJobId(job.id);
-                                                                    try {
-                                                                        await api.deleteJob(job.id);
-                                                                        if (selectedJob?.id === job.id) {
-                                                                            onJobSelect(null);
-                                                                            setShowPreview(false);
-                                                                        }
-                                                                        setConfirmDeleteId(null);
-                                                                        // Refresh jobs list without page reload
-                                                                        await onRefreshJobs();
-                                                                    } catch (err) {
-                                                                        console.error('Delete failed:', err);
-                                                                    } finally {
-                                                                        setDeletingJobId(null);
-                                                                    }
-                                                                }}
-                                                                disabled={deletingJobId === job.id}
-                                                                className="text-xs px-2 py-1 rounded bg-[var(--danger)] text-white hover:bg-[var(--danger)]/80 disabled:opacity-50"
-                                                            >
-                                                                {deletingJobId === job.id ? '...' : '✓'}
-                                                            </button>
-                                                            <button
-                                                                onClick={() => setConfirmDeleteId(null)}
-                                                                className="text-xs px-2 py-1 rounded border border-[var(--border)] hover:bg-white/5"
-                                                            >
-                                                                ✕
-                                                            </button>
-                                                        </div>
-                                                    ) : (
-                                                        <button
-                                                            onClick={() => setConfirmDeleteId(job.id)}
-                                                            className="text-xs px-2 py-1 rounded border border-[var(--border)] hover:border-[var(--danger)] hover:text-[var(--danger)] transition-colors"
-                                                            title={t('deleteJob')}
-                                                        >
-                                                            🗑️
-                                                        </button>
-                                                    )
-                                                )}
-                                            </>
-                                        )}
+                                        <span className="text-xs text-[var(--danger)]">
+                                            {t('deleteSelectedConfirm') || `Delete ${selectedJobIds.size} items?`}
+                                        </span>
+                                        <button
+                                            onClick={async () => {
+                                                setIsBatchDeleting(true);
+                                                try {
+                                                    await api.deleteJobs(Array.from(selectedJobIds));
+                                                    if (selectedJob && selectedJobIds.has(selectedJob.id)) {
+                                                        onJobSelect(null);
+                                                        setShowPreview(false);
+                                                    }
+                                                    setSelectedJobIds(new Set());
+                                                    setConfirmBatchDelete(false);
+                                                    setSelectionMode(false);
+                                                    await onRefreshJobs();
+                                                } catch (err) {
+                                                    console.error('Batch delete failed:', err);
+                                                } finally {
+                                                    setIsBatchDeleting(false);
+                                                }
+                                            }}
+                                            disabled={isBatchDeleting}
+                                            className="text-xs px-3 py-1.5 rounded bg-[var(--danger)] text-white hover:bg-[var(--danger)]/80 disabled:opacity-50"
+                                        >
+                                            {isBatchDeleting ? '...' : (t('confirmDelete') || 'Confirm')}
+                                        </button>
+                                        <button
+                                            onClick={() => setConfirmBatchDelete(false)}
+                                            className="text-xs px-3 py-1.5 rounded border border-[var(--border)] hover:bg-white/5"
+                                        >
+                                            {t('cancel') || 'Cancel'}
+                                        </button>
                                     </div>
-                                </div>
-                            );
-                        })}
-                    </div>
+                                ) : (
+                                    <button
+                                        onClick={() => setConfirmBatchDelete(true)}
+                                        disabled={selectedJobIds.size === 0}
+                                        className="text-xs px-3 py-1.5 rounded border border-[var(--danger)] text-[var(--danger)] hover:bg-[var(--danger)]/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        🗑️ {t('deleteSelected') || 'Delete Selected'} ({selectedJobIds.size})
+                                    </button>
+                                )}
+                            </div>
+                        )}
 
-                    {/* Pagination Controls */}
-                    {totalPages > 1 && (
-                        <div className="flex items-center justify-center gap-4 mt-4 pt-4 border-t border-[var(--border)]">
-                            <button
-                                onClick={onPrevPage}
-                                disabled={currentPage <= 1}
-                                className="text-sm px-4 py-2 rounded-lg border border-[var(--border)] hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                            >
-                                ← {t('previousPage') || 'Previous'}
-                            </button>
-                            <span className="text-sm text-[var(--muted)]">
-                                {(() => {
-                                    const start = (currentPage - 1) * pageSize + 1;
-                                    const end = Math.min(currentPage * pageSize, totalJobs);
-                                    return t('paginationShowing')
-                                        ? t('paginationShowing').replace('{start}', String(start)).replace('{end}', String(end)).replace('{total}', String(totalJobs))
-                                        : `Showing ${start}-${end} of ${totalJobs}`;
-                                })()}
-                            </span>
-                            <button
-                                onClick={onNextPage}
-                                disabled={currentPage >= totalPages}
-                                className="text-sm px-4 py-2 rounded-lg border border-[var(--border)] hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                            >
-                                {t('nextPage') || 'Next'} →
-                            </button>
+                        {recentJobs.length === 0 && (
+                            <p className="text-[var(--muted)] text-sm">{t('noRunsYet')}</p>
+                        )}
+                        <div className="space-y-2">
+                            {recentJobs.map((job) => {
+                                const publicUrl = buildStaticUrl(job.result_data?.public_url || job.result_data?.video_path);
+                                const timestamp = (job.updated_at || job.created_at) * 1000;
+                                const isExpired = (Date.now() - timestamp) > 24 * 60 * 60 * 1000;
+                                const isSelected = selectedJobIds.has(job.id);
+
+                                return (
+                                    <div
+                                        key={job.id}
+                                        onClick={() => {
+                                            if (selectionMode) {
+                                                const newSet = new Set(selectedJobIds);
+                                                if (isSelected) {
+                                                    newSet.delete(job.id);
+                                                } else {
+                                                    newSet.add(job.id);
+                                                }
+                                                setSelectedJobIds(newSet);
+                                            }
+                                        }}
+                                        className={`flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 p-3 rounded-lg border ${isSelected
+                                            ? 'border-[var(--accent)] bg-[var(--accent)]/5'
+                                            : isExpired
+                                                ? 'border-[var(--border)]/30 bg-[var(--surface)] text-[var(--muted)]'
+                                                : 'border-[var(--border)] bg-[var(--surface-elevated)]'
+                                            } transition-colors ${selectionMode ? 'cursor-pointer hover:bg-[var(--accent)]/5' : ''}`}
+                                    >
+                                        <div className="min-w-0 flex-1">
+                                            <div className="font-semibold text-sm truncate">
+                                                {job.result_data?.original_filename || job.id}
+                                            </div>
+                                            <div className="text-xs text-[var(--muted)]">
+                                                {formatDate(timestamp)}
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-2">
+                                            {/* Checkbox for selection mode - Moved to right */}
+                                            {selectionMode && (
+                                                <input
+                                                    type="checkbox"
+                                                    checked={isSelected}
+                                                    onChange={() => { }} // Handled by onClick of parent
+                                                    className="w-4 h-4 rounded border-[var(--border)] accent-[var(--accent)] flex-shrink-0 cursor-pointer"
+                                                />
+                                            )}
+                                            {isExpired ? (
+                                                <span className="text-xs bg-[var(--surface)] border border-[var(--border)] px-2 py-1 rounded text-[var(--muted)]">
+                                                    {t('expired') || 'Expired'}
+                                                </span>
+                                            ) : (
+                                                <>
+                                                    {job.status === 'completed' && publicUrl && !selectionMode && (
+                                                        <>
+                                                            <a
+                                                                className="text-xs btn-primary py-1.5 px-3 h-auto"
+                                                                href={publicUrl}
+                                                                download={job.result_data?.original_filename || 'processed.mp4'}
+                                                            >
+                                                                {t('download') || 'Download'}
+                                                            </a>
+                                                            <button
+                                                                onClick={() => { onJobSelect(job); setShowPreview(true); }}
+                                                                className="text-xs btn-secondary py-1.5 px-3 h-auto"
+                                                            >
+                                                                {t('view') || 'View'}
+                                                            </button>
+                                                        </>
+                                                    )}
+                                                    {/* Delete button - hide in selection mode */}
+                                                    {!selectionMode && (
+                                                        confirmDeleteId === job.id ? (
+                                                            <div className="flex items-center gap-1">
+                                                                <button
+                                                                    onClick={async () => {
+                                                                        setDeletingJobId(job.id);
+                                                                        try {
+                                                                            await api.deleteJob(job.id);
+                                                                            if (selectedJob?.id === job.id) {
+                                                                                onJobSelect(null);
+                                                                                setShowPreview(false);
+                                                                            }
+                                                                            setConfirmDeleteId(null);
+                                                                            // Refresh jobs list without page reload
+                                                                            await onRefreshJobs();
+                                                                        } catch (err) {
+                                                                            console.error('Delete failed:', err);
+                                                                        } finally {
+                                                                            setDeletingJobId(null);
+                                                                        }
+                                                                    }}
+                                                                    disabled={deletingJobId === job.id}
+                                                                    className="text-xs px-2 py-1 rounded bg-[var(--danger)] text-white hover:bg-[var(--danger)]/80 disabled:opacity-50"
+                                                                >
+                                                                    {deletingJobId === job.id ? '...' : '✓'}
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => setConfirmDeleteId(null)}
+                                                                    className="text-xs px-2 py-1 rounded border border-[var(--border)] hover:bg-white/5"
+                                                                >
+                                                                    ✕
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            <button
+                                                                onClick={() => setConfirmDeleteId(job.id)}
+                                                                className="text-xs px-2 py-1 rounded border border-[var(--border)] hover:border-[var(--danger)] hover:text-[var(--danger)] transition-colors"
+                                                                title={t('deleteJob')}
+                                                            >
+                                                                🗑️
+                                                            </button>
+                                                        )
+                                                    )}
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
                         </div>
-                    )}
+
+                        {/* Pagination Controls */}
+                        {totalPages > 1 && (
+                            <div className="flex items-center justify-center gap-4 mt-4 pt-4 border-t border-[var(--border)]">
+                                <button
+                                    onClick={onPrevPage}
+                                    disabled={currentPage <= 1}
+                                    className="text-sm px-4 py-2 rounded-lg border border-[var(--border)] hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                >
+                                    ← {t('previousPage') || 'Previous'}
+                                </button>
+                                <span className="text-sm text-[var(--muted)]">
+                                    {(() => {
+                                        const start = (currentPage - 1) * pageSize + 1;
+                                        const end = Math.min(currentPage * pageSize, totalJobs);
+                                        return t('paginationShowing')
+                                            ? t('paginationShowing').replace('{start}', String(start)).replace('{end}', String(end)).replace('{total}', String(totalJobs))
+                                            : `Showing ${start}-${end} of ${totalJobs}`;
+                                    })()}
+                                </span>
+                                <button
+                                    onClick={onNextPage}
+                                    disabled={currentPage >= totalPages}
+                                    className="text-sm px-4 py-2 rounded-lg border border-[var(--border)] hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                                >
+                                    {t('nextPage') || 'Next'} →
+                                </button>
+                            </div>
+                        )}
+                    </div>
                 </div>
 
                 <VideoModal
@@ -1119,7 +1155,7 @@ export function ProcessView({
                     onClose={handleClosePreview}
                     videoUrl={videoUrl || ''}
                 />
-            </div>
+            </div >
         </div >
     );
 }

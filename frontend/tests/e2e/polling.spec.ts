@@ -1,4 +1,4 @@
-import { expect, test, type Page, type Route } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 import { mockApi, stabilizeUi } from './mocks';
 import el from '@/i18n/el.json';
 

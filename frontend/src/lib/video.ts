@@ -50,7 +50,7 @@ export const validateVideoAspectRatio = (file: File): Promise<{ width: number; h
             video.removeAttribute('src');
             try {
                 video.load();
-            } catch (e) {
+            } catch {
                 // Ignore load errors
             }
         };

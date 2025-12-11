@@ -177,6 +177,8 @@ class ApiClient {
         context_prompt?: string;
         subtitle_position?: string;
         max_subtitle_lines?: number;
+        subtitle_color?: string;
+        shadow_strength?: number;
     }): Promise<JobResponse> {
         const formData = new FormData();
         formData.append('file', file);
@@ -189,6 +191,12 @@ class ApiClient {
         formData.append('context_prompt', settings.context_prompt || '');
         formData.append('subtitle_position', settings.subtitle_position || 'default');
         formData.append('max_subtitle_lines', String(settings.max_subtitle_lines || 2));
+        if (settings.subtitle_color) {
+            formData.append('subtitle_color', settings.subtitle_color);
+        }
+        if (settings.shadow_strength !== undefined) {
+            formData.append('shadow_strength', String(settings.shadow_strength));
+        }
 
         return this.request<JobResponse>('/videos/process', {
             method: 'POST',

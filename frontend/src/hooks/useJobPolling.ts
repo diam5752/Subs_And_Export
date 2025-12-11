@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { api, JobResponse } from '@/lib/api';
 
 export interface JobPollingCallbacks {
@@ -31,6 +31,7 @@ export function useJobPolling({
     t,
 }: UseJobPollingOptions): UseJobPollingResult {
     const intervalRef = useRef<NodeJS.Timeout | null>(null);
+    const [isPolling, setIsPolling] = useState(false);
     const isPollingRef = useRef(false);
 
     const stopPolling = useCallback(() => {
@@ -39,15 +40,20 @@ export function useJobPolling({
             intervalRef.current = null;
         }
         isPollingRef.current = false;
+        setIsPolling(false);
     }, []);
 
     useEffect(() => {
         if (!jobId) {
-            stopPolling();
+            // Avoid setting state synchronously
+            if (isPollingRef.current) {
+                setTimeout(() => stopPolling(), 0);
+            }
             return;
         }
 
         isPollingRef.current = true;
+        setTimeout(() => setIsPolling(true), 0);
 
         const poll = async () => {
             try {
@@ -78,7 +84,7 @@ export function useJobPolling({
     }, [jobId, callbacks, pollingInterval, t, stopPolling]);
 
     return {
-        isPolling: isPollingRef.current,
+        isPolling,
         stopPolling,
     };
 }

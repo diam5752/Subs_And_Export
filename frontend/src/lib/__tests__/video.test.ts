@@ -50,9 +50,9 @@ describe('video utils', () => {
     });
 
     describe('validateVideoAspectRatio', () => {
-        let mockVideo: any;
-        let mockCanvas: any;
-        let mockContext: any;
+        let mockVideo: HTMLVideoElement;
+        let mockCanvas: HTMLCanvasElement;
+        let mockContext: CanvasRenderingContext2D;
         const events: Record<string, () => void> = {};
 
         beforeEach(() => {
@@ -74,18 +74,18 @@ describe('video utils', () => {
                 }),
                 load: jest.fn(),
                 removeAttribute: jest.fn(),
-            };
+            } as unknown as HTMLVideoElement;
 
             mockContext = {
                 drawImage: jest.fn(),
-            };
+            } as unknown as CanvasRenderingContext2D;
 
             mockCanvas = {
                 width: 0,
                 height: 0,
                 getContext: jest.fn(() => mockContext),
                 toDataURL: jest.fn(() => 'data:image/jpeg;base64,test'),
-            };
+            } as unknown as HTMLCanvasElement;
 
             jest.spyOn(document, 'createElement').mockImplementation((tagName: string) => {
                 if (tagName === 'video') return mockVideo;
@@ -105,8 +105,8 @@ describe('video utils', () => {
             const file = new File([''], 'test.mp4', { type: 'video/mp4' });
             const promise = validateVideoAspectRatio(file);
 
-            mockVideo.videoWidth = 1080;
-            mockVideo.videoHeight = 1920;
+            (mockVideo as unknown as { videoWidth: number }).videoWidth = 1080;
+            (mockVideo as unknown as { videoHeight: number }).videoHeight = 1920;
             events['loadedmetadata']();
             events['seeked']();
 
@@ -123,8 +123,8 @@ describe('video utils', () => {
             const file = new File([''], 'test.mp4', { type: 'video/mp4' });
             const promise = validateVideoAspectRatio(file);
 
-            mockVideo.videoWidth = 1920;
-            mockVideo.videoHeight = 1080;
+            (mockVideo as unknown as { videoWidth: number }).videoWidth = 1920;
+            (mockVideo as unknown as { videoHeight: number }).videoHeight = 1080;
             events['loadedmetadata']();
             events['seeked']();
 
@@ -152,8 +152,8 @@ describe('video utils', () => {
             const promise = validateVideoAspectRatio(file);
 
             // Trigger metadata but leave dimensions at 0
-            mockVideo.videoWidth = 0;
-            mockVideo.videoHeight = 0;
+            (mockVideo as unknown as { videoWidth: number }).videoWidth = 0;
+            (mockVideo as unknown as { videoHeight: number }).videoHeight = 0;
             events['loadedmetadata']();
             events['seeked']();
 
@@ -168,8 +168,8 @@ describe('video utils', () => {
             const file = new File([''], 'test.mp4', { type: 'video/mp4' });
             const promise = validateVideoAspectRatio(file);
 
-            mockVideo.videoWidth = 1080;
-            mockVideo.videoHeight = 1920;
+            (mockVideo as unknown as { videoWidth: number }).videoWidth = 1080;
+            (mockVideo as unknown as { videoHeight: number }).videoHeight = 1920;
             events['loadedmetadata']();
             events['seeked']();
 
@@ -186,8 +186,8 @@ describe('video utils', () => {
             const file = new File([''], 'test.mp4', { type: 'video/mp4' });
             const promise = validateVideoAspectRatio(file);
 
-            mockVideo.videoWidth = 1080;
-            mockVideo.videoHeight = 1920;
+            (mockVideo as unknown as { videoWidth: number }).videoWidth = 1080;
+            (mockVideo as unknown as { videoHeight: number }).videoHeight = 1920;
             events['loadedmetadata']();
 
             const result = await promise;
@@ -209,13 +209,13 @@ describe('video utils', () => {
         });
 
         it('should handle short video duration', async () => {
-            mockVideo.duration = 0.5; // Less than 1 second
+            (mockVideo as unknown as { duration: number }).duration = 0.5; // Less than 1 second
 
             const file = new File([''], 'test.mp4', { type: 'video/mp4' });
             const promise = validateVideoAspectRatio(file);
 
-            mockVideo.videoWidth = 1080;
-            mockVideo.videoHeight = 1920;
+            (mockVideo as unknown as { videoWidth: number }).videoWidth = 1080;
+            (mockVideo as unknown as { videoHeight: number }).videoHeight = 1920;
             events['loadedmetadata']();
             events['seeked']();
 
