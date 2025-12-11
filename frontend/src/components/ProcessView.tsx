@@ -6,8 +6,8 @@ import { ViralIntelligence } from './ViralIntelligence';
 import { SubtitlePositionSelector } from './SubtitlePositionSelector';
 import { describeResolution, describeResolutionString, validateVideoAspectRatio } from '@/lib/video';
 
-type TranscribeMode = 'fast' | 'balanced' | 'turbo' | 'best';
-type TranscribeProvider = 'local' | 'openai' | 'groq';
+type TranscribeMode = 'balanced' | 'turbo';
+type TranscribeProvider = 'local' | 'openai' | 'groq' | 'whispercpp';
 
 interface ProcessViewProps {
     selectedFile: File | null;
@@ -282,17 +282,11 @@ export function ProcessView({
         if (provider === 'openai') {
             return { text: 'ChatGPT API', label: 'Cloud' };
         }
+        if (provider === 'whispercpp') {
+            return { text: 'whisper.cpp', label: 'Metal' };
+        }
         if (model?.includes('large-v3-turbo')) {
             return { text: 'Turbo', label: 'Local' };
-        }
-        if (model === 'large-v3') {
-            return { text: 'Best', label: 'Local' };
-        }
-        if (model === 'medium') {
-            return { text: 'Balanced', label: 'Local' };
-        }
-        if (model === 'tiny') {
-            return { text: 'Fast', label: 'Local' };
         }
         return model ? { text: model, label: 'Custom' } : null;
     };
@@ -432,77 +426,8 @@ export function ProcessView({
                                     <label className="block text-sm font-medium text-[var(--muted)] mb-3">
                                         Transcription Model
                                     </label>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                        {/* Option 1: Medium (Balanced/Local) */}
-                                        <button
-                                            data-testid="model-medium"
-                                            /* istanbul ignore next -- covered by model-balanced test */
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                setTranscribeProvider('local');
-                                                setTranscribeMode('balanced');
-                                            }}
-                                            className={`p-4 rounded-xl border text-left transition-all relative overflow-hidden group ${transcribeProvider === 'local' && transcribeMode === 'balanced'
-                                                ? 'border-[var(--accent)] bg-[var(--accent)]/10 ring-1 ring-[var(--accent)]'
-                                                : 'border-[var(--border)] hover:border-[var(--accent)]/50 hover:bg-[var(--surface-elevated)]'
-                                                }`}
-                                        >
-                                            <div className="flex items-start justify-between mb-2">
-                                                <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500">
-                                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                                                    </svg>
-                                                </div>
-                                                {transcribeProvider === 'local' && transcribeMode === 'balanced' && (
-                                                    <div className="w-5 h-5 rounded-full bg-[var(--accent)] flex items-center justify-center">
-                                                        <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                                        </svg>
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="font-semibold text-base mb-1">Medium</div>
-                                            <div className="text-sm text-[var(--muted)] mb-2">Balanced speed & accuracy</div>
-                                            <div className="flex items-center gap-2 text-xs text-[var(--muted)]/80">
-                                                <span className="bg-blue-500/10 text-blue-500 px-1.5 py-0.5 rounded">medium model</span>
-                                            </div>
-                                        </button>
-
-                                        {/* Option 2: ChatGPT */}
-                                        <button
-                                            data-testid="model-chatgpt"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                setTranscribeProvider('openai');
-                                                setTranscribeMode('balanced');
-                                            }}
-                                            className={`p-4 rounded-xl border text-left transition-all relative overflow-hidden group ${transcribeProvider === 'openai'
-                                                ? 'border-[var(--accent)] bg-[var(--accent)]/10 ring-1 ring-[var(--accent)]'
-                                                : 'border-[var(--border)] hover:border-[var(--accent)]/50 hover:bg-[var(--surface-elevated)]'
-                                                }`}
-                                        >
-                                            <div className="flex items-start justify-between mb-2">
-                                                <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500">
-                                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                                                    </svg>
-                                                </div>
-                                                {transcribeProvider === 'openai' && (
-                                                    <div className="w-5 h-5 rounded-full bg-[var(--accent)] flex items-center justify-center">
-                                                        <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                                        </svg>
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="font-semibold text-base mb-1">ChatGPT API</div>
-                                            <div className="text-sm text-[var(--muted)] mb-2">Cloud-based precision</div>
-                                            <div className="flex items-center gap-2 text-xs text-[var(--muted)]/80">
-                                                <span className="bg-emerald-500/10 text-emerald-500 px-1.5 py-0.5 rounded">whisper-1</span>
-                                            </div>
-                                        </button>
-
-                                        {/* Option 3: Turbo (Turbo/Local) */}
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                        {/* Option 1: Turbo (Local) */}
                                         <button
                                             data-testid="model-turbo"
                                             onClick={(e) => {
@@ -530,64 +455,13 @@ export function ProcessView({
                                                 )}
                                             </div>
                                             <div className="font-semibold text-base mb-1">Turbo</div>
-                                            <div className="text-sm text-[var(--muted)] mb-2">Fastest local processing</div>
+                                            <div className="text-sm text-[var(--muted)] mb-2">Best local quality</div>
                                             <div className="flex items-center gap-2 text-xs text-[var(--muted)]/80">
                                                 <span className="bg-violet-500/10 text-violet-500 px-1.5 py-0.5 rounded">large-v3-turbo</span>
                                             </div>
                                         </button>
 
-                                        {/* Option 4: Best (Best/Local) */}
-                                        <button
-                                            data-testid="model-best"
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                setTranscribeProvider('local');
-                                                setTranscribeMode('best');
-                                            }}
-                                            className={`p-4 rounded-xl border text-left transition-all relative overflow-hidden group ${transcribeProvider === 'local' && transcribeMode === 'best'
-                                                ? 'border-[var(--accent)] bg-[var(--accent)]/10 ring-1 ring-[var(--accent)]'
-                                                : 'border-[var(--border)] hover:border-[var(--accent)]/50 hover:bg-[var(--surface-elevated)]'
-                                                }`}
-                                        >
-                                            <div className="flex items-start justify-between mb-2">
-                                                <div className="p-2 rounded-lg bg-amber-500/10 text-amber-500">
-                                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
-                                                    </svg>
-                                                </div>
-                                                {transcribeProvider === 'local' && transcribeMode === 'best' && (
-                                                    <div className="w-5 h-5 rounded-full bg-[var(--accent)] flex items-center justify-center">
-                                                        <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                                        </svg>
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="font-semibold text-base mb-1">Best</div>
-                                            <div className="text-sm text-[var(--muted)] mb-2">Highest accuracy</div>
-                                            <div className="flex items-center gap-2 text-xs text-[var(--muted)]/80">
-                                                <span className="bg-amber-500/10 text-amber-500 px-1.5 py-0.5 rounded">large-v3</span>
-                                            </div>
-                                        </button>
-                                    </div>
-                                </div>
-
-                                {/* 🧪 Experimenting Section */}
-                                <div className="border-t border-dashed border-[var(--border)] pt-4 mt-2">
-                                    <div className="flex items-center gap-2 mb-3">
-                                        <span className="text-lg">🧪</span>
-                                        <label className="text-sm font-medium text-[var(--muted)]">
-                                            Experimenting
-                                        </label>
-                                        <span className="bg-purple-500/10 text-purple-400 text-[10px] px-1.5 py-0.5 rounded-full font-medium">
-                                            BETA
-                                        </span>
-                                    </div>
-                                    <p className="text-xs text-[var(--muted)] mb-3 opacity-70">
-                                        Try cutting-edge transcription engines for faster processing
-                                    </p>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                        {/* Groq Turbo */}
+                                        {/* Option 2: Groq Turbo */}
                                         <button
                                             data-testid="model-groq"
                                             onClick={(e) => {
@@ -595,7 +469,7 @@ export function ProcessView({
                                                 setTranscribeProvider('groq');
                                                 setTranscribeMode('turbo');
                                             }}
-                                            className={`p-4 rounded-xl border border-dashed text-left transition-all relative overflow-hidden group ${transcribeProvider === 'groq'
+                                            className={`p-4 rounded-xl border text-left transition-all relative overflow-hidden group ${transcribeProvider === 'groq'
                                                 ? 'border-purple-500 bg-purple-500/10 ring-1 ring-purple-500'
                                                 : 'border-[var(--border)] hover:border-purple-500/50 hover:bg-purple-500/5'
                                                 }`}
@@ -615,9 +489,91 @@ export function ProcessView({
                                                 )}
                                             </div>
                                             <div className="font-semibold text-base mb-1">Groq Turbo</div>
-                                            <div className="text-sm text-[var(--muted)] mb-2">Lightning fast cloud (~200x)</div>
+                                            <div className="text-sm text-[var(--muted)] mb-2">Lightning fast (~200x)</div>
                                             <div className="flex items-center gap-2 text-xs text-[var(--muted)]/80">
-                                                <span className="bg-purple-500/10 text-purple-400 px-1.5 py-0.5 rounded">free tier</span>
+                                                <span className="bg-purple-500/10 text-purple-400 px-1.5 py-0.5 rounded">cloud</span>
+                                            </div>
+                                        </button>
+
+                                        {/* Option 3: whisper.cpp */}
+                                        <button
+                                            data-testid="model-whispercpp"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setTranscribeProvider('whispercpp');
+                                                setTranscribeMode('turbo');
+                                            }}
+                                            className={`p-4 rounded-xl border text-left transition-all relative overflow-hidden group ${transcribeProvider === 'whispercpp'
+                                                ? 'border-cyan-500 bg-cyan-500/10 ring-1 ring-cyan-500'
+                                                : 'border-[var(--border)] hover:border-cyan-500/50 hover:bg-cyan-500/5'
+                                                }`}
+                                        >
+                                            <div className="flex items-start justify-between mb-2">
+                                                <div className="p-2 rounded-lg bg-gradient-to-br from-cyan-500/20 to-teal-500/20 text-cyan-400">
+                                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                                                    </svg>
+                                                </div>
+                                                {transcribeProvider === 'whispercpp' && (
+                                                    <div className="w-5 h-5 rounded-full bg-cyan-500 flex items-center justify-center">
+                                                        <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                                        </svg>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="font-semibold text-base mb-1">whisper.cpp</div>
+                                            <div className="text-sm text-[var(--muted)] mb-2">Metal GPU accelerated</div>
+                                            <div className="flex items-center gap-2 text-xs text-[var(--muted)]/80">
+                                                <span className="bg-cyan-500/10 text-cyan-400 px-1.5 py-0.5 rounded">Apple Silicon</span>
+                                            </div>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* 🧪 Experimenting Section */}
+                                <div className="border-t border-dashed border-[var(--border)] pt-4 mt-2">
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <span className="text-lg">🧪</span>
+                                        <label className="text-sm font-medium text-[var(--muted)]">
+                                            Experimenting
+                                        </label>
+                                        <span className="bg-purple-500/10 text-purple-400 text-[10px] px-1.5 py-0.5 rounded-full font-medium">
+                                            BETA
+                                        </span>
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        {/* ChatGPT API */}
+                                        <button
+                                            data-testid="model-chatgpt"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setTranscribeProvider('openai');
+                                                setTranscribeMode('balanced');
+                                            }}
+                                            className={`p-4 rounded-xl border border-dashed text-left transition-all relative overflow-hidden group ${transcribeProvider === 'openai'
+                                                ? 'border-emerald-500 bg-emerald-500/10 ring-1 ring-emerald-500'
+                                                : 'border-[var(--border)] hover:border-emerald-500/50 hover:bg-emerald-500/5'
+                                                }`}
+                                        >
+                                            <div className="flex items-start justify-between mb-2">
+                                                <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500">
+                                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                                                    </svg>
+                                                </div>
+                                                {transcribeProvider === 'openai' && (
+                                                    <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center">
+                                                        <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                                        </svg>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="font-semibold text-base mb-1">ChatGPT API</div>
+                                            <div className="text-sm text-[var(--muted)] mb-2">OpenAI cloud transcription</div>
+                                            <div className="flex items-center gap-2 text-xs text-[var(--muted)]/80">
+                                                <span className="bg-emerald-500/10 text-emerald-500 px-1.5 py-0.5 rounded">whisper-1</span>
                                             </div>
                                         </button>
                                     </div>

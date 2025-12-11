@@ -126,17 +126,9 @@ describe('ProcessView', () => {
 
         await waitFor(() => expect(screen.getByText('test.mp4')).toBeInTheDocument());
 
-        // Click Best model button
-        const bestBtn = screen.getByTestId('model-best');
-        fireEvent.click(bestBtn);
-
-        // Click Turbo model button
+        // Click Turbo model button (main option)
         const turboBtn = screen.getByTestId('model-turbo');
         fireEvent.click(turboBtn);
-
-        // Click Medium/Balanced model button
-        const mediumBtn = screen.getByTestId('model-medium');
-        fireEvent.click(mediumBtn);
 
         // Start processing
         const startBtn = screen.getByText('controlsStart');
@@ -144,7 +136,7 @@ describe('ProcessView', () => {
 
         expect(onStartProcessing).toHaveBeenCalled();
         const call = onStartProcessing.mock.calls[0][0];
-        expect(call.transcribeMode).toBe('balanced');
+        expect(call.transcribeMode).toBe('turbo');
         expect(call.transcribeProvider).toBe('local');
     });
 
@@ -264,33 +256,6 @@ describe('ProcessView', () => {
         } as JobResponse;
         render(<ProcessView {...defaultProps} selectedJob={job} />);
         expect(screen.getByText('Turbo')).toBeInTheDocument();
-    });
-
-    it('should display Best model info', () => {
-        const job = {
-            id: '1', status: 'completed',
-            result_data: { model_size: 'large-v3', public_url: 'url' }
-        } as JobResponse;
-        render(<ProcessView {...defaultProps} selectedJob={job} />);
-        expect(screen.getByText('Best')).toBeInTheDocument();
-    });
-
-    it('should display Balanced model info', () => {
-        const job = {
-            id: '1', status: 'completed',
-            result_data: { model_size: 'medium', public_url: 'url' }
-        } as JobResponse;
-        render(<ProcessView {...defaultProps} selectedJob={job} />);
-        expect(screen.getByText('Balanced')).toBeInTheDocument();
-    });
-
-    it('should display Fast model info', () => {
-        const job = {
-            id: '1', status: 'completed',
-            result_data: { model_size: 'tiny', public_url: 'url' }
-        } as JobResponse;
-        render(<ProcessView {...defaultProps} selectedJob={job} />);
-        expect(screen.getByText('Fast')).toBeInTheDocument();
     });
 
     it('should display custom model info', () => {
@@ -723,6 +688,46 @@ describe('ProcessView', () => {
             } as JobResponse;
             render(<ProcessView {...defaultProps} selectedJob={job} />);
             expect(screen.getByText('Groq Turbo')).toBeInTheDocument();
+        });
+
+        it('should display whisper.cpp option in Experimenting section', async () => {
+            const file = new File(['dummy'], 'test.mp4', { type: 'video/mp4' });
+            render(<ProcessView {...defaultProps} selectedFile={file} />);
+
+            await waitFor(() => expect(screen.getByText('test.mp4')).toBeInTheDocument());
+
+            // Should show whisper.cpp option
+            expect(screen.getByTestId('model-whispercpp')).toBeInTheDocument();
+            expect(screen.getByText('whisper.cpp')).toBeInTheDocument();
+            expect(screen.getByText('Metal GPU accelerated')).toBeInTheDocument();
+            expect(screen.getByText('Apple Silicon')).toBeInTheDocument();
+        });
+
+        it('should allow whisper.cpp model selection', async () => {
+            const file = new File(['dummy'], 'test.mp4', { type: 'video/mp4' });
+            const onStartProcessing = jest.fn();
+            render(<ProcessView {...defaultProps} selectedFile={file} onStartProcessing={onStartProcessing} />);
+
+            await waitFor(() => expect(screen.getByText('test.mp4')).toBeInTheDocument());
+
+            // Click whisper.cpp button
+            const whispercppBtn = screen.getByTestId('model-whispercpp');
+            fireEvent.click(whispercppBtn);
+
+            // Start processing
+            fireEvent.click(screen.getByText('controlsStart'));
+
+            expect(onStartProcessing).toHaveBeenCalled();
+            expect(onStartProcessing.mock.calls[0][0].transcribeProvider).toBe('whispercpp');
+        });
+
+        it('should display whisper.cpp model info for completed job', () => {
+            const job = {
+                id: '1', status: 'completed',
+                result_data: { transcribe_provider: 'whispercpp', public_url: 'url' }
+            } as JobResponse;
+            render(<ProcessView {...defaultProps} selectedJob={job} />);
+            expect(screen.getByText('whisper.cpp')).toBeInTheDocument();
         });
     });
 

@@ -411,9 +411,112 @@ def _transcribe_with_groq(
     return srt_path, cues
 
 
+def _transcribe_with_whispercpp(
+    audio_path: Path,
+    model_name: str | None,
+    language: str | None,
+    output_dir: Path,
+    progress_callback: Callable[[float], None] | None = None,
+) -> Tuple[Path, List[Cue]]:
+    """Transcribe audio using whisper.cpp with Metal/CoreML acceleration (Apple Silicon optimized).
+    
+    Uses split_on_word mode to get word-level timing for karaoke effect.
+    """
+    try:
+        from pywhispercpp.model import Model as WhisperCppModel
+    except ImportError:
+        raise RuntimeError(
+            "pywhispercpp not installed. For best performance on Apple Silicon, install with CoreML:\n"
+            "WHISPER_COREML=1 pip install git+https://github.com/absadiki/pywhispercpp\n"
+            "Or for basic install: pip install pywhispercpp"
+        )
+
+    model_size = model_name or config.WHISPERCPP_MODEL
+    
+    if progress_callback:
+        progress_callback(5.0)
+    
+    # Initialize whisper.cpp model - use normal segment mode for better base timing
+    model = WhisperCppModel(
+        model_size,
+        print_realtime=False,
+        print_progress=False,
+    )
+    
+    if progress_callback:
+        progress_callback(15.0)
+
+    # Transcribe to get segments with accurate segment-level timing
+    segments = model.transcribe(
+        str(audio_path),
+        language=language or config.WHISPERCPP_LANGUAGE,
+    )
+
+    if progress_callback:
+        progress_callback(85.0)
+
+    # Convert segments to Cues with interpolated word-level timing
+    # Word timings are interpolated based on character position within each segment
+    cues: List[Cue] = []
+    timed_text: List[TimeRange] = []
+    
+    for seg in segments:
+        seg_start = seg.t0 / 100.0  # centiseconds to seconds
+        seg_end = seg.t1 / 100.0
+        seg_text = seg.text.strip()
+        
+        if not seg_text:
+            continue
+        
+        # Normalize the full segment text
+        normalized_text = _normalize_text(seg_text)
+        if not normalized_text:
+            continue
+        
+        # Split into words and interpolate timing based on character positions
+        words = normalized_text.split()
+        if not words:
+            cues.append(Cue(start=seg_start, end=seg_end, text=normalized_text, words=None))
+            timed_text.append((seg_start, seg_end, seg_text))
+            continue
+        
+        # Calculate total characters (excluding spaces for weight calculation)
+        total_chars = sum(len(w) for w in words)
+        if total_chars == 0:
+            cues.append(Cue(start=seg_start, end=seg_end, text=normalized_text, words=None))
+            timed_text.append((seg_start, seg_end, seg_text))
+            continue
+        
+        segment_duration = seg_end - seg_start
+        word_timings: List[WordTiming] = []
+        
+        # Interpolate word start/end times based on character position
+        char_position = 0
+        for word in words:
+            # Calculate proportional timing based on character position
+            word_start = seg_start + (char_position / total_chars) * segment_duration
+            char_position += len(word)
+            word_end = seg_start + (char_position / total_chars) * segment_duration
+            
+            word_timings.append(WordTiming(start=word_start, end=word_end, text=word))
+        
+        cues.append(Cue(start=seg_start, end=seg_end, text=normalized_text, words=word_timings))
+        timed_text.append((seg_start, seg_end, seg_text))
+
+    if progress_callback:
+        progress_callback(100.0)
+
+    srt_path = output_dir / f"{audio_path.stem}.srt"
+    _write_srt_from_segments(timed_text, srt_path)
+
+    return srt_path, cues
+
+
+
+
 def generate_subtitles_from_audio(
     audio_path: Path,
-    model_size: str = config.WHISPER_MODEL_SIZE,
+    model_size: str = config.WHISPER_MODEL_TURBO,
     language: str | None = config.WHISPER_LANGUAGE,
     device: str = config.WHISPER_DEVICE,
     compute_type: str = config.WHISPER_COMPUTE_TYPE,
@@ -455,20 +558,29 @@ def generate_subtitles_from_audio(
             api_key=openai_api_key,
         )
     
-    # Route to Groq API (experimental)
+    # Route to Groq API
     if provider == "groq":
         return _transcribe_with_groq(
             audio_path,
-            model_name=config.GROQ_TRANSCRIBE_MODEL,  # Always use Groq model
+            model_name=config.GROQ_TRANSCRIBE_MODEL,
             language=language,
             prompt=initial_prompt,
             output_dir=output_dir,
             progress_callback=progress_callback,
-            api_key=openai_api_key,  # Reuse this param for Groq key
+            api_key=openai_api_key,
         )
     
-    # Default: Local faster-whisper
-    # Optimize CPU threads: Use all available cores (capped at 8 to avoid overhead)
+    # Route to whisper.cpp (Metal accelerated for Apple Silicon)
+    if provider == "whispercpp":
+        return _transcribe_with_whispercpp(
+            audio_path,
+            model_name=config.WHISPERCPP_MODEL,
+            language=language,
+            output_dir=output_dir,
+            progress_callback=progress_callback,
+        )
+    
+    # Default: Local faster-whisper with Turbo model
     threads = min(8, os.cpu_count() or 4)
     
     # Cache models to avoid reloads between runs

@@ -256,7 +256,7 @@ def normalize_and_stub_subtitles(
     transcript_text: str | None = None
     scratch_dir_path: Path | None = None
 
-    selected_model = model_size or config.WHISPER_MODEL_SIZE
+    selected_model = model_size or config.WHISPER_MODEL_TURBO
     # Normalize common aliases so "turbo" routes to the CT2-quantized model
     if "turbo" in selected_model.lower() and "ct2" not in selected_model.lower():
         selected_model = config.WHISPER_MODEL_TURBO
@@ -317,12 +317,12 @@ def normalize_and_stub_subtitles(
                 else:
                     temperature = 0.0
 
-            # If running Turbo on CPU/auto, prefer int8 for speed
+            # If running Turbo on CPU/auto, use auto compute type
             if selected_model == config.WHISPER_MODEL_TURBO and effective_device in ("auto", "cpu") and effective_compute in (
                 "float16",
                 "auto",
             ):
-                effective_compute = config.WHISPER_COMPUTE_TYPE_TURBO
+                effective_compute = "auto"
 
             # Stage 1: Audio Extraction (5%)
             if progress_callback:

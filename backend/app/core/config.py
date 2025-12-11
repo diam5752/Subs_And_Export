@@ -24,20 +24,23 @@ DEFAULT_OUTPUT_SUFFIX = "_subbed"
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent  # /backend/app/core -> project root
 
 # Whisper / STT defaults
-WHISPER_MODEL_SIZE = "tiny"  # Optimized for speed (3-5x faster than medium)
-WHISPER_MODEL_TURBO = "deepdml/faster-whisper-large-v3-turbo-ct2"  # Multilingual Large V3, CT2-quantized for fast, accurate Greek
+WHISPER_MODEL_TURBO = "deepdml/faster-whisper-large-v3-turbo-ct2"  # Main local model for accurate Greek
 WHISPER_LANGUAGE = "el"
 WHISPER_DEVICE = "auto"  # "cpu", "cuda", "auto"
-WHISPER_COMPUTE_TYPE = "float16"  # Prefer fp16 on Apple Silicon; fallback handled downstream
-WHISPER_COMPUTE_TYPE_TURBO = "int8_float16"  # Balanced speed/quality for CT2 turbo
+WHISPER_COMPUTE_TYPE = "auto"  # Let CTranslate2 choose optimal type
 WHISPER_CHUNK_LENGTH = 90  # seconds; testing shows 90s is faster than 30s for this hardware
 WHISPER_BATCH_SIZE = 16  # batch size for faster-whisper processing
 
-# Hosted STT fallback (OpenAI)
+# Hosted STT (OpenAI)
 OPENAI_TRANSCRIBE_MODEL = "gpt-4o-mini-transcribe"
 
-# Experimental providers
-GROQ_TRANSCRIBE_MODEL = "whisper-large-v3"  # Better accuracy for Greek (~100x realtime)
+# Cloud providers
+GROQ_TRANSCRIBE_MODEL = "whisper-large-v3"  # ~200x realtime for Greek
+
+# whisper.cpp / pywhispercpp settings (Metal optimized for Apple Silicon)
+WHISPERCPP_MODEL = "large-v3-turbo"  # Best speed/quality balance for Apple Silicon
+WHISPERCPP_LANGUAGE = "el"  # Greek default
+
 
 # LLM social copy defaults (OpenAI API)
 SOCIAL_LLM_MODEL = "gpt-4o-mini"

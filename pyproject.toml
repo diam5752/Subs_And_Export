@@ -25,6 +25,10 @@ dev = [
   "types-requests",
   "types-ujson",
 ]
+apple-silicon = [
+  # Install from source for CoreML: WHISPER_COREML=1 pip install git+https://github.com/absadiki/pywhispercpp
+  "pywhispercpp>=1.4.0",
+]
 
 [tool.setuptools.packages.find]
 where = ["backend"]
@@ -52,7 +56,7 @@ disallow_untyped_defs = true
 check_untyped_defs = true
 
 [[tool.mypy.overrides]]
-module = ["faster_whisper.*", "google.*", "google_auth_oauthlib.*"]
+module = ["faster_whisper.*", "google.*", "google_auth_oauthlib.*", "pywhispercpp.*"]
 ignore_missing_imports = true
 
 [tool.coverage.run]
