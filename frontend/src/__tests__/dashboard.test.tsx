@@ -242,7 +242,13 @@ describe('DashboardPage', () => {
         });
     });
 
-    it('handles reset processing', async () => {
+    /**
+     * REGRESSION: resetProcessing must clear selectedJob.
+     * Bug: User uploaded a file, processed it, clicked Reset, uploaded a new file,
+     * but the previous job's title was still shown in the Live Output section.
+     * Fix: Added setSelectedJob(null) to resetProcessing function.
+     */
+    it('handles reset processing and clears selectedJob', async () => {
         render(<DashboardPage />);
 
         // Trigger reset via captured callback
@@ -250,6 +256,9 @@ describe('DashboardPage', () => {
 
         // Test verifies the code path is executed without errors
         expect(capturedOnReset).toBeDefined();
+
+        // REGRESSION: Verify that setSelectedJob(null) is called to clear previous job
+        expect(mockSetSelectedJob).toHaveBeenCalledWith(null);
     });
 
     it.skip('handles job polling with completion', async () => {

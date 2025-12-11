@@ -21,7 +21,7 @@ MAX_SUB_LINE_CHARS = 32  # Safe width for Greek uppercase text without edge cuto
 
 DEFAULT_OUTPUT_SUFFIX = "_subbed"
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent  # /backend/app/core -> project root
 
 # Whisper / STT defaults
 WHISPER_MODEL_SIZE = "tiny"  # Optimized for speed (3-5x faster than medium)
@@ -35,6 +35,9 @@ WHISPER_BATCH_SIZE = 16  # batch size for faster-whisper processing
 
 # Hosted STT fallback (OpenAI)
 OPENAI_TRANSCRIBE_MODEL = "gpt-4o-mini-transcribe"
+
+# Experimental providers
+GROQ_TRANSCRIBE_MODEL = "whisper-large-v3"  # Better accuracy for Greek (~100x realtime)
 
 # LLM social copy defaults (OpenAI API)
 SOCIAL_LLM_MODEL = "gpt-4o-mini"

@@ -640,3 +640,175 @@ def test_short_text_stays_on_single_line():
     assert len(result) == 1, "Short text should stay on one line"
     assert result[0] == ["ΓΕΙΑ", "ΣΟΥ"]
 
+
+# === EXPERIMENTAL PROVIDERS TESTS ===
+
+
+def test_resolve_groq_api_key_explicit():
+    """Test Groq API key resolution with explicit value."""
+    assert subtitles._resolve_groq_api_key("my_key") == "my_key"
+
+
+def test_resolve_groq_api_key_env(monkeypatch):
+    """Test Groq API key resolution from environment."""
+    monkeypatch.setenv("GROQ_API_KEY", "env_groq_key")
+    assert subtitles._resolve_groq_api_key() == "env_groq_key"
+
+
+def test_resolve_groq_api_key_file(monkeypatch, tmp_path):
+    """Test Groq API key resolution from secrets file."""
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    config_dir = tmp_path / "project" / "config"
+    config_dir.mkdir(parents=True)
+    (config_dir / "secrets.toml").write_text('GROQ_API_KEY = "file_groq_key"')
+    monkeypatch.setattr(subtitles.config, "PROJECT_ROOT", tmp_path / "project")
+    assert subtitles._resolve_groq_api_key() == "file_groq_key"
+
+
+def test_resolve_groq_api_key_not_found(monkeypatch, tmp_path):
+    """Test Groq API key returns None when not found."""
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.setattr(subtitles.config, "PROJECT_ROOT", tmp_path / "nonexistent")
+    assert subtitles._resolve_groq_api_key() is None
+
+
+def test_transcribe_with_groq_missing_key(monkeypatch, tmp_path):
+    """Test Groq transcription fails without API key."""
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.setattr(subtitles.config, "PROJECT_ROOT", tmp_path / "nonexistent")
+    
+    with pytest.raises(RuntimeError) as exc:
+        subtitles._transcribe_with_groq(
+            tmp_path / "audio.wav",
+            None, "el", None, tmp_path
+        )
+    assert "Groq API key is required" in str(exc.value)
+
+
+def test_transcribe_with_groq_success(monkeypatch, tmp_path):
+    """Test successful Groq transcription."""
+    class MockWord:
+        def __init__(self, start, end, word):
+            self.start = start
+            self.end = end
+            self.word = word
+            
+    class MockSegment:
+        def __init__(self, start, end, text):
+            self.start = start
+            self.end = end
+            self.text = text
+            
+    class MockTranscript:
+        segments = [MockSegment(0.0, 1.0, "Γεια σου")]
+        words = [MockWord(0.0, 0.5, "Γεια"), MockWord(0.5, 1.0, "σου")]
+        
+    class MockClient:
+        class audio:
+            class transcriptions:
+                @staticmethod
+                def create(*args, **kwargs):
+                    return MockTranscript()
+                    
+    # Mock OpenAI import
+    mock_openai = types.SimpleNamespace(OpenAI=lambda **kwargs: MockClient())
+    monkeypatch.setitem(sys.modules, "openai", mock_openai)
+    
+    audio_path = tmp_path / "test.wav"
+    audio_path.touch()
+    
+    srt_path, cues = subtitles._transcribe_with_groq(
+        audio_path,
+        model_name="whisper-large-v3-turbo",
+        language="el",
+        prompt=None,
+        output_dir=tmp_path,
+        api_key="test_key"
+    )
+    
+    assert srt_path.exists()
+    assert len(cues) == 1
+    assert "ΓΕΙΑ" in cues[0].text
+
+
+def test_transcribe_with_groq_api_error(monkeypatch, tmp_path):
+    """Test Groq transcription handles API errors."""
+    class MockClient:
+        class audio:
+            class transcriptions:
+                @staticmethod
+                def create(*args, **kwargs):
+                    raise Exception("Groq API rate limit exceeded")
+                    
+    mock_openai = types.SimpleNamespace(OpenAI=lambda **kwargs: MockClient())
+    monkeypatch.setitem(sys.modules, "openai", mock_openai)
+    
+    audio_path = tmp_path / "test.wav"
+    audio_path.touch()
+    
+    with pytest.raises(RuntimeError) as exc:
+         subtitles._transcribe_with_groq(
+            audio_path, None, "el", None, tmp_path, api_key="test_key"
+        )
+    assert "Groq transcription failed" in str(exc.value)
+
+
+def test_generate_subtitles_routes_to_groq(monkeypatch, tmp_path):
+    """Test that provider='groq' routes to Groq transcription."""
+    called_with = {}
+    
+    def mock_groq(*args, **kwargs):
+        called_with.update({"args": args, "kwargs": kwargs})
+        srt = tmp_path / "test.srt"
+        srt.write_text("1\n00:00:00,00 --> 00:00:01,00\nTest\n", encoding="utf-8")
+        return srt, []
+        
+    monkeypatch.setattr(subtitles, "_transcribe_with_groq", mock_groq)
+    
+    audio_path = tmp_path / "test.wav"
+    audio_path.touch()
+    
+    subtitles.generate_subtitles_from_audio(
+        audio_path, 
+        provider="groq",
+        output_dir=tmp_path
+    )
+    
+    assert called_with, "Groq transcription should have been called"
+
+
+def test_transcribe_with_groq_progress_callback(monkeypatch, tmp_path):
+    """Test Groq transcription calls progress callback."""
+    class MockTranscript:
+        segments = []
+        words = []
+        
+    class MockClient:
+        class audio:
+            class transcriptions:
+                @staticmethod
+                def create(*args, **kwargs):
+                    return MockTranscript()
+                    
+    mock_openai = types.SimpleNamespace(OpenAI=lambda **kwargs: MockClient())
+    monkeypatch.setitem(sys.modules, "openai", mock_openai)
+    
+    audio_path = tmp_path / "test.wav"
+    audio_path.touch()
+    
+    progress_values = []
+    
+    subtitles._transcribe_with_groq(
+        audio_path,
+        model_name=None,
+        language="el",
+        prompt=None,
+        output_dir=tmp_path,
+        progress_callback=lambda p: progress_values.append(p),
+        api_key="test_key"
+    )
+    
+    assert 10.0 in progress_values
+    assert 90.0 in progress_values
+    assert 100.0 in progress_values
+

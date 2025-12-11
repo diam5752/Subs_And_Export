@@ -12,7 +12,7 @@ from ...services.jobs import JobStore
 from ...services.video_processing import normalize_and_stub_subtitles
 from ...core.auth import User
 from ...services.history import HistoryStore
-from ...schemas.base import JobResponse, ViralMetadataResponse
+from ...schemas.base import JobResponse, ViralMetadataResponse, PaginatedJobsResponse, BatchDeleteRequest, BatchDeleteResponse
 from ..deps import get_current_user, get_job_store, get_history_store
 from ...services.subtitles import generate_viral_metadata
 
@@ -336,6 +336,95 @@ def list_jobs(
 ):
     jobs = job_store.list_jobs_for_user(current_user.id)
     return [_ensure_job_size(job) for job in jobs]
+
+
+@router.get("/jobs/paginated", response_model=PaginatedJobsResponse)
+def list_jobs_paginated(
+    page: int = 1,
+    page_size: int = 10,
+    current_user: User = Depends(get_current_user),
+    job_store: JobStore = Depends(get_job_store)
+):
+    """List jobs with pagination support."""
+    # Validate parameters
+    if page < 1:
+        page = 1
+    if page_size < 1:
+        page_size = 10
+    if page_size > 100:
+        page_size = 100  # Cap at 100 to prevent abuse
+    
+    offset = (page - 1) * page_size
+    total = job_store.count_jobs_for_user(current_user.id)
+    total_pages = (total + page_size - 1) // page_size if total > 0 else 1
+    
+    jobs = job_store.list_jobs_for_user_paginated(current_user.id, offset=offset, limit=page_size)
+    items = [_ensure_job_size(job) for job in jobs]
+    
+    return PaginatedJobsResponse(
+        items=items,
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=total_pages
+    )
+
+
+@router.post("/jobs/batch-delete", response_model=BatchDeleteResponse)
+def batch_delete_jobs(
+    request: BatchDeleteRequest,
+    current_user: User = Depends(get_current_user),
+    job_store: JobStore = Depends(get_job_store),
+    history_store: HistoryStore = Depends(get_history_store)
+):
+    """Delete multiple jobs at once."""
+    import shutil
+    
+    if not request.job_ids:
+        return BatchDeleteResponse(status="success", deleted_count=0, job_ids=[])
+    
+    # Limit batch size to prevent abuse
+    if len(request.job_ids) > 50:
+        raise HTTPException(400, "Cannot delete more than 50 jobs at once")
+    
+    data_dir, uploads_dir, artifacts_root = _data_roots()
+    deleted_ids = []
+    
+    # First verify ownership and delete files for each job
+    for job_id in request.job_ids:
+        job = job_store.get_job(job_id)
+        if job and job.user_id == current_user.id:
+            # Delete artifact directory
+            artifact_dir = artifacts_root / job_id
+            if artifact_dir.exists():
+                shutil.rmtree(artifact_dir, ignore_errors=True)
+            
+            # Delete input files
+            for ext in [".mp4", ".mov", ".mkv"]:
+                input_file = uploads_dir / f"{job_id}_input{ext}"
+                if input_file.exists():
+                    input_file.unlink(missing_ok=True)
+            
+            deleted_ids.append(job_id)
+    
+    # Batch delete from database
+    deleted_count = job_store.delete_jobs(deleted_ids, current_user.id)
+    
+    # Record batch deletion in history
+    if deleted_count > 0:
+        _record_event_safe(
+            history_store,
+            current_user,
+            "jobs_batch_deleted",
+            f"Deleted {deleted_count} jobs",
+            {"job_ids": deleted_ids, "count": deleted_count},
+        )
+    
+    return BatchDeleteResponse(
+        status="deleted",
+        deleted_count=deleted_count,
+        job_ids=deleted_ids
+    )
 
 @router.get("/jobs/{job_id}", response_model=JobResponse)
 def get_job(

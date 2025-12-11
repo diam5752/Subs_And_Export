@@ -7,7 +7,7 @@ import { SubtitlePositionSelector } from './SubtitlePositionSelector';
 import { describeResolution, describeResolutionString, validateVideoAspectRatio } from '@/lib/video';
 
 type TranscribeMode = 'fast' | 'balanced' | 'turbo' | 'best';
-type TranscribeProvider = 'local' | 'openai';
+type TranscribeProvider = 'local' | 'openai' | 'groq';
 
 interface ProcessViewProps {
     selectedFile: File | null;
@@ -26,6 +26,11 @@ interface ProcessViewProps {
     formatDate: (ts: string | number) => string;
     buildStaticUrl: (path?: string | null) => string | null;
     onRefreshJobs: () => Promise<void>;
+    // Pagination props
+    currentPage: number;
+    totalPages: number;
+    onNextPage: () => void;
+    onPrevPage: () => void;
 }
 
 export interface ProcessingOptions {
@@ -56,6 +61,10 @@ export function ProcessView({
     formatDate,
     buildStaticUrl,
     onRefreshJobs,
+    currentPage,
+    totalPages,
+    onNextPage,
+    onPrevPage,
 }: ProcessViewProps) {
     const { t } = useI18n();
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -79,10 +88,59 @@ export function ProcessView({
     const [isDownloading, setIsDownloading] = useState(false);
     const [outputResolutionInfo, setOutputResolutionInfo] = useState<{ text: string; label: string } | null>(null);
 
+    // Selection mode state for batch delete
+    const [selectionMode, setSelectionMode] = useState(false);
+    const [selectedJobIds, setSelectedJobIds] = useState<Set<string>>(new Set());
+    const [isBatchDeleting, setIsBatchDeleting] = useState(false);
+    const [confirmBatchDelete, setConfirmBatchDelete] = useState(false);
+
+    // Drag and drop state
+    const [isDragOver, setIsDragOver] = useState(false);
+
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0] || null;
         onFileSelect(file);
     };
+
+    // Drag and drop handlers
+    const handleDragEnter = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!isProcessing) {
+            setIsDragOver(true);
+        }
+    }, [isProcessing]);
+
+    const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
+        // Only set to false if we're leaving the drop zone (not a child element)
+        if (e.currentTarget === e.target) {
+            setIsDragOver(false);
+        }
+    }, []);
+
+    const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
+    }, []);
+
+    const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragOver(false);
+
+        if (isProcessing) return;
+
+        const files = e.dataTransfer.files;
+        if (files && files.length > 0) {
+            const file = files[0];
+            // Check if it's a video file
+            if (file.type.startsWith('video/') || /\.(mp4|mov|mkv|webm|avi)$/i.test(file.name)) {
+                onFileSelect(file);
+            }
+        }
+    }, [isProcessing, onFileSelect]);
 
     useEffect(() => {
         if (!selectedFile) {
@@ -218,6 +276,9 @@ export function ProcessView({
     }, [isProcessing]);
 
     const describeModel = (provider?: string, model?: string): { text: string; label: string } | null => {
+        if (provider === 'groq') {
+            return { text: 'Groq Turbo', label: 'Cloud' };
+        }
         if (provider === 'openai') {
             return { text: 'ChatGPT API', label: 'Cloud' };
         }
@@ -267,11 +328,21 @@ export function ProcessView({
             <div className="space-y-4">
                 {/* Upload Card */}
                 <div
-                    className="card relative overflow-hidden cursor-pointer group transition-all hover:border-[var(--accent)]/60"
+                    className={`card relative overflow-hidden cursor-pointer group transition-all ${isDragOver
+                        ? 'border-[var(--accent)] border-2 border-dashed bg-[var(--accent)]/10 scale-[1.02]'
+                        : 'hover:border-[var(--accent)]/60'
+                        }`}
                     data-clickable="true"
                     onClick={handleUploadCardClick}
+                    onDragEnter={handleDragEnter}
+                    onDragLeave={handleDragLeave}
+                    onDragOver={handleDragOver}
+                    onDrop={handleDrop}
                 >
-                    <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-br from-[var(--accent)]/5 via-transparent to-[var(--accent-secondary)]/10 pointer-events-none" />
+                    <div className={`absolute inset-0 transition-opacity pointer-events-none ${isDragOver
+                        ? 'opacity-100 bg-gradient-to-br from-[var(--accent)]/20 via-transparent to-[var(--accent-secondary)]/25'
+                        : 'opacity-0 group-hover:opacity-100 bg-gradient-to-br from-[var(--accent)]/5 via-transparent to-[var(--accent-secondary)]/10'
+                        }`} />
                     <input
                         ref={fileInputRef}
                         type="file"
@@ -280,7 +351,13 @@ export function ProcessView({
                         className="hidden"
                         disabled={isProcessing}
                     />
-                    {selectedFile ? (
+                    {isDragOver ? (
+                        <div className="text-center py-12 relative">
+                            <div className="text-6xl mb-3 animate-bounce">📥</div>
+                            <p className="text-2xl font-semibold mb-1 text-[var(--accent)]">{t('dropFileHere') || 'Drop your video here!'}</p>
+                            <p className="text-[var(--muted)]">{t('releaseToUpload') || 'Release to upload'}</p>
+                        </div>
+                    ) : selectedFile ? (
 
                         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between relative">
                             <div className="flex items-start gap-3">
@@ -490,6 +567,57 @@ export function ProcessView({
                                             <div className="text-sm text-[var(--muted)] mb-2">Highest accuracy</div>
                                             <div className="flex items-center gap-2 text-xs text-[var(--muted)]/80">
                                                 <span className="bg-amber-500/10 text-amber-500 px-1.5 py-0.5 rounded">large-v3</span>
+                                            </div>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* 🧪 Experimenting Section */}
+                                <div className="border-t border-dashed border-[var(--border)] pt-4 mt-2">
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <span className="text-lg">🧪</span>
+                                        <label className="text-sm font-medium text-[var(--muted)]">
+                                            Experimenting
+                                        </label>
+                                        <span className="bg-purple-500/10 text-purple-400 text-[10px] px-1.5 py-0.5 rounded-full font-medium">
+                                            BETA
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-[var(--muted)] mb-3 opacity-70">
+                                        Try cutting-edge transcription engines for faster processing
+                                    </p>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        {/* Groq Turbo */}
+                                        <button
+                                            data-testid="model-groq"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setTranscribeProvider('groq');
+                                                setTranscribeMode('turbo');
+                                            }}
+                                            className={`p-4 rounded-xl border border-dashed text-left transition-all relative overflow-hidden group ${transcribeProvider === 'groq'
+                                                ? 'border-purple-500 bg-purple-500/10 ring-1 ring-purple-500'
+                                                : 'border-[var(--border)] hover:border-purple-500/50 hover:bg-purple-500/5'
+                                                }`}
+                                        >
+                                            <div className="flex items-start justify-between mb-2">
+                                                <div className="p-2 rounded-lg bg-gradient-to-br from-purple-500/20 to-pink-500/20 text-purple-400">
+                                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                                    </svg>
+                                                </div>
+                                                {transcribeProvider === 'groq' && (
+                                                    <div className="w-5 h-5 rounded-full bg-purple-500 flex items-center justify-center">
+                                                        <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                                        </svg>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="font-semibold text-base mb-1">Groq Turbo</div>
+                                            <div className="text-sm text-[var(--muted)] mb-2">Lightning fast cloud (~200x)</div>
+                                            <div className="flex items-center gap-2 text-xs text-[var(--muted)]/80">
+                                                <span className="bg-purple-500/10 text-purple-400 px-1.5 py-0.5 rounded">free tier</span>
                                             </div>
                                         </button>
                                     </div>
@@ -774,11 +902,103 @@ export function ProcessView({
                 <div className="card mt-6 border-none bg-transparent shadow-none p-0">
                     <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                         <div>
-                            <h3 className="text-lg font-semibold">History</h3>
-                            <p className="text-xs text-[var(--muted)]">Items expire in 24 hours</p>
+                            <h3 className="text-lg font-semibold">{t('historyTitle') || 'History'}</h3>
+                            <p className="text-xs text-[var(--muted)]">{t('historyExpiry') || 'Items expire in 24 hours'}</p>
                         </div>
-                        {jobsLoading && <span data-testid="jobs-loading" className="text-xs text-[var(--muted)]">{t('refreshingLabel')}</span>}
+                        <div className="flex items-center gap-2">
+                            {jobsLoading && <span data-testid="jobs-loading" className="text-xs text-[var(--muted)]">{t('refreshingLabel')}</span>}
+                            {recentJobs.length > 0 && (
+                                <button
+                                    onClick={() => {
+                                        setSelectionMode(!selectionMode);
+                                        if (selectionMode) {
+                                            setSelectedJobIds(new Set());
+                                            setConfirmBatchDelete(false);
+                                        }
+                                    }}
+                                    className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${selectionMode
+                                        ? 'border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]'
+                                        : 'border-[var(--border)] hover:border-[var(--accent)]/50'
+                                        }`}
+                                >
+                                    {selectionMode ? (t('cancelSelect') || 'Cancel') : (t('selectMode') || 'Select')}
+                                </button>
+                            )}
+                        </div>
                     </div>
+
+                    {/* Selection mode controls */}
+                    {selectionMode && recentJobs.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-3 mb-3 p-3 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)]">
+                            <label className="flex items-center gap-2 cursor-pointer text-sm">
+                                <input
+                                    type="checkbox"
+                                    checked={selectedJobIds.size === recentJobs.length && recentJobs.length > 0}
+                                    onChange={(e) => {
+                                        if (e.target.checked) {
+                                            setSelectedJobIds(new Set(recentJobs.map(j => j.id)));
+                                        } else {
+                                            setSelectedJobIds(new Set());
+                                        }
+                                    }}
+                                    className="w-4 h-4 rounded border-[var(--border)] accent-[var(--accent)]"
+                                />
+                                {selectedJobIds.size === recentJobs.length
+                                    ? (t('deselectAll') || 'Deselect All')
+                                    : (t('selectAll') || 'Select All')}
+                            </label>
+                            <span className="text-xs text-[var(--muted)]">
+                                {selectedJobIds.size} {t('selected') || 'selected'}
+                            </span>
+                            <div className="flex-1" />
+                            {confirmBatchDelete ? (
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs text-[var(--danger)]">
+                                        {t('deleteSelectedConfirm') || `Delete ${selectedJobIds.size} items?`}
+                                    </span>
+                                    <button
+                                        onClick={async () => {
+                                            setIsBatchDeleting(true);
+                                            try {
+                                                await api.deleteJobs(Array.from(selectedJobIds));
+                                                if (selectedJob && selectedJobIds.has(selectedJob.id)) {
+                                                    onJobSelect(null);
+                                                    setShowPreview(false);
+                                                }
+                                                setSelectedJobIds(new Set());
+                                                setConfirmBatchDelete(false);
+                                                setSelectionMode(false);
+                                                await onRefreshJobs();
+                                            } catch (err) {
+                                                console.error('Batch delete failed:', err);
+                                            } finally {
+                                                setIsBatchDeleting(false);
+                                            }
+                                        }}
+                                        disabled={isBatchDeleting}
+                                        className="text-xs px-3 py-1.5 rounded bg-[var(--danger)] text-white hover:bg-[var(--danger)]/80 disabled:opacity-50"
+                                    >
+                                        {isBatchDeleting ? '...' : (t('confirmDelete') || 'Confirm')}
+                                    </button>
+                                    <button
+                                        onClick={() => setConfirmBatchDelete(false)}
+                                        className="text-xs px-3 py-1.5 rounded border border-[var(--border)] hover:bg-white/5"
+                                    >
+                                        {t('cancel') || 'Cancel'}
+                                    </button>
+                                </div>
+                            ) : (
+                                <button
+                                    onClick={() => setConfirmBatchDelete(true)}
+                                    disabled={selectedJobIds.size === 0}
+                                    className="text-xs px-3 py-1.5 rounded border border-[var(--danger)] text-[var(--danger)] hover:bg-[var(--danger)]/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    🗑️ {t('deleteSelected') || 'Delete Selected'} ({selectedJobIds.size})
+                                </button>
+                            )}
+                        </div>
+                    )}
+
                     {recentJobs.length === 0 && (
                         <p className="text-[var(--muted)] text-sm">{t('noRunsYet')}</p>
                     )}
@@ -787,12 +1007,35 @@ export function ProcessView({
                             const publicUrl = buildStaticUrl(job.result_data?.public_url || job.result_data?.video_path);
                             const timestamp = (job.updated_at || job.created_at) * 1000;
                             const isExpired = (Date.now() - timestamp) > 24 * 60 * 60 * 1000;
+                            const isSelected = selectedJobIds.has(job.id);
 
                             return (
                                 <div
                                     key={job.id}
-                                    className={`flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 p-3 rounded-lg border ${isExpired ? 'border-[var(--border)]/30 bg-[var(--surface)] text-[var(--muted)]' : 'border-[var(--border)] bg-[var(--surface-elevated)]'} transition-colors`}
+                                    className={`flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 p-3 rounded-lg border ${isSelected
+                                        ? 'border-[var(--accent)] bg-[var(--accent)]/5'
+                                        : isExpired
+                                            ? 'border-[var(--border)]/30 bg-[var(--surface)] text-[var(--muted)]'
+                                            : 'border-[var(--border)] bg-[var(--surface-elevated)]'
+                                        } transition-colors`}
                                 >
+                                    {/* Checkbox for selection mode */}
+                                    {selectionMode && (
+                                        <input
+                                            type="checkbox"
+                                            checked={isSelected}
+                                            onChange={(e) => {
+                                                const newSet = new Set(selectedJobIds);
+                                                if (e.target.checked) {
+                                                    newSet.add(job.id);
+                                                } else {
+                                                    newSet.delete(job.id);
+                                                }
+                                                setSelectedJobIds(newSet);
+                                            }}
+                                            className="w-4 h-4 rounded border-[var(--border)] accent-[var(--accent)] flex-shrink-0"
+                                        />
+                                    )}
                                     <div className="min-w-0 flex-1">
                                         <div className="font-semibold text-sm truncate">
                                             {job.result_data?.original_filename || job.id}
@@ -805,68 +1048,70 @@ export function ProcessView({
                                     <div className="flex items-center gap-2">
                                         {isExpired ? (
                                             <span className="text-xs bg-[var(--surface)] border border-[var(--border)] px-2 py-1 rounded text-[var(--muted)]">
-                                                Expired
+                                                {t('expired') || 'Expired'}
                                             </span>
                                         ) : (
                                             <>
-                                                {job.status === 'completed' && publicUrl && (
+                                                {job.status === 'completed' && publicUrl && !selectionMode && (
                                                     <>
                                                         <a
                                                             className="text-xs btn-primary py-1.5 px-3 h-auto"
                                                             href={publicUrl}
                                                             download={job.result_data?.original_filename || 'processed.mp4'}
                                                         >
-                                                            Download
+                                                            {t('download') || 'Download'}
                                                         </a>
                                                         <button
                                                             onClick={() => { onJobSelect(job); setShowPreview(true); }}
                                                             className="text-xs btn-secondary py-1.5 px-3 h-auto"
                                                         >
-                                                            View
+                                                            {t('view') || 'View'}
                                                         </button>
                                                     </>
                                                 )}
-                                                {/* Delete button */}
-                                                {confirmDeleteId === job.id ? (
-                                                    <div className="flex items-center gap-1">
-                                                        <button
-                                                            onClick={async () => {
-                                                                setDeletingJobId(job.id);
-                                                                try {
-                                                                    await api.deleteJob(job.id);
-                                                                    if (selectedJob?.id === job.id) {
-                                                                        onJobSelect(null);
-                                                                        setShowPreview(false);
+                                                {/* Delete button - hide in selection mode */}
+                                                {!selectionMode && (
+                                                    confirmDeleteId === job.id ? (
+                                                        <div className="flex items-center gap-1">
+                                                            <button
+                                                                onClick={async () => {
+                                                                    setDeletingJobId(job.id);
+                                                                    try {
+                                                                        await api.deleteJob(job.id);
+                                                                        if (selectedJob?.id === job.id) {
+                                                                            onJobSelect(null);
+                                                                            setShowPreview(false);
+                                                                        }
+                                                                        setConfirmDeleteId(null);
+                                                                        // Refresh jobs list without page reload
+                                                                        await onRefreshJobs();
+                                                                    } catch (err) {
+                                                                        console.error('Delete failed:', err);
+                                                                    } finally {
+                                                                        setDeletingJobId(null);
                                                                     }
-                                                                    setConfirmDeleteId(null);
-                                                                    // Refresh jobs list without page reload
-                                                                    await onRefreshJobs();
-                                                                } catch (err) {
-                                                                    console.error('Delete failed:', err);
-                                                                } finally {
-                                                                    setDeletingJobId(null);
-                                                                }
-                                                            }}
-                                                            disabled={deletingJobId === job.id}
-                                                            className="text-xs px-2 py-1 rounded bg-[var(--danger)] text-white hover:bg-[var(--danger)]/80 disabled:opacity-50"
-                                                        >
-                                                            {deletingJobId === job.id ? '...' : '✓'}
-                                                        </button>
+                                                                }}
+                                                                disabled={deletingJobId === job.id}
+                                                                className="text-xs px-2 py-1 rounded bg-[var(--danger)] text-white hover:bg-[var(--danger)]/80 disabled:opacity-50"
+                                                            >
+                                                                {deletingJobId === job.id ? '...' : '✓'}
+                                                            </button>
+                                                            <button
+                                                                onClick={() => setConfirmDeleteId(null)}
+                                                                className="text-xs px-2 py-1 rounded border border-[var(--border)] hover:bg-white/5"
+                                                            >
+                                                                ✕
+                                                            </button>
+                                                        </div>
+                                                    ) : (
                                                         <button
-                                                            onClick={() => setConfirmDeleteId(null)}
-                                                            className="text-xs px-2 py-1 rounded border border-[var(--border)] hover:bg-white/5"
+                                                            onClick={() => setConfirmDeleteId(job.id)}
+                                                            className="text-xs px-2 py-1 rounded border border-[var(--border)] hover:border-[var(--danger)] hover:text-[var(--danger)] transition-colors"
+                                                            title={t('deleteJob')}
                                                         >
-                                                            ✕
+                                                            🗑️
                                                         </button>
-                                                    </div>
-                                                ) : (
-                                                    <button
-                                                        onClick={() => setConfirmDeleteId(job.id)}
-                                                        className="text-xs px-2 py-1 rounded border border-[var(--border)] hover:border-[var(--danger)] hover:text-[var(--danger)] transition-colors"
-                                                        title={t('deleteJob')}
-                                                    >
-                                                        🗑️
-                                                    </button>
+                                                    )
                                                 )}
                                             </>
                                         )}
@@ -875,6 +1120,29 @@ export function ProcessView({
                             );
                         })}
                     </div>
+
+                    {/* Pagination Controls */}
+                    {totalPages > 1 && (
+                        <div className="flex items-center justify-center gap-4 mt-4 pt-4 border-t border-[var(--border)]">
+                            <button
+                                onClick={onPrevPage}
+                                disabled={currentPage <= 1}
+                                className="text-sm px-4 py-2 rounded-lg border border-[var(--border)] hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >
+                                ← {t('previousPage') || 'Previous'}
+                            </button>
+                            <span className="text-sm text-[var(--muted)]">
+                                {t('pageOf') || `Page ${currentPage} of ${totalPages}`}
+                            </span>
+                            <button
+                                onClick={onNextPage}
+                                disabled={currentPage >= totalPages}
+                                className="text-sm px-4 py-2 rounded-lg border border-[var(--border)] hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                            >
+                                {t('nextPage') || 'Next'} →
+                            </button>
+                        </div>
+                    )}
                 </div>
 
                 <VideoModal

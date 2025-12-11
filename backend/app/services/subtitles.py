@@ -304,6 +304,113 @@ def _resolve_openai_api_key(explicit_key: str | None = None) -> str | None:
     return None
 
 
+def _resolve_groq_api_key(explicit_key: str | None = None) -> str | None:
+    """Resolve Groq API key from arguments, env, or secrets file."""
+    if explicit_key:
+        return explicit_key
+
+    # 1. Environment variable
+    env_key = os.getenv("GROQ_API_KEY")
+    if env_key:
+        return env_key
+        
+    # 2. Config/Secrets file
+    secrets_path = config.PROJECT_ROOT / "config" / "secrets.toml"
+    if secrets_path.exists():
+        try:
+            with open(secrets_path, "rb") as f:
+                secrets = tomllib.load(f)
+                return secrets.get("GROQ_API_KEY")
+        except Exception:
+            pass
+            
+    return None
+
+
+def _transcribe_with_groq(
+    audio_path: Path,
+    model_name: str | None,
+    language: str | None,
+    prompt: str | None,
+    output_dir: Path,
+    progress_callback: Callable[[float], None] | None = None,
+    api_key: str | None = None,
+) -> Tuple[Path, List[Cue]]:
+    """Transcribe audio using Groq's Whisper API (OpenAI-compatible)."""
+    
+    if not api_key:
+        api_key = _resolve_groq_api_key()
+    
+    if not api_key:
+        raise RuntimeError(
+            "Groq API key is required. Set GROQ_API_KEY env var or add to config/secrets.toml"
+        )
+
+    # Groq uses OpenAI-compatible API
+    try:
+        from openai import OpenAI
+    except ImportError:
+        raise RuntimeError("openai package is required for Groq transcription")
+    
+    client = OpenAI(
+        api_key=api_key,
+        base_url="https://api.groq.com/openai/v1"
+    )
+    
+    if progress_callback:
+        progress_callback(10.0)
+
+    try:
+        with open(audio_path, "rb") as audio_file:
+            transcript = client.audio.transcriptions.create(
+                model=model_name or config.GROQ_TRANSCRIBE_MODEL,
+                file=audio_file,
+                language=language or "el",
+                prompt=prompt,
+                response_format="verbose_json",
+                timestamp_granularities=["word", "segment"]
+            )
+    except Exception as exc:
+        raise RuntimeError(f"Groq transcription failed: {exc}") from exc
+
+    if progress_callback:
+        progress_callback(90.0)
+
+    # Convert response to our Cue/WordTiming format (same as OpenAI)
+    cues: List[Cue] = []
+    timed_text: List[TimeRange] = []
+    
+    if hasattr(transcript, "segments"):
+        for seg in transcript.segments:
+            seg_text = seg.text or ""
+            seg_start = seg.start
+            seg_end = seg.end
+            
+            current_words: List[WordTiming] = []
+            all_words = getattr(transcript, "words", [])
+            if all_words:
+                seg_words_data = [
+                    w for w in all_words 
+                    if w.start >= seg_start and w.end <= seg_end
+                ]
+                current_words = [
+                    WordTiming(start=w.start, end=w.end, text=_normalize_text(w.word))
+                    for w in seg_words_data
+                ]
+            
+            processed_text = _normalize_text(seg_text)
+            cues.append(Cue(start=seg_start, end=seg_end, text=processed_text, words=current_words))
+            timed_text.append((seg_start, seg_end, seg_text))
+            
+    if progress_callback:
+        progress_callback(100.0)
+
+    srt_path = output_dir / f"{audio_path.stem}.srt"
+    _write_srt_from_segments(timed_text, srt_path)
+    
+    return srt_path, cues
+
+
 def generate_subtitles_from_audio(
     audio_path: Path,
     model_size: str = config.WHISPER_MODEL_SIZE,
@@ -348,6 +455,19 @@ def generate_subtitles_from_audio(
             api_key=openai_api_key,
         )
     
+    # Route to Groq API (experimental)
+    if provider == "groq":
+        return _transcribe_with_groq(
+            audio_path,
+            model_name=config.GROQ_TRANSCRIBE_MODEL,  # Always use Groq model
+            language=language,
+            prompt=initial_prompt,
+            output_dir=output_dir,
+            progress_callback=progress_callback,
+            api_key=openai_api_key,  # Reuse this param for Groq key
+        )
+    
+    # Default: Local faster-whisper
     # Optimize CPU threads: Use all available cores (capped at 8 to avoid overhead)
     threads = min(8, os.cpu_count() or 4)
     
@@ -502,7 +622,15 @@ def create_styled_subtitle_file(
     # If text doesn't fit within max_lines, split into separate subtitle events
     # rather than overflowing to more lines than user selected.
     # Calculate max_chars based on max_lines to respect user's line limit.
-    max_chars_per_cue = config.MAX_SUB_LINE_CHARS * max_lines
+    # 
+    # IMPORTANT: Use a reduced threshold (85%) because textwrap.wrap() doesn't
+    # fill each line to max capacity. Without this reduction, a 60-char text
+    # at width=30 with max_lines=2 (threshold=64) would NOT be split, but
+    # textwrap.wrap would produce 3 lines, causing the 3rd line to be lost.
+    # With 85% reduction: threshold = 32 * 2 * 0.85 = 54 chars, so 60-char
+    # text WILL be split, preventing data loss.
+    wrap_efficiency = 0.85  # Account for textwrap not filling lines optimally
+    max_chars_per_cue = int(config.MAX_SUB_LINE_CHARS * max_lines * wrap_efficiency)
     parsed_cues = _split_long_cues(parsed_cues, max_chars=max_chars_per_cue)
 
     output_dir = output_dir or transcript_path.parent

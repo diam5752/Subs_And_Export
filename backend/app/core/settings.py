@@ -66,7 +66,7 @@ def load_app_settings(path: str | Path | None = None) -> AppSettings:
         if env_override:
             candidate = Path(env_override)
         else:
-            candidate = config.PROJECT_ROOT.parent.parent / "config" / "app_settings.toml"
+            candidate = config.PROJECT_ROOT / "config" / "app_settings.toml"
 
     if not candidate.exists():
         return AppSettings()

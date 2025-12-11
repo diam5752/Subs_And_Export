@@ -43,6 +43,10 @@ export default function DashboardPage() {
     recentJobs,
     jobsLoading,
     loadJobs,
+    currentPage,
+    totalPages,
+    nextPage,
+    prevPage,
   } = useJobs();
 
 
@@ -179,6 +183,7 @@ export default function DashboardPage() {
 
   const resetProcessing = () => {
     setSelectedFile(null);
+    setSelectedJob(null);
     setProgress(0);
     setJobId(null);
     setStatusMessage('');
@@ -282,6 +287,10 @@ export default function DashboardPage() {
           formatDate={formatDate}
           buildStaticUrl={buildStaticUrl}
           onRefreshJobs={async () => { await loadJobs(false); }}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onNextPage={nextPage}
+          onPrevPage={prevPage}
         />
       </main>
 

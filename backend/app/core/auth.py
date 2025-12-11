@@ -321,7 +321,7 @@ def _get_secret(key: str) -> str | None:
     search_paths = []
     if candidate:
         search_paths.append(Path(candidate))
-    search_paths.append(config.PROJECT_ROOT.parent.parent / "config" / "secrets.toml")
+    search_paths.append(config.PROJECT_ROOT / "config" / "secrets.toml")
 
     for path in search_paths:
         try:

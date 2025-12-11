@@ -114,3 +114,48 @@ class JobStore:
         """Delete all jobs for a user (for account deletion)."""
         with self.db.connect() as conn:
             conn.execute("DELETE FROM jobs WHERE user_id = ?", (user_id,))
+
+    def count_jobs_for_user(self, user_id: str) -> int:
+        """Count total jobs for a user (for pagination)."""
+        with self.db.connect() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) as count FROM jobs WHERE user_id = ?",
+                (user_id,)
+            ).fetchone()
+        return row["count"] if row else 0
+
+    def list_jobs_for_user_paginated(
+        self, user_id: str, offset: int = 0, limit: int = 10
+    ) -> List[Job]:
+        """List jobs for a user with pagination support."""
+        with self.db.connect() as conn:
+            rows = conn.execute(
+                """SELECT * FROM jobs WHERE user_id = ? 
+                   ORDER BY created_at DESC LIMIT ? OFFSET ?""",
+                (user_id, limit, offset)
+            ).fetchall()
+        return [
+            Job(
+                id=row["id"],
+                user_id=row["user_id"],
+                status=row["status"],
+                progress=row["progress"],
+                message=row["message"],
+                created_at=row["created_at"],
+                updated_at=row["updated_at"],
+                result_data=self.db.loads(row["result_data"]) if row["result_data"] else None
+            )
+            for row in rows
+        ]
+
+    def delete_jobs(self, job_ids: List[str], user_id: str) -> int:
+        """Delete multiple jobs by IDs (with ownership check). Returns count deleted."""
+        if not job_ids:
+            return 0
+        placeholders = ",".join("?" * len(job_ids))
+        with self.db.connect() as conn:
+            cursor = conn.execute(
+                f"DELETE FROM jobs WHERE id IN ({placeholders}) AND user_id = ?",
+                (*job_ids, user_id)
+            )
+            return cursor.rowcount

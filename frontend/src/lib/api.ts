@@ -55,6 +55,20 @@ export interface ViralMetadataResponse {
     hashtags: string[];
 }
 
+export interface PaginatedJobsResponse {
+    items: JobResponse[];
+    total: number;
+    page: number;
+    page_size: number;
+    total_pages: number;
+}
+
+export interface BatchDeleteResponse {
+    status: string;
+    deleted_count: number;
+    job_ids: string[];
+}
+
 class ApiClient {
     private token: string | null = null;
 
@@ -188,6 +202,17 @@ class ApiClient {
 
     async getJobs(): Promise<JobResponse[]> {
         return this.request<JobResponse[]>('/videos/jobs');
+    }
+
+    async getJobsPaginated(page: number = 1, pageSize: number = 10): Promise<PaginatedJobsResponse> {
+        return this.request<PaginatedJobsResponse>(`/videos/jobs/paginated?page=${page}&page_size=${pageSize}`);
+    }
+
+    async deleteJobs(jobIds: string[]): Promise<BatchDeleteResponse> {
+        return this.request<BatchDeleteResponse>('/videos/jobs/batch-delete', {
+            method: 'POST',
+            body: JSON.stringify({ job_ids: jobIds }),
+        });
     }
 
     async updateProfile(name: string): Promise<UserResponse> {

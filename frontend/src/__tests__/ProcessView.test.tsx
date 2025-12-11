@@ -34,6 +34,7 @@ jest.mock('@/lib/video');
 jest.mock('@/lib/api', () => ({
     api: {
         deleteJob: jest.fn(),
+        deleteJobs: jest.fn(),
     },
 }));
 
@@ -64,6 +65,10 @@ describe('ProcessView', () => {
         formatDate: (ts: string | number) => String(ts),
         buildStaticUrl: (path?: string | null) => path || null,
         onRefreshJobs: jest.fn(),
+        currentPage: 1,
+        totalPages: 1,
+        onNextPage: jest.fn(),
+        onPrevPage: jest.fn(),
     };
 
     beforeEach(() => {
@@ -448,7 +453,7 @@ describe('ProcessView', () => {
         render(<ProcessView {...defaultProps} recentJobs={[job]} onJobSelect={onJobSelect} />);
 
         // Find View button (secondary button inside the expired check block)
-        fireEvent.click(screen.getByText('View'));
+        fireEvent.click(screen.getByText('view'));
 
         expect(onJobSelect).toHaveBeenCalledWith(job);
         expect(screen.getByTestId('video-modal')).toBeInTheDocument();
@@ -515,6 +520,210 @@ describe('ProcessView', () => {
 
         // File should not be selectable during processing
         // The handler should check isProcessing and not trigger
+    });
+
+    // Drag and Drop Tests
+    describe('Drag and Drop functionality', () => {
+        // Helper to create a FileList-like object
+        const createFileList = (files: File[]): FileList => {
+            const fileList = {
+                ...files,
+                length: files.length,
+                item: (index: number) => files[index] || null,
+            };
+            return fileList as unknown as FileList;
+        };
+
+        const createDragEventInit = (files: File[]) => ({
+            dataTransfer: {
+                files: createFileList(files),
+                types: ['Files'],
+                getData: () => '',
+                setData: () => { },
+            },
+        });
+
+        it('should show drag over state when dragging a file', () => {
+            render(<ProcessView {...defaultProps} />);
+
+            const uploadCard = screen.getByText('uploadDropTitle').closest('.card');
+            expect(uploadCard).toBeInTheDocument();
+
+            // Use fireEvent with init object
+            fireEvent.dragEnter(uploadCard!);
+
+            // Should show the drag over state with bouncing icon and new text
+            expect(screen.getByText('dropFileHere')).toBeInTheDocument();
+            expect(screen.getByText('releaseToUpload')).toBeInTheDocument();
+        });
+
+        it('should hide drag over state on drop', () => {
+            render(<ProcessView {...defaultProps} />);
+
+            const uploadCard = screen.getByText('uploadDropTitle').closest('.card');
+
+            // Simulate drag enter
+            fireEvent.dragEnter(uploadCard!);
+
+            // Should show drag over state
+            expect(screen.getByText('dropFileHere')).toBeInTheDocument();
+
+            // Simulate drop (clears the drag state)
+            const file = new File(['video'], 'test.mp4', { type: 'video/mp4' });
+            fireEvent.drop(uploadCard!, createDragEventInit([file]));
+
+            // Should return to file selected state (not drop zone)
+            expect(screen.queryByText('dropFileHere')).not.toBeInTheDocument();
+        });
+
+        it('should handle file drop and call onFileSelect', () => {
+            const onFileSelect = jest.fn();
+            render(<ProcessView {...defaultProps} onFileSelect={onFileSelect} />);
+
+            const uploadCard = screen.getByText('uploadDropTitle').closest('.card');
+            const file = new File(['video content'], 'test-video.mp4', { type: 'video/mp4' });
+
+            // Drop the file
+            fireEvent.drop(uploadCard!, createDragEventInit([file]));
+
+            expect(onFileSelect).toHaveBeenCalledWith(file);
+        });
+
+        it('should accept video files by file extension', () => {
+            const onFileSelect = jest.fn();
+            render(<ProcessView {...defaultProps} onFileSelect={onFileSelect} />);
+
+            const uploadCard = screen.getByText('uploadDropTitle').closest('.card');
+
+            // Test .mov file
+            const movFile = new File(['video'], 'video.mov', { type: '' });
+            fireEvent.drop(uploadCard!, createDragEventInit([movFile]));
+            expect(onFileSelect).toHaveBeenCalledWith(movFile);
+
+            onFileSelect.mockClear();
+
+            // Test .mkv file
+            const mkvFile = new File(['video'], 'video.mkv', { type: '' });
+            fireEvent.drop(uploadCard!, createDragEventInit([mkvFile]));
+            expect(onFileSelect).toHaveBeenCalledWith(mkvFile);
+
+            onFileSelect.mockClear();
+
+            // Test .webm file
+            const webmFile = new File(['video'], 'video.webm', { type: '' });
+            fireEvent.drop(uploadCard!, createDragEventInit([webmFile]));
+            expect(onFileSelect).toHaveBeenCalledWith(webmFile);
+
+            onFileSelect.mockClear();
+
+            // Test .avi file
+            const aviFile = new File(['video'], 'video.avi', { type: '' });
+            fireEvent.drop(uploadCard!, createDragEventInit([aviFile]));
+            expect(onFileSelect).toHaveBeenCalledWith(aviFile);
+        });
+
+        it('should not accept non-video files', () => {
+            const onFileSelect = jest.fn();
+            render(<ProcessView {...defaultProps} onFileSelect={onFileSelect} />);
+
+            const uploadCard = screen.getByText('uploadDropTitle').closest('.card');
+            const textFile = new File(['text'], 'document.txt', { type: 'text/plain' });
+
+            fireEvent.drop(uploadCard!, createDragEventInit([textFile]));
+
+            expect(onFileSelect).not.toHaveBeenCalled();
+        });
+
+        it('should not allow drag and drop during processing', () => {
+            const onFileSelect = jest.fn();
+            render(<ProcessView {...defaultProps} onFileSelect={onFileSelect} isProcessing={true} />);
+
+            const uploadCard = screen.getByText('uploadDropTitle').closest('.card');
+
+            // Try drag enter during processing
+            fireEvent.dragEnter(uploadCard!);
+
+            // Should NOT show drag over state (still shows normal upload text)
+            expect(screen.getByText('uploadDropTitle')).toBeInTheDocument();
+            expect(screen.queryByText('dropFileHere')).not.toBeInTheDocument();
+
+            // Try dropping a file during processing
+            const file = new File(['video'], 'test.mp4', { type: 'video/mp4' });
+            fireEvent.drop(uploadCard!, createDragEventInit([file]));
+
+            expect(onFileSelect).not.toHaveBeenCalled();
+        });
+
+        it('should handle drag over event', () => {
+            render(<ProcessView {...defaultProps} />);
+
+            const uploadCard = screen.getByText('uploadDropTitle').closest('.card');
+
+            // Just verify dragOver doesn't throw
+            expect(() => {
+                fireEvent.dragOver(uploadCard!);
+            }).not.toThrow();
+        });
+
+        it('should only select the first file when multiple files are dropped', () => {
+            const onFileSelect = jest.fn();
+            render(<ProcessView {...defaultProps} onFileSelect={onFileSelect} />);
+
+            const uploadCard = screen.getByText('uploadDropTitle').closest('.card');
+            const file1 = new File(['video1'], 'video1.mp4', { type: 'video/mp4' });
+            const file2 = new File(['video2'], 'video2.mp4', { type: 'video/mp4' });
+
+            fireEvent.drop(uploadCard!, createDragEventInit([file1, file2]));
+
+            expect(onFileSelect).toHaveBeenCalledTimes(1);
+            expect(onFileSelect).toHaveBeenCalledWith(file1);
+        });
+    });
+
+    // === EXPERIMENTAL PROVIDERS TESTS ===
+
+    describe('Experimental Providers', () => {
+        it('should display Experimenting section with Groq option', async () => {
+            const file = new File(['dummy'], 'test.mp4', { type: 'video/mp4' });
+            render(<ProcessView {...defaultProps} selectedFile={file} />);
+
+            await waitFor(() => expect(screen.getByText('test.mp4')).toBeInTheDocument());
+
+            // Should show Experimenting section
+            expect(screen.getByText('Experimenting')).toBeInTheDocument();
+            expect(screen.getByText('BETA')).toBeInTheDocument();
+
+            // Should show Groq option
+            expect(screen.getByTestId('model-groq')).toBeInTheDocument();
+            expect(screen.getByText('Groq Turbo')).toBeInTheDocument();
+        });
+
+        it('should allow Groq model selection', async () => {
+            const file = new File(['dummy'], 'test.mp4', { type: 'video/mp4' });
+            const onStartProcessing = jest.fn();
+            render(<ProcessView {...defaultProps} selectedFile={file} onStartProcessing={onStartProcessing} />);
+
+            await waitFor(() => expect(screen.getByText('test.mp4')).toBeInTheDocument());
+
+            // Click Groq button
+            const groqBtn = screen.getByTestId('model-groq');
+            fireEvent.click(groqBtn);
+
+            // Start processing
+            fireEvent.click(screen.getByText('controlsStart'));
+
+            expect(onStartProcessing).toHaveBeenCalled();
+            expect(onStartProcessing.mock.calls[0][0].transcribeProvider).toBe('groq');
+        });
+
+        it('should display Groq model info for completed job', () => {
+            const job = {
+                id: '1', status: 'completed',
+                result_data: { transcribe_provider: 'groq', public_url: 'url' }
+            } as JobResponse;
+            render(<ProcessView {...defaultProps} selectedJob={job} />);
+            expect(screen.getByText('Groq Turbo')).toBeInTheDocument();
+        });
     });
 
 });

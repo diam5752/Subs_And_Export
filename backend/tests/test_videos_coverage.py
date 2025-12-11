@@ -289,3 +289,205 @@ def test_create_viral_metadata_success(client: TestClient, user_auth_headers: di
             assert data["caption_hook"] == "Caption Hook"
     finally:
         app.dependency_overrides = {}
+
+
+def test_list_jobs_paginated(client: TestClient, user_auth_headers: dict, monkeypatch):
+    """Test paginated jobs endpoint."""
+    from backend.app.services.jobs import JobStore, Job
+    from backend.app.core.auth import User
+    from backend.app.api import deps
+    
+    async def mock_get_current_user():
+        return User(id="test_user_id", email="test@example.com", name="Test", provider="local")
+    app.dependency_overrides[deps.get_current_user] = mock_get_current_user
+    
+    try:
+        # Create mock jobs
+        mock_jobs = [
+            Job(id=f"job{i}", user_id="test_user_id", status="completed", progress=100,
+                message="done", created_at=i, updated_at=i, result_data={})
+            for i in range(15)
+        ]
+        
+        class MockJobStore:
+            def count_jobs_for_user(self, user_id):
+                return len(mock_jobs)
+            
+            def list_jobs_for_user_paginated(self, user_id, offset=0, limit=10):
+                return mock_jobs[offset:offset+limit]
+        
+        app.dependency_overrides[deps.get_job_store] = lambda: MockJobStore()
+        
+        # Test first page
+        response = client.get("/videos/jobs/paginated?page=1&page_size=10", headers=user_auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total"] == 15
+        assert data["page"] == 1
+        assert data["page_size"] == 10
+        assert data["total_pages"] == 2
+        assert len(data["items"]) == 10
+        
+        # Test second page
+        response = client.get("/videos/jobs/paginated?page=2&page_size=10", headers=user_auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["items"]) == 5
+        assert data["page"] == 2
+        
+    finally:
+        app.dependency_overrides = {}
+
+
+def test_list_jobs_paginated_validation(client: TestClient, user_auth_headers: dict, monkeypatch):
+    """Test paginated jobs endpoint handles invalid params."""
+    from backend.app.services.jobs import JobStore, Job
+    from backend.app.core.auth import User
+    from backend.app.api import deps
+    
+    async def mock_get_current_user():
+        return User(id="test_user_id", email="test@example.com", name="Test", provider="local")
+    app.dependency_overrides[deps.get_current_user] = mock_get_current_user
+    
+    try:
+        class MockJobStore:
+            def count_jobs_for_user(self, user_id):
+                return 5
+            
+            def list_jobs_for_user_paginated(self, user_id, offset=0, limit=10):
+                return []
+        
+        app.dependency_overrides[deps.get_job_store] = lambda: MockJobStore()
+        
+        # Test page < 1 defaults to 1
+        response = client.get("/videos/jobs/paginated?page=0&page_size=10", headers=user_auth_headers)
+        assert response.status_code == 200
+        assert response.json()["page"] == 1
+        
+        # Test page_size > 100 is capped
+        response = client.get("/videos/jobs/paginated?page=1&page_size=200", headers=user_auth_headers)
+        assert response.status_code == 200
+        assert response.json()["page_size"] == 100
+        
+    finally:
+        app.dependency_overrides = {}
+
+
+def test_batch_delete_jobs(client: TestClient, user_auth_headers: dict, monkeypatch):
+    """Test batch delete endpoint."""
+    from backend.app.services.jobs import JobStore, Job
+    from backend.app.core.auth import User
+    from backend.app.api import deps
+    
+    async def mock_get_current_user():
+        return User(id="test_user_id", email="test@example.com", name="Test", provider="local")
+    app.dependency_overrides[deps.get_current_user] = mock_get_current_user
+    
+    try:
+        deleted_ids = []
+        
+        class MockJobStore:
+            def get_job(self, job_id):
+                if job_id in ["job1", "job2", "job3"]:
+                    return Job(
+                        id=job_id, user_id="test_user_id", status="completed", progress=100,
+                        message="done", created_at=0, updated_at=0, result_data={}
+                    )
+                elif job_id == "job_other_user":
+                    return Job(
+                        id=job_id, user_id="other_user", status="completed", progress=100,
+                        message="done", created_at=0, updated_at=0, result_data={}
+                    )
+                return None
+            
+            def delete_jobs(self, job_ids, user_id):
+                for jid in job_ids:
+                    deleted_ids.append(jid)
+                return len(job_ids)
+        
+        app.dependency_overrides[deps.get_job_store] = lambda: MockJobStore()
+        
+        # Mock file system
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as td:
+            tpath = Path(td)
+            uploads_root = tpath / "uploads"
+            artifacts_root = tpath / "artifacts"
+            uploads_root.mkdir()
+            artifacts_root.mkdir()
+            
+            # Create dummy artifacts
+            for jid in ["job1", "job2", "job3"]:
+                job_dir = artifacts_root / jid
+                job_dir.mkdir()
+                (job_dir / "file.txt").touch()
+            
+            monkeypatch.setattr("backend.app.api.endpoints.videos._data_roots", lambda: (tpath, uploads_root, artifacts_root))
+            
+            # Test batch delete
+            response = client.post(
+                "/videos/jobs/batch-delete",
+                headers=user_auth_headers,
+                json={"job_ids": ["job1", "job2", "job3"]}
+            )
+            assert response.status_code == 200
+            data = response.json()
+            assert data["status"] == "deleted"
+            assert data["deleted_count"] == 3
+            assert set(data["job_ids"]) == {"job1", "job2", "job3"}
+            
+            # Verify artifacts were deleted
+            assert not (artifacts_root / "job1").exists()
+            
+    finally:
+        app.dependency_overrides = {}
+
+
+def test_batch_delete_empty_list(client: TestClient, user_auth_headers: dict, monkeypatch):
+    """Test batch delete with empty list returns success."""
+    from backend.app.core.auth import User
+    from backend.app.api import deps
+    
+    async def mock_get_current_user():
+        return User(id="test_user_id", email="test@example.com", name="Test", provider="local")
+    app.dependency_overrides[deps.get_current_user] = mock_get_current_user
+    
+    try:
+        response = client.post(
+            "/videos/jobs/batch-delete",
+            headers=user_auth_headers,
+            json={"job_ids": []}
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "success"
+        assert data["deleted_count"] == 0
+        
+    finally:
+        app.dependency_overrides = {}
+
+
+def test_batch_delete_limit(client: TestClient, user_auth_headers: dict, monkeypatch):
+    """Test batch delete rejects more than 50 jobs."""
+    from backend.app.core.auth import User
+    from backend.app.api import deps
+    
+    async def mock_get_current_user():
+        return User(id="test_user_id", email="test@example.com", name="Test", provider="local")
+    app.dependency_overrides[deps.get_current_user] = mock_get_current_user
+    
+    try:
+        # Try to delete 51 jobs
+        job_ids = [f"job{i}" for i in range(51)]
+        response = client.post(
+            "/videos/jobs/batch-delete",
+            headers=user_auth_headers,
+            json={"job_ids": job_ids}
+        )
+        assert response.status_code == 400
+        assert "Cannot delete more than 50" in response.json()["detail"]
+        
+    finally:
+        app.dependency_overrides = {}
+
