@@ -202,7 +202,7 @@ export function SubtitlePositionSelector({ value, onChange, lines, onChangeLines
                                     key={i}
                                     className={`h-3 rounded-sm shadow-lg w-full flex items-center justify-center opacity-90 animate-in fade-in slide-in-from-bottom-2 duration-300 fill-mode-backwards ${!previewColor ? 'bg-[var(--accent)]/60' : ''}`}
                                     style={{
-                                        width: `${85 - (i * 10)}%`, // Taper width for visual effect
+                                        width: lines === 0 ? '40%' : `${85 - (i * 10)}%`, // Half width for 1-word mode, else taper
                                         animationDelay: `${i * 50}ms`,
                                         backgroundColor: previewColor ? previewColor : undefined,
                                         boxShadow: previewColor ? `0 2px 4px ${previewColor}40` : undefined

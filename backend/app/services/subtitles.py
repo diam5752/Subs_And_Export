@@ -722,9 +722,9 @@ def create_styled_subtitle_file(
         parsed_cues = _split_long_cues(parsed_cues, max_chars=1)
     elif max_lines > 0:
         # STANDARD LINE-BASED MODE:
-        # Split long cues to fit within max_lines using a 50% efficiency factor
-        # to ensure wrapping always produces <= max_lines lines.
-        wrap_efficiency = 0.50  # Aggressive factor to ensure max_lines is respected
+        # Split long cues to fit within max_lines using a 90% efficiency factor
+        # to ensure wrapping exploits most of the available lines without premature splitting.
+        wrap_efficiency = 0.90  
         max_chars_per_cue = int(config.MAX_SUB_LINE_CHARS * max_lines * wrap_efficiency)
         parsed_cues = _split_long_cues(parsed_cues, max_chars=max_chars_per_cue)
     # For cues without word timings (Standard model), don't split regardless of max_lines

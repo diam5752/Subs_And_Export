@@ -67,3 +67,6 @@ data/uploads/
 backend/data/artifacts/
 backend/data/uploads/
 src/greek_sub_publisher/logs/
+
+# Test output
+test_output/
