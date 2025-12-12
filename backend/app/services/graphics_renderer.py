@@ -32,7 +32,7 @@ def render_active_word_video(
     Renders video with 'Active Word' (pop) or 'Karaoke' style using MoviePy & PIL.
     Optimized to use a single VideoClip with a frame generator to avoid
     performance bottlenecks with thousands of clips.
-    
+
     Delegates actual frame rendering to the appropriate Renderer strategy.
     """
 

@@ -398,7 +398,7 @@ def _transcribe_with_whispercpp(
     progress_callback: Callable[[float], None] | None = None,
 ) -> Tuple[Path, List[Cue]]:
     """Transcribe audio using whisper.cpp with Metal/CoreML acceleration (Apple Silicon optimized).
-    
+
     Uses split_on_word mode to get word-level timing for karaoke effect.
     """
     try:
@@ -954,7 +954,7 @@ def _split_long_cues(
 ) -> List[Cue]:
     """
     Split long cues into multiple shorter cues to ensure they fit within max_lines.
-    
+
     Args:
         cues: List of input cues
         max_chars: Maximum characters per line (e.g., 32)
@@ -1133,7 +1133,7 @@ def _wrap_lines(
     Wrap words into multiple lines without overflowing the safe width.
 
     Returns a list of lines (each line is a list of words).
-    
+
     IMPORTANT: This function fills lines up to max_chars width, NOT balanced wrapping.
     The cue splitting logic ensures cues are small enough to fit in max_lines.
     """
@@ -1160,7 +1160,7 @@ def _wrap_lines(
 
 def _format_karaoke_text(cue: Cue, max_lines: int = 2) -> str:
     """
-    Format text for ASS subtitles. 
+    Format text for ASS subtitles.
     Formerly handled karaoke highlighting, now simplified to just line wrapping
     as we use the active-graphics renderer for highlighting.
     """
@@ -1310,13 +1310,13 @@ def build_social_copy(transcript_text: str) -> SocialCopy:
 def _load_openai_client(api_key: str):
     """
     Load OpenAI client with secure API key.
-    
+
     Args:
         api_key: OpenAI API key for authentication
-        
+
     Returns:
         Configured OpenAI client instance
-        
+
     Raises:
         RuntimeError: If openai package is not installed
     """

@@ -3,17 +3,14 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { I18nProvider } from "@/context/I18nContext";
+import CookieConsent from "@/components/CookieConsent"
 
 
-const inter = Inter({
-  subsets: ["latin", "greek"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-display",
-});
+const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Greek Sub Publisher",
-  description: "Transform videos with AI-powered Greek subtitles",
+  title: "Video Pro",
+  description: "AI Video Processing",
 };
 
 export default function RootLayout({
@@ -23,10 +20,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="el" suppressHydrationWarning>
-      <body className={`${inter.variable} antialiased`}>
+      <body className={inter.className}>
         <I18nProvider>
           <AuthProvider>
             {children}
+            <CookieConsent />
           </AuthProvider>
         </I18nProvider>
       </body>

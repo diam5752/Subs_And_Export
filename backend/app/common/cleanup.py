@@ -11,7 +11,7 @@ def cleanup_old_jobs(
     retention_hours: int = 24
 ) -> None:
     """
-    Delete files and directories in uploads_dir and artifacts_dir 
+    Delete files and directories in uploads_dir and artifacts_dir
     that are older than retention_hours.
     """
     now = time.time()

@@ -651,3 +651,55 @@ def export_video(
 
     except Exception as e:
         raise HTTPException(500, f"Export failed: {str(e)}")
+
+
+@router.post("/jobs/cleanup")
+def run_retention_policy(
+    days: int = 30,
+    job_store: JobStore = Depends(get_job_store),
+    history_store: HistoryStore = Depends(get_history_store)
+):
+    """
+    Manually trigger retention policy: Delete jobs older than {days} days.
+    Ideally protected by admin auth or run via CLI/Cron.
+    """
+    import shutil
+    import time
+
+    cutoff = int(time.time()) - (days * 24 * 3600)
+    old_jobs = job_store.list_jobs_created_before(cutoff)
+
+    if not old_jobs:
+        return {"status": "success", "deleted_count": 0, "message": "No old jobs found"}
+
+    data_dir, uploads_dir, artifacts_root = _data_roots()
+    deleted_ids = []
+
+    for job in old_jobs:
+        # Delete artifacts
+        artifact_dir = artifacts_root / job.id
+        if artifact_dir.exists():
+            shutil.rmtree(artifact_dir, ignore_errors=True)
+
+        # Delete inputs
+        for ext in [".mp4", ".mov", ".mkv"]:
+            input_file = uploads_dir / f"{job.id}_input{ext}"
+            if input_file.exists():
+                input_file.unlink(missing_ok=True)
+
+        deleted_ids.append(job.id)
+
+    # Delete from DB
+    # Note: Using private method or list comprehension + delete_jobs if needed.
+    # delete_jobs takes user_id for safety. Here we are system admin.
+    # We'll use delete_job in loop or add delete_jobs_system to store.
+    # Using existing delete_job works but it's one-by-one DB calls.
+    # For efficiency we could act directly, but loop is fine for now.
+    for job_id in deleted_ids:
+        job_store.delete_job(job_id)
+
+    return {
+        "status": "success",
+        "deleted_count": len(deleted_ids),
+        "message": f"Deleted {len(deleted_ids)} jobs older than {days} days"
+    }

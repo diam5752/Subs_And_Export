@@ -81,7 +81,7 @@ def measure_time(
 ) -> Generator[None, None, None]:
     """
     Context manager to measure execution time and store it in a dictionary.
-    
+
     Usage:
         with measure_time(timings, "my_step_s"):
             do_work()

@@ -131,7 +131,7 @@ class JobStore:
         """List jobs for a user with pagination support."""
         with self.db.connect() as conn:
             rows = conn.execute(
-                """SELECT * FROM jobs WHERE user_id = ? 
+                """SELECT * FROM jobs WHERE user_id = ?
                    ORDER BY created_at DESC LIMIT ? OFFSET ?""",
                 (user_id, limit, offset)
             ).fetchall()
@@ -160,3 +160,24 @@ class JobStore:
                 (*job_ids, user_id)
             )
             return cursor.rowcount
+
+    def list_jobs_created_before(self, timestamp: int) -> List[Job]:
+        """List jobs created before a certain timestamp (for retention)."""
+        with self.db.connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM jobs WHERE created_at < ?",
+                (timestamp,)
+            ).fetchall()
+        return [
+            Job(
+                id=row["id"],
+                user_id=row["user_id"],
+                status=row["status"],
+                progress=row["progress"],
+                message=row["message"],
+                created_at=row["created_at"],
+                updated_at=row["updated_at"],
+                result_data=self.db.loads(row["result_data"]) if row["result_data"] else None
+            )
+            for row in rows
+        ]
