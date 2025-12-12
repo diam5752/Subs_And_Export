@@ -58,6 +58,8 @@ class ProcessingSettings(BaseModel):
     subtitle_color: str | None = None
     shadow_strength: int = 4
     highlight_style: str = "karaoke"
+    subtitle_size: str = "medium"
+    karaoke_enabled: bool = True
 
 
 def _save_upload_with_limit(upload: UploadFile, destination: Path) -> None:
@@ -165,6 +167,8 @@ def run_video_processing(
             subtitle_color=settings.subtitle_color,
             shadow_strength=settings.shadow_strength,
             highlight_style=settings.highlight_style,
+            subtitle_size=settings.subtitle_size,
+            karaoke_enabled=settings.karaoke_enabled,
         )
         print(f"DEBUG_VIDEOS: normalize called with max_subtitle_lines={settings.max_subtitle_lines} color={settings.subtitle_color} shadow={settings.shadow_strength} style={settings.highlight_style}")
         
@@ -197,6 +201,8 @@ def run_video_processing(
             "subtitle_color": settings.subtitle_color,
             "shadow_strength": settings.shadow_strength,
             "highlight_style": settings.highlight_style,
+            "subtitle_size": settings.subtitle_size,
+            "karaoke_enabled": settings.karaoke_enabled,
         }
         
         job_store.update_job(job_id, status="completed", progress=100, message="Done!", result_data=result_data)
@@ -243,6 +249,8 @@ async def process_video(
     subtitle_color: str | None = Form(None),
     shadow_strength: int = Form(4),
     highlight_style: str = Form("karaoke"),
+    subtitle_size: str = Form("medium"),
+    karaoke_enabled: bool = Form(True),
     current_user: User = Depends(get_current_user),
     job_store: JobStore = Depends(get_job_store),
     history_store: HistoryStore = Depends(get_history_store)
@@ -306,6 +314,8 @@ async def process_video(
         subtitle_color=subtitle_color,
         shadow_strength=shadow_strength,
         highlight_style=highlight_style,
+        subtitle_size=subtitle_size,
+        karaoke_enabled=karaoke_enabled,
     )
     print(f"DEBUG_API: Received process request max_lines={max_subtitle_lines} style={highlight_style}")
     

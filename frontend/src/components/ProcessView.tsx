@@ -36,6 +36,7 @@ interface ProcessViewProps {
     pageSize: number;
 }
 
+
 export interface ProcessingOptions {
     transcribeMode: TranscribeMode;
     transcribeProvider: TranscribeProvider;
@@ -48,7 +49,10 @@ export interface ProcessingOptions {
     subtitle_color: string;
     shadow_strength: number;
     highlight_style: string;
+    subtitle_size: string;
+    karaoke_enabled: boolean;
 }
+
 
 export function ProcessView({
     selectedFile,
@@ -93,6 +97,8 @@ export function ProcessView({
     const [subtitlePosition, setSubtitlePosition] = useState('default');
     const [maxSubtitleLines, setMaxSubtitleLines] = useState(2);
     const [subtitleColor, setSubtitleColor] = useState<string>('#FFFF00'); // Default Yellow
+    const [subtitleSize, setSubtitleSize] = useState('medium');
+    const [karaokeEnabled, setKaraokeEnabled] = useState(true);
     const [shadowStrength] = useState<number>(4); // Default Normal
     const [useAI, setUseAI] = useState(false);
     const [contextPrompt, setContextPrompt] = useState('');
@@ -108,6 +114,69 @@ export function ProcessView({
         { label: 'Cyan', value: '#00FFFF', ass: '&H00FFFF00' },
         { label: 'Green', value: '#00FF00', ass: '&H0000FF00' },
         { label: 'Magenta', value: '#FF00FF', ass: '&H00FF00FF' },
+    ];
+
+    const AVAILABLE_MODELS = [
+        {
+            id: 'standard',
+            name: 'Standard',
+            description: 'Unlimited. Reliable on-device.',
+            badge: 'No Karaoke',
+            badgeColor: 'text-[var(--muted)] bg-[var(--surface)]',
+            provider: 'whispercpp',
+            mode: 'turbo',
+            stats: { speed: 4, accuracy: 3, karaoke: false, linesControl: false },
+            icon: (selected: boolean) => (
+                <div className={`p-2 rounded-lg ${selected ? 'bg-cyan-500/20 text-cyan-300' : 'bg-cyan-500/10 text-cyan-500'}`}>
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                    </svg>
+                </div>
+            ),
+            colorClass: (selected: boolean) => selected
+                ? 'border-cyan-500 bg-cyan-500/10 ring-1 ring-cyan-500'
+                : 'border-[var(--border)] hover:border-cyan-500/50 hover:bg-cyan-500/5'
+        },
+        {
+            id: 'enhanced',
+            name: 'Enhanced',
+            description: 'High accuracy. Karaoke supported.',
+            badge: '2 Free Daily',
+            badgeColor: 'text-amber-400 bg-amber-400/10',
+            provider: 'local',
+            mode: 'turbo',
+            stats: { speed: 2, accuracy: 5, karaoke: true, linesControl: true },
+            icon: (selected: boolean) => (
+                <div className={`p-2 rounded-lg ${selected ? 'bg-violet-500/20 text-violet-300' : 'bg-violet-500/10 text-violet-500'}`}>
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                    </svg>
+                </div>
+            ),
+            colorClass: (selected: boolean) => selected
+                ? 'border-[var(--accent)] bg-[var(--accent)]/10 ring-1 ring-[var(--accent)]'
+                : 'border-[var(--border)] hover:border-[var(--accent)]/50 hover:bg-[var(--accent)]/5'
+        },
+        {
+            id: 'ultimate',
+            name: 'Ultimate',
+            description: 'Lightning fast (~200x). Cloud.',
+            badge: 'Premium Only',
+            badgeColor: 'text-purple-400 bg-purple-500/10',
+            provider: 'groq',
+            mode: 'turbo',
+            stats: { speed: 5, accuracy: 5, karaoke: true, linesControl: true },
+            icon: (selected: boolean) => (
+                <div className={`p-2 rounded-lg ${selected ? 'bg-purple-500/20 text-purple-300' : 'bg-purple-500/10 text-purple-400'}`}>
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                </div>
+            ),
+            colorClass: (selected: boolean) => selected
+                ? 'border-purple-500 bg-purple-500/10 ring-1 ring-purple-500'
+                : 'border-[var(--border)] hover:border-purple-500/50 hover:bg-purple-500/5'
+        }
     ];
 
     // Selection mode state for batch delete
@@ -184,6 +253,8 @@ export function ProcessView({
         setVideoInfo(null);
         setSubtitlePosition('default');
         setMaxSubtitleLines(2);
+        setSubtitleSize('medium');
+        setKaraokeEnabled(true);
         if (fileInputRef.current) {
             fileInputRef.current.value = '';
         }
@@ -260,6 +331,8 @@ export function ProcessView({
             subtitle_color: colorObj.ass,
             shadow_strength: shadowStrength,
             highlight_style: 'active-graphics',
+            subtitle_size: subtitleSize,
+            karaoke_enabled: karaokeEnabled,
         });
     };
 
@@ -472,68 +545,7 @@ export function ProcessView({
                                         Transcription Model
                                     </label>
                                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                        {[
-                                            {
-                                                id: 'standard',
-                                                name: 'Standard',
-                                                description: 'Unlimited. Reliable on-device.',
-                                                badge: 'No Karaoke',
-                                                badgeColor: 'text-[var(--muted)] bg-[var(--surface)]',
-                                                provider: 'whispercpp',
-                                                mode: 'turbo',
-                                                stats: { speed: 4, accuracy: 3, karaoke: false, linesControl: false },
-                                                icon: (selected: boolean) => (
-                                                    <div className={`p-2 rounded-lg ${selected ? 'bg-cyan-500/20 text-cyan-300' : 'bg-cyan-500/10 text-cyan-500'}`}>
-                                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
-                                                        </svg>
-                                                    </div>
-                                                ),
-                                                colorClass: (selected: boolean) => selected
-                                                    ? 'border-cyan-500 bg-cyan-500/10 ring-1 ring-cyan-500'
-                                                    : 'border-[var(--border)] hover:border-cyan-500/50 hover:bg-cyan-500/5'
-                                            },
-                                            {
-                                                id: 'enhanced',
-                                                name: 'Enhanced',
-                                                description: 'High accuracy. Karaoke supported.',
-                                                badge: '2 Free Daily',
-                                                badgeColor: 'text-amber-400 bg-amber-400/10',
-                                                provider: 'local',
-                                                mode: 'turbo',
-                                                stats: { speed: 2, accuracy: 5, karaoke: true, linesControl: true },
-                                                icon: (selected: boolean) => (
-                                                    <div className={`p-2 rounded-lg ${selected ? 'bg-violet-500/20 text-violet-300' : 'bg-violet-500/10 text-violet-500'}`}>
-                                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-                                                        </svg>
-                                                    </div>
-                                                ),
-                                                colorClass: (selected: boolean) => selected
-                                                    ? 'border-[var(--accent)] bg-[var(--accent)]/10 ring-1 ring-[var(--accent)]'
-                                                    : 'border-[var(--border)] hover:border-[var(--accent)]/50 hover:bg-[var(--accent)]/5'
-                                            },
-                                            {
-                                                id: 'ultimate',
-                                                name: 'Ultimate',
-                                                description: 'Lightning fast (~200x). Cloud.',
-                                                badge: 'Premium Only',
-                                                badgeColor: 'text-purple-400 bg-purple-500/10',
-                                                provider: 'groq',
-                                                mode: 'turbo',
-                                                stats: { speed: 5, accuracy: 5, karaoke: true, linesControl: true },
-                                                icon: (selected: boolean) => (
-                                                    <div className={`p-2 rounded-lg ${selected ? 'bg-purple-500/20 text-purple-300' : 'bg-purple-500/10 text-purple-400'}`}>
-                                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                                                        </svg>
-                                                    </div>
-                                                ),
-                                                colorClass: (selected: boolean) => selected
-                                                    ? 'border-purple-500 bg-purple-500/10 ring-1 ring-purple-500'
-                                                    : 'border-[var(--border)] hover:border-purple-500/50 hover:bg-purple-500/5'
-                                            }
-                                        ].map((model) => {
+                                        {AVAILABLE_MODELS.map((model) => {
                                             const isSelected = transcribeProvider === model.provider && transcribeMode === model.mode;
 
                                             // Helper for stat bars (5 dots)
@@ -626,6 +638,11 @@ export function ProcessView({
                                         onChangeColor={setSubtitleColor}
                                         colors={SUBTITLE_COLORS}
                                         disableMaxLines={transcribeProvider === 'whispercpp'}
+                                        subtitleSize={subtitleSize}
+                                        onChangeSize={setSubtitleSize}
+                                        karaokeEnabled={karaokeEnabled}
+                                        onChangeKaraoke={setKaraokeEnabled}
+                                        karaokeSupported={AVAILABLE_MODELS.find(m => m.provider === transcribeProvider && m.mode === transcribeMode)?.stats.karaoke || false}
                                     />
                                 </div>
 

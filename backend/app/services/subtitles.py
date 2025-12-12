@@ -1168,7 +1168,11 @@ def _format_karaoke_text(cue: Cue, max_lines: int = 2) -> str:
     as we use the active-graphics renderer for highlighting.
     """
     # Use existing cues text splitting or wrapping
-    raw_words = cue.text.split()
+    text = cue.text
+    if not text and cue.words:
+        text = " ".join(w.text for w in cue.words)
+        
+    raw_words = text.split()
     wrapped_lines = _wrap_lines(raw_words, max_chars=config.MAX_SUB_LINE_CHARS, max_lines=max_lines)
     
     if not wrapped_lines:

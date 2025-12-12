@@ -25,7 +25,8 @@ class KaraokeRenderer(AbstractRenderer):
         width: int,
         height: int,
         margin_bottom: int,
-        margin_x: int
+        margin_x: int,
+        enable_highlight: bool = True
     ):
         self.cues = cues
         self.cue_starts = [c.start for c in cues]
@@ -40,6 +41,7 @@ class KaraokeRenderer(AbstractRenderer):
         self.height = height
         self.margin_bottom = margin_bottom
         self.margin_x = margin_x
+        self.enable_highlight = enable_highlight
         
         # State caching
         self.last_active_cue_idx = -1
@@ -189,7 +191,11 @@ class KaraokeRenderer(AbstractRenderer):
                 
                 for i_w, w in enumerate(line_words):
                     is_active = (w is active_word_ref)
-                    fill_color = self.primary_color if is_active else self.secondary_color
+                    if not self.enable_highlight:
+                         # Force primary color for all words if highlight disabled (static look)
+                         fill_color = self.primary_color 
+                    else:
+                         fill_color = self.primary_color if is_active else self.secondary_color
                     
                     draw.text(
                         (current_x, current_y), 

@@ -192,6 +192,8 @@ def normalize_and_stub_subtitles(
     subtitle_color: str | None = None,
     shadow_strength: int = 4,
     highlight_style: str = "karaoke",
+    subtitle_size: str = "medium",
+    karaoke_enabled: bool = True,
     # Pipeline Options
     device: str | None = None,
     compute_type: str | None = None,
@@ -227,12 +229,25 @@ def normalize_and_stub_subtitles(
     destination.parent.mkdir(parents=True, exist_ok=True)
 
     # --- 1. CONFIGURATION (The Director) ---
+    # Map subtitle size to integer 
+    size_map = {"small": 30, "medium": 40, "big": 70}
+    font_size = size_map.get(subtitle_size, 40)
+
+    # Determine effective highlight style
+    # If karaoke disabled, we force static style unless it's pop/active-graphics which might be desired?
+    # Actually prompt says: "in the models that karaoke is allowed , put a button that enable/disables it"
+    # This implies for Enhanced/Ultimate. If disabled, it should look like standard subs (static).
+    effective_highlight_style = highlight_style
+    if not karaoke_enabled:
+        effective_highlight_style = "static"
+
     style = SubtitleStyle(
         position=subtitle_position,
         max_lines=max_subtitle_lines,
         primary_color=subtitle_color or config.DEFAULT_SUB_COLOR,
         shadow_strength=shadow_strength,
-        highlight_style=highlight_style
+        highlight_style=effective_highlight_style,
+        font_size=font_size
     )
 
     selected_model = model_size or config.WHISPER_MODEL_TURBO
@@ -375,6 +390,7 @@ def normalize_and_stub_subtitles(
                     shadow_strength=style.shadow_strength,
                     primary_color=style.primary_color,
                     highlight_style=style.highlight_style,
+                    font_size=style.font_size,
                 )
 
             # Step 4: Social Copy & Rendering
@@ -416,6 +432,8 @@ def normalize_and_stub_subtitles(
                         max_lines=style.max_lines,
                         target_width=output_width or config.DEFAULT_WIDTH,
                         target_height=output_height or config.DEFAULT_HEIGHT,
+                        font_size=style.font_size,
+                        karaoke_enabled=karaoke_enabled,
                         # Font/Stroke could be added to Style DTO fully but we pass basic args for now
                     )
                 else:

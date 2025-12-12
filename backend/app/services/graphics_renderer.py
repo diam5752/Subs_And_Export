@@ -25,7 +25,8 @@ def render_active_word_video(
     stroke_width: int = 2,
     target_width: int = config.DEFAULT_WIDTH,
     target_height: int = config.DEFAULT_HEIGHT,
-    max_lines: int = 2
+    max_lines: int = 2,
+    karaoke_enabled: bool = True
 ) -> Path:
     """
     Renders video with 'Active Word' (pop) or 'Karaoke' style using MoviePy & PIL.
@@ -69,7 +70,8 @@ def render_active_word_video(
             width=W,
             height=H,
             margin_bottom=SAFE_MARGIN_Y_BOTTOM,
-            margin_x=SAFE_MARGIN_X
+            margin_x=SAFE_MARGIN_X,
+            enable_highlight=karaoke_enabled
         )
 
     def make_frame(t):
