@@ -83,6 +83,8 @@ export function ProcessView({
     const fileInputRef = useRef<HTMLInputElement>(null);
     const resultsRef = useRef<HTMLDivElement>(null);
     const validationRequestId = useRef(0);
+    const modelSectionRef = useRef<HTMLDivElement>(null);
+    const customizeSectionRef = useRef<HTMLDivElement>(null);
 
     // Local state for options
     const [showPreview, setShowPreview] = useState(false);
@@ -95,9 +97,9 @@ export function ProcessView({
     // outputQuality state removed as it is now always high quality
     // const [outputQuality, setOutputQuality] = useState<'low size' | 'balanced' | 'high quality'>('balanced');
     const [subtitlePosition, setSubtitlePosition] = useState('default');
-    const [maxSubtitleLines, setMaxSubtitleLines] = useState(2);
+    const [maxSubtitleLines, setMaxSubtitleLines] = useState(0); // TikTok preset: 1 word at a time
     const [subtitleColor, setSubtitleColor] = useState<string>('#FFFF00'); // Default Yellow
-    const [subtitleSize, setSubtitleSize] = useState('medium');
+    const [subtitleSize, setSubtitleSize] = useState('big'); // TikTok preset: big
     const [karaokeEnabled, setKaraokeEnabled] = useState(true);
     const [shadowStrength] = useState<number>(4); // Default Normal
     const [useAI, setUseAI] = useState(false);
@@ -106,6 +108,7 @@ export function ProcessView({
     const [isDownloading, setIsDownloading] = useState(false);
     const [exportingResolutions, setExportingResolutions] = useState<Record<string, boolean>>({});
     const [outputResolutionInfo, setOutputResolutionInfo] = useState<{ text: string; label: string } | null>(null);
+    const [expandedModelId, setExpandedModelId] = useState<string | null>(null);
 
     // Color Palette
     const SUBTITLE_COLORS = [
@@ -115,6 +118,55 @@ export function ProcessView({
         { label: 'Green', value: '#00FF00', ass: '&H0000FF00' },
         { label: 'Magenta', value: '#FF00FF', ass: '&H00FF00FF' },
     ];
+
+    // Style Presets
+    const STYLE_PRESETS = [
+        {
+            id: 'tiktok',
+            name: 'TikTok Pop',
+            description: 'Viral, attention-grabbing',
+            emoji: '🔥',
+            settings: {
+                position: 'default',
+                size: 'big',
+                lines: 0, // 1 word at a time
+                color: '#FFFF00',
+                karaoke: true,
+            },
+            colorClass: 'from-pink-500 to-orange-500',
+        },
+        {
+            id: 'cinematic',
+            name: 'Cinematic',
+            description: 'Professional, clean',
+            emoji: '🎬',
+            settings: {
+                position: 'bottom',
+                size: 'medium',
+                lines: 2,
+                color: '#FFFFFF',
+                karaoke: false,
+            },
+            colorClass: 'from-slate-500 to-zinc-600',
+        },
+        {
+            id: 'minimal',
+            name: 'Minimal',
+            description: 'Subtle, accessible',
+            emoji: '✨',
+            settings: {
+                position: 'bottom',
+                size: 'small',
+                lines: 3,
+                color: '#00FFFF',
+                karaoke: false,
+            },
+            colorClass: 'from-cyan-500 to-teal-500',
+        },
+    ];
+
+    const [activePreset, setActivePreset] = useState<string | null>('tiktok');
+    const [showCustomize, setShowCustomize] = useState(false);
 
     const AVAILABLE_MODELS = [
         {
@@ -540,111 +592,343 @@ export function ProcessView({
 
                         {showSettings && (
                             <div className="space-y-5 pt-1 animate-fade-in">
-                                <div>
+                                <div ref={modelSectionRef}>
                                     <label className="block text-sm font-medium text-[var(--muted)] mb-3">
                                         Transcription Model
                                     </label>
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                        {AVAILABLE_MODELS.map((model) => {
-                                            const isSelected = transcribeProvider === model.provider && transcribeMode === model.mode;
 
-                                            // Helper for stat bars (5 dots)
-                                            const renderStat = (value: number, max: number = 5) => (
-                                                <div className="flex gap-0.5">
-                                                    {Array.from({ length: max }).map((_, i) => (
-                                                        <div
-                                                            key={i}
-                                                            className={`h-1.5 w-full rounded-full transition-colors ${i < value
-                                                                ? (isSelected ? 'bg-current opacity-80' : 'bg-[var(--foreground)] opacity-60')
-                                                                : 'bg-[var(--foreground)] opacity-20'
-                                                                }`}
-                                                        />
-                                                    ))}
-                                                </div>
-                                            );
+                                    {/* Check if we have a selected model and are in collapsed state */}
+                                    {(() => {
+                                        const selectedModel = AVAILABLE_MODELS.find(m => m.provider === transcribeProvider && m.mode === transcribeMode);
+                                        const isExpanded = expandedModelId === 'all';
 
+                                        if (selectedModel && !isExpanded) {
+                                            // Collapsed view - show only selected model
                                             return (
                                                 <button
-                                                    key={model.id}
-                                                    data-testid={`model-${model.provider === 'local' ? 'turbo' : model.provider}`}
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        setTranscribeProvider(model.provider as TranscribeProvider);
-                                                        setTranscribeMode(model.mode as TranscribeMode);
+                                                        setExpandedModelId('all');
+                                                        setTimeout(() => {
+                                                            modelSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                                        }, 50);
                                                     }}
-                                                    className={`p-4 rounded-xl border text-left transition-all relative overflow-hidden group flex flex-col h-full ${model.colorClass(isSelected)}`}
+                                                    className={`w-full p-3 rounded-xl border text-left transition-all flex items-center gap-3 ${selectedModel.colorClass(true)}`}
                                                 >
-                                                    <div className="flex items-start justify-between mb-2 w-full">
-                                                        {model.icon(isSelected)}
-                                                        {isSelected && (
-                                                            <div className={`w-5 h-5 rounded-full flex items-center justify-center ${model.provider === 'groq' ? 'bg-purple-500' :
-                                                                model.provider === 'whispercpp' ? 'bg-cyan-500' :
+                                                    {selectedModel.icon(true)}
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="font-semibold text-base">{selectedModel.name}</span>
+                                                            <div className={`w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 ${selectedModel.provider === 'groq' ? 'bg-purple-500' :
+                                                                selectedModel.provider === 'whispercpp' ? 'bg-cyan-500' :
                                                                     'bg-[var(--accent)]'
                                                                 }`}>
-                                                                <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                                                                 </svg>
                                                             </div>
-                                                        )}
+                                                        </div>
+                                                        <div className="flex items-center gap-2 mt-0.5">
+                                                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${selectedModel.badgeColor}`}>
+                                                                {selectedModel.badge}
+                                                            </span>
+                                                            <span className="text-xs text-[var(--muted)]">
+                                                                {selectedModel.description}
+                                                            </span>
+                                                        </div>
                                                     </div>
-                                                    <div className="font-semibold text-base mb-1">{model.name}</div>
-                                                    <div className="text-sm text-[var(--muted)] mb-4">{model.description}</div>
+                                                    <div className="flex items-center gap-1 text-xs text-[var(--muted)]">
+                                                        <span>Change</span>
+                                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                        </svg>
+                                                    </div>
+                                                </button>
+                                            );
+                                        }
 
-                                                    {/* Game-like Stats */}
-                                                    <div className="mt-auto space-y-2 mb-3">
-                                                        <div className="grid grid-cols-[60px,1fr] items-center gap-2">
-                                                            <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">Speed</span>
-                                                            {renderStat(model.stats.speed)}
-                                                        </div>
-                                                        <div className="grid grid-cols-[60px,1fr] items-center gap-2">
-                                                            <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">Accuracy</span>
-                                                            {renderStat(model.stats.accuracy)}
-                                                        </div>
-                                                        <div className="grid grid-cols-[60px,1fr] items-center gap-2">
-                                                            <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">Karaoke</span>
-                                                            <div className={`text-[10px] font-bold ${model.stats.karaoke ? 'text-emerald-500' : 'text-[var(--muted)]'}`}>
-                                                                {model.stats.karaoke ? 'SUPPORTED' : 'NO'}
+                                        // Expanded view - show all models
+                                        return (
+                                            <>
+                                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 animate-slide-down">
+                                                    {AVAILABLE_MODELS.map((model) => {
+                                                        const isSelected = transcribeProvider === model.provider && transcribeMode === model.mode;
+
+                                                        // Helper for stat bars (5 dots)
+                                                        const renderStat = (value: number, max: number = 5) => (
+                                                            <div className="flex gap-0.5">
+                                                                {Array.from({ length: max }).map((_, i) => (
+                                                                    <div
+                                                                        key={i}
+                                                                        className={`h-1.5 w-full rounded-full transition-colors ${i < value
+                                                                            ? (isSelected ? 'bg-current opacity-80' : 'bg-[var(--foreground)] opacity-60')
+                                                                            : 'bg-[var(--foreground)] opacity-20'
+                                                                            }`}
+                                                                    />
+                                                                ))}
                                                             </div>
-                                                        </div>
-                                                        <div className="grid grid-cols-[60px,1fr] items-center gap-2">
-                                                            <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">Lines</span>
-                                                            <div className={`text-[10px] font-bold ${model.stats.linesControl ? 'text-emerald-500' : 'text-cyan-400'}`}>
-                                                                {model.stats.linesControl ? 'CUSTOM' : 'AUTO'}
+                                                        );
+
+                                                        return (
+                                                            <button
+                                                                key={model.id}
+                                                                data-testid={`model-${model.provider === 'local' ? 'turbo' : model.provider}`}
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setTranscribeProvider(model.provider as TranscribeProvider);
+                                                                    setTranscribeMode(model.mode as TranscribeMode);
+                                                                    setExpandedModelId(null); // Collapse after selection
+                                                                }}
+                                                                className={`p-4 rounded-xl border text-left transition-all relative overflow-hidden group flex flex-col h-full ${model.colorClass(isSelected)}`}
+                                                            >
+                                                                <div className="flex items-start justify-between mb-2 w-full">
+                                                                    {model.icon(isSelected)}
+                                                                    {isSelected && (
+                                                                        <div className={`w-5 h-5 rounded-full flex items-center justify-center ${model.provider === 'groq' ? 'bg-purple-500' :
+                                                                            model.provider === 'whispercpp' ? 'bg-cyan-500' :
+                                                                                'bg-[var(--accent)]'
+                                                                            }`}>
+                                                                            <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                                                            </svg>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                                <div className="font-semibold text-base mb-1">{model.name}</div>
+                                                                <div className="text-sm text-[var(--muted)] mb-4">{model.description}</div>
+
+                                                                {/* Game-like Stats */}
+                                                                <div className="mt-auto space-y-2 mb-3">
+                                                                    <div className="grid grid-cols-[60px,1fr] items-center gap-2">
+                                                                        <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">Speed</span>
+                                                                        {renderStat(model.stats.speed)}
+                                                                    </div>
+                                                                    <div className="grid grid-cols-[60px,1fr] items-center gap-2">
+                                                                        <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">Accuracy</span>
+                                                                        {renderStat(model.stats.accuracy)}
+                                                                    </div>
+                                                                    <div className="grid grid-cols-[60px,1fr] items-center gap-2">
+                                                                        <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">Karaoke</span>
+                                                                        <div className={`text-[10px] font-bold ${model.stats.karaoke ? 'text-emerald-500' : 'text-[var(--muted)]'}`}>
+                                                                            {model.stats.karaoke ? 'SUPPORTED' : 'NO'}
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="grid grid-cols-[60px,1fr] items-center gap-2">
+                                                                        <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">Lines</span>
+                                                                        <div className={`text-[10px] font-bold ${model.stats.linesControl ? 'text-emerald-500' : 'text-cyan-400'}`}>
+                                                                            {model.stats.linesControl ? 'CUSTOM' : 'AUTO'}
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+
+                                                                <div className="flex items-center gap-2 text-xs pt-3 border-t border-[var(--border)]/50">
+                                                                    <span className={`px-2 py-0.5 rounded-full font-medium ${model.badgeColor}`}>
+                                                                        {model.badge}
+                                                                    </span>
+                                                                </div>
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                                {/* Collapse button after selection */}
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setExpandedModelId(null);
+                                                    }}
+                                                    className="mt-2 text-xs text-[var(--muted)] hover:text-[var(--foreground)] flex items-center gap-1 transition-colors"
+                                                >
+                                                    <svg className="w-3 h-3 rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                    </svg>
+                                                    Collapse
+                                                </button>
+                                            </>
+                                        );
+                                    })()}
+                                </div>
+
+                                {/* Style Presets */}
+                                <div ref={customizeSectionRef}>
+                                    <label className="block text-sm font-medium text-[var(--muted)] mb-3">
+                                        Subtitle Style
+                                    </label>
+                                    <div className="grid grid-cols-3 gap-3 mb-3">
+                                        {STYLE_PRESETS.map((preset) => {
+                                            // Helper to get preview position
+                                            const getPreviewBottom = (pos: string) => {
+                                                switch (pos) {
+                                                    case 'top': return '28%';
+                                                    case 'bottom': return '8%';
+                                                    default: return '18%';
+                                                }
+                                            };
+                                            // Helper to get size scale - more dramatic differences
+                                            const getSizeScale = (size: string) => {
+                                                switch (size) {
+                                                    case 'small': return 0.6;
+                                                    case 'big': return 1.4;
+                                                    default: return 1.0;
+                                                }
+                                            };
+                                            // Bar height based on size
+                                            const getBarHeight = (size: string) => {
+                                                switch (size) {
+                                                    case 'small': return 'h-1.5';
+                                                    case 'big': return 'h-4';
+                                                    default: return 'h-2.5';
+                                                }
+                                            };
+
+                                            return (
+                                                <button
+                                                    key={preset.id}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setActivePreset(preset.id);
+                                                        setSubtitlePosition(preset.settings.position);
+                                                        setSubtitleSize(preset.settings.size);
+                                                        setMaxSubtitleLines(preset.settings.lines);
+                                                        setSubtitleColor(preset.settings.color);
+                                                        setKaraokeEnabled(preset.settings.karaoke);
+                                                        // Keep settings open if already open, so user sees the changes
+                                                    }}
+                                                    className={`p-3 rounded-xl border text-left transition-all relative overflow-hidden ${activePreset === preset.id
+                                                        ? 'border-[var(--accent)] ring-1 ring-[var(--accent)]'
+                                                        : 'border-[var(--border)] hover:border-[var(--accent)]/50'
+                                                        }`}
+                                                >
+                                                    {/* Gradient background */}
+                                                    <div className={`absolute inset-0 bg-gradient-to-br ${preset.colorClass} opacity-10`} />
+
+                                                    <div className="relative flex gap-3">
+                                                        {/* Mini Phone Preview */}
+                                                        <div className="flex-shrink-0 w-[70px] h-[120px] bg-slate-800 rounded-[12px] border-2 border-slate-700 overflow-hidden relative shadow-lg">
+                                                            {/* Video Thumbnail or Gradient background */}
+                                                            {videoInfo?.thumbnailUrl ? (
+                                                                <>
+                                                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                                    <img
+                                                                        src={videoInfo.thumbnailUrl}
+                                                                        alt=""
+                                                                        className="absolute inset-0 w-full h-full object-cover"
+                                                                    />
+                                                                    {/* Dark overlay for better subtitle visibility */}
+                                                                    <div className="absolute inset-0 bg-black/40" />
+                                                                </>
+                                                            ) : (
+                                                                <div className="absolute inset-0 bg-gradient-to-br from-slate-700 via-slate-800 to-slate-900" />
+                                                            )}
+                                                            {/* Mini notch */}
+                                                            <div className="absolute top-1.5 left-1/2 -translate-x-1/2 w-5 h-1.5 bg-black/50 rounded-full" />
+                                                            {/* Mini UI elements - social icons */}
+                                                            <div className="absolute bottom-5 right-1 flex flex-col gap-1.5">
+                                                                <div className="w-2 h-2 bg-white/30 rounded-full" />
+                                                                <div className="w-2 h-2 bg-white/30 rounded-full" />
+                                                                <div className="w-2 h-2 bg-white/30 rounded-full" />
                                                             </div>
+                                                            {/* Subtitle bars - clear size differences */}
+                                                            <div
+                                                                className="absolute left-2 right-2 flex flex-col gap-0.5 items-center"
+                                                                style={{ bottom: getPreviewBottom(preset.settings.position) }}
+                                                            >
+                                                                {Array.from({ length: preset.settings.lines === 0 ? 1 : Math.min(preset.settings.lines, 3) }).map((_, i) => {
+                                                                    // Direct pixel heights for obvious difference
+                                                                    const barHeight = preset.settings.size === 'big' ? 12 : preset.settings.size === 'small' ? 4 : 7;
+                                                                    return (
+                                                                        <div
+                                                                            key={i}
+                                                                            className="rounded-sm flex items-center justify-center"
+                                                                            style={{
+                                                                                width: preset.settings.lines === 0 ? '50%' : `${95 - (i * 8)}%`,
+                                                                                height: `${barHeight}px`,
+                                                                                backgroundColor: preset.settings.color,
+                                                                                boxShadow: `0 2px 6px ${preset.settings.color}60, 0 0 8px ${preset.settings.color}40`
+                                                                            }}
+                                                                        >
+                                                                            {/* White text line inside bar */}
+                                                                            <div
+                                                                                className="bg-white/80 rounded-full"
+                                                                                style={{
+                                                                                    width: '80%',
+                                                                                    height: Math.max(1, barHeight * 0.3)
+                                                                                }}
+                                                                            />
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                            {/* Karaoke indicator */}
+                                                            {preset.settings.karaoke && (
+                                                                <div className="absolute top-1.5 right-1.5 w-2 h-2 bg-emerald-400 rounded-full animate-pulse shadow-sm" title="Karaoke" />
+                                                            )}
+                                                        </div>
+
+                                                        {/* Text content */}
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex items-center gap-1.5 mb-1">
+                                                                <span className="text-base">{preset.emoji}</span>
+                                                                <span className="font-semibold text-sm truncate">{preset.name}</span>
+                                                            </div>
+                                                            <p className="text-[11px] text-[var(--muted)] leading-tight">{preset.description}</p>
                                                         </div>
                                                     </div>
 
-                                                    <div className="flex items-center gap-2 text-xs pt-3 border-t border-[var(--border)]/50">
-                                                        <span className={`px-2 py-0.5 rounded-full font-medium ${model.badgeColor}`}>
-                                                            {model.badge}
-                                                        </span>
-                                                    </div>
+                                                    {activePreset === preset.id && (
+                                                        <div className="absolute top-2 right-2 w-4 h-4 rounded-full bg-[var(--accent)] flex items-center justify-center">
+                                                            <svg className="w-2.5 h-2.5 text-[#031018]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                                            </svg>
+                                                        </div>
+                                                    )}
                                                 </button>
                                             );
                                         })}
                                     </div>
+
+                                    {/* Customize Toggle */}
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            const wasHidden = !showCustomize;
+                                            setShowCustomize(!showCustomize);
+                                            if (wasHidden) {
+                                                setTimeout(() => {
+                                                    customizeSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                                }, 200);
+                                            }
+                                        }}
+                                        className="w-full mt-2 p-2.5 rounded-lg border border-dashed border-[var(--border)] hover:border-[var(--accent)]/50 flex items-center justify-center gap-2 text-sm text-[var(--muted)] hover:text-[var(--foreground)] transition-all hover:bg-[var(--surface-elevated)]"
+                                    >
+                                        <svg className={`w-4 h-4 transition-transform ${showCustomize ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                                        </svg>
+                                        {showCustomize ? 'Hide custom settings' : 'Customize subtitle settings'}
+                                    </button>
                                 </div>
 
-                                {/* Subtitle Position & Max Lines */}
-                                <div onClick={(e) => e.stopPropagation()}>
-                                    <SubtitlePositionSelector
-                                        value={subtitlePosition}
-                                        onChange={setSubtitlePosition}
-                                        lines={maxSubtitleLines}
-                                        onChangeLines={setMaxSubtitleLines}
-                                        previewColor={subtitleColor}
-                                        thumbnailUrl={videoInfo?.thumbnailUrl}
-                                        subtitleColor={subtitleColor}
-                                        onChangeColor={setSubtitleColor}
-                                        colors={SUBTITLE_COLORS}
-                                        disableMaxLines={transcribeProvider === 'whispercpp'}
-                                        subtitleSize={subtitleSize}
-                                        onChangeSize={setSubtitleSize}
-                                        karaokeEnabled={karaokeEnabled}
-                                        onChangeKaraoke={setKaraokeEnabled}
-                                        karaokeSupported={AVAILABLE_MODELS.find(m => m.provider === transcribeProvider && m.mode === transcribeMode)?.stats.karaoke || false}
-                                    />
-                                </div>
+                                {/* Subtitle Position & Max Lines (only if customizing) */}
+                                {showCustomize && (
+                                    <div onClick={(e) => e.stopPropagation()} className="animate-slide-down">
+                                        <SubtitlePositionSelector
+                                            value={subtitlePosition}
+                                            onChange={(v) => { setSubtitlePosition(v); setActivePreset(null); }}
+                                            lines={maxSubtitleLines}
+                                            onChangeLines={(v) => { setMaxSubtitleLines(v); setActivePreset(null); }}
+                                            previewColor={subtitleColor}
+                                            thumbnailUrl={videoInfo?.thumbnailUrl}
+                                            subtitleColor={subtitleColor}
+                                            onChangeColor={(v) => { setSubtitleColor(v); setActivePreset(null); }}
+                                            colors={SUBTITLE_COLORS}
+                                            disableMaxLines={transcribeProvider === 'whispercpp'}
+                                            subtitleSize={subtitleSize}
+                                            onChangeSize={(v) => { setSubtitleSize(v); setActivePreset(null); }}
+                                            karaokeEnabled={karaokeEnabled}
+                                            onChangeKaraoke={(v) => { setKaraokeEnabled(v); setActivePreset(null); }}
+                                            karaokeSupported={AVAILABLE_MODELS.find(m => m.provider === transcribeProvider && m.mode === transcribeMode)?.stats.karaoke || false}
+                                        />
+                                    </div>
+                                )}
 
 
 

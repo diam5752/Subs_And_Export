@@ -73,9 +73,9 @@ export function SubtitlePositionSelector({
     ];
 
     const sizeOptions = [
-        { id: 'small', label: 'Small', desc: 'Subtle' },
-        { id: 'medium', label: 'Medium', desc: 'Standard' },
         { id: 'big', label: 'Big', desc: 'Impactful' },
+        { id: 'medium', label: 'Medium', desc: 'Standard' },
+        { id: 'small', label: 'Small', desc: 'Subtle' },
     ];
 
     return (
@@ -114,6 +114,43 @@ export function SubtitlePositionSelector({
                                 ))}
                             </div>
                         </div>
+
+                        {/* Size Selector - next to Position */}
+                        {onChangeSize && (
+                            <div className="flex-1 min-w-[200px]">
+                                <label className="block text-sm font-medium text-[var(--muted)] mb-3">
+                                    Size
+                                </label>
+                                <div className="flex flex-col gap-2">
+                                    {sizeOptions.map((opt) => (
+                                        <button
+                                            key={opt.id}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onChangeSize(opt.id);
+                                            }}
+                                            className={`p-3 rounded-xl border text-left transition-all flex items-center justify-between group ${subtitleSize === opt.id
+                                                ? 'border-[var(--accent)] bg-[var(--accent)]/5 ring-1 ring-[var(--accent)] shadow-[0_0_15px_rgba(var(--accent-rgb),0.1)]'
+                                                : 'border-[var(--border)] hover:border-[var(--accent)]/40 hover:bg-[var(--surface-elevated)]'
+                                                }`}
+                                        >
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-6 text-center text-[var(--foreground)] font-serif italic opacity-80" style={{ fontSize: opt.id === 'small' ? '0.8em' : opt.id === 'big' ? '1.4em' : '1.1em' }}>
+                                                    Aa
+                                                </div>
+                                                <div>
+                                                    <div className={`font-medium text-sm transition-colors ${subtitleSize === opt.id ? 'text-[var(--accent)]' : ''}`}>{opt.label}</div>
+                                                    <div className="text-xs text-[var(--muted)]/80">{opt.desc}</div>
+                                                </div>
+                                            </div>
+                                            {subtitleSize === opt.id && (
+                                                <div className="w-2 h-2 rounded-full bg-[var(--accent)] shadow-sm animate-scale-in" />
+                                            )}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
 
                         {/* Lines Selector */}
                         <div className="flex-1 min-w-[200px]">
@@ -156,83 +193,16 @@ export function SubtitlePositionSelector({
                         </div>
                     </div>
 
-                    {/* Bottom Row: Size & Style */}
+                    {/* Bottom Row: Style & Karaoke */}
                     <div className="flex flex-col sm:flex-row gap-4">
-                        {/* Size Selector */}
-                        {onChangeSize && (
-                            <div className="flex-1 min-w-[200px]">
-                                <label className="block text-sm font-medium text-[var(--muted)] mb-3">
-                                    Target Size
-                                </label>
-                                <div className="flex flex-col gap-2">
-                                    {sizeOptions.map((opt) => (
-                                        <button
-                                            key={opt.id}
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                onChangeSize(opt.id);
-                                            }}
-                                            className={`p-3 rounded-xl border text-left transition-all flex items-center justify-between group ${subtitleSize === opt.id
-                                                ? 'border-[var(--accent)] bg-[var(--accent)]/5 ring-1 ring-[var(--accent)] shadow-[0_0_15px_rgba(var(--accent-rgb),0.1)]'
-                                                : 'border-[var(--border)] hover:border-[var(--accent)]/40 hover:bg-[var(--surface-elevated)]'
-                                                }`}
-                                        >
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-6 text-center text-[var(--foreground)] font-serif italic opacity-80" style={{ fontSize: opt.id === 'small' ? '0.8em' : opt.id === 'big' ? '1.4em' : '1.1em' }}>
-                                                    Aa
-                                                </div>
-                                                <div>
-                                                    <div className={`font-medium text-sm transition-colors ${subtitleSize === opt.id ? 'text-[var(--accent)]' : ''}`}>{opt.label}</div>
-                                                    <div className="text-xs text-[var(--muted)]/80">{opt.desc}</div>
-                                                </div>
-                                            </div>
-                                            {subtitleSize === opt.id && (
-                                                <div className="w-2 h-2 rounded-full bg-[var(--accent)] shadow-sm animate-scale-in" />
-                                            )}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
 
-                        {/* Style / Color Selector */}
                         {colors && onChangeColor && (
-                            <div className="flex-1 min-w-[200px]">
+                            <div className="flex-1">
                                 <label className="block text-sm font-medium text-[var(--muted)] mb-3">
-                                    Style
+                                    Color
                                 </label>
-                                <div className="flex flex-col gap-2">
-                                    {/* Karaoke Toggle (only if supported) */}
-                                    {onChangeKaraoke && karaokeSupported && (
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                onChangeKaraoke(!karaokeEnabled);
-                                            }}
-                                            className={`p-3 rounded-xl border text-left transition-all flex items-center justify-between group relative overflow-hidden ${karaokeEnabled
-                                                ? 'border-emerald-500 bg-emerald-500/10 ring-1 ring-emerald-500'
-                                                : 'border-[var(--border)] hover:border-[var(--border-hover)] bg-[var(--surface-elevated)]'
-                                                }`}
-                                        >
-                                            <div className="flex items-center gap-3">
-                                                <div className={`p-1.5 rounded-lg ${karaokeEnabled ? 'bg-emerald-500 text-white' : 'bg-[var(--surface)] text-[var(--muted)]'}`}>
-                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                                                    </svg>
-                                                </div>
-                                                <div>
-                                                    <div className={`font-medium text-sm transition-colors ${karaokeEnabled ? 'text-emerald-500' : ''}`}>Karaoke Mode</div>
-                                                    <div className="text-xs text-[var(--muted)]/80">{karaokeEnabled ? 'Active words highlighted' : 'Standard static subtitles'}</div>
-                                                </div>
-                                            </div>
-                                            {/* iOS style toggle switch */}
-                                            <div className={`w-10 h-6 rounded-full transition-colors relative ${karaokeEnabled ? 'bg-emerald-500' : 'bg-[var(--border)]'}`}>
-                                                <div className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${karaokeEnabled ? 'translate-x-4' : ''}`} />
-                                            </div>
-                                        </button>
-                                    )}
-
-                                    {/* Color Picker */}
+                                <div className="flex items-center gap-3 p-3 rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)]">
+                                    {/* Color Swatches */}
                                     {colors.map((c) => (
                                         <button
                                             key={c.value}
@@ -240,33 +210,68 @@ export function SubtitlePositionSelector({
                                                 e.stopPropagation();
                                                 onChangeColor(c.value);
                                             }}
-                                            className={`p-3 rounded-xl border text-left transition-all flex items-center justify-between group ${subtitleColor === c.value
-                                                ? 'border-[var(--accent)] bg-[var(--accent)]/5 ring-1 ring-[var(--accent)] shadow-[0_0_15px_rgba(var(--accent-rgb),0.1)]'
-                                                : 'border-[var(--border)] hover:border-[var(--accent)]/40 hover:bg-[var(--surface-elevated)]'
-                                                }`}
+                                            className="group relative"
+                                            title={c.label}
                                         >
-                                            <div className="flex items-center gap-3">
-                                                <div
-                                                    className={`w-4 h-4 rounded-full border border-black/10 shadow-sm transition-transform ${subtitleColor === c.value ? 'scale-110 ring-2 ring-offset-1 ring-[var(--accent)]' : ''}`}
-                                                    style={{ backgroundColor: c.value }}
-                                                />
-                                                <div className={`font-medium text-sm transition-colors ${subtitleColor === c.value ? 'text-[var(--accent)]' : ''}`}>
-                                                    {c.label}
-                                                </div>
-                                            </div>
+                                            <div
+                                                className={`w-8 h-8 rounded-full border-2 shadow-md transition-all ${subtitleColor === c.value
+                                                    ? 'border-white scale-110 ring-2 ring-white/30'
+                                                    : 'border-transparent hover:scale-105 hover:border-white/30'
+                                                    }`}
+                                                style={{ backgroundColor: c.value }}
+                                            />
                                             {subtitleColor === c.value && (
-                                                <div className="w-2 h-2 rounded-full bg-[var(--accent)] shadow-sm animate-scale-in" />
+                                                <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-white" />
                                             )}
                                         </button>
                                     ))}
+                                    {/* Selected label */}
+                                    <span className="ml-2 text-sm text-[var(--muted)]">
+                                        {colors.find(c => c.value === subtitleColor)?.label || 'Select'}
+                                    </span>
                                 </div>
+                            </div>
+                        )}
+
+                        {/* Karaoke Toggle (separate column, next to colors) */}
+                        {onChangeKaraoke && karaokeSupported && (
+                            <div className="flex-1 min-w-[200px]">
+                                <label className="block text-sm font-medium text-[var(--muted)] mb-3">
+                                    Karaoke
+                                </label>
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onChangeKaraoke(!karaokeEnabled);
+                                    }}
+                                    className={`w-full p-3 rounded-xl border text-left transition-all flex items-center justify-between group relative overflow-hidden ${karaokeEnabled
+                                        ? 'border-[var(--accent)] bg-[var(--accent)]/10 ring-1 ring-[var(--accent)]'
+                                        : 'border-[var(--border)] hover:border-[var(--border-hover)] bg-[var(--surface-elevated)]'
+                                        }`}
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className={`p-1.5 rounded-lg ${karaokeEnabled ? 'bg-[var(--accent)] text-[#031018]' : 'bg-[var(--surface)] text-[var(--muted)]'}`}>
+                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                                            </svg>
+                                        </div>
+                                        <div>
+                                            <div className={`font-medium text-sm transition-colors ${karaokeEnabled ? 'text-[var(--accent)]' : ''}`}>Karaoke Mode</div>
+                                            <div className="text-xs text-[var(--muted)]/80">{karaokeEnabled ? 'Active words highlighted' : 'Standard static subtitles'}</div>
+                                        </div>
+                                    </div>
+                                    {/* iOS style toggle switch */}
+                                    <div className={`w-10 h-6 rounded-full transition-colors relative ${karaokeEnabled ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'}`}>
+                                        <div className={`absolute top-1 left-1 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${karaokeEnabled ? 'translate-x-4' : ''}`} />
+                                    </div>
+                                </button>
                             </div>
                         )}
                     </div>
                 </div>
 
                 {/* Visual Preview - Phone Mockup with optional video thumbnail */}
-                <div className="flex-shrink-0 flex justify-center items-start pt-1">
+                <div className="flex-shrink-0 flex justify-center items-start pt-10">
                     <div className="relative w-[180px] h-[320px] bg-slate-800 rounded-[30px] border-[6px] border-slate-700 overflow-hidden shadow-2xl ring-1 ring-white/10">
                         {/* Video Thumbnail as Background */}
                         {thumbnailUrl ? (
