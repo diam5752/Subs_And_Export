@@ -1,11 +1,11 @@
 """Pytest configuration for backend tests."""
 
-import pytest
 import os
-import tempfile
 import sys
+import tempfile
 from unittest.mock import MagicMock
 
+import pytest
 
 # Mock module dependencies that might be missing
 sys.modules["stable_whisper"] = MagicMock()
@@ -37,6 +37,7 @@ def setup_test_db():
 def client():
     """Create a test client."""
     from fastapi.testclient import TestClient
+
     from backend.main import app
     return TestClient(app)
 
@@ -59,5 +60,5 @@ def user_auth_headers(client):
             data={"username": email, "password": password}
         )
         token = response.json().get("access_token")
-        
+
     return {"Authorization": f"Bearer {token}"}

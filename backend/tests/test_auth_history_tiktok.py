@@ -1,9 +1,8 @@
 
 import pytest
 
+from backend.app.core import auth, database
 from backend.app.services import history, tiktok
-from backend.app.core import auth, config
-from backend.app.core import database
 
 
 class DummyResponse:

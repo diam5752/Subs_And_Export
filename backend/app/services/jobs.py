@@ -1,8 +1,9 @@
 import time
-import json
-from typing import Optional, Dict, List
 from dataclasses import dataclass
+from typing import Dict, List, Optional
+
 from ..core.database import Database
+
 
 @dataclass
 class Job:
@@ -56,15 +57,15 @@ class JobStore:
         if result_data is not None:
             updates.append("result_data = ?")
             params.append(self.db.dumps(result_data))
-        
+
         if not updates:
             return
 
         updates.append("updated_at = ?")
         params.append(int(time.time()))
-        
+
         params.append(job_id)
-        
+
         query = f"UPDATE jobs SET {', '.join(updates)} WHERE id = ?"
         with self.db.connect() as conn:
             conn.execute(query, tuple(params))
@@ -88,7 +89,7 @@ class JobStore:
     def list_jobs_for_user(self, user_id: str, limit: int = 10) -> List[Job]:
         with self.db.connect() as conn:
             rows = conn.execute(
-                "SELECT * FROM jobs WHERE user_id = ? ORDER BY created_at DESC LIMIT ?", 
+                "SELECT * FROM jobs WHERE user_id = ? ORDER BY created_at DESC LIMIT ?",
                 (user_id, limit)
             ).fetchall()
         return [

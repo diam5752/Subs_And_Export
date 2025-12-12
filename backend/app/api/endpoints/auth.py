@@ -1,10 +1,13 @@
 from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
 
-from ...core.auth import UserStore, SessionStore, User
-from ..deps import get_user_store, get_session_store, get_current_user
+from ...core.auth import SessionStore, User, UserStore
+from ...services.history import HistoryStore
+from ...services.jobs import JobStore
+from ..deps import get_current_user, get_history_store, get_job_store, get_session_store, get_user_store
 
 router = APIRouter()
 
@@ -54,7 +57,7 @@ def login_access_token(
     user = user_store.authenticate_local(form_data.username, form_data.password)
     if not user:
         raise HTTPException(status_code=400, detail="Incorrect email or password")
-    
+
     token = session_store.issue_session(user)
     return {
         "access_token": token,
@@ -97,28 +100,84 @@ def update_password(
     """Update current user password (local users only)."""
     if current_user.provider != "local":
         raise HTTPException(status_code=400, detail="Cannot update password for external provider")
-    
+
     if user_in.password != user_in.confirm_password:
         raise HTTPException(status_code=400, detail="Passwords do not match")
-        
+
     user_store.update_password(current_user.id, user_in.password)
     return {"status": "success"}
 
+
+
+@router.get("/export", response_model=Any)
+def export_my_data(
+    current_user: User = Depends(get_current_user),
+    job_store: JobStore = Depends(get_job_store),
+    history_store: HistoryStore = Depends(get_history_store),
+) -> Any:
+    """Export all personal data (GDPR Right to Access)."""
+    # Profile
+    profile = {
+        "id": current_user.id,
+        "email": current_user.email,
+        "name": current_user.name,
+        "created_at": current_user.created_at,
+        "provider": current_user.provider,
+    }
+
+    # Jobs
+    jobs = job_store.list_jobs_for_user(current_user.id)
+
+    # History
+    history = history_store.recent_for_user(current_user, limit=1000)
+
+    return {
+        "profile": profile,
+        "jobs": jobs,
+        "history": history
+    }
 
 @router.delete("/me", response_model=Any)
 def delete_account(
     current_user: User = Depends(get_current_user),
     user_store: UserStore = Depends(get_user_store),
     session_store: SessionStore = Depends(get_session_store),
+    job_store: JobStore = Depends(get_job_store),
 ) -> Any:
     """Delete current user account and all associated data (GDPR compliance)."""
+    import shutil
+
+    from ...core import config
+
     try:
-        # Revoke all sessions
+        # 1. Cleanup Filesystem Artifacts
+        # Get all jobs to find their files
+        jobs = job_store.list_jobs_for_user(current_user.id)
+
+        # Resolve data roots (simulating videos.py logic or reusing it if possible,
+        # but locally defining for safety is fine)
+        data_dir = config.PROJECT_ROOT / "data"
+        uploads_dir = data_dir / "uploads"
+        artifacts_root = data_dir / "artifacts"
+
+        for job in jobs:
+            # Delete artifact directory
+            artifact_dir = artifacts_root / job.id
+            if artifact_dir.exists():
+                shutil.rmtree(artifact_dir, ignore_errors=True)
+
+            # Delete input files
+            for ext in [".mp4", ".mov", ".mkv"]:
+                input_file = uploads_dir / f"{job.id}_input{ext}"
+                if input_file.exists():
+                    input_file.unlink(missing_ok=True)
+
+        # 2. Revoke all sessions
         session_store.revoke_all_sessions(current_user.id)
-        
-        # Delete user (this should cascade to delete jobs, history, etc.)
+
+        # 3. Delete user (cascades to DB jobs/history)
         user_store.delete_user(current_user.id)
-        
+
         return {"status": "deleted", "message": "Account and all data have been permanently deleted"}
     except Exception as e:
         raise HTTPException(
@@ -129,7 +188,9 @@ def delete_account(
 
 # Google OAuth
 import secrets
-from ...core.auth import google_oauth_config, build_google_flow, exchange_google_code
+
+from ...core.auth import build_google_flow, exchange_google_code, google_oauth_config
+
 
 class GoogleAuthURL(BaseModel):
     auth_url: str
@@ -141,7 +202,7 @@ def get_google_auth_url() -> Any:
     cfg = google_oauth_config()
     if not cfg:
         raise HTTPException(status_code=503, detail="Google OAuth not configured")
-    
+
     state = secrets.token_urlsafe(16)
     flow = build_google_flow(cfg)
     auth_url, _ = flow.authorization_url(
@@ -166,7 +227,7 @@ def google_oauth_callback(
     cfg = google_oauth_config()
     if not cfg:
         raise HTTPException(status_code=503, detail="Google OAuth not configured")
-    
+
     try:
         profile = exchange_google_code(cfg, callback.code)
         user = user_store.upsert_google_user(

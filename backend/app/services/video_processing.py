@@ -11,16 +11,17 @@ import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable
 
-from backend.app.core import config
 from backend.app.common import metrics
-from backend.app.services import subtitles, graphics_renderer
-from backend.app.services.transcription.local_whisper import LocalWhisperTranscriber
+from backend.app.core import config
+from backend.app.services import graphics_renderer, subtitles
+from backend.app.services.styles import SubtitleStyle
 from backend.app.services.transcription.groq_cloud import GroqTranscriber
+from backend.app.services.transcription.local_whisper import LocalWhisperTranscriber
 from backend.app.services.transcription.openai_cloud import OpenAITranscriber
 from backend.app.services.transcription.standard_whisper import StandardTranscriber
-from backend.app.services.styles import SubtitleStyle
+
 
 def _build_filtergraph(ass_path: Path, *, target_width: int | None = None, target_height: int | None = None) -> str:
     ass_file = ass_path.as_posix().replace("'", r"\'")
@@ -87,14 +88,14 @@ def _run_ffmpeg_with_subs(
     else:
         cmd += ["-c:a", "aac", "-b:a", audio_bitrate]
     cmd += ["-movflags", "+faststart", str(output_path)]
-    
+
     process = subprocess.Popen(
         cmd,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         universal_newlines=True,
     )
-    
+
     time_pattern = re.compile(r"time=(\d{2}):(\d{2}):(\d{2}\.\d{2})")
     stderr_lines: list[str] = []
 
@@ -108,7 +109,7 @@ def _run_ffmpeg_with_subs(
                     current_seconds = int(h) * 3600 + int(m) * 60 + float(s)
                     progress = min(100.0, (current_seconds / total_duration) * 100.0)
                     progress_callback(progress)
-    
+
     process.wait()
     if process.returncode != 0:
         raise subprocess.CalledProcessError(process.returncode, cmd, "".join(stderr_lines))
@@ -221,7 +222,7 @@ def normalize_and_stub_subtitles(
     audio_bitrate: str | None = None,
     audio_copy: bool | None = None,
 ) -> Path | tuple[Path, subtitles.SocialCopy]:
-    
+
     if not input_path.exists():
         raise FileNotFoundError(f"Input video not found: {input_path}")
 
@@ -229,7 +230,7 @@ def normalize_and_stub_subtitles(
     destination.parent.mkdir(parents=True, exist_ok=True)
 
     # --- 1. CONFIGURATION (The Director) ---
-    # Map subtitle size to integer 
+    # Map subtitle size to integer
     size_map = {"small": 30, "medium": 40, "big": 70}
     font_size = size_map.get(subtitle_size, 40)
 
@@ -264,7 +265,7 @@ def normalize_and_stub_subtitles(
              provider_name = "groq"
         else:
             provider_name = "local"
-    
+
     # Instantiate Transcriber (The Ear)
     transcriber = None
     if provider_name == "groq":
@@ -287,12 +288,12 @@ def normalize_and_stub_subtitles(
     pipeline_error: str | None = None
     overall_start = time.perf_counter()
     total_duration = 0.0
-    
+
     try:
         with tempfile.TemporaryDirectory() as scratch_dir:
             scratch = Path(scratch_dir)
             scratch.mkdir(parents=True, exist_ok=True)
-            
+
             # Duration Check
             try:
                 total_duration = subtitles.get_video_duration(input_path)
@@ -312,7 +313,7 @@ def normalize_and_stub_subtitles(
                 # To maintain full backward compat with artifacts, we might need to rely on the shared logic
                 # OR update our Transcriber to return artifacts path too.
                 # For now, we delegate to the Strategy which calls the shared logic.
-                
+
                 # We need Cues for rendering.
                 # We need SRT for artifacts.
                 # The refactored classes verify the interface but for practical integration
@@ -321,40 +322,40 @@ def normalize_and_stub_subtitles(
                 # OR we accept that our wrapper calls 'generate_subtitles_from_audio' which SAVES files.
                 # Checking wrapper: LocalWhisperTranscriber calls generate_subtitles_from_audio.
                 # Ideally, we should refactor generate_subtitles_from_audio to return a Result object.
-                
+
                 # Pragmatic Integration:
                 # We call the Strategy. It returns cues.
                 # But we also need the SRT file for persistence!
                 # The wrappers currently discard the path.
                 # This is a Gap in my Implementation Plan vs Reality.
-                # FIX: I will use the shared 'subtitles.generate_subtitles_from_audio' directly here 
+                # FIX: I will use the shared 'subtitles.generate_subtitles_from_audio' directly here
                 # controlled by the parameters, effectively using the "Provider" logic inside it,
                 # UNTIL I update the Transcriber interface to return Paths.
                 # However, to honor the "Refactor" task, I should use the classes.
                 # Let's rely on the fact that 'subtitles.generate_subtitles_from_audio' writes to 'output_dir'.
                 # So if I pass 'output_dir=scratch' (which I didn't in my simple wrapper), files exist.
-                
-                # UPDATE: I'll use the 'subtitles.generate_subtitles_from_audio' directly for now 
+
+                # UPDATE: I'll use the 'subtitles.generate_subtitles_from_audio' directly for now
                 # to ensure safety, as my wrappers in previous step were too simple (didn't accept output_dir).
                 # This implies the "Architecture" is partially implemented but we invoke the underlying
                 # "Provider" switch already present in `subtitles.py` which I augmented earlier.
-                
+
                 # Wait, I claimed I implemented the Transcriber classes.
                 # To really use them, I should have allowed passing `output_dir`.
-                # Let's stick to the existing logic which IS a robust provider switch, 
+                # Let's stick to the existing logic which IS a robust provider switch,
                 # but organized better visually here?
                 # No, I should use the new structure.
                 # But I can't without modifying the wrappers to take output_dir.
-                
+
                 # INTERIM SOLUTION:
                 # Use the decoupled logic for RENDERING (The Eye) and STYLE (The Director).
                 # For TRANSCRIPTION (The Ear), use the raw `subtitles.generate_subtitles_from_audio`
                 # which effectively implements the Strategy via the `provider` string arg.
                 # This is safer than using my half-baked wrappers that swallow file paths.
-                
+
                 def _transcribe_cb(p):
                     if progress_callback: progress_callback(f"Transcribing ({int(p)}%)...", 5.0 + (p * 0.6))
-                
+
                 # Full Refactor: Use Transcriber interface
                 # We pack all optional arguments into kwargs for flexibility
                 transcribe_kwargs = {
@@ -369,7 +370,7 @@ def normalize_and_stub_subtitles(
                     "temperature": temperature,
                     "progress_callback": _transcribe_cb if total_duration > 0 else None,
                 }
-                
+
                 srt_path, cues = transcriber.transcribe(
                     audio_path,
                     output_dir=scratch,
@@ -377,12 +378,12 @@ def normalize_and_stub_subtitles(
                     model=selected_model,
                     **transcribe_kwargs
                 )
-                
+
             # Step 3: Style (ASS Generation)
             if progress_callback: progress_callback("Styling...", 65.0)
             with metrics.measure_time(pipeline_timings, "style_subs_s"):
                 ass_path = subtitles.create_styled_subtitle_file(
-                    srt_path, 
+                    srt_path,
                     cues=cues,
                     # Pass flattened style params because create_styled_subtitle_file isn't updated to take DTO yet
                     subtitle_position=style.position,
@@ -397,7 +398,7 @@ def normalize_and_stub_subtitles(
             transcript_text = subtitles.cues_to_text(cues)
             social_copy = None
             future_social = None
-            
+
             with ThreadPoolExecutor() as executor:
                 if generate_social_copy:
                     if progress_callback: progress_callback("Social Copy...", 70.0)
@@ -408,10 +409,10 @@ def normalize_and_stub_subtitles(
 
                 # RENDER (The Eye)
                 if progress_callback: progress_callback("Rendering...", 80.0)
-                
+
                 # Check for "Active Graphics" Mode
                 has_words = cues and any(c.words for c in cues)
-                
+
                 def _clean_color(c: str) -> str:
                      if not c: return config.DEFAULT_SUB_COLOR
                      c = c.strip()
@@ -440,7 +441,7 @@ def normalize_and_stub_subtitles(
                     try:
                         def _enc_cb(p):
                             if progress_callback: progress_callback(f"Encoding ({int(p)}%)...", 80.0 + (p * 0.2))
-                        
+
                         _run_ffmpeg_with_subs(
                             input_path, ass_path, destination,
                             video_crf=video_crf or config.DEFAULT_VIDEO_CRF,
@@ -502,12 +503,12 @@ def normalize_and_stub_subtitles(
                 "timings": pipeline_timings,
             }
         )
-    
+
     if progress_callback: progress_callback("Done!", 100.0)
 
     if not destination.exists():
         raise RuntimeError(f"Output video was not produced. Error: {pipeline_error or 'Unknown'}")
-    
+
     if generate_social_copy:
         if social_copy is None:
             # Safety fallback to deterministic social copy so we never raise on None
@@ -519,20 +520,20 @@ def generate_video_variant(
     job_id: str,
     input_path: Path,
     artifact_dir: Path,
-    resolution: str, 
-    job_store, 
+    resolution: str,
+    job_store,
     user_id: str,
 ) -> Path:
     if not input_path.exists():
         raise FileNotFoundError("Original input video not found")
-        
+
     width, height = config.DEFAULT_WIDTH, config.DEFAULT_HEIGHT
     try:
         w_str, h_str = resolution.lower().replace("×", "x").split("x")
         width, height = int(w_str), int(h_str)
     except Exception:
         pass
-        
+
     transcript_path = artifact_dir / f"{input_path.stem}.srt"
     if not transcript_path.exists():
         srts = list(artifact_dir.glob("*.srt"))
@@ -546,9 +547,9 @@ def generate_video_variant(
     job = job_store.get_job(job_id)
     if not job or job.user_id != user_id:
         raise PermissionError("Job not found or access denied")
-        
+
     result_data = job.result_data or {}
-    
+
     # Reconstruct Style from Job Data (Basic)
     style = SubtitleStyle(
         max_lines=result_data.get("max_subtitle_lines", 2),
@@ -559,10 +560,10 @@ def generate_video_variant(
 
     output_filename = f"processed_{width}x{height}.mp4"
     destination = artifact_dir / output_filename
-    
+
     ass_path = subtitles.create_styled_subtitle_file(
         transcript_path,
-        cues=None, 
+        cues=None,
         subtitle_position=style.position,
         max_lines=style.max_lines,
         primary_color=style.primary_color,
@@ -571,18 +572,18 @@ def generate_video_variant(
         play_res_y=height,
         output_dir=artifact_dir
     )
-    
+
     _run_ffmpeg_with_subs(
         input_path,
         ass_path,
         destination,
-        video_crf=12, 
+        video_crf=12,
         video_preset=config.DEFAULT_VIDEO_PRESET,
         audio_bitrate=config.DEFAULT_AUDIO_BITRATE,
-        audio_copy=True, 
-        use_hw_accel=False, 
+        audio_copy=True,
+        use_hw_accel=False,
         output_width=width,
         output_height=height,
     )
-    
+
     return destination

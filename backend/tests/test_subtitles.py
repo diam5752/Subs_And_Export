@@ -1,10 +1,11 @@
-from pathlib import Path
-import pytest
 import sys
 import types
+from pathlib import Path
 
-from backend.app.services import subtitles
+import pytest
+
 from backend.app.core import config
+from backend.app.services import subtitles
 
 
 def test_extract_audio_invokes_ffmpeg(monkeypatch, tmp_path: Path) -> None:
@@ -363,7 +364,7 @@ def test_transcribe_openai_error(monkeypatch, tmp_path):
     class Boom:
         def create(self, *args, **kwargs):
             raise Exception("API Error")
-            
+
     class DummyClient:
         class audio:
             class transcriptions:
@@ -374,10 +375,10 @@ def test_transcribe_openai_error(monkeypatch, tmp_path):
 
     with pytest.raises(RuntimeError) as exc:
         subtitles._transcribe_with_openai(
-            tmp_path / "audio.wav", 
-            "whisper-1", 
-            "el", 
-            None, 
+            tmp_path / "audio.wav",
+            "whisper-1",
+            "el",
+            None,
             tmp_path
         )
     assert "OpenAI transcription failed" in str(exc.value)
@@ -386,11 +387,11 @@ def test_resolve_openai_api_key(monkeypatch, tmp_path):
     """Test API key resolution."""
     # 1. Explicit
     assert subtitles._resolve_openai_api_key("key") == "key"
-    
+
     # 2. Env
     monkeypatch.setenv("OPENAI_API_KEY", "env_key")
     assert subtitles._resolve_openai_api_key() == "env_key"
-    
+
     # 3. File
     monkeypatch.delenv("OPENAI_API_KEY")
     secrets = tmp_path / "secrets.toml"
@@ -401,7 +402,7 @@ def test_resolve_openai_api_key(monkeypatch, tmp_path):
     config_dir = tmp_path / "project/config"
     config_dir.mkdir(parents=True)
     (config_dir / "secrets.toml").write_text('OPENAI_API_KEY="file_key"')
-    
+
     assert subtitles._resolve_openai_api_key() == "file_key"
 
 def test_create_styled_subtitle_max_lines_1(tmp_path):
@@ -412,7 +413,7 @@ def test_create_styled_subtitle_max_lines_1(tmp_path):
     # Actually logic uses 40 chars limit.
     # "A very long sentence" is short. we need longer.
     long_text = "A very long sentence that definitely exceeds the character limit for a single line on TikTok style subtitles"
-    
+
     # We need dummy words for splitting to work
     # Just split by space and assign dummy times
     words = []
@@ -420,15 +421,15 @@ def test_create_styled_subtitle_max_lines_1(tmp_path):
     for w in long_text.split():
         words.append(subtitles.WordTiming(current_time, current_time+0.1, w.upper()))
         current_time += 0.1
-        
+
     cue = subtitles.Cue(start=0, end=current_time, text=long_text.upper(), words=words)
-    
+
     srt = tmp_path / "test.srt"
     srt.write_text(f"1\n00:00:00,000 --> 00:00:10,000\n{long_text}\n", encoding="utf-8")
-    
+
     ass = subtitles.create_styled_subtitle_file(srt, cues=[cue], max_lines=1)
     content = ass.read_text("utf-8")
-    
+
     # Verify we have multiple events (split)
     assert content.count("Dialogue:") > 1
 
@@ -436,13 +437,13 @@ def test_subtitle_position_logic(tmp_path):
     """Test vertical positioning logic."""
     srt = tmp_path / "dummy.srt"
     srt.write_text("1\n00:00,00 --> 00:01,00\nHi", "utf-8")
-    
+
     # Top: MarginV=615
     ass_top = subtitles.create_styled_subtitle_file(srt, subtitle_position="top")
     # Check Style definition line for MarginV (21st parameter)
     # Style: Default,Arial,20,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,1,1,4,2,60,60,615,0
     assert ",614,0" in ass_top.read_text("utf-8")
-    
+
     # Bottom: MarginV=120
     ass_bottom = subtitles.create_styled_subtitle_file(srt, subtitle_position="bottom")
     assert ",120,0" in ass_bottom.read_text("utf-8")
@@ -461,7 +462,7 @@ def test_transcribe_with_whispercpp_no_karaoke(monkeypatch, tmp_path):
     class MockModel:
         def __init__(self, *args, **kwargs):
             pass
-        
+
         def transcribe(self, audio, language, n_threads=8):
             # Verify n_threads is passed
             assert n_threads > 0
@@ -503,7 +504,7 @@ def test_split_long_cues_logic():
     assert len(split) > 1
     assert split[0].text == "Short"
     assert split[1].text == "And"
-    
+
     # 2. Without words - SPLITTING via Linear Interpolation
     # Cues without word timings (whisper.cpp) are now split to respect UI max_lines
     cue_no_words = subtitles.Cue(0, 3, "SHORT AND SWEET", words=None)
@@ -515,20 +516,20 @@ def test_split_long_cues_logic():
 def test_transcribe_with_openai_success(monkeypatch, tmp_path):
     """Test successful OpenAI transcription."""
     from backend.app.services import subtitles
-    
+
     class MockSegment:
         def __init__(self, start, end, text, words=None):
             self.start = start
             self.end = end
             self.text = text
             self.words = words
-            
+
     class MockWord:
         def __init__(self, start, end, word):
             self.start = start
             self.end = end
             self.word = word
-            
+
     class MockTranscript:
         segments = [
             MockSegment(0.0, 1.0, "Hello world", words=[
@@ -541,24 +542,24 @@ def test_transcribe_with_openai_success(monkeypatch, tmp_path):
             MockWord(0.0, 0.5, "Hello"),
             MockWord(0.5, 1.0, "world")
         ]
-        
+
     class Client:
         class audio:
             class transcriptions:
                 @staticmethod
                 def create(*args, **kwargs):
                     return MockTranscript()
-                    
+
     monkeypatch.setenv("OPENAI_API_KEY", "testkey")
     monkeypatch.setattr(subtitles, "_load_openai_client", lambda k: Client())
-    
+
     audio_path = tmp_path / "test.wav"
     audio_path.touch()
-    
+
     srt_path, cues = subtitles._transcribe_with_openai(
         audio_path, "whisper-1", "en", None, tmp_path
     )
-    
+
     assert srt_path.exists()
     assert len(cues) == 1
     assert cues[0].text == "HELLO WORLD"
@@ -582,7 +583,7 @@ def test_wrap_lines_preserves_all_text():
         "Ο", "ΛΟΓΟΣ", "ΓΙΑ", "ΤΟΝ", "ΟΠΟΙΟ", "ΕΧΟΥΜΕ",
         "ΕΞΕΛΙΧΘΕΙ", "ΣΗΜΕΡΑ"
     ]
-    
+
     # Verify ALL words are preserved (no truncation)
     for max_lines in [1, 2, 3]:
         result = subtitles._wrap_lines(long_words, max_chars=32, max_lines=max_lines)
@@ -602,18 +603,18 @@ def test_cue_splitting_works_for_all_max_lines(tmp_path):
     for w in long_text.split():
         words.append(subtitles.WordTiming(current_time, current_time + 0.1, w))
         current_time += 0.1
-    
+
     cue = subtitles.Cue(start=0, end=current_time, text=long_text, words=words)
-    
+
     srt = tmp_path / "test.srt"
     srt.write_text(f"1\n00:00:00,000 --> 00:00:10,000\n{long_text}\n", encoding="utf-8")
-    
+
     # Test max_lines=2: should split into multiple cues
     ass_2 = subtitles.create_styled_subtitle_file(srt, cues=[cue], max_lines=2)
     content_2 = ass_2.read_text("utf-8")
     dialogue_count_2 = content_2.count("Dialogue:")
     assert dialogue_count_2 > 1, f"max_lines=2: Expected multiple cues but got {dialogue_count_2}"
-    
+
     # Verify all original words are present in dialogues (no word loss)
     all_dialogue_text = []
     for line in content_2.split("\n"):
@@ -625,11 +626,11 @@ def test_cue_splitting_works_for_all_max_lines(tmp_path):
     reconstructed = " ".join(all_dialogue_text)
     for word in long_text.split():
         assert word in reconstructed, f"Word '{word}' lost!"
-    
+
     # Test max_lines=3: should also split if needed
     ass_3 = subtitles.create_styled_subtitle_file(srt, cues=[cue], max_lines=3)
     content_3 = ass_3.read_text("utf-8")
-    
+
     # Verify all original words are present in dialogues (no word loss)
     all_dialogue_text_3 = []
     for line in content_3.split("\n"):
@@ -652,11 +653,11 @@ def test_greek_text_fits_within_config_width():
     assert config.MAX_SUB_LINE_CHARS <= 35, f"MAX_SUB_LINE_CHARS={config.MAX_SUB_LINE_CHARS} is too wide for Greek text"
     assert config.DEFAULT_SUB_MARGIN_L >= 60, f"Left margin {config.DEFAULT_SUB_MARGIN_L}px is too small"
     assert config.DEFAULT_SUB_MARGIN_R >= 60, f"Right margin {config.DEFAULT_SUB_MARGIN_R}px is too small"
-    
+
     # Test that wrapping respects the char limit
     greek_words = ["ΑΝΘΡΩΠΟΥΣ", "ΔΙΑΦΟΡΕΣ", "ΣΥΖΗΤΗΣΕΙΣ", "ΚΑΠΙΤΑΛΙΣΜΟΣ"]
     result = subtitles._wrap_lines(greek_words, max_chars=config.MAX_SUB_LINE_CHARS, max_lines=2)
-    
+
     for line_words in result:
         line_text = " ".join(line_words)
         # Allow slight overflow due to textwrap behavior with long words
@@ -678,12 +679,12 @@ def test_format_karaoke_text_preserves_all_words():
         ])
     ]
     cue = subtitles.Cue(start=0.0, end=1.0, text="", words=words)
-    
+
     # Test with max_lines=2 - verify all words are present
     karaoke_2 = subtitles._format_karaoke_text(cue, max_lines=2)
     for w in words:
         assert w.text in karaoke_2, f"Word '{w.text}' lost with max_lines=2"
-    
+
     # Test with max_lines=3 - verify all words are present
     karaoke_3 = subtitles._format_karaoke_text(cue, max_lines=3)
     for w in words:
@@ -735,7 +736,7 @@ def test_transcribe_with_groq_missing_key(monkeypatch, tmp_path):
     """Test Groq transcription fails without API key."""
     monkeypatch.delenv("GROQ_API_KEY", raising=False)
     monkeypatch.setattr(subtitles.config, "PROJECT_ROOT", tmp_path / "nonexistent")
-    
+
     with pytest.raises(RuntimeError) as exc:
         subtitles._transcribe_with_groq(
             tmp_path / "audio.wav",
@@ -751,31 +752,31 @@ def test_transcribe_with_groq_success(monkeypatch, tmp_path):
             self.start = start
             self.end = end
             self.word = word
-            
+
     class MockSegment:
         def __init__(self, start, end, text):
             self.start = start
             self.end = end
             self.text = text
-            
+
     class MockTranscript:
         segments = [MockSegment(0.0, 1.0, "Γεια σου")]
         words = [MockWord(0.0, 0.5, "Γεια"), MockWord(0.5, 1.0, "σου")]
-        
+
     class MockClient:
         class audio:
             class transcriptions:
                 @staticmethod
                 def create(*args, **kwargs):
                     return MockTranscript()
-                    
+
     # Mock OpenAI import
     mock_openai = types.SimpleNamespace(OpenAI=lambda **kwargs: MockClient())
     monkeypatch.setitem(sys.modules, "openai", mock_openai)
-    
+
     audio_path = tmp_path / "test.wav"
     audio_path.touch()
-    
+
     srt_path, cues = subtitles._transcribe_with_groq(
         audio_path,
         model_name="whisper-large-v3-turbo",
@@ -784,7 +785,7 @@ def test_transcribe_with_groq_success(monkeypatch, tmp_path):
         output_dir=tmp_path,
         api_key="test_key"
     )
-    
+
     assert srt_path.exists()
     assert len(cues) == 1
     assert "ΓΕΙΑ" in cues[0].text
@@ -798,13 +799,13 @@ def test_transcribe_with_groq_api_error(monkeypatch, tmp_path):
                 @staticmethod
                 def create(*args, **kwargs):
                     raise Exception("Groq API rate limit exceeded")
-                    
+
     mock_openai = types.SimpleNamespace(OpenAI=lambda **kwargs: MockClient())
     monkeypatch.setitem(sys.modules, "openai", mock_openai)
-    
+
     audio_path = tmp_path / "test.wav"
     audio_path.touch()
-    
+
     with pytest.raises(RuntimeError) as exc:
          subtitles._transcribe_with_groq(
             audio_path, None, "el", None, tmp_path, api_key="test_key"
@@ -815,24 +816,24 @@ def test_transcribe_with_groq_api_error(monkeypatch, tmp_path):
 def test_generate_subtitles_routes_to_groq(monkeypatch, tmp_path):
     """Test that provider='groq' routes to Groq transcription."""
     called_with = {}
-    
+
     def mock_groq(*args, **kwargs):
         called_with.update({"args": args, "kwargs": kwargs})
         srt = tmp_path / "test.srt"
         srt.write_text("1\n00:00:00,00 --> 00:00:01,00\nTest\n", encoding="utf-8")
         return srt, []
-        
+
     monkeypatch.setattr(subtitles, "_transcribe_with_groq", mock_groq)
-    
+
     audio_path = tmp_path / "test.wav"
     audio_path.touch()
-    
+
     subtitles.generate_subtitles_from_audio(
-        audio_path, 
+        audio_path,
         provider="groq",
         output_dir=tmp_path
     )
-    
+
     assert called_with, "Groq transcription should have been called"
 
 
@@ -841,22 +842,22 @@ def test_transcribe_with_groq_progress_callback(monkeypatch, tmp_path):
     class MockTranscript:
         segments = []
         words = []
-        
+
     class MockClient:
         class audio:
             class transcriptions:
                 @staticmethod
                 def create(*args, **kwargs):
                     return MockTranscript()
-                    
+
     mock_openai = types.SimpleNamespace(OpenAI=lambda **kwargs: MockClient())
     monkeypatch.setitem(sys.modules, "openai", mock_openai)
-    
+
     audio_path = tmp_path / "test.wav"
     audio_path.touch()
-    
+
     progress_values = []
-    
+
     subtitles._transcribe_with_groq(
         audio_path,
         model_name=None,
@@ -866,7 +867,7 @@ def test_transcribe_with_groq_progress_callback(monkeypatch, tmp_path):
         progress_callback=lambda p: progress_values.append(p),
         api_key="test_key"
     )
-    
+
     assert 10.0 in progress_values
     assert 90.0 in progress_values
     assert 100.0 in progress_values
@@ -882,22 +883,22 @@ def test_cues_without_words_DO_split_interpolated():
     """
     long_text = "ΕΧΩ ΑΚΟΥΣΕΙ ΑΠΟ ΠΑΡΑ ΠΟΛΛΟΥΣ ΑΝΘΡΩΠΟΥΣ ΣΕ ΔΙΑΦΟΡΕΣ ΣΥΖΗΤΗΣΕΙΣ"
     # Logic uses 32 chars width by default.
-    # Text len is ~60. 
+    # Text len is ~60.
     # max_lines=1 -> needs splitting.
-    
+
     cue = subtitles.Cue(start=0.0, end=5.0, text=long_text, words=None)
-    
+
     # Split with max_lines=1 to force split
     split_cues = subtitles._split_long_cues([cue], max_chars=30, max_lines=1)
-    
+
     # Must have > 1 cue (splitting happened)
     assert len(split_cues) > 1, f"Cue without words SHOULD be split, got {len(split_cues)}"
-    
+
     # Timing should be interpolated
     # First chunk end should be > start and < end
     assert split_cues[0].end > 0.0
     assert split_cues[0].end < 5.0
-    
+
     # Text check
     reconstructed = " ".join(c.text for c in split_cues)
     assert reconstructed == long_text
@@ -908,12 +909,12 @@ def test_standard_model_no_words_lost(monkeypatch, tmp_path):
     REGRESSION: Standard model (whisper.cpp) must NOT lose any words.
     Bug: Long subtitles were truncated to max_lines, silently dropping text.
     """
-    import types
     import sys
-    
+    import types
+
     # Very long Greek text that would normally overflow max_lines
     long_text = "ΕΧΩ ΑΚΟΥΣΕΙ ΑΠΟ ΠΑΡΑ ΠΟΛΛΟΥΣ ΑΝΘΡΩΠΟΥΣ ΣΕ ΔΙΑΦΟΡΕΣ ΣΥΖΗΤΗΣΕΙΣ ΠΟΥ ΕΧΩ ΚΑΝΕΙ ΟΤΙ Ο ΚΑΠΙΤΑΛΙΣΜΟΣ"
-    
+
     class MockSegment:
         def __init__(self, t0, t1, text):
             self.t0 = t0
@@ -923,7 +924,7 @@ def test_standard_model_no_words_lost(monkeypatch, tmp_path):
     class MockModel:
         def __init__(self, *args, **kwargs):
             pass
-        
+
         def transcribe(self, audio, language, n_threads=8):
             return [MockSegment(0, 500, long_text)]  # 5 seconds in centiseconds
 
@@ -939,20 +940,20 @@ def test_standard_model_no_words_lost(monkeypatch, tmp_path):
     srt_path, cues = subtitles._transcribe_with_whispercpp(
         audio_path, None, "el", tmp_path
     )
-    
+
     # Verify transcription succeeded
     assert len(cues) >= 1
-    
+
     # Create styled subtitle file with max_lines=2
     ass_path = subtitles.create_styled_subtitle_file(
         srt_path, cues=cues, max_lines=2, output_dir=tmp_path
     )
     ass_content = ass_path.read_text("utf-8")
-    
+
     # Extract all dialogue text and verify NO WORDS ARE LOST
     dialogue_lines = [l for l in ass_content.split("\n") if l.startswith("Dialogue:")]
     assert len(dialogue_lines) >= 1, "No dialogue lines found"
-    
+
     # Reconstruct all text from dialogues
     all_text_parts = []
     for line in dialogue_lines:
@@ -963,17 +964,17 @@ def test_standard_model_no_words_lost(monkeypatch, tmp_path):
         clean_text = re.sub(r'\{[^}]*\}', '', text_part)
         clean_text = clean_text.replace("\\N", " ").strip()
         all_text_parts.append(clean_text)
-    
+
     reconstructed = " ".join(all_text_parts)
-    
+
     # Normalize for comparison (remove extra spaces, uppercase)
     normalized_original = subtitles._normalize_text(long_text)
     normalized_reconstructed = " ".join(reconstructed.split())
-    
+
     # All words from original MUST appear in reconstructed
     original_words = set(normalized_original.split())
     reconstructed_words = set(normalized_reconstructed.split())
-    
+
     missing_words = original_words - reconstructed_words
     assert not missing_words, f"WORDS LOST: {missing_words}"
 
@@ -990,29 +991,29 @@ def test_per_word_karaoke():
         subtitles.WordTiming(start=1.4, end=1.8, text='TEST'),
     ]
     cue = subtitles.Cue(start=0, end=2.0, text='HELLO WORLD TEST', words=words)
-    
+
     # Split into per-word cues
     split_cues = subtitles._split_long_cues([cue], max_chars=1)
-    
+
     # Should have one cue per word
     assert len(split_cues) == 3, f"Expected 3 cues, got {len(split_cues)}"
-    
+
     # Each cue should have correct timing
     assert split_cues[0].text == 'HELLO'
     assert split_cues[0].start == 0.0
     assert split_cues[0].end == 0.5
-    
+
     assert split_cues[1].text == 'WORLD'
     assert split_cues[1].start == 0.8
     assert split_cues[1].end == 1.2
-    
+
     assert split_cues[2].text == 'TEST'
     assert split_cues[2].start == 1.4
     assert split_cues[2].end == 2.0  # Uses original cue end for last word
 
 
 import pytest
-from backend.app.services import subtitles
+
 
 def test_1_word_mode_splitting_standard_model():
     """
@@ -1020,21 +1021,21 @@ def test_1_word_mode_splitting_standard_model():
     Bug: Previously fell through to no-split, resulting in 3+ lines for long text.
     """
     # Simulate create_styled_subtitle_file logic call to _split_long_cues(max_chars=1, max_lines=1)
-    
+
     long_text = "ONE TWO THREE FOUR"
     cue = subtitles.Cue(start=0.0, end=4.0, text=long_text, words=None)
-    
+
     # max_chars=1 forces split at every word boundary (roughly)
     # This simulates what create_styled_subtitle_file calls when max_lines=0
     split_cues = subtitles._split_long_cues([cue], max_chars=1, max_lines=1)
-    
+
     # Should have 4 cues (one per word)
     assert len(split_cues) == 4, f"Should split into 4 cues, got {len(split_cues)}"
     assert split_cues[0].text == "ONE"
     assert split_cues[1].text == "TWO"
     assert split_cues[2].text == "THREE"
     assert split_cues[3].text == "FOUR"
-    
+
     # Durations should be interpolated linearly based on char count
     # "ONE" is 3 chars. Total chars (no spaces) is 15. Duration 4.0s.
     # 3/15 * 4.0 = 0.8s
@@ -1058,27 +1059,27 @@ def test_generate_active_word_ass_no_words():
 
 def test_generate_active_word_ass_logic():
     # 2 words: "Hello", "World"
-    # Expected: 
+    # Expected:
     # 1 base layer (all dim)
     # 2 active layers (dim-lit-dim or similar logic)
-    
+
     words = [
         subtitles.WordTiming(0.0, 0.5, "Hello"),
         subtitles.WordTiming(0.5, 1.0, "World")
     ]
     cue = subtitles.Cue(0.0, 1.0, "Hello World", words=words)
-    
+
     lines = subtitles._generate_active_word_ass(cue, 2, "P", "S")
-    
+
     # Base: 1
     # Active: 2 (one per word)
     assert len(lines) == 3
-    
+
     base = lines[0]
     assert "Dialogue: 0," in base
     assert r"{\cS&}Hello" in base # All words secondary color
     assert r"{\cS&}World" in base
-    
+
     active1 = lines[1]
     assert "Dialogue: 1," in active1
     # First event: start 0.0, end 0.5. "Hello" primary, "World" secondary
@@ -1098,15 +1099,15 @@ def test_split_long_cues_with_phrases_interpolation():
         subtitles.WordTiming(0.0, 2.0, "Part1 Part2")
     ]
     cue = subtitles.Cue(0.0, 2.0, "Part1 Part2", words=words)
-    
+
     # Force split by max_chars=1
     split = subtitles._split_long_cues([cue], max_chars=1, max_lines=1)
-    
+
     assert len(split) == 2
     assert split[0].text == "Part1"
     assert split[0].start == 0.0
     assert split[0].end == 1.0
-    
+
     assert split[1].text == "Part2"
     assert split[1].start == 1.0
     assert split[1].end == 2.0

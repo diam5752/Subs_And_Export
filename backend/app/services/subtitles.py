@@ -7,15 +7,12 @@ import os
 import re
 import subprocess
 import tempfile
+import textwrap
 import tomllib
+import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Iterable, List, Optional, Sequence, Tuple
-import unicodedata
-import textwrap
-import functools
-
-
 
 from backend.app.core import config
 
@@ -187,17 +184,17 @@ def _transcribe_with_openai(
     api_key: str | None = None,
 ) -> Tuple[Path, List[Cue]]:
     """Transcribe audio using OpenAI's API."""
-    
+
     if not api_key:
         api_key = _resolve_openai_api_key()
-    
+
     if not api_key:
         raise RuntimeError(
             "OpenAI API key is required for transcription with 'openai' provider or models."
         )
 
     client = _load_openai_client(api_key)
-    
+
     # We can't easily track progress with the simple transcription API
     if progress_callback:
         progress_callback(10.0)
@@ -221,45 +218,45 @@ def _transcribe_with_openai(
     # Convert OpenAI verbose_json response to our Cue/WordTiming format
     cues: List[Cue] = []
     timed_text: List[TimeRange] = []
-    
+
     # OpenAI returns segments
     if hasattr(transcript, "segments"):
         for seg in transcript.segments:
             seg_text = seg.text or ""
             seg_start = seg.start
             seg_end = seg.end
-            
+
             # Map words if available (requires timestamp_granularities=['word'])
             # Note: The structure of response depends on library version and params
             # Standard object access:
             current_words: List[WordTiming] = []
-            
+
             # If the top-level transcript has 'words', we need to filter them for this segment
             # OR if the segment has 'words'. OpenAI's verbose_json puts words at top level usually.
-            
+
             # Let's look at transcript.words if available
             all_words = getattr(transcript, "words", [])
             if all_words:
                  # Filter words belonging to this segment time range
                  seg_words_data = [
-                     w for w in all_words 
+                     w for w in all_words
                      if w.start >= seg_start and w.start < seg_end
                  ]
                  current_words = [
                      WordTiming(start=w.start, end=w.end, text=_normalize_text(w.word))
                      for w in seg_words_data
                  ]
-            
+
             processed_text = _normalize_text(seg_text)
             cues.append(Cue(start=seg_start, end=seg_end, text=processed_text, words=current_words))
             timed_text.append((seg_start, seg_end, seg_text))
-            
+
     if progress_callback:
         progress_callback(100.0)
 
     srt_path = output_dir / f"{audio_path.stem}.srt"
     _write_srt_from_segments(timed_text, srt_path)
-    
+
     return srt_path, cues
 
 
@@ -272,7 +269,7 @@ def _resolve_openai_api_key(explicit_key: str | None = None) -> str | None:
     env_key = os.getenv("OPENAI_API_KEY")
     if env_key:
         return env_key
-        
+
     # 2. Config/Secrets file
     secrets_path = config.PROJECT_ROOT / "config" / "secrets.toml"
     if secrets_path.exists():
@@ -282,7 +279,7 @@ def _resolve_openai_api_key(explicit_key: str | None = None) -> str | None:
                 return secrets.get("OPENAI_API_KEY")
         except Exception:
             pass
-            
+
     return None
 
 
@@ -295,7 +292,7 @@ def _resolve_groq_api_key(explicit_key: str | None = None) -> str | None:
     env_key = os.getenv("GROQ_API_KEY")
     if env_key:
         return env_key
-        
+
     # 2. Config/Secrets file
     secrets_path = config.PROJECT_ROOT / "config" / "secrets.toml"
     if secrets_path.exists():
@@ -305,7 +302,7 @@ def _resolve_groq_api_key(explicit_key: str | None = None) -> str | None:
                 return secrets.get("GROQ_API_KEY")
         except Exception:
             pass
-            
+
     return None
 
 
@@ -319,10 +316,10 @@ def _transcribe_with_groq(
     api_key: str | None = None,
 ) -> Tuple[Path, List[Cue]]:
     """Transcribe audio using Groq's Whisper API (OpenAI-compatible)."""
-    
+
     if not api_key:
         api_key = _resolve_groq_api_key()
-    
+
     if not api_key:
         raise RuntimeError(
             "Groq API key is required. Set GROQ_API_KEY env var or add to config/secrets.toml"
@@ -333,12 +330,12 @@ def _transcribe_with_groq(
         from openai import OpenAI
     except ImportError:
         raise RuntimeError("openai package is required for Groq transcription")
-    
+
     client = OpenAI(
         api_key=api_key,
         base_url="https://api.groq.com/openai/v1"
     )
-    
+
     if progress_callback:
         progress_callback(10.0)
 
@@ -361,35 +358,35 @@ def _transcribe_with_groq(
     # Convert response to our Cue/WordTiming format (same as OpenAI)
     cues: List[Cue] = []
     timed_text: List[TimeRange] = []
-    
+
     if hasattr(transcript, "segments"):
         for seg in transcript.segments:
             seg_text = seg.text or ""
             seg_start = seg.start
             seg_end = seg.end
-            
+
             current_words: List[WordTiming] = []
             all_words = getattr(transcript, "words", [])
             if all_words:
                 seg_words_data = [
-                    w for w in all_words 
+                    w for w in all_words
                     if w.start >= seg_start and w.start < seg_end
                 ]
                 current_words = [
                     WordTiming(start=w.start, end=w.end, text=_normalize_text(w.word))
                     for w in seg_words_data
                 ]
-            
+
             processed_text = _normalize_text(seg_text)
             cues.append(Cue(start=seg_start, end=seg_end, text=processed_text, words=current_words))
             timed_text.append((seg_start, seg_end, seg_text))
-            
+
     if progress_callback:
         progress_callback(100.0)
 
     srt_path = output_dir / f"{audio_path.stem}.srt"
     _write_srt_from_segments(timed_text, srt_path)
-    
+
     return srt_path, cues
 
 
@@ -414,17 +411,17 @@ def _transcribe_with_whispercpp(
         )
 
     model_size = model_name or config.WHISPERCPP_MODEL
-    
+
     if progress_callback:
         progress_callback(5.0)
-    
+
     # Initialize whisper.cpp model - use normal segment mode for better base timing
     model = WhisperCppModel(
         model_size,
         print_realtime=False,
         print_progress=False,
     )
-    
+
     if progress_callback:
         progress_callback(15.0)
 
@@ -441,20 +438,20 @@ def _transcribe_with_whispercpp(
     # Convert segments to Cues WITHOUT word-level timing (Standard model = No Karaoke)
     cues: List[Cue] = []
     timed_text: List[TimeRange] = []
-    
+
     for seg in segments:
         seg_start = seg.t0 / 100.0  # centiseconds to seconds
         seg_end = seg.t1 / 100.0
         seg_text = seg.text.strip()
-        
+
         if not seg_text:
             continue
-        
+
         # Normalize the full segment text
         normalized_text = _normalize_text(seg_text)
         if not normalized_text:
             continue
-        
+
         # Standard model: No word columns, just block text
         cues.append(Cue(start=seg_start, end=seg_end, text=normalized_text, words=None))
         timed_text.append((seg_start, seg_end, seg_text))
@@ -468,37 +465,37 @@ def _transcribe_with_whispercpp(
     return srt_path, cues
 
 
-    
+
     if progress_callback:
         progress_callback(90.0)
 
     # Convert results
     cues: List[Cue] = []
     timed_text: List[TimeRange] = []
-    
+
     for seg in result.segments:
         seg_start = seg.start
         seg_end = seg.end
         seg_text = seg.text
-        
+
         timed_text.append((seg_start, seg_end, seg_text))
-        
+
         words: Optional[List[WordTiming]] = None
         if seg.words:
             words = [
                 WordTiming(start=w.start, end=w.end, text=_normalize_text(w.word))
                 for w in seg.words
             ]
-            
+
         cue_text = _normalize_text(seg_text)
         cues.append(Cue(start=seg_start, end=seg_end, text=cue_text, words=words))
 
     srt_path = output_dir / f"{audio_path.stem}.srt"
     _write_srt_from_segments(timed_text, srt_path)
-    
+
     if progress_callback:
         progress_callback(100.0)
-        
+
     return srt_path, cues
 
 
@@ -546,7 +543,7 @@ def generate_subtitles_from_audio(
             progress_callback=progress_callback,
             api_key=openai_api_key,
         )
-    
+
     # Route to Groq API
     if provider == "groq":
         return _transcribe_with_groq(
@@ -558,7 +555,7 @@ def generate_subtitles_from_audio(
             progress_callback=progress_callback,
             api_key=openai_api_key,
         )
-    
+
     # Route to whisper.cpp (Metal accelerated for Apple Silicon)
     if provider == "whispercpp":
         return _transcribe_with_whispercpp(
@@ -568,11 +565,11 @@ def generate_subtitles_from_audio(
             output_dir=output_dir,
             progress_callback=progress_callback,
         )
-        
-    
+
+
     # Default: Stabel-TS wrapping Faster-Whisper
     threads = min(8, os.cpu_count() or 4)
-    
+
     # Load model using stable-ts wrapper
     model = _get_whisper_model(
         model_size,
@@ -580,7 +577,7 @@ def generate_subtitles_from_audio(
         compute_type=compute_type,
         cpu_threads=threads,
     )
-    
+
     transcribe_kwargs = {
         "language": language or config.WHISPER_LANGUAGE,
         "task": "transcribe",
@@ -605,25 +602,25 @@ def generate_subtitles_from_audio(
     # Use model.transcribe_stable() - checking API, usually just .transcribe() on the wrapper?
     # stable-ts wrapper object has .transcribe() that does the magic.
     result = model.transcribe(str(audio_path), **transcribe_kwargs)
-    
+
     # Helper to calculate segment progress? Stable-ts returns a result object, not iter?
     # Actually stable-ts returns a WhisperResult object which contains segments.
     # It might not support generator streaming easily for progress.
     # We will just report 100% at end for now to avoid complexity or check if verbose=True helps.
-    
+
     cues: List[Cue] = []
     timed_text: List[TimeRange] = []
-    
-    # Result object has .segments method or property? 
+
+    # Result object has .segments method or property?
     # stable_whisper.WhisperResult has .segments
-    
+
     for seg in result.segments: # stable-ts Segment object
         seg_start = seg.start
         seg_end = seg.end
         seg_text = seg.text
-        
+
         timed_text.append((seg_start, seg_end, seg_text))
-        
+
         # Words in stable-ts are in seg.words
         words: Optional[List[WordTiming]] = None
         if seg.words:
@@ -631,7 +628,7 @@ def generate_subtitles_from_audio(
                 WordTiming(start=w.start, end=w.end, text=_normalize_text(w.word))
                 for w in seg.words
             ]
-            
+
         cue_text = _normalize_text(seg_text)
         cues.append(Cue(start=seg_start, end=seg_end, text=cue_text, words=words))
 
@@ -639,7 +636,7 @@ def generate_subtitles_from_audio(
         progress_callback(100.0)
 
     srt_path = output_dir / f"{audio_path.stem}.srt"
-    
+
     # result.to_srt_vtt(str(srt_path)) # Stable-ts built-in export?
     # Let's stick to our writer to ensure consistency
     _write_srt_from_segments(timed_text, srt_path)
@@ -720,14 +717,14 @@ def _generate_active_word_ass(cue: Cue, max_lines: int, primary_color: str, seco
         return [_format_ass_dialogue(cue.start, cue.end, cue.text)]
 
     lines = []
-    
+
     # Reconstruct the line structure from cue.text (which handles max_lines wrapping)
     # cue.text contains "\N" for line breaks. We must preserve this structure.
     # We map the flattened cue.words list into a nested structure based on cue.text lines.
-    
-    line_struct: List[List[WordTiming]] = [] 
+
+    line_struct: List[List[WordTiming]] = []
     raw_lines = cue.text.split("\\N")
-    
+
     word_iter = iter(cue.words)
     try:
         for raw_line in raw_lines:
@@ -762,7 +759,7 @@ def _generate_active_word_ass(cue: Cue, max_lines: int, primary_color: str, seco
         active_text = build_text(active_word=word)
         # Layer 1 stands ON TOP of Layer 0
         lines.append(_format_ass_dialogue(word.start, word.end, active_text, layer=1))
-    
+
     return lines
 
 
@@ -884,8 +881,8 @@ def create_styled_subtitle_file(
         # STANDARD LINE-BASED MODE:
         # Split cues to ensure they fit strictly within max_lines.
         parsed_cues = _split_long_cues(
-            parsed_cues, 
-            max_chars=config.MAX_SUB_LINE_CHARS, 
+            parsed_cues,
+            max_chars=config.MAX_SUB_LINE_CHARS,
             max_lines=max_lines
         )
     # For cues without word timings (Standard model), don't split regardless of max_lines
@@ -898,7 +895,7 @@ def create_styled_subtitle_file(
     # ASS alignment: 2 = bottom center (MarginV from bottom), 8 = top center (MarginV from top)
     final_margin_v = margin_v
     final_alignment = alignment  # Default alignment (2 = bottom center)
-    
+
     if subtitle_position == "top":
         # Middle area - just above default, still using bottom center alignment
         final_alignment = 2  # Bottom center
@@ -935,7 +932,7 @@ def create_styled_subtitle_file(
              # ACTIVE WORD MODE (Pop effect)
              # Generate multiple events per cue, one for each word's duration
              active_events = _generate_active_word_ass(
-                 cue, 
+                 cue,
                  max_lines=max_lines,
                  primary_color=primary_color,
                  secondary_color=secondary_color
@@ -951,8 +948,8 @@ def create_styled_subtitle_file(
 
 
 def _split_long_cues(
-    cues: Sequence[Cue], 
-    max_chars: int = config.MAX_SUB_LINE_CHARS, 
+    cues: Sequence[Cue],
+    max_chars: int = config.MAX_SUB_LINE_CHARS,
     max_lines: int = 2
 ) -> List[Cue]:
     """
@@ -964,7 +961,7 @@ def _split_long_cues(
         max_lines: Maximum number of lines allowed (e.g., 2)
     """
     new_cues = []
-    
+
     for cue in cues:
         # 1. First check if the WHOLE cue fits (optimization)
         # using the same wrapping logic we'll use for display
@@ -973,17 +970,17 @@ def _split_long_cues(
         if len(full_wrapped) <= max_lines:
             new_cues.append(cue)
             continue
-            
+
         # 2. If it doesn't fit, we need to split it
         if cue.words:
             current_words: List[WordTiming] = []
-            
+
             for w in cue.words:
                 # Special handling for "phrase-words" (tokens containing spaces)
                 # If we are in restricted mode (e.g. max_lines=1), a multi-word token
                 # might inherently break the limit even if it's a single "word" object.
                 # We should expand it into sub-words.
-                
+
                 expanded_words = [w]
                 if " " in w.text.strip():
                      # It's a phrase. Split it.
@@ -993,66 +990,66 @@ def _split_long_cues(
                          total_dur = w.end - w.start
                          total_chars = len(w.text.replace(" ", ""))
                          current_sub_start = w.start
-                         
+
                          new_sub_words = []
                          for sw_text in sub_texts:
                              char_count = len(sw_text)
                              # avoid div by zero
                              frac = (char_count / total_chars) if total_chars > 0 else (1.0/len(sub_texts))
                              dur = total_dur * frac
-                             
+
                              new_sub_words.append(WordTiming(
                                  start=current_sub_start,
                                  end=min(current_sub_start + dur, w.end),
                                  text=sw_text
                              ))
                              current_sub_start += dur
-                         
+
                          # Ensure last one aligns perfectly
                          if new_sub_words:
                              new_sub_words[-1].end = w.end
-                             
+
                          expanded_words = new_sub_words
 
                 for sub_w in expanded_words:
                     test_words = current_words + [sub_w]
                     test_text_words = [tw.text for tw in test_words]
-                    
+
                     # Check if this chunk would exceed max_lines
                     wrapped = _wrap_lines(test_text_words, max_chars=max_chars, max_lines=max_lines)
-                    
+
                     if len(wrapped) > max_lines:
-                        # Adding this word breaks the limit. 
+                        # Adding this word breaks the limit.
                         # Commit current_words as a cue (if any)
                         if current_words:
                             chunk_text = " ".join([cw.text for cw in current_words])
                             chunk_start = current_words[0].start
                             # End at the last word's end
                             chunk_end = current_words[-1].end
-                            
+
                             new_cues.append(Cue(
                                 start=chunk_start,
                                 end=chunk_end,
                                 text=chunk_text,
                                 words=list(current_words)
                             ))
-                        
+
                         # Start new chunk with the current word 'sub_w'
                         current_words = [sub_w]
                     else:
                         # Fits, keep accumulating
                         current_words.append(sub_w)
-            
+
             # Flush final chunk
             if current_words:
                 chunk_text = " ".join([cw.text for cw in current_words])
                 chunk_start = current_words[0].start
                 chunk_end = current_words[-1].end
-                
+
                 # Ensure we don't drop the official end time if it's longer
                 # (unless we split, in which case the last chunk ends at cue.end)
                 chunk_end = max(chunk_end, cue.end)
-                
+
                 new_cues.append(Cue(
                     start=chunk_start,
                     end=chunk_end,
@@ -1063,48 +1060,48 @@ def _split_long_cues(
         elif max_lines > 0:
             # Fallback for standard model (no words) - Use Linear Interpolation
             # We must split to respect max_lines, even if timing is a guess.
-            
+
             cues_text_words = cue.text.split()
             full_wrapped = _wrap_lines(cues_text_words, max_chars=max_chars, max_lines=max_lines)
             if len(full_wrapped) <= max_lines:
                 new_cues.append(cue)
                 continue
-                
+
             # It needs splitting.
             # Simple greedy accumulation with linear time interpolation.
             current_words = []
             cue_duration = cue.end - cue.start
             total_chars = len(cue.text.replace(" ", "")) # Approximation
             if total_chars == 0: total_chars = 1
-            
+
             # Helper to calculate time for a chunk of text
             def estimate_duration(text_chunk):
                 chunk_chars = len(text_chunk.replace(" ", ""))
                 return (chunk_chars / total_chars) * cue_duration
-            
+
             current_start = cue.start
-            
+
             for w in cues_text_words:
                 test_words = current_words + [w]
                 wrapped = _wrap_lines(test_words, max_chars=max_chars, max_lines=max_lines)
-                
+
                 if len(wrapped) > max_lines:
                     # Commit current chunk
                     if current_words:
                         chunk_text = " ".join(current_words)
                         duration = estimate_duration(chunk_text)
                         chunk_end = current_start + duration
-                        
+
                         # Clamp
                         chunk_end = min(chunk_end, cue.end)
-                        
+
                         new_cues.append(Cue(
                             start=current_start,
                             end=chunk_end,
                             text=chunk_text,
                             words=None
                         ))
-                        
+
                         current_start = chunk_end
                         current_words = [w]
                     else:
@@ -1112,7 +1109,7 @@ def _split_long_cues(
                          current_words = [w]
                 else:
                     current_words.append(w)
-            
+
             # Flush final
             if current_words:
                 chunk_text = " ".join(current_words)
@@ -1144,7 +1141,7 @@ def _wrap_lines(
         return []
 
     text = " ".join(words)
-    
+
     # Use max_chars as the width limit
     # The cue splitting logic ensures we don't get too many words
     wrapped = textwrap.wrap(
@@ -1157,7 +1154,7 @@ def _wrap_lines(
 
     if not wrapped:
         return [words]
-    
+
     return [line.split() for line in wrapped]
 
 
@@ -1171,13 +1168,13 @@ def _format_karaoke_text(cue: Cue, max_lines: int = 2) -> str:
     text = cue.text
     if not text and cue.words:
         text = " ".join(w.text for w in cue.words)
-        
+
     raw_words = text.split()
     wrapped_lines = _wrap_lines(raw_words, max_chars=config.MAX_SUB_LINE_CHARS, max_lines=max_lines)
-    
+
     if not wrapped_lines:
         return ""
-        
+
     joined = [" ".join(line) for line in wrapped_lines]
     return "\\N".join(joined)
 
@@ -1338,7 +1335,7 @@ def _load_openai_client(api_key: str):
             "openai package is required for LLM social copy generation. "
             "Install with: pip install openai"
         ) from exc
-    
+
     return OpenAI(api_key=api_key)
 
 
@@ -1390,7 +1387,7 @@ def build_social_copy_llm(
     if not api_key:
         # Try environment variable
         api_key = os.getenv("OPENAI_API_KEY")
-    
+
     # Validate API key is present
     if not api_key:
         raise RuntimeError(
@@ -1398,7 +1395,7 @@ def build_social_copy_llm(
             "  1. Environment variable: export OPENAI_API_KEY='your-key'\n"
             "  2. Pass explicitly via api_key parameter"
         )
-    
+
     model_name = model or config.SOCIAL_LLM_MODEL
     client = _load_openai_client(api_key)
     messages = [
@@ -1431,10 +1428,10 @@ def build_social_copy_llm(
             content = response.choices[0].message.content
             if not content:
                 raise ValueError("Empty response from LLM")
-                
+
             cleaned_content = _clean_json_response(content)
             parsed = json.loads(cleaned_content)
-            
+
             return SocialCopy(
                 tiktok=PlatformCopy(
                     title=parsed["tiktok"]["title"], description=parsed["tiktok"]["description"]
@@ -1452,7 +1449,7 @@ def build_social_copy_llm(
             last_exc = exc
             if attempt < max_retries:
                 continue
-    
+
     raise ValueError("Failed to generate valid social copy after retries") from last_exc  # pragma: no cover
 
 
@@ -1466,7 +1463,7 @@ def generate_viral_metadata(
     """
     Generate viral TikTok metadata (hooks, caption, hashtags) using a specific Greek persona.
     """
-    
+
     if not api_key:
         api_key = _resolve_openai_api_key()
 
@@ -1519,9 +1516,9 @@ def generate_viral_metadata(
             content = response.choices[0].message.content
             if not content:
                 raise ValueError("Empty response from LLM")
-            
+
             parsed = json.loads(content)
-            
+
             return ViralMetadata(
                 hooks=parsed["hooks"],
                 caption_hook=parsed["caption_hook"],

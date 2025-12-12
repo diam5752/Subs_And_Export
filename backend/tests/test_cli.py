@@ -3,7 +3,6 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 from backend.app.services import subtitles
-from backend import cli
 from backend.cli import app
 
 

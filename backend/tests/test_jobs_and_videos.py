@@ -3,12 +3,12 @@ import types
 import uuid
 from pathlib import Path
 
-from backend.app.services import jobs
+from fastapi.testclient import TestClient
+
+from backend.app.api.endpoints import videos
 from backend.app.core import auth as backend_auth
 from backend.app.core.database import Database
-from backend.app.api.endpoints import videos
-from fastapi.testclient import TestClient
-from backend.main import app
+from backend.app.services import jobs
 
 
 def _auth_header(client: TestClient, email: str = "video@example.com") -> dict[str, str]:
@@ -44,7 +44,7 @@ def test_job_store_lifecycle(tmp_path: Path):
     # Test delete_job
     store.delete_job(job.id)
     assert store.get_job(job.id) is None
-    
+
     # Test delete_jobs_for_user
     j2 = store.create_job("j2", user_id)
     j3 = store.create_job("j3", user_id)
@@ -193,7 +193,7 @@ def test_cancel_job_success(client: TestClient, monkeypatch, tmp_path: Path):
         called["job"] = job_id
 
     monkeypatch.setattr(videos, "run_video_processing", fake_run)
-    
+
     # Create a job via process endpoint
     resp = client.post(
         "/videos/process",
@@ -202,7 +202,7 @@ def test_cancel_job_success(client: TestClient, monkeypatch, tmp_path: Path):
     )
     assert resp.status_code == 200
     job_id = resp.json()["id"]
-    
+
     # Cancel the job (it should be in pending or processing)
     cancel_resp = client.post(f"/videos/jobs/{job_id}/cancel", headers=headers)
     assert cancel_resp.status_code == 200

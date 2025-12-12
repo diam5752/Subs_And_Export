@@ -2,19 +2,24 @@ import uuid
 from pathlib import Path
 from typing import List
 
-from fastapi import APIRouter, Depends, UploadFile, File, Form, BackgroundTasks, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Request, UploadFile
 from pydantic import BaseModel
 
-from ...core.settings import load_app_settings
-
 from ...core import config
-from ...services.jobs import JobStore
-from ...services.video_processing import normalize_and_stub_subtitles
 from ...core.auth import User
+from ...core.settings import load_app_settings
+from ...schemas.base import (
+    BatchDeleteRequest,
+    BatchDeleteResponse,
+    JobResponse,
+    PaginatedJobsResponse,
+    ViralMetadataResponse,
+)
 from ...services.history import HistoryStore
-from ...schemas.base import JobResponse, ViralMetadataResponse, PaginatedJobsResponse, BatchDeleteRequest, BatchDeleteResponse
-from ..deps import get_current_user, get_job_store, get_history_store
+from ...services.jobs import JobStore
 from ...services.subtitles import generate_viral_metadata
+from ...services.video_processing import normalize_and_stub_subtitles
+from ..deps import get_current_user, get_history_store, get_job_store
 
 router = APIRouter()
 
@@ -127,7 +132,7 @@ def run_video_processing(
     """Background task to run the heavy video processing."""
     try:
         job_store.update_job(job_id, status="processing", progress=0, message="Starting processing...")
-        
+
         def progress_callback(msg: str, percent: float):
             # Throttle DB updates? For SQLite it's fast enough for coarse updates (5-10%)
             # But let's just write.
@@ -146,7 +151,7 @@ def run_video_processing(
 
         artifact_dir.mkdir(parents=True, exist_ok=True)
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        
+
         result = normalize_and_stub_subtitles(
             input_path=input_path,
             output_path=output_path,
@@ -171,7 +176,7 @@ def run_video_processing(
             karaoke_enabled=settings.karaoke_enabled,
         )
         print(f"DEBUG_VIDEOS: normalize called with max_subtitle_lines={settings.max_subtitle_lines} color={settings.subtitle_color} shadow={settings.shadow_strength} style={settings.highlight_style}")
-        
+
         # Result unpacking
         social = None
         final_path = output_path
@@ -179,7 +184,7 @@ def run_video_processing(
             final_path, social = result
         else:
             final_path = result
-        
+
         public_path = _relpath_safe(final_path, data_dir).as_posix()
         artifact_public = _relpath_safe(artifact_dir, data_dir).as_posix()
 
@@ -204,7 +209,7 @@ def run_video_processing(
             "subtitle_size": settings.subtitle_size,
             "karaoke_enabled": settings.karaoke_enabled,
         }
-        
+
         job_store.update_job(job_id, status="completed", progress=100, message="Done!", result_data=result_data)
         _record_event_safe(
             history_store,
@@ -258,12 +263,12 @@ async def process_video(
     """Upload a video and start processing."""
     job_id = str(uuid.uuid4())
     data_dir, uploads_dir, artifacts_root = _data_roots()
-    
+
     # Save Upload
     file_ext = Path(file.filename).suffix
     if file_ext not in [".mp4", ".mov", ".mkv"]:
         raise HTTPException(400, "Invalid file type")
-    
+
     input_path = uploads_dir / f"{job_id}_input{file_ext}"
     content_length = request.headers.get("content-length")
     if content_length:
@@ -276,11 +281,11 @@ async def process_video(
         except ValueError:
             pass
     _save_upload_with_limit(file, input_path)
-        
+
     # Prepare Output
-    output_path = artifacts_root / job_id / f"processed.mp4"
-    artifact_path = artifacts_root / job_id 
-    
+    output_path = artifacts_root / job_id / "processed.mp4"
+    artifact_path = artifacts_root / job_id
+
     # Create Job
     job = job_store.create_job(job_id, current_user.id)
     _record_event_safe(
@@ -297,7 +302,7 @@ async def process_video(
         "use_llm": use_llm,
     },
     )
-    
+
     # Enqueue Task
     target_width, target_height = _parse_resolution(video_resolution)
     settings = ProcessingSettings(
@@ -318,7 +323,7 @@ async def process_video(
         karaoke_enabled=karaoke_enabled,
     )
     print(f"DEBUG_API: Received process request max_lines={max_subtitle_lines} style={highlight_style}")
-    
+
     background_tasks.add_task(
         run_video_processing,
         job_id,
@@ -340,7 +345,7 @@ async def process_video(
         artifacts_root,
         24 # 24 hours retention
     )
-    
+
     return job
 
 def _ensure_job_size(job):
@@ -382,14 +387,14 @@ def list_jobs_paginated(
         page_size = 10
     if page_size > 100:
         page_size = 100  # Cap at 100 to prevent abuse
-    
+
     offset = (page - 1) * page_size
     total = job_store.count_jobs_for_user(current_user.id)
     total_pages = (total + page_size - 1) // page_size if total > 0 else 1
-    
+
     jobs = job_store.list_jobs_for_user_paginated(current_user.id, offset=offset, limit=page_size)
     items = [_ensure_job_size(job) for job in jobs]
-    
+
     return PaginatedJobsResponse(
         items=items,
         total=total,
@@ -408,17 +413,17 @@ def batch_delete_jobs(
 ):
     """Delete multiple jobs at once."""
     import shutil
-    
+
     if not request.job_ids:
         return BatchDeleteResponse(status="success", deleted_count=0, job_ids=[])
-    
+
     # Limit batch size to prevent abuse
     if len(request.job_ids) > 50:
         raise HTTPException(400, "Cannot delete more than 50 jobs at once")
-    
+
     data_dir, uploads_dir, artifacts_root = _data_roots()
     deleted_ids = []
-    
+
     # First verify ownership and delete files for each job
     for job_id in request.job_ids:
         job = job_store.get_job(job_id)
@@ -427,18 +432,18 @@ def batch_delete_jobs(
             artifact_dir = artifacts_root / job_id
             if artifact_dir.exists():
                 shutil.rmtree(artifact_dir, ignore_errors=True)
-            
+
             # Delete input files
             for ext in [".mp4", ".mov", ".mkv"]:
                 input_file = uploads_dir / f"{job_id}_input{ext}"
                 if input_file.exists():
                     input_file.unlink(missing_ok=True)
-            
+
             deleted_ids.append(job_id)
-    
+
     # Batch delete from database
     deleted_count = job_store.delete_jobs(deleted_ids, current_user.id)
-    
+
     # Record batch deletion in history
     if deleted_count > 0:
         _record_event_safe(
@@ -448,7 +453,7 @@ def batch_delete_jobs(
             f"Deleted {deleted_count} jobs",
             {"job_ids": deleted_ids, "count": deleted_count},
         )
-    
+
     return BatchDeleteResponse(
         status="deleted",
         deleted_count=deleted_count,
@@ -476,28 +481,28 @@ def delete_job(
 ):
     """Delete a job and its associated files."""
     import shutil
-    
+
     job = job_store.get_job(job_id)
     if not job or job.user_id != current_user.id:
         raise HTTPException(404, "Job not found")
-    
+
     # Delete associated files
     data_dir, uploads_dir, artifacts_root = _data_roots()
-    
+
     # Delete artifact directory
     artifact_dir = artifacts_root / job_id
     if artifact_dir.exists():
         shutil.rmtree(artifact_dir, ignore_errors=True)
-    
+
     # Delete input files
     for ext in [".mp4", ".mov", ".mkv"]:
         input_file = uploads_dir / f"{job_id}_input{ext}"
         if input_file.exists():
             input_file.unlink(missing_ok=True)
-    
+
     # Delete job from store
     job_store.delete_job(job_id)
-    
+
     # Record deletion in history
     _record_event_safe(
         history_store,
@@ -506,7 +511,7 @@ def delete_job(
         f"Deleted job {job_id}",
         {"job_id": job_id},
     )
-    
+
     return {"status": "deleted", "job_id": job_id}
 
 
@@ -521,13 +526,13 @@ def cancel_job(
     job = job_store.get_job(job_id)
     if not job or job.user_id != current_user.id:
         raise HTTPException(404, "Job not found")
-    
+
     # Only allow cancelling pending or processing jobs
     if job.status not in ("pending", "processing"):
         raise HTTPException(400, f"Cannot cancel job with status '{job.status}'")
-    
+
     job_store.update_job(job_id, status="cancelled", message="Cancelled by user")
-    
+
     _record_event_safe(
         history_store,
         current_user,
@@ -535,7 +540,7 @@ def cancel_job(
         f"Cancelled job {job_id}",
         {"job_id": job_id},
     )
-    
+
     updated_job = job_store.get_job(job_id)
     return _ensure_job_size(updated_job)
 
@@ -564,7 +569,7 @@ def create_viral_metadata(
     try:
         transcript_text = transcript_path.read_text(encoding="utf-8")
         metadata = generate_viral_metadata(transcript_text)
-        
+
         return ViralMetadataResponse(
             hooks=metadata.hooks,
             caption_hook=metadata.caption_hook,
@@ -599,7 +604,7 @@ def export_video(
 
     data_dir, uploads_dir, artifacts_root = _data_roots()
     artifact_dir = artifacts_root / job_id
-    
+
     # Locate original input
     input_video = None
     for ext in [".mp4", ".mov", ".mkv"]:
@@ -607,12 +612,12 @@ def export_video(
         if candidate.exists():
             input_video = candidate
             break
-            
+
     if not input_video:
         raise HTTPException(404, "Original input video not found")
 
     from ...services.video_processing import generate_video_variant
-    
+
     try:
         # Note: This is synchronous/blocking for now as per MVP plan.
         # Ideally this should be a background task that updates job status.
@@ -624,25 +629,25 @@ def export_video(
             job_store,
             current_user.id
         )
-        
+
         # Update job result data with the new variant info
         # We can store variants in a dict in result_data
         result_data = job.result_data.copy() if job.result_data else {}
         variants = result_data.get("variants", {})
-        
+
         public_path = _relpath_safe(output_path, data_dir).as_posix()
         variants[request.resolution] = f"/static/{public_path}"
         result_data["variants"] = variants
-        
+
         # We assume the user might want this to be the 'main' video now?
         # Or just return the link.
         # Let's just update variants.
-        
+
         job_store.update_job(job_id, result_data=result_data, status="completed", progress=100)
-        
+
         # Reload job
         updated_job = job_store.get_job(job_id)
         return _ensure_job_size(updated_job)
-        
+
     except Exception as e:
         raise HTTPException(500, f"Export failed: {str(e)}")

@@ -1,14 +1,12 @@
 """Tests for the auth API endpoints."""
 import sys
 import types
+
 import pytest
-from fastapi.testclient import TestClient
-from backend.main import app
-from backend.app.core import auth as backend_auth
+
 from backend.app.api.endpoints import auth as auth_ep
+from backend.app.core import auth as backend_auth
 from backend.app.core.database import Database
-
-
 
 
 @pytest.fixture
@@ -107,7 +105,7 @@ class TestAuthEndpoints:
             }
         )
         token = login_response.json()["access_token"]
-        
+
         # Get current user
         response = client.get(
             "/auth/me",
@@ -152,7 +150,7 @@ class TestVideoEndpoints:
             }
         )
         token = login_response.json()["access_token"]
-        
+
         # List jobs
         response = client.get(
             "/videos/jobs",
@@ -177,7 +175,7 @@ class TestUserUpdates:
             }
         )
         token = login_response.json()["access_token"]
-        
+
         # Update name
         new_name = "Updated Name"
         response = client.put(
@@ -187,7 +185,7 @@ class TestUserUpdates:
         )
         assert response.status_code == 200
         assert response.json()["name"] == new_name
-        
+
         # Verify persistence
         response = client.get(
             "/auth/me",
@@ -207,7 +205,7 @@ class TestUserUpdates:
             }
         )
         token = login_response.json()["access_token"]
-        
+
         # Update password
         new_password = "newpassword456"
         response = client.put(
@@ -216,7 +214,7 @@ class TestUserUpdates:
             headers={"Authorization": f"Bearer {token}"}
         )
         assert response.status_code == 200
-        
+
         # Login with new password
         response = client.post(
             "/auth/token",
@@ -239,7 +237,7 @@ class TestUserUpdates:
             }
         )
         token = login_response.json()["access_token"]
-        
+
         # Update password with mismatch
         response = client.put(
             "/auth/password",
@@ -377,7 +375,7 @@ class TestDeleteAccount:
             }
         )
         token = login_response.json()["access_token"]
-        
+
         # Delete account
         response = client.delete(
             "/auth/me",
@@ -386,7 +384,7 @@ class TestDeleteAccount:
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "deleted"
-        
+
         # Verify user can't login anymore
         login_again = client.post(
             "/auth/token",
@@ -414,14 +412,14 @@ class TestDeleteAccount:
             }
         )
         token = login_response.json()["access_token"]
-        
+
         from backend.app.core.auth import SessionStore
-        
+
         def mock_revoke_all(*args, **kwargs):
             raise Exception("Database connection failed")
-            
+
         monkeypatch.setattr(SessionStore, "revoke_all_sessions", mock_revoke_all)
-        
+
         response = client.delete(
             "/auth/me",
             headers={"Authorization": f"Bearer {token}"}
@@ -445,7 +443,7 @@ class TestDeleteJob:
             }
         )
         token = login_response.json()["access_token"]
-        
+
         # Try to delete non-existent job
         response = client.delete(
             "/videos/jobs/nonexistent-job-id",

@@ -11,7 +11,6 @@ from urllib.parse import urlencode
 
 import requests
 
-
 AUTH_URL = "https://www.tiktok.com/auth/authorize/"
 TOKEN_URL = "https://open-api.tiktok.com/oauth/access_token/"
 REFRESH_URL = "https://open-api.tiktok.com/oauth/refresh_token/"

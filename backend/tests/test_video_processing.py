@@ -1,10 +1,10 @@
 import json
 import shutil
+import subprocess
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
-import subprocess
-from unittest.mock import MagicMock
 
 from backend.app.services import video_processing
 
@@ -969,15 +969,15 @@ def test_persist_artifacts_copy_logic(tmp_path):
     dest = tmp_path / "outside" / "video.mp4"
     dest.parent.mkdir()
     dest.write_text("orig")
-    
+
     audio = tmp_path / "a.wav"
     audio.touch()
     srt = tmp_path / "s.srt"
     srt.touch()
     ass = tmp_path / "s.ass"
     ass.touch()
-    
-    # We can't easily invoke _persist_artifacts directly as it doesn't copy the video file itself 
+
+    # We can't easily invoke _persist_artifacts directly as it doesn't copy the video file itself
     # (that logic is in normalize_and_stub_subtitles).
     # But we can verify correct behavior via normalize if we force different paths.
     # Covered by test_normalize_and_stub_subtitles_persists_artifacts but let's be explicit
@@ -999,18 +999,18 @@ def test_generate_video_variant_success(monkeypatch, tmp_path):
     input_path = tmp_path / "vid.mp4"
     input_path.touch()
     (artifact_dir / "vid.srt").write_text("SRT", encoding="utf-8")
-    
+
     mock_job_store = MagicMock()
     mock_job = MagicMock()
     mock_job.user_id = "u1"
     mock_job.result_data = {"subtitle_position": "top", "max_subtitle_lines": 3}
     mock_job_store.get_job.return_value = mock_job
-    
+
     calls_style = []
     def fake_style(*args, **kwargs):
         calls_style.append(kwargs)
         return artifact_dir / "vid.ass"
-    
+
     calls_burn = []
     def fake_burn(*args, **kwargs):
         # Handle positional args: input, ass, output
@@ -1018,27 +1018,27 @@ def test_generate_video_variant_success(monkeypatch, tmp_path):
             kwargs["output_path"] = args[2]
         calls_burn.append(kwargs)
         kwargs["output_path"].touch()
-        
+
     monkeypatch.setattr(video_processing.subtitles, "create_styled_subtitle_file", fake_style)
     monkeypatch.setattr(video_processing, "_run_ffmpeg_with_subs", fake_burn)
-    
+
     res = video_processing.generate_video_variant(
-        job_id="j1", 
-        input_path=input_path, 
-        artifact_dir=artifact_dir, 
-        resolution="720x1280", 
-        job_store=mock_job_store, 
+        job_id="j1",
+        input_path=input_path,
+        artifact_dir=artifact_dir,
+        resolution="720x1280",
+        job_store=mock_job_store,
         user_id="u1"
     )
-    
+
     assert res.name == "processed_720x1280.mp4"
     assert res.exists()
-    
+
     assert calls_style[0]["subtitle_position"] == "top"
     assert calls_style[0]["max_lines"] == 3
     assert calls_style[0]["play_res_x"] == 720
     assert calls_style[0]["play_res_y"] == 1280
-    
+
     assert calls_burn[0]["output_width"] == 720
     assert calls_burn[0]["output_height"] == 1280
 
@@ -1052,7 +1052,7 @@ def test_generate_video_variant_missing_transcript(tmp_path):
     # input exists, but no srt
     inp = tmp_path/"v.mp4"
     inp.touch()
-    
+
     with pytest.raises(FileNotFoundError, match="Transcript not found"):
         video_processing.generate_video_variant(
              "j", inp, tmp_path, "1x1", MagicMock(), "u"
@@ -1062,10 +1062,10 @@ def test_generate_video_variant_job_permission(tmp_path):
     inp = tmp_path/"v.mp4"
     inp.touch()
     (tmp_path/"v.srt").write_text("S")
-    
+
     mock_store = MagicMock()
     mock_store.get_job.return_value = None
-    
+
     with pytest.raises(PermissionError):
         video_processing.generate_video_variant(
              "j", inp, tmp_path, "1x1", mock_store, "u"
@@ -1078,13 +1078,13 @@ def test_generate_video_variant_resolution_bad_string(monkeypatch, tmp_path):
     input_path = tmp_path / "vid.mp4"
     input_path.touch()
     (artifact_dir / "vid.srt").write_text("SRT", encoding="utf-8")
-    
+
     mock_store = MagicMock()
     mock_store.get_job.return_value = MagicMock(user_id="u", result_data={})
 
     monkeypatch.setattr(video_processing.subtitles, "create_styled_subtitle_file", lambda *a, **k: artifact_dir/"vid.ass")
     monkeypatch.setattr(video_processing, "_run_ffmpeg_with_subs", lambda *a, **k: (k.get("output_path") or a[2]).touch())
-    
+
     # "badstring" -> exception -> pass -> uses defaults
     res = video_processing.generate_video_variant("j", input_path, artifact_dir, "badstring", mock_store, "u")
     assert res.exists()
@@ -1096,12 +1096,12 @@ def test_generate_video_variant_glob_srt(monkeypatch, tmp_path):
     input_path.touch()
     # vid.srt MISSING, but other.srt exists
     (artifact_dir / "other.srt").write_text("SRT", encoding="utf-8")
-    
+
     mock_store = MagicMock()
     mock_store.get_job.return_value = MagicMock(user_id="u", result_data={})
 
     monkeypatch.setattr(video_processing.subtitles, "create_styled_subtitle_file", lambda *a, **k: artifact_dir/"vid.ass")
     monkeypatch.setattr(video_processing, "_run_ffmpeg_with_subs", lambda *a, **k: (k.get("output_path") or a[2]).touch())
-    
+
     res = video_processing.generate_video_variant("j", input_path, artifact_dir, "100x100", mock_store, "u")
     assert res.exists()

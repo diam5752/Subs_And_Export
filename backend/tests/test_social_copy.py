@@ -1,6 +1,5 @@
 import json
-import sys
-import types
+
 import pytest
 
 from backend.app.services import subtitles
@@ -105,11 +104,11 @@ def test_clean_json_response_strips_markdown() -> None:
 
 def test_build_social_copy_llm_retries_on_failure(monkeypatch) -> None:
     """Verify that the function retries on invalid JSON."""
-    
+
     class FlakyChatCompletions:
         def __init__(self):
             self.attempts = 0
-            
+
         def create(self, **kwargs):
             self.attempts += 1
             if self.attempts == 1:
@@ -132,6 +131,6 @@ def test_build_social_copy_llm_retries_on_failure(monkeypatch) -> None:
     monkeypatch.setattr(subtitles, "_load_openai_client", lambda api_key: client)
 
     social = subtitles.build_social_copy_llm("transcript")
-    
+
     assert client.chat.completions.attempts == 2
     assert social.tiktok.title == "TT"

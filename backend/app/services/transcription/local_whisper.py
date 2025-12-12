@@ -5,14 +5,15 @@ from backend.app.core import config
 from backend.app.services.subtitles import Cue, generate_subtitles_from_audio
 from backend.app.services.transcription.base import Transcriber
 
+
 class LocalWhisperTranscriber(Transcriber):
     """
     Transcriber using local faster-whisper or whisper.cpp via the existing subtitles module.
     """
-    
-    def __init__(self, 
-                 device: Optional[str] = None, 
-                 compute_type: Optional[str] = None, 
+
+    def __init__(self,
+                 device: Optional[str] = None,
+                 compute_type: Optional[str] = None,
                  beam_size: int = 5):
         self.device = device or config.WHISPER_DEVICE
         self.compute_type = compute_type or config.WHISPER_COMPUTE_TYPE
@@ -22,7 +23,7 @@ class LocalWhisperTranscriber(Transcriber):
         # Reuse existing logic in subtitles.py which handles details well
         # In a full refactor, we would move that logic here.
         # For now, we wrap it to satisfy the interface.
-        
+
         srt_path, cues = generate_subtitles_from_audio(
             audio_path,
             output_dir=output_dir,

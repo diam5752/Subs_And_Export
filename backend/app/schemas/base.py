@@ -1,9 +1,11 @@
-from typing import Optional, Dict, List
+from typing import Dict, List, Optional
+
 from pydantic import BaseModel
+
 
 class JobResponse(BaseModel):
     model_config = {'from_attributes': True}
-    
+
     id: str
     status: str
     progress: int

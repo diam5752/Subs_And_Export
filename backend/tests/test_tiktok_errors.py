@@ -1,9 +1,10 @@
 from pathlib import Path
+
 from fastapi.testclient import TestClient
+
 from backend.app.api.endpoints import tiktok as tiktok_ep
-from backend.app.services import tiktok
 from backend.app.core import config as backend_config
-from backend.main import app
+from backend.app.services import tiktok
 
 
 def _auth_header(client: TestClient, email: str = "tt-errors@example.com") -> dict[str, str]:

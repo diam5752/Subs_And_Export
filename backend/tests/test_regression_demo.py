@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import shutil
+from pathlib import Path
 
 import httpx
 import pytest
 
 from backend.app.services import subtitles
-
 
 DEMO_VIDEO = Path(__file__).parent / "data/demo.mp4"
 GOLDEN_DIR = Path(__file__).parent / "data/demo_artifacts"
@@ -32,7 +31,7 @@ def _assert_srt_matches_with_tolerance(actual_path: Path, expected_path: Path, t
 def test_demo_video_transcription_matches_golden(tmp_path: Path) -> None:
     if not DEMO_VIDEO.exists():
         pytest.skip(f"Demo video not found: {DEMO_VIDEO}")
-    
+
     audio_path = subtitles.extract_audio(DEMO_VIDEO, output_dir=tmp_path)
     try:
         srt_path, cues = subtitles.generate_subtitles_from_audio(

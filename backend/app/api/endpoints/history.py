@@ -1,8 +1,9 @@
 from typing import Any, List
+
 from fastapi import APIRouter, Depends
 
 from ...core.auth import User
-from ...services.history import HistoryStore, HistoryEvent
+from ...services.history import HistoryEvent, HistoryStore
 from ..deps import get_current_user, get_history_store
 
 router = APIRouter()

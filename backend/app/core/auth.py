@@ -7,10 +7,10 @@ import hmac
 import os
 import secrets
 import time
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Optional
-import tomllib
 
 from . import config
 from .database import Database
@@ -123,7 +123,7 @@ class UserStore:
             return user
 
 
-    
+
     def update_name(self, user_id: str, new_name: str) -> None:
         with self.db.connect() as conn:
             conn.execute(

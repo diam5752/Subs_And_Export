@@ -1,6 +1,7 @@
 import os
+
 import stable_whisper
-import torch
+
 
 # Minimal reproduction of the transcription call
 def debug():
@@ -9,20 +10,20 @@ def debug():
     if not files:
         print("No files found in data/uploads")
         return
-    
+
     video_path = "data/uploads/710b2cfd-3774-4f70-80d2-4937366acf88_input.mp4"
     audio_path = "temp_debug.wav"
-    
+
     print(f"Extracting 10s audio using ffmpeg from {video_path}...")
     os.system(f"ffmpeg -i {video_path} -t 10 -vn -acodec pcm_s16le -ar 16000 -ac 1 {audio_path} -y -hide_banner -loglevel error")
-    
+
     print("Loading model...")
     # Using tiny for speed
     model = stable_whisper.load_faster_whisper("tiny", device="cpu", compute_type="int8")
-    
+
     print("Transcribing...")
     transcribe_kwargs = {
-        "language": "en", 
+        "language": "en",
         "word_timestamps": True,
         "vad": True,
         "regroup": True,
@@ -30,9 +31,9 @@ def debug():
         "suppress_word_ts": False,
         "vad_threshold": 0.35,
     }
-    
+
     result = model.transcribe(audio_path, **transcribe_kwargs)
-    
+
     print(f"Segments found: {len(result.segments)}")
     if result.segments:
         seg = result.segments[0]

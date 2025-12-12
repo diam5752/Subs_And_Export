@@ -4,11 +4,12 @@ from typing import List, Optional
 from backend.app.services.subtitles import Cue, generate_subtitles_from_audio
 from backend.app.services.transcription.base import Transcriber
 
+
 class OpenAITranscriber(Transcriber):
     """
     Transcriber using OpenAI official Whisper API.
     """
-    
+
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key
 

@@ -17,11 +17,16 @@ jest.mock('@/components/ViralIntelligence', () => ({
     )
 }));
 jest.mock('@/components/SubtitlePositionSelector', () => ({
-    SubtitlePositionSelector: ({ onChange, onChangeLines, onChangeColor, colors }: any) => (
+    SubtitlePositionSelector: ({ onChange, onChangeLines, onChangeColor, colors }: {
+        onChange: (pos: string) => void;
+        onChangeLines: (lines: number) => void;
+        onChangeColor: (color: string) => void;
+        colors?: Array<{ value: string; label: string }>;
+    }) => (
         <div data-testid="subtitle-selector">
             <button onClick={() => onChange('top')}>Top</button>
             <button onClick={() => onChangeLines(3)}>3 Lines</button>
-            {colors && colors.map((c: any) => (
+            {colors && colors.map((c: { value: string; label: string }) => (
                 <button key={c.value} aria-label={`Select ${c.label} color`} onClick={() => onChangeColor(c.value)}>Color</button>
             ))}
         </div>
@@ -38,6 +43,7 @@ jest.mock('@/lib/api', () => ({
     api: {
         deleteJob: jest.fn(),
         deleteJobs: jest.fn(),
+        exportVideo: jest.fn(),
     },
 }));
 
@@ -890,7 +896,7 @@ describe('ProcessView', () => {
             totalPages: 3,
             onNextPage,
             onPrevPage,
-            recentJobs: [{ id: '1' }] as any
+            recentJobs: [{ id: '1' } as JobResponse]
         };
         render(<ProcessView {...props} />);
 
@@ -913,7 +919,7 @@ describe('ProcessView', () => {
 
         const onJobSelect = jest.fn();
         // Dynamically add exportVideo mock
-        (api as any).exportVideo = jest.fn().mockResolvedValue({ ...job, result_data: { variants: { '2160x3840': 'path' } } });
+        (api.exportVideo as jest.Mock).mockResolvedValue({ ...job, result_data: { variants: { '2160x3840': 'path' } } });
 
         render(<ProcessView {...defaultProps} selectedJob={job} onJobSelect={onJobSelect} />);
 
@@ -922,7 +928,7 @@ describe('ProcessView', () => {
             fireEvent.click(exportBtn);
         });
 
-        expect((api as any).exportVideo).toHaveBeenCalledWith('job1', '2160x3840');
+        expect(api.exportVideo).toHaveBeenCalledWith('job1', '2160x3840');
         expect(onJobSelect).toHaveBeenCalled();
     });
 
@@ -945,7 +951,7 @@ describe('ProcessView', () => {
         });
 
         // Should call fetch for download, not exportVideo
-        expect((api as any).exportVideo).not.toHaveBeenCalled();
+        expect(api.exportVideo).not.toHaveBeenCalled();
         expect(global.fetch).toHaveBeenCalled();
     });
 

@@ -1,7 +1,6 @@
 
-import pytest
-import os
 from backend.app.core import auth
+
 
 def test_verify_password_scrypt_error():
     """Test verification handles scrypt errors gracefully."""
@@ -17,19 +16,19 @@ def test_get_secret_fallback(monkeypatch, tmp_path):
     # 1. Env var
     monkeypatch.setenv("TEST_SECRET", "env_value")
     assert auth._get_secret("TEST_SECRET") == "env_value"
-    
+
     # 2. File
     monkeypatch.delenv("TEST_SECRET")
     secrets_file = tmp_path / "secrets.toml"
     secrets_file.write_text('TEST_SECRET = "file_value"')
-    
+
     # Mock PROJECT_ROOT navigation
     # Defaults traverse parent.parent/config
     # We can just enforce GSP_SECRETS_FILE
     monkeypatch.setenv("GSP_SECRETS_FILE", str(secrets_file))
-    
+
     assert auth._get_secret("TEST_SECRET") == "file_value"
-    
+
     # 3. Missing
     monkeypatch.delenv("GSP_SECRETS_FILE")
     # Also ensure default path doesn't exist or doesn't have it (safe assumption usually)

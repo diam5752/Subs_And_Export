@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import Literal
 
+
 @dataclass
 class SubtitleStyle:
     """
@@ -12,19 +13,19 @@ class SubtitleStyle:
     secondary_color: str = "#FFFFFF"
     stroke_color: str = "black"
     stroke_width: int = 2
-    
+
     # Rendering Mode
     highlight_style: Literal["static", "karaoke", "pop", "active-graphics"] = "karaoke"
-    
+
     # Layout
     max_lines: int = 2
     position: Literal["default", "top", "bottom", "middle"] = "default"
-    
+
     # Visual Tweaks
     shadow_strength: int = 4
     margin_x: int = 90
     margin_bottom: int = 320
-    
+
     def to_renderer_kwargs(self, width: int, height: int) -> dict:
         """
         Helper to convert style object to renderer initialization arguments.
@@ -39,7 +40,7 @@ class SubtitleStyle:
             "height": height,
             "margin_bottom": self.margin_bottom
         }
-        
+
         if self.highlight_style == "pop" or self.max_lines == 0:
              # ActiveWordRenderer kwargs
             return base

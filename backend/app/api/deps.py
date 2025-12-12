@@ -1,20 +1,19 @@
-from typing import Generator, Annotated
+from typing import Annotated, Generator
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 
-
+from ..core.auth import SessionStore, User, UserStore
 from ..core.database import Database
-from ..core.auth import UserStore, SessionStore, User
-from ..services.jobs import JobStore
 from ..services.history import HistoryStore
-from ..core import config
+from ..services.jobs import JobStore
 
 # Simple OAuth2 scheme (Password flow) for Swagger UI
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
 
 def get_db() -> Generator[Database, None, None]:
     """Dependency to get a centralized database instance."""
-    # In a real async app we might want session handling per request, 
+    # In a real async app we might want session handling per request,
     # but for sqlite wrapper we can just return the instance.
     # The wrapper handles connection pooling/context inside .connect()
     db = Database()

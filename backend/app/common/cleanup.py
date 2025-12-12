@@ -1,7 +1,6 @@
-import os
-import time
-import shutil
 import logging
+import shutil
+import time
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -18,18 +17,18 @@ def cleanup_old_jobs(
     now = time.time()
     retention_seconds = retention_hours * 3600
     cutoff_time = now - retention_seconds
-    
+
     logger.info(f"Starting cleanup of files older than {retention_hours} hours...")
-    
+
     # helper to check and delete
     def check_and_delete(path: Path):
         try:
             if not path.exists():
                 return
-            
+
             # Use stat().st_mtime for modification time
             mtime = path.stat().st_mtime
-            
+
             if mtime < cutoff_time:
                 logger.info(f"Deleting expired item: {path}")
                 if path.is_file():
@@ -52,5 +51,5 @@ def cleanup_old_jobs(
             if item.name == ".gitkeep":
                 continue
             check_and_delete(item)
-            
+
     logger.info("Cleanup complete.")

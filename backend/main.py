@@ -1,10 +1,10 @@
 import os
 from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from fastapi.staticfiles import StaticFiles
 from secure import (
     ContentSecurityPolicy,
     ReferrerPolicy,
@@ -17,7 +17,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.types import ASGIApp
 
-from backend.app.api.endpoints import auth, videos, tiktok, history
+from backend.app.api.endpoints import auth, history, tiktok, videos
 from backend.app.core import config
 
 app = FastAPI(
@@ -100,26 +100,33 @@ if os.getenv("GSP_FORCE_HTTPS", "0") == "1":
 DATA_DIR = config.PROJECT_ROOT / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-from fastapi.responses import FileResponse, HTMLResponse
 from fastapi import HTTPException
+from fastapi.responses import FileResponse, HTMLResponse
+
 
 @app.get("/static/{file_path:path}")
 async def serve_static(file_path: str):
     full_path = DATA_DIR / file_path
-    
+
+    # Security: Prevent path traversal
+    try:
+        full_path.resolve().relative_to(DATA_DIR.resolve())
+    except ValueError:
+        raise HTTPException(status_code=403, detail="Access denied")
+
     if not full_path.exists():
         raise HTTPException(status_code=404, detail="File not found")
-        
+
     if full_path.is_file():
         return FileResponse(full_path)
-        
+
     if full_path.is_dir():
         files = sorted(os.listdir(full_path))
         files_html = "".join(
             f'<li><a href="{f}/">{f}</a></li>' if (full_path / f).is_dir() else f'<li><a href="{f}">{f}</a></li>'
             for f in files if not f.startswith(".")
         )
-        
+
         # Add "Go Up" link if not at root
         up_link = ""
         if file_path and file_path != ".":
@@ -151,7 +158,7 @@ async def serve_static(file_path: str):
         </html>
         """
         return HTMLResponse(content=html_content)
-    
+
     raise HTTPException(status_code=404, detail="Not found")
 
 # Include Routers
