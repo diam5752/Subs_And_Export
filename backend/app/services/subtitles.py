@@ -243,7 +243,7 @@ def _transcribe_with_openai(
                  # Filter words belonging to this segment time range
                  seg_words_data = [
                      w for w in all_words 
-                     if w.start >= seg_start and w.end <= seg_end
+                     if w.start >= seg_start and w.start < seg_end
                  ]
                  current_words = [
                      WordTiming(start=w.start, end=w.end, text=_normalize_text(w.word))
@@ -373,7 +373,7 @@ def _transcribe_with_groq(
             if all_words:
                 seg_words_data = [
                     w for w in all_words 
-                    if w.start >= seg_start and w.end <= seg_end
+                    if w.start >= seg_start and w.start < seg_end
                 ]
                 current_words = [
                     WordTiming(start=w.start, end=w.end, text=_normalize_text(w.word))
