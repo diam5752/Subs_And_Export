@@ -1,7 +1,17 @@
 """Pytest configuration for backend tests."""
+
 import pytest
 import os
 import tempfile
+import sys
+from unittest.mock import MagicMock
+
+
+# Mock module dependencies that might be missing
+sys.modules["stable_whisper"] = MagicMock()
+sys.modules["moviepy"] = MagicMock()
+sys.modules["moviepy.editor"] = MagicMock()
+sys.modules["moviepy.video.io.VideoFileClip"] = MagicMock()
 
 # Set test environment
 os.environ["APP_ENV"] = "test"
