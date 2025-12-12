@@ -366,25 +366,29 @@ def test_generate_viral_metadata_empty_response(monkeypatch):
         assert "Empty response" in str(e) or "Failed to generate" in str(e)
 
 def test_video_processing_turbo_alias(monkeypatch):
-    """Cover turbo model alias (line 262)."""
+    """Cover turbo model alias (line 254-255)."""
     from backend.app.services import video_processing
     from backend.app.core import config
     
-    # Mock extract/transcribe to just return
+    # Track what model was passed to the transcriber
+    captured_model = {}
+    
+    class MockTranscriber:
+        def transcribe(self, audio_path, output_dir, language, model, **kwargs):
+            captured_model["model"] = model
+            srt_path = output_dir / "test.srt"
+            srt_path.write_text("1\n00:00:00,000 --> 00:00:01,000\nTest\n")
+            return srt_path, []
+    
+    # Patch the LocalWhisperTranscriber (default provider for turbo model)
+    monkeypatch.setattr(video_processing, "LocalWhisperTranscriber", lambda **kw: MockTranscriber())
+    
+    # Mock other pipeline steps
     monkeypatch.setattr(video_processing.subtitles, "extract_audio", lambda *a, **k: Path("a.wav"))
-    monkeypatch.setattr(video_processing.subtitles, "generate_subtitles_from_audio", lambda *a, **k: (Path("a.srt"), []))
     monkeypatch.setattr(video_processing.subtitles, "create_styled_subtitle_file", lambda *a, **k: Path("a.ass"))
-    # Mock ffmpeg
     monkeypatch.setattr(video_processing, "_run_ffmpeg_with_subs", lambda *a, **k: "")
-    # Mock persist
     monkeypatch.setattr(video_processing, "_persist_artifacts", lambda *a: None)
-    
-    # Check if 'run_video_processing' or 'normalize...' sets correct model
-    # We can inspect the call arguments to generate_subtitles_from_audio or similar.
-    # But easier to spy on generate_subtitles_from_audio arguments.
-    
-    captor = MagicMock(return_value=(Path("a.srt"), []))
-    monkeypatch.setattr(video_processing.subtitles, "generate_subtitles_from_audio", captor)
+    monkeypatch.setattr(video_processing.subtitles, "get_video_duration", lambda *a: 10.0)
     
     import tempfile
     with tempfile.TemporaryDirectory() as td:
@@ -393,7 +397,6 @@ def test_video_processing_turbo_alias(monkeypatch):
         in_p.touch()
         out_p = p / "out.mp4"
         
-        
         # We need to ensure out_p exists after "ffmpeg"
         out_p.touch()
 
@@ -401,9 +404,8 @@ def test_video_processing_turbo_alias(monkeypatch):
             in_p, out_p, model_size="turbo"
         )
         
-        # Verify call used the config.WHISPER_MODEL_TURBO
-        _, kwargs = captor.call_args
-        assert kwargs["model_size"] == config.WHISPER_MODEL_TURBO
+        # Verify the turbo alias was resolved to config.WHISPER_MODEL_TURBO
+        assert captured_model["model"] == config.WHISPER_MODEL_TURBO
 
 def test_video_processing_artifact_same_path(monkeypatch):
     """Cover output path == artifact output path (line 480)."""

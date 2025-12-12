@@ -65,6 +65,8 @@ GOOGLE_REDIRECT_URI = "http://localhost/callback"
 
 
 def test_google_oauth_config_prefers_frontend_hint(monkeypatch):
+    # Disable file-based secrets to ensure we only test env vars
+    monkeypatch.setenv("GSP_USE_FILE_SECRETS", "0")
     monkeypatch.delenv("GSP_SECRETS_FILE", raising=False)
     monkeypatch.setenv("GOOGLE_CLIENT_ID", "cid")
     monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "secret")

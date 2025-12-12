@@ -16,11 +16,11 @@ describe('SubtitlePositionSelector', () => {
     it('renders all three position options', () => {
         render(<SubtitlePositionSelector {...defaultProps} />);
 
-        expect(screen.getByText('Default')).toBeInTheDocument();
-        expect(screen.getByText('Social Standard')).toBeInTheDocument();
+        expect(screen.getByText('High')).toBeInTheDocument();
+        expect(screen.getByText('Higher positioning')).toBeInTheDocument();
 
         expect(screen.getByText('Middle')).toBeInTheDocument();
-        expect(screen.getByText('Higher positioning')).toBeInTheDocument();
+        expect(screen.getByText('Social Standard')).toBeInTheDocument();
 
         expect(screen.getByText('Low')).toBeInTheDocument();
         expect(screen.getByText('Cinematic style')).toBeInTheDocument();
@@ -29,7 +29,7 @@ describe('SubtitlePositionSelector', () => {
     it('highlights the selected option', () => {
         render(<SubtitlePositionSelector {...defaultProps} value="top" />);
 
-        const topButton = screen.getByText('Middle').closest('button');
+        const topButton = screen.getByText('High').closest('button');
         expect(topButton?.className).toContain('border-[var(--accent)]');
     });
 
@@ -91,7 +91,7 @@ describe('SubtitlePositionSelector', () => {
             </div>
         );
 
-        fireEvent.click(screen.getByText('Middle'));
+        fireEvent.click(screen.getByText('High'));
 
         expect(onChange).toHaveBeenCalledWith('top');
         expect(parentClick).not.toHaveBeenCalled();
@@ -147,5 +147,52 @@ describe('SubtitlePositionSelector', () => {
         const lineButton1 = screen.getByRole('button', { name: /Single Line/i });
         fireEvent.click(lineButton1);
         expect(onChangeLines).toHaveBeenCalledWith(1);
+    });
+    it('shows Auto message when disableMaxLines is true', () => {
+        render(<SubtitlePositionSelector {...defaultProps} disableMaxLines={true} />);
+        expect(screen.getByText('Auto (Sync Priority)')).toBeInTheDocument();
+        expect(screen.queryByText('Single Line')).not.toBeInTheDocument();
+    });
+
+    it('renders and interactions with size selector', () => {
+        const onChangeSize = jest.fn();
+        render(<SubtitlePositionSelector {...defaultProps} onChangeSize={onChangeSize} subtitleSize="medium" />);
+
+        expect(screen.getByText('Big')).toBeInTheDocument();
+        expect(screen.getByText('Small')).toBeInTheDocument();
+
+        fireEvent.click(screen.getByText('Big'));
+        expect(onChangeSize).toHaveBeenCalledWith('big');
+    });
+
+    it('renders and toggles karaoke mode', () => {
+        const onChangeKaraoke = jest.fn();
+        render(
+            <SubtitlePositionSelector
+                {...defaultProps}
+                karaokeEnabled={true}
+                onChangeKaraoke={onChangeKaraoke}
+                karaokeSupported={true}
+            />
+        );
+
+        expect(screen.getByText('Karaoke Mode')).toBeInTheDocument();
+
+        const toggleBtn = screen.getByText('Karaoke Mode').closest('button');
+        fireEvent.click(toggleBtn!);
+
+        // It should call with !enabled -> !true -> false
+        expect(onChangeKaraoke).toHaveBeenCalledWith(false);
+    });
+
+    it('hides karaoke toggle if not supported', () => {
+        render(
+            <SubtitlePositionSelector
+                {...defaultProps}
+                karaokeEnabled={true}
+                karaokeSupported={false}
+            />
+        );
+        expect(screen.queryByText('Karaoke Mode')).not.toBeInTheDocument();
     });
 });

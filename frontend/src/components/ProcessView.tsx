@@ -606,6 +606,7 @@ export function ProcessView({
                                             // Collapsed view - show only selected model
                                             return (
                                                 <button
+                                                    data-testid="model-selector-collapsed"
                                                     onClick={(e) => {
                                                         e.stopPropagation();
                                                         setExpandedModelId('all');

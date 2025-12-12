@@ -38,5 +38,12 @@ def test_get_secret_fallback(monkeypatch, tmp_path):
 
 def test_google_oauth_config_missing(monkeypatch):
     """Test returns None when config missing."""
+    # Disable file-based secrets to ensure we only test env vars
+    monkeypatch.setenv("GSP_USE_FILE_SECRETS", "0")
     monkeypatch.delenv("GOOGLE_CLIENT_ID", raising=False)
+    monkeypatch.delenv("GOOGLE_CLIENT_SECRET", raising=False)
+    monkeypatch.delenv("GOOGLE_REDIRECT_URI", raising=False)
+    monkeypatch.delenv("FRONTEND_URL", raising=False)
+    monkeypatch.delenv("NEXT_PUBLIC_SITE_URL", raising=False)
+    monkeypatch.delenv("NEXT_PUBLIC_APP_URL", raising=False)
     assert auth.google_oauth_config() is None

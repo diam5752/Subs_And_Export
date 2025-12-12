@@ -130,9 +130,12 @@ describe('ProcessView', () => {
 
         await waitFor(() => expect(screen.getByText('test.mp4')).toBeInTheDocument());
 
-        // Click Turbo model button (main option)
-        const turboBtn = screen.getByTestId('model-turbo');
-        fireEvent.click(turboBtn);
+        // Turbo (Enhanced) is selected by default
+        expect(screen.getByText('Enhanced')).toBeInTheDocument();
+        // It's the default, so we don't need to click it. 
+        // If we wanted to, we'd need to expand first:
+        // fireEvent.click(screen.getByTestId('model-selector-collapsed'));
+        // fireEvent.click(screen.getByTestId('model-turbo'));
 
         // Start processing
         const startBtn = screen.getByText('controlsStart');
@@ -211,6 +214,9 @@ describe('ProcessView', () => {
 
             await waitFor(() => expect(screen.getByText('test.mp4')).toBeInTheDocument());
 
+            // Expand model list
+            fireEvent.click(screen.getByTestId('model-selector-collapsed'));
+
             // Click Ultimate/Groq button (now in main list)
             const groqBtn = screen.getByTestId('model-groq');
             fireEvent.click(groqBtn);
@@ -231,6 +237,11 @@ describe('ProcessView', () => {
         render(<ProcessView {...defaultProps} selectedFile={file} onStartProcessing={onStartProcessing} />);
 
         await waitFor(() => expect(screen.getByText('test.mp4')).toBeInTheDocument());
+
+        await waitFor(() => expect(screen.getByText('test.mp4')).toBeInTheDocument());
+
+        // Expand custom settings
+        fireEvent.click(screen.getByText('Customize subtitle settings'));
 
         // Select 'Green' color
         const greenBtn = screen.getByLabelText('Select Green color');
@@ -766,6 +777,9 @@ describe('ProcessView', () => {
 
             await waitFor(() => expect(screen.getByText('test.mp4')).toBeInTheDocument());
 
+            // Expand model list
+            fireEvent.click(screen.getByTestId('model-selector-collapsed'));
+
             // Should show Standard option in main list
             expect(screen.getByTestId('model-whispercpp')).toBeInTheDocument();
             expect(screen.getByText('Standard')).toBeInTheDocument();
@@ -802,6 +816,9 @@ describe('ProcessView', () => {
 
             await waitFor(() => expect(screen.getByText('test.mp4')).toBeInTheDocument());
 
+            // Expand model list
+            fireEvent.click(screen.getByTestId('model-selector-collapsed'));
+
             // Click Ultimate/Groq button (now in main list)
             const groqBtn = screen.getByTestId('model-groq');
             fireEvent.click(groqBtn);
@@ -831,6 +848,9 @@ describe('ProcessView', () => {
 
             await waitFor(() => expect(screen.getByText('test.mp4')).toBeInTheDocument());
 
+            // Expand model list
+            fireEvent.click(screen.getByTestId('model-selector-collapsed'));
+
             // Click whisper.cpp button
             const whispercppBtn = screen.getByTestId('model-whispercpp');
             fireEvent.click(whispercppBtn);
@@ -850,6 +870,83 @@ describe('ProcessView', () => {
             render(<ProcessView {...defaultProps} selectedJob={job} />);
             expect(screen.getByText('whisper.cpp')).toBeInTheDocument();
         });
+    });
+
+    it('calls onCancelProcessing when cancel button is clicked', () => {
+        const onCancelProcessing = jest.fn();
+        render(<ProcessView {...defaultProps} isProcessing={true} onCancelProcessing={onCancelProcessing} />);
+
+        const cancelBtn = screen.getByText('cancelProcessing');
+        fireEvent.click(cancelBtn);
+        expect(onCancelProcessing).toHaveBeenCalled();
+    });
+
+    it('triggers next/prev page calls', () => {
+        const onNextPage = jest.fn();
+        const onPrevPage = jest.fn();
+        const props = {
+            ...defaultProps,
+            currentPage: 2,
+            totalPages: 3,
+            onNextPage,
+            onPrevPage,
+            recentJobs: [{ id: '1' }] as any
+        };
+        render(<ProcessView {...props} />);
+
+        fireEvent.click(screen.getByText(/Previous/i));
+        expect(onPrevPage).toHaveBeenCalled();
+
+        fireEvent.click(screen.getByText(/Next/i));
+        expect(onNextPage).toHaveBeenCalled();
+    });
+
+    it('triggers export for 2160x3840', async () => {
+        const job = {
+            id: 'job1',
+            status: 'completed',
+            result_data: {
+                public_url: 'url',
+                variants: {}
+            }
+        } as JobResponse;
+
+        const onJobSelect = jest.fn();
+        // Dynamically add exportVideo mock
+        (api as any).exportVideo = jest.fn().mockResolvedValue({ ...job, result_data: { variants: { '2160x3840': 'path' } } });
+
+        render(<ProcessView {...defaultProps} selectedJob={job} onJobSelect={onJobSelect} />);
+
+        const exportBtn = screen.getByText(/Export 4K/i);
+        await act(async () => {
+            fireEvent.click(exportBtn);
+        });
+
+        expect((api as any).exportVideo).toHaveBeenCalledWith('job1', '2160x3840');
+        expect(onJobSelect).toHaveBeenCalled();
+    });
+
+    it('downloads existing variant instead of exporting', async () => {
+        const job = {
+            id: 'job1',
+            status: 'completed',
+            result_data: {
+                public_url: 'url',
+                variants: { '2160x3840': 'existing_path' }
+            }
+        } as JobResponse;
+
+        render(<ProcessView {...defaultProps} selectedJob={job} />);
+
+        const downloadBtn = screen.getByText(/Download 4K/i);
+
+        await act(async () => {
+            fireEvent.click(downloadBtn);
+        });
+
+        // Should call fetch for download, not exportVideo
+        expect((api as any).exportVideo).not.toHaveBeenCalled();
+        expect(global.fetch).toHaveBeenCalled();
     });
 
 });

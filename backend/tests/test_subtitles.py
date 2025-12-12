@@ -1044,4 +1044,69 @@ def test_1_word_mode_splitting_standard_model():
     # "THREE" is 5 chars -> 5/15 * 4 = 1.33s -> 2.93s
     assert split_cues[2].end == pytest.approx(2.93, 0.1)
     # "FOUR" is 4 chars -> 4/15 * 4 = 1.06s -> 4.0s
+    # "FOUR" is 4 chars -> 4/15 * 4 = 1.06s -> 4.0s
     assert split_cues[3].end == pytest.approx(4.0, 0.1)
+
+
+def test_generate_active_word_ass_no_words():
+    # Fallback when no words present
+    cue = subtitles.Cue(0.0, 1.0, "Hello", words=None)
+    lines = subtitles._generate_active_word_ass(cue, 2, "P", "S")
+    assert len(lines) == 1
+    assert "Dialogue:" in lines[0]
+    assert ",Hello" in lines[0]
+
+def test_generate_active_word_ass_logic():
+    # 2 words: "Hello", "World"
+    # Expected: 
+    # 1 base layer (all dim)
+    # 2 active layers (dim-lit-dim or similar logic)
+    
+    words = [
+        subtitles.WordTiming(0.0, 0.5, "Hello"),
+        subtitles.WordTiming(0.5, 1.0, "World")
+    ]
+    cue = subtitles.Cue(0.0, 1.0, "Hello World", words=words)
+    
+    lines = subtitles._generate_active_word_ass(cue, 2, "P", "S")
+    
+    # Base: 1
+    # Active: 2 (one per word)
+    assert len(lines) == 3
+    
+    base = lines[0]
+    assert "Dialogue: 0," in base
+    assert r"{\cS&}Hello" in base # All words secondary color
+    assert r"{\cS&}World" in base
+    
+    active1 = lines[1]
+    assert "Dialogue: 1," in active1
+    # First event: start 0.0, end 0.5. "Hello" primary, "World" secondary
+    assert "0:00:00.00,0:00:00.50" in active1
+    assert r"{\cP&}Hello" in active1
+    assert r"{\cS&}World" in active1
+
+    active2 = lines[2]
+    # Second event: start 0.5, end 1.0. "Hello" secondary, "World" primary
+    assert "0:00:00.50,0:00:01.00" in active2
+    assert r"{\cS&}Hello" in active2
+    assert r"{\cP&}World" in active2
+
+def test_split_long_cues_with_phrases_interpolation():
+    # Trigger logic for word token interpolation (space in word)
+    words = [
+        subtitles.WordTiming(0.0, 2.0, "Part1 Part2")
+    ]
+    cue = subtitles.Cue(0.0, 2.0, "Part1 Part2", words=words)
+    
+    # Force split by max_chars=1
+    split = subtitles._split_long_cues([cue], max_chars=1, max_lines=1)
+    
+    assert len(split) == 2
+    assert split[0].text == "Part1"
+    assert split[0].start == 0.0
+    assert split[0].end == 1.0
+    
+    assert split[1].text == "Part2"
+    assert split[1].start == 1.0
+    assert split[1].end == 2.0
