@@ -25,6 +25,7 @@ env/
 .env.development
 .env.production
 .env.test
+.env.docker
 
 # Node/Next
 node_modules/

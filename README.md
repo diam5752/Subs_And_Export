@@ -17,10 +17,28 @@ This project follows a clean monorepo structure:
 
 The easiest way to run the project is with Docker:
 
+### 1. Configure Environment
 ```bash
-make docker-up
+cp .env.docker.example .env.docker
+# Edit .env.docker with your API keys (OPENAI_API_KEY, GROQ_API_KEY, etc.)
 ```
-This will build and start both backend (port 8000) and frontend (port 3000).
+
+### 2. Build & Run
+```bash
+docker-compose up --build
+```
+
+This starts:
+- **Backend**: http://localhost:8000 (API + static files)
+- **Frontend**: http://localhost:3000 (Web UI)
+
+### 3. Verify
+```bash
+curl http://localhost:8000/health  # Should return {"status": "ok"}
+```
+
+> **Note**: First transcription may take longer as Whisper models are downloaded.
+> Models are cached in a Docker volume (`gsp_whisper_models`) for subsequent runs.
 
 ## Local Development
 

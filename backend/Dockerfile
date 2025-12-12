@@ -1,43 +1,61 @@
-FROM python:3.11-slim
+FROM python:3.11-slim AS builder
 
-# Install system dependencies
-# ffmpeg is required for video processing
+# Install build dependencies for native packages (faster-whisper, etc.)
 RUN apt-get update && apt-get install -y \
+    build-essential \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+COPY backend/requirements.txt .
+RUN pip wheel --no-cache-dir --wheel-dir /wheels -r requirements.txt
+
+# ============================================
+FROM python:3.11-slim AS runtime
+
+# Install runtime system dependencies
+# - ffmpeg: video/audio processing
+# - fonts-*: subtitle text rendering (Greek support)
+# - libgl1: OpenCV dependency
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     libgl1 \
-    && rm -rf /var/lib/apt/lists/*
+    fonts-dejavu-core \
+    fonts-noto \
+    fonts-freefont-ttf \
+    && rm -rf /var/lib/apt/lists/* \
+    && fc-cache -fv
 
 WORKDIR /app
 
-# Copy requirements and install
-COPY backend/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Install Python dependencies from pre-built wheels
+COPY --from=builder /wheels /wheels
+RUN pip install --no-cache-dir /wheels/* && rm -rf /wheels
 
 # Copy source code
 COPY backend/ .
 
-# Create data directories
+# Create directories for data and logs
 RUN mkdir -p /data/uploads /data/artifacts /app/logs
+
+# Whisper model cache directory (mount as volume for persistence)
+ENV HF_HOME=/models
+RUN mkdir -p /models
 
 # Set environment variables
 ENV PYTHONPATH=/app
-ENV PROJECT_ROOT=/app/app
-# Override config for data dir usually, but our code uses relative paths to PROJECT_ROOT.parent.parent
-# In container:
-# PROJECT_ROOT = /app/app/core (after config.py change)
-# .parent = /app/app
-# .parent.parent = /app
-# So /data will be sibling? Wait.
-# Code: DATA_DIR = config.PROJECT_ROOT.parent / "data" -> /app/data
-# But we usually mount volumes at /data.
-# In videos.py: data_dir = config.PROJECT_ROOT.parent / "data"
-# If PROJECT_ROOT is /app/app (from my manual set in config.py pointing to .parent.parent from core/config.py)
-# Wait, I set `PROJECT_ROOT = Path(__file__).resolve().parent.parent` in `core/config.py`.
-# `core/config.py` is in `/app/app/core`.
-# .parent = `/app/app`.
-# .parent.parent = `/app`.
-# So PROJECT_ROOT = `/app`.
-# videos.py says `data_dir = config.PROJECT_ROOT.parent / "data"` -> `/app/../data` -> `/data`.
-# This is perfect for Docker which mounts at /data.
+ENV PYTHONUNBUFFERED=1
+
+# Create symlink so 'backend.app' imports work (codebase uses mixed import styles)
+RUN ln -s /app /app/backend
+
+# Production settings
+ENV APP_ENV=production
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
+
+EXPOSE 8000
 
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
