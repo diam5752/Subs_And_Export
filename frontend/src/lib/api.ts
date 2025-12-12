@@ -180,6 +180,7 @@ class ApiClient {
         max_subtitle_lines?: number;
         subtitle_color?: string;
         shadow_strength?: number;
+        highlight_style?: string;
     }): Promise<JobResponse> {
         const formData = new FormData();
         formData.append('file', file);
@@ -197,6 +198,9 @@ class ApiClient {
         }
         if (settings.shadow_strength !== undefined) {
             formData.append('shadow_strength', String(settings.shadow_strength));
+        }
+        if (settings.highlight_style) {
+            formData.append('highlight_style', settings.highlight_style);
         }
 
         return this.request<JobResponse>('/videos/process', {

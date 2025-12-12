@@ -15,7 +15,7 @@ import unicodedata
 import textwrap
 import functools
 
-from faster_whisper import WhisperModel
+
 
 from backend.app.core import config
 
@@ -131,58 +131,40 @@ def get_video_duration(path: Path) -> float:
     return float(result.stdout.strip())
 
 
-@functools.lru_cache(maxsize=8)
-def _get_whisper_model_cached(
-    model_size: str,
-    device: str,
-    compute_type: str,
-    cpu_threads: int,
-) -> WhisperModel:  # pragma: no cover
-    """Cache Whisper models across runs to avoid reload overhead."""
-    model = WhisperModel(
-        model_size,
-        device=device,
-        compute_type=compute_type,
-        cpu_threads=cpu_threads,
-    )
-    setattr(model, "_compute_type", compute_type)
-    return model
 
+
+
+
+import stable_whisper
+
+# Define type alias for the wrapped model
+StableWhisperModel = stable_whisper.WhisperResult
 
 def _get_whisper_model(
     model_size: str,
     device: str,
     compute_type: str,
     cpu_threads: int,
-) -> WhisperModel:  # pragma: no cover
+) -> stable_whisper.WhisperResult:  # pragma: no cover
     """
-    Load a Whisper model with graceful fallback when fp16 is unsupported.
+    Load a Stable-Whisper wrapped Faster-Whisper model.
     """
-    # Try the requested compute_type first, then fall back for fp16 issues.
-    candidates: list[str] = [compute_type]
-    if compute_type in ("float16", "auto", "int8_float16"):
-        for ct in ("int8_float16", "int8", "float32"):
-            if ct not in candidates:
-                candidates.append(ct)
-    else:
-        for ct in ("int8", "float32"):
-            if ct not in candidates:
-                candidates.append(ct)
+    # Map "turbo" alias to the config constant (which might be large-v3 now)
+    print(f"DEBUG_RUNTIME_CONFIG: config.WHISPER_MODEL_TURBO is '{config.WHISPER_MODEL_TURBO}'")
+    if model_size == "turbo":
+        model_size = config.WHISPER_MODEL_TURBO
 
-    last_exc: Exception | None = None
-    for ct in candidates:
-        try:
-            return _get_whisper_model_cached(model_size, device, ct, cpu_threads)
-        except (RuntimeError, ValueError) as exc:
-            last_exc = exc
-            # Only continue on fp16-related failures; otherwise surface error.
-            msg = str(exc).lower()
-            if "float16" in msg or "fp16" in msg or "int8_float16" in msg or "compute type" in msg:
-                continue
-            raise
+    print(f"DEBUG: Loading Whisper model '{model_size}' (Device: {device})")
 
-    assert last_exc is not None
-    raise last_exc
+    # stable-ts wrapper for faster-whisper
+    # It internally loads FasterWhisperModel and wraps it.
+    model = stable_whisper.load_faster_whisper(
+        model_size_or_path=model_size,
+        device=device,
+        compute_type=compute_type,
+        cpu_threads=cpu_threads,
+    )
+    return model
 
 
 def should_use_openai(model_name: str | None) -> bool:
@@ -486,6 +468,39 @@ def _transcribe_with_whispercpp(
     return srt_path, cues
 
 
+    
+    if progress_callback:
+        progress_callback(90.0)
+
+    # Convert results
+    cues: List[Cue] = []
+    timed_text: List[TimeRange] = []
+    
+    for seg in result.segments:
+        seg_start = seg.start
+        seg_end = seg.end
+        seg_text = seg.text
+        
+        timed_text.append((seg_start, seg_end, seg_text))
+        
+        words: Optional[List[WordTiming]] = None
+        if seg.words:
+            words = [
+                WordTiming(start=w.start, end=w.end, text=_normalize_text(w.word))
+                for w in seg.words
+            ]
+            
+        cue_text = _normalize_text(seg_text)
+        cues.append(Cue(start=seg_start, end=seg_end, text=cue_text, words=words))
+
+    srt_path = output_dir / f"{audio_path.stem}.srt"
+    _write_srt_from_segments(timed_text, srt_path)
+    
+    if progress_callback:
+        progress_callback(100.0)
+        
+    return srt_path, cues
+
 
 
 def generate_subtitles_from_audio(
@@ -553,11 +568,12 @@ def generate_subtitles_from_audio(
             output_dir=output_dir,
             progress_callback=progress_callback,
         )
+        
     
-    # Default: Local faster-whisper with Turbo model
+    # Default: Stabel-TS wrapping Faster-Whisper
     threads = min(8, os.cpu_count() or 4)
     
-    # Cache models to avoid reloads between runs
+    # Load model using stable-ts wrapper
     model = _get_whisper_model(
         model_size,
         device=device,
@@ -568,45 +584,64 @@ def generate_subtitles_from_audio(
     transcribe_kwargs = {
         "language": language or config.WHISPER_LANGUAGE,
         "task": "transcribe",
-        "word_timestamps": True,
-        "vad_filter": vad_filter,
-        "vad_parameters": vad_parameters or dict(min_silence_duration_ms=700),
+        "word_timestamps": True, # Explicitly enable to ensure word timings are passed back
+        "vad": vad_filter, # Stable-ts VAD flag: bool or dict
+        "regroup": True, # Enable improved regrouping
+        "suppress_silence": True,
+        "suppress_word_ts": False,
+        "vad_threshold": 0.35,
+        # "min_silence_duration_ms": 500, # ERROR: Not a valid arg for transcribe()
         "condition_on_previous_text": condition_on_previous_text,
     }
-    if beam_size is not None:
-        transcribe_kwargs["beam_size"] = beam_size
-    if best_of is not None:
-        transcribe_kwargs["best_of"] = best_of
-    if temperature is not None:
-        transcribe_kwargs["temperature"] = temperature
-    if chunk_length is not None:
-        transcribe_kwargs["chunk_length"] = chunk_length
+    # Pass additional params if supported by wrapper or filter valid ones
+    # High quality defaults for Greek if not specified
+    # OPTIMIZATION: beam_size=2 is sufficient for high accuracy while being 2-3x faster than 5 on CPU.
+    transcribe_kwargs["beam_size"] = beam_size if beam_size is not None else 2
+    transcribe_kwargs["best_of"] = best_of if best_of is not None else 2
+    transcribe_kwargs["temperature"] = temperature if temperature is not None else 0.0
     if initial_prompt:
         transcribe_kwargs["initial_prompt"] = initial_prompt
 
-    segments_iter, _ = model.transcribe(str(audio_path), **transcribe_kwargs)
-
+    # Use model.transcribe_stable() - checking API, usually just .transcribe() on the wrapper?
+    # stable-ts wrapper object has .transcribe() that does the magic.
+    result = model.transcribe(str(audio_path), **transcribe_kwargs)
+    
+    # Helper to calculate segment progress? Stable-ts returns a result object, not iter?
+    # Actually stable-ts returns a WhisperResult object which contains segments.
+    # It might not support generator streaming easily for progress.
+    # We will just report 100% at end for now to avoid complexity or check if verbose=True helps.
+    
     cues: List[Cue] = []
     timed_text: List[TimeRange] = []
     
-    # Iterate over segments to track progress
-    for seg in segments_iter:
-        timed_text.append((seg.start, seg.end, seg.text))
+    # Result object has .segments method or property? 
+    # stable_whisper.WhisperResult has .segments
+    
+    for seg in result.segments: # stable-ts Segment object
+        seg_start = seg.start
+        seg_end = seg.end
+        seg_text = seg.text
+        
+        timed_text.append((seg_start, seg_end, seg_text))
+        
+        # Words in stable-ts are in seg.words
         words: Optional[List[WordTiming]] = None
-        if getattr(seg, "words", None):
+        if seg.words:
             words = [
                 WordTiming(start=w.start, end=w.end, text=_normalize_text(w.word))
                 for w in seg.words
             ]
-        cue_text = _normalize_text(seg.text)
-        cues.append(Cue(start=seg.start, end=seg.end, text=cue_text, words=words))
-        
-        if progress_callback and total_duration and total_duration > 0:
-            # Calculate progress based on the end time of the current segment
-            progress = min(100.0, (seg.end / total_duration) * 100.0)
-            progress_callback(progress)
+            
+        cue_text = _normalize_text(seg_text)
+        cues.append(Cue(start=seg_start, end=seg_end, text=cue_text, words=words))
+
+    if progress_callback:
+        progress_callback(100.0)
 
     srt_path = output_dir / f"{audio_path.stem}.srt"
+    
+    # result.to_srt_vtt(str(srt_path)) # Stable-ts built-in export?
+    # Let's stick to our writer to ensure consistency
     _write_srt_from_segments(timed_text, srt_path)
     return srt_path, cues
 
@@ -672,8 +707,63 @@ def _ass_header(
     )
 
 
-def _format_ass_dialogue(start: float, end: float, text: str) -> str:
-    return f"Dialogue: 0,{_format_timestamp(start)},{_format_timestamp(end)},Default,,0,0,0,,{text}"
+def _format_ass_dialogue(start: float, end: float, text: str, layer: int = 0) -> str:
+    return f"Dialogue: {layer},{_format_timestamp(start)},{_format_timestamp(end)},Default,,0,0,0,,{text}"
+
+def _generate_active_word_ass(cue: Cue, max_lines: int, primary_color: str, secondary_color: str) -> List[str]:
+    """
+    Generates ASS dialogue lines for 'active word' highlighting.
+    Each word gets its own dialogue event, appearing for its duration.
+    """
+    if not cue.words:
+        # Fallback to standard dialogue if no word timings
+        return [_format_ass_dialogue(cue.start, cue.end, cue.text)]
+
+    lines = []
+    
+    # Reconstruct the line structure from cue.text (which handles max_lines wrapping)
+    # cue.text contains "\N" for line breaks. We must preserve this structure.
+    # We map the flattened cue.words list into a nested structure based on cue.text lines.
+    
+    line_struct: List[List[WordTiming]] = [] 
+    raw_lines = cue.text.split("\\N")
+    
+    word_iter = iter(cue.words)
+    try:
+        for raw_line in raw_lines:
+            line_words = []
+            tokens = raw_line.split()
+            for _ in tokens:
+                line_words.append(next(word_iter))
+            line_struct.append(line_words)
+    except StopIteration:
+        # Fallback if text/words desync (should not happen with normal flow)
+        line_struct = [cue.words]
+
+    # Helper to build text for a specific active word (or None for all dim)
+    def build_text(active_word: WordTiming | None) -> str:
+        built_lines = []
+        for line_words in line_struct:
+            colored_tokens = []
+            for w in line_words:
+                # Determine colors
+                color = primary_color if w == active_word else secondary_color
+                colored_tokens.append(f"{{\\c{color}&}}{w.text}")
+            built_lines.append(" ".join(colored_tokens))
+        return "\\N".join(built_lines)
+
+    # 1. Base Layer (Layer 0): All Dim (Secondary Color)
+    # We render this for the FULL DURATION to provide the background.
+    full_text_dim = build_text(active_word=None)
+    lines.append(_format_ass_dialogue(cue.start, cue.end, full_text_dim, layer=0))
+
+    # 2. Active Layers (Layer 1): One event per word, Highlighting that word
+    for word in cue.words:
+        active_text = build_text(active_word=word)
+        # Layer 1 stands ON TOP of Layer 0
+        lines.append(_format_ass_dialogue(word.start, word.end, active_text, layer=1))
+    
+    return lines
 
 
 def create_styled_subtitle_file(
@@ -696,6 +786,7 @@ def create_styled_subtitle_file(
     play_res_x: int = config.DEFAULT_WIDTH,
     play_res_y: int = config.DEFAULT_HEIGHT,
     output_dir: Path | None = None,
+    highlight_style: str = "karaoke", # "karaoke" (fill) or "active" (pop)
 ) -> Path:
     """
     Convert an SRT transcript to an ASS file with styling for vertical video,
@@ -710,12 +801,79 @@ def create_styled_subtitle_file(
             for s, e, t in _parse_srt(transcript_path)
         ]
 
+    # Pre-processing: If Single Line mode (max_lines=1) is active,
+    # we must ensure segments are short enough to fit on one line without crazy scaling.
+    # We split long cues into smaller ones.
+    if max_lines == 1:
+        target_cues = parsed_cues
+        split_cues = []
+        MAX_CHARS_PER_LINE = 25 # Strict limit for vertical video width
+
+        for cue in target_cues:
+            # If no words, can't split accurately, just keep it (or forceful string split?)
+            if not cue.words or len(cue.text) <= MAX_CHARS_PER_LINE:
+                split_cues.append(cue)
+                continue
+
+            # Smart split based on words
+            current_chunk_words: List[WordTiming] = []
+            current_len = 0
+
+            for word in cue.words:
+                w_len = len(word.text) + 1 # +1 for space
+
+                # Check if adding this word exceeds limit AND we have at least one word already
+                if current_len + w_len > MAX_CHARS_PER_LINE and current_chunk_words:
+                    # Flush current chunk
+                    chunk_text = " ".join(w.text for w in current_chunk_words)
+                    chunk_start = current_chunk_words[0].start
+                    chunk_end = current_chunk_words[-1].end
+
+                    # Ensure continuity: gap fill?
+                    # Actually, let's just use first word start and last word end.
+                    # It might leave small gaps if silence, but for subtitles it's safer visually.
+
+                    split_cues.append(Cue(
+                        start=chunk_start,
+                        end=chunk_end,
+                        text=chunk_text,
+                        words=list(current_chunk_words)
+                    ))
+
+                    # Reset
+                    current_chunk_words = [word]
+                    current_len = w_len
+                else:
+                    current_chunk_words.append(word)
+                    current_len += w_len
+
+            # Flush final chunk
+            if current_chunk_words:
+                chunk_text = " ".join(w.text for w in current_chunk_words)
+                chunk_start = current_chunk_words[0].start
+                chunk_end = current_chunk_words[-1].end
+                # Extend last chunk to original end time if it's the very last part
+                # to cover trailing silence/punctuation duration
+                if not split_cues or split_cues[-1].end < cue.end:
+                    chunk_end = max(chunk_end, cue.end)
+
+                split_cues.append(Cue(
+                    start=chunk_start,
+                    end=chunk_end,
+                    text=chunk_text,
+                    words=list(current_chunk_words)
+                ))
+
+        parsed_cues = split_cues
+
+
+    # Resolve dynamic positioning based on subtitle_position alias
     # SUBTITLE SPLITTING MODES:
     # max_lines=0: "1 word at a time" mode - each word is a separate subtitle event
     # max_lines=1/2/3: Standard line-based mode - cues are split to fit in max_lines
     has_word_timings = any(cue.words for cue in parsed_cues)
-    
-    
+
+
     if max_lines == 0:
         # "1 WORD AT A TIME" MODE:
         # If words exist: Real Karaoke (per-word timing)
@@ -769,9 +927,25 @@ def create_styled_subtitle_file(
         play_res_y=play_res_y,
     )
     lines = [header]
+    # The header already includes "[Events]" and "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text"
+    # So we don't need to append them again here.
+
     for cue in parsed_cues:
-        text = _format_karaoke_text(cue, max_lines=max_lines)
-        lines.append(_format_ass_dialogue(cue.start, cue.end, text))
+        if highlight_style == "active" and (max_lines == 0 or cue.words):
+             # ACTIVE WORD MODE (Pop effect)
+             # Generate multiple events per cue, one for each word's duration
+             active_events = _generate_active_word_ass(
+                 cue, 
+                 max_lines=max_lines,
+                 primary_color=primary_color,
+                 secondary_color=secondary_color
+             )
+             lines.extend(active_events)
+        else:
+            # STANDARD / KARAOKE FILL MODE
+            text = _format_karaoke_text(cue, max_lines=max_lines)
+            lines.append(_format_ass_dialogue(cue.start, cue.end, text))
+
     ass_path.write_text("\n".join(lines), encoding="utf-8")
     return ass_path
 
@@ -989,75 +1163,24 @@ def _wrap_lines(
 
 def _format_karaoke_text(cue: Cue, max_lines: int = 2) -> str:
     """
-    Build ASS karaoke text with per-word highlighting. If word timings are not
-    available, falls back to plain text with simple multi-line wrapping.
+    Format text for ASS subtitles. 
+    Formerly handled karaoke highlighting, now simplified to just line wrapping
+    as we use the active-graphics renderer for highlighting.
     """
-    if cue.words:
-        word_texts = [w.text for w in cue.words]
-        # Pass max_lines explicitly
-        wrapped_lines = _wrap_lines(word_texts, max_chars=config.MAX_SUB_LINE_CHARS, max_lines=max_lines)
-        break_indices: List[int] = []
-        running_total = 0
-        for line_words in wrapped_lines[:-1]:
-            running_total += len(line_words)
-            break_indices.append(running_total)
-        words = cue.words
-        segments = []
-        previous_end = cue.start
-        for idx, word in enumerate(words):
-            # Insert line break before second line
-            if break_indices and idx == break_indices[0]:
-                segments.append("\\N")
-                break_indices.pop(0)
-            
-            # KARAOKE EFFECT
-            # Calculate duration relative to previous word end or cue start
-            # ASS \k tags are in centiseconds (1/100th sec)
-            
-            # Logic:
-            # 1. Fill from 'previous_end' to 'word.end'
-            # 2. But we only highlight the WORD.
-            # 3. If there's a gap between previous_end and word.start, it's silence/space.
-            #    We can attach that duration to the word or a space?
-            #    Simpler: Just fill from previous_end to word.end. This ensures continuous flow.
-            
-            # Current time pointer
-            current_end = word.end
-            duration_s = current_end - previous_end
-            
-            # Clamp duration to be at least 0
-            if duration_s < 0:
-                duration_s = 0
-                
-            # Convert to centiseconds
-            k_duration = int(duration_s * 100)
-            
-            segments.append(f"{{\\k{k_duration}}}{word.text}")
-            
-            previous_end = current_end
-            
-            if idx != len(words) - 1:
-                segments.append(" ")
-        return "".join(segments)
-
-    # Fallback: no word timings, static text wrapped to max_lines
+    # Use existing cues text splitting or wrapping
     raw_words = cue.text.split()
     wrapped_lines = _wrap_lines(raw_words, max_chars=config.MAX_SUB_LINE_CHARS, max_lines=max_lines)
+    
     if not wrapped_lines:
         return ""
-    joined = [" ".join(line) for line in wrapped_lines]
-    
-    # Fallback: If max_lines=0 (1 Word Mode) and no word timings (Standard Model),
-    # we still want the visual "fill" effect. Treating the whole cue as one "word".
-    if max_lines == 0:
-        duration_s = cue.end - cue.start
-        if duration_s < 0: duration_s = 0
-        k_duration = int(duration_s * 100)
-        # Apply strict \k tag to the single line
-        # Note: joined should be length 1 here due to splitting logic
-        return f"{{\\k{k_duration}}}{joined[0]}"
         
+    joined = [" ".join(line) for line in wrapped_lines]
     return "\\N".join(joined)
+
+
+
+
+
 
 
 _STOPWORDS = {

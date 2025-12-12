@@ -57,6 +57,7 @@ class ProcessingSettings(BaseModel):
     max_subtitle_lines: int = 2
     subtitle_color: str | None = None
     shadow_strength: int = 4
+    highlight_style: str = "karaoke"
 
 
 def _save_upload_with_limit(upload: UploadFile, destination: Path) -> None:
@@ -163,8 +164,9 @@ def run_video_processing(
             max_subtitle_lines=settings.max_subtitle_lines,
             subtitle_color=settings.subtitle_color,
             shadow_strength=settings.shadow_strength,
+            highlight_style=settings.highlight_style,
         )
-        print(f"DEBUG_VIDEOS: normalize called with max_subtitle_lines={settings.max_subtitle_lines} color={settings.subtitle_color} shadow={settings.shadow_strength}")
+        print(f"DEBUG_VIDEOS: normalize called with max_subtitle_lines={settings.max_subtitle_lines} color={settings.subtitle_color} shadow={settings.shadow_strength} style={settings.highlight_style}")
         
         # Result unpacking
         social = None
@@ -194,6 +196,7 @@ def run_video_processing(
             "subtitle_position": settings.subtitle_position,
             "subtitle_color": settings.subtitle_color,
             "shadow_strength": settings.shadow_strength,
+            "highlight_style": settings.highlight_style,
         }
         
         job_store.update_job(job_id, status="completed", progress=100, message="Done!", result_data=result_data)
@@ -239,6 +242,7 @@ async def process_video(
     max_subtitle_lines: int = Form(2),
     subtitle_color: str | None = Form(None),
     shadow_strength: int = Form(4),
+    highlight_style: str = Form("karaoke"),
     current_user: User = Depends(get_current_user),
     job_store: JobStore = Depends(get_job_store),
     history_store: HistoryStore = Depends(get_history_store)
@@ -301,8 +305,9 @@ async def process_video(
         max_subtitle_lines=max_subtitle_lines,
         subtitle_color=subtitle_color,
         shadow_strength=shadow_strength,
+        highlight_style=highlight_style,
     )
-    print(f"DEBUG_API: Received process request max_lines={max_subtitle_lines}")
+    print(f"DEBUG_API: Received process request max_lines={max_subtitle_lines} style={highlight_style}")
     
     background_tasks.add_task(
         run_video_processing,

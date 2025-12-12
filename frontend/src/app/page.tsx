@@ -140,7 +140,7 @@ export default function DashboardPage() {
     const modelMap: Record<string, string> = {
       fast: 'tiny',
       balanced: 'medium',
-      turbo: 'deepdml/faster-whisper-large-v3-turbo-ct2',
+      turbo: 'turbo', // Backend maps 'turbo' -> large-v3 for maximum accuracy
       best: 'large-v3',
     };
 
@@ -162,6 +162,7 @@ export default function DashboardPage() {
         max_subtitle_lines: options.max_subtitle_lines,
         subtitle_color: options.subtitle_color,
         shadow_strength: options.shadow_strength,
+        highlight_style: options.highlight_style,
       });
       setJobId(result.id);
     } catch (err) {

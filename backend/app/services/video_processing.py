@@ -15,7 +15,7 @@ from typing import Callable
 
 from backend.app.core import config
 from backend.app.common import metrics
-from backend.app.services import subtitles
+from backend.app.services import subtitles, graphics_renderer
 
 
 def _build_filtergraph(ass_path: Path, *, target_width: int | None = None, target_height: int | None = None) -> str:
@@ -237,6 +237,7 @@ def normalize_and_stub_subtitles(
     max_subtitle_lines: int = 2,
     subtitle_color: str | None = None,
     shadow_strength: int = 4,
+    highlight_style: str = "karaoke",
 ) -> Path | tuple[Path, subtitles.SocialCopy]:
     """
     Normalize video to 9:16, generate Greek subs, and burn them into the output.
@@ -377,6 +378,7 @@ def normalize_and_stub_subtitles(
                     max_lines=max_subtitle_lines,
                     shadow_strength=shadow_strength,
                     primary_color=subtitle_color or config.DEFAULT_SUB_COLOR,
+                    highlight_style=highlight_style,
                 )
 
             transcript_text = subtitles.cues_to_text(cues)
@@ -420,26 +422,50 @@ def normalize_and_stub_subtitles(
                 # Start FFmpeg immediately
                 encode_log = ""
                 with metrics.measure_time(pipeline_timings, "encode_s"):
-                    try:
-                        encode_log = _run_ffmpeg_with_subs(
-                            input_path,
-                            ass_path,
-                            destination,
-                            video_crf=video_crf or config.DEFAULT_VIDEO_CRF,
-                            video_preset=video_preset or config.DEFAULT_VIDEO_PRESET,
-                            audio_bitrate=audio_bitrate or config.DEFAULT_AUDIO_BITRATE,
-                            audio_copy=effective_audio_copy,
-                            use_hw_accel=use_hw_accel,
-                            progress_callback=_encode_progress if total_duration > 0 else None,
-                            total_duration=total_duration,
-                            output_width=output_width,
-                            output_height=output_height,
+                    # SPECIAL HANDLING: Active Graphics Renderer
+                    # If the style is "active-graphics", we re-render the video using MoviePy
+                    # BUT only if we actually have word-level timings (Standard/WhisperCPP model might not).
+                    has_words = cues and any(c.words for c in cues)
+                    print(f"DEBUG: highlight_style='{highlight_style}', has_words={has_words}")
+                    if cues and cues[0]:
+                        print(f"DEBUG: First cue words: {len(cues[0].words) if cues[0].words else 0}")
+
+                    def _clean_color(c: str) -> str:
+                        """Convert ASS color (&H00BBGGRR) to Hex (#RRGGBB)."""
+                        if not c: return config.DEFAULT_SUB_COLOR
+                        c = c.strip()
+                        if c.startswith("&H"):
+                            # ASS format: &HAABBGGRR or &HBBGGRR
+                            # Strip &H
+                            hex_str = c[2:]
+                            # Strip optional alpha (first 2 chars if len=8)
+                            if len(hex_str) == 8:
+                                hex_str = hex_str[2:]
+                            
+                            if len(hex_str) == 6:
+                                # ASS is BGR, Web is RGB
+                                b = hex_str[0:2]
+                                g = hex_str[2:4]
+                                r = hex_str[4:6]
+                                return f"#{r}{g}{b}"
+                        return c
+
+                    if highlight_style == "active-graphics" and has_words:
+                        if progress_callback:
+                             progress_callback("Rendering active graphics...", 85.0)
+                        
+                        graphics_renderer.render_active_word_video(
+                            input_path=input_path,
+                            output_path=destination,
+                            cues=cues,
+                            primary_color=_clean_color(subtitle_color or config.DEFAULT_SUB_COLOR),
+                            target_width=output_width or config.DEFAULT_WIDTH,
+                            target_height=output_height or config.DEFAULT_HEIGHT,
+                            max_lines=max_subtitle_lines,
                         )
-                    except subprocess.CalledProcessError as exc:
-                        encode_log = exc.output or ""
-                        if use_hw_accel:
-                            # Retry without hardware acceleration if VideoToolbox fails
-                            pipeline_timings["encode_retry"] = "fallback_to_software"
+                    else:
+                        # Standard FFmpeg Burn-in
+                        try:
                             encode_log = _run_ffmpeg_with_subs(
                                 input_path,
                                 ass_path,
@@ -448,14 +474,33 @@ def normalize_and_stub_subtitles(
                                 video_preset=video_preset or config.DEFAULT_VIDEO_PRESET,
                                 audio_bitrate=audio_bitrate or config.DEFAULT_AUDIO_BITRATE,
                                 audio_copy=effective_audio_copy,
-                                use_hw_accel=False,
+                                use_hw_accel=use_hw_accel,
                                 progress_callback=_encode_progress if total_duration > 0 else None,
                                 total_duration=total_duration,
                                 output_width=output_width,
                                 output_height=output_height,
                             )
-                        else:
-                            raise  # pragma: no cover - surfaced for unexpected ffmpeg failure
+                        except subprocess.CalledProcessError as exc:
+                            encode_log = exc.output or ""
+                            if use_hw_accel:
+                                # Retry without hardware acceleration if VideoToolbox fails
+                                pipeline_timings["encode_retry"] = "fallback_to_software"
+                                encode_log = _run_ffmpeg_with_subs(
+                                    input_path,
+                                    ass_path,
+                                    destination,
+                                    video_crf=video_crf or config.DEFAULT_VIDEO_CRF,
+                                    video_preset=video_preset or config.DEFAULT_VIDEO_PRESET,
+                                    audio_bitrate=audio_bitrate or config.DEFAULT_AUDIO_BITRATE,
+                                    audio_copy=effective_audio_copy,
+                                    use_hw_accel=False,
+                                    progress_callback=_encode_progress if total_duration > 0 else None,
+                                    total_duration=total_duration,
+                                    output_width=output_width,
+                                    output_height=output_height,
+                                )
+                            else:
+                                raise
                 
                 if encode_log:  # pragma: no cover - best-effort logging
                     pipeline_timings["encode_log"] = encode_log

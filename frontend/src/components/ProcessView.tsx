@@ -47,6 +47,7 @@ export interface ProcessingOptions {
     max_subtitle_lines: number;
     subtitle_color: string;
     shadow_strength: number;
+    highlight_style: string;
 }
 
 export function ProcessView({
@@ -258,6 +259,7 @@ export function ProcessView({
             max_subtitle_lines: maxSubtitleLines,
             subtitle_color: colorObj.ass,
             shadow_strength: shadowStrength,
+            highlight_style: 'active-graphics',
         });
     };
 
@@ -626,6 +628,8 @@ export function ProcessView({
                                         disableMaxLines={transcribeProvider === 'whispercpp'}
                                     />
                                 </div>
+
+
 
 
                                 {/* 🧪 Experimenting Section Toggle */}
