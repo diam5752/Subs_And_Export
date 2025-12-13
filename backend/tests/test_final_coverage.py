@@ -217,20 +217,17 @@ def test_get_secret_path_not_exists(monkeypatch):
         assert auth._get_secret("FOO") is None
 
 def test_subtitles_progress_callbacks(monkeypatch, tmp_path):
-    """Cover progress callbacks in _transcribe_with_openai."""
-    from backend.app.services import subtitles
+    """Cover progress callbacks in OpenAITranscriber."""
+    from backend.app.services.transcription.openai_cloud import OpenAITranscriber
 
     # Mock client
-    class Client:
-         class audio:
-             class transcriptions:
-                 @staticmethod
-                 def create(*args, **kwargs):
-                     class Resp:
-                         segments=[]
-                     return Resp()
+    mock_transcript = MagicMock()
+    mock_transcript.segments = []
 
-    monkeypatch.setattr(subtitles, "_load_openai_client", lambda k: Client())
+    mock_client = MagicMock()
+    mock_client.audio.transcriptions.create.return_value = mock_transcript
+
+    monkeypatch.setattr("backend.app.services.transcription.openai_cloud._load_openai_client", lambda k: mock_client)
     monkeypatch.setenv("OPENAI_API_KEY", "key")
 
     callback = MagicMock()
@@ -238,7 +235,8 @@ def test_subtitles_progress_callbacks(monkeypatch, tmp_path):
     p = tmp_path / "audio.wav"
     p.touch()
 
-    subtitles._transcribe_with_openai(p, "model", "en", None, tmp_path, progress_callback=callback)
+    t = OpenAITranscriber(api_key="key")
+    t.transcribe(p, tmp_path, progress_callback=callback)
 
     assert callback.call_count >= 2 # 10.0 and 100.0 or 90.0
 
@@ -295,14 +293,19 @@ def test_save_upload_limit_boundary(monkeypatch):
 
 
 def test_transcribe_with_openai_no_key(monkeypatch, tmp_path):
-    """Cover _transcribe_with_openai missing key (line 213)."""
+    """Cover OpenAITranscriber missing key."""
+    from backend.app.services.transcription.openai_cloud import OpenAITranscriber
     from backend.app.services import subtitles
+
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     # Mock resolve to None
     monkeypatch.setattr(subtitles, "_resolve_openai_api_key", lambda *a: None)
+    # Also patch local reference in openai_cloud if needed, but it imports from subtitles
+    # which we mocked above via subtitles module.
 
     try:
-        subtitles._transcribe_with_openai(tmp_path / "a.wav", "m", "en", None, tmp_path)
+        t = OpenAITranscriber()
+        t.transcribe(tmp_path / "a.wav", tmp_path)
         assert False, "Should raise RuntimeError"
     except RuntimeError as e:
         assert "OpenAI API key is required" in str(e)

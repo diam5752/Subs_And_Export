@@ -1161,7 +1161,7 @@ def test_generate_video_variant_success(monkeypatch, tmp_path):
     assert res.name == "processed_720x1280.mp4"
     assert res.exists()
 
-    assert calls_style[0]["subtitle_position"] == "top"
+    assert calls_style[0]["subtitle_position"] == 32
     assert calls_style[0]["max_lines"] == 3
     assert calls_style[0]["play_res_x"] == 1080
     assert calls_style[0]["play_res_y"] == 1920
