@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useId } from 'react';
 import { useI18n } from '@/context/I18nContext';
 
 export interface SubtitlePositionSelectorProps {
@@ -34,6 +34,8 @@ export function SubtitlePositionSelector({
     karaokeSupported = false
 }: SubtitlePositionSelectorProps & { subtitleColor?: string, onChangeColor?: (color: string) => void, colors?: Array<{ label: string; value: string; ass: string }> }) {
     const { t } = useI18n();
+    const colorLabelId = useId();
+
     // Map position to CSS 'bottom' percentage for the preview
     // These are visual approximations to match the backend logic
     // Middle (default) ~= 16%
@@ -200,10 +202,14 @@ export function SubtitlePositionSelector({
 
                         {colors && onChangeColor && (
                             <div className="flex-1">
-                                <label className="block text-sm font-medium text-[var(--muted)] mb-3">
+                                <label id={colorLabelId} className="block text-sm font-medium text-[var(--muted)] mb-3">
                                     {t('colorLabel')}
                                 </label>
-                                <div className="flex items-center gap-3 p-3 rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)]">
+                                <div
+                                    className="flex items-center gap-3 p-3 rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)]"
+                                    role="radiogroup"
+                                    aria-labelledby={colorLabelId}
+                                >
                                     {/* Color Swatches */}
                                     {colors.map((c) => (
                                         <button
@@ -214,6 +220,9 @@ export function SubtitlePositionSelector({
                                             }}
                                             className="group relative"
                                             title={c.label}
+                                            role="radio"
+                                            aria-checked={subtitleColor === c.value}
+                                            aria-label={c.label}
                                         >
                                             <div
                                                 className={`w-8 h-8 rounded-full border-2 shadow-md transition-all ${subtitleColor === c.value
@@ -246,6 +255,7 @@ export function SubtitlePositionSelector({
                                         e.stopPropagation();
                                         onChangeKaraoke(!karaokeEnabled);
                                     }}
+                                    aria-pressed={karaokeEnabled}
                                     className={`w-full p-3 rounded-xl border text-left transition-all flex items-center justify-between group relative overflow-hidden ${karaokeEnabled
                                         ? 'border-[var(--accent)] bg-[var(--accent)]/10 ring-1 ring-[var(--accent)]'
                                         : 'border-[var(--border)] hover:border-[var(--border-hover)] bg-[var(--surface-elevated)]'

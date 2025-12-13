@@ -128,7 +128,7 @@ describe('SubtitlePositionSelector', () => {
         const onChangeColor = jest.fn();
         render(<SubtitlePositionSelector {...defaultProps} colors={colors} onChangeColor={onChangeColor} />);
 
-        const colorButton = screen.getByRole('button', { name: 'Yellow' });
+        const colorButton = screen.getByRole('radio', { name: 'Yellow' });
         expect(colorButton).toBeInTheDocument();
 
         // Find the swatch inside the button (it has the background color style)
@@ -141,7 +141,7 @@ describe('SubtitlePositionSelector', () => {
         const onChangeColor = jest.fn();
         render(<SubtitlePositionSelector {...defaultProps} colors={colors} onChangeColor={onChangeColor} />);
 
-        const colorButton = screen.getByRole('button', { name: 'Yellow' });
+        const colorButton = screen.getByRole('radio', { name: 'Yellow' });
         fireEvent.click(colorButton);
         expect(onChangeColor).toHaveBeenCalledWith('#FFFF00');
     });
