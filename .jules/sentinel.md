@@ -22,3 +22,8 @@
 **Vulnerability:** The `/videos/process` endpoint allowed unlimited concurrent processing requests per user/IP.
 **Learning:** Authentication is not a substitute for rate limiting on resource-intensive endpoints (FFmpeg/ML).
 **Prevention:** Apply strict rate limits (e.g., 10/min) to all endpoints that trigger background jobs or heavy computation.
+
+## 2025-06-03 - [Medium] Unbounded Input Lengths
+**Vulnerability:** The `/auth` and `/videos/process` endpoints lacked input length validation, allowing Denial of Service (DoS) via excessively large payloads (e.g., 2GB context prompts or 1GB usernames) that could exhaust server memory.
+**Learning:** Pydantic models default to allowing any string length unless `Field(max_length=...)` is specified. Form parameters in FastAPI are also unbounded by default.
+**Prevention:** Always enforce strict `max_length` constraints on all string inputs (Pydantic `Field` or manual checks) to prevent memory exhaustion attacks.

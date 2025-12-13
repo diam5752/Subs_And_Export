@@ -275,6 +275,16 @@ async def process_video(
     history_store: HistoryStore = Depends(get_history_store)
 ):
     """Upload a video and start processing."""
+    # Security: Validate input lengths to prevent DoS
+    if len(context_prompt) > 5000:
+        raise HTTPException(400, "Context prompt too long (max 5000 chars)")
+    if len(transcribe_model) > 50:
+        raise HTTPException(400, "Model name too long")
+    if len(video_quality) > 50:
+        raise HTTPException(400, "Video quality string too long")
+    if subtitle_color and len(subtitle_color) > 20:
+        raise HTTPException(400, "Subtitle color too long")
+
     job_id = str(uuid.uuid4())
     data_dir, uploads_dir, artifacts_root = _data_roots()
 
