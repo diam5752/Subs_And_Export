@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import subprocess
@@ -12,7 +13,7 @@ import tomllib
 import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Iterable, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Iterable, List, Optional, Sequence, Tuple
 
 from backend.app.core import config
 
@@ -947,6 +948,77 @@ def create_styled_subtitle_file(
     return ass_path
 
 
+def _chunk_items(
+    items: List[Any],
+    get_text: Callable[[Any], str],
+    max_chars: int,
+    max_lines: int
+) -> List[List[Any]]:
+    """
+    Greedily chunks items (strings or WordTiming objects) into groups that fit
+    within max_lines x max_chars.
+    Avoids using textwrap inside the loop for O(N) performance instead of O(N^2).
+    """
+    chunks = []
+    current_chunk: List[Any] = []
+    current_lines = 1
+    current_line_chars = 0
+
+    for item in items:
+        text = get_text(item)
+        w_len = len(text)
+
+        space = 1 if current_line_chars > 0 else 0
+
+        # Check fit on current line
+        if current_line_chars + space + w_len <= max_chars:
+            current_line_chars += space + w_len
+        else:
+            # Does not fit on current line.
+            # Calculate lines needed for this word alone
+            word_lines = math.ceil(w_len / max_chars) if w_len > max_chars else 1
+
+            # Check if adding this word (possibly wrapping) exceeds max_lines
+            # If current_chunk is empty, we must accept it to avoid infinite loop
+            if current_chunk and (current_lines + word_lines > max_lines):
+                # Chunk full
+                chunks.append(current_chunk)
+                current_chunk = []
+                # Reset for new chunk
+                current_lines = 1
+                current_line_chars = 0
+
+                # Note: If the word itself > max_lines, it will be added to the new chunk
+                # and take > max_lines. This is acceptable fallback behavior.
+                current_lines = word_lines
+
+            else:
+                # Add to current chunk, wrapping to new line
+                if current_chunk:
+                    current_lines += 1  # We wrapped to at least one new line
+                else:
+                    # Starting fresh (should be covered by reset above, but safety)
+                    current_lines = 1
+
+                if w_len > max_chars:
+                    current_lines += (word_lines - 1)
+
+            # Update chars for the last line of the word
+            if w_len > max_chars:
+                current_line_chars = w_len % max_chars
+                if current_line_chars == 0:
+                    current_line_chars = max_chars
+            else:
+                current_line_chars = w_len
+
+        current_chunk.append(item)
+
+    if current_chunk:
+        chunks.append(current_chunk)
+
+    return chunks
+
+
 def _split_long_cues(
     cues: Sequence[Cue],
     max_chars: int = config.MAX_SUB_LINE_CHARS,
@@ -973,153 +1045,95 @@ def _split_long_cues(
 
         # 2. If it doesn't fit, we need to split it
         if cue.words:
-            current_words: List[WordTiming] = []
-
+            # Flatten words first (handling phrase expansion)
+            all_words: List[WordTiming] = []
             for w in cue.words:
-                # Special handling for "phrase-words" (tokens containing spaces)
-                # If we are in restricted mode (e.g. max_lines=1), a multi-word token
-                # might inherently break the limit even if it's a single "word" object.
-                # We should expand it into sub-words.
-
-                expanded_words = [w]
                 if " " in w.text.strip():
-                     # It's a phrase. Split it.
-                     sub_texts = w.text.split()
-                     if len(sub_texts) > 1:
-                         # Linear interpolation for sub-words
-                         total_dur = w.end - w.start
-                         total_chars = len(w.text.replace(" ", ""))
-                         current_sub_start = w.start
+                    # It's a phrase. Split it.
+                    sub_texts = w.text.split()
+                    if len(sub_texts) > 1:
+                        # Linear interpolation for sub-words
+                        total_dur = w.end - w.start
+                        total_chars = len(w.text.replace(" ", ""))
+                        current_sub_start = w.start
 
-                         new_sub_words = []
-                         for sw_text in sub_texts:
-                             char_count = len(sw_text)
-                             # avoid div by zero
-                             frac = (char_count / total_chars) if total_chars > 0 else (1.0/len(sub_texts))
-                             dur = total_dur * frac
+                        for i, sw_text in enumerate(sub_texts):
+                            char_count = len(sw_text)
+                            # avoid div by zero
+                            frac = (char_count / total_chars) if total_chars > 0 else (1.0 / len(sub_texts))
+                            dur = total_dur * frac
 
-                             new_sub_words.append(WordTiming(
-                                 start=current_sub_start,
-                                 end=min(current_sub_start + dur, w.end),
-                                 text=sw_text
-                             ))
-                             current_sub_start += dur
+                            # Adjust end time
+                            sub_end = min(current_sub_start + dur, w.end)
+                            # Ensure last one aligns perfectly
+                            if i == len(sub_texts) - 1:
+                                sub_end = w.end
 
-                         # Ensure last one aligns perfectly
-                         if new_sub_words:
-                             new_sub_words[-1].end = w.end
-
-                         expanded_words = new_sub_words
-
-                for sub_w in expanded_words:
-                    test_words = current_words + [sub_w]
-                    test_text_words = [tw.text for tw in test_words]
-
-                    # Check if this chunk would exceed max_lines
-                    wrapped = _wrap_lines(test_text_words, max_chars=max_chars, max_lines=max_lines)
-
-                    if len(wrapped) > max_lines:
-                        # Adding this word breaks the limit.
-                        # Commit current_words as a cue (if any)
-                        if current_words:
-                            chunk_text = " ".join([cw.text for cw in current_words])
-                            chunk_start = current_words[0].start
-                            # End at the last word's end
-                            chunk_end = current_words[-1].end
-
-                            new_cues.append(Cue(
-                                start=chunk_start,
-                                end=chunk_end,
-                                text=chunk_text,
-                                words=list(current_words)
+                            all_words.append(WordTiming(
+                                start=current_sub_start,
+                                end=sub_end,
+                                text=sw_text
                             ))
-
-                        # Start new chunk with the current word 'sub_w'
-                        current_words = [sub_w]
+                            current_sub_start = sub_end
                     else:
-                        # Fits, keep accumulating
-                        current_words.append(sub_w)
+                        all_words.append(w)
+                else:
+                    all_words.append(w)
 
-            # Flush final chunk
-            if current_words:
-                chunk_text = " ".join([cw.text for cw in current_words])
-                chunk_start = current_words[0].start
-                chunk_end = current_words[-1].end
+            # Use optimized chunking
+            word_chunks = _chunk_items(all_words, lambda w: w.text, max_chars, max_lines)
+
+            for chunk_words in word_chunks:
+                chunk_text = " ".join([cw.text for cw in chunk_words])
+                chunk_start = chunk_words[0].start
+                chunk_end = chunk_words[-1].end
 
                 # Ensure we don't drop the official end time if it's longer
                 # (unless we split, in which case the last chunk ends at cue.end)
-                chunk_end = max(chunk_end, cue.end)
+                if chunk_words is word_chunks[-1]:
+                     chunk_end = max(chunk_end, cue.end)
 
                 new_cues.append(Cue(
                     start=chunk_start,
                     end=chunk_end,
                     text=chunk_text,
-                    words=list(current_words)
+                    words=list(chunk_words)
                 ))
 
         elif max_lines > 0:
             # Fallback for standard model (no words) - Use Linear Interpolation
-            # We must split to respect max_lines, even if timing is a guess.
-
             cues_text_words = cue.text.split()
-            full_wrapped = _wrap_lines(cues_text_words, max_chars=max_chars, max_lines=max_lines)
-            if len(full_wrapped) <= max_lines:
-                new_cues.append(cue)
-                continue
 
-            # It needs splitting.
-            # Simple greedy accumulation with linear time interpolation.
-            current_words = []
+            # Use optimized chunking on strings
+            text_chunks = _chunk_items(cues_text_words, lambda s: s, max_chars, max_lines)
+
             cue_duration = cue.end - cue.start
             total_chars = len(cue.text.replace(" ", "")) # Approximation
             if total_chars == 0: total_chars = 1
 
-            # Helper to calculate time for a chunk of text
-            def estimate_duration(text_chunk):
-                chunk_chars = len(text_chunk.replace(" ", ""))
-                return (chunk_chars / total_chars) * cue_duration
-
             current_start = cue.start
 
-            for w in cues_text_words:
-                test_words = current_words + [w]
-                wrapped = _wrap_lines(test_words, max_chars=max_chars, max_lines=max_lines)
+            for i, chunk_strs in enumerate(text_chunks):
+                chunk_text = " ".join(chunk_strs)
 
-                if len(wrapped) > max_lines:
-                    # Commit current chunk
-                    if current_words:
-                        chunk_text = " ".join(current_words)
-                        duration = estimate_duration(chunk_text)
-                        chunk_end = current_start + duration
+                # Estimate duration
+                chunk_chars = len(chunk_text.replace(" ", ""))
+                duration = (chunk_chars / total_chars) * cue_duration
+                chunk_end = current_start + duration
 
-                        # Clamp
-                        chunk_end = min(chunk_end, cue.end)
-
-                        new_cues.append(Cue(
-                            start=current_start,
-                            end=chunk_end,
-                            text=chunk_text,
-                            words=None
-                        ))
-
-                        current_start = chunk_end
-                        current_words = [w]
-                    else:
-                         # Single word exceeds limit? Should not happen with sane max_lines
-                         current_words = [w]
+                # Clamp/Extend
+                if i == len(text_chunks) - 1:
+                    chunk_end = cue.end
                 else:
-                    current_words.append(w)
+                    chunk_end = min(chunk_end, cue.end)
 
-            # Flush final
-            if current_words:
-                chunk_text = " ".join(current_words)
                 new_cues.append(Cue(
                     start=current_start,
-                    end=cue.end,
+                    end=chunk_end,
                     text=chunk_text,
                     words=None
                 ))
-
+                current_start = chunk_end
 
     return new_cues
 
