@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { api, JobResponse } from '@/lib/api';
 import { useI18n } from '@/context/I18nContext';
+import { JobListItem } from './JobListItem';
 import { VideoModal } from './VideoModal';
 import { ViralIntelligence } from './ViralIntelligence';
 import { SubtitlePositionSelector } from './SubtitlePositionSelector';
@@ -494,7 +495,17 @@ export function ProcessView({
         setShowPreview(false);
     }, []);
 
-
+    const handleToggleSelection = useCallback((id: string, isSelected: boolean) => {
+        setSelectedJobIds(prev => {
+            const newSet = new Set(prev);
+            if (isSelected) {
+                newSet.delete(id);
+            } else {
+                newSet.add(id);
+            }
+            return newSet;
+        });
+    }, []);
 
     return (
         <div className="grid xl:grid-cols-[1.05fr,0.95fr] gap-6">
@@ -510,7 +521,7 @@ export function ProcessView({
                     onKeyDown={(e) => handleKeyDown(e, handleUploadCardClick)}
                     role="button"
                     tabIndex={0}
-                    aria-label={selectedFile ? t('changeFile') || 'Change file' : t('uploadDropTitle')}
+                    aria-label={selectedFile ? t('changeFile' as any) || 'Change file' : t('uploadDropTitle')}
                     onDragEnter={handleDragEnter}
                     onDragLeave={handleDragLeave}
                     onDragOver={handleDragOver}
@@ -1382,116 +1393,26 @@ export function ProcessView({
                                 const isSelected = selectedJobIds.has(job.id);
 
                                 return (
-                                    <div
+                                    <JobListItem
                                         key={job.id}
-                                        onClick={() => {
-                                            if (selectionMode) {
-                                                const newSet = new Set(selectedJobIds);
-                                                if (isSelected) {
-                                                    newSet.delete(job.id);
-                                                } else {
-                                                    newSet.add(job.id);
-                                                }
-                                                setSelectedJobIds(newSet);
-                                            }
-                                        }}
-                                        className={`flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 p-3 rounded-lg border ${isSelected
-                                            ? 'border-[var(--accent)] bg-[var(--accent)]/5'
-                                            : isExpired
-                                                ? 'border-[var(--border)]/30 bg-[var(--surface)] text-[var(--muted)]'
-                                                : 'border-[var(--border)] bg-[var(--surface-elevated)]'
-                                            } transition-colors ${selectionMode ? 'cursor-pointer hover:bg-[var(--accent)]/5' : ''}`}
-                                    >
-                                        <div className="min-w-0 flex-1">
-                                            <div className="font-semibold text-sm truncate">
-                                                {job.result_data?.original_filename || job.id}
-                                            </div>
-                                            <div className="text-xs text-[var(--muted)]">
-                                                {formatDate(timestamp)}
-                                            </div>
-                                        </div>
-
-                                        <div className="flex items-center gap-2">
-                                            {/* Checkbox for selection mode - Moved to right */}
-                                            {selectionMode && (
-                                                <input
-                                                    type="checkbox"
-                                                    checked={isSelected}
-                                                    onChange={() => { }} // Handled by onClick of parent
-                                                    className="w-4 h-4 rounded border-[var(--border)] accent-[var(--accent)] flex-shrink-0 cursor-pointer"
-                                                />
-                                            )}
-                                            {isExpired ? (
-                                                <span className="text-xs bg-[var(--surface)] border border-[var(--border)] px-2 py-1 rounded text-[var(--muted)]">
-                                                    {t('expired') || 'Expired'}
-                                                </span>
-                                            ) : (
-                                                <>
-                                                    {job.status === 'completed' && publicUrl && !selectionMode && (
-                                                        <>
-                                                            <a
-                                                                className="text-xs btn-primary py-1.5 px-3 h-auto"
-                                                                href={publicUrl}
-                                                                download={job.result_data?.original_filename || 'processed.mp4'}
-                                                            >
-                                                                {t('download') || 'Download'}
-                                                            </a>
-                                                            <button
-                                                                onClick={() => { onJobSelect(job); setShowPreview(true); }}
-                                                                className="text-xs btn-secondary py-1.5 px-3 h-auto"
-                                                            >
-                                                                {t('view') || 'View'}
-                                                            </button>
-                                                        </>
-                                                    )}
-                                                    {/* Delete button - hide in selection mode */}
-                                                    {!selectionMode && (
-                                                        confirmDeleteId === job.id ? (
-                                                            <div className="flex items-center gap-1">
-                                                                <button
-                                                                    onClick={async () => {
-                                                                        setDeletingJobId(job.id);
-                                                                        try {
-                                                                            await api.deleteJob(job.id);
-                                                                            if (selectedJob?.id === job.id) {
-                                                                                onJobSelect(null);
-                                                                                setShowPreview(false);
-                                                                            }
-                                                                            setConfirmDeleteId(null);
-                                                                            // Refresh jobs list without page reload
-                                                                            await onRefreshJobs();
-                                                                        } catch (err) {
-                                                                            console.error('Delete failed:', err);
-                                                                        } finally {
-                                                                            setDeletingJobId(null);
-                                                                        }
-                                                                    }}
-                                                                    disabled={deletingJobId === job.id}
-                                                                    className="text-xs px-2 py-1 rounded bg-[var(--danger)] text-white hover:bg-[var(--danger)]/80 disabled:opacity-50"
-                                                                >
-                                                                    {deletingJobId === job.id ? '...' : '✓'}
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => setConfirmDeleteId(null)}
-                                                                    className="text-xs px-2 py-1 rounded border border-[var(--border)] hover:bg-white/5"
-                                                                >
-                                                                    ✕
-                                                                </button>
-                                                            </div>
-                                                        ) : (
-                                                            <button
-                                                                onClick={() => setConfirmDeleteId(job.id)}
-                                                                className="text-xs px-2 py-1 rounded border border-[var(--border)] hover:border-[var(--danger)] hover:text-[var(--danger)] transition-colors"
-                                                                title={t('deleteJob')}
-                                                            >
-                                                                🗑️
-                                                            </button>
-                                                        )
-                                                    )}
-                                                </>
-                                            )}
-                                        </div>
-                                    </div>
+                                        job={job}
+                                        selectionMode={selectionMode}
+                                        isSelected={isSelected}
+                                        isExpired={isExpired}
+                                        publicUrl={publicUrl}
+                                        timestamp={timestamp}
+                                        formatDate={formatDate}
+                                        onToggleSelection={handleToggleSelection}
+                                        onJobSelect={onJobSelect}
+                                        setShowPreview={setShowPreview}
+                                        confirmDeleteId={confirmDeleteId}
+                                        setConfirmDeleteId={setConfirmDeleteId}
+                                        deletingJobId={deletingJobId}
+                                        setDeletingJobId={setDeletingJobId}
+                                        onRefreshJobs={onRefreshJobs}
+                                        selectedJobId={selectedJob?.id}
+                                        t={t as (key: string) => string}
+                                    />
                                 );
                             })}
                         </div>
