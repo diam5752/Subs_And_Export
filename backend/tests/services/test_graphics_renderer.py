@@ -1,90 +1,107 @@
 from pathlib import Path
-from unittest.mock import MagicMock, patch
-
+from unittest.mock import MagicMock, patch, ANY
+import json
 import pytest
+import numpy as np
 
-from backend.app.services.graphics_renderer import render_active_word_video
-
+from backend.app.services.graphics_renderer import render_active_word_video, _get_video_metadata
+from backend.app.core import config
 
 @pytest.fixture
-def mock_moviepy():
-    with patch("backend.app.services.graphics_renderer.VideoFileClip") as mock_vfc, \
-         patch("backend.app.services.graphics_renderer.CompositeVideoClip") as mock_cvc, \
-         patch("backend.app.services.graphics_renderer.VideoClip") as mock_vc, \
-         patch("backend.app.services.graphics_renderer.resize_and_pad_video") as mock_resize:
+def mock_subprocess():
+    with patch("subprocess.run") as mock_run, \
+         patch("subprocess.Popen") as mock_popen:
 
-        mock_video = MagicMock()
-        mock_video.size = (1080, 1920)
-        mock_video.duration = 10.0
-        mock_video.fps = 30
-        mock_vfc.return_value = mock_video
-        mock_resize.return_value = mock_video
+        # Mock probe response
+        mock_run.return_value.stdout = json.dumps({
+            "streams": [
+                {
+                    "codec_type": "video",
+                    "width": 1920,
+                    "height": 1080,
+                    "r_frame_rate": "30/1",
+                    "duration": "1.0" # Short duration for faster test
+                },
+                {
+                    "codec_type": "audio"
+                }
+            ]
+        })
 
-        mock_final = MagicMock()
-        mock_cvc.return_value = mock_final
+        # Mock Popen
+        process = MagicMock()
+        process.stdin.write = MagicMock()
+        process.communicate.return_value = (b"", b"")
+        process.wait.return_value = None
+        process.returncode = 0
+        mock_popen.return_value = process
 
-        yield {
-            "vfc": mock_vfc,
-            "cvc": mock_cvc,
-            "vc": mock_vc,
-            "resize": mock_resize,
-            "video": mock_video,
-            "final": mock_final
-        }
+        yield {"run": mock_run, "popen": mock_popen, "process": process}
 
 @pytest.fixture
 def mock_renderers():
     with patch("backend.app.services.graphics_renderer.ActiveWordRenderer") as mock_active, \
          patch("backend.app.services.graphics_renderer.KaraokeRenderer") as mock_karaoke:
+
+         # Mock render_frame to return a valid numpy array
+         # shape (H, W, 4) - matches target resolution 1080x1920
+         def create_frame(t):
+             return np.zeros((1920, 1080, 4), dtype=np.uint8)
+
+         mock_active.return_value.render_frame.side_effect = create_frame
+         mock_karaoke.return_value.render_frame.side_effect = create_frame
+
          yield {"active": mock_active, "karaoke": mock_karaoke}
 
-def test_render_active_word_video_legacy_mode(tmp_path, mock_moviepy, mock_renderers):
-    # max_lines = 0 -> ActiveWordRenderer
+def test_get_video_metadata(mock_subprocess):
+    # Test probe parsing
+    w, h, fps, dur, has_audio = _get_video_metadata(Path("test.mp4"))
+    assert w == 1920
+    assert h == 1080
+    assert fps == 30.0
+    assert dur == 1.0
+    assert has_audio is True
+
+def test_render_active_word_video_pipeline(tmp_path, mock_subprocess, mock_renderers):
+    # Call function
     output = tmp_path / "out.mp4"
     render_active_word_video(
         input_path=Path("in.mp4"),
         output_path=output,
         cues=[],
-        max_lines=0
+        max_lines=0, # ActiveWord
+        target_width=1080,
+        target_height=1920
     )
 
-    # Verify ActiveWordRenderer initialized
-    mock_renderers["active"].assert_called_once()
-    mock_renderers["karaoke"].assert_not_called()
+    # Verify probe called
+    mock_subprocess["run"].assert_called()
 
-    # Verify VideoClip created with make_frame
-    mock_moviepy["vc"].assert_called_once()
+    # Verify renderer init
+    mock_renderers["active"].assert_called()
 
-    # Verify Composite
-    mock_moviepy["cvc"].assert_called_once()
+    # Verify ffmpeg command
+    mock_subprocess["popen"].assert_called_once()
+    args = mock_subprocess["popen"].call_args[0][0]
+    assert args[0] == "ffmpeg"
+    assert "-f" in args and "rawvideo" in args
+    assert "-filter_complex" in args
+    assert str(output) in args
 
-    # Verify Write
-    mock_moviepy["final"].write_videofile.assert_called_with(
-        str(output), fps=30, codec="libx264", audio_codec="aac", logger=None
-    )
+    # Verify frames written
+    # 1.0s * 30fps = 30 frames
+    assert mock_subprocess["process"].stdin.write.call_count == 30
 
-    # Verify make_frame function works (invoke it)
-    # The make_frame is passed to VideoClip constructor.
-    # VideoClip(make_frame, duration=...)
-    args, _ = mock_moviepy["vc"].call_args
-    make_frame_func = args[0]
-
-    # Setup renderer mock to return something
-    mock_renderer_instance = mock_renderers["active"].return_value
-    mock_renderer_instance.render_frame.return_value = "FRAME"
-
-    assert make_frame_func(1.0) == "FRAME"
-    mock_renderer_instance.render_frame.assert_called_with(1.0)
-
-def test_render_active_word_video_karaoke_mode(tmp_path, mock_moviepy, mock_renderers):
-    # max_lines = 2 -> KaraokeRenderer
+def test_render_active_word_video_karaoke_mode(tmp_path, mock_subprocess, mock_renderers):
     output = tmp_path / "out.mp4"
     render_active_word_video(
         input_path=Path("in.mp4"),
         output_path=output,
         cues=[],
-        max_lines=2
+        max_lines=2, # Karaoke
+        target_width=1080,
+        target_height=1920
     )
 
-    mock_renderers["karaoke"].assert_called_once()
-    mock_renderers["active"].assert_not_called()
+    mock_renderers["karaoke"].assert_called()
+    mock_subprocess["popen"].assert_called()
