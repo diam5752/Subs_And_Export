@@ -45,6 +45,9 @@ def client():
 @pytest.fixture
 def user_auth_headers(client):
     """Return auth headers for a test user."""
+    from backend.app.core.ratelimit import limiter_login
+    limiter_login.reset()
+
     email = "test@example.com"
     password = "testpassword123"
     client.post("/auth/register", json={"email": email, "password": password, "name": "Test User"})

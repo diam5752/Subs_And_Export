@@ -2,8 +2,11 @@
 
 import pytest
 
+from backend.app.core.ratelimit import limiter_login
+
 
 def get_auth_headers(client, email, password):
+    limiter_login.reset()
     # Try registration
     reg_resp = client.post("/auth/register", json={"email": email, "password": password, "name": "Security Test User"})
     if reg_resp.status_code != 201 and reg_resp.status_code != 200:
@@ -144,3 +147,25 @@ def test_static_path_traversal(client):
     # Try url enccded
     response = client.get("/static/%2e%2e/main.py")
     assert response.status_code in [404, 400, 403]
+
+def test_rate_limiting(client):
+    """Ensure login endpoint is rate limited."""
+    # Reset limiter
+    limiter_login.reset()
+
+    # 5 allowed attempts
+    for _ in range(5):
+        response = client.post(
+            "/auth/token",
+            data={"username": "hacker@example.com", "password": "wrongpassword"}
+        )
+        # Should be 400 (Login failed) or 200 (Success), but NOT 429
+        assert response.status_code != 429
+
+    # 6th attempt should be blocked
+    response = client.post(
+        "/auth/token",
+        data={"username": "hacker@example.com", "password": "wrongpassword"}
+    )
+    assert response.status_code == 429
+    assert "Too many requests" in response.json()["detail"]
