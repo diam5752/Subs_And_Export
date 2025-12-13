@@ -50,10 +50,11 @@ def reset_login_rate_limiter() -> None:
     The /auth/token endpoint is protected by a strict per-IP limiter (5/min).
     Without resetting, test suites can flake depending on execution speed/order.
     """
-    from backend.app.core.ratelimit import limiter_login, limiter_register
+    from backend.app.core.ratelimit import limiter_login, limiter_processing, limiter_register
 
     limiter_login.reset()
     limiter_register.reset()
+    limiter_processing.reset()
 
 
 @pytest.fixture

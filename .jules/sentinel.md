@@ -17,3 +17,8 @@
 **Vulnerability:** The `/tiktok/upload` endpoint used `startswith` to validate paths against `DATA_DIR`. This allowed access to sibling directories sharing the same prefix (e.g., `data` vs `data_leak`).
 **Learning:** String-based path validation is brittle. `startswith` is insufficient for directory containment checks because it doesn't respect path separators.
 **Prevention:** Always use `pathlib.Path.relative_to(base)` or check `base in path.parents` to ensure files are strictly inside the intended directory.
+
+## 2025-05-24 - [High] Unthrottled Video Processing
+**Vulnerability:** The `/videos/process` endpoint allowed unlimited concurrent processing requests per user/IP.
+**Learning:** Authentication is not a substitute for rate limiting on resource-intensive endpoints (FFmpeg/ML).
+**Prevention:** Apply strict rate limits (e.g., 10/min) to all endpoints that trigger background jobs or heavy computation.

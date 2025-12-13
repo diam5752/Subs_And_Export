@@ -36,3 +36,6 @@ limiter_login = RateLimiter(limit=5, window=60)
 
 # 3 registration attempts per minute per IP to prevent spam
 limiter_register = RateLimiter(limit=3, window=60)
+
+# 10 processing attempts per minute per IP to prevent DoS via file uploads
+limiter_processing = RateLimiter(limit=10, window=60)
