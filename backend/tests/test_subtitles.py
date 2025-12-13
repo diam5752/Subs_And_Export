@@ -12,12 +12,26 @@ def test_extract_audio_invokes_ffmpeg(monkeypatch, tmp_path: Path) -> None:
     input_video = tmp_path / "clip.mp4"
     input_video.write_bytes(b"video")
 
-    def fake_run(cmd, check, stdout, stderr):
-        assert cmd[0] == "ffmpeg"
-        Path(cmd[-1]).write_bytes(b"audio")
-        return None
+    class MockPopen:
+        def __init__(self, cmd, stdout, stderr):
+            assert cmd[0] == "ffmpeg"
+            Path(cmd[-1]).write_bytes(b"audio")
+            self.returncode = 0
+            self.stderr = None
 
-    monkeypatch.setattr(subtitles.subprocess, "run", fake_run)
+        def poll(self):
+            return 0
+
+        def wait(self, timeout=None):
+            return
+
+        def communicate(self, timeout=None):
+            return (b"", b"")
+
+        def kill(self):
+            pass
+
+    monkeypatch.setattr(subtitles.subprocess, "Popen", MockPopen)
     audio_path = subtitles.extract_audio(input_video, output_dir=tmp_path)
     assert audio_path.exists()
     assert audio_path.suffix == ".wav"

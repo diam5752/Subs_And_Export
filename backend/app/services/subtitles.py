@@ -66,7 +66,11 @@ def _normalize_text(text: str) -> str:
     return stripped.upper()
 
 
-def extract_audio(input_video: Path, output_dir: Path | None = None) -> Path:
+def extract_audio(
+    input_video: Path,
+    output_dir: Path | None = None,
+    check_cancelled: Callable[[], None] | None = None
+) -> Path:
     """
     Extract the audio track from a video file into a mono WAV for transcription.
     """
@@ -88,7 +92,42 @@ def extract_audio(input_video: Path, output_dir: Path | None = None) -> Path:
         str(config.AUDIO_CHANNELS),
         str(audio_path),
     ]
-    subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    # Use Popen to allow interruption if check_cancelled is provided
+    process = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE
+    )
+
+    try:
+        # We need to read output to prevent buffer filling (deadlock)
+        # process.communicate(timeout=...) reads pipes until timeout or completion
+
+        while True:
+            if check_cancelled:
+                check_cancelled()
+
+            try:
+                # Read output with timeout
+                # This drains the pipes so ffmpeg won't block
+                _, stderr_data = process.communicate(timeout=0.2)
+
+                # If communicate returns, the process has finished
+                if process.returncode != 0:
+                    err_msg = stderr_data.decode("utf-8") if stderr_data else "Unknown error"
+                    raise subprocess.CalledProcessError(process.returncode, cmd, output=None, stderr=err_msg)
+                break
+
+            except subprocess.TimeoutExpired:
+                # Process still running, loop again to check_cancelled
+                continue
+
+    except Exception:
+        process.kill()
+        process.wait()
+        raise
+
     return audio_path
 
 
@@ -589,6 +628,7 @@ def generate_subtitles_from_audio(
         "vad_threshold": 0.35,
         # "min_silence_duration_ms": 500, # ERROR: Not a valid arg for transcribe()
         "condition_on_previous_text": condition_on_previous_text,
+        "verbose": False,  # Suppress internal progress bars to avoid log spam
     }
     # Pass additional params if supported by wrapper or filter valid ones
     # High quality defaults for Greek if not specified

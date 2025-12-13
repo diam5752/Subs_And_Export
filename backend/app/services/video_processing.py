@@ -70,6 +70,7 @@ def _run_ffmpeg_with_subs(
     total_duration: float | None = None,
     output_width: int | None = None,
     output_height: int | None = None,
+    check_cancelled: Callable[[], None] | None = None,
 ) -> str:
     filtergraph = _build_filtergraph(ass_path, target_width=output_width, target_height=output_height)
     cmd = [
@@ -117,21 +118,37 @@ def _run_ffmpeg_with_subs(
     time_pattern = re.compile(r"time=(\d{2}):(\d{2}):(\d{2}\.\d{2})")
     stderr_lines: list[str] = []
 
-    if process.stderr:
-        for line in process.stderr:
-            stderr_lines.append(line)
-            if progress_callback and total_duration and total_duration > 0:
-                match = time_pattern.search(line)
-                if match:
-                    h, m, s = match.groups()
-                    current_seconds = int(h) * 3600 + int(m) * 60 + float(s)
-                    progress = min(100.0, (current_seconds / total_duration) * 100.0)
-                    progress_callback(progress)
+    try:
+        if process.stderr:
+            for line in process.stderr:
+                # Periodic cancellation check
+                if check_cancelled:
+                    try:
+                        check_cancelled()
+                    except Exception:
+                        process.kill()
+                        raise
 
-    process.wait()
-    if process.returncode != 0:
-        raise subprocess.CalledProcessError(process.returncode, cmd, "".join(stderr_lines))
-    return "".join(stderr_lines)
+                stderr_lines.append(line)
+                if progress_callback and total_duration and total_duration > 0:
+                    match = time_pattern.search(line)
+                    if match:
+                        h, m, s = match.groups()
+                        current_seconds = int(h) * 3600 + int(m) * 60 + float(s)
+                        progress = min(100.0, (current_seconds / total_duration) * 100.0)
+                        progress_callback(progress)
+
+        process.wait()
+        if process.returncode != 0:
+            raise subprocess.CalledProcessError(process.returncode, cmd, "".join(stderr_lines))
+        return "".join(stderr_lines)
+
+    except Exception:
+        # Ensure process is killed on any error (cancellation or otherwise)
+        if process.poll() is None:
+            process.kill()
+        process.wait()
+        raise
 
 @dataclass(frozen=True)
 class MediaProbe:
@@ -373,7 +390,7 @@ def normalize_and_stub_subtitles(
             if progress_callback: progress_callback("Extracting audio...", 0.0)
             if check_cancelled: check_cancelled()
             with metrics.measure_time(pipeline_timings, "extract_audio_s"):
-                audio_path = subtitles.extract_audio(input_path, output_dir=scratch)
+                audio_path = subtitles.extract_audio(input_path, output_dir=scratch, check_cancelled=check_cancelled)
 
             # Step 2: Transcribe
             if progress_callback: progress_callback("Transcribing audio...", 5.0)
@@ -450,6 +467,11 @@ def normalize_and_stub_subtitles(
                     **transcribe_kwargs
                 )
 
+            # CRITICAL: Check cancellation immediately after blocking transcription to prevent
+            # continuing if user cancelled during the heavy ML inference step.
+            if check_cancelled:
+                check_cancelled()
+
             # Step 3: Style (ASS Generation)
             if progress_callback: progress_callback("Styling...", 65.0)
             with metrics.measure_time(pipeline_timings, "style_subs_s"):
@@ -502,7 +524,8 @@ def normalize_and_stub_subtitles(
                         progress_callback=_enc_cb if total_duration > 0 else None,
                         total_duration=total_duration,
                         output_width=output_width,
-                        output_height=output_height
+                        output_height=output_height,
+                        check_cancelled=check_cancelled
                     )
                 except subprocess.CalledProcessError as exc:
                     if use_hw_accel:
@@ -518,7 +541,8 @@ def normalize_and_stub_subtitles(
                             progress_callback=_enc_cb if total_duration > 0 else None,
                             total_duration=total_duration,
                             output_width=output_width,
-                            output_height=output_height
+                            output_height=output_height,
+                            check_cancelled=check_cancelled
                         )
                     else:
                         raise
