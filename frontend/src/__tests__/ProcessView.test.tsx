@@ -305,10 +305,9 @@ describe('ProcessView', () => {
 
         await waitFor(() => expect(screen.getByText('test.mp4')).toBeInTheDocument());
 
-        // Find and click the toggle switch (the w-12 element)
-        const aiToggleLabel = screen.getByText('aiToggleLabel').closest('label');
-        const toggleSwitch = aiToggleLabel?.querySelector('.w-12');
-        fireEvent.click(toggleSwitch!);
+        // Find and click the toggle switch by role
+        const toggleSwitch = screen.getByRole('switch', { name: 'aiToggleLabel' });
+        fireEvent.click(toggleSwitch);
 
         // The textarea should now be visible
         await waitFor(() => {
