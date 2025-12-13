@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { api, JobResponse } from '@/lib/api';
 import { useI18n } from '@/context/I18nContext';
-import { JobListItem } from './JobListItem';
+import { RecentJobsList } from './RecentJobsList';
 import { VideoModal } from './VideoModal';
 import { ViralIntelligence } from './ViralIntelligence';
 import { SubtitlePositionSelector } from './SubtitlePositionSelector';
@@ -91,8 +91,6 @@ export function ProcessView({
     const [showPreview, setShowPreview] = useState(false);
     const [showSettings, setShowSettings] = useState(true);
     const [showExperiments, setShowExperiments] = useState(false);
-    const [deletingJobId, setDeletingJobId] = useState<string | null>(null);
-    const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
     const [transcribeMode, setTranscribeMode] = useState<TranscribeMode>('turbo');
     const [transcribeProvider, setTranscribeProvider] = useState<TranscribeProvider>('local');
     // outputQuality state removed as it is now always high quality
@@ -231,12 +229,6 @@ export function ProcessView({
                 : 'border-[var(--border)] hover:border-purple-500/50 hover:bg-purple-500/5'
         }
     ];
-
-    // Selection mode state for batch delete
-    const [selectionMode, setSelectionMode] = useState(false);
-    const [selectedJobIds, setSelectedJobIds] = useState<Set<string>>(new Set());
-    const [isBatchDeleting, setIsBatchDeleting] = useState(false);
-    const [confirmBatchDelete, setConfirmBatchDelete] = useState(false);
 
     // Drag and drop state
     const [isDragOver, setIsDragOver] = useState(false);
@@ -495,18 +487,6 @@ export function ProcessView({
     /* istanbul ignore next -- modal handlers tested in E2E */
     const handleClosePreview = useCallback(() => {
         setShowPreview(false);
-    }, []);
-
-    const handleToggleSelection = useCallback((id: string, isSelected: boolean) => {
-        setSelectedJobIds(prev => {
-            const newSet = new Set(prev);
-            if (isSelected) {
-                newSet.delete(id);
-            } else {
-                newSet.add(id);
-            }
-            return newSet;
-        });
     }, []);
 
     return (
@@ -1291,170 +1271,22 @@ export function ProcessView({
                     )}
 
                     {/* Recent Jobs with Expiry */}
-                    <div className="card mt-6 border-none bg-transparent shadow-none p-0">
-                        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
-                            <div>
-                                <h3 className="text-lg font-semibold">{t('historyTitle') || 'History'}</h3>
-                                <p className="text-xs text-[var(--muted)]">{t('historyExpiry') || 'Items expire in 24 hours'}</p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                                {jobsLoading && <span data-testid="jobs-loading" className="text-xs text-[var(--muted)]">{t('refreshingLabel')}</span>}
-                                {recentJobs.length > 0 && (
-                                    <button
-                                        onClick={() => {
-                                            setSelectionMode(!selectionMode);
-                                            if (selectionMode) {
-                                                setSelectedJobIds(new Set());
-                                                setConfirmBatchDelete(false);
-                                            }
-                                        }}
-                                        className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${selectionMode
-                                            ? 'border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]'
-                                            : 'border-[var(--border)] hover:border-[var(--accent)]/50'
-                                            }`}
-                                    >
-                                        {selectionMode ? (t('cancelSelect') || 'Cancel') : (t('selectMode') || 'Select')}
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Selection mode controls */}
-                        {selectionMode && recentJobs.length > 0 && (
-                            <div className="flex flex-wrap items-center gap-3 mb-3 p-3 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)]">
-                                <label className="flex items-center gap-2 cursor-pointer text-sm">
-                                    <input
-                                        type="checkbox"
-                                        checked={selectedJobIds.size === recentJobs.length && recentJobs.length > 0}
-                                        onChange={(e) => {
-                                            if (e.target.checked) {
-                                                setSelectedJobIds(new Set(recentJobs.map(j => j.id)));
-                                            } else {
-                                                setSelectedJobIds(new Set());
-                                            }
-                                        }}
-                                        className="w-4 h-4 rounded border-[var(--border)] accent-[var(--accent)]"
-                                    />
-                                    {selectedJobIds.size === recentJobs.length
-                                        ? (t('deselectAll') || 'Deselect All')
-                                        : (t('selectAll') || 'Select All')}
-                                </label>
-                                <span className="text-xs text-[var(--muted)]">
-                                    {selectedJobIds.size} {t('selected') || 'selected'}
-                                </span>
-                                <div className="flex-1" />
-                                {confirmBatchDelete ? (
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-xs text-[var(--danger)]">
-                                            {t('deleteSelectedConfirm') || `Delete ${selectedJobIds.size} items?`}
-                                        </span>
-                                        <button
-                                            onClick={async () => {
-                                                setIsBatchDeleting(true);
-                                                try {
-                                                    await api.deleteJobs(Array.from(selectedJobIds));
-                                                    if (selectedJob && selectedJobIds.has(selectedJob.id)) {
-                                                        onJobSelect(null);
-                                                        setShowPreview(false);
-                                                    }
-                                                    setSelectedJobIds(new Set());
-                                                    setConfirmBatchDelete(false);
-                                                    setSelectionMode(false);
-                                                    await onRefreshJobs();
-                                                } catch (err) {
-                                                    console.error('Batch delete failed:', err);
-                                                } finally {
-                                                    setIsBatchDeleting(false);
-                                                }
-                                            }}
-                                            disabled={isBatchDeleting}
-                                            className="text-xs px-3 py-1.5 rounded bg-[var(--danger)] text-white hover:bg-[var(--danger)]/80 disabled:opacity-50"
-                                        >
-                                            {isBatchDeleting ? '...' : (t('confirmDelete') || 'Confirm')}
-                                        </button>
-                                        <button
-                                            onClick={() => setConfirmBatchDelete(false)}
-                                            className="text-xs px-3 py-1.5 rounded border border-[var(--border)] hover:bg-white/5"
-                                        >
-                                            {t('cancel') || 'Cancel'}
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <button
-                                        onClick={() => setConfirmBatchDelete(true)}
-                                        disabled={selectedJobIds.size === 0}
-                                        className="text-xs px-3 py-1.5 rounded border border-[var(--danger)] text-[var(--danger)] hover:bg-[var(--danger)]/10 disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                        🗑️ {t('deleteSelected') || 'Delete Selected'} ({selectedJobIds.size})
-                                    </button>
-                                )}
-                            </div>
-                        )}
-
-                        {recentJobs.length === 0 && (
-                            <p className="text-[var(--muted)] text-sm">{t('noRunsYet')}</p>
-                        )}
-                        <div className="space-y-2">
-                            {recentJobs.map((job) => {
-                                const publicUrl = buildStaticUrl(job.result_data?.public_url || job.result_data?.video_path);
-                                const timestamp = (job.updated_at || job.created_at) * 1000;
-                                const isExpired = (Date.now() - timestamp) > 24 * 60 * 60 * 1000;
-                                const isSelected = selectedJobIds.has(job.id);
-
-                                return (
-                                    <JobListItem
-                                        key={job.id}
-                                        job={job}
-                                        selectionMode={selectionMode}
-                                        isSelected={isSelected}
-                                        isExpired={isExpired}
-                                        publicUrl={publicUrl}
-                                        timestamp={timestamp}
-                                        formatDate={formatDate}
-                                        onToggleSelection={handleToggleSelection}
-                                        onJobSelect={onJobSelect}
-                                        setShowPreview={setShowPreview}
-                                        confirmDeleteId={confirmDeleteId}
-                                        setConfirmDeleteId={setConfirmDeleteId}
-                                        deletingJobId={deletingJobId}
-                                        setDeletingJobId={setDeletingJobId}
-                                        onRefreshJobs={onRefreshJobs}
-                                        selectedJobId={selectedJob?.id}
-                                        t={t as (key: string) => string}
-                                    />
-                                );
-                            })}
-                        </div>
-
-                        {/* Pagination Controls */}
-                        {totalPages > 1 && (
-                            <div className="flex items-center justify-center gap-4 mt-4 pt-4 border-t border-[var(--border)]">
-                                <button
-                                    onClick={onPrevPage}
-                                    disabled={currentPage <= 1}
-                                    className="text-sm px-4 py-2 rounded-lg border border-[var(--border)] hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                >
-                                    ← {t('previousPage') || 'Previous'}
-                                </button>
-                                <span className="text-sm text-[var(--muted)]">
-                                    {(() => {
-                                        const start = (currentPage - 1) * pageSize + 1;
-                                        const end = Math.min(currentPage * pageSize, totalJobs);
-                                        return t('paginationShowing')
-                                            ? t('paginationShowing').replace('{start}', String(start)).replace('{end}', String(end)).replace('{total}', String(totalJobs))
-                                            : `Showing ${start}-${end} of ${totalJobs}`;
-                                    })()}
-                                </span>
-                                <button
-                                    onClick={onNextPage}
-                                    disabled={currentPage >= totalPages}
-                                    className="text-sm px-4 py-2 rounded-lg border border-[var(--border)] hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                                >
-                                    {t('nextPage') || 'Next'} →
-                                </button>
-                            </div>
-                        )}
-                    </div>
+                    <RecentJobsList
+                        jobs={recentJobs}
+                        isLoading={jobsLoading}
+                        onJobSelect={onJobSelect}
+                        selectedJobId={selectedJob?.id}
+                        onRefreshJobs={onRefreshJobs}
+                        formatDate={formatDate}
+                        buildStaticUrl={buildStaticUrl}
+                        setShowPreview={setShowPreview}
+                        currentPage={currentPage}
+                        totalPages={totalPages}
+                        onNextPage={onNextPage}
+                        onPrevPage={onPrevPage}
+                        totalJobs={totalJobs}
+                        pageSize={pageSize}
+                    />
                 </div>
 
                 <VideoModal
