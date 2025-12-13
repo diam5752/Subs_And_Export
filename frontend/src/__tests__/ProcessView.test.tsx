@@ -244,9 +244,6 @@ describe('ProcessView', () => {
 
         await waitFor(() => expect(screen.getByText('test.mp4')).toBeInTheDocument());
 
-        // Expand custom settings
-        fireEvent.click(screen.getByText('customizeShow'));
-
         // Select 'Green' color
         const greenBtn = screen.getByLabelText('Select colorGreen color');
         fireEvent.click(greenBtn);

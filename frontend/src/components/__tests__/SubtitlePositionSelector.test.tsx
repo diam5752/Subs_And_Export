@@ -1,205 +1,94 @@
+import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { SubtitlePositionSelector } from '../SubtitlePositionSelector';
+import '@testing-library/jest-dom';
+import { SubtitlePositionSelector } from '@/components/SubtitlePositionSelector';
 
+// Mock I18nContext
 jest.mock('@/context/I18nContext', () => ({
-    useI18n: () => {
-        const en = require('@/i18n/en.json') as Record<string, string>;
-        return { t: (key: string) => en[key] ?? key };
-    },
+    useI18n: () => ({ t: (key: string) => key }),
 }));
 
 describe('SubtitlePositionSelector', () => {
     const defaultProps = {
-        value: 'default',
+        value: 16,
         onChange: jest.fn(),
         lines: 2,
         onChangeLines: jest.fn(),
+        subtitleSize: 100,
+        onChangeSize: jest.fn(),
+        karaokeEnabled: true,
+        onChangeKaraoke: jest.fn(),
+        karaokeSupported: true,
     };
 
     beforeEach(() => {
         jest.clearAllMocks();
     });
 
-    it('renders all three position options', () => {
+    it('renders size slider and presets', () => {
         render(<SubtitlePositionSelector {...defaultProps} />);
 
-        expect(screen.getByText('High')).toBeInTheDocument();
-        expect(screen.getByText('Higher positioning')).toBeInTheDocument();
-
-        expect(screen.getByText('Middle')).toBeInTheDocument();
-        expect(screen.getByText('Social Standard')).toBeInTheDocument();
-
-        expect(screen.getByText('Low')).toBeInTheDocument();
-        expect(screen.getByText('Cinematic style')).toBeInTheDocument();
+        expect(screen.getByText('sizeLabel')).toBeInTheDocument();
+        // Presets
+        expect(screen.getByText('sizeSmall')).toBeInTheDocument();
+        expect(screen.getByText('sizeMedium')).toBeInTheDocument();
+        expect(screen.getByText('sizeBig')).toBeInTheDocument();
+        expect(screen.getByText('sizeExtraBig')).toBeInTheDocument();
     });
 
-    it('highlights the selected option', () => {
-        render(<SubtitlePositionSelector {...defaultProps} value="top" />);
-
-        const topButton = screen.getByText('High').closest('button');
-        expect(topButton?.className).toContain('border-[var(--accent)]');
-    });
-
-    it('calls onChange when option is clicked', () => {
-        const onChange = jest.fn();
-        render(<SubtitlePositionSelector {...defaultProps} onChange={onChange} />);
-
-        fireEvent.click(screen.getByText('Low'));
-        expect(onChange).toHaveBeenCalledWith('bottom');
-    });
-
-    it('renders subtitle preview bar at correct position for default', () => {
-        const { container } = render(<SubtitlePositionSelector {...defaultProps} value="default" />);
-
-        const previewBar = container.querySelector('.subtitle-preview-bar');
-        expect(previewBar).toBeInTheDocument();
-        expect(previewBar).toHaveStyle({ bottom: '16%' });
-    });
-
-    it('renders subtitle preview bar at correct position for top', () => {
-        const { container } = render(<SubtitlePositionSelector {...defaultProps} value="top" />);
-
-        const previewBar = container.querySelector('.subtitle-preview-bar');
-        expect(previewBar).toBeInTheDocument();
-        expect(previewBar).toHaveStyle({ bottom: '32%' });
-    });
-
-    it('renders subtitle preview bar at correct position for bottom', () => {
-        const { container } = render(<SubtitlePositionSelector {...defaultProps} value="bottom" />);
-
-        const previewBar = container.querySelector('.subtitle-preview-bar');
-        expect(previewBar).toBeInTheDocument();
-        expect(previewBar).toHaveStyle({ bottom: '6%' });
-    });
-
-    it('renders thumbnail when provided', () => {
-        render(<SubtitlePositionSelector {...defaultProps} thumbnailUrl="data:image/png;base64,test" />);
-
-        const img = screen.getByAltText('Video preview');
-        expect(img).toBeInTheDocument();
-        expect(img).toHaveAttribute('src', 'data:image/png;base64,test');
-    });
-
-    it('renders fallback gradient when no thumbnail', () => {
-        const { container } = render(<SubtitlePositionSelector {...defaultProps} thumbnailUrl={null} />);
-
-        // Should have the fallback gradient div
-        const fallbackGradient = container.querySelector('.bg-gradient-to-br');
-        expect(fallbackGradient).toBeInTheDocument();
-    });
-
-    it('stops propagation on button click', () => {
-        const parentClick = jest.fn();
-        const onChange = jest.fn();
-
-        render(
-            <div onClick={parentClick}>
-                <SubtitlePositionSelector {...defaultProps} onChange={onChange} />
-            </div>
-        );
-
-        fireEvent.click(screen.getByText('High'));
-
-        expect(onChange).toHaveBeenCalledWith('top');
-        expect(parentClick).not.toHaveBeenCalled();
-    });
-
-    it('renders descriptive text for each option', () => {
+    it('renders position slider and presets', () => {
         render(<SubtitlePositionSelector {...defaultProps} />);
 
-        expect(screen.getByText('Social Standard')).toBeInTheDocument();
-        expect(screen.getByText('Higher positioning')).toBeInTheDocument();
-        expect(screen.getByText('Cinematic style')).toBeInTheDocument();
+        // Presets
+        expect(screen.getByText('positionLow')).toBeInTheDocument();
+        expect(screen.getByText('positionMiddle')).toBeInTheDocument();
+        expect(screen.getByText('positionHigh')).toBeInTheDocument();
     });
 
-    it('renders phone mockup UI elements', () => {
-        const { container } = render(<SubtitlePositionSelector {...defaultProps} />);
+    it('calls onChangeSize when size preset is clicked', () => {
+        render(<SubtitlePositionSelector {...defaultProps} />);
 
-        // Check for notch
-        expect(container.querySelector('.rounded-full.bg-black\\/60')).toBeInTheDocument();
-
-        // Check for social sidebar dots
-        const sidebarDots = container.querySelectorAll('.bg-white\\/30.rounded-full');
-        expect(sidebarDots.length).toBe(4);
+        fireEvent.click(screen.getByText('sizeBig'));
+        expect(defaultProps.onChangeSize).toHaveBeenCalledWith(100);
     });
 
-    it('renders color picker when colors are provided', () => {
-        const colors = [{ label: 'Yellow', value: '#FFFF00', ass: '&H0000FFFF' }];
+    it('calls onChange when position preset is clicked', () => {
+        render(<SubtitlePositionSelector {...defaultProps} />);
+
+        fireEvent.click(screen.getByText('positionHigh'));
+        expect(defaultProps.onChange).toHaveBeenCalledWith(45);
+    });
+
+    it('calls onChangeLines when line option is clicked', () => {
+        render(<SubtitlePositionSelector {...defaultProps} />);
+
+        expect(screen.getByText('linesSingle')).toBeInTheDocument();
+        fireEvent.click(screen.getByText('linesSingle'));
+        expect(defaultProps.onChangeLines).toHaveBeenCalledWith(1);
+    });
+
+    it('renders karaoke toggle when supported', () => {
+        render(<SubtitlePositionSelector {...defaultProps} />);
+
+        expect(screen.getByText('karaokeLabel')).toBeInTheDocument();
+        fireEvent.click(screen.getByText('karaokeMode').closest('button')!);
+        expect(defaultProps.onChangeKaraoke).toHaveBeenCalledWith(false); // toggles
+    });
+
+    it('does not render karaoke toggle when not supported', () => {
+        render(<SubtitlePositionSelector {...defaultProps} karaokeSupported={false} />);
+
+        expect(screen.queryByText('karaokeLabel')).not.toBeInTheDocument();
+    });
+
+    it('renders color selector if colors provided', () => {
+        const colors = [{ label: 'Green', value: '#00FF00', ass: '&H0000FF00' }];
         const onChangeColor = jest.fn();
-        render(<SubtitlePositionSelector {...defaultProps} colors={colors} onChangeColor={onChangeColor} />);
+        render(<SubtitlePositionSelector {...defaultProps} colors={colors} onChangeColor={onChangeColor} subtitleColor="#00FF00" />);
 
-        const colorButton = screen.getByRole('radio', { name: 'Yellow' });
-        expect(colorButton).toBeInTheDocument();
-
-        // Find the swatch inside the button (it has the background color style)
-        const swatch = colorButton.querySelector('div[style*="background-color"]');
-        expect(swatch).toHaveStyle({ backgroundColor: '#FFFF00' });
-    });
-
-    it('calls onChangeColor when color is clicked', () => {
-        const colors = [{ label: 'Yellow', value: '#FFFF00', ass: '&H0000FFFF' }];
-        const onChangeColor = jest.fn();
-        render(<SubtitlePositionSelector {...defaultProps} colors={colors} onChangeColor={onChangeColor} />);
-
-        const colorButton = screen.getByRole('radio', { name: 'Yellow' });
-        fireEvent.click(colorButton);
-        expect(onChangeColor).toHaveBeenCalledWith('#FFFF00');
-    });
-
-    it('calls onChangeLines when line option button is clicked', () => {
-        const onChangeLines = jest.fn();
-        render(<SubtitlePositionSelector {...defaultProps} lines={2} onChangeLines={onChangeLines} />);
-
-        // Find line option button labeled "Single Line"
-        const lineButton1 = screen.getByRole('button', { name: /Single Line/i });
-        fireEvent.click(lineButton1);
-        expect(onChangeLines).toHaveBeenCalledWith(1);
-    });
-    it('shows Auto message when disableMaxLines is true', () => {
-        render(<SubtitlePositionSelector {...defaultProps} disableMaxLines={true} />);
-        expect(screen.getByText('Auto (Sync Priority)')).toBeInTheDocument();
-        expect(screen.queryByText('Single Line')).not.toBeInTheDocument();
-    });
-
-    it('renders and interactions with size selector', () => {
-        const onChangeSize = jest.fn();
-        render(<SubtitlePositionSelector {...defaultProps} onChangeSize={onChangeSize} subtitleSize="medium" />);
-
-        expect(screen.getByText('Big')).toBeInTheDocument();
-        expect(screen.getByText('Small')).toBeInTheDocument();
-
-        fireEvent.click(screen.getByText('Big'));
-        expect(onChangeSize).toHaveBeenCalledWith('big');
-    });
-
-    it('renders and toggles karaoke mode', () => {
-        const onChangeKaraoke = jest.fn();
-        render(
-            <SubtitlePositionSelector
-                {...defaultProps}
-                karaokeEnabled={true}
-                onChangeKaraoke={onChangeKaraoke}
-                karaokeSupported={true}
-            />
-        );
-
-        expect(screen.getByText('Karaoke Mode')).toBeInTheDocument();
-
-        const toggleBtn = screen.getByText('Karaoke Mode').closest('button');
-        fireEvent.click(toggleBtn!);
-
-        // It should call with !enabled -> !true -> false
-        expect(onChangeKaraoke).toHaveBeenCalledWith(false);
-    });
-
-    it('hides karaoke toggle if not supported', () => {
-        render(
-            <SubtitlePositionSelector
-                {...defaultProps}
-                karaokeEnabled={true}
-                karaokeSupported={false}
-            />
-        );
-        expect(screen.queryByText('Karaoke Mode')).not.toBeInTheDocument();
+        expect(screen.getByText('colorLabel')).toBeInTheDocument();
+        const colorBtn = screen.getByRole('radio', { name: 'Green' });
+        fireEvent.click(colorBtn);
+        expect(onChangeColor).toHaveBeenCalledWith('#00FF00');
     });
 });
