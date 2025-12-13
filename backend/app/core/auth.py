@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import os
+import re
 import secrets
 import time
 import tomllib
@@ -49,6 +50,7 @@ class UserStore:
         email = email.strip().lower()
         if not email:
             raise ValueError("Email is required")
+        _validate_email(email)
         if not password:
             raise ValueError("Password is required")
         _validate_password_strength(password)
@@ -296,6 +298,15 @@ def _validate_password_strength(password: str) -> None:
     has_digit = any(ch.isdigit() for ch in password)
     if not (has_letter and has_digit):
         raise ValueError("Password must include both letters and numbers")
+
+
+def _validate_email(email: str) -> None:
+    """Validate email format using regex."""
+    # Basic regex to catch obvious non-emails.
+    # We avoid complex RFC compliance regexes to keep it simple and safe.
+    pattern = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
+    if not re.match(pattern, email):
+        raise ValueError("Invalid email format")
 
 
 def _utc_iso() -> str:
