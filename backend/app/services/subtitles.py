@@ -142,7 +142,7 @@ def get_media_info(path: Path) -> MediaInfo:
         "ffprobe",
         "-v",
         "error",
-        "-print_format",
+        "-of",
         "json",
         "-show_format",
         "-show_streams",
