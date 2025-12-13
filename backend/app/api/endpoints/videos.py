@@ -666,14 +666,27 @@ def export_video(
 def run_retention_policy(
     days: int = 30,
     job_store: JobStore = Depends(get_job_store),
-    history_store: HistoryStore = Depends(get_history_store)
+    history_store: HistoryStore = Depends(get_history_store),
+    current_user: User = Depends(get_current_user),
 ):
     """
     Manually trigger retention policy: Delete jobs older than {days} days.
     Ideally protected by admin auth or run via CLI/Cron.
     """
+    import os
     import shutil
     import time
+
+    # Security: Only allow admins to trigger cleanup
+    admin_emails_str = os.getenv("GSP_ADMIN_EMAILS", "")
+    admin_emails = [e.strip().lower() for e in admin_emails_str.split(",") if e.strip()]
+
+    if not admin_emails:
+        # Secure default: If no admins are configured, disable the endpoint
+        raise HTTPException(status_code=403, detail="Admin access not configured")
+
+    if current_user.email.strip().lower() not in admin_emails:
+        raise HTTPException(status_code=403, detail="Not authorized")
 
     cutoff = int(time.time()) - (days * 24 * 3600)
     old_jobs = job_store.list_jobs_created_before(cutoff)
