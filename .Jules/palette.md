@@ -1,7 +1,3 @@
-## 2024-04-18 - [Accessibility in Custom Color Selectors]
-**Learning:** Custom color pickers built with buttons often lack proper semantic grouping. Users relying on screen readers need to know they are in a "single choice" context (radio group) rather than just a list of buttons.
-**Action:** Use `role="radiogroup"` for the container and `role="radio"` for the options, ensuring `aria-checked` manages state instead of just visual classes.
-
-## 2024-04-18 - [Button Semantics]
-**Learning:** Reviewers (or tools) may confuse visual styling with semantic tags. Always verify the underlying HTML tag. A `<button>` tag with `onClick` is semantically correct, whereas a `div` with `onClick` requires explicit `role="button"` and `tabIndex="0"`.
-**Action:** Always prefer semantic HTML tags (`<button>`) over ARIA roles on generic containers (`div`) when possible.
+## 2025-12-13 - [Keyboard Accessibility for Divs]
+**Learning:** Interactive `div` elements (like file upload zones) are invisible to keyboard users. Adding `onClick` isn't enough - they need `tabIndex="0"`, `role="button"`, and `onKeyDown` handlers for Enter/Space keys.
+**Action:** Always check `div`s with `onClick` handlers. Either replace with `<button>` or add full keyboard support.
