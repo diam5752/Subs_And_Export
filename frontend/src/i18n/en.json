@@ -210,6 +210,7 @@
   "viralTitle": "Viral Intelligence",
   "viralHooksLabel": "On-Screen Hooks",
   "viralCopy": "COPY",
+  "viralCopied": "COPIED",
   "viralCaptionLabel": "Caption",
   "viralCopyFull": "Copy Full Caption",
   "transcriptionModelLabel": "Transcription Model",
