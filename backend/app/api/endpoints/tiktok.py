@@ -92,8 +92,10 @@ def upload_video_tiktok(
 
     # Security check:
     full_path = (config.PROJECT_ROOT / req.video_path).resolve()
-    if not str(full_path).startswith(str(data_dir.resolve())):
-         raise HTTPException(status_code=403, detail="Invalid video path")
+    try:
+        full_path.relative_to(data_dir.resolve())
+    except ValueError:
+        raise HTTPException(status_code=403, detail="Invalid video path")
 
     if not full_path.exists():
         raise HTTPException(status_code=404, detail="Video file not found")
