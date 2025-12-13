@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState, useId } from 'react';
 import { api, JobResponse } from '@/lib/api';
 import { useI18n } from '@/context/I18nContext';
 import { JobListItem } from './JobListItem';
@@ -81,6 +81,7 @@ export function ProcessView({
     onPrevPage,
 }: ProcessViewProps) {
     const { t } = useI18n();
+    const aiToggleDescId = useId();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const resultsRef = useRef<HTMLDivElement>(null);
     const validationRequestId = useRef(0);
@@ -1056,16 +1057,25 @@ export function ProcessView({
 
                                 {/* AI & Context */}
                                 <div className="pt-2">
-                                    <label className="flex items-center gap-3 cursor-pointer group" onClick={(e) => e.stopPropagation()}>
+                                    <button
+                                        type="button"
+                                        role="switch"
+                                        aria-checked={useAI}
+                                        aria-describedby={aiToggleDescId}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setUseAI(!useAI);
+                                        }}
+                                        className="flex items-center gap-3 cursor-pointer group w-full text-left bg-transparent border-0 p-0"
+                                    >
                                         <div
-                                            onClick={() => setUseAI(!useAI)}
-                                            className={`w-12 h-6 rounded-full transition-colors relative ${useAI ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'}`}
+                                            className={`w-12 h-6 rounded-full transition-colors relative flex-shrink-0 ${useAI ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'}`}
                                         >
                                             <div className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${useAI ? 'translate-x-6' : ''}`} />
                                         </div>
                                         <span className="font-medium">{t('aiToggleLabel')}</span>
-                                    </label>
-                                    <p className="text-xs text-[var(--muted)] mt-1 ml-14">{t('aiToggleDescription')}</p>
+                                    </button>
+                                    <p id={aiToggleDescId} className="text-xs text-[var(--muted)] mt-1 ml-14">{t('aiToggleDescription')}</p>
                                 </div>
 
                                 {useAI && (
