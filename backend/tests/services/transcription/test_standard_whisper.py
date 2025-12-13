@@ -10,29 +10,29 @@ mock_pywhispercpp = MagicMock()
 sys.modules["pywhispercpp"] = mock_pywhispercpp
 sys.modules["pywhispercpp.model"] = mock_pywhispercpp
 
-from backend.app.services.transcription.standard_whisper import (
-    StandardTranscriber,
-    _format_timestamp,
-    _normalize_text,
-    _write_srt_from_segments,
+from backend.app.services.transcription.standard_whisper import StandardTranscriber
+from backend.app.services.transcription.utils import (
+    format_timestamp,
+    normalize_text,
+    write_srt_from_segments,
 )
 
 
 class TestStandardWhisperHelpers:
     def test_normalize_text(self):
-        assert _normalize_text("Héllo Wörld") == "HELLO WORLD"
-        assert _normalize_text("UPPERCASE") == "UPPERCASE"
-        assert _normalize_text("") == ""
-        assert _normalize_text("άλογο") == "ΑΛΟΓΟ" # Greek check
+        assert normalize_text("Héllo Wörld") == "HELLO WORLD"
+        assert normalize_text("UPPERCASE") == "UPPERCASE"
+        assert normalize_text("") == ""
+        assert normalize_text("άλογο") == "ΑΛΟΓΟ" # Greek check
 
     def test_format_timestamp(self):
         # 0s
-        assert _format_timestamp(0.0) == "0:00:00.00"
+        assert format_timestamp(0.0) == "0:00:00.00"
         # 1h 1m 1.5s = 3661.5
-        assert _format_timestamp(3661.5) == "1:01:01.50"
+        assert format_timestamp(3661.5) == "1:01:01.50"
         # Check comma replacement happens in SRT writer, not here.
         # Here it returns dot.
-        assert "." in _format_timestamp(1.5)
+        assert "." in format_timestamp(1.5)
 
     def test_write_srt_from_segments(self, tmp_path):
         segments = [
@@ -40,7 +40,7 @@ class TestStandardWhisperHelpers:
             (1.5, 3.0, "Second line"),
         ]
         dest = tmp_path / "test.srt"
-        _write_srt_from_segments(segments, dest)
+        write_srt_from_segments(segments, dest)
 
         content = dest.read_text(encoding="utf-8")
         expected_timestamp_1 = "0:00:00,00 --> 0:00:01,50"

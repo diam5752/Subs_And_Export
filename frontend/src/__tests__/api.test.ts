@@ -150,9 +150,9 @@ describe('API Client', () => {
             expect(formData.get('transcribe_model')).toBe('medium');
             expect(formData.get('transcribe_provider')).toBe('local');
             expect(formData.get('video_quality')).toBe('balanced');
-            expect(formData.get('subtitle_position')).toBe('default');
+            expect(formData.get('subtitle_position')).toBe('16');
             expect(formData.get('max_subtitle_lines')).toBe('2');
-            expect(formData.get('subtitle_size')).toBe('medium');
+            expect(formData.get('subtitle_size')).toBe('100');
             expect(formData.get('karaoke_enabled')).toBe('true');
         });
     });
