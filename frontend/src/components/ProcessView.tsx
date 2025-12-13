@@ -764,22 +764,6 @@ export function ProcessView({
                                                     default: return '18%';
                                                 }
                                             };
-                                            // Helper to get size scale - more dramatic differences
-                                            const getSizeScale = (size: string) => {
-                                                switch (size) {
-                                                    case 'small': return 0.6;
-                                                    case 'big': return 1.4;
-                                                    default: return 1.0;
-                                                }
-                                            };
-                                            // Bar height based on size
-                                            const getBarHeight = (size: string) => {
-                                                switch (size) {
-                                                    case 'small': return 'h-1.5';
-                                                    case 'big': return 'h-4';
-                                                    default: return 'h-2.5';
-                                                }
-                                            };
 
                                             return (
                                                 <button

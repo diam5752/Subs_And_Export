@@ -18,7 +18,7 @@ export default function PrivacyPolicy() {
                 <p>We do not share your personal data with third parties, except as required to provide the transcription service (e.g., sending audio to OpenAI/Groq if selected). These providers are bound by data processing agreements.</p>
 
                 <h2 className="text-2xl font-semibold mt-6 mb-4">4. Your Rights</h2>
-                <p>Under GDPR, you have the right to access, rectify, and erase your data. Use the "Export Data" and "Delete Account" features in your profile settings to exercise these rights.</p>
+                <p>Under GDPR, you have the right to access, rectify, and erase your data. Use the &quot;Export Data&quot; and &quot;Delete Account&quot; features in your profile settings to exercise these rights.</p>
 
                 <h2 className="text-2xl font-semibold mt-6 mb-4">5. Contact</h2>
                 <p>For privacy inquiries, please contact support.</p>
