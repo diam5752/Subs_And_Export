@@ -2,7 +2,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from ...core.auth import SessionStore, User, UserStore
 from ...core.ratelimit import limiter_login, limiter_register
@@ -13,9 +13,9 @@ from ..deps import get_current_user, get_history_store, get_job_store, get_sessi
 router = APIRouter()
 
 class UserCreate(BaseModel):
-    email: str
-    password: str
-    name: str
+    email: str = Field(..., max_length=255)
+    password: str = Field(..., min_length=12, max_length=128)
+    name: str = Field(..., max_length=100)
 
 class Token(BaseModel):
     access_token: str
@@ -75,7 +75,7 @@ def read_users_me(
     return current_user
 
 class UserUpdateName(BaseModel):
-    name: str
+    name: str = Field(..., max_length=100)
 
 @router.put("/me", response_model=UserResponse)
 def update_user_me(
@@ -89,7 +89,7 @@ def update_user_me(
     return current_user
 
 class UserUpdatePassword(BaseModel):
-    password: str
+    password: str = Field(..., min_length=12, max_length=128)
     confirm_password: str
 
 @router.put("/password", response_model=Any)
