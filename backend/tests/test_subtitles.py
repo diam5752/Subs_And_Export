@@ -492,15 +492,15 @@ def test_subtitle_position_logic(tmp_path):
     srt = tmp_path / "dummy.srt"
     srt.write_text("1\n00:00,00 --> 00:01,00\nHi", "utf-8")
 
-    # Top: MarginV=615 (approx 32%)
+    # Top: MarginV=614 (approx 32%)
     ass_top = subtitles.create_styled_subtitle_file(srt, subtitle_position=32)
     # Check Style definition line for MarginV (21st parameter)
-    # Style: Default,Arial,20,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,1,1,4,2,60,60,615,0
+    # Style: Default,Arial,20,&H00FFFFFF,&H000000FF,&H00000000,&H80000000,1,0,0,0,100,100,0,0,1,1,4,2,60,60,614,0
     assert ",614,0" in ass_top.read_text("utf-8")
 
-    # Bottom: MarginV=120
+    # Bottom: MarginV=115
     ass_bottom = subtitles.create_styled_subtitle_file(srt, subtitle_position=6)
-    assert ",120,0" in ass_bottom.read_text("utf-8")
+    assert ",115,0" in ass_bottom.read_text("utf-8")
 
 
 def test_transcribe_with_whispercpp_no_karaoke(monkeypatch, tmp_path):
