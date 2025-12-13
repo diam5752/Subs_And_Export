@@ -34,10 +34,10 @@ export function useJobs() {
             setTotalPages(response.total_pages);
             setTotalJobs(response.total);
 
-            if (autoSelectLatest && !selectedJob) {
+            if (autoSelectLatest) {
                 const latest = response.items.find((job) => job.status === 'completed' && job.result_data);
                 if (latest) {
-                    setSelectedJob(latest);
+                    setSelectedJob(prev => prev || latest);
                 }
             }
         } catch (err) {
@@ -45,7 +45,7 @@ export function useJobs() {
         } finally {
             setJobsLoading(false);
         }
-    }, [user, selectedJob, t, currentPage, pageSize]);
+    }, [user, t, currentPage, pageSize]);
 
     const nextPage = useCallback(() => {
         if (currentPage < totalPages) {
