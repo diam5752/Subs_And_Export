@@ -12,10 +12,10 @@ export default function CookieConsent() {
         try {
             const consent = localStorage.getItem('cookie-consent');
             if (!consent) {
-                setVisible(true);
+                setTimeout(() => setVisible(true), 0);
             }
         } catch {
-            setVisible(false);
+            setTimeout(() => setVisible(false), 0);
         }
     }, []);
 
