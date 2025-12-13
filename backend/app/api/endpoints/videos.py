@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from ...core import config
 from ...core.auth import User
+from ...core.ratelimit import limiter_processing
 from ...core.settings import load_app_settings
 from ...schemas.base import (
     BatchDeleteRequest,
@@ -250,7 +251,7 @@ def run_video_processing(
         )
 
 
-@router.post("/process", response_model=JobResponse)
+@router.post("/process", response_model=JobResponse, dependencies=[Depends(limiter_processing)])
 async def process_video(
     background_tasks: BackgroundTasks,
     request: Request,
