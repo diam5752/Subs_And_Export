@@ -11,7 +11,6 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
     const [loading, setLoading] = useState(false);
     const [metadata, setMetadata] = useState<ViralMetadataResponse | null>(null);
     const [error, setError] = useState<string | null>(null);
-    const [copiedHook, setCopiedHook] = useState<string | null>(null);
 
     const handleGenerate = async () => {
         setLoading(true);
@@ -27,14 +26,8 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
         }
     };
 
-    const copyToClipboard = async (text: string) => {
-        try {
-            await navigator.clipboard.writeText(text);
-            setCopiedHook(text);
-            setTimeout(() => setCopiedHook(null), 2000);
-        } catch (err) {
-            console.error('Failed to copy', err);
-        }
+    const copyToClipboard = (text: string) => {
+        navigator.clipboard.writeText(text);
     };
 
     if (!metadata && !loading) {
@@ -73,17 +66,14 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
                 <h4 className="text-sm font-semibold text-[var(--muted)] uppercase tracking-wider">{t('viralHooksLabel')}</h4>
                 <div className="space-y-2">
                     {metadata.hooks.map((hook, i) => (
-                        <button
+                        <div
                             key={i}
-                            type="button"
                             onClick={() => copyToClipboard(hook)}
-                            className="w-full text-left p-3 rounded-lg border border-[var(--border)] hover:border-[var(--accent)] cursor-pointer transition-colors bg-[var(--surface)] flex justify-between items-center group focus-visible:ring-2 focus-visible:ring-[var(--accent)] outline-none"
+                            className="p-3 rounded-lg border border-[var(--border)] hover:border-[var(--accent)] cursor-pointer transition-colors bg-[var(--surface)] flex justify-between items-center group"
                         >
                             <span className="font-bold">{hook}</span>
-                            <span className={`text-xs transition-opacity ${copiedHook === hook ? 'text-[var(--accent)] opacity-100' : 'text-[var(--muted)] opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100'}`}>
-                                {copiedHook === hook ? '✓' : t('viralCopy')}
-                            </span>
-                        </button>
+                            <span className="text-xs text-[var(--muted)] opacity-0 group-hover:opacity-100 transition-opacity">{t('viralCopy')}</span>
+                        </div>
                     ))}
                 </div>
             </div>
