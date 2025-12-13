@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { api, JobResponse } from '@/lib/api';
 import { useI18n } from '@/context/I18nContext';
+import { JobListItem } from './JobListItem';
 import { VideoModal } from './VideoModal';
 import { ViralIntelligence } from './ViralIntelligence';
 import { SubtitlePositionSelector } from './SubtitlePositionSelector';
@@ -44,12 +45,12 @@ export interface ProcessingOptions {
     outputResolution: '1080x1920' | '2160x3840';
     useAI: boolean;
     contextPrompt: string;
-    subtitle_position: string;
+    subtitle_position: number;
     max_subtitle_lines: number;
     subtitle_color: string;
     shadow_strength: number;
     highlight_style: string;
-    subtitle_size: string;
+    subtitle_size: number;
     karaoke_enabled: boolean;
 }
 
@@ -96,10 +97,10 @@ export function ProcessView({
     const [transcribeProvider, setTranscribeProvider] = useState<TranscribeProvider>('local');
     // outputQuality state removed as it is now always high quality
     // const [outputQuality, setOutputQuality] = useState<'low size' | 'balanced' | 'high quality'>('balanced');
-    const [subtitlePosition, setSubtitlePosition] = useState('default');
+    const [subtitlePosition, setSubtitlePosition] = useState<number>(16); // TikTok preset: middle (16%)
     const [maxSubtitleLines, setMaxSubtitleLines] = useState(0); // TikTok preset: 1 word at a time
     const [subtitleColor, setSubtitleColor] = useState<string>('#FFFF00'); // Default Yellow
-    const [subtitleSize, setSubtitleSize] = useState('big'); // TikTok preset: big
+    const [subtitleSize, setSubtitleSize] = useState<number>(100); // TikTok preset: 100% (big)
     const [karaokeEnabled, setKaraokeEnabled] = useState(true);
     const [shadowStrength] = useState<number>(4); // Default Normal
     const [useAI, setUseAI] = useState(false);
@@ -127,8 +128,8 @@ export function ProcessView({
             description: t('styleTiktokDesc'),
             emoji: '🔥',
             settings: {
-                position: 'default',
-                size: 'big',
+                position: 16,  // Middle = 16%
+                size: 100,  // 100% = big
                 lines: 0, // 1 word at a time
                 color: '#FFFF00',
                 karaoke: true,
@@ -141,8 +142,8 @@ export function ProcessView({
             description: t('styleCinematicDesc'),
             emoji: '🎬',
             settings: {
-                position: 'bottom',
-                size: 'medium',
+                position: 6,  // Low = 6%
+                size: 85,  // 85% = medium
                 lines: 2,
                 color: '#FFFFFF',
                 karaoke: false,
@@ -155,8 +156,8 @@ export function ProcessView({
             description: t('styleMinimalDesc'),
             emoji: '✨',
             settings: {
-                position: 'bottom',
-                size: 'small',
+                position: 6,  // Low = 6%
+                size: 70,  // 70% = small
                 lines: 3,
                 color: '#00FFFF',
                 karaoke: false,
@@ -310,9 +311,9 @@ export function ProcessView({
     const handleResetSelection = () => {
         validationRequestId.current += 1;
         setVideoInfo(null);
-        setSubtitlePosition('default');
+        setSubtitlePosition(16);  // Reset to middle (16%)
         setMaxSubtitleLines(2);
-        setSubtitleSize('medium');
+        setSubtitleSize(85);  // Reset to medium (85%)
         setKaraokeEnabled(true);
         if (fileInputRef.current) {
             fileInputRef.current.value = '';
@@ -494,7 +495,17 @@ export function ProcessView({
         setShowPreview(false);
     }, []);
 
-
+    const handleToggleSelection = useCallback((id: string, isSelected: boolean) => {
+        setSelectedJobIds(prev => {
+            const newSet = new Set(prev);
+            if (isSelected) {
+                newSet.delete(id);
+            } else {
+                newSet.add(id);
+            }
+            return newSet;
+        });
+    }, []);
 
     return (
         <div className="grid xl:grid-cols-[1.05fr,0.95fr] gap-6">
@@ -834,9 +845,9 @@ export function ProcessView({
                                                                 style={{ bottom: getPreviewBottom(preset.settings.position) }}
                                                             >
                                                                 {Array.from({ length: preset.settings.lines === 0 ? 1 : Math.min(preset.settings.lines, 3) }).map((_, i) => {
-                                                                    // Font size mapping: Increased line-heights to prevent overlap
-                                                                    const fontSize = preset.settings.size === 'big' ? '11px' : preset.settings.size === 'small' ? '7px' : '8px';
-                                                                    const lineHeight = preset.settings.size === 'big' ? '14px' : preset.settings.size === 'small' ? '9px' : '10px';
+                                                                    // Font size mapping: Based on numeric size (50-150 scale)
+                                                                    const fontSize = preset.settings.size >= 100 ? '11px' : preset.settings.size <= 70 ? '7px' : '8px';
+                                                                    const lineHeight = preset.settings.size >= 100 ? '14px' : preset.settings.size <= 70 ? '9px' : '10px';
 
                                                                     // Sample text with more "viral" feel
                                                                     const text = preset.settings.lines === 0
@@ -887,7 +898,7 @@ export function ProcessView({
                                                             <div className="flex flex-col gap-1 mt-1.5 opacity-80">
                                                                 <div className="flex gap-1">
                                                                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--surface-elevated)] border border-[var(--border)] text-[var(--muted)] whitespace-nowrap">
-                                                                        {preset.settings.size === 'big' ? t('sizeBig') : preset.settings.size === 'medium' ? t('sizeMedium') : t('sizeSmall')}
+                                                                        {preset.settings.size >= 150 ? t('sizeExtraBig') : preset.settings.size >= 100 ? t('sizeBig') : preset.settings.size >= 85 ? t('sizeMedium') : t('sizeSmall')}
                                                                     </span>
                                                                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--surface-elevated)] border border-[var(--border)] text-[var(--muted)] whitespace-nowrap">
                                                                         {preset.settings.color === '#FFFF00' ? t('colorYellow') : preset.settings.color === '#FFFFFF' ? t('colorWhite') : t('colorCyan')}
@@ -1382,116 +1393,26 @@ export function ProcessView({
                                 const isSelected = selectedJobIds.has(job.id);
 
                                 return (
-                                    <div
+                                    <JobListItem
                                         key={job.id}
-                                        onClick={() => {
-                                            if (selectionMode) {
-                                                const newSet = new Set(selectedJobIds);
-                                                if (isSelected) {
-                                                    newSet.delete(job.id);
-                                                } else {
-                                                    newSet.add(job.id);
-                                                }
-                                                setSelectedJobIds(newSet);
-                                            }
-                                        }}
-                                        className={`flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 p-3 rounded-lg border ${isSelected
-                                            ? 'border-[var(--accent)] bg-[var(--accent)]/5'
-                                            : isExpired
-                                                ? 'border-[var(--border)]/30 bg-[var(--surface)] text-[var(--muted)]'
-                                                : 'border-[var(--border)] bg-[var(--surface-elevated)]'
-                                            } transition-colors ${selectionMode ? 'cursor-pointer hover:bg-[var(--accent)]/5' : ''}`}
-                                    >
-                                        <div className="min-w-0 flex-1">
-                                            <div className="font-semibold text-sm truncate">
-                                                {job.result_data?.original_filename || job.id}
-                                            </div>
-                                            <div className="text-xs text-[var(--muted)]">
-                                                {formatDate(timestamp)}
-                                            </div>
-                                        </div>
-
-                                        <div className="flex items-center gap-2">
-                                            {/* Checkbox for selection mode - Moved to right */}
-                                            {selectionMode && (
-                                                <input
-                                                    type="checkbox"
-                                                    checked={isSelected}
-                                                    onChange={() => { }} // Handled by onClick of parent
-                                                    className="w-4 h-4 rounded border-[var(--border)] accent-[var(--accent)] flex-shrink-0 cursor-pointer"
-                                                />
-                                            )}
-                                            {isExpired ? (
-                                                <span className="text-xs bg-[var(--surface)] border border-[var(--border)] px-2 py-1 rounded text-[var(--muted)]">
-                                                    {t('expired') || 'Expired'}
-                                                </span>
-                                            ) : (
-                                                <>
-                                                    {job.status === 'completed' && publicUrl && !selectionMode && (
-                                                        <>
-                                                            <a
-                                                                className="text-xs btn-primary py-1.5 px-3 h-auto"
-                                                                href={publicUrl}
-                                                                download={job.result_data?.original_filename || 'processed.mp4'}
-                                                            >
-                                                                {t('download') || 'Download'}
-                                                            </a>
-                                                            <button
-                                                                onClick={() => { onJobSelect(job); setShowPreview(true); }}
-                                                                className="text-xs btn-secondary py-1.5 px-3 h-auto"
-                                                            >
-                                                                {t('view') || 'View'}
-                                                            </button>
-                                                        </>
-                                                    )}
-                                                    {/* Delete button - hide in selection mode */}
-                                                    {!selectionMode && (
-                                                        confirmDeleteId === job.id ? (
-                                                            <div className="flex items-center gap-1">
-                                                                <button
-                                                                    onClick={async () => {
-                                                                        setDeletingJobId(job.id);
-                                                                        try {
-                                                                            await api.deleteJob(job.id);
-                                                                            if (selectedJob?.id === job.id) {
-                                                                                onJobSelect(null);
-                                                                                setShowPreview(false);
-                                                                            }
-                                                                            setConfirmDeleteId(null);
-                                                                            // Refresh jobs list without page reload
-                                                                            await onRefreshJobs();
-                                                                        } catch (err) {
-                                                                            console.error('Delete failed:', err);
-                                                                        } finally {
-                                                                            setDeletingJobId(null);
-                                                                        }
-                                                                    }}
-                                                                    disabled={deletingJobId === job.id}
-                                                                    className="text-xs px-2 py-1 rounded bg-[var(--danger)] text-white hover:bg-[var(--danger)]/80 disabled:opacity-50"
-                                                                >
-                                                                    {deletingJobId === job.id ? '...' : '✓'}
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => setConfirmDeleteId(null)}
-                                                                    className="text-xs px-2 py-1 rounded border border-[var(--border)] hover:bg-white/5"
-                                                                >
-                                                                    ✕
-                                                                </button>
-                                                            </div>
-                                                        ) : (
-                                                            <button
-                                                                onClick={() => setConfirmDeleteId(job.id)}
-                                                                className="text-xs px-2 py-1 rounded border border-[var(--border)] hover:border-[var(--danger)] hover:text-[var(--danger)] transition-colors"
-                                                                title={t('deleteJob')}
-                                                            >
-                                                                🗑️
-                                                            </button>
-                                                        )
-                                                    )}
-                                                </>
-                                            )}
-                                        </div>
-                                    </div>
+                                        job={job}
+                                        selectionMode={selectionMode}
+                                        isSelected={isSelected}
+                                        isExpired={isExpired}
+                                        publicUrl={publicUrl}
+                                        timestamp={timestamp}
+                                        formatDate={formatDate}
+                                        onToggleSelection={handleToggleSelection}
+                                        onJobSelect={onJobSelect}
+                                        setShowPreview={setShowPreview}
+                                        confirmDeleteId={confirmDeleteId}
+                                        setConfirmDeleteId={setConfirmDeleteId}
+                                        deletingJobId={deletingJobId}
+                                        setDeletingJobId={setDeletingJobId}
+                                        onRefreshJobs={onRefreshJobs}
+                                        selectedJobId={selectedJob?.id}
+                                        t={t as (key: string) => string}
+                                    />
                                 );
                             })}
                         </div>

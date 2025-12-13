@@ -1,6 +1,7 @@
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ViralIntelligence } from '../ViralIntelligence';
+
 import en from '@/i18n/en.json';
 
 jest.mock('@/context/I18nContext', () => ({

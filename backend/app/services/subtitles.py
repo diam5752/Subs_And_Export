@@ -213,90 +213,6 @@ def _model_uses_openai(model_name: str | None) -> bool:
     return should_use_openai(model_name)
 
 
-def _transcribe_with_openai(
-    audio_path: Path,
-    model_name: str,
-    language: str | None,
-    prompt: str | None,
-    output_dir: Path,
-    progress_callback: Callable[[float], None] | None = None,
-    api_key: str | None = None,
-) -> Tuple[Path, List[Cue]]:
-    """Transcribe audio using OpenAI's API."""
-
-    if not api_key:
-        api_key = _resolve_openai_api_key()
-
-    if not api_key:
-        raise RuntimeError(
-            "OpenAI API key is required for transcription with 'openai' provider or models."
-        )
-
-    client = _load_openai_client(api_key)
-
-    # We can't easily track progress with the simple transcription API
-    if progress_callback:
-        progress_callback(10.0)
-
-    try:
-        with open(audio_path, "rb") as audio_file:
-            transcript = client.audio.transcriptions.create(
-                model=model_name or "whisper-1",
-                file=audio_file,
-                language=language or "el",
-                prompt=prompt,
-                response_format="verbose_json",
-                timestamp_granularities=["word"] # Get word-level timestamps
-            )
-    except Exception as exc:
-        raise RuntimeError(f"OpenAI transcription failed: {exc}") from exc
-
-    if progress_callback:
-        progress_callback(90.0)
-
-    # Convert OpenAI verbose_json response to our Cue/WordTiming format
-    cues: List[Cue] = []
-    timed_text: List[TimeRange] = []
-
-    # OpenAI returns segments
-    if hasattr(transcript, "segments"):
-        for seg in transcript.segments:
-            seg_text = seg.text or ""
-            seg_start = seg.start
-            seg_end = seg.end
-
-            # Map words if available (requires timestamp_granularities=['word'])
-            # Note: The structure of response depends on library version and params
-            # Standard object access:
-            current_words: List[WordTiming] = []
-
-            # If the top-level transcript has 'words', we need to filter them for this segment
-            # OR if the segment has 'words'. OpenAI's verbose_json puts words at top level usually.
-
-            # Let's look at transcript.words if available
-            all_words = getattr(transcript, "words", [])
-            if all_words:
-                 # Filter words belonging to this segment time range
-                 seg_words_data = [
-                     w for w in all_words
-                     if w.start >= seg_start and w.start < seg_end
-                 ]
-                 current_words = [
-                     WordTiming(start=w.start, end=w.end, text=_normalize_text(w.word))
-                     for w in seg_words_data
-                 ]
-
-            processed_text = _normalize_text(seg_text)
-            cues.append(Cue(start=seg_start, end=seg_end, text=processed_text, words=current_words))
-            timed_text.append((seg_start, seg_end, seg_text))
-
-    if progress_callback:
-        progress_callback(100.0)
-
-    srt_path = output_dir / f"{audio_path.stem}.srt"
-    _write_srt_from_segments(timed_text, srt_path)
-
-    return srt_path, cues
 
 
 def _resolve_openai_api_key(explicit_key: str | None = None) -> str | None:
@@ -345,163 +261,8 @@ def _resolve_groq_api_key(explicit_key: str | None = None) -> str | None:
     return None
 
 
-def _transcribe_with_groq(
-    audio_path: Path,
-    model_name: str | None,
-    language: str | None,
-    prompt: str | None,
-    output_dir: Path,
-    progress_callback: Callable[[float], None] | None = None,
-    api_key: str | None = None,
-) -> Tuple[Path, List[Cue]]:
-    """Transcribe audio using Groq's Whisper API (OpenAI-compatible)."""
-
-    if not api_key:
-        api_key = _resolve_groq_api_key()
-
-    if not api_key:
-        raise RuntimeError(
-            "Groq API key is required. Set GROQ_API_KEY env var or add to config/secrets.toml"
-        )
-
-    # Groq uses OpenAI-compatible API
-    try:
-        from openai import OpenAI
-    except ImportError:
-        raise RuntimeError("openai package is required for Groq transcription")
-
-    client = OpenAI(
-        api_key=api_key,
-        base_url="https://api.groq.com/openai/v1"
-    )
-
-    if progress_callback:
-        progress_callback(10.0)
-
-    try:
-        with open(audio_path, "rb") as audio_file:
-            transcript = client.audio.transcriptions.create(
-                model=model_name or config.GROQ_TRANSCRIBE_MODEL,
-                file=audio_file,
-                language=language or "el",
-                prompt=prompt,
-                response_format="verbose_json",
-                timestamp_granularities=["word", "segment"]
-            )
-    except Exception as exc:
-        raise RuntimeError(f"Groq transcription failed: {exc}") from exc
-
-    if progress_callback:
-        progress_callback(90.0)
-
-    # Convert response to our Cue/WordTiming format (same as OpenAI)
-    cues: List[Cue] = []
-    timed_text: List[TimeRange] = []
-
-    if hasattr(transcript, "segments"):
-        for seg in transcript.segments:
-            seg_text = seg.text or ""
-            seg_start = seg.start
-            seg_end = seg.end
-
-            current_words: List[WordTiming] = []
-            all_words = getattr(transcript, "words", [])
-            if all_words:
-                seg_words_data = [
-                    w for w in all_words
-                    if w.start >= seg_start and w.start < seg_end
-                ]
-                current_words = [
-                    WordTiming(start=w.start, end=w.end, text=_normalize_text(w.word))
-                    for w in seg_words_data
-                ]
-
-            processed_text = _normalize_text(seg_text)
-            cues.append(Cue(start=seg_start, end=seg_end, text=processed_text, words=current_words))
-            timed_text.append((seg_start, seg_end, seg_text))
-
-    if progress_callback:
-        progress_callback(100.0)
-
-    srt_path = output_dir / f"{audio_path.stem}.srt"
-    _write_srt_from_segments(timed_text, srt_path)
-
-    return srt_path, cues
 
 
-def _transcribe_with_whispercpp(
-    audio_path: Path,
-    model_name: str | None,
-    language: str | None,
-    output_dir: Path,
-    progress_callback: Callable[[float], None] | None = None,
-) -> Tuple[Path, List[Cue]]:
-    """Transcribe audio using whisper.cpp with Metal/CoreML acceleration (Apple Silicon optimized).
-
-    Uses split_on_word mode to get word-level timing for karaoke effect.
-    """
-    try:
-        from pywhispercpp.model import Model as WhisperCppModel
-    except ImportError:
-        raise RuntimeError(
-            "pywhispercpp not installed. For best performance on Apple Silicon, install with CoreML:\n"
-            "WHISPER_COREML=1 pip install git+https://github.com/absadiki/pywhispercpp\n"
-            "Or for basic install: pip install pywhispercpp"
-        )
-
-    model_size = model_name or config.WHISPERCPP_MODEL
-
-    if progress_callback:
-        progress_callback(5.0)
-
-    # Initialize whisper.cpp model - use normal segment mode for better base timing
-    model = WhisperCppModel(
-        model_size,
-        print_realtime=False,
-        print_progress=False,
-    )
-
-    if progress_callback:
-        progress_callback(15.0)
-
-    # Transcribe to get segments with accurate segment-level timing
-    segments = model.transcribe(
-        str(audio_path),
-        language=language or config.WHISPERCPP_LANGUAGE,
-        n_threads=min(8, os.cpu_count() or 4),  # Use available threads up to 8
-    )
-
-    if progress_callback:
-        progress_callback(85.0)
-
-    # Convert segments to Cues WITHOUT word-level timing (Standard model = No Karaoke)
-    cues: List[Cue] = []
-    timed_text: List[TimeRange] = []
-
-    for seg in segments:
-        seg_start = seg.t0 / 100.0  # centiseconds to seconds
-        seg_end = seg.t1 / 100.0
-        seg_text = seg.text.strip()
-
-        if not seg_text:
-            continue
-
-        # Normalize the full segment text
-        normalized_text = _normalize_text(seg_text)
-        if not normalized_text:
-            continue
-
-        # Standard model: No word columns, just block text
-        cues.append(Cue(start=seg_start, end=seg_end, text=normalized_text, words=None))
-        timed_text.append((seg_start, seg_end, seg_text))
-
-    if progress_callback:
-        progress_callback(100.0)
-
-    srt_path = output_dir / f"{audio_path.stem}.srt"
-    _write_srt_from_segments(timed_text, srt_path)
-
-    return srt_path, cues
 
 
 
@@ -560,11 +321,14 @@ def generate_subtitles_from_audio(
     openai_api_key: str | None = None,
 ) -> Tuple[Path, List[Cue]]:  # pragma: no cover
     """
-    Transcribe Greek speech to an SRT subtitle file using faster-whisper.
-
-    Returns the path to the SRT file and the structured cues (with word timings
-    when available) to support karaoke-style highlighting.
+    DEPRECATED: Use the Transcriber classes directly.
+    Legacy wrapper to maintain backward compatibility during refactoring.
     """
+    from backend.app.services.transcription.groq_cloud import GroqTranscriber
+    from backend.app.services.transcription.local_whisper import LocalWhisperTranscriber
+    from backend.app.services.transcription.openai_cloud import OpenAITranscriber
+    from backend.app.services.transcription.standard_whisper import StandardTranscriber
+
     if not language or language.lower() == "auto":
         language = config.WHISPER_LANGUAGE
 
@@ -573,114 +337,34 @@ def generate_subtitles_from_audio(
     output_dir.mkdir(parents=True, exist_ok=True)
 
     if wants_openai:
-        return _transcribe_with_openai(
-            audio_path,
-            model_name=model_size or config.OPENAI_TRANSCRIBE_MODEL,
-            language=language,
-            prompt=initial_prompt,
-            output_dir=output_dir,
-            progress_callback=progress_callback,
-            api_key=openai_api_key,
+        transcriber = OpenAITranscriber(api_key=openai_api_key)
+        return transcriber.transcribe(
+            audio_path, output_dir, language=language, model=model_size or config.OPENAI_TRANSCRIBE_MODEL,
+            initial_prompt=initial_prompt, progress_callback=progress_callback
         )
 
-    # Route to Groq API
     if provider == "groq":
-        return _transcribe_with_groq(
-            audio_path,
-            model_name=config.GROQ_TRANSCRIBE_MODEL,
-            language=language,
-            prompt=initial_prompt,
-            output_dir=output_dir,
-            progress_callback=progress_callback,
-            api_key=openai_api_key,
+        transcriber = GroqTranscriber(api_key=openai_api_key)
+        return transcriber.transcribe(
+            audio_path, output_dir, language=language, model=config.GROQ_TRANSCRIBE_MODEL,
+            initial_prompt=initial_prompt, progress_callback=progress_callback
         )
 
-    # Route to whisper.cpp (Metal accelerated for Apple Silicon)
     if provider == "whispercpp":
-        return _transcribe_with_whispercpp(
-            audio_path,
-            model_name=config.WHISPERCPP_MODEL,
-            language=language,
-            output_dir=output_dir,
-            progress_callback=progress_callback,
+        transcriber = StandardTranscriber()
+        return transcriber.transcribe(
+            audio_path, output_dir, language=language, model=config.WHISPERCPP_MODEL,
+            progress_callback=progress_callback
         )
 
-
-    # Default: Stabel-TS wrapping Faster-Whisper
-    threads = min(8, os.cpu_count() or 4)
-
-    # Load model using stable-ts wrapper
-    model = _get_whisper_model(
-        model_size,
-        device=device,
-        compute_type=compute_type,
-        cpu_threads=threads,
+    # Default: Local Whisper
+    transcriber = LocalWhisperTranscriber(device=device, compute_type=compute_type, beam_size=beam_size or 5)
+    return transcriber.transcribe(
+        audio_path, output_dir, language=language, model=model_size,
+        best_of=best_of, temperature=temperature, initial_prompt=initial_prompt,
+        vad_filter=vad_filter, condition_on_previous_text=condition_on_previous_text,
+        progress_callback=progress_callback
     )
-
-    transcribe_kwargs = {
-        "language": language or config.WHISPER_LANGUAGE,
-        "task": "transcribe",
-        "word_timestamps": True, # Explicitly enable to ensure word timings are passed back
-        "vad": vad_filter, # Stable-ts VAD flag: bool or dict
-        "regroup": True, # Enable improved regrouping
-        "suppress_silence": True,
-        "suppress_word_ts": False,
-        "vad_threshold": 0.35,
-        # "min_silence_duration_ms": 500, # ERROR: Not a valid arg for transcribe()
-        "condition_on_previous_text": condition_on_previous_text,
-        "verbose": False,  # Suppress internal progress bars to avoid log spam
-    }
-    # Pass additional params if supported by wrapper or filter valid ones
-    # High quality defaults for Greek if not specified
-    # OPTIMIZATION: beam_size=2 is sufficient for high accuracy while being 2-3x faster than 5 on CPU.
-    transcribe_kwargs["beam_size"] = beam_size if beam_size is not None else 2
-    transcribe_kwargs["best_of"] = best_of if best_of is not None else 2
-    transcribe_kwargs["temperature"] = temperature if temperature is not None else 0.0
-    if initial_prompt:
-        transcribe_kwargs["initial_prompt"] = initial_prompt
-
-    # Use model.transcribe_stable() - checking API, usually just .transcribe() on the wrapper?
-    # stable-ts wrapper object has .transcribe() that does the magic.
-    result = model.transcribe(str(audio_path), **transcribe_kwargs)
-
-    # Helper to calculate segment progress? Stable-ts returns a result object, not iter?
-    # Actually stable-ts returns a WhisperResult object which contains segments.
-    # It might not support generator streaming easily for progress.
-    # We will just report 100% at end for now to avoid complexity or check if verbose=True helps.
-
-    cues: List[Cue] = []
-    timed_text: List[TimeRange] = []
-
-    # Result object has .segments method or property?
-    # stable_whisper.WhisperResult has .segments
-
-    for seg in result.segments: # stable-ts Segment object
-        seg_start = seg.start
-        seg_end = seg.end
-        seg_text = seg.text
-
-        timed_text.append((seg_start, seg_end, seg_text))
-
-        # Words in stable-ts are in seg.words
-        words: Optional[List[WordTiming]] = None
-        if seg.words:
-            words = [
-                WordTiming(start=w.start, end=w.end, text=_normalize_text(w.word))
-                for w in seg.words
-            ]
-
-        cue_text = _normalize_text(seg_text)
-        cues.append(Cue(start=seg_start, end=seg_end, text=cue_text, words=words))
-
-    if progress_callback:
-        progress_callback(100.0)
-
-    srt_path = output_dir / f"{audio_path.stem}.srt"
-
-    # result.to_srt_vtt(str(srt_path)) # Stable-ts built-in export?
-    # Let's stick to our writer to ensure consistency
-    _write_srt_from_segments(timed_text, srt_path)
-    return srt_path, cues
 
 
 def _parse_srt(transcript_path: Path) -> List[TimeRange]:
@@ -907,7 +591,7 @@ def create_styled_subtitle_file(
     margin_v: int = config.DEFAULT_SUB_MARGIN_V,
     margin_l: int = config.DEFAULT_SUB_MARGIN_L,
     margin_r: int = config.DEFAULT_SUB_MARGIN_R,
-    subtitle_position: str = "default",  # "default", "top", "bottom"
+    subtitle_position: int = 16,  # 5-35 (percentage from bottom)
     max_lines: int = 2,
     shadow_strength: int = 4,
     play_res_x: int = config.DEFAULT_WIDTH,
@@ -999,7 +683,7 @@ def create_styled_subtitle_file(
         parsed_cues = split_cues
 
 
-    # Resolve dynamic positioning based on subtitle_position alias
+    # Resolve dynamic positioning based on subtitle_position (numeric percentage)
     # SUBTITLE SPLITTING MODES:
     # max_lines=0: "1 word at a time" mode - each word is a separate subtitle event
     # max_lines=1/2/3: Standard line-based mode - cues are split to fit in max_lines
@@ -1027,21 +711,11 @@ def create_styled_subtitle_file(
     output_dir.mkdir(parents=True, exist_ok=True)
     ass_path = output_dir / f"{transcript_path.stem}.ass"
 
-    # Map position to margin_v and alignment
-    # ASS alignment: 2 = bottom center (MarginV from bottom), 8 = top center (MarginV from top)
-    final_margin_v = margin_v
+    # Convert numeric subtitle_position (percentage) to margin_v
+    # Clamp to valid range (5-35% of screen height)
+    position_pct = max(5, min(80, subtitle_position))
+    final_margin_v = int(play_res_y * position_pct / 100)
     final_alignment = alignment  # Default alignment (2 = bottom center)
-
-    if subtitle_position == "top":
-        # Middle area - just above default, still using bottom center alignment
-        final_alignment = 2  # Bottom center
-        final_margin_v = int(play_res_y * 0.32)  # ~32% from bottom
-    elif subtitle_position == "bottom":
-        # Movie style (low) - keep bottom center alignment
-        final_alignment = 2  # Bottom center
-        final_margin_v = int(play_res_y * 0.0625)  # ~6.25% from bottom (120/1920)
-    # else "default" uses the passed margin_v (defaulting to config.DEFAULT_SUB_MARGIN_V = 320)
-    # with bottom center alignment (2)
 
     header = _ass_header(
         font=font,

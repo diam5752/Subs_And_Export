@@ -1,5 +1,4 @@
 import os
-from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -101,7 +100,7 @@ DATA_DIR = config.PROJECT_ROOT / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 from fastapi import HTTPException
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse
 
 
 @app.get("/static/{file_path:path}")
@@ -121,43 +120,8 @@ async def serve_static(file_path: str):
         return FileResponse(full_path)
 
     if full_path.is_dir():
-        files = sorted(os.listdir(full_path))
-        files_html = "".join(
-            f'<li><a href="{f}/">{f}</a></li>' if (full_path / f).is_dir() else f'<li><a href="{f}">{f}</a></li>'
-            for f in files if not f.startswith(".")
-        )
-
-        # Add "Go Up" link if not at root
-        up_link = ""
-        if file_path and file_path != ".":
-             parent = str(Path(file_path).parent)
-             if parent == ".": parent = ""
-             up_link = f'<li><a href="/static/{parent}">.. (Up)</a></li>'
-
-        html_content = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Index of /static/{file_path}</title>
-            <style>
-                body {{ font-family: monospace; padding: 20px; }}
-                ul {{ list-style-type: none; padding: 0; }}
-                li {{ margin: 5px 0; }}
-                a {{ text-decoration: none; color: #0066cc; }}
-                a:hover {{ text-decoration: underline; }}
-            </style>
-        </head>
-        <body>
-            <h2>Index of /static/{file_path}</h2>
-            <hr>
-            <ul>
-                {up_link}
-                {files_html}
-            </ul>
-        </body>
-        </html>
-        """
-        return HTMLResponse(content=html_content)
+        # Security: Disable directory listing to prevent information disclosure
+        raise HTTPException(status_code=404, detail="Not found")
 
     raise HTTPException(status_code=404, detail="Not found")
 

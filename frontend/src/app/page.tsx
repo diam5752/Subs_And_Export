@@ -128,7 +128,7 @@ export default function DashboardPage() {
     t: t as (key: string) => string,
   });
 
-  const handleStartProcessing = async (options: ProcessingOptions) => {
+  const handleStartProcessing = useCallback(async (options: ProcessingOptions) => {
     if (!selectedFile) return;
 
     setIsProcessing(true);
@@ -171,7 +171,7 @@ export default function DashboardPage() {
       setProcessError(err instanceof Error ? err.message : t('startProcessingError'));
       setIsProcessing(false);
     }
-  };
+  }, [selectedFile, t, setSelectedJob]);
 
   const handleProfileSave = async (name: string, password?: string, confirmPassword?: string) => {
     if (!user) return;
@@ -203,14 +203,26 @@ export default function DashboardPage() {
     }
   };
 
-  const resetProcessing = () => {
+  // Memoized to prevent unnecessary re-renders of ProcessView and its children (JobListItem)
+  const resetProcessing = useCallback(() => {
     setSelectedFile(null);
     setSelectedJob(null);
     setProgress(0);
     setJobId(null);
     setStatusMessage('');
     setProcessError('');
-  };
+  }, [setSelectedJob]);
+
+  // Memoized to prevent unnecessary re-renders of ProcessView and its children
+  const handleFileSelect = useCallback((file: File | null) => {
+    setSelectedFile(file);
+    if (file) setSelectedJob(null);
+  }, [setSelectedJob]);
+
+  // Memoized to ensure stable reference for ProcessView -> JobListItem, preventing re-renders during progress updates
+  const handleRefreshJobs = useCallback(async () => {
+    await loadJobs(false);
+  }, [loadJobs]);
 
   if (isLoading) {
     return (
@@ -291,10 +303,7 @@ export default function DashboardPage() {
 
         <ProcessView
           selectedFile={selectedFile}
-          onFileSelect={(file) => {
-            setSelectedFile(file);
-            if (file) setSelectedJob(null);
-          }}
+          onFileSelect={handleFileSelect}
           isProcessing={isProcessing}
           progress={progress}
           statusMessage={statusMessage}
@@ -309,7 +318,7 @@ export default function DashboardPage() {
           statusStyles={statusStyles}
           formatDate={formatDate}
           buildStaticUrl={buildStaticUrl}
-          onRefreshJobs={async () => { await loadJobs(false); }}
+          onRefreshJobs={handleRefreshJobs}
           currentPage={currentPage}
           totalPages={totalPages}
           onNextPage={nextPage}

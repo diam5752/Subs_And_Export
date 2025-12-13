@@ -1,5 +1,6 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { SubtitlePositionSelector } from '../SubtitlePositionSelector';
+
 import en from '@/i18n/en.json';
 
 jest.mock('@/context/I18nContext', () => ({

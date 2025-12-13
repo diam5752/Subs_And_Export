@@ -24,21 +24,43 @@ from backend.app.services.transcription.openai_cloud import OpenAITranscriber
 from backend.app.services.transcription.standard_whisper import StandardTranscriber
 
 
-def _font_size_from_subtitle_size(subtitle_size: str | None) -> int:
+def _font_size_from_subtitle_size(subtitle_size: int | None) -> int:
     """
-    Map the UI's subtitle size presets to ASS font sizes.
+    Map the UI's subtitle size slider value (50-150%) to ASS font sizes.
 
-    Note: "small" must remain readable on 1080x1920 exports.
+    The slider sends a numeric percentage where:
+    - 50 = 50% of base (very small)
+    - 100 = 100% of base (standard)
+    - 150 = 150% of base (maximum impact)
     """
-    size = (subtitle_size or "medium").strip().lower()
+    size = subtitle_size if subtitle_size is not None else 100
+    # Clamp to valid range
+    size = max(50, min(150, size))
     base = config.DEFAULT_SUB_FONT_SIZE
-    if size == "small":
-        return int(round(base * 0.7))
-    if size == "medium":
-        return int(round(base * 0.85))
-    if size == "big":
-        return base
-    return int(round(base * 0.85))
+    return int(round(base * size / 100))
+
+
+def _parse_legacy_position(position_value: int | str | None) -> int:
+    """
+    Parse legacy string position values and new numeric values.
+
+    Handles backward compatibility:
+    - "top" -> 32
+    - "default" -> 16
+    - "bottom" -> 6
+    - numeric values passed through directly
+    """
+    if position_value is None:
+        return 16  # Default middle position
+
+    if isinstance(position_value, int):
+        return max(5, min(50, position_value))
+
+    if isinstance(position_value, str):
+        legacy_map = {"top": 32, "default": 16, "bottom": 6}
+        return legacy_map.get(position_value.lower().strip(), 16)
+
+    return 16  # Fallback to default
 
 
 def _build_filtergraph(ass_path: Path, *, target_width: int | None = None, target_height: int | None = None) -> str:
@@ -266,12 +288,12 @@ def normalize_and_stub_subtitles(
     transcribe_provider: str | None = None,
     openai_api_key: str | None = None,
     # Style Options (Will construct SubtitleStyle)
-    subtitle_position: str = "default",
+    subtitle_position: int = 16,
     max_subtitle_lines: int = 2,
     subtitle_color: str | None = None,
     shadow_strength: int = 4,
     highlight_style: str = "karaoke",
-    subtitle_size: str = "medium",
+    subtitle_size: int = 100,
     karaoke_enabled: bool = True,
     # Pipeline Options
     device: str | None = None,
@@ -637,7 +659,14 @@ def generate_video_variant(
     if not ass_path.exists():
         # Fallback: regenerate ASS using persisted job settings.
         # (This cannot reproduce word-level highlighting unless cues are available.)
-        subtitle_size = str(result_data.get("subtitle_size") or "medium").lower()
+        subtitle_size_raw = result_data.get("subtitle_size")
+        # Handle both legacy string values and new numeric values
+        if isinstance(subtitle_size_raw, str):
+            # Legacy mapping from string presets
+            legacy_map = {"small": 70, "medium": 85, "big": 100, "extra-big": 150}
+            subtitle_size = legacy_map.get(subtitle_size_raw.lower(), 100)
+        else:
+            subtitle_size = int(subtitle_size_raw) if subtitle_size_raw else 100
         font_size = _font_size_from_subtitle_size(subtitle_size)
 
         karaoke_enabled = bool(result_data.get("karaoke_enabled", True))
@@ -655,7 +684,7 @@ def generate_video_variant(
         ass_path = subtitles.create_styled_subtitle_file(
             transcript_path,
             cues=None,
-            subtitle_position=str(result_data.get("subtitle_position") or "default"),
+            subtitle_position=_parse_legacy_position(result_data.get("subtitle_position")),
             max_lines=int(result_data.get("max_subtitle_lines") or 2),
             primary_color=str(result_data.get("subtitle_color") or config.DEFAULT_SUB_COLOR),
             shadow_strength=int(result_data.get("shadow_strength") or 4),

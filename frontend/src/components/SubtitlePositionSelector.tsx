@@ -2,15 +2,15 @@ import React, { useCallback, useId } from 'react';
 import { useI18n } from '@/context/I18nContext';
 
 export interface SubtitlePositionSelectorProps {
-    value: string;
-    onChange: (value: string) => void;
+    value: number;  // 5-35 (percentage from bottom)
+    onChange: (value: number) => void;
     lines: number;
     onChangeLines: (lines: number) => void;
     thumbnailUrl?: string | null;
     previewColor?: string;
     disableMaxLines?: boolean;
-    subtitleSize?: string;
-    onChangeSize?: (size: string) => void;
+    subtitleSize?: number;  // 50-150 scale (percentage)
+    onChangeSize?: (size: number) => void;
     karaokeEnabled?: boolean;
     onChangeKaraoke?: (enabled: boolean) => void;
     karaokeSupported?: boolean;
@@ -27,7 +27,7 @@ export function SubtitlePositionSelector({
     onChangeColor,
     colors,
     disableMaxLines,
-    subtitleSize = 'medium',
+    subtitleSize = 100,  // Default 100%
     onChangeSize,
     karaokeEnabled = true,
     onChangeKaraoke,
@@ -36,32 +36,29 @@ export function SubtitlePositionSelector({
     const { t } = useI18n();
     const colorLabelId = useId();
 
-    // Map position to CSS 'bottom' percentage for the preview
-    // These are visual approximations to match the backend logic
-    // Middle (default) ~= 16%
-    // High (top) ~= 32% from bottom
-    // Low (bottom) ~= 6%
-    const getPreviewBottom = (pos: string) => {
-        switch (pos) {
-            case 'top': return '32%';
-            case 'bottom': return '6%';
-            default: return '16%';
-        }
+    // Map numeric position (5-35) to CSS 'bottom' percentage for preview
+    const getPreviewBottom = (pos: number) => {
+        return `${pos}%`;
     };
 
-    // Map size to scale for preview
-    const getSizeScale = (size: string) => {
-        switch (size) {
-            case 'small': return 0.82;
-            case 'big': return 1.18;
-            default: return 1.0;
-        }
+    // Map numeric size (50-150) to scale for preview
+    const getSizeScale = (size: number) => {
+        return size / 100;  // Direct mapping: 50 = 0.5x, 100 = 1.0x, 150 = 1.5x
     };
 
-    const options = [
-        { id: 'top', label: t('positionHigh'), desc: t('positionHighDesc') },
-        { id: 'default', label: t('positionMiddle'), desc: t('positionMiddleDesc') },
-        { id: 'bottom', label: t('positionLow'), desc: t('positionLowDesc') },
+    // Preset tick marks for position
+    const positionPresets = [
+        { value: 6, label: t('positionLow') },
+        { value: 16, label: t('positionMiddle') },
+        { value: 45, label: t('positionHigh') },
+    ];
+
+    // Preset tick marks for size
+    const sizePresets = [
+        { value: 70, label: t('sizeSmall') },
+        { value: 85, label: t('sizeMedium') },
+        { value: 100, label: t('sizeBig') },
+        { value: 150, label: t('sizeExtraBig') },
     ];
 
     const handleLineChange = useCallback((num: number) => (e: React.MouseEvent) => {
@@ -76,82 +73,150 @@ export function SubtitlePositionSelector({
         { value: 3, label: t('linesThree'), desc: t('linesThreeDesc') },
     ];
 
-    const sizeOptions = [
-        { id: 'big', label: t('sizeBig'), desc: t('sizeBigDesc') },
-        { id: 'medium', label: t('sizeMedium'), desc: t('sizeMediumDesc') },
-        { id: 'small', label: t('sizeSmall'), desc: t('sizeSmallDesc') },
-    ];
-
     return (
         <div className="space-y-6">
             <div className="flex flex-col xl:flex-row gap-8">
                 {/* Controls Area */}
                 <div className="flex-1 space-y-6">
-                    {/* Top Row: Position & Lines */}
+                    {/* Top Row: Size & Lines */}
                     <div className="flex flex-col sm:flex-row gap-4">
-                        {/* Position Selector */}
-                        <div className="flex-1 min-w-[200px]">
-                            <label className="block text-sm font-medium text-[var(--muted)] mb-3">
-                                {t('positionLabel')}
-                            </label>
-                            <div className="flex flex-col gap-2">
-                                {options.map((opt) => (
-                                    <button
-                                        key={opt.id}
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            onChange(opt.id);
-                                        }}
-                                        className={`p-3 rounded-xl border text-left transition-all flex items-center justify-between group ${value === opt.id
-                                            ? 'border-[var(--accent)] bg-[var(--accent)]/5 ring-1 ring-[var(--accent)] shadow-[0_0_15px_rgba(var(--accent-rgb),0.1)]'
-                                            : 'border-[var(--border)] hover:border-[var(--accent)]/40 hover:bg-[var(--surface-elevated)]'
-                                            }`}
-                                    >
-                                        <div>
-                                            <div className={`font-medium text-sm transition-colors ${value === opt.id ? 'text-[var(--accent)]' : ''}`}>{opt.label}</div>
-                                            <div className="text-xs text-[var(--muted)]/80">{opt.desc}</div>
-                                        </div>
-                                        {value === opt.id && (
-                                            <div className="w-2 h-2 rounded-full bg-[var(--accent)] shadow-sm animate-scale-in" />
-                                        )}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-
-                        {/* Size Selector - next to Position */}
+                        {/* Size Slider */}
                         {onChangeSize && (
                             <div className="flex-1 min-w-[200px]">
                                 <label className="block text-sm font-medium text-[var(--muted)] mb-3">
                                     {t('sizeLabel')}
                                 </label>
-                                <div className="flex flex-col gap-2">
-                                    {sizeOptions.map((opt) => (
-                                        <button
-                                            key={opt.id}
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                onChangeSize(opt.id);
-                                            }}
-                                            className={`p-3 rounded-xl border text-left transition-all flex items-center justify-between group ${subtitleSize === opt.id
-                                                ? 'border-[var(--accent)] bg-[var(--accent)]/5 ring-1 ring-[var(--accent)] shadow-[0_0_15px_rgba(var(--accent-rgb),0.1)]'
-                                                : 'border-[var(--border)] hover:border-[var(--accent)]/40 hover:bg-[var(--surface-elevated)]'
-                                                }`}
+                                <div className="p-4 rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)]">
+                                    {/* Size Preview Text */}
+                                    <div className="flex items-center justify-center mb-4">
+                                        <span
+                                            className="font-bold text-[var(--foreground)] transition-all duration-200"
+                                            style={{ fontSize: `${Math.max(14, subtitleSize * 0.28)}px` }}
                                         >
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-6 text-center text-[var(--foreground)] font-serif italic opacity-80" style={{ fontSize: opt.id === 'small' ? '0.8em' : opt.id === 'big' ? '1.4em' : '1.1em' }}>
-                                                    Aa
-                                                </div>
-                                                <div>
-                                                    <div className={`font-medium text-sm transition-colors ${subtitleSize === opt.id ? 'text-[var(--accent)]' : ''}`}>{opt.label}</div>
-                                                    <div className="text-xs text-[var(--muted)]/80">{opt.desc}</div>
-                                                </div>
+                                            Aa
+                                        </span>
+                                    </div>
+
+                                    {/* Slider */}
+                                    <div className="relative">
+                                        <input
+                                            type="range"
+                                            min={50}
+                                            max={150}
+                                            value={subtitleSize}
+                                            onChange={(e) => {
+                                                e.stopPropagation();
+                                                onChangeSize(Number(e.target.value));
+                                            }}
+                                            onClick={(e) => e.stopPropagation()}
+                                            className="w-full h-2 rounded-full appearance-none cursor-pointer bg-[var(--border)]
+                                                [&::-webkit-slider-thumb]:appearance-none
+                                                [&::-webkit-slider-thumb]:w-5
+                                                [&::-webkit-slider-thumb]:h-5
+                                                [&::-webkit-slider-thumb]:rounded-full
+                                                [&::-webkit-slider-thumb]:bg-[var(--accent)]
+                                                [&::-webkit-slider-thumb]:shadow-lg
+                                                [&::-webkit-slider-thumb]:cursor-pointer
+                                                [&::-webkit-slider-thumb]:transition-transform
+                                                [&::-webkit-slider-thumb]:hover:scale-110
+                                                [&::-moz-range-thumb]:w-5
+                                                [&::-moz-range-thumb]:h-5
+                                                [&::-moz-range-thumb]:rounded-full
+                                                [&::-moz-range-thumb]:bg-[var(--accent)]
+                                                [&::-moz-range-thumb]:border-0
+                                                [&::-moz-range-thumb]:shadow-lg
+                                                [&::-moz-range-thumb]:cursor-pointer"
+                                            style={{
+                                                background: `linear-gradient(to right, var(--accent) 0%, var(--accent) ${((subtitleSize - 50) / 100) * 100}%, var(--border) ${((subtitleSize - 50) / 100) * 100}%, var(--border) 100%)`
+                                            }}
+                                        />
+
+                                        {/* Preset Tick Marks */}
+                                        <div className="flex justify-between mt-2 px-1">
+                                            {sizePresets.map((preset) => (
+                                                <button
+                                                    key={preset.value}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        onChangeSize(preset.value);
+                                                    }}
+                                                    className={`text-[10px] px-1.5 py-0.5 rounded transition-all ${subtitleSize === preset.value
+                                                        ? 'text-[var(--accent)] font-medium'
+                                                        : 'text-[var(--muted)] hover:text-[var(--foreground)]'
+                                                        }`}
+                                                >
+                                                    {preset.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Position Slider - Under Size */}
+                                    <div className="mt-4 pt-4 border-t border-[var(--border)]">
+                                        {/* Centered Mini phone preview - like the Aa preview above */}
+                                        <div className="flex items-center justify-center mb-4">
+                                            <div className="relative w-8 h-14 bg-slate-700/50 rounded-lg border border-slate-600/50 overflow-hidden">
+                                                {/* Subtitle line indicator */}
+                                                <div
+                                                    className="absolute left-1 right-1 h-1 bg-[var(--accent)] rounded-full transition-all duration-200 shadow-[0_0_6px_var(--accent)]"
+                                                    style={{ bottom: `${((value - 5) / 45) * 70 + 10}%` }}
+                                                />
                                             </div>
-                                            {subtitleSize === opt.id && (
-                                                <div className="w-2 h-2 rounded-full bg-[var(--accent)] shadow-sm animate-scale-in" />
-                                            )}
-                                        </button>
-                                    ))}
+                                        </div>
+
+                                        {/* Slider */}
+                                        <div className="relative">
+                                            <input
+                                                type="range"
+                                                min={5}
+                                                max={50}
+                                                value={value}
+                                                onChange={(e) => {
+                                                    e.stopPropagation();
+                                                    onChange(Number(e.target.value));
+                                                }}
+                                                onClick={(e) => e.stopPropagation()}
+                                                className="w-full h-2 rounded-full appearance-none cursor-pointer bg-[var(--border)]
+                                                    [&::-webkit-slider-thumb]:appearance-none
+                                                    [&::-webkit-slider-thumb]:w-5
+                                                    [&::-webkit-slider-thumb]:h-5
+                                                    [&::-webkit-slider-thumb]:rounded-full
+                                                    [&::-webkit-slider-thumb]:bg-[var(--accent)]
+                                                    [&::-webkit-slider-thumb]:shadow-lg
+                                                    [&::-webkit-slider-thumb]:cursor-pointer
+                                                    [&::-webkit-slider-thumb]:transition-transform
+                                                    [&::-webkit-slider-thumb]:hover:scale-110
+                                                    [&::-moz-range-thumb]:w-5
+                                                    [&::-moz-range-thumb]:h-5
+                                                    [&::-moz-range-thumb]:rounded-full
+                                                    [&::-moz-range-thumb]:bg-[var(--accent)]
+                                                    [&::-moz-range-thumb]:border-0
+                                                    [&::-moz-range-thumb]:shadow-lg
+                                                    [&::-moz-range-thumb]:cursor-pointer"
+                                                style={{
+                                                    background: `linear-gradient(to right, var(--accent) 0%, var(--accent) ${((value - 5) / 45) * 100}%, var(--border) ${((value - 5) / 45) * 100}%, var(--border) 100%)`
+                                                }}
+                                            />
+                                            {/* Preset Tick Marks */}
+                                            <div className="flex justify-between mt-2 px-1">
+                                                {positionPresets.map((preset) => (
+                                                    <button
+                                                        key={preset.value}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            onChange(preset.value);
+                                                        }}
+                                                        className={`text-[10px] px-1.5 py-0.5 rounded transition-all ${value === preset.value
+                                                            ? 'text-[var(--accent)] font-medium'
+                                                            : 'text-[var(--muted)] hover:text-[var(--foreground)]'
+                                                            }`}
+                                                    >
+                                                        {preset.label}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -282,8 +347,9 @@ export function SubtitlePositionSelector({
                     </div>
                 </div>
 
-                {/* Visual Preview - Phone Mockup with optional video thumbnail */}
+                {/* Visual Preview - Phone Mockup */}
                 <div className="flex-shrink-0 flex justify-center items-start pt-10">
+                    {/* Phone Mockup */}
                     <div className="relative w-[180px] h-[320px] bg-slate-800 rounded-[30px] border-[6px] border-slate-700 overflow-hidden shadow-2xl ring-1 ring-white/10">
                         {/* Video Thumbnail as Background */}
                         {thumbnailUrl ? (
@@ -318,29 +384,71 @@ export function SubtitlePositionSelector({
                             <div className="h-2.5 w-1/2 bg-white/25 rounded-full" />
                         </div>
 
-                        {/* Subtitle Bar - Animated with glow */}
-                        {/* We render a bar per line to visualize stacking */}
+                        {/* Subtitle Text - Real text preview */}
                         <div
-                            className="absolute left-4 right-4 flex flex-col gap-1.5 items-center transition-all duration-300 ease-out subtitle-preview-bar"
+                            key={`subtitle-preview-${lines}`}
+                            className="absolute left-3 right-3 flex flex-col gap-0.5 items-center transition-all duration-300 ease-out"
                             style={{
                                 bottom: getPreviewBottom(value),
                             }}
                         >
-                            {Array.from({ length: lines === 0 ? 1 : lines }).map((_, i) => (
+                            {lines === 0 ? (
+                                /* Single word mode - one big word */
                                 <div
-                                    key={i}
-                                    className={`h-4 rounded-sm shadow-lg w-full flex items-center justify-center opacity-90 animate-in fade-in slide-in-from-bottom-2 duration-300 fill-mode-backwards ${!previewColor ? 'bg-white/80' : ''}`}
+                                    className="font-bold uppercase tracking-wide animate-in fade-in slide-in-from-bottom-2 duration-300"
                                     style={{
-                                        width: lines === 0 ? '45%' : `${90 - (i * 10)}%`, // Half width for 1-word mode, else taper
-                                        transform: `scale(${getSizeScale(subtitleSize)})`,
-                                        transformOrigin: 'center bottom',
-                                        animationDelay: `${i * 50}ms`,
-                                        backgroundColor: previewColor ? previewColor : undefined,
+                                        fontSize: `${Math.max(10, subtitleSize * 0.16)}px`,
+                                        color: previewColor || '#FFFFFF',
+                                        textShadow: '2px 2px 4px rgba(0,0,0,0.8), 0 0 10px rgba(0,0,0,0.5)',
+                                        letterSpacing: '0.05em',
                                     }}
                                 >
-                                    <div className="w-[90%] h-[3px] bg-white/80 rounded-full" />
+                                    {t('previewWord') || 'WATCH'}
                                 </div>
-                            ))}
+                            ) : (
+                                /* Multi-line mode */
+                                <>
+                                    <div
+                                        className="font-bold uppercase tracking-wide text-center animate-in fade-in slide-in-from-bottom-2 duration-300"
+                                        style={{
+                                            fontSize: `${Math.max(8, subtitleSize * 0.11)}px`,
+                                            color: previewColor || '#FFFFFF',
+                                            textShadow: '1px 1px 3px rgba(0,0,0,0.8), 0 0 8px rgba(0,0,0,0.5)',
+                                            letterSpacing: '0.03em',
+                                        }}
+                                    >
+                                        {t('previewLine1') || 'THIS IS HOW YOUR'}
+                                    </div>
+                                    {lines >= 2 && (
+                                        <div
+                                            className="font-bold uppercase tracking-wide text-center animate-in fade-in slide-in-from-bottom-2 duration-300 fill-mode-backwards"
+                                            style={{
+                                                fontSize: `${Math.max(8, subtitleSize * 0.11)}px`,
+                                                color: previewColor || '#FFFFFF',
+                                                textShadow: '1px 1px 3px rgba(0,0,0,0.8), 0 0 8px rgba(0,0,0,0.5)',
+                                                letterSpacing: '0.03em',
+                                                animationDelay: '50ms',
+                                            }}
+                                        >
+                                            {t('previewLine2') || 'SUBTITLES LOOK'}
+                                        </div>
+                                    )}
+                                    {lines >= 3 && (
+                                        <div
+                                            className="font-bold uppercase tracking-wide text-center animate-in fade-in slide-in-from-bottom-2 duration-300 fill-mode-backwards"
+                                            style={{
+                                                fontSize: `${Math.max(8, subtitleSize * 0.11)}px`,
+                                                color: previewColor || '#FFFFFF',
+                                                textShadow: '1px 1px 3px rgba(0,0,0,0.8), 0 0 8px rgba(0,0,0,0.5)',
+                                                letterSpacing: '0.03em',
+                                                animationDelay: '100ms',
+                                            }}
+                                        >
+                                            {t('previewLine3') || 'ON YOUR VIDEO'}
+                                        </div>
+                                    )}
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>
