@@ -523,7 +523,7 @@ export function ProcessView({
                     onKeyDown={(e) => handleKeyDown(e, handleUploadCardClick)}
                     role="button"
                     tabIndex={0}
-                    aria-label={selectedFile ? t('changeFile' as any) || 'Change file' : t('uploadDropTitle')}
+                    aria-label={selectedFile ? t('changeFile') || 'Change file' : t('uploadDropTitle')}
                     onDragEnter={handleDragEnter}
                     onDragLeave={handleDragLeave}
                     onDragOver={handleDragOver}

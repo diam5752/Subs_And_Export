@@ -26,7 +26,7 @@ describe('JobListItem', () => {
         isExpired: false,
         publicUrl: 'http://example.com/video.mp4',
         timestamp: 1625000000000,
-        formatDate: (_ts: number | string) => '2021-06-29',
+        formatDate: () => '2021-06-29',
         onToggleSelection: jest.fn(),
         onJobSelect: jest.fn(),
         setShowPreview: jest.fn(),

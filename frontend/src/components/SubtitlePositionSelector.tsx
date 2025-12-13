@@ -41,10 +41,7 @@ export function SubtitlePositionSelector({
         return `${pos}%`;
     };
 
-    // Map numeric size (50-150) to scale for preview
-    const getSizeScale = (size: number) => {
-        return size / 100;  // Direct mapping: 50 = 0.5x, 100 = 1.0x, 150 = 1.5x
-    };
+
 
     // Preset tick marks for position
     const positionPresets = [
