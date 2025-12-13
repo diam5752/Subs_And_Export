@@ -6,7 +6,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from backend.app.services.renderers.base import AbstractRenderer
 from backend.app.services.renderers.utils import get_font_path
-from backend.app.services.subtitles import Cue, WordTiming
+from backend.app.services.subtitles import Cue
 
 
 class KaraokeRenderer(AbstractRenderer):
@@ -49,6 +49,7 @@ class KaraokeRenderer(AbstractRenderer):
         self.last_active_cue_idx = -1
         self.last_active_word_idx = -1
         self.cached_frame = None
+        self.cached_layout = None  # (lines_struct, pil_font, space_width)
 
     def _find_active_word(self, cue: Cue, t: float) -> Optional[int]:
         if not cue.words: return None
@@ -91,80 +92,99 @@ class KaraokeRenderer(AbstractRenderer):
         draw = ImageDraw.Draw(img)
 
         # --- Multi-line Layout Logic ---
-        current_font_size = self.base_font_size
-        lines_struct: List[List[WordTiming]] = []
-        pil_font = None
-        space_width = 0
-        max_text_width = self.width - (self.margin_x * 2)
 
-        if not active_cue.words:
-             # Should fallback to standard text, handled elsewhere or robust here?
-             # For now, assuming words exist. If not, this logic will produce empty lines.
-             pass
+        # Check layout cache
+        if self.last_active_cue_idx == idx and self.cached_layout:
+             # print("DEBUG: Layout Cache HIT")
+             lines_struct, pil_font, space_width, cached_widths = self.cached_layout
+        else:
+            # print("DEBUG: Layout Cache MISS - computing")
+            current_font_size = self.base_font_size
+            lines_struct = []
+            cached_widths = []  # List[List[float]] corresponding to lines_struct
+            pil_font = None
+            space_width = 0
+            max_text_width = self.width - (self.margin_x * 2)
 
-        # ... (Layout logic adapted from original) ...
-        # Optimization for Single Line (max_lines=1)
-        if self.max_lines == 1 and active_cue.words:
-                try:
-                    base_font = ImageFont.truetype(self.font_path, self.base_font_size)
-                except:
-                    base_font = ImageFont.load_default()
+            if not active_cue.words:
+                # Should fallback to standard text, handled elsewhere or robust here?
+                # For now, assuming words exist. If not, this logic will produce empty lines.
+                pass
 
-                measure_draw = ImageDraw.Draw(Image.new('RGB', (1, 1)))
-                full_text_width = 0
-                space_w = measure_draw.textlength(" ", font=base_font)
+            # Optimization for Single Line (max_lines=1)
+            if self.max_lines == 1 and active_cue.words:
+                    try:
+                        base_font = ImageFont.truetype(self.font_path, self.base_font_size)
+                    except:
+                        base_font = ImageFont.load_default()
 
-                for i_w, w in enumerate(active_cue.words):
-                    full_text_width += measure_draw.textlength(w.text, font=base_font)
-                    if i_w < len(active_cue.words) - 1:
-                        full_text_width += space_w
+                    measure_draw = ImageDraw.Draw(Image.new('RGB', (1, 1)))
+                    full_text_width = 0
+                    space_w = measure_draw.textlength(" ", font=base_font)
 
-                if full_text_width > max_text_width:
-                    scale = max_text_width / full_text_width
-                    current_font_size = int(self.base_font_size * scale * 0.95)
-                    current_font_size = max(current_font_size, 10)
+                    for i_w, w in enumerate(active_cue.words):
+                        full_text_width += measure_draw.textlength(w.text, font=base_font)
+                        if i_w < len(active_cue.words) - 1:
+                            full_text_width += space_w
 
-        # Dynamic Scaler Loop if words available
-        if active_cue.words:
-            min_font_size = int(self.base_font_size * 0.4)
-            if self.max_lines == 1: min_font_size = 10
+                    if full_text_width > max_text_width:
+                        scale = max_text_width / full_text_width
+                        current_font_size = int(self.base_font_size * scale * 0.95)
+                        current_font_size = max(current_font_size, 10)
 
-            while current_font_size >= min_font_size:
-                try:
-                    pil_font = ImageFont.truetype(self.font_path, current_font_size)
-                except Exception:
-                    pil_font = ImageFont.load_default()
+            # Dynamic Scaler Loop if words available
+            if active_cue.words:
+                min_font_size = int(self.base_font_size * 0.4)
+                if self.max_lines == 1: min_font_size = 10
 
-                measure_draw = ImageDraw.Draw(Image.new('RGB', (1, 1)))
-                space_width = measure_draw.textlength(" ", font=pil_font)
+                while current_font_size >= min_font_size:
+                    try:
+                        pil_font = ImageFont.truetype(self.font_path, current_font_size)
+                    except Exception:
+                        pil_font = ImageFont.load_default()
 
-                lines_struct = []
-                current_line = []
-                current_line_width = 0
+                    measure_draw = ImageDraw.Draw(Image.new('RGB', (1, 1)))
+                    space_width = measure_draw.textlength(" ", font=pil_font)
 
-                for word in active_cue.words:
-                    word_w = measure_draw.textlength(word.text, font=pil_font)
-                    added_width = word_w
+                    lines_struct = []
+                    current_line = []
+                    current_line_width = 0
+
+                    for word in active_cue.words:
+                        word_w = measure_draw.textlength(word.text, font=pil_font)
+                        added_width = word_w
+                        if current_line:
+                            added_width += space_width
+
+                        if current_line and (current_line_width + added_width > max_text_width):
+                            lines_struct.append(current_line)
+                            current_line = [word]
+                            current_line_width = word_w
+                        else:
+                            current_line.append(word)
+                            current_line_width += added_width
+
                     if current_line:
-                        added_width += space_width
-
-                    if current_line and (current_line_width + added_width > max_text_width):
                         lines_struct.append(current_line)
-                        current_line = [word]
-                        current_line_width = word_w
-                    else:
-                        current_line.append(word)
-                        current_line_width += added_width
 
-                if current_line:
-                    lines_struct.append(current_line)
+                    if len(lines_struct) <= self.max_lines:
+                        break
 
-                if len(lines_struct) <= self.max_lines:
-                    break
+                    current_font_size = int(current_font_size * 0.9)
+                    if current_font_size < min_font_size:
+                        break
 
-                current_font_size = int(current_font_size * 0.9)
-                if current_font_size < min_font_size:
-                    break
+            # Pre-calculate widths for the chosen layout
+            if pil_font and lines_struct:
+                measure_draw = ImageDraw.Draw(Image.new('RGB', (1, 1)))
+                for line in lines_struct:
+                    w_list = []
+                    for w in line:
+                         w_list.append(measure_draw.textlength(w.text, font=pil_font))
+                    cached_widths.append(w_list)
+
+            # Store to cache
+            self.cached_layout = (lines_struct, pil_font, space_width, cached_widths)
 
         # Drawing
         if pil_font:
@@ -178,17 +198,14 @@ class KaraokeRenderer(AbstractRenderer):
             if active_word_idx is not None and active_cue.words:
                 active_word_ref = active_cue.words[active_word_idx]
 
-            for line_words in lines_struct:
-                # Center line
-                line_w_total = 0
-                widths = []
-                for i_w, w in enumerate(line_words):
-                    w_len = draw.textlength(w.text, font=pil_font)
-                    widths.append(w_len)
-                    line_w_total += w_len
-                    if i_w < len(line_words) - 1:
-                        line_w_total += space_width
+            for i_line, line_words in enumerate(lines_struct):
+                # Use cached widths if available
+                widths = cached_widths[i_line] if i_line < len(cached_widths) else []
+                if not widths: # Fallback should not happen if logic correct
+                     widths = [draw.textlength(w.text, font=pil_font) for w in line_words]
 
+                # Center line
+                line_w_total = sum(widths) + (len(widths) - 1) * space_width if widths else 0
                 current_x = (self.width - line_w_total) // 2
 
                 for i_w, w in enumerate(line_words):

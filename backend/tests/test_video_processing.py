@@ -25,7 +25,7 @@ def test_font_size_from_subtitle_size_presets() -> None:
 def test_normalize_and_stub_subtitles_runs_pipeline(monkeypatch, tmp_path: Path) -> None:
     calls = []
 
-    def fake_extract(input_video: Path, output_dir=None) -> Path:
+    def fake_extract(input_video: Path, output_dir=None, **kwargs) -> Path:
         calls.append(("extract", input_video))
         output_dir.mkdir(parents=True, exist_ok=True)
         audio = tmp_path / "audio.wav"
@@ -115,7 +115,7 @@ def test_normalize_and_stub_subtitles_runs_pipeline(monkeypatch, tmp_path: Path)
 def test_active_graphics_maps_to_ass_active(monkeypatch, tmp_path: Path) -> None:
     captured: dict[str, object] = {}
 
-    def fake_extract(input_video: Path, output_dir=None) -> Path:
+    def fake_extract(input_video: Path, output_dir=None, **kwargs) -> Path:
         output_dir.mkdir(parents=True, exist_ok=True)
         audio = output_dir / "audio.wav"
         audio.write_text("audio")
@@ -200,7 +200,7 @@ def test_normalize_and_stub_subtitles_removes_temporary_directory(
             calls.append("cleanup")
             shutil.rmtree(scratch_root, ignore_errors=True)
 
-    def fake_extract(input_video: Path, output_dir=None) -> Path:
+    def fake_extract(input_video: Path, output_dir=None, **kwargs) -> Path:
         assert output_dir == scratch_root
         output_dir.mkdir(parents=True, exist_ok=True)
         audio = output_dir / "audio.wav"
@@ -264,7 +264,7 @@ def test_normalize_and_stub_subtitles_removes_temporary_directory(
 
 
 def test_normalize_and_stub_subtitles_can_return_social_copy(monkeypatch, tmp_path: Path):
-    def fake_extract(input_video: Path, output_dir=None) -> Path:
+    def fake_extract(input_video: Path, output_dir=None, **kwargs) -> Path:
         output_dir.mkdir(parents=True, exist_ok=True)
         audio = output_dir / "audio.wav"
         audio.write_text("audio")
@@ -325,7 +325,7 @@ def test_normalize_and_stub_subtitles_can_return_social_copy(monkeypatch, tmp_pa
 def test_normalize_and_stub_subtitles_persists_artifacts(monkeypatch, tmp_path: Path):
     artifact_dir = tmp_path / "artifacts"
 
-    def fake_extract(input_video: Path, output_dir=None) -> Path:
+    def fake_extract(input_video: Path, output_dir=None, **kwargs) -> Path:
         output_dir.mkdir(parents=True, exist_ok=True)
         audio = output_dir / "audio.wav"
         audio.write_text("audio")
@@ -396,7 +396,7 @@ def test_normalize_and_stub_subtitles_persists_artifacts(monkeypatch, tmp_path: 
 
 
 def test_normalize_and_stub_subtitles_can_use_llm_social_copy(monkeypatch, tmp_path: Path):
-    def fake_extract(input_video: Path, output_dir=None) -> Path:
+    def fake_extract(input_video: Path, output_dir=None, **kwargs) -> Path:
         output_dir.mkdir(parents=True, exist_ok=True)
         audio = output_dir / "audio.wav"
         audio.write_text("audio")
@@ -472,7 +472,7 @@ def test_pipeline_logs_metrics(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(video_processing.metrics, "should_log_metrics", lambda: True)
     monkeypatch.setattr(video_processing.metrics, "log_pipeline_metrics", lambda event: logged.update(event))
 
-    def fake_extract(input_video: Path, output_dir=None) -> Path:
+    def fake_extract(input_video: Path, output_dir=None, **kwargs) -> Path:
         audio = tmp_path / "audio.wav"
         audio.write_text("audio")
         return audio
@@ -542,7 +542,7 @@ def test_pipeline_logs_error_when_output_missing(monkeypatch, tmp_path: Path) ->
     monkeypatch.setattr(video_processing.metrics, "should_log_metrics", lambda: True)
     monkeypatch.setattr(video_processing.metrics, "log_pipeline_metrics", lambda event: logged.update(event))
 
-    def fake_extract(input_video: Path, output_dir=None) -> Path:
+    def fake_extract(input_video: Path, output_dir=None, **kwargs) -> Path:
         output_dir.mkdir(parents=True, exist_ok=True)
         audio = output_dir / "audio.wav"
         audio.write_text("audio")
@@ -690,7 +690,7 @@ def test_run_ffmpeg_with_subs_uses_hw_accel(monkeypatch, tmp_path: Path):
 def test_pipeline_retries_without_hw_accel(monkeypatch, tmp_path: Path):
     calls: list[tuple[bool, bool]] = []
 
-    def fake_extract(input_video: Path, output_dir=None) -> Path:
+    def fake_extract(input_video: Path, output_dir=None, **kwargs) -> Path:
         output_dir.mkdir(parents=True, exist_ok=True)
         audio = output_dir / "audio.wav"
         audio.write_text("audio")
@@ -762,7 +762,7 @@ def test_normalize_and_stub_subtitles_missing_input(tmp_path: Path):
 
 
 def test_normalize_handles_duration_failure(monkeypatch, tmp_path: Path):
-    def fake_extract(input_video: Path, output_dir=None) -> Path:
+    def fake_extract(input_video: Path, output_dir=None, **kwargs) -> Path:
         output_dir.mkdir(parents=True, exist_ok=True)
         audio = output_dir / "audio.wav"
         audio.write_text("audio")
@@ -809,7 +809,7 @@ def test_normalize_handles_duration_failure(monkeypatch, tmp_path: Path):
 def test_normalize_with_large_model_progress(monkeypatch, tmp_path: Path):
     progress: list[float] = []
 
-    def fake_extract(input_video: Path, output_dir=None) -> Path:
+    def fake_extract(input_video: Path, output_dir=None, **kwargs) -> Path:
         output_dir.mkdir(parents=True, exist_ok=True)
         audio = output_dir / "audio.wav"
         audio.write_text("audio")
@@ -884,6 +884,12 @@ def test_run_ffmpeg_with_subs_raises_on_failure(monkeypatch, tmp_path: Path):
         def wait(self):
             return 1
 
+        def poll(self):
+            return self.returncode
+
+        def kill(self):
+            pass
+
     monkeypatch.setattr(video_processing.subprocess, "Popen", lambda *a, **k: DummyProc())
 
     with pytest.raises(subprocess.CalledProcessError):
@@ -900,7 +906,7 @@ def test_run_ffmpeg_with_subs_raises_on_failure(monkeypatch, tmp_path: Path):
 
 
 def test_normalize_applies_turbo_defaults(monkeypatch, tmp_path: Path):
-    def fake_extract(input_video: Path, output_dir=None) -> Path:
+    def fake_extract(input_video: Path, output_dir=None, **kwargs) -> Path:
         output_dir.mkdir(parents=True, exist_ok=True)
         audio = output_dir / "audio.wav"
         audio.write_text("audio")
@@ -951,7 +957,7 @@ def test_normalize_applies_turbo_defaults(monkeypatch, tmp_path: Path):
         audio_copy=None,
     )
 def test_social_copy_falls_back_if_none(monkeypatch, tmp_path: Path) -> None:
-    def fake_extract(input_video: Path, output_dir=None) -> Path:
+    def fake_extract(input_video: Path, output_dir=None, **kwargs) -> Path:
         output_dir.mkdir(parents=True, exist_ok=True)
         audio = output_dir / "audio.wav"
         audio.write_text("audio")
@@ -1027,7 +1033,7 @@ def test_social_copy_falls_back_if_none(monkeypatch, tmp_path: Path) -> None:
 def test_hw_accel_retry_falls_back(monkeypatch, tmp_path: Path) -> None:
     calls: list[bool] = []
 
-    def fake_extract(input_video: Path, output_dir=None) -> Path:
+    def fake_extract(input_video: Path, output_dir=None, **kwargs) -> Path:
         output_dir.mkdir(parents=True, exist_ok=True)
         audio = output_dir / "audio.wav"
         audio.write_text("audio")
