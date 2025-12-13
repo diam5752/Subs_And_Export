@@ -931,8 +931,13 @@ def create_styled_subtitle_file(
         if highlight_style == "active" and (max_lines == 0 or cue.words):
              # ACTIVE WORD MODE (Pop effect)
              # Generate multiple events per cue, one for each word's duration
+             active_cue = cue
+             if max_lines > 0:
+                 active_text = _format_active_word_text(cue, max_lines=max_lines)
+                 active_cue = Cue(start=cue.start, end=cue.end, text=active_text, words=cue.words)
+
              active_events = _generate_active_word_ass(
-                 cue,
+                 active_cue,
                  max_lines=max_lines,
                  primary_color=primary_color,
                  secondary_color=secondary_color
@@ -1215,8 +1220,7 @@ def _wrap_lines(
 def _format_karaoke_text(cue: Cue, max_lines: int = 2) -> str:
     """
     Format text for ASS subtitles.
-    Formerly handled karaoke highlighting, now simplified to just line wrapping
-    as we use the active-graphics renderer for highlighting.
+    Formerly handled karaoke highlighting; currently only performs line wrapping.
     """
     # Use existing cues text splitting or wrapping
     text = cue.text
@@ -1226,6 +1230,29 @@ def _format_karaoke_text(cue: Cue, max_lines: int = 2) -> str:
     raw_words = text.split()
     wrapped_lines = _wrap_lines(raw_words, max_chars=config.MAX_SUB_LINE_CHARS, max_lines=max_lines)
 
+    if not wrapped_lines:
+        return ""
+
+    joined = [" ".join(line) for line in wrapped_lines]
+    return "\\N".join(joined)
+
+
+def _format_active_word_text(cue: Cue, max_lines: int) -> str:
+    """
+    Wrap cue text for active-word rendering while preserving word/token alignment.
+
+    Active-word rendering relies on ``\\N`` line breaks to reconstruct the line
+    structure and match words to their timed tokens.
+    """
+    if max_lines <= 1:
+        return cue.text
+
+    if cue.words:
+        words = [w.text for w in cue.words if w.text]
+    else:
+        words = [w for w in cue.text.split() if w]
+
+    wrapped_lines = _wrap_lines(words, max_chars=config.MAX_SUB_LINE_CHARS, max_lines=max_lines)
     if not wrapped_lines:
         return ""
 

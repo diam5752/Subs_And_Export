@@ -100,6 +100,39 @@ def test_create_styled_subtitle_file_generates_ass(tmp_path: Path) -> None:
     assert ass_content.count("Dialogue:") == 1  # One cue (max_lines=2 default, not per-word)
 
 
+def test_create_styled_subtitle_file_active_word_wraps_lines(tmp_path: Path) -> None:
+    srt_path = tmp_path / "clip.srt"
+    srt_path.write_text("1\n00:00:00,00 --> 00:00:02,00\nTEST\n", encoding="utf-8")
+
+    word_texts = ["AAAAA", "BBBBB", "CCCCC", "DDDDD", "EEEEE", "FFFFF", "GGGGG", "HHHHH"]
+    words = [
+        subtitles.WordTiming(start=i * 0.25, end=(i + 1) * 0.25, text=word)
+        for i, word in enumerate(word_texts)
+    ]
+    cue = subtitles.Cue(
+        start=0.0,
+        end=2.0,
+        text=" ".join(word_texts),
+        words=words,
+    )
+
+    ass_path = subtitles.create_styled_subtitle_file(
+        srt_path,
+        cues=[cue],
+        max_lines=2,
+        highlight_style="active",
+        output_dir=tmp_path,
+    )
+
+    ass_content = ass_path.read_text(encoding="utf-8")
+    dialogue_lines = [line for line in ass_content.splitlines() if line.startswith("Dialogue:")]
+
+    # Active-word mode produces 1 base layer + one event per word.
+    assert len(dialogue_lines) == len(word_texts) + 1
+    assert "\\N" in ass_content
+    assert "{\\c" in ass_content
+
+
 def test_format_karaoke_wraps_long_lines() -> None:
     words = [
         subtitles.WordTiming(start=i * 0.1, end=(i + 1) * 0.1, text=w)

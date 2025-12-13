@@ -99,6 +99,71 @@ def test_normalize_and_stub_subtitles_runs_pipeline(monkeypatch, tmp_path: Path)
     assert [c[0] for c in calls] == ["extract", "transcribe", "style", "burn"]
 
 
+def test_active_graphics_maps_to_ass_active(monkeypatch, tmp_path: Path) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_extract(input_video: Path, output_dir=None) -> Path:
+        output_dir.mkdir(parents=True, exist_ok=True)
+        audio = output_dir / "audio.wav"
+        audio.write_text("audio")
+        return audio
+
+    def fake_generate(audio_path: Path, **kwargs):
+        srt = Path(kwargs["output_dir"]) / "subs.srt"
+        srt.write_text("1\n00:00:00,00 --> 00:00:01,00\nΓεια\n", encoding="utf-8")
+        cues = [
+            video_processing.subtitles.Cue(
+                start=0.0,
+                end=1.0,
+                text="ΓΕΙΑ",
+                words=[video_processing.subtitles.WordTiming(0.0, 1.0, "ΓΕΙΑ")],
+            )
+        ]
+        return srt, cues
+
+    def fake_style(transcript_path: Path, **kwargs) -> Path:
+        captured["highlight_style"] = kwargs.get("highlight_style")
+        ass = transcript_path.with_suffix(".ass")
+        ass.write_text("[Script Info]\n")
+        return ass
+
+    def fake_burn(input_path: Path, ass_path: Path, output_path: Path, **kwargs) -> None:
+        output_path.write_bytes(b"video")
+
+    class FakeTranscriber:
+        def __init__(self, *args, **kwargs): pass
+        def transcribe(self, audio_path, output_dir, **kwargs):
+            kwargs["output_dir"] = output_dir
+            return fake_generate(audio_path, **kwargs)
+
+    monkeypatch.setattr(video_processing.subtitles, "extract_audio", fake_extract)
+    monkeypatch.setattr(video_processing, "LocalWhisperTranscriber", FakeTranscriber)
+    monkeypatch.setattr(video_processing, "GroqTranscriber", FakeTranscriber)
+    monkeypatch.setattr(video_processing, "OpenAITranscriber", FakeTranscriber)
+    monkeypatch.setattr(video_processing, "StandardTranscriber", FakeTranscriber)
+    monkeypatch.setattr(video_processing.subtitles, "create_styled_subtitle_file", fake_style)
+    monkeypatch.setattr(video_processing, "_run_ffmpeg_with_subs", fake_burn)
+    monkeypatch.setattr(
+        video_processing,
+        "_probe_media",
+        lambda _p: video_processing.MediaProbe(duration_s=10.0, audio_codec="aac"),
+    )
+
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"video")
+    destination = tmp_path / "dest.mp4"
+
+    result_path = video_processing.normalize_and_stub_subtitles(
+        source,
+        destination,
+        language="el",
+        highlight_style="active-graphics",
+    )
+
+    assert result_path == destination.resolve()
+    assert captured["highlight_style"] == "active"
+
+
 def test_build_filtergraph_quotes_ass_path() -> None:
     ass_path = Path("/tmp/my subs's file.ass")
 

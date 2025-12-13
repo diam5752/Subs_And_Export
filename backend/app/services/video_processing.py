@@ -16,7 +16,7 @@ from typing import Callable
 
 from backend.app.common import metrics
 from backend.app.core import config
-from backend.app.services import graphics_renderer, subtitles
+from backend.app.services import subtitles
 from backend.app.services.styles import SubtitleStyle
 from backend.app.services.transcription.groq_cloud import GroqTranscriber
 from backend.app.services.transcription.local_whisper import LocalWhisperTranscriber
@@ -248,7 +248,7 @@ def normalize_and_stub_subtitles(
     llm_temperature: float = 0.6,
     llm_api_key: str | None = None,
     artifact_dir: Path | None = None,
-    use_hw_accel: bool = False,
+    use_hw_accel: bool = config.USE_HW_ACCEL,
     progress_callback: Callable[[str, float], None] | None = None,
     check_cancelled: Callable[[], None] | None = None,
     output_width: int | None = None,
@@ -438,6 +438,11 @@ def normalize_and_stub_subtitles(
             # Step 3: Style (ASS Generation)
             if progress_callback: progress_callback("Styling...", 65.0)
             with metrics.measure_time(pipeline_timings, "style_subs_s"):
+                has_words = bool(cues and any(c.words for c in cues))
+                ass_highlight_style = style.highlight_style
+                if ass_highlight_style == "active-graphics":
+                    ass_highlight_style = "active" if has_words else "karaoke"
+
                 ass_path = subtitles.create_styled_subtitle_file(
                     srt_path,
                     cues=cues,
@@ -446,8 +451,10 @@ def normalize_and_stub_subtitles(
                     max_lines=style.max_lines,
                     shadow_strength=style.shadow_strength,
                     primary_color=style.primary_color,
-                    highlight_style=style.highlight_style,
+                    highlight_style=ass_highlight_style,
                     font_size=style.font_size,
+                    play_res_x=output_width or config.DEFAULT_WIDTH,
+                    play_res_y=output_height or config.DEFAULT_HEIGHT,
                 )
 
             # Step 4: Social Copy & Rendering
@@ -466,68 +473,40 @@ def normalize_and_stub_subtitles(
                 # RENDER (The Eye)
                 if progress_callback: progress_callback("Rendering...", 80.0)
 
-                # Check for "Active Graphics" Mode
-                has_words = cues and any(c.words for c in cues)
+                try:
+                    def _enc_cb(p):
+                        if progress_callback: progress_callback(f"Encoding ({int(p)}%)...", 80.0 + (p * 0.2))
 
-                def _clean_color(c: str) -> str:
-                     if not c: return config.DEFAULT_SUB_COLOR
-                     c = c.strip()
-                     if c.startswith("&H"):
-                         hex_str = c[2:]
-                         if len(hex_str) == 8: hex_str = hex_str[2:]
-                         if len(hex_str) == 6: return f"#{hex_str[4:6]}{hex_str[2:4]}{hex_str[0:2]}"
-                     return c
-
-                if style.highlight_style == "active-graphics" and has_words:
-                    # USE NEW RENDERER API
-                    graphics_renderer.render_active_word_video(
-                        input_path=input_path,
-                        output_path=destination,
-                        cues=cues,
-                        # Pass style params
-                        primary_color=_clean_color(style.primary_color),
-                        max_lines=style.max_lines,
-                        target_width=output_width or config.DEFAULT_WIDTH,
-                        target_height=output_height or config.DEFAULT_HEIGHT,
-                        font_size=style.font_size,
-                        karaoke_enabled=karaoke_enabled,
-                        # Font/Stroke could be added to Style DTO fully but we pass basic args for now
+                    _run_ffmpeg_with_subs(
+                        input_path, ass_path, destination,
+                        video_crf=video_crf or config.DEFAULT_VIDEO_CRF,
+                        video_preset=video_preset or config.DEFAULT_VIDEO_PRESET,
+                        audio_bitrate=audio_bitrate or config.DEFAULT_AUDIO_BITRATE,
+                        audio_copy=resolved_audio_copy,
+                        use_hw_accel=use_hw_accel,
+                        progress_callback=_enc_cb if total_duration > 0 else None,
+                        total_duration=total_duration,
+                        output_width=output_width,
+                        output_height=output_height
                     )
-                else:
-                    try:
-                        def _enc_cb(p):
-                            if progress_callback: progress_callback(f"Encoding ({int(p)}%)...", 80.0 + (p * 0.2))
-
+                except subprocess.CalledProcessError as exc:
+                    if use_hw_accel:
+                        print(f"Hardware acceleration failed: {exc}. Retrying with software encoding...")
+                        # Retry without hardware acceleration
                         _run_ffmpeg_with_subs(
                             input_path, ass_path, destination,
                             video_crf=video_crf or config.DEFAULT_VIDEO_CRF,
                             video_preset=video_preset or config.DEFAULT_VIDEO_PRESET,
                             audio_bitrate=audio_bitrate or config.DEFAULT_AUDIO_BITRATE,
                             audio_copy=resolved_audio_copy,
-                            use_hw_accel=use_hw_accel,
+                            use_hw_accel=False, # Force False
                             progress_callback=_enc_cb if total_duration > 0 else None,
                             total_duration=total_duration,
                             output_width=output_width,
                             output_height=output_height
                         )
-                    except subprocess.CalledProcessError as exc:
-                        if use_hw_accel:
-                            print(f"Hardware acceleration failed: {exc}. Retrying with software encoding...")
-                            # Retry without hardware acceleration
-                            _run_ffmpeg_with_subs(
-                                input_path, ass_path, destination,
-                                video_crf=video_crf or config.DEFAULT_VIDEO_CRF,
-                                video_preset=video_preset or config.DEFAULT_VIDEO_PRESET,
-                                audio_bitrate=audio_bitrate or config.DEFAULT_AUDIO_BITRATE,
-                                audio_copy=resolved_audio_copy,
-                                use_hw_accel=False, # Force False
-                                progress_callback=_enc_cb if total_duration > 0 else None,
-                                total_duration=total_duration,
-                                output_width=output_width,
-                                output_height=output_height
-                            )
-                        else:
-                            raise
+                    else:
+                        raise
 
                 if future_social:
                     social_copy = future_social.result()
