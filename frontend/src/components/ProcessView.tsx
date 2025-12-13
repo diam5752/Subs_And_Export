@@ -245,6 +245,13 @@ export function ProcessView({
         onFileSelect(file);
     };
 
+    const handleKeyDown = (e: React.KeyboardEvent, callback: () => void) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            callback();
+        }
+    };
+
     // Drag and drop handlers
     const handleDragEnter = useCallback((e: React.DragEvent<HTMLDivElement>) => {
         e.preventDefault();
@@ -500,6 +507,10 @@ export function ProcessView({
                         }`}
                     data-clickable="true"
                     onClick={handleUploadCardClick}
+                    onKeyDown={(e) => handleKeyDown(e, handleUploadCardClick)}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={selectedFile ? t('changeFile') || 'Change file' : t('uploadDropTitle')}
                     onDragEnter={handleDragEnter}
                     onDragLeave={handleDragLeave}
                     onDragOver={handleDragOver}
@@ -577,6 +588,10 @@ export function ProcessView({
                         <div
                             className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] pb-3 cursor-pointer group"
                             onClick={() => setShowSettings(!showSettings)}
+                            onKeyDown={(e) => handleKeyDown(e, () => setShowSettings(!showSettings))}
+                            role="button"
+                            tabIndex={0}
+                            aria-expanded={showSettings}
                         >
                             <div className="flex items-center gap-3">
                                 <div>
@@ -763,22 +778,6 @@ export function ProcessView({
                                                     case 'top': return '28%';
                                                     case 'bottom': return '8%';
                                                     default: return '18%';
-                                                }
-                                            };
-                                            // Helper to get size scale - more dramatic differences
-                                            const getSizeScale = (size: string) => {
-                                                switch (size) {
-                                                    case 'small': return 0.6;
-                                                    case 'big': return 1.4;
-                                                    default: return 1.0;
-                                                }
-                                            };
-                                            // Bar height based on size
-                                            const getBarHeight = (size: string) => {
-                                                switch (size) {
-                                                    case 'small': return 'h-1.5';
-                                                    case 'big': return 'h-4';
-                                                    default: return 'h-2.5';
                                                 }
                                             };
 
