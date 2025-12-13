@@ -26,7 +26,7 @@ describe('JobListItem', () => {
         isExpired: false,
         publicUrl: 'http://example.com/video.mp4',
         timestamp: 1625000000000,
-        formatDate: (ts: number | string) => '2021-06-29',
+        formatDate: (_ts: number | string) => '2021-06-29',
         onToggleSelection: jest.fn(),
         onJobSelect: jest.fn(),
         setShowPreview: jest.fn(),
@@ -61,5 +61,37 @@ describe('JobListItem', () => {
         render(<JobListItem {...mockProps} confirmDeleteId="job-123" />);
         expect(screen.getByText('✓')).toBeInTheDocument();
         expect(screen.getByText('✕')).toBeInTheDocument();
+    });
+
+    it('has correct accessibility attributes', () => {
+        const { rerender } = render(<JobListItem {...mockProps} selectionMode={true} />);
+
+        // Container role
+        // In selection mode, the container should be a button.
+        // There are no other buttons visible in selection mode.
+        const container = screen.getByRole('button');
+        expect(container).toBeInTheDocument();
+        expect(container).toHaveAttribute('tabIndex', '0');
+
+        // Checkbox should be hidden from AT or at least not the primary interaction
+        // Since we put aria-hidden=true, it shouldn't be accessible by label
+        expect(screen.queryByLabelText('selectMode')).not.toBeInTheDocument();
+
+        // Test keyboard interaction
+        fireEvent.keyDown(container, { key: 'Enter', code: 'Enter' });
+        expect(mockProps.onToggleSelection).toHaveBeenCalledWith('job-123', false);
+
+        fireEvent.keyDown(container, { key: ' ', code: 'Space' });
+        expect(mockProps.onToggleSelection).toHaveBeenCalledWith('job-123', false);
+
+        rerender(<JobListItem {...mockProps} selectionMode={false} />);
+
+        // Delete button label
+        expect(screen.getByLabelText('deleteJob')).toBeInTheDocument();
+
+        // Confirm delete mode
+        rerender(<JobListItem {...mockProps} confirmDeleteId="job-123" />);
+        expect(screen.getByLabelText('confirmDelete')).toBeInTheDocument();
+        expect(screen.getByLabelText('cancel')).toBeInTheDocument();
     });
 });

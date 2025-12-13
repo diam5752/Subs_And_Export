@@ -50,6 +50,17 @@ export const JobListItem = memo(function JobListItem({
         }
     };
 
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (!selectionMode) return;
+        // Prevent triggering when interacting with children (though they should be non-interactive in selection mode)
+        if (e.target !== e.currentTarget) return;
+
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            onToggleSelection(job.id, isSelected);
+        }
+    };
+
     const handleCheckboxChange = () => {
         // Handled by parent via onToggleSelection
     };
@@ -57,6 +68,10 @@ export const JobListItem = memo(function JobListItem({
     return (
         <div
             onClick={handleContainerClick}
+            onKeyDown={handleKeyDown}
+            role={selectionMode ? 'button' : undefined}
+            tabIndex={selectionMode ? 0 : undefined}
+            aria-pressed={selectionMode ? isSelected : undefined}
             className={`flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 p-3 rounded-lg border ${isSelected
                 ? 'border-[var(--accent)] bg-[var(--accent)]/5'
                 : isExpired
@@ -81,6 +96,8 @@ export const JobListItem = memo(function JobListItem({
                         checked={isSelected}
                         onChange={handleCheckboxChange}
                         className="w-4 h-4 rounded border-[var(--border)] accent-[var(--accent)] flex-shrink-0 cursor-pointer"
+                        tabIndex={-1}
+                        aria-hidden="true"
                     />
                 )}
                 {isExpired ? (
@@ -136,6 +153,7 @@ export const JobListItem = memo(function JobListItem({
                                         }}
                                         disabled={isDeleting}
                                         className="text-xs px-2 py-1 rounded bg-[var(--danger)] text-white hover:bg-[var(--danger)]/80 disabled:opacity-50"
+                                        aria-label={t('confirmDelete') || 'Confirm delete'}
                                     >
                                         {isDeleting ? '...' : '✓'}
                                     </button>
@@ -145,6 +163,7 @@ export const JobListItem = memo(function JobListItem({
                                             setConfirmDeleteId(null);
                                         }}
                                         className="text-xs px-2 py-1 rounded border border-[var(--border)] hover:bg-white/5"
+                                        aria-label={t('cancel') || 'Cancel'}
                                     >
                                         ✕
                                     </button>
@@ -157,6 +176,7 @@ export const JobListItem = memo(function JobListItem({
                                     }}
                                     className="text-xs px-2 py-1 rounded border border-[var(--border)] hover:border-[var(--danger)] hover:text-[var(--danger)] transition-colors"
                                     title={t('deleteJob')}
+                                    aria-label={t('deleteJob') || 'Delete job'}
                                 >
                                     🗑️
                                 </button>
