@@ -7,7 +7,7 @@ DEFAULT_HEIGHT = 1920
 DEFAULT_FPS = 30
 
 DEFAULT_SUB_FONT = "Arial Black"
-DEFAULT_SUB_FONT_SIZE = 62  # ~15% larger for better readability on vertical video
+DEFAULT_SUB_FONT_SIZE = 62  # Default tuned for 1080x1920 safe area
 # KARAOKE COLORS: Words fill from Secondary → Primary as each \k duration completes
 # For word-by-word highlighting: words start white and fill to yellow when spoken
 DEFAULT_SUB_COLOR = "&H0000FFFF"  # Primary: Yellow (word becomes this color when spoken)

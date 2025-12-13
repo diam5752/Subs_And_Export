@@ -163,6 +163,8 @@ export default function DashboardPage() {
         subtitle_color: options.subtitle_color,
         shadow_strength: options.shadow_strength,
         highlight_style: options.highlight_style,
+        subtitle_size: options.subtitle_size,
+        karaoke_enabled: options.karaoke_enabled,
       });
       setJobId(result.id);
     } catch (err) {

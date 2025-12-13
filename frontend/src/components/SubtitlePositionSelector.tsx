@@ -52,8 +52,8 @@ export function SubtitlePositionSelector({
     // Map size to scale for preview
     const getSizeScale = (size: string) => {
         switch (size) {
-            case 'small': return 0.8;
-            case 'big': return 1.3;
+            case 'small': return 0.82;
+            case 'big': return 1.18;
             default: return 1.0;
         }
     };

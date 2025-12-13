@@ -42,6 +42,19 @@ def client():
     return TestClient(app)
 
 
+@pytest.fixture(autouse=True)
+def reset_login_rate_limiter() -> None:
+    """
+    Reset the login rate limiter between tests.
+
+    The /auth/token endpoint is protected by a strict per-IP limiter (5/min).
+    Without resetting, test suites can flake depending on execution speed/order.
+    """
+    from backend.app.core.ratelimit import limiter_login
+
+    limiter_login.reset()
+
+
 @pytest.fixture
 def user_auth_headers(client):
     """Return auth headers for a test user."""

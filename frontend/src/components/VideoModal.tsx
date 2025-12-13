@@ -54,7 +54,7 @@ export function VideoModal({ isOpen, onClose, videoUrl }: VideoModalProps) {
 
             {/* Video container */}
             <div
-                className="video-container-glow relative w-full max-w-5xl aspect-video rounded-2xl overflow-hidden shadow-2xl cursor-default"
+                className="video-container-glow relative h-[85vh] w-auto max-w-[92vw] aspect-[9/16] rounded-2xl overflow-hidden shadow-2xl cursor-default"
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Close button */}
