@@ -294,8 +294,8 @@ def test_save_upload_limit_boundary(monkeypatch):
 
 def test_transcribe_with_openai_no_key(monkeypatch, tmp_path):
     """Cover OpenAITranscriber missing key."""
-    from backend.app.services.transcription.openai_cloud import OpenAITranscriber
     from backend.app.services import subtitles
+    from backend.app.services.transcription.openai_cloud import OpenAITranscriber
 
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     # Mock resolve to None
