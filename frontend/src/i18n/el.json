@@ -276,8 +276,9 @@
   "export4k": "Εξαγωγή 4K",
   "generating4k": "Δημιουργία 4K...",
   "previewButton": "Προεπισκόπηση",
-  "previewWord": "ΔΕΙΤΕ",
   "previewLine1": "ΕΤΣΙ ΦΑΙΝΟΝΤΑΙ ΟΙ",
   "previewLine2": "ΥΠΟΤΙΤΛΟΙ ΣΑΣ",
-  "previewLine3": "ΣΤΟ ΒΙΝΤΕΟ"
+  "previewLine3": "ΣΤΟ ΒΙΝΤΕΟ",
+  "previewWindowLabel": "Ζωντανή προεπισκόπηση",
+  "previewWindowDesc": "Έτσι θα φαίνονται οι υπότιτλοί σας σε οθόνη κινητού."
 }

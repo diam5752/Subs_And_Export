@@ -276,8 +276,9 @@
   "karaokeMode": "Karaoke Mode",
   "karaokeActive": "Active words highlighted",
   "karaokeStatic": "Standard static subtitles",
-  "previewWord": "WATCH",
   "previewLine1": "THIS IS HOW YOUR",
   "previewLine2": "SUBTITLES LOOK",
-  "previewLine3": "ON YOUR VIDEO"
+  "previewLine3": "ON YOUR VIDEO",
+  "previewWindowLabel": "Real-time Preview",
+  "previewWindowDesc": "Check how your subtitles fit on a mobile screen."
 }

@@ -297,9 +297,11 @@ export function ProcessView({
         if (!selectedFile) {
             validationRequestId.current += 1;
             setVideoInfo(null);
+            setShowCustomize(false);
             return;
         }
 
+        setShowCustomize(true);
         const requestId = ++validationRequestId.current;
         validateVideoAspectRatio(selectedFile).then(info => {
             if (requestId === validationRequestId.current) {
@@ -784,7 +786,14 @@ export function ProcessView({
                                     <div className="grid grid-cols-3 gap-3 mb-3">
                                         {STYLE_PRESETS.map((preset) => {
                                             // Helper to get preview position
-                                            const getPreviewBottom = (pos: string) => {
+                                            const getPreviewBottom = (pos: number | string) => {
+                                                if (typeof pos === 'number') {
+                                                    // Map numeric positions (6, 16, 45) to visual percentages
+                                                    if (pos >= 40) return '28%'; // High
+                                                    if (pos <= 10) return '8%';  // Low
+                                                    return '18%'; // Middle (16)
+                                                }
+                                                // Legacy string support
                                                 switch (pos) {
                                                     case 'top': return '28%';
                                                     case 'bottom': return '8%';
@@ -906,7 +915,7 @@ export function ProcessView({
                                                                 </div>
                                                                 <div className="flex gap-1">
                                                                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--surface-elevated)] border border-[var(--border)] text-[var(--muted)] whitespace-nowrap">
-                                                                        {preset.settings.position === 'default' ? t('positionMiddle') : preset.settings.position === 'bottom' ? t('positionLow') : t('positionHigh')}
+                                                                        {preset.settings.position === 16 ? t('positionMiddle') : preset.settings.position === 6 ? t('positionLow') : t('positionHigh')}
                                                                     </span>
                                                                     <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--surface-elevated)] border border-[var(--border)] text-[var(--muted)] whitespace-nowrap">
                                                                         {preset.settings.lines === 0 ? t('lines1WordBadge') : `${preset.settings.lines} ${t('statLines')}`}

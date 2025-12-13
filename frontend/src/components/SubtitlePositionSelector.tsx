@@ -348,7 +348,16 @@ export function SubtitlePositionSelector({
                 </div>
 
                 {/* Visual Preview - Phone Mockup */}
-                <div className="flex-shrink-0 flex justify-center items-start pt-10">
+                <div className="flex-shrink-0 flex flex-col items-center pt-2">
+                    <div className="mb-4 text-center">
+                        <h4 className="text-sm font-semibold text-[var(--foreground)] uppercase tracking-wide mb-1">
+                            {t('previewWindowLabel')}
+                        </h4>
+                        <p className="text-[10px] text-[var(--muted)] max-w-[160px] leading-tight">
+                            {t('previewWindowDesc')}
+                        </p>
+                    </div>
+
                     {/* Phone Mockup */}
                     <div className="relative w-[180px] h-[320px] bg-slate-800 rounded-[30px] border-[6px] border-slate-700 overflow-hidden shadow-2xl ring-1 ring-white/10">
                         {/* Video Thumbnail as Background */}
