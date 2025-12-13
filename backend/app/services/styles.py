@@ -21,7 +21,7 @@ class SubtitleStyle:
 
     # Layout
     max_lines: int = 2
-    position: Literal["default", "top", "bottom", "middle"] = "default"
+    position: int = 16
 
     # Visual Tweaks
     shadow_strength: int = 4

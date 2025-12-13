@@ -342,7 +342,7 @@ def normalize_and_stub_subtitles(
         effective_highlight_style = "static"
 
     style = SubtitleStyle(
-        position=subtitle_position,
+        position=subtitle_position if subtitle_position is not None else 16,
         max_lines=max_subtitle_lines,
         primary_color=subtitle_color or config.DEFAULT_SUB_COLOR,
         shadow_strength=shadow_strength,

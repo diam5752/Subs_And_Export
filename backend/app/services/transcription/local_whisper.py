@@ -73,8 +73,11 @@ class LocalWhisperTranscriber(Transcriber):
         }
 
         transcribe_kwargs["beam_size"] = kwargs.get("beam_size", self.beam_size)
-        transcribe_kwargs["best_of"] = kwargs.get("best_of", 2)
-        transcribe_kwargs["temperature"] = kwargs.get("temperature", 0.0)
+        best_of = kwargs.get("best_of")
+        transcribe_kwargs["best_of"] = best_of if best_of is not None else 2
+
+        temperature = kwargs.get("temperature")
+        transcribe_kwargs["temperature"] = temperature if temperature is not None else 0.0
 
         initial_prompt = kwargs.get("initial_prompt")
         if initial_prompt:

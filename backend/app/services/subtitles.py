@@ -713,6 +713,7 @@ def create_styled_subtitle_file(
 
     # Convert numeric subtitle_position (percentage) to margin_v
     # Clamp to valid range (5-35% of screen height)
+    subtitle_position = subtitle_position if subtitle_position is not None else 16
     position_pct = max(5, min(80, subtitle_position))
     final_margin_v = int(play_res_y * position_pct / 100)
     final_alignment = alignment  # Default alignment (2 = bottom center)

@@ -43,7 +43,7 @@ class GroqTranscriber(Transcriber):
         try:
             with open(audio_path, "rb") as audio_file:
                 transcript = client.audio.transcriptions.create(
-                    model=model or config.GROQ_TRANSCRIBE_MODEL,
+                    model=config.GROQ_TRANSCRIBE_MODEL,
                     file=audio_file,
                     language=language or "el",
                     prompt=prompt,

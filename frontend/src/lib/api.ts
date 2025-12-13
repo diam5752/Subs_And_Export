@@ -176,12 +176,12 @@ class ApiClient {
         video_resolution?: string;
         use_llm?: boolean;
         context_prompt?: string;
-        subtitle_position?: string;
+        subtitle_position?: number;
         max_subtitle_lines?: number;
         subtitle_color?: string;
         shadow_strength?: number;
         highlight_style?: string;
-        subtitle_size?: string;
+        subtitle_size?: number;
         karaoke_enabled?: boolean;
     }): Promise<JobResponse> {
         const formData = new FormData();
@@ -193,7 +193,7 @@ class ApiClient {
         formData.append('video_resolution', settings.video_resolution || '');
         formData.append('use_llm', String(settings.use_llm || false));
         formData.append('context_prompt', settings.context_prompt || '');
-        formData.append('subtitle_position', settings.subtitle_position || 'default');
+        formData.append('subtitle_position', String(settings.subtitle_position ?? 16));
         formData.append('max_subtitle_lines', String(settings.max_subtitle_lines ?? 2));
         if (settings.subtitle_color) {
             formData.append('subtitle_color', settings.subtitle_color);
@@ -204,7 +204,7 @@ class ApiClient {
         if (settings.highlight_style) {
             formData.append('highlight_style', settings.highlight_style);
         }
-        formData.append('subtitle_size', settings.subtitle_size || 'medium');
+        formData.append('subtitle_size', String(settings.subtitle_size ?? 100));
         formData.append('karaoke_enabled', String(settings.karaoke_enabled ?? true));
 
         return this.request<JobResponse>('/videos/process', {
