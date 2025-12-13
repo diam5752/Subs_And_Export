@@ -1,11 +1,11 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { SubtitlePositionSelector } from '../SubtitlePositionSelector';
+import en from '@/i18n/en.json';
 
 jest.mock('@/context/I18nContext', () => ({
-    useI18n: () => {
-        const en = require('@/i18n/en.json') as Record<string, string>;
-        return { t: (key: string) => en[key] ?? key };
-    },
+    useI18n: () => ({
+        t: (key: string) => (en as Record<string, string>)[key] ?? key
+    }),
 }));
 
 describe('SubtitlePositionSelector', () => {
