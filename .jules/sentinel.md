@@ -22,3 +22,8 @@
 **Vulnerability:** The `/videos/process` endpoint allowed unlimited concurrent processing requests per user/IP.
 **Learning:** Authentication is not a substitute for rate limiting on resource-intensive endpoints (FFmpeg/ML).
 **Prevention:** Apply strict rate limits (e.g., 10/min) to all endpoints that trigger background jobs or heavy computation.
+
+## 2025-05-25 - [Medium] User Enumeration via Timing Attack
+**Vulnerability:** The `authenticate_local` method returned early when a user was not found, while performing an expensive `scrypt` hash verification when the user existed (approx 60x timing difference).
+**Learning:** Even with secure hashing algorithms like `scrypt`, the *absence* of execution leaks information. User enumeration allows attackers to target valid accounts.
+**Prevention:** Implement constant-time verification logic that executes the same expensive operations (hashing) regardless of whether the user exists or not, using a pre-calculated dummy hash.
