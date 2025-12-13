@@ -1,38 +1,69 @@
-
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { useI18n } from '@/context/I18nContext';
 
 export default function CookieConsent() {
+    const { t } = useI18n();
     const [visible, setVisible] = useState(false);
 
     useEffect(() => {
-        const consent = localStorage.getItem('cookie-consent');
-        if (!consent) {
-            setVisible(true);
+        try {
+            const consent = localStorage.getItem('cookie-consent');
+            if (!consent) {
+                setVisible(true);
+            }
+        } catch {
+            setVisible(false);
         }
     }, []);
 
     const accept = () => {
-        localStorage.setItem('cookie-consent', 'accepted');
+        try {
+            localStorage.setItem('cookie-consent', 'accepted');
+        } catch {
+            // Ignore write failures (e.g., private mode restrictions).
+        }
         setVisible(false);
     };
 
     if (!visible) return null;
 
     return (
-        <div className="fixed bottom-0 left-0 right-0 bg-gray-900 border-t border-gray-800 p-4 shadow-lg z-50 animate-slide-up">
-            <div className="container mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
-                <div className="text-sm text-gray-300">
-                    We use cookies to ensure you get the best experience on our website.
-                    By continuing to use the site, you agree to our <a href="/privacy" className="underline hover:text-white">Privacy Policy</a>.
+        <div
+            className="fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] left-4 z-50 w-[min(420px,calc(100vw-5rem))] animate-fade-in"
+            role="dialog"
+            aria-label={t('cookieTitle')}
+        >
+            <div className="glass rounded-2xl px-4 py-4 shadow-2xl">
+                <div className="flex items-start gap-3">
+                    <div
+                        className="mt-0.5 h-10 w-10 rounded-2xl bg-white/5 border border-[var(--border)] flex items-center justify-center text-lg shadow-inner"
+                        aria-hidden="true"
+                    >
+                        🍪
+                    </div>
+                    <div className="min-w-0 flex-1">
+                        <div className="font-semibold">{t('cookieTitle')}</div>
+                        <p className="mt-1 text-sm text-[var(--muted)] leading-relaxed">
+                            {t('cookieText')}{' '}
+                            <Link href="/privacy" className="text-[var(--accent)] hover:underline">
+                                {t('cookieLearnMore')}
+                            </Link>
+                            .
+                        </p>
+                        <div className="mt-3 flex items-center justify-end gap-2">
+                            <button
+                                type="button"
+                                onClick={accept}
+                                className="btn-secondary !px-4 !py-2 text-sm"
+                            >
+                                {t('cookieAccept')}
+                            </button>
+                        </div>
+                    </div>
                 </div>
-                <button
-                    onClick={accept}
-                    className="bg-primary hover:bg-primary/90 text-white px-6 py-2 rounded-md font-medium transition-colors text-sm whitespace-nowrap"
-                >
-                    Accept & Close
-                </button>
             </div>
         </div>
     );

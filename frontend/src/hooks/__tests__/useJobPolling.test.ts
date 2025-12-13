@@ -151,7 +151,7 @@ describe('useJobPolling', () => {
         }));
 
         await act(async () => {
-            jest.advanceTimersByTime(150);
+            jest.advanceTimersByTime(0);
             await Promise.resolve();
         });
 

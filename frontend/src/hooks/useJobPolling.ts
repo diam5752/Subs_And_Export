@@ -33,6 +33,7 @@ export function useJobPolling({
     const intervalRef = useRef<NodeJS.Timeout | null>(null);
     const [isPolling, setIsPolling] = useState(false);
     const isPollingRef = useRef(false);
+    const inFlightRef = useRef(false);
 
     const stopPolling = useCallback(() => {
         if (intervalRef.current) {
@@ -56,8 +57,11 @@ export function useJobPolling({
         setTimeout(() => setIsPolling(true), 0);
 
         const poll = async () => {
+            if (!isPollingRef.current || inFlightRef.current) return;
+            inFlightRef.current = true;
             try {
                 const job = await api.getJobStatus(jobId);
+                if (!isPollingRef.current) return;
                 callbacks.onProgress(
                     job.progress,
                     job.message || (job.status === 'processing' ? t('statusProcessingEllipsis') : '')
@@ -71,12 +75,18 @@ export function useJobPolling({
                     callbacks.onFailed(job.message || t('statusFailedFallback'));
                 }
             } catch {
+                if (!isPollingRef.current) return;
                 stopPolling();
                 callbacks.onError(t('statusCheckFailed'));
+            } finally {
+                inFlightRef.current = false;
             }
         };
 
-        intervalRef.current = setInterval(poll, pollingInterval);
+        intervalRef.current = setInterval(() => {
+            void poll();
+        }, pollingInterval);
+        void poll();
 
         return () => {
             stopPolling();

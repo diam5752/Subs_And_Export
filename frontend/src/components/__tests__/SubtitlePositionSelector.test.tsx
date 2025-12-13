@@ -1,6 +1,13 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { SubtitlePositionSelector } from '../SubtitlePositionSelector';
 
+jest.mock('@/context/I18nContext', () => ({
+    useI18n: () => {
+        const en = require('@/i18n/en.json') as Record<string, string>;
+        return { t: (key: string) => en[key] ?? key };
+    },
+}));
+
 describe('SubtitlePositionSelector', () => {
     const defaultProps = {
         value: 'default',

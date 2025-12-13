@@ -2,6 +2,13 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ViralIntelligence } from '../ViralIntelligence';
 
+jest.mock('@/context/I18nContext', () => ({
+    useI18n: () => {
+        const en = require('@/i18n/en.json') as Record<string, string>;
+        return { t: (key: string) => en[key] ?? key };
+    },
+}));
+
 // Mock API
 jest.mock('@/lib/api', () => ({
     api: {

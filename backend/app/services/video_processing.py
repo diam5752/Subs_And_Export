@@ -206,6 +206,7 @@ def normalize_and_stub_subtitles(
     artifact_dir: Path | None = None,
     use_hw_accel: bool = False,
     progress_callback: Callable[[str, float], None] | None = None,
+    check_cancelled: Callable[[], None] | None = None,
     output_width: int | None = None,
     output_height: int | None = None,
     # Legacy/Passed-through but less impactful now

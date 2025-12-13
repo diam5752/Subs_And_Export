@@ -557,7 +557,8 @@ export function ProcessView({
                                 </div>
                                 {videoInfo?.aspectWarning && (
                                     <div className="text-xs text-amber-400 flex items-center gap-1">
-                                        ⚠️ Not 9:16 — subtitles may overflow
+                                        <span aria-hidden="true">⚠️</span>
+                                        {t('aspectRatioWarning')}
                                     </div>
                                 )}
                             </div>
@@ -1151,7 +1152,7 @@ export function ProcessView({
                                         <div className="absolute top-0 right-0 p-4 z-10">
                                             <div className="flex items-center gap-2 text-xs px-3 py-1.5 rounded-full bg-gradient-to-r from-emerald-500/20 to-[var(--accent)]/20 backdrop-blur-md text-emerald-300 border border-emerald-500/30">
                                                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                                                Subtitles Ready
+                                                {t('subtitlesReady')}
                                             </div>
                                         </div>
 
@@ -1180,14 +1181,14 @@ export function ProcessView({
                                                 </div>
 
                                                 <div className="absolute bottom-3 left-3 text-xs font-medium text-white/90 z-10 drop-shadow-lg">
-                                                    Click to Preview
+                                                    {t('clickToPreview')}
                                                 </div>
                                             </div>
 
                                             {/* Details Area */}
                                             <div className="p-6 flex-1 flex flex-col justify-center">
                                                 <h4 className="text-xl font-semibold mb-2 line-clamp-2 bg-gradient-to-r from-white to-white/80 bg-clip-text">
-                                                    {selectedJob.result_data?.original_filename || "Processed Video.mp4"}
+                                                    {selectedJob.result_data?.original_filename || t('processedVideoFallback')}
                                                 </h4>
                                                 <div className="flex flex-wrap gap-4 text-sm text-[var(--muted)] mb-6">
                                                     <span className="flex items-center gap-1.5">

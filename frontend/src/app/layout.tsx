@@ -9,8 +9,8 @@ import CookieConsent from "@/components/CookieConsent"
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Video Pro",
-  description: "AI Video Processing",
+  title: "Greek Sub Publisher",
+  description: "AI subtitle workflow for Greek video",
 };
 
 export default function RootLayout({

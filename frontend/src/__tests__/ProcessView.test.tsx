@@ -104,7 +104,7 @@ describe('ProcessView', () => {
         render(<ProcessView {...defaultProps} selectedFile={file} />);
 
         await waitFor(() => {
-            expect(screen.getByText(/Not 9:16/i)).toBeInTheDocument();
+            expect(screen.getByText('aspectRatioWarning')).toBeInTheDocument();
         });
     });
 
@@ -137,7 +137,7 @@ describe('ProcessView', () => {
         await waitFor(() => expect(screen.getByText('test.mp4')).toBeInTheDocument());
 
         // Turbo (Enhanced) is selected by default
-        expect(screen.getByText('Enhanced')).toBeInTheDocument();
+        expect(screen.getByText('modelEnhancedName')).toBeInTheDocument();
         // It's the default, so we don't need to click it. 
         // If we wanted to, we'd need to expand first:
         // fireEvent.click(screen.getByTestId('model-selector-collapsed'));
@@ -174,14 +174,14 @@ describe('ProcessView', () => {
         await waitFor(() => expect(screen.getByText('test.mp4')).toBeInTheDocument());
 
         // Settings should be visible by default - check for a known label in settings
-        expect(screen.getByText('Transcription Model')).toBeInTheDocument();
+        expect(screen.getByText('transcriptionModelLabel')).toBeInTheDocument();
 
         // Click to collapse settings
         const settingsHeader = screen.getByText('controlsTitle');
         fireEvent.click(settingsHeader);
 
         // Settings should now be hidden
-        expect(screen.queryByText('Transcription Model')).not.toBeInTheDocument();
+        expect(screen.queryByText('transcriptionModelLabel')).not.toBeInTheDocument();
     });
 
     // ... existing model display tests ...
@@ -197,7 +197,7 @@ describe('ProcessView', () => {
 
             // Initially Experimenting section content should be hidden (collapsed)
             // But the header "Experimenting" is always visible to click
-            const expHeader = screen.getByText('Experimenting');
+            const expHeader = screen.getByText('experimentingLabel');
             expect(expHeader).toBeInTheDocument();
 
             // ChatGPT button should NOT be visible yet
@@ -208,7 +208,7 @@ describe('ProcessView', () => {
 
             // Now ChatGPT option should be visible
             expect(screen.getByTestId('model-chatgpt')).toBeInTheDocument();
-            expect(screen.getByText('ChatGPT API')).toBeInTheDocument();
+            expect(screen.getByText('modelChatgptName')).toBeInTheDocument();
         });
 
         // ... existing experimental provider tests, but need to open toggle first ...
@@ -244,13 +244,11 @@ describe('ProcessView', () => {
 
         await waitFor(() => expect(screen.getByText('test.mp4')).toBeInTheDocument());
 
-        await waitFor(() => expect(screen.getByText('test.mp4')).toBeInTheDocument());
-
         // Expand custom settings
-        fireEvent.click(screen.getByText('Customize subtitle settings'));
+        fireEvent.click(screen.getByText('customizeShow'));
 
         // Select 'Green' color
-        const greenBtn = screen.getByLabelText('Select Green color');
+        const greenBtn = screen.getByLabelText('Select colorGreen color');
         fireEvent.click(greenBtn);
 
         // Start processing
@@ -272,7 +270,7 @@ describe('ProcessView', () => {
         await waitFor(() => expect(screen.getByText('test.mp4')).toBeInTheDocument());
 
         // Open experiments
-        fireEvent.click(screen.getByText('Experimenting'));
+        fireEvent.click(screen.getByText('experimentingLabel'));
 
         // Click ChatGPT model button
         const chatgptBtn = screen.getByTestId('model-chatgpt');
@@ -338,14 +336,14 @@ describe('ProcessView', () => {
         await waitFor(() => expect(screen.getByText('test.mp4')).toBeInTheDocument());
 
         // Settings should be visible by default - check for a known label in settings
-        expect(screen.getByText('Transcription Model')).toBeInTheDocument();
+        expect(screen.getByText('transcriptionModelLabel')).toBeInTheDocument();
 
         // Click to collapse settings
         const settingsHeader = screen.getByText('controlsTitle');
         fireEvent.click(settingsHeader);
 
         // Settings should now be hidden
-        expect(screen.queryByText('Transcription Model')).not.toBeInTheDocument();
+        expect(screen.queryByText('transcriptionModelLabel')).not.toBeInTheDocument();
     });
 
     it('should display OpenAI model info', () => {
@@ -399,9 +397,9 @@ describe('ProcessView', () => {
 
         render(<ProcessView {...defaultProps} selectedJob={completedJob} />);
 
-        const downloadBtn = screen.getByText(/Download HD/i).closest('button');
+        const downloadBtn = screen.getByRole('button', { name: /downloadHd/i });
         await act(async () => {
-            fireEvent.click(downloadBtn!);
+            fireEvent.click(downloadBtn);
         });
 
         expect(global.fetch).toHaveBeenCalledWith('http://test.com/video.mp4');
@@ -419,9 +417,9 @@ describe('ProcessView', () => {
 
         render(<ProcessView {...defaultProps} selectedJob={completedJob} />);
 
-        const downloadBtn = screen.getByText(/Download HD/i).closest('button');
+        const downloadBtn = screen.getByRole('button', { name: /downloadHd/i });
         await act(async () => {
-            fireEvent.click(downloadBtn!);
+            fireEvent.click(downloadBtn);
         });
 
         expect(openSpy).toHaveBeenCalledWith('http://test.com/video.mp4', '_blank');
@@ -788,8 +786,8 @@ describe('ProcessView', () => {
 
             // Should show Standard option in main list
             expect(screen.getByTestId('model-whispercpp')).toBeInTheDocument();
-            expect(screen.getByText('Standard')).toBeInTheDocument();
-            expect(screen.getByText('No Karaoke')).toBeInTheDocument();
+            expect(screen.getByText('modelStandardName')).toBeInTheDocument();
+            expect(screen.getByText('modelStandardBadge')).toBeInTheDocument();
 
             // Stats check
             // Stats check
@@ -804,15 +802,15 @@ describe('ProcessView', () => {
             await waitFor(() => expect(screen.getByText('test.mp4')).toBeInTheDocument());
 
             // Should show Experimenting section
-            expect(screen.getByText('Experimenting')).toBeInTheDocument();
-            expect(screen.getByText('BETA')).toBeInTheDocument();
+            expect(screen.getByText('experimentingLabel')).toBeInTheDocument();
+            expect(screen.getByText('betaBadge')).toBeInTheDocument();
 
             // Toggle experiments open
-            fireEvent.click(screen.getByText('Experimenting'));
+            fireEvent.click(screen.getByText('experimentingLabel'));
 
             // Should show ChatGPT option
             expect(screen.getByTestId('model-chatgpt')).toBeInTheDocument();
-            expect(screen.getByText('ChatGPT API')).toBeInTheDocument();
+            expect(screen.getByText('modelChatgptName')).toBeInTheDocument();
         });
 
         it('should allow Ultimate (Groq) model selection', async () => {
@@ -923,7 +921,7 @@ describe('ProcessView', () => {
 
         render(<ProcessView {...defaultProps} selectedJob={job} onJobSelect={onJobSelect} />);
 
-        const exportBtn = screen.getByText(/Export 4K/i);
+        const exportBtn = screen.getByRole('button', { name: /export4k/i });
         await act(async () => {
             fireEvent.click(exportBtn);
         });
@@ -944,7 +942,7 @@ describe('ProcessView', () => {
 
         render(<ProcessView {...defaultProps} selectedJob={job} />);
 
-        const downloadBtn = screen.getByText(/Download 4K/i);
+        const downloadBtn = screen.getByRole('button', { name: /download4k/i });
 
         await act(async () => {
             fireEvent.click(downloadBtn);
