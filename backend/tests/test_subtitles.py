@@ -499,7 +499,7 @@ def test_subtitle_position_logic(tmp_path):
     assert ",614,0" in ass_top.read_text("utf-8")
 
     # Bottom: MarginV=120
-    ass_bottom = subtitles.create_styled_subtitle_file(srt, subtitle_position="bottom")
+    ass_bottom = subtitles.create_styled_subtitle_file(srt, subtitle_position=6)
     assert ",120,0" in ass_bottom.read_text("utf-8")
 
 

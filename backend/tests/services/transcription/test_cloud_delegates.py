@@ -5,6 +5,7 @@ from backend.app.services.transcription.openai_cloud import OpenAITranscriber
 
 
 def test_groq_transcriber_delegates(tmp_path):
+    (tmp_path / "in.wav").touch()
     # Mock the response from client.audio.transcriptions.create
     mock_transcript = MagicMock()
     # Ensure it has 'segments', 'words', etc if needed, or at least doesn't crash
@@ -33,6 +34,7 @@ def test_groq_transcriber_delegates(tmp_path):
         )
 
 def test_openai_transcriber_delegates(tmp_path):
+    (tmp_path / "in.wav").touch()
     mock_transcript = MagicMock()
     mock_transcript.segments = []
 
