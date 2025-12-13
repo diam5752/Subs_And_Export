@@ -218,7 +218,7 @@ class GoogleCallback(BaseModel):
     code: str
     state: str
 
-@router.post("/google/callback", response_model=Token)
+@router.post("/google/callback", response_model=Token, dependencies=[Depends(limiter_login)])
 def google_oauth_callback(
     callback: GoogleCallback,
     user_store: UserStore = Depends(get_user_store),
