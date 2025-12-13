@@ -5,7 +5,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
 
 from ...core.auth import SessionStore, User, UserStore
-from ...core.ratelimit import limiter_login
+from ...core.ratelimit import limiter_login, limiter_register
 from ...services.history import HistoryStore
 from ...services.jobs import JobStore
 from ..deps import get_current_user, get_history_store, get_job_store, get_session_store, get_user_store
@@ -29,7 +29,7 @@ class UserResponse(BaseModel):
     name: str
     provider: str
 
-@router.post("/register", response_model=UserResponse)
+@router.post("/register", response_model=UserResponse, dependencies=[Depends(limiter_register)])
 def register(
     user_in: UserCreate,
     user_store: UserStore = Depends(get_user_store)

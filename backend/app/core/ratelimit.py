@@ -33,3 +33,6 @@ class RateLimiter:
 
 # 5 login attempts per minute per IP
 limiter_login = RateLimiter(limit=5, window=60)
+
+# 3 registration attempts per minute per IP to prevent spam
+limiter_register = RateLimiter(limit=3, window=60)
