@@ -56,12 +56,6 @@ class ViralMetadata:
     hashtags: List[str]
 
 
-@dataclass
-class MediaInfo:
-    duration: float
-    audio_codec: str | None
-
-
 def _normalize_text(text: str) -> str:
     """
     Uppercase + strip accents for consistent, bold subtitle styling.
@@ -132,34 +126,6 @@ def get_video_duration(path: Path) -> float:
     ]
     result = subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     return float(result.stdout.strip())
-
-
-def get_media_info(path: Path) -> MediaInfo:
-    """
-    Get duration and audio codec of a media file using ffprobe.
-    """
-    cmd = [
-        "ffprobe",
-        "-v",
-        "error",
-        "-of",
-        "json",
-        "-show_format",
-        "-show_streams",
-        str(path),
-    ]
-    result = subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    data = json.loads(result.stdout)
-
-    duration = float(data.get("format", {}).get("duration", 0.0))
-    audio_codec = None
-
-    for stream in data.get("streams", []):
-        if stream.get("codec_type") == "audio":
-            audio_codec = stream.get("codec_name")
-            break
-
-    return MediaInfo(duration=duration, audio_codec=audio_codec)
 
 
 

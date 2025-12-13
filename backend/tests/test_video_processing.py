@@ -65,14 +65,15 @@ def test_normalize_and_stub_subtitles_runs_pipeline(monkeypatch, tmp_path: Path)
         )
         output_path.write_bytes(b"video")
 
-    def fake_get_media_info(path: Path):
-        return video_processing.subtitles.MediaInfo(10.0, None)
+    def fake_get_duration(path: Path) -> float:
+        return 10.0
 
     class FakeTranscriber:
         def __init__(self, *args, **kwargs): pass
         def transcribe(self, audio_path, output_dir, **kwargs):
             kwargs["output_dir"] = output_dir
             return fake_generate(audio_path, **kwargs)
+
     monkeypatch.setattr(video_processing.subtitles, "extract_audio", fake_extract)
     monkeypatch.setattr(video_processing, "LocalWhisperTranscriber", FakeTranscriber)
     monkeypatch.setattr(video_processing, "GroqTranscriber", FakeTranscriber)
@@ -82,8 +83,8 @@ def test_normalize_and_stub_subtitles_runs_pipeline(monkeypatch, tmp_path: Path)
         video_processing.subtitles, "create_styled_subtitle_file", fake_style
     )
     monkeypatch.setattr(video_processing, "_run_ffmpeg_with_subs", fake_burn)
-    monkeypatch.setattr(video_processing.subtitles, "get_media_info", fake_get_media_info)
-
+    monkeypatch.setattr(video_processing.subtitles, "get_video_duration", fake_get_duration)
+    monkeypatch.setattr(video_processing, "_input_audio_is_aac", lambda _p: False)
 
     source = tmp_path / "source.mp4"
     source.write_bytes(b"video")
@@ -156,6 +157,7 @@ def test_normalize_and_stub_subtitles_removes_temporary_directory(
         def transcribe(self, audio_path, output_dir, **kwargs):
             kwargs["output_dir"] = output_dir
             return fake_generate(audio_path, **kwargs)
+
     monkeypatch.setattr(video_processing.tempfile, "TemporaryDirectory", FakeTemporaryDirectory)
     monkeypatch.setattr(video_processing.subtitles, "extract_audio", fake_extract)
     monkeypatch.setattr(video_processing, "LocalWhisperTranscriber", FakeTranscriber)
@@ -164,8 +166,8 @@ def test_normalize_and_stub_subtitles_removes_temporary_directory(
     monkeypatch.setattr(video_processing, "StandardTranscriber", FakeTranscriber)
     monkeypatch.setattr(video_processing.subtitles, "create_styled_subtitle_file", fake_style)
     monkeypatch.setattr(video_processing, "_run_ffmpeg_with_subs", fake_burn)
-    monkeypatch.setattr(video_processing.subtitles, "get_media_info", lambda p: video_processing.subtitles.MediaInfo(10.0, None))
-
+    monkeypatch.setattr(video_processing.subtitles, "get_video_duration", lambda p: 10.0)
+    monkeypatch.setattr(video_processing, "_input_audio_is_aac", lambda _p: False)
 
     source = tmp_path / "source.mp4"
     source.write_bytes(b"video")
@@ -213,6 +215,7 @@ def test_normalize_and_stub_subtitles_can_return_social_copy(monkeypatch, tmp_pa
         def transcribe(self, audio_path, output_dir, **kwargs):
             kwargs["output_dir"] = output_dir
             return fake_generate(audio_path, **kwargs)
+
     monkeypatch.setattr(video_processing.subtitles, "extract_audio", fake_extract)
     monkeypatch.setattr(video_processing, "LocalWhisperTranscriber", FakeTranscriber)
     monkeypatch.setattr(video_processing, "GroqTranscriber", FakeTranscriber)
@@ -220,8 +223,8 @@ def test_normalize_and_stub_subtitles_can_return_social_copy(monkeypatch, tmp_pa
     monkeypatch.setattr(video_processing, "StandardTranscriber", FakeTranscriber)
     monkeypatch.setattr(video_processing.subtitles, "create_styled_subtitle_file", fake_style)
     monkeypatch.setattr(video_processing, "_run_ffmpeg_with_subs", fake_burn)
-    monkeypatch.setattr(video_processing.subtitles, "get_media_info", lambda p: video_processing.subtitles.MediaInfo(10.0, None))
-
+    monkeypatch.setattr(video_processing.subtitles, "get_video_duration", lambda p: 10.0)
+    monkeypatch.setattr(video_processing, "_input_audio_is_aac", lambda _p: False)
 
     source = tmp_path / "source.mp4"
     source.write_bytes(b"video")
@@ -270,6 +273,7 @@ def test_normalize_and_stub_subtitles_persists_artifacts(monkeypatch, tmp_path: 
         def transcribe(self, audio_path, output_dir, **kwargs):
             kwargs["output_dir"] = output_dir
             return fake_generate(audio_path, **kwargs)
+
     monkeypatch.setattr(video_processing.subtitles, "extract_audio", fake_extract)
     monkeypatch.setattr(video_processing, "LocalWhisperTranscriber", FakeTranscriber)
     monkeypatch.setattr(video_processing, "GroqTranscriber", FakeTranscriber)
@@ -277,8 +281,8 @@ def test_normalize_and_stub_subtitles_persists_artifacts(monkeypatch, tmp_path: 
     monkeypatch.setattr(video_processing, "StandardTranscriber", FakeTranscriber)
     monkeypatch.setattr(video_processing.subtitles, "create_styled_subtitle_file", fake_style)
     monkeypatch.setattr(video_processing, "_run_ffmpeg_with_subs", fake_burn)
-    monkeypatch.setattr(video_processing.subtitles, "get_media_info", lambda p: video_processing.subtitles.MediaInfo(10.0, None))
-
+    monkeypatch.setattr(video_processing.subtitles, "get_video_duration", lambda p: 10.0)
+    monkeypatch.setattr(video_processing, "_input_audio_is_aac", lambda _p: False)
 
     source = tmp_path / "source.mp4"
     source.write_bytes(b"video")
@@ -344,6 +348,7 @@ def test_normalize_and_stub_subtitles_can_use_llm_social_copy(monkeypatch, tmp_p
         def transcribe(self, audio_path, output_dir, **kwargs):
             kwargs["output_dir"] = output_dir
             return fake_generate(audio_path, **kwargs)
+
     monkeypatch.setattr(video_processing.subtitles, "extract_audio", fake_extract)
     monkeypatch.setattr(video_processing, "LocalWhisperTranscriber", FakeTranscriber)
     monkeypatch.setattr(video_processing, "GroqTranscriber", FakeTranscriber)
@@ -352,8 +357,8 @@ def test_normalize_and_stub_subtitles_can_use_llm_social_copy(monkeypatch, tmp_p
     monkeypatch.setattr(video_processing.subtitles, "create_styled_subtitle_file", fake_style)
     monkeypatch.setattr(video_processing, "_run_ffmpeg_with_subs", fake_burn)
     monkeypatch.setattr(video_processing.subtitles, "build_social_copy_llm", fake_social_copy_llm)
-    monkeypatch.setattr(video_processing.subtitles, "get_media_info", lambda p: video_processing.subtitles.MediaInfo(10.0, None))
-
+    monkeypatch.setattr(video_processing.subtitles, "get_video_duration", lambda p: 10.0)
+    monkeypatch.setattr(video_processing, "_input_audio_is_aac", lambda _p: False)
 
     source = tmp_path / "source.mp4"
     source.write_bytes(b"video")
@@ -373,6 +378,7 @@ def test_normalize_and_stub_subtitles_can_use_llm_social_copy(monkeypatch, tmp_p
 
 def test_pipeline_logs_metrics(monkeypatch, tmp_path: Path) -> None:
     logged: dict = {}
+
     monkeypatch.setattr(video_processing.metrics, "should_log_metrics", lambda: True)
     monkeypatch.setattr(video_processing.metrics, "log_pipeline_metrics", lambda event: logged.update(event))
 
@@ -408,6 +414,7 @@ def test_pipeline_logs_metrics(monkeypatch, tmp_path: Path) -> None:
             # adapt arguments
             kwargs["output_dir"] = output_dir
             return fake_generate(audio_path, **kwargs)
+
     monkeypatch.setattr(video_processing.subtitles, "extract_audio", fake_extract)
     monkeypatch.setattr(video_processing, "LocalWhisperTranscriber", FakeTranscriber)
     monkeypatch.setattr(video_processing, "GroqTranscriber", FakeTranscriber)
@@ -415,8 +422,8 @@ def test_pipeline_logs_metrics(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(video_processing, "StandardTranscriber", FakeTranscriber)
     monkeypatch.setattr(video_processing.subtitles, "create_styled_subtitle_file", fake_style)
     monkeypatch.setattr(video_processing, "_run_ffmpeg_with_subs", fake_burn)
-    monkeypatch.setattr(video_processing.subtitles, "get_media_info", lambda p: video_processing.subtitles.MediaInfo(10.0, None))
-
+    monkeypatch.setattr(video_processing.subtitles, "get_video_duration", lambda p: 10.0)
+    monkeypatch.setattr(video_processing, "_input_audio_is_aac", lambda _p: False)
 
     source = tmp_path / "source.mp4"
     source.write_bytes(b"video")
@@ -438,6 +445,7 @@ def test_pipeline_logs_metrics(monkeypatch, tmp_path: Path) -> None:
 
 def test_pipeline_logs_error_when_output_missing(monkeypatch, tmp_path: Path) -> None:
     logged: dict = {}
+
     monkeypatch.setattr(video_processing.metrics, "should_log_metrics", lambda: True)
     monkeypatch.setattr(video_processing.metrics, "log_pipeline_metrics", lambda event: logged.update(event))
 
@@ -476,6 +484,7 @@ def test_pipeline_logs_error_when_output_missing(monkeypatch, tmp_path: Path) ->
             # adapt arguments
             kwargs["output_dir"] = output_dir
             return fake_generate(audio_path, **kwargs)
+
     monkeypatch.setattr(video_processing.subtitles, "extract_audio", fake_extract)
     monkeypatch.setattr(video_processing, "LocalWhisperTranscriber", FakeTranscriber)
     monkeypatch.setattr(video_processing, "GroqTranscriber", FakeTranscriber)
@@ -483,8 +492,8 @@ def test_pipeline_logs_error_when_output_missing(monkeypatch, tmp_path: Path) ->
     monkeypatch.setattr(video_processing, "StandardTranscriber", FakeTranscriber)
     monkeypatch.setattr(video_processing.subtitles, "create_styled_subtitle_file", fake_style)
     monkeypatch.setattr(video_processing, "_run_ffmpeg_with_subs", fake_burn)
-    monkeypatch.setattr(video_processing.subtitles, "get_media_info", lambda p: video_processing.subtitles.MediaInfo(10.0, None))
-
+    monkeypatch.setattr(video_processing.subtitles, "get_video_duration", lambda p: 10.0)
+    monkeypatch.setattr(video_processing, "_input_audio_is_aac", lambda _p: False)
 
     source = tmp_path / "source.mp4"
     source.write_bytes(b"video")
@@ -497,6 +506,20 @@ def test_pipeline_logs_error_when_output_missing(monkeypatch, tmp_path: Path) ->
             language="el",
             model_size="tiny",
         )
+
+
+def test_input_audio_is_aac(monkeypatch):
+    class Result:
+        stdout = "aac\n"
+
+    monkeypatch.setattr(video_processing.subprocess, "run", lambda *a, **k: Result())
+    assert video_processing._input_audio_is_aac(Path("any.mp4")) is True
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("probe fail")
+
+    monkeypatch.setattr(video_processing.subprocess, "run", boom)
+    assert video_processing._input_audio_is_aac(Path("any.mp4")) is False
 
 
 def test_run_ffmpeg_with_subs_parses_progress(monkeypatch, tmp_path: Path):
@@ -517,6 +540,7 @@ def test_run_ffmpeg_with_subs_parses_progress(monkeypatch, tmp_path: Path):
 
         def wait(self):
             return 0
+
     monkeypatch.setattr(video_processing.subprocess, "Popen", lambda *a, **k: DummyProc())
     progress = []
 
@@ -551,6 +575,7 @@ def test_run_ffmpeg_with_subs_uses_hw_accel(monkeypatch, tmp_path: Path):
 
         def wait(self):
             return 0
+
     monkeypatch.setattr(video_processing.platform, "system", lambda: "Darwin")
     monkeypatch.setattr(video_processing.subprocess, "Popen", lambda *a, **k: DummyProc())
 
@@ -597,6 +622,7 @@ def test_pipeline_retries_without_hw_accel(monkeypatch, tmp_path: Path):
         def transcribe(self, audio_path, output_dir, **kwargs):
             kwargs["output_dir"] = output_dir
             return fake_generate(audio_path, **kwargs)
+
     monkeypatch.setattr(video_processing.subtitles, "extract_audio", fake_extract)
     monkeypatch.setattr(video_processing, "LocalWhisperTranscriber", FakeTranscriber)
     monkeypatch.setattr(video_processing, "GroqTranscriber", FakeTranscriber)
@@ -604,8 +630,8 @@ def test_pipeline_retries_without_hw_accel(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(video_processing, "StandardTranscriber", FakeTranscriber)
     monkeypatch.setattr(video_processing.subtitles, "create_styled_subtitle_file", fake_style)
     monkeypatch.setattr(video_processing, "_run_ffmpeg_with_subs", fake_burn)
-    monkeypatch.setattr(video_processing.subtitles, "get_media_info", lambda p: video_processing.subtitles.MediaInfo(0.0, None))
-
+    monkeypatch.setattr(video_processing.subtitles, "get_video_duration", lambda p: 0.0)
+    monkeypatch.setattr(video_processing, "_input_audio_is_aac", lambda _p: False)
 
     source = tmp_path / "source.mp4"
     source.write_bytes(b"video")
@@ -653,17 +679,18 @@ def test_normalize_handles_duration_failure(monkeypatch, tmp_path: Path):
         def transcribe(self, audio_path, output_dir, **kwargs):
             kwargs["output_dir"] = output_dir
             return fake_generate(audio_path, **kwargs)
+
     monkeypatch.setattr(video_processing.subtitles, "extract_audio", fake_extract)
     monkeypatch.setattr(video_processing, "LocalWhisperTranscriber", FakeTranscriber)
     monkeypatch.setattr(video_processing, "GroqTranscriber", FakeTranscriber)
     monkeypatch.setattr(video_processing, "OpenAITranscriber", FakeTranscriber)
     monkeypatch.setattr(video_processing, "StandardTranscriber", FakeTranscriber)
     monkeypatch.setattr(video_processing.subtitles, "create_styled_subtitle_file", fake_style)
-    monkeypatch.setattr(video_processing.subtitles, "get_media_info", lambda p: (_ for _ in ()).throw(RuntimeError("fail")))
+    monkeypatch.setattr(video_processing.subtitles, "get_video_duration", lambda p: (_ for _ in ()).throw(RuntimeError("fail")))
     def fake_burn(input_path: Path, ass_path: Path, output_path: Path, **kwargs):
         output_path.write_bytes(b"video")
     monkeypatch.setattr(video_processing, "_run_ffmpeg_with_subs", fake_burn)
-
+    monkeypatch.setattr(video_processing, "_input_audio_is_aac", lambda _p: False)
 
     src = tmp_path / "src.mp4"
     src.write_bytes(b"video")
@@ -704,6 +731,7 @@ def test_normalize_with_large_model_progress(monkeypatch, tmp_path: Path):
         def transcribe(self, audio_path, output_dir, **kwargs):
             kwargs["output_dir"] = output_dir
             return fake_generate(audio_path, **kwargs)
+
     monkeypatch.setattr(video_processing.subtitles, "extract_audio", fake_extract)
     monkeypatch.setattr(video_processing, "LocalWhisperTranscriber", FakeTranscriber)
     monkeypatch.setattr(video_processing, "GroqTranscriber", FakeTranscriber)
@@ -711,8 +739,8 @@ def test_normalize_with_large_model_progress(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(video_processing, "StandardTranscriber", FakeTranscriber)
     monkeypatch.setattr(video_processing.subtitles, "create_styled_subtitle_file", fake_style)
     monkeypatch.setattr(video_processing, "_run_ffmpeg_with_subs", fake_burn)
-    monkeypatch.setattr(video_processing.subtitles, "get_media_info", lambda p: video_processing.subtitles.MediaInfo(8.0, None))
-
+    monkeypatch.setattr(video_processing.subtitles, "get_video_duration", lambda p: 8.0)
+    monkeypatch.setattr(video_processing, "_input_audio_is_aac", lambda _p: False)
 
     src = tmp_path / "src.mp4"
     src.write_bytes(b"video")
@@ -744,6 +772,7 @@ def test_run_ffmpeg_with_subs_raises_on_failure(monkeypatch, tmp_path: Path):
 
         def wait(self):
             return 1
+
     monkeypatch.setattr(video_processing.subprocess, "Popen", lambda *a, **k: DummyProc())
 
     with pytest.raises(subprocess.CalledProcessError):
@@ -785,6 +814,7 @@ def test_normalize_applies_turbo_defaults(monkeypatch, tmp_path: Path):
         def transcribe(self, audio_path, output_dir, **kwargs):
             kwargs["output_dir"] = output_dir
             return fake_generate(audio_path, **kwargs)
+
     monkeypatch.setattr(video_processing.subtitles, "extract_audio", fake_extract)
     monkeypatch.setattr(video_processing, "LocalWhisperTranscriber", FakeTranscriber)
     monkeypatch.setattr(video_processing, "GroqTranscriber", FakeTranscriber)
@@ -792,8 +822,8 @@ def test_normalize_applies_turbo_defaults(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(video_processing, "StandardTranscriber", FakeTranscriber)
     monkeypatch.setattr(video_processing.subtitles, "create_styled_subtitle_file", fake_style)
     monkeypatch.setattr(video_processing, "_run_ffmpeg_with_subs", fake_burn)
-    monkeypatch.setattr(video_processing.subtitles, "get_media_info", lambda p: video_processing.subtitles.MediaInfo(0.0, "aac"))
-
+    monkeypatch.setattr(video_processing.subtitles, "get_video_duration", lambda p: 0.0)
+    monkeypatch.setattr(video_processing, "_input_audio_is_aac", lambda _p: True)
 
     src = tmp_path / "src.mp4"
     src.write_bytes(b"video")
@@ -844,6 +874,7 @@ def test_social_copy_falls_back_if_none(monkeypatch, tmp_path: Path) -> None:
         def transcribe(self, audio_path, output_dir, **kwargs):
             kwargs["output_dir"] = output_dir
             return fake_generate(audio_path, **kwargs)
+
     monkeypatch.setattr(video_processing.subtitles, "extract_audio", fake_extract)
     monkeypatch.setattr(video_processing, "LocalWhisperTranscriber", FakeTranscriber)
     monkeypatch.setattr(video_processing, "GroqTranscriber", FakeTranscriber)
@@ -857,8 +888,8 @@ def test_social_copy_falls_back_if_none(monkeypatch, tmp_path: Path) -> None:
         youtube_shorts=video_processing.subtitles.PlatformCopy("Fallback YT", "desc"),
         instagram=video_processing.subtitles.PlatformCopy("Fallback IG", "desc"),
     ))
-    monkeypatch.setattr(video_processing.subtitles, "get_media_info", lambda p: video_processing.subtitles.MediaInfo(10.0, None))
-
+    monkeypatch.setattr(video_processing.subtitles, "get_video_duration", lambda p: 10.0)
+    monkeypatch.setattr(video_processing, "_input_audio_is_aac", lambda _p: False)
 
     source = tmp_path / "source.mp4"
     source.write_bytes(b"video")
@@ -909,12 +940,13 @@ def test_hw_accel_retry_falls_back(monkeypatch, tmp_path: Path) -> None:
         if use_hw_accel:
             raise subprocess.CalledProcessError(1, ["ffmpeg"])
         output_path.write_bytes(b"video")
+
     monkeypatch.setattr(video_processing.subtitles, "extract_audio", fake_extract)
     monkeypatch.setattr(video_processing.subtitles, "generate_subtitles_from_audio", fake_generate)
     monkeypatch.setattr(video_processing.subtitles, "create_styled_subtitle_file", fake_style)
     monkeypatch.setattr(video_processing, "_run_ffmpeg_with_subs", fake_burn)
-    monkeypatch.setattr(video_processing.subtitles, "get_media_info", lambda p: video_processing.subtitles.MediaInfo(10.0, None))
-
+    monkeypatch.setattr(video_processing.subtitles, "get_video_duration", lambda p: 10.0)
+    monkeypatch.setattr(video_processing, "_input_audio_is_aac", lambda _p: False)
 
     source = tmp_path / "source.mp4"
     source.write_bytes(b"video")
@@ -986,6 +1018,7 @@ def test_generate_video_variant_success(monkeypatch, tmp_path):
             kwargs["output_path"] = args[2]
         calls_burn.append(kwargs)
         kwargs["output_path"].touch()
+
     monkeypatch.setattr(video_processing.subtitles, "create_styled_subtitle_file", fake_style)
     monkeypatch.setattr(video_processing, "_run_ffmpeg_with_subs", fake_burn)
 
@@ -1048,6 +1081,7 @@ def test_generate_video_variant_resolution_bad_string(monkeypatch, tmp_path):
 
     mock_store = MagicMock()
     mock_store.get_job.return_value = MagicMock(user_id="u", result_data={})
+
     monkeypatch.setattr(video_processing.subtitles, "create_styled_subtitle_file", lambda *a, **k: artifact_dir/"vid.ass")
     monkeypatch.setattr(video_processing, "_run_ffmpeg_with_subs", lambda *a, **k: (k.get("output_path") or a[2]).touch())
 
@@ -1065,6 +1099,7 @@ def test_generate_video_variant_glob_srt(monkeypatch, tmp_path):
 
     mock_store = MagicMock()
     mock_store.get_job.return_value = MagicMock(user_id="u", result_data={})
+
     monkeypatch.setattr(video_processing.subtitles, "create_styled_subtitle_file", lambda *a, **k: artifact_dir/"vid.ass")
     monkeypatch.setattr(video_processing, "_run_ffmpeg_with_subs", lambda *a, **k: (k.get("output_path") or a[2]).touch())
 
