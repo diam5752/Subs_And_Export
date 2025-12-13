@@ -589,6 +589,7 @@ def generate_subtitles_from_audio(
         "vad_threshold": 0.35,
         # "min_silence_duration_ms": 500, # ERROR: Not a valid arg for transcribe()
         "condition_on_previous_text": condition_on_previous_text,
+        "verbose": False,  # Suppress internal progress bars to avoid log spam
     }
     # Pass additional params if supported by wrapper or filter valid ones
     # High quality defaults for Greek if not specified
