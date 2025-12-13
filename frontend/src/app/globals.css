@@ -238,10 +238,7 @@ a,
   transition: width 0.3s;
 }
 
-/* Subtitle position preview glow */
-.subtitle-preview-bar {
-  box-shadow: 0 0 8px rgba(141, 247, 223, 0.5), 0 2px 4px rgba(0, 0, 0, 0.3);
-}
+
 
 /* Cinematic vignette overlay */
 .vignette-overlay {

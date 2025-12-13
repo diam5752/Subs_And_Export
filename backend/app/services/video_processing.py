@@ -294,6 +294,8 @@ def normalize_and_stub_subtitles(
             scratch = Path(scratch_dir)
             scratch.mkdir(parents=True, exist_ok=True)
 
+            if check_cancelled: check_cancelled()
+
             # Duration Check
             try:
                 total_duration = subtitles.get_video_duration(input_path)
@@ -302,11 +304,13 @@ def normalize_and_stub_subtitles(
 
             # Step 1: Extract Audio
             if progress_callback: progress_callback("Extracting audio...", 0.0)
+            if check_cancelled: check_cancelled()
             with metrics.measure_time(pipeline_timings, "extract_audio_s"):
                 audio_path = subtitles.extract_audio(input_path, output_dir=scratch)
 
             # Step 2: Transcribe
             if progress_callback: progress_callback("Transcribing audio...", 5.0)
+            if check_cancelled: check_cancelled()
             with metrics.measure_time(pipeline_timings, "transcribe_s"):
                 # Note: Our new interface returns List[Cue]. Code generation requires SRT/ASS paths too.
                 # The existing 'generate_subtitles_from_audio' does EVERYTHING (SRT gen + Cues).

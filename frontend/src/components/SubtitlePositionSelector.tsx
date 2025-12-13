@@ -1,4 +1,5 @@
 import React, { useCallback } from 'react';
+import { useI18n } from '@/context/I18nContext';
 
 export interface SubtitlePositionSelectorProps {
     value: string;
@@ -32,6 +33,7 @@ export function SubtitlePositionSelector({
     onChangeKaraoke,
     karaokeSupported = false
 }: SubtitlePositionSelectorProps & { subtitleColor?: string, onChangeColor?: (color: string) => void, colors?: Array<{ label: string; value: string; ass: string }> }) {
+    const { t } = useI18n();
     // Map position to CSS 'bottom' percentage for the preview
     // These are visual approximations to match the backend logic
     // Middle (default) ~= 16%
@@ -55,9 +57,9 @@ export function SubtitlePositionSelector({
     };
 
     const options = [
-        { id: 'top', label: 'High', desc: 'Higher positioning' },
-        { id: 'default', label: 'Middle', desc: 'Social Standard' },
-        { id: 'bottom', label: 'Low', desc: 'Cinematic style' },
+        { id: 'top', label: t('positionHigh'), desc: t('positionHighDesc') },
+        { id: 'default', label: t('positionMiddle'), desc: t('positionMiddleDesc') },
+        { id: 'bottom', label: t('positionLow'), desc: t('positionLowDesc') },
     ];
 
     const handleLineChange = useCallback((num: number) => (e: React.MouseEvent) => {
@@ -66,16 +68,16 @@ export function SubtitlePositionSelector({
     }, [onChangeLines]);
 
     const lineOptions = [
-        { value: 0, label: '1 Word at a Time', desc: 'Karaoke style' },
-        { value: 1, label: 'Single Line', desc: 'Minimalist look' },
-        { value: 2, label: 'Double Line', desc: 'Standard balance' },
-        { value: 3, label: 'Three Lines', desc: 'Maximum context' },
+        { value: 0, label: t('lines1Word'), desc: t('lines1WordDesc') },
+        { value: 1, label: t('linesSingle'), desc: t('linesSingleDesc') },
+        { value: 2, label: t('linesDouble'), desc: t('linesDoubleDesc') },
+        { value: 3, label: t('linesThree'), desc: t('linesThreeDesc') },
     ];
 
     const sizeOptions = [
-        { id: 'big', label: 'Big', desc: 'Impactful' },
-        { id: 'medium', label: 'Medium', desc: 'Standard' },
-        { id: 'small', label: 'Small', desc: 'Subtle' },
+        { id: 'big', label: t('sizeBig'), desc: t('sizeBigDesc') },
+        { id: 'medium', label: t('sizeMedium'), desc: t('sizeMediumDesc') },
+        { id: 'small', label: t('sizeSmall'), desc: t('sizeSmallDesc') },
     ];
 
     return (
@@ -88,7 +90,7 @@ export function SubtitlePositionSelector({
                         {/* Position Selector */}
                         <div className="flex-1 min-w-[200px]">
                             <label className="block text-sm font-medium text-[var(--muted)] mb-3">
-                                Position
+                                {t('positionLabel')}
                             </label>
                             <div className="flex flex-col gap-2">
                                 {options.map((opt) => (
@@ -119,7 +121,7 @@ export function SubtitlePositionSelector({
                         {onChangeSize && (
                             <div className="flex-1 min-w-[200px]">
                                 <label className="block text-sm font-medium text-[var(--muted)] mb-3">
-                                    Size
+                                    {t('sizeLabel')}
                                 </label>
                                 <div className="flex flex-col gap-2">
                                     {sizeOptions.map((opt) => (
@@ -155,17 +157,17 @@ export function SubtitlePositionSelector({
                         {/* Lines Selector */}
                         <div className="flex-1 min-w-[200px]">
                             <label className="block text-sm font-medium text-[var(--muted)] mb-3">
-                                Max Lines
+                                {t('maxLinesLabel')}
                             </label>
                             {disableMaxLines ? (
                                 /* Disabled state for Standard model */
                                 <div className="p-4 rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface)]/50 h-full">
                                     <div className="flex items-center gap-2 mb-2">
                                         <span className="text-lg">🎯</span>
-                                        <span className="font-medium text-sm text-[var(--muted)]">Auto (Sync Priority)</span>
+                                        <span className="font-medium text-sm text-[var(--muted)]">{t('linesAuto')}</span>
                                     </div>
                                     <p className="text-xs text-[var(--muted)]/70">
-                                        Standard model prioritizes audio sync.
+                                        {t('linesAutoDesc')}
                                     </p>
                                 </div>
                             ) : (
@@ -199,7 +201,7 @@ export function SubtitlePositionSelector({
                         {colors && onChangeColor && (
                             <div className="flex-1">
                                 <label className="block text-sm font-medium text-[var(--muted)] mb-3">
-                                    Color
+                                    {t('colorLabel')}
                                 </label>
                                 <div className="flex items-center gap-3 p-3 rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)]">
                                     {/* Color Swatches */}
@@ -227,7 +229,7 @@ export function SubtitlePositionSelector({
                                     ))}
                                     {/* Selected label */}
                                     <span className="ml-2 text-sm text-[var(--muted)]">
-                                        {colors.find(c => c.value === subtitleColor)?.label || 'Select'}
+                                        {colors.find(c => c.value === subtitleColor)?.label || t('colorSelect')}
                                     </span>
                                 </div>
                             </div>
@@ -237,7 +239,7 @@ export function SubtitlePositionSelector({
                         {onChangeKaraoke && karaokeSupported && (
                             <div className="flex-1 min-w-[200px]">
                                 <label className="block text-sm font-medium text-[var(--muted)] mb-3">
-                                    Karaoke
+                                    {t('karaokeLabel')}
                                 </label>
                                 <button
                                     onClick={(e) => {
@@ -256,8 +258,8 @@ export function SubtitlePositionSelector({
                                             </svg>
                                         </div>
                                         <div>
-                                            <div className={`font-medium text-sm transition-colors ${karaokeEnabled ? 'text-[var(--accent)]' : ''}`}>Karaoke Mode</div>
-                                            <div className="text-xs text-[var(--muted)]/80">{karaokeEnabled ? 'Active words highlighted' : 'Standard static subtitles'}</div>
+                                            <div className={`font-medium text-sm transition-colors ${karaokeEnabled ? 'text-[var(--accent)]' : ''}`}>{t('karaokeMode')}</div>
+                                            <div className="text-xs text-[var(--muted)]/80">{karaokeEnabled ? t('karaokeActive') : t('karaokeStatic')}</div>
                                         </div>
                                     </div>
                                     {/* iOS style toggle switch */}
@@ -317,14 +319,13 @@ export function SubtitlePositionSelector({
                             {Array.from({ length: lines === 0 ? 1 : lines }).map((_, i) => (
                                 <div
                                     key={i}
-                                    className={`h-4 rounded-sm shadow-lg w-full flex items-center justify-center opacity-90 animate-in fade-in slide-in-from-bottom-2 duration-300 fill-mode-backwards ${!previewColor ? 'bg-[var(--accent)]/60' : ''}`}
+                                    className={`h-4 rounded-sm shadow-lg w-full flex items-center justify-center opacity-90 animate-in fade-in slide-in-from-bottom-2 duration-300 fill-mode-backwards ${!previewColor ? 'bg-white/80' : ''}`}
                                     style={{
                                         width: lines === 0 ? '45%' : `${90 - (i * 10)}%`, // Half width for 1-word mode, else taper
                                         transform: `scale(${getSizeScale(subtitleSize)})`,
                                         transformOrigin: 'center bottom',
                                         animationDelay: `${i * 50}ms`,
                                         backgroundColor: previewColor ? previewColor : undefined,
-                                        boxShadow: previewColor ? `0 2px 4px ${previewColor}40` : undefined
                                     }}
                                 >
                                     <div className="w-[90%] h-[3px] bg-white/80 rounded-full" />

@@ -138,6 +138,14 @@ def run_video_processing(
             # But let's just write.
             job_store.update_job(job_id, progress=int(percent), message=msg)
 
+            job_store.update_job(job_id, progress=int(percent), message=msg)
+
+        def check_cancelled():
+            """Check if job was cancelled by user."""
+            current_job = job_store.get_job(job_id)
+            if current_job and current_job.status == "cancelled":
+                raise InterruptedError("Job cancelled by user")
+
         data_dir, _, _ = _data_roots()
 
         # Map settings to internal params
@@ -174,6 +182,7 @@ def run_video_processing(
             highlight_style=settings.highlight_style,
             subtitle_size=settings.subtitle_size,
             karaoke_enabled=settings.karaoke_enabled,
+            check_cancelled=check_cancelled,
         )
         print(f"DEBUG_VIDEOS: normalize called with max_subtitle_lines={settings.max_subtitle_lines} color={settings.subtitle_color} shadow={settings.shadow_strength} style={settings.highlight_style}")
 

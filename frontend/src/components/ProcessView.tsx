@@ -112,19 +112,19 @@ export function ProcessView({
 
     // Color Palette
     const SUBTITLE_COLORS = [
-        { label: 'Yellow', value: '#FFFF00', ass: '&H0000FFFF' },
-        { label: 'White', value: '#FFFFFF', ass: '&H00FFFFFF' },
-        { label: 'Cyan', value: '#00FFFF', ass: '&H00FFFF00' },
-        { label: 'Green', value: '#00FF00', ass: '&H0000FF00' },
-        { label: 'Magenta', value: '#FF00FF', ass: '&H00FF00FF' },
+        { label: t('colorYellow'), value: '#FFFF00', ass: '&H0000FFFF' },
+        { label: t('colorWhite'), value: '#FFFFFF', ass: '&H00FFFFFF' },
+        { label: t('colorCyan'), value: '#00FFFF', ass: '&H00FFFF00' },
+        { label: t('colorGreen'), value: '#00FF00', ass: '&H0000FF00' },
+        { label: t('colorMagenta'), value: '#FF00FF', ass: '&H00FF00FF' },
     ];
 
     // Style Presets
     const STYLE_PRESETS = [
         {
             id: 'tiktok',
-            name: 'TikTok Pop',
-            description: 'Viral, attention-grabbing',
+            name: t('styleTiktokName'),
+            description: t('styleTiktokDesc'),
             emoji: '🔥',
             settings: {
                 position: 'default',
@@ -137,8 +137,8 @@ export function ProcessView({
         },
         {
             id: 'cinematic',
-            name: 'Cinematic',
-            description: 'Professional, clean',
+            name: t('styleCinematicName'),
+            description: t('styleCinematicDesc'),
             emoji: '🎬',
             settings: {
                 position: 'bottom',
@@ -151,8 +151,8 @@ export function ProcessView({
         },
         {
             id: 'minimal',
-            name: 'Minimal',
-            description: 'Subtle, accessible',
+            name: t('styleMinimalName'),
+            description: t('styleMinimalDesc'),
             emoji: '✨',
             settings: {
                 position: 'bottom',
@@ -171,9 +171,9 @@ export function ProcessView({
     const AVAILABLE_MODELS = [
         {
             id: 'standard',
-            name: 'Standard',
-            description: 'Unlimited. Reliable on-device.',
-            badge: 'No Karaoke',
+            name: t('modelStandardName'),
+            description: t('modelStandardDesc'),
+            badge: t('modelStandardBadge'),
             badgeColor: 'text-[var(--muted)] bg-[var(--surface)]',
             provider: 'whispercpp',
             mode: 'turbo',
@@ -191,9 +191,9 @@ export function ProcessView({
         },
         {
             id: 'enhanced',
-            name: 'Enhanced',
-            description: 'High accuracy. Karaoke supported.',
-            badge: '2 Free Daily',
+            name: t('modelEnhancedName'),
+            description: t('modelEnhancedDesc'),
+            badge: t('modelEnhancedBadge'),
             badgeColor: 'text-amber-400 bg-amber-400/10',
             provider: 'local',
             mode: 'turbo',
@@ -211,9 +211,9 @@ export function ProcessView({
         },
         {
             id: 'ultimate',
-            name: 'Ultimate',
-            description: 'Lightning fast (~200x). Cloud.',
-            badge: 'Premium Only',
+            name: t('modelUltimateName'),
+            description: t('modelUltimateDesc'),
+            badge: t('modelUltimateBadge'),
             badgeColor: 'text-purple-400 bg-purple-500/10',
             provider: 'groq',
             mode: 'turbo',
@@ -520,8 +520,8 @@ export function ProcessView({
                     {isDragOver ? (
                         <div className="text-center py-12 relative">
                             <div className="text-6xl mb-3 animate-bounce">📥</div>
-                            <p className="text-2xl font-semibold mb-1 text-[var(--accent)]">{t('dropFileHere') || 'Drop your video here!'}</p>
-                            <p className="text-[var(--muted)]">{t('releaseToUpload') || 'Release to upload'}</p>
+                            <p className="text-2xl font-semibold mb-1 text-[var(--accent)]">{t('dropFileHere')}</p>
+                            <p className="text-[var(--muted)]">{t('releaseToUpload')}</p>
                         </div>
                     ) : selectedFile ? (
 
@@ -594,7 +594,7 @@ export function ProcessView({
                             <div className="space-y-5 pt-1 animate-fade-in">
                                 <div ref={modelSectionRef}>
                                     <label className="block text-sm font-medium text-[var(--muted)] mb-3">
-                                        Transcription Model
+                                        {t('transcriptionModelLabel')}
                                     </label>
 
                                     {/* Check if we have a selected model and are in collapsed state */}
@@ -639,7 +639,7 @@ export function ProcessView({
                                                         </div>
                                                     </div>
                                                     <div className="flex items-center gap-1 text-xs text-[var(--muted)]">
-                                                        <span>Change</span>
+                                                        <span>{t('changeModel')}</span>
                                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                                         </svg>
@@ -701,23 +701,23 @@ export function ProcessView({
                                                                 {/* Game-like Stats */}
                                                                 <div className="mt-auto space-y-2 mb-3">
                                                                     <div className="grid grid-cols-[60px,1fr] items-center gap-2">
-                                                                        <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">Speed</span>
+                                                                        <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">{t('statSpeed')}</span>
                                                                         {renderStat(model.stats.speed)}
                                                                     </div>
                                                                     <div className="grid grid-cols-[60px,1fr] items-center gap-2">
-                                                                        <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">Accuracy</span>
+                                                                        <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">{t('statAccuracy')}</span>
                                                                         {renderStat(model.stats.accuracy)}
                                                                     </div>
                                                                     <div className="grid grid-cols-[60px,1fr] items-center gap-2">
-                                                                        <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">Karaoke</span>
+                                                                        <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">{t('statKaraoke')}</span>
                                                                         <div className={`text-[10px] font-bold ${model.stats.karaoke ? 'text-emerald-500' : 'text-[var(--muted)]'}`}>
-                                                                            {model.stats.karaoke ? 'SUPPORTED' : 'NO'}
+                                                                            {model.stats.karaoke ? t('statKaraokeSupported') : t('statKaraokeNo')}
                                                                         </div>
                                                                     </div>
                                                                     <div className="grid grid-cols-[60px,1fr] items-center gap-2">
-                                                                        <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">Lines</span>
+                                                                        <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">{t('statLines')}</span>
                                                                         <div className={`text-[10px] font-bold ${model.stats.linesControl ? 'text-emerald-500' : 'text-cyan-400'}`}>
-                                                                            {model.stats.linesControl ? 'CUSTOM' : 'AUTO'}
+                                                                            {model.stats.linesControl ? t('statLinesCustom') : t('statLinesAuto')}
                                                                         </div>
                                                                     </div>
                                                                 </div>
@@ -742,7 +742,7 @@ export function ProcessView({
                                                     <svg className="w-3 h-3 rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                                     </svg>
-                                                    Collapse
+                                                    {t('collapseModel')}
                                                 </button>
                                             </>
                                         );
@@ -752,7 +752,7 @@ export function ProcessView({
                                 {/* Style Presets */}
                                 <div ref={customizeSectionRef}>
                                     <label className="block text-sm font-medium text-[var(--muted)] mb-3">
-                                        Subtitle Style
+                                        {t('subtitleStyleLabel')}
                                     </label>
                                     <div className="grid grid-cols-3 gap-3 mb-3">
                                         {STYLE_PRESETS.map((preset) => {
@@ -834,27 +834,38 @@ export function ProcessView({
                                                                 style={{ bottom: getPreviewBottom(preset.settings.position) }}
                                                             >
                                                                 {Array.from({ length: preset.settings.lines === 0 ? 1 : Math.min(preset.settings.lines, 3) }).map((_, i) => {
-                                                                    // Direct pixel heights for obvious difference
-                                                                    const barHeight = preset.settings.size === 'big' ? 12 : preset.settings.size === 'small' ? 4 : 7;
+                                                                    // Font size mapping: Increased line-heights to prevent overlap
+                                                                    const fontSize = preset.settings.size === 'big' ? '11px' : preset.settings.size === 'small' ? '7px' : '8px';
+                                                                    const lineHeight = preset.settings.size === 'big' ? '14px' : preset.settings.size === 'small' ? '9px' : '10px';
+
+                                                                    // Sample text with more "viral" feel
+                                                                    const text = preset.settings.lines === 0
+                                                                        ? (preset.settings.karaoke ? (i % 2 === 0 ? t('previewWatch') : t('previewThis')) : t('previewWord'))
+                                                                        : preset.id === 'cinematic'
+                                                                            ? (i === 0 ? t('previewTheJourney') : t('previewBeginsHere'))
+                                                                            : (i === 0 ? t('previewCleanDesign') : i === 1 ? t('previewForEveryone') : t('previewToRead'));
+
                                                                     return (
                                                                         <div
                                                                             key={i}
-                                                                            className="rounded-sm flex items-center justify-center"
-                                                                            style={{
-                                                                                width: preset.settings.lines === 0 ? '50%' : `${95 - (i * 8)}%`,
-                                                                                height: `${barHeight}px`,
-                                                                                backgroundColor: preset.settings.color,
-                                                                                boxShadow: `0 2px 6px ${preset.settings.color}60, 0 0 8px ${preset.settings.color}40`
-                                                                            }}
+                                                                            className="flex items-center justify-center w-full"
+                                                                            style={{ height: lineHeight }}
                                                                         >
-                                                                            {/* White text line inside bar */}
-                                                                            <div
-                                                                                className="bg-white/80 rounded-full"
+                                                                            <span
                                                                                 style={{
-                                                                                    width: '80%',
-                                                                                    height: Math.max(1, barHeight * 0.3)
+                                                                                    fontSize: fontSize,
+                                                                                    fontWeight: 800,
+                                                                                    color: preset.settings.color,
+                                                                                    // Stronger shadow for better visibility/pop
+                                                                                    textShadow: `0 2px 4px rgba(0,0,0,0.9), 0 0 8px ${preset.settings.color}60`,
+                                                                                    lineHeight: 1,
+                                                                                    fontFamily: 'Inter, sans-serif',
+                                                                                    textTransform: 'uppercase',
+                                                                                    whiteSpace: 'nowrap', // Prevent wrapping overlap
                                                                                 }}
-                                                                            />
+                                                                            >
+                                                                                {text}
+                                                                            </span>
                                                                         </div>
                                                                     );
                                                                 })}
@@ -871,7 +882,26 @@ export function ProcessView({
                                                                 <span className="text-base">{preset.emoji}</span>
                                                                 <span className="font-semibold text-sm truncate">{preset.name}</span>
                                                             </div>
-                                                            <p className="text-[11px] text-[var(--muted)] leading-tight">{preset.description}</p>
+                                                            <p className="text-[11px] text-[var(--muted)] leading-tight mb-1">{preset.description}</p>
+                                                            {/* Detailed Specs - Split into 2 lines */}
+                                                            <div className="flex flex-col gap-1 mt-1.5 opacity-80">
+                                                                <div className="flex gap-1">
+                                                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--surface-elevated)] border border-[var(--border)] text-[var(--muted)] whitespace-nowrap">
+                                                                        {preset.settings.size === 'big' ? t('sizeBig') : preset.settings.size === 'medium' ? t('sizeMedium') : t('sizeSmall')}
+                                                                    </span>
+                                                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--surface-elevated)] border border-[var(--border)] text-[var(--muted)] whitespace-nowrap">
+                                                                        {preset.settings.color === '#FFFF00' ? t('colorYellow') : preset.settings.color === '#FFFFFF' ? t('colorWhite') : t('colorCyan')}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="flex gap-1">
+                                                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--surface-elevated)] border border-[var(--border)] text-[var(--muted)] whitespace-nowrap">
+                                                                        {preset.settings.position === 'default' ? t('positionMiddle') : preset.settings.position === 'bottom' ? t('positionLow') : t('positionHigh')}
+                                                                    </span>
+                                                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--surface-elevated)] border border-[var(--border)] text-[var(--muted)] whitespace-nowrap">
+                                                                        {preset.settings.lines === 0 ? t('lines1WordBadge') : `${preset.settings.lines} ${t('statLines')}`}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
                                                         </div>
                                                     </div>
 
@@ -899,12 +929,12 @@ export function ProcessView({
                                                 }, 200);
                                             }
                                         }}
-                                        className="w-full mt-2 p-2.5 rounded-lg border border-dashed border-[var(--border)] hover:border-[var(--accent)]/50 flex items-center justify-center gap-2 text-sm text-[var(--muted)] hover:text-[var(--foreground)] transition-all hover:bg-[var(--surface-elevated)]"
+                                        className="w-full mt-4 p-3 rounded-lg bg-[var(--surface-elevated)] border border-[var(--border)] hover:border-[var(--accent)] hover:bg-[var(--surface-elevated)]/80 flex items-center justify-center gap-2 text-sm font-medium text-[var(--foreground)] transition-all shadow-sm"
                                     >
                                         <svg className={`w-4 h-4 transition-transform ${showCustomize ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
                                         </svg>
-                                        {showCustomize ? 'Hide custom settings' : 'Customize subtitle settings'}
+                                        {showCustomize ? t('customizeHide') : t('customizeShow')}
                                     </button>
                                 </div>
 
@@ -947,10 +977,10 @@ export function ProcessView({
                                     >
                                         <span className="text-lg">🧪</span>
                                         <label className="text-sm font-medium text-[var(--muted)] cursor-pointer">
-                                            Experimenting
+                                            {t('experimentingLabel')}
                                         </label>
                                         <span className="bg-purple-500/10 text-purple-400 text-[10px] px-1.5 py-0.5 rounded-full font-medium">
-                                            BETA
+                                            {t('betaBadge')}
                                         </span>
                                         <svg
                                             className={`w-4 h-4 ml-auto text-[var(--muted)] transition-transform duration-200 ${showExperiments ? 'rotate-180' : ''}`}
@@ -991,8 +1021,8 @@ export function ProcessView({
                                                         </div>
                                                     )}
                                                 </div>
-                                                <div className="font-semibold text-base mb-1">ChatGPT API</div>
-                                                <div className="text-sm text-[var(--muted)] mb-2">OpenAI cloud transcription</div>
+                                                <div className="font-semibold text-base mb-1">{t('modelChatgptName')}</div>
+                                                <div className="text-sm text-[var(--muted)] mb-2">{t('modelChatgptDesc')}</div>
                                                 <div className="flex items-center gap-2 text-xs text-[var(--muted)]/80">
                                                     <span className="bg-emerald-500/10 text-emerald-500 px-1.5 py-0.5 rounded">whisper-1</span>
                                                 </div>
@@ -1200,7 +1230,7 @@ export function ProcessView({
                                                             onClick={() => handleDownload(videoUrl, selectedJob.result_data?.original_filename || 'processed.mp4')}
                                                             disabled={isDownloading}
                                                         >
-                                                            ⬇️ Download HD (1080p)
+                                                            ⬇️ {t('downloadHd')}
                                                         </button>
                                                     )}
 
@@ -1214,11 +1244,11 @@ export function ProcessView({
                                                             disabled={exportingResolutions['2160x3840']}
                                                         >
                                                             {exportingResolutions['2160x3840'] ? (
-                                                                <><span className="animate-spin">⏳</span> Generating 4K...</>
+                                                                <><span className="animate-spin">⏳</span> {t('generating4k')}</>
                                                             ) : selectedJob.result_data?.variants?.['2160x3840'] ? (
-                                                                <>⬇️ Download 4K</>
+                                                                <>⬇️ {t('download4k')}</>
                                                             ) : (
-                                                                <>✨ Export 4K</>
+                                                                <>✨ {t('export4k')}</>
                                                             )}
                                                         </button>
                                                     )}
@@ -1227,7 +1257,7 @@ export function ProcessView({
                                                         onClick={handleOpenPreview}
                                                         className="btn-secondary"
                                                     >
-                                                        ▶️ Preview
+                                                        ▶️ {t('previewButton')}
                                                     </button>
                                                 </div>
 
