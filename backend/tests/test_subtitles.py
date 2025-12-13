@@ -12,12 +12,26 @@ def test_extract_audio_invokes_ffmpeg(monkeypatch, tmp_path: Path) -> None:
     input_video = tmp_path / "clip.mp4"
     input_video.write_bytes(b"video")
 
-    def fake_run(cmd, check, stdout, stderr):
-        assert cmd[0] == "ffmpeg"
-        Path(cmd[-1]).write_bytes(b"audio")
-        return None
+    class MockPopen:
+        def __init__(self, cmd, stdout, stderr):
+            assert cmd[0] == "ffmpeg"
+            Path(cmd[-1]).write_bytes(b"audio")
+            self.returncode = 0
+            self.stderr = None
 
-    monkeypatch.setattr(subtitles.subprocess, "run", fake_run)
+        def poll(self):
+            return 0
+
+        def wait(self, timeout=None):
+            return
+
+        def communicate(self, timeout=None):
+            return (b"", b"")
+
+        def kill(self):
+            pass
+
+    monkeypatch.setattr(subtitles.subprocess, "Popen", MockPopen)
     audio_path = subtitles.extract_audio(input_video, output_dir=tmp_path)
     assert audio_path.exists()
     assert audio_path.suffix == ".wav"
@@ -130,7 +144,7 @@ def test_create_styled_subtitle_file_active_word_wraps_lines(tmp_path: Path) -> 
     # Active-word mode produces 1 base layer + one event per word.
     assert len(dialogue_lines) == len(word_texts) + 1
     assert "\\N" in ass_content
-    assert "{\\c" in ass_content
+    assert "{\\alpha" in ass_content
 
 
 def test_format_karaoke_wraps_long_lines() -> None:
@@ -1048,6 +1062,69 @@ def test_per_word_karaoke():
 import pytest
 
 
+def _ass_dialogue_time_ranges(ass_content: str) -> list[tuple[int, float, float]]:
+    ranges: list[tuple[int, float, float]] = []
+    for line in ass_content.splitlines():
+        if not line.startswith("Dialogue:"):
+            continue
+        fields = line.split(",", 9)
+        if len(fields) < 3:
+            continue
+        layer = int(fields[0].split(":", 1)[1].strip())
+        start = subtitles._srt_time_to_seconds(fields[1])
+        end = subtitles._srt_time_to_seconds(fields[2])
+        ranges.append((layer, start, end))
+    return ranges
+
+
+def test_create_styled_subtitle_file_clamps_overlapping_cues(tmp_path: Path) -> None:
+    """
+    REGRESSION: Overlapping cues cause stacked subtitle blocks ("collision") on screen.
+    Fix: Clamp cue end times to the next cue start for ASS rendering.
+    """
+    srt_path = tmp_path / "clip.srt"
+    srt_path.write_text("1\n00:00:00,00 --> 00:00:02,00\nTEST\n", encoding="utf-8")
+
+    cues = [
+        subtitles.Cue(
+            start=0.0,
+            end=1.0,
+            text="A B",
+            words=[
+                subtitles.WordTiming(0.0, 0.5, "A"),
+                subtitles.WordTiming(0.5, 1.0, "B"),
+            ],
+        ),
+        subtitles.Cue(
+            start=0.9,
+            end=1.5,
+            text="C D",
+            words=[
+                subtitles.WordTiming(0.9, 1.2, "C"),
+                subtitles.WordTiming(1.2, 1.5, "D"),
+            ],
+        ),
+    ]
+
+    ass_path = subtitles.create_styled_subtitle_file(
+        srt_path,
+        cues=cues,
+        max_lines=2,
+        highlight_style="active",
+        output_dir=tmp_path,
+    )
+    ass_content = ass_path.read_text(encoding="utf-8")
+    ranges = _ass_dialogue_time_ranges(ass_content)
+
+    base = [(s, e) for layer, s, e in ranges if layer == 0]
+    assert len(base) == 2
+    assert base[0][1] <= base[1][0]
+
+    first_word_events = [(s, e) for layer, s, e in ranges if layer == 1 and s < base[1][0]]
+    assert first_word_events
+    assert max(e for _s, e in first_word_events) <= base[1][0]
+
+
 def test_1_word_mode_splitting_standard_model():
     """
     REGRESSION: "1 Word" mode (max_lines=0) must split into single words even without word timings.
@@ -1110,21 +1187,21 @@ def test_generate_active_word_ass_logic():
 
     base = lines[0]
     assert "Dialogue: 0," in base
-    assert r"{\cS&}Hello" in base # All words secondary color
-    assert r"{\cS&}World" in base
+    assert r"{\alpha&H00&\cS&}Hello" in base # All words secondary color
+    assert r"{\alpha&H00&\cS&}World" in base
 
     active1 = lines[1]
     assert "Dialogue: 1," in active1
-    # First event: start 0.0, end 0.5. "Hello" primary, "World" secondary
+    # First event: start 0.0, end 0.5. "Hello" visible (primary), "World" hidden.
     assert "0:00:00.00,0:00:00.50" in active1
-    assert r"{\cP&}Hello" in active1
-    assert r"{\cS&}World" in active1
+    assert r"{\alpha&H00&\cP&}Hello" in active1
+    assert r"{\alpha&HFF&\cS&}World" in active1
 
     active2 = lines[2]
     # Second event: start 0.5, end 1.0. "Hello" secondary, "World" primary
     assert "0:00:00.50,0:00:01.00" in active2
-    assert r"{\cS&}Hello" in active2
-    assert r"{\cP&}World" in active2
+    assert r"{\alpha&HFF&\cS&}Hello" in active2
+    assert r"{\alpha&H00&\cP&}World" in active2
 
 def test_split_long_cues_with_phrases_interpolation():
     # Trigger logic for word token interpolation (space in word)

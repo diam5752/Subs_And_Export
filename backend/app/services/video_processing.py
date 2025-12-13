@@ -24,6 +24,23 @@ from backend.app.services.transcription.openai_cloud import OpenAITranscriber
 from backend.app.services.transcription.standard_whisper import StandardTranscriber
 
 
+def _font_size_from_subtitle_size(subtitle_size: str | None) -> int:
+    """
+    Map the UI's subtitle size presets to ASS font sizes.
+
+    Note: "small" must remain readable on 1080x1920 exports.
+    """
+    size = (subtitle_size or "medium").strip().lower()
+    base = config.DEFAULT_SUB_FONT_SIZE
+    if size == "small":
+        return int(round(base * 0.7))
+    if size == "medium":
+        return int(round(base * 0.85))
+    if size == "big":
+        return base
+    return int(round(base * 0.85))
+
+
 def _build_filtergraph(ass_path: Path, *, target_width: int | None = None, target_height: int | None = None) -> str:
     ass_file = ass_path.as_posix().replace("'", r"\'")
     ass_filter = f"ass='{ass_file}'"
@@ -292,9 +309,7 @@ def normalize_and_stub_subtitles(
     destination.parent.mkdir(parents=True, exist_ok=True)
 
     # --- 1. CONFIGURATION (The Director) ---
-    # Map subtitle size to integer
-    size_map = {"small": 30, "medium": 40, "big": 70}
-    font_size = size_map.get(subtitle_size, 40)
+    font_size = _font_size_from_subtitle_size(subtitle_size)
 
     # Determine effective highlight style
     # If karaoke disabled, we force static style unless it's pop/active-graphics which might be desired?
@@ -609,28 +624,50 @@ def generate_video_variant(
 
     result_data = job.result_data or {}
 
-    # Reconstruct Style from Job Data (Basic)
-    style = SubtitleStyle(
-        max_lines=result_data.get("max_subtitle_lines", 2),
-        position=result_data.get("subtitle_position", "default"),
-        primary_color=result_data.get("subtitle_color", config.DEFAULT_SUB_COLOR),
-        shadow_strength=result_data.get("shadow_strength", 4)
-    )
+    # Prefer reusing the original ASS file.
+    #
+    # Rationale: libass will scale subtitle rendering based on PlayResX/PlayResY.
+    # If we regenerate the ASS at a higher resolution without scaling font sizes,
+    # the subtitles appear much smaller than in the original preview/export.
+    ass_path = transcript_path.with_suffix(".ass")
+    if not ass_path.exists():
+        ass_candidates = sorted(artifact_dir.glob("*.ass"))
+        ass_path = ass_candidates[0] if ass_candidates else ass_path
+
+    if not ass_path.exists():
+        # Fallback: regenerate ASS using persisted job settings.
+        # (This cannot reproduce word-level highlighting unless cues are available.)
+        subtitle_size = str(result_data.get("subtitle_size") or "medium").lower()
+        font_size = _font_size_from_subtitle_size(subtitle_size)
+
+        karaoke_enabled = bool(result_data.get("karaoke_enabled", True))
+        requested_highlight_style = str(result_data.get("highlight_style") or "karaoke").lower()
+        highlight_style = "static" if not karaoke_enabled else requested_highlight_style
+
+        base_width, base_height = config.DEFAULT_WIDTH, config.DEFAULT_HEIGHT
+        try:
+            base_res = str(result_data.get("resolution") or "")
+            w_str, h_str = base_res.lower().replace("×", "x").split("x")
+            base_width, base_height = int(w_str), int(h_str)
+        except Exception:
+            pass
+
+        ass_path = subtitles.create_styled_subtitle_file(
+            transcript_path,
+            cues=None,
+            subtitle_position=str(result_data.get("subtitle_position") or "default"),
+            max_lines=int(result_data.get("max_subtitle_lines") or 2),
+            primary_color=str(result_data.get("subtitle_color") or config.DEFAULT_SUB_COLOR),
+            shadow_strength=int(result_data.get("shadow_strength") or 4),
+            font_size=font_size,
+            highlight_style=highlight_style,
+            play_res_x=base_width,
+            play_res_y=base_height,
+            output_dir=artifact_dir,
+        )
 
     output_filename = f"processed_{width}x{height}.mp4"
     destination = artifact_dir / output_filename
-
-    ass_path = subtitles.create_styled_subtitle_file(
-        transcript_path,
-        cues=None,
-        subtitle_position=style.position,
-        max_lines=style.max_lines,
-        primary_color=style.primary_color,
-        shadow_strength=style.shadow_strength,
-        play_res_x=width,
-        play_res_y=height,
-        output_dir=artifact_dir
-    )
 
     _run_ffmpeg_with_subs(
         input_path,

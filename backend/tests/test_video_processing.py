@@ -9,6 +9,19 @@ import pytest
 from backend.app.services import video_processing
 
 
+def test_font_size_from_subtitle_size_presets() -> None:
+    """
+    REGRESSION: "small" subtitles must remain readable on exports.
+    Bug: "small" mapped to an unreadably tiny font size.
+    """
+    base = video_processing.config.DEFAULT_SUB_FONT_SIZE
+    assert video_processing._font_size_from_subtitle_size(None) == int(round(base * 0.85))
+    assert video_processing._font_size_from_subtitle_size("medium") == int(round(base * 0.85))
+    assert video_processing._font_size_from_subtitle_size("small") == int(round(base * 0.7))
+    assert video_processing._font_size_from_subtitle_size("big") == base
+    assert video_processing._font_size_from_subtitle_size("unknown") == int(round(base * 0.85))
+
+
 def test_normalize_and_stub_subtitles_runs_pipeline(monkeypatch, tmp_path: Path) -> None:
     calls = []
 
@@ -1110,7 +1123,7 @@ def test_generate_video_variant_success(monkeypatch, tmp_path):
     mock_job_store = MagicMock()
     mock_job = MagicMock()
     mock_job.user_id = "u1"
-    mock_job.result_data = {"subtitle_position": "top", "max_subtitle_lines": 3}
+    mock_job.result_data = {"subtitle_position": "top", "max_subtitle_lines": 3, "resolution": "1080x1920"}
     mock_job_store.get_job.return_value = mock_job
 
     calls_style = []
@@ -1143,11 +1156,53 @@ def test_generate_video_variant_success(monkeypatch, tmp_path):
 
     assert calls_style[0]["subtitle_position"] == "top"
     assert calls_style[0]["max_lines"] == 3
-    assert calls_style[0]["play_res_x"] == 720
-    assert calls_style[0]["play_res_y"] == 1280
+    assert calls_style[0]["play_res_x"] == 1080
+    assert calls_style[0]["play_res_y"] == 1920
 
     assert calls_burn[0]["output_width"] == 720
     assert calls_burn[0]["output_height"] == 1280
+
+def test_generate_video_variant_reuses_existing_ass(monkeypatch, tmp_path):
+    artifact_dir = tmp_path / "artifacts"
+    artifact_dir.mkdir()
+    input_path = tmp_path / "vid.mp4"
+    input_path.touch()
+    (artifact_dir / "vid.srt").write_text("SRT", encoding="utf-8")
+    existing_ass = artifact_dir / "vid.ass"
+    existing_ass.write_text("ASS", encoding="utf-8")
+
+    mock_job_store = MagicMock()
+    mock_job = MagicMock()
+    mock_job.user_id = "u1"
+    mock_job.result_data = {"subtitle_position": "top", "max_subtitle_lines": 3, "resolution": "1080x1920"}
+    mock_job_store.get_job.return_value = mock_job
+
+    create_calls = []
+    def fake_style(*args, **kwargs):
+        create_calls.append((args, kwargs))
+        return artifact_dir / "regenerated.ass"
+
+    burn_calls = []
+    def fake_burn(*args, **kwargs):
+        burn_calls.append((args, kwargs))
+        (kwargs.get("output_path") or args[2]).touch()
+
+    monkeypatch.setattr(video_processing.subtitles, "create_styled_subtitle_file", fake_style)
+    monkeypatch.setattr(video_processing, "_run_ffmpeg_with_subs", fake_burn)
+
+    res = video_processing.generate_video_variant(
+        job_id="j1",
+        input_path=input_path,
+        artifact_dir=artifact_dir,
+        resolution="720x1280",
+        job_store=mock_job_store,
+        user_id="u1",
+    )
+
+    assert res.name == "processed_720x1280.mp4"
+    assert res.exists()
+    assert create_calls == []
+    assert burn_calls[0][0][1] == existing_ass
 
 def test_generate_video_variant_missing_input(tmp_path):
      with pytest.raises(FileNotFoundError, match="Original input"):

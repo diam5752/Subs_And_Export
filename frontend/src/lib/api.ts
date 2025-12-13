@@ -181,6 +181,8 @@ class ApiClient {
         subtitle_color?: string;
         shadow_strength?: number;
         highlight_style?: string;
+        subtitle_size?: string;
+        karaoke_enabled?: boolean;
     }): Promise<JobResponse> {
         const formData = new FormData();
         formData.append('file', file);
@@ -202,6 +204,8 @@ class ApiClient {
         if (settings.highlight_style) {
             formData.append('highlight_style', settings.highlight_style);
         }
+        formData.append('subtitle_size', settings.subtitle_size || 'medium');
+        formData.append('karaoke_enabled', String(settings.karaoke_enabled ?? true));
 
         return this.request<JobResponse>('/videos/process', {
             method: 'POST',

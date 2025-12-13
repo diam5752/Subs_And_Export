@@ -30,6 +30,9 @@ describe('VideoModal', () => {
         const videoElement = container.querySelector('video');
         expect(videoElement).toBeInTheDocument();
         expect(videoElement).toHaveAttribute('src', 'http://example.com/video.mp4');
+
+        const videoContainer = container.querySelector('.video-container-glow');
+        expect(videoContainer).toHaveClass('aspect-[9/16]');
     });
 
     it('should close on backdrop click', () => {

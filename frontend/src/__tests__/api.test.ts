@@ -152,6 +152,8 @@ describe('API Client', () => {
             expect(formData.get('video_quality')).toBe('balanced');
             expect(formData.get('subtitle_position')).toBe('default');
             expect(formData.get('max_subtitle_lines')).toBe('2');
+            expect(formData.get('subtitle_size')).toBe('medium');
+            expect(formData.get('karaoke_enabled')).toBe('true');
         });
     });
 
