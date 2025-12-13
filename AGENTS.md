@@ -26,6 +26,12 @@ Reusable procedures live in `.agent/workflows/`:
 3.  **[Stack Standards](.agent/rules/01-stack-standards.md):** Strict TypeScript & Python Type Hints. TailwindCSS v4. `pathlib` over `os.path`.
 4.  **[Testing Policy](.agent/rules/02-testing-coverage.md):** Zero-gap coverage. No tests = No merge.
 
+## 🤖 Registered Agents
+*   **[Bolt](.jules/bolt.md):** Backend Performance & Pipeline Efficiency
+*   **[Palette](.jules/palette.md):** UI/UX Design & Accessibility Standards
+*   **[Sentinel](.jules/sentinel.md):** Security, Auth & Vulnerability Prevention
+*   **[Cerberus](.jules/cerberus.md):** Test Integrity & Quality Assurance 🐕‍🦺
+
 ## 🚀 Quick Start
 *   **Frontend Test:** `npm test` / `npm run e2e`
 *   **Backend Test:** `python3 -m pytest`
