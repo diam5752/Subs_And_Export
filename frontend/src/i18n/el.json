@@ -219,6 +219,8 @@
   "positionLow": "Χαμηλά",
   "positionLowDesc": "Κινηματογραφικό στυλ",
   "sizeLabel": "Μέγεθος",
+  "sizeExtraBig": "Πολύ Μεγάλο",
+  "sizeExtraBigDesc": "Μέγιστη Επίδραση",
   "sizeBig": "Μεγάλο",
   "sizeBigDesc": "Εντυπωσιακό",
   "sizeMedium": "Μεσαίο",
@@ -273,5 +275,9 @@
   "download4k": "Λήψη 4K",
   "export4k": "Εξαγωγή 4K",
   "generating4k": "Δημιουργία 4K...",
-  "previewButton": "Προεπισκόπηση"
+  "previewButton": "Προεπισκόπηση",
+  "previewWord": "ΔΕΙΤΕ",
+  "previewLine1": "ΕΤΣΙ ΦΑΙΝΟΝΤΑΙ ΟΙ",
+  "previewLine2": "ΥΠΟΤΙΤΛΟΙ ΣΑΣ",
+  "previewLine3": "ΣΤΟ ΒΙΝΤΕΟ"
 }

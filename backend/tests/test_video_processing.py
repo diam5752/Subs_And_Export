@@ -11,15 +11,16 @@ from backend.app.services import video_processing
 
 def test_font_size_from_subtitle_size_presets() -> None:
     """
-    REGRESSION: "small" subtitles must remain readable on exports.
-    Bug: "small" mapped to an unreadably tiny font size.
+    REGRESSION: Subtitle size slider must map to correct font sizes.
+    The slider uses a 50-150 percentage scale.
     """
     base = video_processing.config.DEFAULT_SUB_FONT_SIZE
-    assert video_processing._font_size_from_subtitle_size(None) == int(round(base * 0.85))
-    assert video_processing._font_size_from_subtitle_size("medium") == int(round(base * 0.85))
-    assert video_processing._font_size_from_subtitle_size("small") == int(round(base * 0.7))
-    assert video_processing._font_size_from_subtitle_size("big") == base
-    assert video_processing._font_size_from_subtitle_size("unknown") == int(round(base * 0.85))
+    assert video_processing._font_size_from_subtitle_size(None) == base  # Default 100%
+    assert video_processing._font_size_from_subtitle_size(100) == base  # 100% = base
+    assert video_processing._font_size_from_subtitle_size(70) == int(round(base * 0.7))  # 70%
+    assert video_processing._font_size_from_subtitle_size(85) == int(round(base * 0.85))  # 85%
+    assert video_processing._font_size_from_subtitle_size(150) == int(round(base * 1.5))  # 150%
+    assert video_processing._font_size_from_subtitle_size(50) == int(round(base * 0.5))  # 50% (min)
 
 
 def test_normalize_and_stub_subtitles_runs_pipeline(monkeypatch, tmp_path: Path) -> None:

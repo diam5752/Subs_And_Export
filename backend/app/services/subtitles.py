@@ -591,7 +591,7 @@ def create_styled_subtitle_file(
     margin_v: int = config.DEFAULT_SUB_MARGIN_V,
     margin_l: int = config.DEFAULT_SUB_MARGIN_L,
     margin_r: int = config.DEFAULT_SUB_MARGIN_R,
-    subtitle_position: str = "default",  # "default", "top", "bottom"
+    subtitle_position: int = 16,  # 5-35 (percentage from bottom)
     max_lines: int = 2,
     shadow_strength: int = 4,
     play_res_x: int = config.DEFAULT_WIDTH,
@@ -683,7 +683,7 @@ def create_styled_subtitle_file(
         parsed_cues = split_cues
 
 
-    # Resolve dynamic positioning based on subtitle_position alias
+    # Resolve dynamic positioning based on subtitle_position (numeric percentage)
     # SUBTITLE SPLITTING MODES:
     # max_lines=0: "1 word at a time" mode - each word is a separate subtitle event
     # max_lines=1/2/3: Standard line-based mode - cues are split to fit in max_lines
@@ -711,21 +711,11 @@ def create_styled_subtitle_file(
     output_dir.mkdir(parents=True, exist_ok=True)
     ass_path = output_dir / f"{transcript_path.stem}.ass"
 
-    # Map position to margin_v and alignment
-    # ASS alignment: 2 = bottom center (MarginV from bottom), 8 = top center (MarginV from top)
-    final_margin_v = margin_v
+    # Convert numeric subtitle_position (percentage) to margin_v
+    # Clamp to valid range (5-35% of screen height)
+    position_pct = max(5, min(80, subtitle_position))
+    final_margin_v = int(play_res_y * position_pct / 100)
     final_alignment = alignment  # Default alignment (2 = bottom center)
-
-    if subtitle_position == "top":
-        # Middle area - just above default, still using bottom center alignment
-        final_alignment = 2  # Bottom center
-        final_margin_v = int(play_res_y * 0.32)  # ~32% from bottom
-    elif subtitle_position == "bottom":
-        # Movie style (low) - keep bottom center alignment
-        final_alignment = 2  # Bottom center
-        final_margin_v = int(play_res_y * 0.0625)  # ~6.25% from bottom (120/1920)
-    # else "default" uses the passed margin_v (defaulting to config.DEFAULT_SUB_MARGIN_V = 320)
-    # with bottom center alignment (2)
 
     header = _ass_header(
         font=font,

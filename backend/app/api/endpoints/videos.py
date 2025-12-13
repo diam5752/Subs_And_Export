@@ -59,12 +59,12 @@ class ProcessingSettings(BaseModel):
     context_prompt: str = ""
     llm_model: str = APP_SETTINGS.llm_model
     llm_temperature: float = APP_SETTINGS.llm_temperature
-    subtitle_position: str = "default"
+    subtitle_position: int = 16  # 5-35 percentage from bottom
     max_subtitle_lines: int = 2
     subtitle_color: str | None = None
     shadow_strength: int = 4
     highlight_style: str = "karaoke"
-    subtitle_size: str = "medium"
+    subtitle_size: int = 100  # 50-150 percentage scale
     karaoke_enabled: bool = True
 
 
@@ -262,12 +262,12 @@ async def process_video(
     video_resolution: str = Form(""),
     use_llm: bool = Form(APP_SETTINGS.use_llm_by_default),
     context_prompt: str = Form(""),
-    subtitle_position: str = Form("default"),
+    subtitle_position: int = Form(16),
     max_subtitle_lines: int = Form(2),
     subtitle_color: str | None = Form(None),
     shadow_strength: int = Form(4),
     highlight_style: str = Form("karaoke"),
-    subtitle_size: str = Form("medium"),
+    subtitle_size: int = Form(100),
     karaoke_enabled: bool = Form(True),
     current_user: User = Depends(get_current_user),
     job_store: JobStore = Depends(get_job_store),
