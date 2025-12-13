@@ -44,6 +44,9 @@ def test_job_store_retention(tmp_path):
 
 def test_cleanup_api_integration(client, user_auth_headers):
     """Full integration test mocking the DB state."""
+    import os
+    from unittest.mock import patch
+
     # Create job
     files = {"file": ("immediate_delete.mp4", b"data", "video/mp4")}
     resp = client.post("/videos/process", headers=user_auth_headers, files=files)
@@ -51,10 +54,11 @@ def test_cleanup_api_integration(client, user_auth_headers):
     job_id = resp.json()["id"]
 
     # Call cleanup with days=-1 (cutoff = NOW + 24h) to delete everything
-    # This ensures even if created_at == NOW, it is < cutoff.
-    cleanup_resp = client.post("/videos/jobs/cleanup?days=-1", headers=user_auth_headers)
-    assert cleanup_resp.status_code == 200
-    assert cleanup_resp.json()["deleted_count"] >= 1
+    # We must patch GSP_ADMIN_EMAILS to allow the test user (test@example.com)
+    with patch.dict(os.environ, {"GSP_ADMIN_EMAILS": "test@example.com"}):
+        cleanup_resp = client.post("/videos/jobs/cleanup?days=-1", headers=user_auth_headers)
+        assert cleanup_resp.status_code == 200
+        assert cleanup_resp.json()["deleted_count"] >= 1
 
     # Verify job gone
     job_resp = client.get(f"/videos/jobs/{job_id}", headers=user_auth_headers)
