@@ -116,20 +116,6 @@ def _run_ffmpeg_with_subs(
     return "".join(stderr_lines)
 
 
-def _input_audio_is_aac(input_path: Path) -> bool:
-    probe_cmd = [
-        "ffprobe", "-v", "error", "-select_streams", "a:0",
-        "-show_entries", "stream=codec_name", "-of", "default=nokey=1:noprint_wrappers=1",
-        str(input_path),
-    ]
-    try:
-        result = subprocess.run(
-            probe_cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-        )
-        return "aac" in result.stdout.strip().lower()
-    except Exception:
-        return False
-
 def _persist_artifacts(
     artifact_dir: Path,
     audio_path: Path,
@@ -206,6 +192,7 @@ def normalize_and_stub_subtitles(
     artifact_dir: Path | None = None,
     use_hw_accel: bool = False,
     progress_callback: Callable[[str, float], None] | None = None,
+    check_cancelled: Callable[[], None] | None = None,
     output_width: int | None = None,
     output_height: int | None = None,
     # Legacy/Passed-through but less impactful now
@@ -296,11 +283,14 @@ def normalize_and_stub_subtitles(
 
             if check_cancelled: check_cancelled()
 
-            # Duration Check
+            # Media Info (Duration & Codec)
             try:
-                total_duration = subtitles.get_video_duration(input_path)
-            except:
+                media_info = subtitles.get_media_info(input_path)
+                total_duration = media_info.duration
+                input_audio_codec = media_info.audio_codec
+            except Exception:
                 total_duration = 0.0
+                input_audio_codec = None
 
             # Step 1: Extract Audio
             if progress_callback: progress_callback("Extracting audio...", 0.0)
@@ -446,12 +436,15 @@ def normalize_and_stub_subtitles(
                         def _enc_cb(p):
                             if progress_callback: progress_callback(f"Encoding ({int(p)}%)...", 80.0 + (p * 0.2))
 
+                        is_aac = input_audio_codec is not None and "aac" in input_audio_codec.lower()
+                        should_copy_audio = audio_copy if audio_copy is not None else is_aac
+
                         _run_ffmpeg_with_subs(
                             input_path, ass_path, destination,
                             video_crf=video_crf or config.DEFAULT_VIDEO_CRF,
                             video_preset=video_preset or config.DEFAULT_VIDEO_PRESET,
                             audio_bitrate=audio_bitrate or config.DEFAULT_AUDIO_BITRATE,
-                            audio_copy=audio_copy if audio_copy is not None else _input_audio_is_aac(input_path),
+                            audio_copy=should_copy_audio,
                             use_hw_accel=use_hw_accel,
                             progress_callback=_enc_cb if total_duration > 0 else None,
                             total_duration=total_duration,
@@ -462,12 +455,15 @@ def normalize_and_stub_subtitles(
                         if use_hw_accel:
                             print(f"Hardware acceleration failed: {exc}. Retrying with software encoding...")
                             # Retry without hardware acceleration
+                            is_aac = input_audio_codec is not None and "aac" in input_audio_codec.lower()
+                            should_copy_audio = audio_copy if audio_copy is not None else is_aac
+
                             _run_ffmpeg_with_subs(
                                 input_path, ass_path, destination,
                                 video_crf=video_crf or config.DEFAULT_VIDEO_CRF,
                                 video_preset=video_preset or config.DEFAULT_VIDEO_PRESET,
                                 audio_bitrate=audio_bitrate or config.DEFAULT_AUDIO_BITRATE,
-                                audio_copy=audio_copy if audio_copy is not None else _input_audio_is_aac(input_path),
+                                audio_copy=should_copy_audio,
                                 use_hw_accel=False, # Force False
                                 progress_callback=_enc_cb if total_duration > 0 else None,
                                 total_duration=total_duration,
