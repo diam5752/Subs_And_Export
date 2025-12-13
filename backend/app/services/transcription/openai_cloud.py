@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import List, Optional
 
-from backend.app.services.subtitles import Cue, WordTiming, TimeRange, _resolve_openai_api_key, _load_openai_client
+from backend.app.services.subtitles import Cue, TimeRange, WordTiming, _load_openai_client, _resolve_openai_api_key
 from backend.app.services.transcription.base import Transcriber
 from backend.app.services.transcription.utils import normalize_text, write_srt_from_segments
 

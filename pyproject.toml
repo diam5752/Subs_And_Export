@@ -46,7 +46,7 @@ select = [
 ]
 ignore = ["B008", "E501", "B904", "E722", "E402", "F821", "B011", "E701", "F841", "B023", "B905", "E741"]
 
-[tool.ruff.isort]
+[tool.ruff.lint.isort]
 known-first-party = ["backend"]
 
 [tool.mypy]

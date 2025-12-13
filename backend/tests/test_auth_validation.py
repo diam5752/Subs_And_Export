@@ -1,6 +1,6 @@
 """Tests for input validation in auth flow."""
-import pytest
 from backend.app.core.ratelimit import limiter_register
+
 
 class TestEmailValidation:
     """Test email validation logic via API."""

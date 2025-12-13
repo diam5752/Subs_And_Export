@@ -1,6 +1,6 @@
 import unicodedata
 from pathlib import Path
-from typing import List, Iterable, Tuple
+from typing import Iterable, List, Tuple
 
 # Type alias for TimeRange
 TimeRange = Tuple[float, float, str]

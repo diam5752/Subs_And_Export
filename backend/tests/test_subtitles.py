@@ -571,7 +571,6 @@ def test_split_long_cues_logic():
 
 def test_transcribe_with_openai_success(monkeypatch, tmp_path):
     """Test successful OpenAI transcription."""
-    from backend.app.services import subtitles
 
     class MockSegment:
         def __init__(self, start, end, text, words=None):
