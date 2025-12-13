@@ -10,6 +10,7 @@ import subprocess
 import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
@@ -115,18 +116,61 @@ def _run_ffmpeg_with_subs(
         raise subprocess.CalledProcessError(process.returncode, cmd, "".join(stderr_lines))
     return "".join(stderr_lines)
 
+@dataclass(frozen=True)
+class MediaProbe:
+    duration_s: float | None
+    audio_codec: str | None
 
-def _input_audio_is_aac(input_path: Path) -> bool:
+    @property
+    def audio_is_aac(self) -> bool:
+        return (self.audio_codec or "").lower() == "aac"
+
+
+def _probe_media(input_path: Path) -> MediaProbe:
     probe_cmd = [
-        "ffprobe", "-v", "error", "-select_streams", "a:0",
-        "-show_entries", "stream=codec_name", "-of", "default=nokey=1:noprint_wrappers=1",
+        "ffprobe",
+        "-v",
+        "error",
+        "-select_streams",
+        "a:0",
+        "-show_entries",
+        "format=duration:stream=codec_name",
+        "-of",
+        "json",
         str(input_path),
     ]
+    result = subprocess.run(
+        probe_cmd,
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    probe_payload = json.loads(result.stdout or "{}")
+
+    duration_s: float | None = None
     try:
-        result = subprocess.run(
-            probe_cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-        )
-        return "aac" in result.stdout.strip().lower()
+        duration_raw = (probe_payload.get("format") or {}).get("duration")
+        if duration_raw is not None:
+            duration_s = float(duration_raw)
+    except (TypeError, ValueError):
+        duration_s = None
+
+    audio_codec: str | None = None
+    streams = probe_payload.get("streams") or []
+    if isinstance(streams, list) and streams:
+        first_stream = streams[0]
+        if isinstance(first_stream, dict):
+            codec_name = first_stream.get("codec_name")
+            if isinstance(codec_name, str) and codec_name.strip():
+                audio_codec = codec_name.strip().lower()
+
+    return MediaProbe(duration_s=duration_s, audio_codec=audio_codec)
+
+
+def _input_audio_is_aac(input_path: Path) -> bool:
+    try:
+        return _probe_media(input_path).audio_is_aac
     except Exception:
         return False
 
@@ -289,6 +333,7 @@ def normalize_and_stub_subtitles(
     pipeline_error: str | None = None
     overall_start = time.perf_counter()
     total_duration = 0.0
+    resolved_audio_copy = audio_copy if audio_copy is not None else False
 
     try:
         with tempfile.TemporaryDirectory() as scratch_dir:
@@ -297,11 +342,17 @@ def normalize_and_stub_subtitles(
 
             if check_cancelled: check_cancelled()
 
-            # Duration Check
-            try:
-                total_duration = subtitles.get_video_duration(input_path)
-            except:
-                total_duration = 0.0
+            # Probe once for duration + audio codec (used for progress and audio copy decisions).
+            if progress_callback is not None or audio_copy is None:
+                try:
+                    probe = _probe_media(input_path)
+                    if probe.duration_s is not None and probe.duration_s > 0:
+                        total_duration = probe.duration_s
+                    if audio_copy is None:
+                        resolved_audio_copy = probe.audio_is_aac
+                except Exception:
+                    total_duration = 0.0
+                    resolved_audio_copy = audio_copy if audio_copy is not None else False
 
             # Step 1: Extract Audio
             if progress_callback: progress_callback("Extracting audio...", 0.0)
@@ -452,7 +503,7 @@ def normalize_and_stub_subtitles(
                             video_crf=video_crf or config.DEFAULT_VIDEO_CRF,
                             video_preset=video_preset or config.DEFAULT_VIDEO_PRESET,
                             audio_bitrate=audio_bitrate or config.DEFAULT_AUDIO_BITRATE,
-                            audio_copy=audio_copy if audio_copy is not None else _input_audio_is_aac(input_path),
+                            audio_copy=resolved_audio_copy,
                             use_hw_accel=use_hw_accel,
                             progress_callback=_enc_cb if total_duration > 0 else None,
                             total_duration=total_duration,
@@ -468,7 +519,7 @@ def normalize_and_stub_subtitles(
                                 video_crf=video_crf or config.DEFAULT_VIDEO_CRF,
                                 video_preset=video_preset or config.DEFAULT_VIDEO_PRESET,
                                 audio_bitrate=audio_bitrate or config.DEFAULT_AUDIO_BITRATE,
-                                audio_copy=audio_copy if audio_copy is not None else _input_audio_is_aac(input_path),
+                                audio_copy=resolved_audio_copy,
                                 use_hw_accel=False, # Force False
                                 progress_callback=_enc_cb if total_duration > 0 else None,
                                 total_duration=total_duration,
