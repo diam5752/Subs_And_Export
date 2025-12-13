@@ -66,7 +66,11 @@ def _normalize_text(text: str) -> str:
     return stripped.upper()
 
 
-def extract_audio(input_video: Path, output_dir: Path | None = None) -> Path:
+def extract_audio(
+    input_video: Path,
+    output_dir: Path | None = None,
+    check_cancelled: Callable[[], None] | None = None
+) -> Path:
     """
     Extract the audio track from a video file into a mono WAV for transcription.
     """
@@ -88,7 +92,42 @@ def extract_audio(input_video: Path, output_dir: Path | None = None) -> Path:
         str(config.AUDIO_CHANNELS),
         str(audio_path),
     ]
-    subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+    # Use Popen to allow interruption if check_cancelled is provided
+    process = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE
+    )
+
+    try:
+        # We need to read output to prevent buffer filling (deadlock)
+        # Using communicate with timeout is tricky for cancellation loop
+        # Instead, we just loop with communicate(timeout)
+
+        while True:
+            if check_cancelled:
+                check_cancelled()
+
+            try:
+                # Wait briefly for process
+                process.wait(timeout=0.2)
+                # If we get here, process finished
+                if process.returncode != 0:
+                    # Capture output for error
+                    _, stderr = process.communicate()
+                    err_msg = stderr.decode("utf-8") if stderr else "Unknown error"
+                    raise subprocess.CalledProcessError(process.returncode, cmd, output=None, stderr=err_msg)
+                break
+            except subprocess.TimeoutExpired:
+                # Process still running, loop again to check_cancelled
+                continue
+
+    except Exception:
+        process.kill()
+        process.wait()
+        raise
+
     return audio_path
 
 
