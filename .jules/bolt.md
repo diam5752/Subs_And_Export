@@ -1,9 +1,5 @@
 # Bolt's Journal
 
-## 2024-05-22 - Subtitle Splitting Optimization
-**Learning:** `textwrap.wrap` is computationally expensive when used inside a loop to check if text fits incrementally. It re-processes the entire string each iteration, leading to O(N^2) complexity.
-**Action:** Replace incremental `textwrap.wrap` calls with a simple greedy character counter O(N) when accumulating words for subtitles. This provides significant speedup (measured ~27x in micro-benchmark).
-
-## 2025-12-13 - Karaoke Renderer Layout Caching
-**Learning:** `KaraokeRenderer` was recalculating text layout (iterative font resizing and text wrapping) for every single frame, even when only the active word highlighting changed. This consumed ~30% of frame rendering time (~23ms out of ~68ms for complex cues).
-**Action:** Implemented caching for the layout structure and word widths, keyed by the subtitle cue index. This reduced per-frame render time significantly for complex text, improving render throughput (FPS) by ~30-50% for text-heavy segments.
+## 2024-05-23 - SQLite Contention on Progress Updates
+**Learning:** The video processing pipeline emits progress updates at a high frequency (potentially per-frame). Writing these directly to SQLite creates significant I/O overhead and contention, especially with WAL mode enabled where every connection setup has overhead.
+**Action:** Always throttle progress callbacks that write to the database (e.g., max 1 update per second) to balance UI responsiveness with backend performance.

@@ -1,3 +1,4 @@
+import time
 import uuid
 from pathlib import Path
 from typing import List
@@ -133,12 +134,15 @@ def run_video_processing(
     try:
         job_store.update_job(job_id, status="processing", progress=0, message="Starting processing...")
 
-        def progress_callback(msg: str, percent: float):
-            # Throttle DB updates? For SQLite it's fast enough for coarse updates (5-10%)
-            # But let's just write.
-            job_store.update_job(job_id, progress=int(percent), message=msg)
+        last_update_time = 0.0
 
-            job_store.update_job(job_id, progress=int(percent), message=msg)
+        def progress_callback(msg: str, percent: float):
+            nonlocal last_update_time
+            now = time.time()
+            # Throttle DB updates to 1 per second to prevent SQLite contention
+            if percent <= 0 or percent >= 100 or (now - last_update_time) >= 1.0:
+                job_store.update_job(job_id, progress=int(percent), message=msg)
+                last_update_time = now
 
         def check_cancelled():
             """Check if job was cancelled by user."""
