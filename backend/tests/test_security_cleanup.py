@@ -2,6 +2,7 @@
 import os
 from unittest.mock import patch
 
+
 def test_cleanup_endpoint_security(client, user_auth_headers):
     """
     Test security controls on the cleanup endpoint.
