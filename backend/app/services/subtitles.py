@@ -8,7 +8,6 @@ import os
 import re
 import subprocess
 import tempfile
-import textwrap
 import tomllib
 import unicodedata
 from dataclasses import dataclass
@@ -1150,26 +1149,67 @@ def _wrap_lines(
 
     IMPORTANT: This function fills lines up to max_chars width, NOT balanced wrapping.
     The cue splitting logic ensures cues are small enough to fit in max_lines.
+
+    Optimized to avoid overhead of textwrap.wrap (O(N) vs O(N^2) behavior in loops).
     """
     if not words:
         return []
 
-    text = " ".join(words)
+    lines = []
+    current_line = []
+    current_length = 0
 
-    # Use max_chars as the width limit
-    # The cue splitting logic ensures we don't get too many words
-    wrapped = textwrap.wrap(
-        text,
-        width=max_chars,
-        break_long_words=True,
-        break_on_hyphens=False,
-        drop_whitespace=True,
-    )
+    for word in words:
+        word_len = len(word)
+        space_needed = 1 if current_length > 0 else 0
 
-    if not wrapped:
-        return [words]
+        # Case 1: Word fits on current line
+        if current_length + space_needed + word_len <= max_chars:
+            current_line.append(word)
+            current_length += space_needed + word_len
+            continue
 
-    return [line.split() for line in wrapped]
+        # Case 2: Word does not fit
+        if word_len > max_chars:
+             # Try to fill current line with part of the word
+             remaining = word
+             if current_length > 0:
+                 space_left = max_chars - current_length - space_needed
+                 if space_left >= 1:
+                     chunk = remaining[:space_left]
+                     current_line.append(chunk)
+                     lines.append(current_line)
+                     current_line = []
+                     current_length = 0
+                     remaining = remaining[space_left:]
+                     space_needed = 0
+                 else:
+                     lines.append(current_line)
+                     current_line = []
+                     current_length = 0
+                     space_needed = 0
+
+             # Now process remaining as new lines
+             while len(remaining) > max_chars:
+                 lines.append([remaining[:max_chars]])
+                 remaining = remaining[max_chars:]
+
+             if remaining:
+                 current_line = [remaining]
+                 current_length = len(remaining)
+
+        else:
+             # Word fits on a NEW line
+             if current_line:
+                 lines.append(current_line)
+
+             current_line = [word]
+             current_length = word_len
+
+    if current_line:
+        lines.append(current_line)
+
+    return lines
 
 
 def _format_karaoke_text(cue: Cue, max_lines: int = 2) -> str:
