@@ -1,39 +1,12 @@
 import os
-import unicodedata
 from pathlib import Path
 from typing import List
 
 from backend.app.core import config
 from backend.app.services.subtitles import Cue, TimeRange
 from backend.app.services.transcription.base import Transcriber
+from backend.app.services.transcription.utils import normalize_text, write_srt_from_segments
 
-
-def _normalize_text(text: str) -> str:
-    """
-    Uppercase + strip accents for consistent, bold subtitle styling.
-    Duplicated here to ensure Standard Model independence.
-    """
-    normalized = unicodedata.normalize("NFD", text)
-    stripped = "".join(ch for ch in normalized if not unicodedata.combining(ch))
-    return stripped.upper()
-
-def _format_timestamp(seconds: float) -> str:
-    hours = int(seconds // 3600)
-    minutes = int((seconds % 3600) // 60)
-    secs = seconds % 60
-    return f"{hours:01d}:{minutes:02d}:{secs:05.2f}"
-
-def _write_srt_from_segments(segments: List[TimeRange], dest: Path) -> Path:
-    lines: List[str] = []
-    for idx, (start, end, text) in enumerate(segments, start=1):
-        start_ts = _format_timestamp(start)
-        end_ts = _format_timestamp(end)
-        lines.append(str(idx))
-        lines.append(f"{start_ts.replace('.', ',')} --> {end_ts.replace('.', ',')}")
-        lines.append(text.strip())
-        lines.append("")  # blank line separator
-    dest.write_text("\n".join(lines), encoding="utf-8")
-    return dest
 
 class StandardTranscriber(Transcriber):
     """
@@ -91,7 +64,7 @@ class StandardTranscriber(Transcriber):
                 continue
 
             # Normalize the full segment text
-            normalized_text = _normalize_text(seg_text)
+            normalized_text = normalize_text(seg_text)
             if not normalized_text:
                 continue
 
@@ -100,7 +73,7 @@ class StandardTranscriber(Transcriber):
             timed_text.append((seg_start, seg_end, seg_text))
 
         srt_path = output_dir / f"{audio_path.stem}.srt"
-        _write_srt_from_segments(timed_text, srt_path)
+        write_srt_from_segments(timed_text, srt_path)
 
         if progress_callback:
             progress_callback(100.0)

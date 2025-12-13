@@ -80,7 +80,9 @@ def test_generate_subtitles_from_audio_writes_srt(monkeypatch, tmp_path: Path) -
                 ]
             return Result()
 
-    monkeypatch.setattr(subtitles, "_get_whisper_model", lambda *a, **k: StubModel())
+    # Mock the internal logic in LocalWhisperTranscriber
+    monkeypatch.setattr("backend.app.services.transcription.local_whisper._get_whisper_model", lambda *a, **k: StubModel())
+
     srt_path, cues = subtitles.generate_subtitles_from_audio(
         audio_path, model_size="tiny", output_dir=tmp_path
     )
@@ -192,7 +194,8 @@ def test_generate_subtitles_from_audio_accepts_auto_language(monkeypatch, tmp_pa
                 segments = []
             return Result()
 
-    monkeypatch.setattr(subtitles, "_get_whisper_model", lambda *a, **k: StubModel())
+    # Mock the internal logic in LocalWhisperTranscriber
+    monkeypatch.setattr("backend.app.services.transcription.local_whisper._get_whisper_model", lambda *a, **k: StubModel())
     subtitles.generate_subtitles_from_audio(audio_path, language="auto", output_dir=tmp_path)
 
 
@@ -222,7 +225,8 @@ def test_generate_subtitles_from_audio_passes_decoding_params(monkeypatch, tmp_p
 
             return Result()
 
-    monkeypatch.setattr(subtitles, "_get_whisper_model", lambda *a, **k: StubModel())
+    # Mock the internal logic in LocalWhisperTranscriber
+    monkeypatch.setattr("backend.app.services.transcription.local_whisper._get_whisper_model", lambda *a, **k: StubModel())
 
     subtitles.generate_subtitles_from_audio(
         audio_path,
@@ -418,15 +422,18 @@ def test_transcribe_openai_error(monkeypatch, tmp_path):
                 create = Boom().create
 
     monkeypatch.setenv("OPENAI_API_KEY", "k")
-    monkeypatch.setattr(subtitles, "_load_openai_client", lambda api_key: DummyClient())
+    # Patch where it is imported/used
+    monkeypatch.setattr("backend.app.services.transcription.openai_cloud._load_openai_client", lambda api_key: DummyClient())
+
+    from backend.app.services.transcription.openai_cloud import OpenAITranscriber
+    transcriber = OpenAITranscriber(api_key="k")
 
     with pytest.raises(RuntimeError) as exc:
-        subtitles._transcribe_with_openai(
+        transcriber.transcribe(
             tmp_path / "audio.wav",
-            "whisper-1",
-            "el",
-            None,
-            tmp_path
+            tmp_path,
+            language="el",
+            model="whisper-1"
         )
     assert "OpenAI transcription failed" in str(exc.value)
 
@@ -524,8 +531,10 @@ def test_transcribe_with_whispercpp_no_karaoke(monkeypatch, tmp_path):
     audio_path = tmp_path / "test.wav"
     audio_path.touch()
 
-    srt_path, cues = subtitles._transcribe_with_whispercpp(
-        audio_path, None, "el", tmp_path
+    from backend.app.services.transcription.standard_whisper import StandardTranscriber
+    transcriber = StandardTranscriber()
+    srt_path, cues = transcriber.transcribe(
+        audio_path, tmp_path, language="el"
     )
 
     assert len(cues) == 1
@@ -598,13 +607,16 @@ def test_transcribe_with_openai_success(monkeypatch, tmp_path):
                     return MockTranscript()
 
     monkeypatch.setenv("OPENAI_API_KEY", "testkey")
-    monkeypatch.setattr(subtitles, "_load_openai_client", lambda k: Client())
+    # Patch the function as imported in openai_cloud
+    monkeypatch.setattr("backend.app.services.transcription.openai_cloud._load_openai_client", lambda k: Client())
 
     audio_path = tmp_path / "test.wav"
     audio_path.touch()
 
-    srt_path, cues = subtitles._transcribe_with_openai(
-        audio_path, "whisper-1", "en", None, tmp_path
+    from backend.app.services.transcription.openai_cloud import OpenAITranscriber
+    transcriber = OpenAITranscriber(api_key="testkey")
+    srt_path, cues = transcriber.transcribe(
+        audio_path, tmp_path, language="en", model="whisper-1"
     )
 
     assert srt_path.exists()
@@ -784,10 +796,14 @@ def test_transcribe_with_groq_missing_key(monkeypatch, tmp_path):
     monkeypatch.delenv("GROQ_API_KEY", raising=False)
     monkeypatch.setattr(subtitles.config, "PROJECT_ROOT", tmp_path / "nonexistent")
 
+    from backend.app.services.transcription.groq_cloud import GroqTranscriber
+    transcriber = GroqTranscriber(api_key=None)
+
     with pytest.raises(RuntimeError) as exc:
-        subtitles._transcribe_with_groq(
+        transcriber.transcribe(
             tmp_path / "audio.wav",
-            None, "el", None, tmp_path
+            tmp_path,
+            language="el"
         )
     assert "Groq API key is required" in str(exc.value)
 
@@ -824,13 +840,14 @@ def test_transcribe_with_groq_success(monkeypatch, tmp_path):
     audio_path = tmp_path / "test.wav"
     audio_path.touch()
 
-    srt_path, cues = subtitles._transcribe_with_groq(
+    from backend.app.services.transcription.groq_cloud import GroqTranscriber
+    transcriber = GroqTranscriber(api_key="test_key")
+
+    srt_path, cues = transcriber.transcribe(
         audio_path,
-        model_name="whisper-large-v3-turbo",
-        language="el",
-        prompt=None,
         output_dir=tmp_path,
-        api_key="test_key"
+        model="whisper-large-v3-turbo",
+        language="el",
     )
 
     assert srt_path.exists()
@@ -853,9 +870,12 @@ def test_transcribe_with_groq_api_error(monkeypatch, tmp_path):
     audio_path = tmp_path / "test.wav"
     audio_path.touch()
 
+    from backend.app.services.transcription.groq_cloud import GroqTranscriber
+    transcriber = GroqTranscriber(api_key="test_key")
+
     with pytest.raises(RuntimeError) as exc:
-         subtitles._transcribe_with_groq(
-            audio_path, None, "el", None, tmp_path, api_key="test_key"
+         transcriber.transcribe(
+            audio_path, tmp_path, language="el"
         )
     assert "Groq transcription failed" in str(exc.value)
 
@@ -864,13 +884,14 @@ def test_generate_subtitles_routes_to_groq(monkeypatch, tmp_path):
     """Test that provider='groq' routes to Groq transcription."""
     called_with = {}
 
-    def mock_groq(*args, **kwargs):
+    def mock_groq(self, *args, **kwargs):
         called_with.update({"args": args, "kwargs": kwargs})
         srt = tmp_path / "test.srt"
         srt.write_text("1\n00:00:00,00 --> 00:00:01,00\nTest\n", encoding="utf-8")
         return srt, []
 
-    monkeypatch.setattr(subtitles, "_transcribe_with_groq", mock_groq)
+    # Mock the Transcriber class method
+    monkeypatch.setattr("backend.app.services.transcription.groq_cloud.GroqTranscriber.transcribe", mock_groq)
 
     audio_path = tmp_path / "test.wav"
     audio_path.touch()
@@ -905,14 +926,14 @@ def test_transcribe_with_groq_progress_callback(monkeypatch, tmp_path):
 
     progress_values = []
 
-    subtitles._transcribe_with_groq(
+    from backend.app.services.transcription.groq_cloud import GroqTranscriber
+    transcriber = GroqTranscriber(api_key="test_key")
+
+    transcriber.transcribe(
         audio_path,
-        model_name=None,
-        language="el",
-        prompt=None,
         output_dir=tmp_path,
-        progress_callback=lambda p: progress_values.append(p),
-        api_key="test_key"
+        language="el",
+        progress_callback=lambda p: progress_values.append(p)
     )
 
     assert 10.0 in progress_values
@@ -984,8 +1005,11 @@ def test_standard_model_no_words_lost(monkeypatch, tmp_path):
     audio_path = tmp_path / "test.wav"
     audio_path.touch()
 
-    srt_path, cues = subtitles._transcribe_with_whispercpp(
-        audio_path, None, "el", tmp_path
+    from backend.app.services.transcription.standard_whisper import StandardTranscriber
+    transcriber = StandardTranscriber()
+
+    srt_path, cues = transcriber.transcribe(
+        audio_path, tmp_path, language="el"
     )
 
     # Verify transcription succeeded
