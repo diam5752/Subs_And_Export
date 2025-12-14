@@ -40,3 +40,8 @@
 **Vulnerability:** The `subtitle_color` input was passed directly into the ASS style header. By injecting commas (e.g., `,0,0,0,0,1`), an attacker could shift style columns, corrupting the subtitle file or potentially crashing the renderer.
 **Learning:** Text-based file formats like ASS/CSV/SRT are vulnerable to delimiter injection if inputs are not sanitized, even if they aren't "executable" code.
 **Prevention:** Validate all inputs against strict allowlists (e.g., regex for colors) and sanitize/escape delimiters when constructing formatted text files.
+
+## 2025-06-08 - [Medium] Unthrottled Content Generation
+**Vulnerability:** The `/videos/jobs/{job_id}/viral-metadata` and `/videos/jobs/{job_id}/export` endpoints triggered expensive operations (LLM calls and video rendering) without rate limiting, exposing the system to resource exhaustion and financial DoS.
+**Learning:** Secondary endpoints that generate content or call external paid APIs are often overlooked for rate limiting compared to primary "upload" endpoints.
+**Prevention:** Apply dedicated rate limiters (e.g. `limiter_content`) to all endpoints that trigger high-cost or high-latency operations, ensuring they are protected independently or share a "heavy ops" quota.
