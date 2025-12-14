@@ -1,5 +1,5 @@
 import React, { memo } from 'react';
-import { JobResponse, api } from '@/lib/api';
+import { JobResponse } from '@/lib/api';
 
 interface JobListItemProps {
     job: JobResponse;
@@ -12,12 +12,10 @@ interface JobListItemProps {
     onToggleSelection: (id: string, isSelected: boolean) => void;
     onJobSelect: (job: JobResponse | null) => void;
     setShowPreview: (show: boolean) => void;
-    confirmDeleteId: string | null;
+    isConfirmingDelete: boolean;
+    isDeleting: boolean;
     setConfirmDeleteId: (id: string | null) => void;
-    deletingJobId: string | null;
-    setDeletingJobId: (id: string | null) => void;
-    onRefreshJobs: () => Promise<void>;
-    selectedJobId: string | undefined;
+    onDeleteConfirmed: (id: string) => void;
     t: (key: string) => string;
 }
 
@@ -32,18 +30,12 @@ export const JobListItem = memo(function JobListItem({
     onToggleSelection,
     onJobSelect,
     setShowPreview,
-    confirmDeleteId,
+    isConfirmingDelete,
+    isDeleting,
     setConfirmDeleteId,
-    deletingJobId,
-    setDeletingJobId,
-    onRefreshJobs,
-    selectedJobId,
+    onDeleteConfirmed,
     t
 }: JobListItemProps) {
-    // Determine if this item is currently confirming delete
-    const isConfirmingDelete = confirmDeleteId === job.id;
-    const isDeleting = deletingJobId === job.id;
-
     const handleContainerClick = () => {
         if (selectionMode) {
             onToggleSelection(job.id, isSelected);
@@ -133,23 +125,9 @@ export const JobListItem = memo(function JobListItem({
                             isConfirmingDelete ? (
                                 <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                                     <button
-                                        onClick={async (e) => {
+                                        onClick={(e) => {
                                             e.stopPropagation();
-                                            setDeletingJobId(job.id);
-                                            try {
-                                                await api.deleteJob(job.id);
-                                                if (selectedJobId === job.id) {
-                                                    onJobSelect(null);
-                                                    setShowPreview(false);
-                                                }
-                                                setConfirmDeleteId(null);
-                                                // Refresh jobs list without page reload
-                                                await onRefreshJobs();
-                                            } catch (err) {
-                                                console.error('Delete failed:', err);
-                                            } finally {
-                                                setDeletingJobId(null);
-                                            }
+                                            onDeleteConfirmed(job.id);
                                         }}
                                         disabled={isDeleting}
                                         className="text-xs px-2 py-1 rounded bg-[var(--danger)] text-white hover:bg-[var(--danger)]/80 disabled:opacity-50"
