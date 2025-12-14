@@ -355,9 +355,9 @@ def normalize_and_stub_subtitles(
         font_size=font_size
     )
 
-    selected_model = model_size or config.WHISPER_MODEL_TURBO
+    selected_model = model_size or config.WHISPER_MODEL
     if "turbo" in selected_model.lower() and "ct2" not in selected_model.lower():
-        selected_model = config.WHISPER_MODEL_TURBO
+        selected_model = config.WHISPER_MODEL
 
     # Determine Provider Strategy
     # Simplified logic: If provider explicit, use it. Else if OpenAI-model, use OpenAI. Else Local.

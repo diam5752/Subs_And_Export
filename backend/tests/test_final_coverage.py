@@ -408,8 +408,8 @@ def test_video_processing_turbo_alias(monkeypatch):
             in_p, out_p, model_size="turbo"
         )
 
-        # Verify the turbo alias was resolved to config.WHISPER_MODEL_TURBO
-        assert captured_model["model"] == config.WHISPER_MODEL_TURBO
+        # Verify the turbo alias was resolved to config.WHISPER_MODEL
+        assert captured_model["model"] == config.WHISPER_MODEL
 
 def test_video_processing_artifact_same_path(monkeypatch):
     """Cover output path == artifact output path (line 480)."""

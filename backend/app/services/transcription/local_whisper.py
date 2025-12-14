@@ -20,7 +20,7 @@ def _get_whisper_model(
     Load a Stable-Whisper wrapped Faster-Whisper model.
     """
     if model_size == "turbo":
-        model_size = config.WHISPER_MODEL_TURBO
+        model_size = config.WHISPER_MODEL
 
     # stable-ts wrapper for faster-whisper
     model = stable_whisper.load_faster_whisper(

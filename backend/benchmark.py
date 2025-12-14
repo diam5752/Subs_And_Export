@@ -62,7 +62,7 @@ def main():
             results["standard"] = {"time": t_std, "speed_factor": audio_duration / t_std}
 
         # 2. Enhanced (Local Turbo)
-        t_enh = benchmark_model("Enhanced", "local", config.WHISPER_MODEL_TURBO, sample_path)
+        t_enh = benchmark_model("Enhanced", "local", config.WHISPER_MODEL, sample_path)
         if t_enh:
              results["enhanced"] = {"time": t_enh, "speed_factor": audio_duration / t_enh}
 

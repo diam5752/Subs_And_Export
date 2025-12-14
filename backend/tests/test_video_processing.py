@@ -954,7 +954,7 @@ def test_normalize_applies_turbo_defaults(monkeypatch, tmp_path: Path):
         src,
         dest,
         language="el",
-        model_size=video_processing.config.WHISPER_MODEL_TURBO,
+        model_size=video_processing.config.WHISPER_MODEL,
         audio_copy=None,
     )
 def test_social_copy_falls_back_if_none(monkeypatch, tmp_path: Path) -> None:
@@ -1116,7 +1116,7 @@ def test_persist_artifacts_copy_logic(tmp_path):
 
 def test_turbo_model_alias():
     """Verify turbo alias string."""
-    val = video_processing.config.WHISPER_MODEL_TURBO
+    val = video_processing.config.WHISPER_MODEL
     # Relaxed check as it might be aliased to large-v3 in config
     assert "turbo" in val or "large-v3" in val
 

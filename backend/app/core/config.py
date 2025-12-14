@@ -26,7 +26,7 @@ DEFAULT_OUTPUT_SUFFIX = "_subbed"
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent  # /backend/app/core -> project root
 
 # Whisper / STT defaults
-WHISPER_MODEL_TURBO = "large-v3"  # Using standard large-v3 for maximum accuracy in Greek
+WHISPER_MODEL = "large-v3-turbo"  # Fast turbo model with great Greek accuracy
 
 WHISPER_LANGUAGE = "el"
 WHISPER_DEVICE = "auto"  # "cpu", "cuda", "auto"

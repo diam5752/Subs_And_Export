@@ -186,9 +186,9 @@ def _get_whisper_model(
     Load a Stable-Whisper wrapped Faster-Whisper model.
     """
     # Map "turbo" alias to the config constant (which might be large-v3 now)
-    print(f"DEBUG_RUNTIME_CONFIG: config.WHISPER_MODEL_TURBO is '{config.WHISPER_MODEL_TURBO}'")
+    print(f"DEBUG_RUNTIME_CONFIG: config.WHISPER_MODEL is '{config.WHISPER_MODEL}'")
     if model_size == "turbo":
-        model_size = config.WHISPER_MODEL_TURBO
+        model_size = config.WHISPER_MODEL
 
     print(f"DEBUG: Loading Whisper model '{model_size}' (Device: {device})")
 
@@ -302,7 +302,7 @@ def _resolve_groq_api_key(explicit_key: str | None = None) -> str | None:
 
 def generate_subtitles_from_audio(
     audio_path: Path,
-    model_size: str = config.WHISPER_MODEL_TURBO,
+    model_size: str = config.WHISPER_MODEL,
     language: str | None = config.WHISPER_LANGUAGE,
     device: str = config.WHISPER_DEVICE,
     compute_type: str = config.WHISPER_COMPUTE_TYPE,
