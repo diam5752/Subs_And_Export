@@ -147,23 +147,30 @@ def _run_ffmpeg_with_subs(
 
     try:
         if process.stderr:
+            last_cancel_check = 0.0
             for line in process.stderr:
                 # Periodic cancellation check
+                # Optimization: Throttle check to ~2Hz to avoid excessive function call overhead
                 if check_cancelled:
-                    try:
-                        check_cancelled()
-                    except Exception:
-                        process.kill()
-                        raise
+                    now = time.monotonic()
+                    if now - last_cancel_check > 0.5:
+                        try:
+                            check_cancelled()
+                            last_cancel_check = now
+                        except Exception:
+                            process.kill()
+                            raise
 
                 stderr_lines.append(line)
                 if progress_callback and total_duration and total_duration > 0:
-                    match = TIME_PATTERN.search(line)
-                    if match:
-                        h, m, s = match.groups()
-                        current_seconds = int(h) * 3600 + int(m) * 60 + float(s)
-                        progress = min(100.0, (current_seconds / total_duration) * 100.0)
-                        progress_callback(progress)
+                    # Optimization: Fast string check before expensive regex
+                    if "time=" in line:
+                        match = TIME_PATTERN.search(line)
+                        if match:
+                            h, m, s = match.groups()
+                            current_seconds = int(h) * 3600 + int(m) * 60 + float(s)
+                            progress = min(100.0, (current_seconds / total_duration) * 100.0)
+                            progress_callback(progress)
 
         process.wait()
         if process.returncode != 0:
