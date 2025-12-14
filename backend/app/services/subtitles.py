@@ -410,6 +410,18 @@ def _ass_header(
     play_res_x: int = config.DEFAULT_WIDTH,
     play_res_y: int = config.DEFAULT_HEIGHT,
 ) -> str:
+    # Security: Validate inputs to prevent ASS format injection
+    # Colors and font names must not contain commas or newlines which are delimiters in ASS
+    for name, val in [
+        ("primary_color", primary_color),
+        ("secondary_color", secondary_color),
+        ("outline_color", outline_color),
+        ("back_color", back_color),
+        ("font", font),
+    ]:
+        if any(c in val for c in ",\n\r"):
+            raise ValueError(f"Invalid character in ASS field {name}: {val!r}")
+
     return (
         "[Script Info]\n"
         "ScriptType: v4.00+\n"
