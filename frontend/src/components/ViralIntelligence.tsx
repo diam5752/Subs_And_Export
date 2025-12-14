@@ -11,6 +11,8 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
     const [loading, setLoading] = useState(false);
     const [metadata, setMetadata] = useState<ViralMetadataResponse | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+    const [copiedFull, setCopiedFull] = useState(false);
 
     const handleGenerate = async () => {
         setLoading(true);
@@ -26,8 +28,19 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
         }
     };
 
-    const copyToClipboard = (text: string) => {
-        navigator.clipboard.writeText(text);
+    const copyToClipboard = async (text: string, index?: number, isFull?: boolean) => {
+        try {
+            await navigator.clipboard.writeText(text);
+            if (isFull) {
+                setCopiedFull(true);
+                setTimeout(() => setCopiedFull(false), 2000);
+            } else if (index !== undefined) {
+                setCopiedIndex(index);
+                setTimeout(() => setCopiedIndex(null), 2000);
+            }
+        } catch (err) {
+            console.error('Failed to copy', err);
+        }
     };
 
     if (!metadata && !loading) {
@@ -66,14 +79,21 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
                 <h4 className="text-sm font-semibold text-[var(--muted)] uppercase tracking-wider">{t('viralHooksLabel')}</h4>
                 <div className="space-y-2">
                     {metadata.hooks.map((hook, i) => (
-                        <div
+                        <button
                             key={i}
-                            onClick={() => copyToClipboard(hook)}
-                            className="p-3 rounded-lg border border-[var(--border)] hover:border-[var(--accent)] cursor-pointer transition-colors bg-[var(--surface)] flex justify-between items-center group"
+                            type="button"
+                            onClick={() => copyToClipboard(hook, i)}
+                            className="w-full text-left p-3 rounded-lg border border-[var(--border)] hover:border-[var(--accent)] cursor-pointer transition-colors bg-[var(--surface)] flex justify-between items-center group focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
+                            aria-label={`${t('viralCopy')}: ${hook}`}
                         >
                             <span className="font-bold">{hook}</span>
-                            <span className="text-xs text-[var(--muted)] opacity-0 group-hover:opacity-100 transition-opacity">{t('viralCopy')}</span>
-                        </div>
+                            <span className={`text-xs font-medium transition-all ${copiedIndex === i
+                                ? 'text-emerald-500 opacity-100'
+                                : 'text-[var(--muted)] opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100'
+                                }`}>
+                                {copiedIndex === i ? t('viralCopied') : t('viralCopy')}
+                            </span>
+                        </button>
                     ))}
                 </div>
             </div>
@@ -83,10 +103,10 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
                 <div className="flex justify-between items-center">
                     <h4 className="text-sm font-semibold text-[var(--muted)] uppercase tracking-wider">{t('viralCaptionLabel')}</h4>
                     <button
-                        onClick={() => copyToClipboard(`${metadata.caption_hook}\n\n${metadata.caption_body}\n\n${metadata.cta}\n\n${metadata.hashtags.join(' ')}`)}
-                        className="text-xs text-[var(--accent)] hover:underline"
+                        onClick={() => copyToClipboard(`${metadata.caption_hook}\n\n${metadata.caption_body}\n\n${metadata.cta}\n\n${metadata.hashtags.join(' ')}`, undefined, true)}
+                        className={`text-xs font-medium transition-colors hover:underline ${copiedFull ? 'text-emerald-500' : 'text-[var(--accent)]'}`}
                     >
-                        {t('viralCopyFull')}
+                        {copiedFull ? t('viralCopied') : t('viralCopyFull')}
                     </button>
                 </div>
                 <div className="space-y-4 text-sm">

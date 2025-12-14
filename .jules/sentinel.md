@@ -27,3 +27,7 @@
 **Vulnerability:** The `_run_ffmpeg_with_subs` function configured `subprocess.Popen` with `stdout=subprocess.PIPE` but never read from it, only iterating over `stderr`. If the subprocess wrote enough data to `stdout` to fill the OS pipe buffer, it would block indefinitely (deadlock).
 **Learning:** Piping output without reading it creates a hidden availability risk. Tools like FFmpeg usually write to stderr, but may write to stdout under certain conditions or versions.
 **Prevention:** Always explicitly redirect unused output streams to `subprocess.DEVNULL` to ensure the buffer cannot fill up.
+## 2025-06-03 - [Medium] Unbounded Input Lengths
+**Vulnerability:** The `/auth` and `/videos/process` endpoints lacked input length validation, allowing Denial of Service (DoS) via excessively large payloads (e.g., 2GB context prompts or 1GB usernames) that could exhaust server memory.
+**Learning:** Pydantic models default to allowing any string length unless `Field(max_length=...)` is specified. Form parameters in FastAPI are also unbounded by default.
+**Prevention:** Always enforce strict `max_length` constraints on all string inputs (Pydantic `Field` or manual checks) to prevent memory exhaustion attacks.

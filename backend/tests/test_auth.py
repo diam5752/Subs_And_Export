@@ -239,9 +239,10 @@ class TestUserUpdates:
         token = login_response.json()["access_token"]
 
         # Update password with mismatch
+        # Use a valid password (>=12 chars) to pass validation, so we hit the mismatch check
         response = client.put(
             "/auth/password",
-            json={"password": "pwd", "confirm_password": "mismatch"},
+            json={"password": "validpassword123", "confirm_password": "mismatch"},
             headers={"Authorization": f"Bearer {token}"}
         )
         assert response.status_code == 400
@@ -263,9 +264,10 @@ class TestUserUpdates:
         with db.connect() as conn:
             conn.execute("UPDATE users SET provider = 'google' WHERE email = ?", (test_user_data["email"],))
 
+        # Use a valid password (>=12 chars) to pass validation, so we hit the provider check
         response = client.put(
             "/auth/password",
-            json={"password": "newpass", "confirm_password": "newpass"},
+            json={"password": "newpassword123", "confirm_password": "newpassword123"},
             headers={"Authorization": f"Bearer {token}"}
         )
         assert response.status_code == 400
