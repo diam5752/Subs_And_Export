@@ -137,6 +137,7 @@ def run_video_processing(
         job_store.update_job(job_id, status="processing", progress=0, message="Starting processing...")
 
         last_update_time = 0.0
+        last_check_time = 0.0
 
         def progress_callback(msg: str, percent: float):
             nonlocal last_update_time
