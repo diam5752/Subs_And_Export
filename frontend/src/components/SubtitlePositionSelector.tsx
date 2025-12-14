@@ -35,6 +35,8 @@ export function SubtitlePositionSelector({
 }: SubtitlePositionSelectorProps & { subtitleColor?: string, onChangeColor?: (color: string) => void, colors?: Array<{ label: string; value: string; ass: string }> }) {
     const { t } = useI18n();
     const colorLabelId = useId();
+    const sizeLabelId = useId();
+    const karaokeLabelId = useId();
 
     // Map numeric position (5-35) to CSS 'bottom' percentage for preview
     const getPreviewBottom = (pos: number) => {
@@ -80,7 +82,7 @@ export function SubtitlePositionSelector({
                         {/* Size Slider */}
                         {onChangeSize && (
                             <div className="flex-1 min-w-[200px]">
-                                <label className="block text-sm font-medium text-[var(--muted)] mb-3">
+                                <label htmlFor={sizeLabelId} className="block text-sm font-medium text-[var(--muted)] mb-3">
                                     {t('sizeLabel')}
                                 </label>
                                 <div className="p-4 rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)]">
@@ -89,6 +91,7 @@ export function SubtitlePositionSelector({
                                         <span
                                             className="font-bold text-[var(--foreground)] transition-all duration-200"
                                             style={{ fontSize: `${Math.max(14, subtitleSize * 0.28)}px` }}
+                                            aria-hidden="true"
                                         >
                                             Aa
                                         </span>
@@ -97,6 +100,7 @@ export function SubtitlePositionSelector({
                                     {/* Slider */}
                                     <div className="relative">
                                         <input
+                                            id={sizeLabelId}
                                             type="range"
                                             min={50}
                                             max={150}
@@ -168,6 +172,7 @@ export function SubtitlePositionSelector({
                                                 min={5}
                                                 max={50}
                                                 value={value}
+                                                aria-label={t('positionLabel')}
                                                 onChange={(e) => {
                                                     e.stopPropagation();
                                                     onChange(Number(e.target.value));
@@ -309,15 +314,17 @@ export function SubtitlePositionSelector({
                         {/* Karaoke Toggle (separate column, next to colors) */}
                         {onChangeKaraoke && karaokeSupported && (
                             <div className="flex-1 min-w-[200px]">
-                                <label className="block text-sm font-medium text-[var(--muted)] mb-3">
+                                <label id={karaokeLabelId} className="block text-sm font-medium text-[var(--muted)] mb-3">
                                     {t('karaokeLabel')}
                                 </label>
                                 <button
+                                    role="switch"
+                                    aria-checked={karaokeEnabled}
+                                    aria-labelledby={karaokeLabelId}
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         onChangeKaraoke(!karaokeEnabled);
                                     }}
-                                    aria-pressed={karaokeEnabled}
                                     className={`w-full p-3 rounded-xl border text-left transition-all flex items-center justify-between group relative overflow-hidden ${karaokeEnabled
                                         ? 'border-[var(--accent)] bg-[var(--accent)]/10 ring-1 ring-[var(--accent)]'
                                         : 'border-[var(--border)] hover:border-[var(--border-hover)] bg-[var(--surface-elevated)]'

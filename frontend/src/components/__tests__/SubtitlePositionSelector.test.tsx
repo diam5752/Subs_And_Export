@@ -28,7 +28,9 @@ describe('SubtitlePositionSelector', () => {
     it('renders size slider and presets', () => {
         render(<SubtitlePositionSelector {...defaultProps} />);
 
-        expect(screen.getByText('sizeLabel')).toBeInTheDocument();
+        // Verify accessible label connection
+        expect(screen.getByLabelText('sizeLabel')).toHaveAttribute('type', 'range');
+
         // Presets
         expect(screen.getByText('sizeSmall')).toBeInTheDocument();
         expect(screen.getByText('sizeMedium')).toBeInTheDocument();
@@ -38,6 +40,9 @@ describe('SubtitlePositionSelector', () => {
 
     it('renders position slider and presets', () => {
         render(<SubtitlePositionSelector {...defaultProps} />);
+
+        // Verify accessible label
+        expect(screen.getByLabelText('positionLabel')).toHaveAttribute('type', 'range');
 
         // Presets
         expect(screen.getByText('positionLow')).toBeInTheDocument();
@@ -70,8 +75,11 @@ describe('SubtitlePositionSelector', () => {
     it('renders karaoke toggle when supported', () => {
         render(<SubtitlePositionSelector {...defaultProps} />);
 
-        expect(screen.getByText('karaokeLabel')).toBeInTheDocument();
-        fireEvent.click(screen.getByText('karaokeMode').closest('button')!);
+        const switchControl = screen.getByRole('switch', { name: 'karaokeLabel' });
+        expect(switchControl).toBeInTheDocument();
+        expect(switchControl).toHaveAttribute('aria-checked', 'true');
+
+        fireEvent.click(switchControl);
         expect(defaultProps.onChangeKaraoke).toHaveBeenCalledWith(false); // toggles
     });
 
