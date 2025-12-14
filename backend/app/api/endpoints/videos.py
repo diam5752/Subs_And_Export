@@ -1,3 +1,4 @@
+import re
 import time
 import uuid
 from pathlib import Path
@@ -146,12 +147,14 @@ def run_video_processing(
                 job_store.update_job(job_id, progress=int(percent), message=msg)
                 last_update_time = now
 
+        last_check_time = 0.0
+
         def check_cancelled():
             """Check if job was cancelled by user."""
             nonlocal last_check_time
-            now = time.time()
-            # Throttle DB checks to 1 per second to prevent SQLite contention
-            if now - last_check_time < 1.0:
+            # Throttle DB checks to 2Hz to prevent SQLite contention during tight loops
+            now = time.monotonic()
+            if now - last_check_time < 0.5:
                 return
 
             current_job = job_store.get_job(job_id)
@@ -290,8 +293,12 @@ async def process_video(
         raise HTTPException(400, "Model name too long")
     if len(video_quality) > 50:
         raise HTTPException(400, "Video quality string too long")
-    if subtitle_color and len(subtitle_color) > 20:
-        raise HTTPException(400, "Subtitle color too long")
+    if subtitle_color:
+        if len(subtitle_color) > 20:
+            raise HTTPException(400, "Subtitle color too long")
+        # Validate ASS color format (&HAABBGGRR)
+        if not re.match(r"^&H[0-9A-Fa-f]{8}$", subtitle_color):
+            raise HTTPException(400, "Invalid subtitle color format (expected &HAABBGGRR)")
 
     job_id = str(uuid.uuid4())
     data_dir, uploads_dir, artifacts_root = _data_roots()
