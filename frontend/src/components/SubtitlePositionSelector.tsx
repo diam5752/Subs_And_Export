@@ -174,7 +174,6 @@ export function SubtitlePositionSelector({
                                                 min={5}
                                                 max={50}
                                                 value={value}
-                                                aria-label={t('positionLabel')}
                                                 onChange={(e) => {
                                                     e.stopPropagation();
                                                     onChange(Number(e.target.value));
@@ -320,9 +319,6 @@ export function SubtitlePositionSelector({
                                     {t('karaokeLabel')}
                                 </label>
                                 <button
-                                    role="switch"
-                                    aria-checked={karaokeEnabled}
-                                    aria-labelledby={karaokeLabelId}
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         onChangeKaraoke(!karaokeEnabled);

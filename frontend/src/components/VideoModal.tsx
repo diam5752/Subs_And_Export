@@ -37,6 +37,9 @@ export function VideoModal({ isOpen, onClose, videoUrl }: VideoModalProps) {
     return (
         <div
             ref={containerRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Video Preview"
             className="fixed inset-0 z-50 flex items-center justify-center p-4 transition-all duration-300 ease-out cursor-pointer bg-black/95 backdrop-blur-2xl"
             onClick={onClose}
         >
@@ -59,6 +62,7 @@ export function VideoModal({ isOpen, onClose, videoUrl }: VideoModalProps) {
             >
                 {/* Close button */}
                 <button
+                    autoFocus
                     onClick={onClose}
                     className="absolute top-4 right-4 z-10 p-3 rounded-full bg-black/60 text-white/80 hover:bg-black/80 hover:text-white transition-all hover:scale-110"
                     aria-label="Close video"

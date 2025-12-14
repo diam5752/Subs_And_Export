@@ -73,4 +73,17 @@ describe('VideoModal', () => {
         unmount();
         expect(document.body.style.overflow).toBe('');
     });
+
+    it('should have accessibility attributes and focus management', () => {
+        render(<VideoModal {...defaultProps} />);
+        const dialog = screen.getByRole('dialog');
+        expect(dialog).toBeInTheDocument();
+        expect(dialog).toHaveAttribute('aria-modal', 'true');
+        expect(dialog).toHaveAttribute('aria-label', 'Video Preview');
+
+        const closeButton = screen.getByLabelText('Close video');
+        // React handles autoFocus by manually focusing, it may not render the attribute.
+        // We check if it received focus.
+        expect(closeButton).toHaveFocus();
+    });
 });
