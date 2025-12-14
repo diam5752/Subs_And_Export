@@ -26,24 +26,33 @@ function getStoredLocale(): Locale | null {
 }
 
 export function I18nProvider({ children, initialLocale }: { children: React.ReactNode; initialLocale?: Locale }) {
-  // Initialize with prop or default; client hydration will pick up localStorage
-  const [locale, setLocaleState] = useState<Locale>(() => {
-    if (initialLocale && locales.includes(initialLocale)) {
-      return initialLocale;
-    }
-    // During SSR this returns defaultLocale; on client it may differ
-    return getStoredLocale() ?? defaultLocale;
-  });
+  // Always initialize with defaultLocale (or initialLocale prop) for SSR consistency.
+  // This ensures server and client first-render produce identical output.
+  const [locale, setLocaleState] = useState<Locale>(
+    initialLocale && locales.includes(initialLocale) ? initialLocale : defaultLocale
+  );
+  const [isHydrated, setIsHydrated] = useState(false);
 
-  // Sync TO external systems (document.lang, localStorage) - this is the valid use of useEffect
+  // After hydration, sync locale FROM localStorage (if different from default)
   useEffect(() => {
+    const stored = getStoredLocale();
+    if (stored && stored !== locale) {
+      setLocaleState(stored);
+    }
+    setIsHydrated(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount
+
+  // Sync TO external systems (document.lang, localStorage) after hydration
+  useEffect(() => {
+    if (!isHydrated) return; // Skip during initial hydration
     if (typeof document !== 'undefined') {
       document.documentElement.lang = locale;
     }
     if (typeof window !== 'undefined') {
       localStorage.setItem(I18N_STORAGE_KEY, locale);
     }
-  }, [locale]);
+  }, [locale, isHydrated]);
 
   const setLocale = useCallback((nextLocale: Locale) => {
     setLocaleState(nextLocale);
