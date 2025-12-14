@@ -137,7 +137,7 @@ def _run_ffmpeg_with_subs(
 
     process = subprocess.Popen(
         cmd,
-        stdout=subprocess.PIPE,
+        stdout=subprocess.DEVNULL,
         stderr=subprocess.PIPE,
         universal_newlines=True,
     )
