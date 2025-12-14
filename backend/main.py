@@ -38,6 +38,8 @@ default_origins = [
     "http://127.0.0.1:3000",
     "http://localhost:8000",
     "http://127.0.0.1:8000",
+    "http://localhost:8080",
+    "http://127.0.0.1:8080",
 ]
 origins = _env_list("GSP_ALLOWED_ORIGINS", default_origins)
 
@@ -51,7 +53,7 @@ app.add_middleware(
 
 trusted_hosts = _env_list(
     "GSP_TRUSTED_HOSTS",
-    ["localhost", "127.0.0.1", "0.0.0.0", "[::1]"],
+    ["localhost", "127.0.0.1", "0.0.0.0", "[::1]", "*"],  # Allow all for Cloud Run
 )
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=trusted_hosts)
 

@@ -10,7 +10,7 @@ RUN npm ci
 COPY . .
 
 # Build-time env vars (baked into the bundle)
-ARG NEXT_PUBLIC_API_URL=http://localhost:8000
+ARG NEXT_PUBLIC_API_URL=http://localhost:8080
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 
 RUN npm run build

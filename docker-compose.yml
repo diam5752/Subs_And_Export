@@ -4,7 +4,7 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     ports:
-      - "8000:8000"
+      - "8080:8080"
     volumes:
       # Persistent data storage
       - ./data:/data
@@ -18,7 +18,7 @@ services:
       - GSP_ALLOWED_ORIGINS=http://localhost:3000,http://frontend:3000
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" ]
+      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -30,7 +30,7 @@ services:
       dockerfile: frontend/Dockerfile
       args:
         # API URL used during build (for static generation)
-        NEXT_PUBLIC_API_URL: http://localhost:8000
+        NEXT_PUBLIC_API_URL: http://localhost:8080
     ports:
       - "3000:3000"
     environment:

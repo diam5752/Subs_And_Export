@@ -26,15 +26,15 @@ else
     echo "⚠️  No venv found in root. Assuming python/pip are in path or handled otherwise."
 fi
 
-echo "🧹 Killing old servers on ports 8000 and 3000..."
-lsof -ti:8000 | xargs kill -9 2>/dev/null || true
+echo "🧹 Killing old servers on ports 8080 and 3000..."
+lsof -ti:8080 | xargs kill -9 2>/dev/null || true
 lsof -ti:3000 | xargs kill -9 2>/dev/null || true
 
 
 # Start Backend
-echo "⚙️  Starting Backend (Port 8000)..."
+echo "⚙️  Starting Backend (Port 8080)..."
 # Run as module from root so relative imports in main.py work
-uvicorn backend.main:app --reload --port 8000 &
+uvicorn backend.main:app --reload --port 8080 &
 BACKEND_PID=$!
 
 # Start Frontend
@@ -45,7 +45,7 @@ FRONTEND_PID=$!
 cd ..
 
 echo "✅ Servers are running!"
-echo "   Backend: http://localhost:8000"
+echo "   Backend: http://localhost:8080"
 echo "   Frontend: http://localhost:3000"
 echo "   Press Ctrl+C to stop both."
 

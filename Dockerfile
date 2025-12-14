@@ -53,7 +53,6 @@ RUN ln -s /app /app/backend
 ENV APP_ENV=production
 
 # Health check
-# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')" || exit 1
 
