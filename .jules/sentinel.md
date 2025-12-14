@@ -35,3 +35,8 @@
 **Vulnerability:** The `/auth` and `/videos/process` endpoints lacked input length validation, allowing Denial of Service (DoS) via excessively large payloads (e.g., 2GB context prompts or 1GB usernames) that could exhaust server memory.
 **Learning:** Pydantic models default to allowing any string length unless `Field(max_length=...)` is specified. Form parameters in FastAPI are also unbounded by default.
 **Prevention:** Always enforce strict `max_length` constraints on all string inputs (Pydantic `Field` or manual checks) to prevent memory exhaustion attacks.
+
+## 2025-06-04 - [Medium] CSV Injection in ASS Subtitles
+**Vulnerability:** The video processing service accepted unvalidated color strings and inserted them directly into ASS subtitle headers (a CSV-like format). An attacker could inject commas to shift columns and manipulate subtitle styling or renderer behavior.
+**Learning:** Text-based data formats like ASS, SRT, or CSV are vulnerable to delimiter injection. Using f-strings to build these files is unsafe if the variables contain the format's delimiters (e.g., commas, newlines).
+**Prevention:** Strictly validate input formats (e.g., enforcing Hex colors) before file generation. When possible, use libraries that handle escaping rather than raw string concatenation.

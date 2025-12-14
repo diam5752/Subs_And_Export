@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterable, List, Optional, Sequence, Tuple
 
 from backend.app.core import config
+from backend.app.core.validation import validate_color_hex
 
 TimeRange = Tuple[float, float, str]
 
@@ -410,6 +411,12 @@ def _ass_header(
     play_res_x: int = config.DEFAULT_WIDTH,
     play_res_y: int = config.DEFAULT_HEIGHT,
 ) -> str:
+    # Security: Validate colors to prevent injection
+    validate_color_hex(primary_color)
+    validate_color_hex(secondary_color)
+    validate_color_hex(outline_color)
+    validate_color_hex(back_color)
+
     return (
         "[Script Info]\n"
         "ScriptType: v4.00+\n"
@@ -603,6 +610,12 @@ def create_styled_subtitle_file(
     Convert an SRT transcript to an ASS file with styling for vertical video,
     applying per-word karaoke highlighting when word timings are available.
     """
+    # Validate user-controlled inputs
+    validate_color_hex(primary_color)
+    validate_color_hex(secondary_color)
+    validate_color_hex(outline_color)
+    validate_color_hex(back_color)
+
     parsed_cues: List[Cue]
     if cues:
         parsed_cues = list(cues)
