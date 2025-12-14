@@ -90,8 +90,8 @@ export function SubtitlePositionSelector({
                                     {/* Size Preview Text */}
                                     <div className="flex items-center justify-center mb-4">
                                         <span
-                                            className="font-bold text-[var(--foreground)] transition-all duration-200"
-                                            style={{ fontSize: `${Math.max(14, subtitleSize * 0.28)}px` }}
+                                            className="font-bold text-[var(--foreground)]"
+                                            style={{ fontSize: '24px' }}
                                             aria-hidden="true"
                                         >
                                             Aa

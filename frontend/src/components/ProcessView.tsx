@@ -177,7 +177,7 @@ export function ProcessView({
             badgeColor: 'text-amber-400 bg-amber-400/10',
             provider: 'local',
             mode: 'turbo',
-            stats: { speed: 2, accuracy: 5, karaoke: true, linesControl: true },
+            stats: { speed: 2, accuracy: 4, karaoke: true, linesControl: true },
             icon: (selected: boolean) => (
                 <div className={`p-2 rounded-lg ${selected ? 'bg-violet-500/20 text-violet-300' : 'bg-violet-500/10 text-violet-500'}`}>
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
