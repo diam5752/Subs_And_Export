@@ -484,6 +484,7 @@ def normalize_and_stub_subtitles(
                     "vad_parameters": vad_parameters,
                     "temperature": temperature,
                     "progress_callback": _transcribe_cb if total_duration > 0 else None,
+                    "check_cancelled": check_cancelled,
                 }
 
                 srt_path, cues = transcriber.transcribe(

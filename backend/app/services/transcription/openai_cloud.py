@@ -20,6 +20,11 @@ class OpenAITranscriber(Transcriber):
         """
         prompt = kwargs.get("initial_prompt")
         progress_callback = kwargs.get("progress_callback")
+        check_cancelled = kwargs.get("check_cancelled")
+
+        # Check cancellation before starting
+        if check_cancelled:
+            check_cancelled()
 
         # Resolve API Key
         api_key = self.api_key or _resolve_openai_api_key()
@@ -33,6 +38,10 @@ class OpenAITranscriber(Transcriber):
         if progress_callback:
             progress_callback(10.0)
 
+        # Check cancellation before API call
+        if check_cancelled:
+            check_cancelled()
+
         try:
             with open(audio_path, "rb") as audio_file:
                 transcript = client.audio.transcriptions.create(
@@ -45,6 +54,10 @@ class OpenAITranscriber(Transcriber):
                 )
         except Exception as exc:
             raise RuntimeError(f"OpenAI transcription failed: {exc}") from exc
+
+        # Check cancellation after API call
+        if check_cancelled:
+            check_cancelled()
 
         if progress_callback:
             progress_callback(90.0)

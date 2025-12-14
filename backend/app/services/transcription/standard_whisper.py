@@ -15,6 +15,11 @@ class StandardTranscriber(Transcriber):
 
     def transcribe(self, audio_path: Path, output_dir: Path, language: str = "en", model: str = "base", **kwargs) -> tuple[Path, List[Cue]]:
         progress_callback = kwargs.get("progress_callback")
+        check_cancelled = kwargs.get("check_cancelled")
+
+        # Check cancellation before starting
+        if check_cancelled:
+            check_cancelled()
 
         try:
             from pywhispercpp.model import Model as WhisperCppModel
@@ -38,6 +43,10 @@ class StandardTranscriber(Transcriber):
             print_progress=False,
         )
 
+        # Check cancellation after model loading
+        if check_cancelled:
+            check_cancelled()
+
         if progress_callback:
             progress_callback(15.0)
 
@@ -47,6 +56,10 @@ class StandardTranscriber(Transcriber):
             language=language,
             n_threads=min(8, os.cpu_count() or 4),
         )
+
+        # Check cancellation after transcription
+        if check_cancelled:
+            check_cancelled()
 
         if progress_callback:
             progress_callback(85.0)

@@ -47,6 +47,11 @@ class LocalWhisperTranscriber(Transcriber):
 
     def transcribe(self, audio_path: Path, output_dir: Path, language: str = "en", model: str = "base", **kwargs) -> tuple[Path, List[Cue]]:
         progress_callback = kwargs.get("progress_callback")
+        check_cancelled = kwargs.get("check_cancelled")
+
+        # Check cancellation before starting expensive operations
+        if check_cancelled:
+            check_cancelled()
 
         # Default: Stabel-TS wrapping Faster-Whisper
         threads = min(8, os.cpu_count() or 4)
@@ -58,6 +63,10 @@ class LocalWhisperTranscriber(Transcriber):
             compute_type=self.compute_type,
             cpu_threads=threads,
         )
+
+        # Check cancellation after model loading but before transcription
+        if check_cancelled:
+            check_cancelled()
 
         transcribe_kwargs = {
             "language": language or config.WHISPER_LANGUAGE,
@@ -84,6 +93,11 @@ class LocalWhisperTranscriber(Transcriber):
             transcribe_kwargs["initial_prompt"] = initial_prompt
 
         result = model_instance.transcribe(str(audio_path), **transcribe_kwargs)
+
+        # CRITICAL: Check cancellation immediately after blocking transcription
+        # This prevents further processing if user cancelled during inference
+        if check_cancelled:
+            check_cancelled()
 
         cues: List[Cue] = []
         timed_text: List[TimeRange] = []

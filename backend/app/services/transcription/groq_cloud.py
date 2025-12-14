@@ -18,6 +18,11 @@ class GroqTranscriber(Transcriber):
     def transcribe(self, audio_path: Path, output_dir: Path, language: str = "en", model: str = "whisper-large-v3", **kwargs) -> tuple[Path, List[Cue]]:
         prompt = kwargs.get("initial_prompt")
         progress_callback = kwargs.get("progress_callback")
+        check_cancelled = kwargs.get("check_cancelled")
+
+        # Check cancellation before starting
+        if check_cancelled:
+            check_cancelled()
 
         # Resolve API Key
         api_key = self.api_key or _resolve_groq_api_key()
@@ -40,6 +45,10 @@ class GroqTranscriber(Transcriber):
         if progress_callback:
             progress_callback(10.0)
 
+        # Check cancellation before API call
+        if check_cancelled:
+            check_cancelled()
+
         try:
             with open(audio_path, "rb") as audio_file:
                 transcript = client.audio.transcriptions.create(
@@ -52,6 +61,10 @@ class GroqTranscriber(Transcriber):
                 )
         except Exception as exc:
             raise RuntimeError(f"Groq transcription failed: {exc}") from exc
+
+        # Check cancellation after API call
+        if check_cancelled:
+            check_cancelled()
 
         if progress_callback:
             progress_callback(90.0)
