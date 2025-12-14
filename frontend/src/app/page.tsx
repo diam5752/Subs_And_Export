@@ -62,6 +62,7 @@ export default function DashboardPage() {
 
   // Account Modal State
   const [showAccountPanel, setShowAccountPanel] = useState(false);
+  const [activeAccountTab, setActiveAccountTab] = useState<'profile' | 'history'>('profile');
   const [accountMessage, setAccountMessage] = useState('');
   const [accountError, setAccountError] = useState('');
   const [accountSaving, setAccountSaving] = useState(false);
@@ -224,6 +225,15 @@ export default function DashboardPage() {
     await loadJobs(false);
   }, [loadJobs]);
 
+  // Helper to open preview from history
+  const handleShowPreview = useCallback((show: boolean) => {
+    if (show) {
+      setShowAccountPanel(false);
+      // Scroll to top where player is
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, []);
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -242,27 +252,10 @@ export default function DashboardPage() {
 
       <nav className="sticky top-0 z-20 backdrop-blur-2xl bg-[var(--background)]/75 border-b border-[var(--border)]/60 px-6 py-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3 min-w-0 flex-1">
-            <button
-              onClick={() => setShowAccountPanel(!showAccountPanel)}
-              className="px-3 py-2 rounded-xl bg-white/5 border border-[var(--border)] hover:bg-white/10 hover:border-[var(--accent)]/50 transition-all cursor-pointer text-left flex items-center gap-3"
-              aria-label={t('accountSettingsTitle')}
-            >
-              <span
-                className="h-10 w-10 rounded-full bg-white/10 border border-[var(--border)] flex items-center justify-center text-lg shadow-inner"
-                aria-hidden="true"
-              >
-                👤
-              </span>
-              <div className="min-w-0 hidden sm:block">
-                <div className="font-semibold text-sm truncate">{user.name}</div>
-                <div className="text-[var(--muted)] text-xs uppercase tracking-wide">
-                  {t('sessionLabelProvider').replace('{provider}', user.provider)}
-                </div>
-              </div>
-            </button>
-          </div>
+          {/* Left spacer for centering */}
+          <div className="flex-1" />
 
+          {/* Centered Logo */}
           <button
             onClick={handleReloadPage}
             className="flex items-center justify-center -my-4 rounded-xl transition-all duration-300 cursor-pointer group hover:scale-105"
@@ -278,9 +271,17 @@ export default function DashboardPage() {
             </div>
           </button>
 
-          <div className="flex items-center gap-3 justify-end flex-1">
-            <button onClick={logout} className="btn-secondary text-sm py-2 px-4">
-              {t('signOut')}
+          {/* Right: Profile Icon Only */}
+          <div className="flex-1 flex justify-end">
+            <button
+              onClick={() => {
+                setActiveAccountTab('profile');
+                setShowAccountPanel(!showAccountPanel);
+              }}
+              className="h-12 w-12 rounded-full bg-white/5 border border-[var(--border)] hover:bg-white/10 hover:border-[var(--accent)]/50 transition-all cursor-pointer flex items-center justify-center text-xl"
+              aria-label={t('accountSettingsTitle')}
+            >
+              👤
             </button>
           </div>
         </div>
@@ -316,18 +317,8 @@ export default function DashboardPage() {
           onCancelProcessing={handleCancelProcessing}
           selectedJob={selectedJob}
           onJobSelect={setSelectedJob}
-          recentJobs={recentJobs}
-          jobsLoading={jobsLoading}
           statusStyles={statusStyles}
-          formatDate={formatDate}
           buildStaticUrl={buildStaticUrl}
-          onRefreshJobs={handleRefreshJobs}
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onNextPage={nextPage}
-          onPrevPage={prevPage}
-          totalJobs={totalJobs}
-          pageSize={pageSize}
         />
       </main>
 
@@ -374,9 +365,22 @@ export default function DashboardPage() {
             onClick={handleCloseAccountPanel}
           />
           <div className="relative z-10 w-full max-w-2xl animate-fade-in">
-            <div className="bg-[var(--surface-elevated)] border border-[var(--border)] rounded-2xl shadow-2xl overflow-hidden">
+            <div className="bg-[var(--surface-elevated)] border border-[var(--border)] rounded-2xl shadow-2xl overflow-hidden max-h-[85vh] flex flex-col">
               <div className="flex items-center justify-between p-4 border-b border-[var(--border)]">
-                <h2 className="text-lg font-semibold">{t('accountSettingsTitle')}</h2>
+                <div className="flex gap-4">
+                  <button
+                    onClick={() => setActiveAccountTab('profile')}
+                    className={`text-sm font-semibold pb-1 border-b-2 transition-colors ${activeAccountTab === 'profile' ? 'border-[var(--accent)] text-[var(--accent)]' : 'border-transparent text-[var(--muted)] hover:text-[var(--foreground)]'}`}
+                  >
+                    {t('accountSettingsTitle')}
+                  </button>
+                  <button
+                    onClick={() => setActiveAccountTab('history')}
+                    className={`text-sm font-semibold pb-1 border-b-2 transition-colors ${activeAccountTab === 'history' ? 'border-[var(--accent)] text-[var(--accent)]' : 'border-transparent text-[var(--muted)] hover:text-[var(--foreground)]'}`}
+                  >
+                    {t('historyTitle') || 'History'}
+                  </button>
+                </div>
                 <button
                   onClick={handleCloseAccountPanel}
                   className="p-2 rounded-lg hover:bg-white/10 transition-colors"
@@ -384,13 +388,30 @@ export default function DashboardPage() {
                   ✕
                 </button>
               </div>
-              <div className="p-4 max-h-[70vh] overflow-y-auto">
+              <div className="p-4 overflow-y-auto">
                 <AccountView
                   user={user}
                   onSaveProfile={handleProfileSave}
+                  onLogout={logout}
                   accountMessage={accountMessage}
                   accountError={accountError}
                   accountSaving={accountSaving}
+                  activeTab={activeAccountTab}
+                  // History props
+                  recentJobs={recentJobs}
+                  jobsLoading={jobsLoading}
+                  onJobSelect={setSelectedJob}
+                  selectedJobId={selectedJob?.id}
+                  onRefreshJobs={handleRefreshJobs}
+                  formatDate={formatDate}
+                  buildStaticUrl={buildStaticUrl}
+                  setShowPreview={handleShowPreview}
+                  currentPage={currentPage}
+                  totalPages={totalPages}
+                  onNextPage={nextPage}
+                  onPrevPage={prevPage}
+                  totalJobs={totalJobs}
+                  pageSize={pageSize}
                 />
               </div>
             </div>

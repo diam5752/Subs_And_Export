@@ -22,19 +22,8 @@ interface ProcessViewProps {
     onCancelProcessing?: () => void;
     selectedJob: JobResponse | null;
     onJobSelect: (job: JobResponse | null) => void;
-    recentJobs: JobResponse[];
-    jobsLoading: boolean;
     statusStyles: Record<string, string>;
-    formatDate: (ts: string | number) => string;
     buildStaticUrl: (path?: string | null) => string | null;
-    onRefreshJobs: () => Promise<void>;
-    // Pagination props
-    currentPage: number;
-    totalPages: number;
-    onNextPage: () => void;
-    onPrevPage: () => void;
-    totalJobs: number;
-    pageSize: number;
 }
 
 
@@ -67,18 +56,8 @@ export function ProcessView({
     onCancelProcessing,
     selectedJob,
     onJobSelect,
-    recentJobs,
-    jobsLoading,
     statusStyles,
-    formatDate,
     buildStaticUrl,
-    onRefreshJobs,
-    currentPage,
-    totalPages,
-    totalJobs,
-    pageSize,
-    onNextPage,
-    onPrevPage,
 }: ProcessViewProps) {
     const { t } = useI18n();
     const aiToggleDescId = useId();
@@ -1117,7 +1096,8 @@ export function ProcessView({
                 )}
 
                 <div className="space-y-4" ref={resultsRef} style={{ scrollMarginTop: '100px' }}>
-                    {(isProcessing || (selectedJob && selectedJob.status !== 'pending')) && (
+                    {/* Only show this section if a file was uploaded in the current session */}
+                    {selectedFile && (isProcessing || (selectedJob && selectedJob.status !== 'pending')) && (
                         <div className="card space-y-4">
                             <div className="flex flex-wrap items-start justify-between gap-3">
                                 <div>
@@ -1159,8 +1139,8 @@ export function ProcessView({
                                 </div>
                             )}
 
-                            {/* Strict check: Only show preview if NOT processing and job is completed */}
-                            {!isProcessing && selectedJob && selectedJob.status === 'completed' ? (
+                            {/* Strict check: Only show preview if file was uploaded this session, NOT processing and job is completed */}
+                            {selectedFile && !isProcessing && selectedJob && selectedJob.status === 'completed' ? (
                                 <div className="animate-fade-in relative">
                                     {/* Animated shimmer border */}
                                     <div className="absolute -inset-[2px] rounded-2xl bg-gradient-to-r from-[var(--accent)] via-[var(--accent-secondary)] to-[var(--accent)] bg-[length:200%_100%] animate-shimmer opacity-80" />
@@ -1292,30 +1272,12 @@ export function ProcessView({
                         </div>
                     )}
 
-                    {/* Recent Jobs with Expiry */}
-                    <RecentJobsList
-                        jobs={recentJobs}
-                        isLoading={jobsLoading}
-                        onJobSelect={onJobSelect}
-                        selectedJobId={selectedJob?.id}
-                        onRefreshJobs={onRefreshJobs}
-                        formatDate={formatDate}
-                        buildStaticUrl={buildStaticUrl}
-                        setShowPreview={setShowPreview}
-                        currentPage={currentPage}
-                        totalPages={totalPages}
-                        onNextPage={onNextPage}
-                        onPrevPage={onPrevPage}
-                        totalJobs={totalJobs}
-                        pageSize={pageSize}
+                    <VideoModal
+                        isOpen={showPreview}
+                        onClose={handleClosePreview}
+                        videoUrl={videoUrl || ''}
                     />
                 </div>
-
-                <VideoModal
-                    isOpen={showPreview}
-                    onClose={handleClosePreview}
-                    videoUrl={videoUrl || ''}
-                />
             </div>
         </div>
     );

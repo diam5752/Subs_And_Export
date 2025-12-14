@@ -168,6 +168,8 @@
   "cancel": "Cancel",
   "confirm": "Confirm",
   "historyTitle": "History",
+  "pastGenerations": "Past Generations",
+  "historySubtitle": "View and manage your processed videos.",
   "historyExpiry": "Items expire in 24 hours",
   "selectMode": "Select",
   "cancelSelect": "Cancel",
