@@ -3,11 +3,11 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 
 # Install dependencies
-COPY frontend/package.json frontend/package-lock.json ./
+COPY package.json package-lock.json ./
 RUN npm ci
 
 # Copy source and build
-COPY frontend/ .
+COPY . .
 
 # Build-time env vars (baked into the bundle)
 ARG NEXT_PUBLIC_API_URL=http://localhost:8000
