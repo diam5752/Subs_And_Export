@@ -1,3 +1,4 @@
+import re
 import time
 import uuid
 from pathlib import Path
@@ -282,8 +283,12 @@ async def process_video(
         raise HTTPException(400, "Model name too long")
     if len(video_quality) > 50:
         raise HTTPException(400, "Video quality string too long")
-    if subtitle_color and len(subtitle_color) > 20:
-        raise HTTPException(400, "Subtitle color too long")
+    if subtitle_color:
+        if len(subtitle_color) > 20:
+            raise HTTPException(400, "Subtitle color too long")
+        # Validate ASS color format (&HAABBGGRR)
+        if not re.match(r"^&H[0-9A-Fa-f]{8}$", subtitle_color):
+            raise HTTPException(400, "Invalid subtitle color format (expected &HAABBGGRR)")
 
     job_id = str(uuid.uuid4())
     data_dir, uploads_dir, artifacts_root = _data_roots()
