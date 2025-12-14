@@ -37,6 +37,7 @@ export function SubtitlePositionSelector({
     const colorLabelId = useId();
     const sizeLabelId = useId();
     const karaokeLabelId = useId();
+    const linesLabelId = useId();
 
     // Map numeric position (5-35) to CSS 'bottom' percentage for preview
     const getPreviewBottom = (pos: number) => {
@@ -168,6 +169,7 @@ export function SubtitlePositionSelector({
                                         {/* Slider */}
                                         <div className="relative">
                                             <input
+                                                aria-label={t('positionLabel') || 'Subtitle Position'}
                                                 type="range"
                                                 min={5}
                                                 max={50}
@@ -225,7 +227,7 @@ export function SubtitlePositionSelector({
 
                         {/* Lines Selector */}
                         <div className="flex-1 min-w-[200px]">
-                            <label className="block text-sm font-medium text-[var(--muted)] mb-3">
+                            <label id={linesLabelId} className="block text-sm font-medium text-[var(--muted)] mb-3">
                                 {t('maxLinesLabel')}
                             </label>
                             {disableMaxLines ? (
@@ -240,7 +242,7 @@ export function SubtitlePositionSelector({
                                     </p>
                                 </div>
                             ) : (
-                                <div className="flex flex-col gap-2">
+                                <div className="flex flex-col gap-2" role="group" aria-labelledby={linesLabelId}>
                                     {lineOptions.map((opt) => (
                                         <button
                                             key={opt.value}
@@ -325,6 +327,9 @@ export function SubtitlePositionSelector({
                                         e.stopPropagation();
                                         onChangeKaraoke(!karaokeEnabled);
                                     }}
+                                    role="switch"
+                                    aria-checked={karaokeEnabled}
+                                    aria-labelledby={karaokeLabelId}
                                     className={`w-full p-3 rounded-xl border text-left transition-all flex items-center justify-between group relative overflow-hidden ${karaokeEnabled
                                         ? 'border-[var(--accent)] bg-[var(--accent)]/10 ring-1 ring-[var(--accent)]'
                                         : 'border-[var(--border)] hover:border-[var(--border-hover)] bg-[var(--surface-elevated)]'
