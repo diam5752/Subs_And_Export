@@ -40,6 +40,8 @@
   "processingReset": "Επαναφορά",
   "controlsLabel": "Ρυθμίσεις",
   "controlsTitle": "Πακέτο επεξεργασίας",
+  "showDetails": "Σύγκριση μοντέλων",
+  "hideDetails": "Απόκρυψη λεπτομερειών",
   "controlsShowDetails": "Περισσότερες λεπτομέρειες",
   "controlsHideDetails": "Απόκρυψη λεπτομερειών",
   "engineToggleLocal": "Τοπικό (γρήγορο)",

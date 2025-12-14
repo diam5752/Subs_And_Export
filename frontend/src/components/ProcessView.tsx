@@ -85,8 +85,9 @@ export function ProcessView({
     const fileInputRef = useRef<HTMLInputElement>(null);
     const resultsRef = useRef<HTMLDivElement>(null);
     const validationRequestId = useRef(0);
-    const modelSectionRef = useRef<HTMLDivElement>(null);
+
     const customizeSectionRef = useRef<HTMLDivElement>(null);
+    const initialSelectionMade = useRef(false);
 
     // Local state for options
     const [showPreview, setShowPreview] = useState(false);
@@ -108,7 +109,7 @@ export function ProcessView({
     const [isDownloading, setIsDownloading] = useState(false);
     const [exportingResolutions, setExportingResolutions] = useState<Record<string, boolean>>({});
     const [outputResolutionInfo, setOutputResolutionInfo] = useState<{ text: string; label: string } | null>(null);
-    const [expandedModelId, setExpandedModelId] = useState<string | null>(null);
+
 
     // Color Palette
     const SUBTITLE_COLORS = [
@@ -295,6 +296,8 @@ export function ProcessView({
         }
 
         setShowCustomize(true);
+        setShowExperiments(true);
+        initialSelectionMade.current = false;
         const requestId = ++validationRequestId.current;
         validateVideoAspectRatio(selectedFile).then(info => {
             if (requestId === validationRequestId.current) {
@@ -315,6 +318,21 @@ export function ProcessView({
         }
         onReset();
     };
+
+    // Click outside handler for model selector
+    const modelListRef = useRef<HTMLDivElement>(null);
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (showExperiments && modelListRef.current && !modelListRef.current.contains(event.target as Node)) {
+                setShowExperiments(false);
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [showExperiments]);
 
     // Instant download handler - forces download instead of opening in browser
     const handleDownload = async (url: string, filename: string) => {
@@ -602,161 +620,155 @@ export function ProcessView({
 
                         {showSettings && (
                             <div className="space-y-5 pt-1 animate-fade-in">
-                                <div ref={modelSectionRef}>
+                                <div>
                                     <label className="block text-sm font-medium text-[var(--muted)] mb-3">
                                         {t('transcriptionModelLabel')}
                                     </label>
 
-                                    {/* Check if we have a selected model and are in collapsed state */}
-                                    {(() => {
-                                        const selectedModel = AVAILABLE_MODELS.find(m => m.provider === transcribeProvider && m.mode === transcribeMode);
-                                        const isExpanded = expandedModelId === 'all';
+                                    <div className="flex flex-col gap-3" ref={modelListRef}>
+                                        {!showExperiments ? (
+                                            /* Compact List View - Horizontal Grid */
+                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                                {AVAILABLE_MODELS.map((model) => {
+                                                    const isSelected = transcribeProvider === model.provider && transcribeMode === model.mode;
 
-                                        if (selectedModel && !isExpanded) {
-                                            // Collapsed view - show only selected model
-                                            return (
-                                                <button
-                                                    data-testid="model-selector-collapsed"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setExpandedModelId('all');
-                                                        setTimeout(() => {
-                                                            modelSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                                                        }, 50);
-                                                    }}
-                                                    className={`w-full p-3 rounded-xl border text-left transition-all flex items-center gap-3 ${selectedModel.colorClass(true)}`}
-                                                >
-                                                    {selectedModel.icon(true)}
-                                                    <div className="flex-1 min-w-0">
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="font-semibold text-base">{selectedModel.name}</span>
-                                                            <div className={`w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 ${selectedModel.provider === 'groq' ? 'bg-purple-500' :
-                                                                selectedModel.provider === 'whispercpp' ? 'bg-cyan-500' :
-                                                                    'bg-[var(--accent)]'
-                                                                }`}>
-                                                                <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                                                </svg>
+                                                    return (
+                                                        <button
+                                                            key={model.id}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                // Select and always SHOW skills (details)
+                                                                setTranscribeProvider(model.provider as TranscribeProvider);
+                                                                setTranscribeMode(model.mode as TranscribeMode);
+                                                                setShowExperiments(true);
+                                                            }}
+                                                            className={`w-full p-3 rounded-xl border text-left transition-all flex flex-col gap-2 h-full relative group ${model.colorClass(isSelected)}`}
+                                                        >
+                                                            <div className="flex items-center justify-between w-full">
+                                                                {model.icon(isSelected)}
+                                                                {isSelected && (
+                                                                    <div className="flex items-center gap-1">
+                                                                        <span className="text-[10px] text-[var(--muted)] opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                            {t('showDetails')}
+                                                                        </span>
+                                                                        <div className={`w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 ${model.provider === 'groq' ? 'bg-purple-500' :
+                                                                            model.provider === 'whispercpp' ? 'bg-cyan-500' :
+                                                                                'bg-[var(--accent)]'
+                                                                            }`}>
+                                                                            <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
+                                                                            </svg>
+                                                                        </div>
+                                                                    </div>
+                                                                )}
                                                             </div>
-                                                        </div>
-                                                        <div className="flex items-center gap-2 mt-0.5">
-                                                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${selectedModel.badgeColor}`}>
-                                                                {selectedModel.badge}
-                                                            </span>
-                                                            <span className="text-xs text-[var(--muted)]">
-                                                                {selectedModel.description}
-                                                            </span>
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex items-center gap-1 text-xs text-[var(--muted)]">
-                                                        <span>{t('changeModel')}</span>
-                                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                                        </svg>
-                                                    </div>
-                                                </button>
-                                            );
-                                        }
 
-                                        // Expanded view - show all models
-                                        return (
-                                            <>
-                                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 animate-slide-down">
-                                                    {AVAILABLE_MODELS.map((model) => {
-                                                        const isSelected = transcribeProvider === model.provider && transcribeMode === model.mode;
+                                                            <div className="flex-1 min-w-0">
+                                                                <span className="font-semibold text-base block mb-0.5">{model.name}</span>
 
-                                                        // Helper for stat bars (5 dots)
-                                                        const renderStat = (value: number, max: number = 5) => (
-                                                            <div className="flex gap-0.5">
-                                                                {Array.from({ length: max }).map((_, i) => (
-                                                                    <div
-                                                                        key={i}
-                                                                        className={`h-1.5 w-full rounded-full transition-colors ${i < value
-                                                                            ? (isSelected ? 'bg-current opacity-80' : 'bg-[var(--foreground)] opacity-60')
-                                                                            : 'bg-[var(--foreground)] opacity-20'
-                                                                            }`}
-                                                                    />
-                                                                ))}
+                                                                <div className="flex flex-wrap gap-1.5 mb-1.5">
+                                                                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${model.badgeColor}`}>
+                                                                        {model.badge}
+                                                                    </span>
+                                                                </div>
+
+                                                                <span className="text-xs text-[var(--muted)] line-clamp-2">
+                                                                    {model.description}
+                                                                </span>
                                                             </div>
-                                                        );
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        ) : (
+                                            /* Detailed Grid View */
+                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 animate-slide-down">
+                                                {AVAILABLE_MODELS.map((model) => {
+                                                    const isSelected = transcribeProvider === model.provider && transcribeMode === model.mode;
 
-                                                        return (
-                                                            <button
-                                                                key={model.id}
-                                                                data-testid={`model-${model.provider === 'local' ? 'turbo' : model.provider}`}
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    setTranscribeProvider(model.provider as TranscribeProvider);
-                                                                    setTranscribeMode(model.mode as TranscribeMode);
-                                                                    setExpandedModelId(null); // Collapse after selection
-                                                                }}
-                                                                className={`p-4 rounded-xl border text-left transition-all relative overflow-hidden group flex flex-col h-full ${model.colorClass(isSelected)}`}
-                                                            >
-                                                                <div className="flex items-start justify-between mb-2 w-full">
-                                                                    {model.icon(isSelected)}
-                                                                    {isSelected && (
+                                                    // Helper for stat bars (5 dots)
+                                                    const renderStat = (value: number, max: number = 5) => (
+                                                        <div className="flex gap-0.5">
+                                                            {Array.from({ length: max }).map((_, i) => (
+                                                                <div
+                                                                    key={i}
+                                                                    className={`h-1.5 w-full rounded-full transition-colors ${i < value
+                                                                        ? (isSelected ? 'bg-current opacity-80' : 'bg-[var(--foreground)] opacity-60')
+                                                                        : 'bg-[var(--foreground)] opacity-20'
+                                                                        }`}
+                                                                />
+                                                            ))}
+                                                        </div>
+                                                    );
+
+                                                    return (
+                                                        <button
+                                                            key={model.id}
+                                                            data-testid={`model-${model.provider === 'local' ? 'turbo' : model.provider}`}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                // Just select, keep open. Minimize handled by click outside.
+                                                                setTranscribeProvider(model.provider as TranscribeProvider);
+                                                                setTranscribeMode(model.mode as TranscribeMode);
+                                                            }}
+                                                            className={`p-4 rounded-xl border text-left transition-all relative overflow-hidden group flex flex-col h-full ${model.colorClass(isSelected)}`}
+                                                        >
+                                                            <div className="flex items-start justify-between mb-2 w-full">
+                                                                {model.icon(isSelected)}
+                                                                {isSelected && (
+                                                                    <div className="flex items-center gap-1">
+                                                                        <span className="text-[10px] text-[var(--muted)] opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                            {t('hideDetails')}
+                                                                        </span>
                                                                         <div className={`w-5 h-5 rounded-full flex items-center justify-center ${model.provider === 'groq' ? 'bg-purple-500' :
                                                                             model.provider === 'whispercpp' ? 'bg-cyan-500' :
                                                                                 'bg-[var(--accent)]'
                                                                             }`}>
-                                                                            <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                                                            <svg className="w-3 h-3 text-white rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
                                                                             </svg>
                                                                         </div>
-                                                                    )}
-                                                                </div>
-                                                                <div className="font-semibold text-base mb-1">{model.name}</div>
-                                                                <div className="text-sm text-[var(--muted)] mb-4">{model.description}</div>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                            <div className="font-semibold text-base mb-1">{model.name}</div>
+                                                            <div className="text-sm text-[var(--muted)] mb-4">{model.description}</div>
 
-                                                                {/* Game-like Stats */}
-                                                                <div className="mt-auto space-y-2 mb-3">
-                                                                    <div className="grid grid-cols-[60px,1fr] items-center gap-2">
-                                                                        <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">{t('statSpeed')}</span>
-                                                                        {renderStat(model.stats.speed)}
-                                                                    </div>
-                                                                    <div className="grid grid-cols-[60px,1fr] items-center gap-2">
-                                                                        <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">{t('statAccuracy')}</span>
-                                                                        {renderStat(model.stats.accuracy)}
-                                                                    </div>
-                                                                    <div className="grid grid-cols-[60px,1fr] items-center gap-2">
-                                                                        <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">{t('statKaraoke')}</span>
-                                                                        <div className={`text-[10px] font-bold ${model.stats.karaoke ? 'text-emerald-500' : 'text-[var(--muted)]'}`}>
-                                                                            {model.stats.karaoke ? t('statKaraokeSupported') : t('statKaraokeNo')}
-                                                                        </div>
-                                                                    </div>
-                                                                    <div className="grid grid-cols-[60px,1fr] items-center gap-2">
-                                                                        <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">{t('statLines')}</span>
-                                                                        <div className={`text-[10px] font-bold ${model.stats.linesControl ? 'text-emerald-500' : 'text-cyan-400'}`}>
-                                                                            {model.stats.linesControl ? t('statLinesCustom') : t('statLinesAuto')}
-                                                                        </div>
+                                                            {/* Game-like Stats */}
+                                                            <div className="mt-auto space-y-2 mb-3">
+                                                                <div className="grid grid-cols-[60px,1fr] items-center gap-2">
+                                                                    <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">{t('statSpeed')}</span>
+                                                                    {renderStat(model.stats.speed)}
+                                                                </div>
+                                                                <div className="grid grid-cols-[60px,1fr] items-center gap-2">
+                                                                    <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">{t('statAccuracy')}</span>
+                                                                    {renderStat(model.stats.accuracy)}
+                                                                </div>
+                                                                <div className="grid grid-cols-[60px,1fr] items-center gap-2">
+                                                                    <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">{t('statKaraoke')}</span>
+                                                                    <div className={`text-[10px] font-bold ${model.stats.karaoke ? 'text-emerald-500' : 'text-[var(--muted)]'}`}>
+                                                                        {model.stats.karaoke ? t('statKaraokeSupported') : t('statKaraokeNo')}
                                                                     </div>
                                                                 </div>
+                                                                <div className="grid grid-cols-[60px,1fr] items-center gap-2">
+                                                                    <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">{t('statLines')}</span>
+                                                                    <div className={`text-[10px] font-bold ${model.stats.linesControl ? 'text-emerald-500' : 'text-cyan-400'}`}>
+                                                                        {model.stats.linesControl ? t('statLinesCustom') : t('statLinesAuto')}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
 
-                                                                <div className="flex items-center gap-2 text-xs pt-3 border-t border-[var(--border)]/50">
-                                                                    <span className={`px-2 py-0.5 rounded-full font-medium ${model.badgeColor}`}>
-                                                                        {model.badge}
-                                                                    </span>
-                                                                </div>
-                                                            </button>
-                                                        );
-                                                    })}
-                                                </div>
-                                                {/* Collapse button after selection */}
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setExpandedModelId(null);
-                                                    }}
-                                                    className="mt-2 text-xs text-[var(--muted)] hover:text-[var(--foreground)] flex items-center gap-1 transition-colors"
-                                                >
-                                                    <svg className="w-3 h-3 rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                                    </svg>
-                                                    {t('collapseModel')}
-                                                </button>
-                                            </>
-                                        );
-                                    })()}
+                                                            <div className="flex items-center gap-2 text-xs pt-3 border-t border-[var(--border)]/50">
+                                                                <span className={`px-2 py-0.5 rounded-full font-medium ${model.badgeColor}`}>
+                                                                    {model.badge}
+                                                                </span>
+                                                            </div>
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
 
                                 {/* Style Presets */}

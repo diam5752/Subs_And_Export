@@ -41,6 +41,8 @@
   "processingReset": "Reset",
   "controlsLabel": "Controls",
   "controlsTitle": "Processing kit",
+  "showDetails": "Compare models",
+  "hideDetails": "Hide details",
   "controlsShowDetails": "Tune detail",
   "controlsHideDetails": "Hide detail",
   "engineToggleLocal": "Local (fast)",
