@@ -22,3 +22,8 @@
 **Vulnerability:** The `/videos/process` endpoint allowed unlimited concurrent processing requests per user/IP.
 **Learning:** Authentication is not a substitute for rate limiting on resource-intensive endpoints (FFmpeg/ML).
 **Prevention:** Apply strict rate limits (e.g., 10/min) to all endpoints that trigger background jobs or heavy computation.
+
+## 2025-05-25 - [Medium] FFmpeg Deadlock Risk via Unconsumed Pipe
+**Vulnerability:** The `_run_ffmpeg_with_subs` function configured `subprocess.Popen` with `stdout=subprocess.PIPE` but never read from it, only iterating over `stderr`. If the subprocess wrote enough data to `stdout` to fill the OS pipe buffer, it would block indefinitely (deadlock).
+**Learning:** Piping output without reading it creates a hidden availability risk. Tools like FFmpeg usually write to stderr, but may write to stdout under certain conditions or versions.
+**Prevention:** Always explicitly redirect unused output streams to `subprocess.DEVNULL` to ensure the buffer cannot fill up.
