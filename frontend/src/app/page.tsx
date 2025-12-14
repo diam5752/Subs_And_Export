@@ -265,13 +265,16 @@ export default function DashboardPage() {
 
           <button
             onClick={handleReloadPage}
-            className="flex items-center gap-3 justify-center px-4 py-2 rounded-xl hover:bg-white/10 transition-all duration-200 cursor-pointer group"
+            className="flex items-center justify-center -my-4 rounded-xl transition-all duration-300 cursor-pointer group hover:scale-105"
             aria-label="Reload page"
           >
-            <div className="h-11 w-11 rounded-2xl bg-white/5 border border-[var(--border)] flex items-center justify-center text-xl shadow-inner group-hover:bg-white/10 transition-colors">🎛️</div>
-            <div className="text-center hidden sm:block">
-              <p className="text-[var(--muted)] text-xs uppercase tracking-[0.35em] group-hover:text-[var(--foreground)] transition-colors">{t('subtitleDesk')}</p>
-              <p className="text-xl font-semibold leading-tight group-hover:text-[var(--accent)] transition-colors">{t('brandName')}</p>
+            <div className="relative">
+              <div className="absolute inset-0 -m-6 bg-[var(--accent)]/15 blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-full" />
+              <img
+                src="/ascentia-subs.png"
+                alt="Ascentia Subs"
+                className="relative h-24 w-auto object-contain drop-shadow-[0_4px_20px_rgba(0,0,0,0.5)] group-hover:drop-shadow-[0_0_30px_rgba(141,247,223,0.6)] transition-all duration-300"
+              />
             </div>
           </button>
 

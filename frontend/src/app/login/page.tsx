@@ -71,12 +71,16 @@ function LoginContent() {
         <div className="min-h-screen flex items-center justify-center p-4">
             <div className="w-full max-w-md animate-fade-in">
                 {/* Logo / Branding */}
-                <div className="text-center mb-10">
-                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[var(--accent)] mb-6">
-                        <span className="text-3xl">🎬</span>
+                <div className="text-center mb-8">
+                    <div className="relative inline-block mb-6 group">
+                        <div className="absolute inset-0 -inset-y-4 bg-[var(--accent)]/15 blur-3xl opacity-50 group-hover:opacity-75 transition-opacity duration-700 mx-auto w-3/4 rounded-full" />
+                        <img
+                            src="/ascentia-subs.png"
+                            alt="Ascentia Subs"
+                            className="relative h-32 w-auto object-contain drop-shadow-[0_10px_30px_rgba(0,0,0,0.4)] group-hover:drop-shadow-[0_0_40px_rgba(141,247,223,0.4)] transition-all duration-500 scale-100 group-hover:scale-[1.02]"
+                        />
                     </div>
-                    <h1 className="text-3xl font-bold text-[var(--foreground)]">{t('loginTitle')}</h1>
-                    <p className="text-[var(--muted)] mt-2">{t('loginSubtitle')}</p>
+                    <p className="text-[var(--muted)] text-sm font-medium tracking-[0.2em] uppercase opacity-80">{t('loginSubtitle')}</p>
                 </div>
 
                 {/* Login Card */}
