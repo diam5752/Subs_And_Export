@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 from ...core import config
 from ...core.auth import User
+from ...core.ratelimit import limiter_content, limiter_login
 from ...services import tiktok
 from ...services.history import HistoryStore
 from ..deps import get_current_user, get_history_store
@@ -36,7 +37,7 @@ class TikTokCallback(BaseModel):
     code: str
     state: str
 
-@router.post("/callback")
+@router.post("/callback", dependencies=[Depends(limiter_login)])
 def tiktok_callback(
     payload: TikTokCallback,
     current_user: User = Depends(get_current_user),
@@ -77,7 +78,7 @@ class TikTokUploadRequest(BaseModel):
     title: str
     description: str
 
-@router.post("/upload")
+@router.post("/upload", dependencies=[Depends(limiter_content)])
 def upload_video_tiktok(
     req: TikTokUploadRequest,
     current_user: User = Depends(get_current_user),
