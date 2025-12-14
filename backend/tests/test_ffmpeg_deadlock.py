@@ -1,7 +1,9 @@
 import subprocess
-from unittest.mock import MagicMock, patch
 from pathlib import Path
+from unittest.mock import MagicMock, patch
+
 from backend.app.services.video_processing import _run_ffmpeg_with_subs
+
 
 def test_run_ffmpeg_deadlock_prevention():
     """

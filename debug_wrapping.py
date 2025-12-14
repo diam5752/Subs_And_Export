@@ -1,6 +1,7 @@
 
-import textwrap
 import math
+import textwrap
+
 
 class config:
     MAX_SUB_LINE_CHARS = 40
@@ -15,24 +16,24 @@ def _wrap_lines(
 
     # Balanced Wrapping Logic
     # Calculate ideal width to distribute text evenly across max_lines
-    
+
     # Heuristic: roughly 15 chars min width seems reasonable to avoid single-word lines if possible
-    MIN_WIDTH = 15  
-    
-    # Effective cap: 
+    MIN_WIDTH = 15
+
+    # Effective cap:
     # If 1 line: we allow wider text (up to 55-60 chars) to try and fit it.
     # If >1 lines: we strictly follow MAX_SUB_LINE_CHARS (40) to ensure safety.
     max_width_cap = int(config.MAX_SUB_LINE_CHARS * 1.5) if max_lines == 1 else config.MAX_SUB_LINE_CHARS
-    
+
     text = " ".join(words)
     total_len = len(text)
-    
+
     # Target width per line
     target_width = math.ceil(total_len / max_lines)
-    
+
     effective_width = max(MIN_WIDTH, target_width)
     effective_width = min(effective_width, max_width_cap)
-    
+
     wrapped = textwrap.wrap(
         text,
         width=effective_width,
@@ -40,11 +41,11 @@ def _wrap_lines(
         break_on_hyphens=False,
         drop_whitespace=True,
     )
-    
+
     print(f"DEBUG: max_lines={max_lines} | total_len={total_len} | target={target_width} | effective={effective_width} | result_lines={len(wrapped)}")
     for i, line in enumerate(wrapped):
         print(f"  Line {i+1}: {line} ({len(line)})")
-        
+
     wrapped = wrapped[:max_lines]
     return [line.split() for line in wrapped]
 
