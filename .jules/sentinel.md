@@ -23,6 +23,10 @@
 **Learning:** Authentication is not a substitute for rate limiting on resource-intensive endpoints (FFmpeg/ML).
 **Prevention:** Apply strict rate limits (e.g., 10/min) to all endpoints that trigger background jobs or heavy computation.
 
+## 2025-05-25 - [Medium] User Enumeration via Timing Attack
+**Vulnerability:** The `authenticate_local` method returned early when a user was not found, while performing an expensive `scrypt` hash verification when the user existed (approx 60x timing difference).
+**Learning:** Even with secure hashing algorithms like `scrypt`, the *absence* of execution leaks information. User enumeration allows attackers to target valid accounts.
+**Prevention:** Implement constant-time verification logic that executes the same expensive operations (hashing) regardless of whether the user exists or not, using a pre-calculated dummy hash.
 ## 2025-05-25 - [Medium] FFmpeg Deadlock Risk via Unconsumed Pipe
 **Vulnerability:** The `_run_ffmpeg_with_subs` function configured `subprocess.Popen` with `stdout=subprocess.PIPE` but never read from it, only iterating over `stderr`. If the subprocess wrote enough data to `stdout` to fill the OS pipe buffer, it would block indefinitely (deadlock).
 **Learning:** Piping output without reading it creates a hidden availability risk. Tools like FFmpeg usually write to stderr, but may write to stdout under certain conditions or versions.

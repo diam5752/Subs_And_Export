@@ -145,11 +145,13 @@ class UserStore:
     def authenticate_local(self, email: str, password: str) -> Optional[User]:
         email = email.strip().lower()
         user = self.get_user_by_email(email)
-        if not user:
-            return None
-        if not user.password_hash:
-            return None
-        if _verify_password(password, user.password_hash):
+
+        # Constant-time verification logic to prevent user enumeration.
+        # We always perform a password verification, even if the user is not found.
+        target_hash = user.password_hash if (user and user.password_hash) else _DUMMY_HASH
+        is_valid = _verify_password(password, target_hash)
+
+        if user and user.password_hash and is_valid:
             return user
         return None
 
@@ -254,6 +256,10 @@ def _hash_password(password: str, salt: str | None = None) -> str:
         digest=digest.hex(),
         **params,
     )
+
+
+# Constant-time verification fallback
+_DUMMY_HASH = _hash_password("dummy_password")
 
 
 def _hash_password_legacy(password: str, salt: str) -> str:
