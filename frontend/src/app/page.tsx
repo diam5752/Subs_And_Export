@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState, useMemo } from 'react';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { api, JobResponse } from '@/lib/api';
@@ -263,9 +264,12 @@ export default function DashboardPage() {
           >
             <div className="relative">
               <div className="absolute inset-0 -m-6 bg-[var(--accent)]/15 blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-full" />
-              <img
+              <Image
                 src="/ascentia-subs.png"
                 alt="Ascentia Subs"
+                width={300}
+                height={300}
+                priority
                 className="relative h-24 w-auto object-contain drop-shadow-[0_4px_20px_rgba(0,0,0,0.5)] group-hover:drop-shadow-[0_0_30px_rgba(141,247,223,0.6)] transition-all duration-300"
               />
             </div>
@@ -334,9 +338,11 @@ export default function DashboardPage() {
             >
               <div className="relative">
                 <div className="absolute inset-0 rounded-full bg-[var(--accent)]/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                <img
+                <Image
                   src="/ascentia-logo.png"
                   alt="Ascentia Logo"
+                  width={150}
+                  height={150}
                   className="relative h-16 w-auto object-contain drop-shadow-lg group-hover:drop-shadow-[0_0_15px_rgba(141,247,223,0.4)] transition-all duration-300"
                 />
               </div>
