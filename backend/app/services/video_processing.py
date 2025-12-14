@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import tempfile
 import time
+from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
@@ -78,6 +79,10 @@ def _build_filtergraph(ass_path: Path, *, target_width: int | None = None, targe
     graph = ",".join([scale, pad, "format=yuv420p", ass_filter])
     return graph
 
+
+TIME_PATTERN = re.compile(r"time=(\d{2}):(\d{2}):(\d{2}\.\d{2})")
+
+
 def _run_ffmpeg_with_subs(
     input_path: Path,
     ass_path: Path,
@@ -132,13 +137,13 @@ def _run_ffmpeg_with_subs(
 
     process = subprocess.Popen(
         cmd,
-        stdout=subprocess.PIPE,
+        stdout=subprocess.DEVNULL,
         stderr=subprocess.PIPE,
         universal_newlines=True,
     )
 
-    time_pattern = re.compile(r"time=(\d{2}):(\d{2}):(\d{2}\.\d{2})")
-    stderr_lines: list[str] = []
+    # Memory optimization: Use deque to keep only last 200 lines
+    stderr_lines = deque(maxlen=200)
 
     try:
         if process.stderr:
@@ -153,7 +158,7 @@ def _run_ffmpeg_with_subs(
 
                 stderr_lines.append(line)
                 if progress_callback and total_duration and total_duration > 0:
-                    match = time_pattern.search(line)
+                    match = TIME_PATTERN.search(line)
                     if match:
                         h, m, s = match.groups()
                         current_seconds = int(h) * 3600 + int(m) * 60 + float(s)

@@ -94,11 +94,19 @@ describe('ViralIntelligence', () => {
 
         await waitFor(() => expect(screen.getByText('Hook 1')).toBeInTheDocument());
 
-        fireEvent.click(screen.getByText('Hook 1'));
+        // Verify it's a button
+        const hookButton = screen.getByRole('button', { name: /COPY: Hook 1/i });
+        fireEvent.click(hookButton);
         expect(mockWriteText).toHaveBeenCalledWith('Hook 1');
+
+        // Check for feedback
+        await waitFor(() => expect(screen.getByText('COPIED')).toBeInTheDocument());
 
         // Copy Full Caption
         fireEvent.click(screen.getByText('Copy Full Caption'));
         expect(mockWriteText).toHaveBeenCalledWith(expect.stringContaining('Hook\n\nBody'));
+
+        // Check for feedback on caption
+        await waitFor(() => expect(screen.getAllByText('COPIED').length).toBeGreaterThan(0));
     });
 });
