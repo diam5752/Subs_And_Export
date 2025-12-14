@@ -163,10 +163,32 @@ function LoginContent() {
                     </div>
                 </div>
 
-                {/* Footer */}
-                <p className="text-center text-[var(--muted)] text-sm mt-8">
-                    {t('loginFooter')}
-                </p>
+                {/* Ascentia Branding Footer */}
+                <div className="mt-10 flex flex-col items-center">
+                    <a
+                        href="https://ascentia-gp.com/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="group flex flex-col items-center gap-2 transition-all duration-300 hover:scale-105"
+                    >
+                        <div className="relative">
+                            <div className="absolute inset-0 rounded-full bg-[var(--accent)]/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                            <img
+                                src="/ascentia-logo.png"
+                                alt="Ascentia Logo"
+                                className="relative h-12 w-auto object-contain drop-shadow-lg group-hover:drop-shadow-[0_0_15px_rgba(141,247,223,0.4)] transition-all duration-300"
+                            />
+                        </div>
+                        <div className="text-center">
+                            <p className="text-[10px] uppercase tracking-[0.25em] text-[var(--muted)] group-hover:text-[var(--foreground)] transition-colors duration-300">
+                                Brought to you by
+                            </p>
+                            <p className="text-sm font-semibold bg-gradient-to-r from-[var(--accent)] to-[var(--accent-secondary)] bg-clip-text text-transparent">
+                                Ascentia
+                            </p>
+                        </div>
+                    </a>
+                </div>
             </div>
         </div>
     );
@@ -183,4 +205,3 @@ export default function LoginPage() {
         </Suspense>
     );
 }
-
