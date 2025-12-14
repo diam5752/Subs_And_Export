@@ -9,7 +9,7 @@ from pydantic import BaseModel
 
 from ...core import config
 from ...core.auth import User
-from ...core.ratelimit import limiter_processing
+from ...core.ratelimit import limiter_content, limiter_processing
 from ...core.settings import load_app_settings
 from ...schemas.base import (
     BatchDeleteRequest,
@@ -584,7 +584,7 @@ def cancel_job(
     return _ensure_job_size(updated_job)
 
 
-@router.post("/jobs/{job_id}/viral-metadata", response_model=ViralMetadataResponse)
+@router.post("/jobs/{job_id}/viral-metadata", response_model=ViralMetadataResponse, dependencies=[Depends(limiter_content)])
 def create_viral_metadata(
     job_id: str,
     current_user: User = Depends(get_current_user),
@@ -624,7 +624,7 @@ class ExportRequest(BaseModel):
     resolution: str
 
 
-@router.post("/jobs/{job_id}/export", response_model=JobResponse)
+@router.post("/jobs/{job_id}/export", response_model=JobResponse, dependencies=[Depends(limiter_content)])
 def export_video(
     job_id: str,
     request: ExportRequest,

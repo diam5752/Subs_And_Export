@@ -39,3 +39,6 @@ limiter_register = RateLimiter(limit=3, window=60)
 
 # 10 processing attempts per minute per IP to prevent DoS via file uploads
 limiter_processing = RateLimiter(limit=10, window=60)
+
+# 10 content generation attempts per minute (metadata, export) to prevent resource exhaustion
+limiter_content = RateLimiter(limit=10, window=60)
