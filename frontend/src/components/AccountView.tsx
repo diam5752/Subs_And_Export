@@ -1,24 +1,58 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useI18n } from '@/context/I18nContext';
 import { User } from '@/context/AuthContext';
-import { api } from '@/lib/api';
+import { api, JobResponse } from '@/lib/api';
 import { useRouter } from 'next/navigation';
+import { RecentJobsList } from './RecentJobsList';
 
 interface AccountViewProps {
     user: User;
     onSaveProfile: (name: string, password?: string, confirmPassword?: string) => Promise<void>;
+    onLogout: () => void;
     accountMessage: string;
     accountError: string;
     accountSaving: boolean;
+    activeTab?: 'profile' | 'history';
+    // History props
+    recentJobs?: JobResponse[];
+    jobsLoading?: boolean;
+    onJobSelect?: (job: JobResponse | null) => void;
+    selectedJobId?: string | undefined;
+    onRefreshJobs?: () => Promise<void>;
+    formatDate?: (ts: number | string) => string;
+    buildStaticUrl?: (path?: string | null) => string | null;
+    setShowPreview?: (show: boolean) => void;
+    currentPage?: number;
+    totalPages?: number;
+    onNextPage?: () => void;
+    onPrevPage?: () => void;
+    totalJobs?: number;
+    pageSize?: number;
 }
 
 export function AccountView({
     user,
     onSaveProfile,
+    onLogout,
     accountMessage,
     accountError,
     accountSaving,
+    activeTab = 'profile',
+    recentJobs = [],
+    jobsLoading = false,
+    onJobSelect = () => { },
+    selectedJobId,
+    onRefreshJobs = async () => { },
+    formatDate = () => '',
+    buildStaticUrl = () => null,
+    setShowPreview = () => { },
+    currentPage = 1,
+    totalPages = 1,
+    onNextPage = () => { },
+    onPrevPage = () => { },
+    totalJobs = 0,
+    pageSize = 5,
 }: AccountViewProps) {
     const { t } = useI18n();
     const router = useRouter();
@@ -50,6 +84,37 @@ export function AccountView({
             setDeleting(false);
         }
     };
+
+    if (activeTab === 'history') {
+        return (
+            <div className="flex flex-col gap-6 max-w-4xl mx-auto">
+                <div className="space-y-4">
+                    <div>
+                        <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">{t('historyTitle') || 'HISTORY'}</p>
+                        <h2 className="text-2xl font-bold">{t('pastGenerations') || 'Past Generations'}</h2>
+                        <p className="text-sm text-[var(--muted)]">{t('historySubtitle') || 'View and manage your processed videos.'}</p>
+                    </div>
+
+                    <RecentJobsList
+                        jobs={recentJobs}
+                        isLoading={jobsLoading}
+                        onJobSelect={onJobSelect}
+                        selectedJobId={selectedJobId}
+                        onRefreshJobs={onRefreshJobs}
+                        formatDate={formatDate}
+                        buildStaticUrl={buildStaticUrl}
+                        setShowPreview={setShowPreview}
+                        currentPage={currentPage}
+                        totalPages={totalPages}
+                        onNextPage={onNextPage}
+                        onPrevPage={onPrevPage}
+                        totalJobs={totalJobs}
+                        pageSize={pageSize}
+                    />
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="flex flex-col gap-6 max-w-2xl mx-auto">
@@ -112,7 +177,7 @@ export function AccountView({
                         <p className="text-[var(--danger)] text-sm">{accountError}</p>
                     )}
 
-                    <div className="pt-4">
+                    <div className="pt-4 flex items-center justify-between">
                         <button
                             type="submit"
                             disabled={accountSaving}
@@ -122,6 +187,16 @@ export function AccountView({
                         </button>
                     </div>
                 </form>
+            </div>
+
+            {/* Sign Out Button - iOS Style */}
+            <div className="card p-1">
+                <button
+                    onClick={onLogout}
+                    className="w-full py-3.5 text-[var(--danger)] font-medium text-base hover:bg-[var(--danger)]/5 rounded-xl transition-colors flex items-center justify-center gap-2"
+                >
+                    {t('signOut')}
+                </button>
             </div>
 
             {/* Danger Zone */}

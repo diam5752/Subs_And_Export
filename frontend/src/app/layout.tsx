@@ -9,7 +9,7 @@ import CookieConsent from "@/components/CookieConsent"
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Greek Sub Publisher",
+  title: "Ascentia Subs",
   description: "AI subtitle workflow for Greek video",
 };
 

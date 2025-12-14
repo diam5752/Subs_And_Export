@@ -30,12 +30,10 @@ describe('JobListItem', () => {
         onToggleSelection: jest.fn(),
         onJobSelect: jest.fn(),
         setShowPreview: jest.fn(),
-        confirmDeleteId: null,
+        isConfirmingDelete: false,
+        isDeleting: false,
         setConfirmDeleteId: jest.fn(),
-        deletingJobId: null,
-        setDeletingJobId: jest.fn(),
-        onRefreshJobs: jest.fn(),
-        selectedJobId: undefined,
+        onDeleteConfirmed: jest.fn(),
         t: (key: string) => key,
     };
 
@@ -57,8 +55,8 @@ describe('JobListItem', () => {
         expect(mockProps.onToggleSelection).toHaveBeenCalledWith('job-123', false);
     });
 
-    it('shows delete confirmation when confirmDeleteId matches', () => {
-        render(<JobListItem {...mockProps} confirmDeleteId="job-123" />);
+    it('shows delete confirmation when isConfirmingDelete is true', () => {
+        render(<JobListItem {...mockProps} isConfirmingDelete={true} />);
         expect(screen.getByText('✓')).toBeInTheDocument();
         expect(screen.getByText('✕')).toBeInTheDocument();
     });
@@ -90,7 +88,7 @@ describe('JobListItem', () => {
         expect(screen.getByLabelText('deleteJob')).toBeInTheDocument();
 
         // Confirm delete mode
-        rerender(<JobListItem {...mockProps} confirmDeleteId="job-123" />);
+        rerender(<JobListItem {...mockProps} isConfirmingDelete={true} />);
         expect(screen.getByLabelText('confirmDelete')).toBeInTheDocument();
         expect(screen.getByLabelText('cancel')).toBeInTheDocument();
     });

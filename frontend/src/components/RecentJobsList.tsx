@@ -1,4 +1,4 @@
-import React, { memo, useState, useCallback } from 'react';
+import React, { memo, useState, useCallback, useRef, useEffect } from 'react';
 import { api, JobResponse } from '@/lib/api';
 import { useI18n } from '@/context/I18nContext';
 import { JobListItem } from './JobListItem';
@@ -44,6 +44,29 @@ export const RecentJobsList = memo(function RecentJobsList({
     const [confirmBatchDelete, setConfirmBatchDelete] = useState(false);
     const [deletingJobId, setDeletingJobId] = useState<string | null>(null);
     const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+    // Keep track of selectedJobId in a ref to avoid re-creating handleDeleteJob when it changes
+    const selectedJobIdRef = useRef(selectedJobId);
+    useEffect(() => {
+        selectedJobIdRef.current = selectedJobId;
+    }, [selectedJobId]);
+
+    const handleDeleteJob = useCallback(async (jobId: string) => {
+        setDeletingJobId(jobId);
+        try {
+            await api.deleteJob(jobId);
+            if (selectedJobIdRef.current === jobId) {
+                onJobSelect(null);
+                setShowPreview(false);
+            }
+            setConfirmDeleteId(null);
+            await onRefreshJobs();
+        } catch (err) {
+            console.error('Delete failed:', err);
+        } finally {
+            setDeletingJobId(null);
+        }
+    }, [onJobSelect, setShowPreview, onRefreshJobs]);
 
     const handleToggleSelection = useCallback((id: string, isSelected: boolean) => {
         setSelectedJobIds(prev => {
@@ -182,12 +205,10 @@ export const RecentJobsList = memo(function RecentJobsList({
                             onToggleSelection={handleToggleSelection}
                             onJobSelect={onJobSelect}
                             setShowPreview={setShowPreview}
-                            confirmDeleteId={confirmDeleteId}
+                            isConfirmingDelete={confirmDeleteId === job.id}
+                            isDeleting={deletingJobId === job.id}
                             setConfirmDeleteId={setConfirmDeleteId}
-                            deletingJobId={deletingJobId}
-                            setDeletingJobId={setDeletingJobId}
-                            onRefreshJobs={onRefreshJobs}
-                            selectedJobId={selectedJobId}
+                            onDeleteConfirmed={handleDeleteJob}
                             t={t as (key: string) => string}
                         />
                     );

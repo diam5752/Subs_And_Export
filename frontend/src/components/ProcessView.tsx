@@ -22,19 +22,8 @@ interface ProcessViewProps {
     onCancelProcessing?: () => void;
     selectedJob: JobResponse | null;
     onJobSelect: (job: JobResponse | null) => void;
-    recentJobs: JobResponse[];
-    jobsLoading: boolean;
     statusStyles: Record<string, string>;
-    formatDate: (ts: string | number) => string;
     buildStaticUrl: (path?: string | null) => string | null;
-    onRefreshJobs: () => Promise<void>;
-    // Pagination props
-    currentPage: number;
-    totalPages: number;
-    onNextPage: () => void;
-    onPrevPage: () => void;
-    totalJobs: number;
-    pageSize: number;
 }
 
 
@@ -67,18 +56,8 @@ export function ProcessView({
     onCancelProcessing,
     selectedJob,
     onJobSelect,
-    recentJobs,
-    jobsLoading,
     statusStyles,
-    formatDate,
     buildStaticUrl,
-    onRefreshJobs,
-    currentPage,
-    totalPages,
-    totalJobs,
-    pageSize,
-    onNextPage,
-    onPrevPage,
 }: ProcessViewProps) {
     const { t } = useI18n();
     const aiToggleDescId = useId();
@@ -773,10 +752,14 @@ export function ProcessView({
 
                                 {/* Style Presets */}
                                 <div ref={customizeSectionRef}>
-                                    <label className="block text-sm font-medium text-[var(--muted)] mb-3">
+                                    <label id="style-presets-label" className="block text-sm font-medium text-[var(--muted)] mb-3">
                                         {t('subtitleStyleLabel')}
                                     </label>
-                                    <div className="grid grid-cols-3 gap-3 mb-3">
+                                    <div
+                                        className="grid grid-cols-3 gap-3 mb-3"
+                                        role="radiogroup"
+                                        aria-labelledby="style-presets-label"
+                                    >
                                         {STYLE_PRESETS.map((preset) => {
                                             // Helper to get preview position
                                             const getPreviewBottom = (pos: number | string) => {
@@ -797,6 +780,9 @@ export function ProcessView({
                                             return (
                                                 <button
                                                     key={preset.id}
+                                                    role="radio"
+                                                    aria-checked={activePreset === preset.id}
+                                                    aria-label={preset.name}
                                                     onClick={(e) => {
                                                         e.stopPropagation();
                                                         setActivePreset(preset.id);
@@ -982,16 +968,17 @@ export function ProcessView({
                                 <div className="border-t border-dashed border-[var(--border)] pt-4 mt-2">
                                     <button
                                         data-testid="experimenting-toggle"
+                                        aria-expanded={showExperiments}
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             setShowExperiments(!showExperiments);
                                         }}
                                         className="flex items-center gap-2 mb-3 w-full hover:opacity-80 transition-opacity"
                                     >
-                                        <span className="text-lg">🧪</span>
-                                        <label className="text-sm font-medium text-[var(--muted)] cursor-pointer">
+                                        <span className="text-lg" aria-hidden="true">🧪</span>
+                                        <span className="text-sm font-medium text-[var(--muted)] cursor-pointer">
                                             {t('experimentingLabel')}
-                                        </label>
+                                        </span>
                                         <span className="bg-purple-500/10 text-purple-400 text-[10px] px-1.5 py-0.5 rounded-full font-medium">
                                             {t('betaBadge')}
                                         </span>
@@ -1117,7 +1104,8 @@ export function ProcessView({
                 )}
 
                 <div className="space-y-4" ref={resultsRef} style={{ scrollMarginTop: '100px' }}>
-                    {(isProcessing || (selectedJob && selectedJob.status !== 'pending')) && (
+                    {/* Only show this section if a file was uploaded in the current session */}
+                    {selectedFile && (isProcessing || (selectedJob && selectedJob.status !== 'pending')) && (
                         <div className="card space-y-4">
                             <div className="flex flex-wrap items-start justify-between gap-3">
                                 <div>
@@ -1159,8 +1147,8 @@ export function ProcessView({
                                 </div>
                             )}
 
-                            {/* Strict check: Only show preview if NOT processing and job is completed */}
-                            {!isProcessing && selectedJob && selectedJob.status === 'completed' ? (
+                            {/* Strict check: Only show preview if file was uploaded this session, NOT processing and job is completed */}
+                            {selectedFile && !isProcessing && selectedJob && selectedJob.status === 'completed' ? (
                                 <div className="animate-fade-in relative">
                                     {/* Animated shimmer border */}
                                     <div className="absolute -inset-[2px] rounded-2xl bg-gradient-to-r from-[var(--accent)] via-[var(--accent-secondary)] to-[var(--accent)] bg-[length:200%_100%] animate-shimmer opacity-80" />
@@ -1292,30 +1280,12 @@ export function ProcessView({
                         </div>
                     )}
 
-                    {/* Recent Jobs with Expiry */}
-                    <RecentJobsList
-                        jobs={recentJobs}
-                        isLoading={jobsLoading}
-                        onJobSelect={onJobSelect}
-                        selectedJobId={selectedJob?.id}
-                        onRefreshJobs={onRefreshJobs}
-                        formatDate={formatDate}
-                        buildStaticUrl={buildStaticUrl}
-                        setShowPreview={setShowPreview}
-                        currentPage={currentPage}
-                        totalPages={totalPages}
-                        onNextPage={onNextPage}
-                        onPrevPage={onPrevPage}
-                        totalJobs={totalJobs}
-                        pageSize={pageSize}
+                    <VideoModal
+                        isOpen={showPreview}
+                        onClose={handleClosePreview}
+                        videoUrl={videoUrl || ''}
                     />
                 </div>
-
-                <VideoModal
-                    isOpen={showPreview}
-                    onClose={handleClosePreview}
-                    videoUrl={videoUrl || ''}
-                />
             </div>
         </div>
     );
