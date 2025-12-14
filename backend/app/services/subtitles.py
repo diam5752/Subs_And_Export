@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 import json
 import math
 import os
@@ -56,6 +57,7 @@ class ViralMetadata:
     hashtags: List[str]
 
 
+@functools.lru_cache(maxsize=4096)
 def _normalize_text(text: str) -> str:
     """
     Uppercase + strip accents for consistent, bold subtitle styling.
