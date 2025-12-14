@@ -145,9 +145,18 @@ def run_video_processing(
                 job_store.update_job(job_id, progress=int(percent), message=msg)
                 last_update_time = now
 
+        last_check_time = 0.0
+
         def check_cancelled():
             """Check if job was cancelled by user."""
+            nonlocal last_check_time
+            # Throttle DB checks to 2Hz to prevent SQLite contention during tight loops
+            now = time.monotonic()
+            if now - last_check_time < 0.5:
+                return
+
             current_job = job_store.get_job(job_id)
+            last_check_time = now
             if current_job and current_job.status == "cancelled":
                 raise InterruptedError("Job cancelled by user")
 
