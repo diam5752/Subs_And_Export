@@ -99,4 +99,29 @@ describe('SubtitlePositionSelector', () => {
         fireEvent.click(colorBtn);
         expect(onChangeColor).toHaveBeenCalledWith('#00FF00');
     });
+
+    it('renders accessible video controls when preview is shown', () => {
+        // Need to provide cues to show the interactive video player
+        const cues = [{ start: 0, end: 5, text: 'Test' }];
+        render(<SubtitlePositionSelector {...defaultProps} previewVideoUrl="blob:test" cues={cues} />);
+
+        // Play/Pause button (defaults to playing, so label is 'pause')
+        const playButton = screen.getByRole('button', { name: 'pause' });
+        expect(playButton).toBeInTheDocument();
+        expect(playButton).toHaveAttribute('aria-pressed', 'true');
+
+        // Main container toggle
+        const containerToggle = screen.getByRole('button', { name: 'previewVideoToggle' });
+        expect(containerToggle).toBeInTheDocument();
+        expect(containerToggle).toHaveAttribute('aria-pressed', 'true');
+
+        // Mute button (defaults to muted, so label is 'unmute')
+        const muteButton = screen.getByRole('button', { name: 'unmute' });
+        expect(muteButton).toBeInTheDocument();
+        expect(muteButton).toHaveAttribute('aria-pressed', 'true');
+
+        // Scrubber
+        const scrubber = screen.getByLabelText('seekVideo');
+        expect(scrubber).toBeInTheDocument();
+    });
 });
