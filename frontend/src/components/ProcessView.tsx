@@ -100,7 +100,7 @@ export function ProcessView({
 
     // Dynamically re-segment cues based on "Max Lines" selection
     const processedCues = useMemo(() => {
-        return resegmentCues(cues, maxSubtitleLines, subtitleSize, videoInfo?.width || 1080);
+        return resegmentCues(cues, maxSubtitleLines, subtitleSize);
     }, [cues, maxSubtitleLines, subtitleSize, videoInfo?.width]);
 
 

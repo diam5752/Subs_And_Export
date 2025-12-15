@@ -1,13 +1,11 @@
 import { Cue } from '../components/SubtitleOverlay';
 
-interface VideoDimensions {
-    width: number;
-    height: number;
-}
+
 
 // Configuration matching backend config.py
 const DEFAULT_SUB_FONT_SIZE = 62;
-const DEFAULT_WIDTH = 1080;
+const DEFAULT_WIDTH = 1080; // Default video width for character count calculations
+
 const MAX_SUB_LINE_CHARS = 28; // Safe characters per line for Greek uppercase
 
 /**
@@ -65,8 +63,7 @@ function getAllWords(cues: Cue[]): { start: number; end: number; text: string }[
 export function resegmentCues(
     originalCues: Cue[],
     maxLines: number,
-    fontSizePercent: number,
-    videoWidth: number = 1080
+    fontSizePercent: number
 ): Cue[] {
     if (!originalCues || originalCues.length === 0) return [];
     if (maxLines === 0) return originalCues; // Handled by SubtitleOverlay specially ("One Word" mode)
@@ -75,7 +72,7 @@ export function resegmentCues(
     const allWords = getAllWords(originalCues);
     if (allWords.length === 0) return originalCues;
 
-    const maxCharsPerLine = getEffectiveMaxChars(fontSizePercent, videoWidth);
+    const maxCharsPerLine = getEffectiveMaxChars(fontSizePercent, DEFAULT_WIDTH);
 
     // We want to group words into Cues such that:
     // - Total chars <= maxLines * maxCharsPerLine

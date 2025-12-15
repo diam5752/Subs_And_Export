@@ -65,11 +65,9 @@ export interface PaginatedJobsResponse {
     total_pages: number;
 }
 
-export interface BatchDeleteResponse {
-    status: string;
-    deleted_count: number;
-    job_ids: string[];
-}
+
+
+
 
 class ApiClient {
     private token: string | null = null;
@@ -226,12 +224,7 @@ class ApiClient {
         return this.request<PaginatedJobsResponse>(`/videos/jobs/paginated?page=${page}&page_size=${pageSize}`);
     }
 
-    async deleteJobs(jobIds: string[]): Promise<BatchDeleteResponse> {
-        return this.request<BatchDeleteResponse>('/videos/jobs/batch-delete', {
-            method: 'POST',
-            body: JSON.stringify({ job_ids: jobIds }),
-        });
-    }
+
 
     async updateProfile(name: string): Promise<UserResponse> {
         return this.request<UserResponse>('/auth/me', {
