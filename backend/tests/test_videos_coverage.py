@@ -73,12 +73,12 @@ def test_parse_resolution():
     """Unit tests for _parse_resolution helper."""
     from backend.app.api.endpoints.videos import _parse_resolution
 
-    assert _parse_resolution(None) == (config.DEFAULT_WIDTH, config.DEFAULT_HEIGHT)
-    assert _parse_resolution("") == (config.DEFAULT_WIDTH, config.DEFAULT_HEIGHT)
+    assert _parse_resolution(None) == (None, None)
+    assert _parse_resolution("") == (None, None)
     assert _parse_resolution("1080x1920") == (1080, 1920)
     assert _parse_resolution("2160×3840") == (2160, 3840) # Mixed char
-    assert _parse_resolution("invalid") == (config.DEFAULT_WIDTH, config.DEFAULT_HEIGHT)
-    assert _parse_resolution("-100x100") == (config.DEFAULT_WIDTH, config.DEFAULT_HEIGHT)
+    assert _parse_resolution("invalid") == (None, None)
+    assert _parse_resolution("-100x100") == (None, None)
 
 def test_ensure_job_size_logic():
     """Test _ensure_job_size backfill logic."""
@@ -490,4 +490,3 @@ def test_batch_delete_limit(client: TestClient, user_auth_headers: dict, monkeyp
 
     finally:
         app.dependency_overrides = {}
-

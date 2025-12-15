@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from moviepy import VideoFileClip, vfx
+from moviepy.editor import VideoFileClip, vfx
 from PIL import ImageFont
 
 

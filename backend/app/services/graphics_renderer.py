@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import List
 
-from moviepy import CompositeVideoClip, VideoClip, VideoFileClip
+from moviepy.editor import CompositeVideoClip, VideoClip, VideoFileClip
 
 from backend.app.core import config
 from backend.app.services.renderers.active_word import ActiveWordRenderer

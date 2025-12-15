@@ -15,7 +15,7 @@ from backend.app.services import subtitles
 
 def test_parse_resolution_error():
     """Cover exception path in _parse_resolution (lines 106-107)."""
-    assert videos._parse_resolution("100xInvalid") == (1080, 1920)
+    assert videos._parse_resolution("100xInvalid") == (None, None)
 
 def test_ensure_job_size_exception():
     """Cover exception path in _ensure_job_size (lines 328-329)."""
@@ -493,4 +493,3 @@ def test_format_karaoke_fallback_empty():
     cue = subtitles.Cue(0, 1, "   ")
     res = subtitles._format_karaoke_text(cue)
     assert res == ""
-

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState, useId, useMemo } from 'react';
 import { api, JobResponse, API_BASE, JobResultData } from '@/lib/api';
 import { useI18n } from '@/context/I18nContext';
+import { useAppEnv } from '@/context/AppEnvContext';
 import { RecentJobsList } from './RecentJobsList';
 import { VideoModal } from './VideoModal';
 import { ViralIntelligence } from './ViralIntelligence';
@@ -64,6 +65,8 @@ export function ProcessView({
     buildStaticUrl,
 }: ProcessViewProps) {
     const { t } = useI18n();
+    const { appEnv } = useAppEnv();
+    const showDevTools = appEnv === 'dev';
     const aiToggleDescId = useId();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const resultsRef = useRef<HTMLDivElement>(null);
@@ -97,6 +100,8 @@ export function ProcessView({
     const [outputResolutionInfo, setOutputResolutionInfo] = useState<{ text: string; label: string } | null>(null);
     const [previewVideoUrl, setPreviewVideoUrl] = useState<string | null>(null);
     const [cues, setCues] = useState<Cue[]>([]);
+    const [devSampleLoading, setDevSampleLoading] = useState(false);
+    const [devSampleError, setDevSampleError] = useState<string | null>(null);
 
     // Dynamically re-segment cues based on "Max Lines" selection
     const processedCues = useMemo(() => {
@@ -317,7 +322,7 @@ export function ProcessView({
     useEffect(() => {
         if (selectedJob?.result_data?.transcription_url) {
             const url = selectedJob.result_data.transcription_url;
-            const fullUrl = url.startsWith('http') ? url : `${API_BASE}${url} `;
+            const fullUrl = url.startsWith('http') ? url : `${API_BASE}${url}`;
 
             fetch(fullUrl)
                 .then(res => {
@@ -349,6 +354,31 @@ export function ProcessView({
         }
         onReset();
     };
+
+    const handleLoadDevSample = useCallback(
+        async (event: React.MouseEvent<HTMLButtonElement>) => {
+            event.stopPropagation();
+            if (isProcessing || devSampleLoading) return;
+
+            setDevSampleError(null);
+            setDevSampleLoading(true);
+
+            try {
+                if (fileInputRef.current) {
+                    fileInputRef.current.value = '';
+                }
+                onReset();
+                const job = await api.loadDevSampleJob();
+                onJobSelect(job);
+                resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } catch (err) {
+                setDevSampleError(err instanceof Error ? err.message : 'Failed to load dev sample');
+            } finally {
+                setDevSampleLoading(false);
+            }
+        },
+        [devSampleLoading, isProcessing, onJobSelect, onReset]
+    );
 
     // Click outside handler for model selector
     const modelListRef = useRef<HTMLDivElement>(null);
@@ -568,6 +598,7 @@ export function ProcessView({
     return (
         <div className="grid xl:grid-cols-[1.05fr,0.95fr] gap-6">
             <div className="space-y-4">
+                <div className={showDevTools ? "grid gap-4 md:grid-cols-2" : ""}>
                 {/* Upload Card */}
                 <div
                     className={`card relative overflow-hidden cursor - pointer group transition-all ${isDragOver
@@ -651,6 +682,38 @@ export function ProcessView({
                             <p className="text-xs text-[var(--muted)] mt-4">{t('uploadDropFootnote')}</p>
                         </div>
                     )}
+                </div>
+                {showDevTools && (
+                    <div
+                        className="card relative overflow-hidden border border-[var(--accent)]/35"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="absolute inset-0 bg-gradient-to-br from-[var(--accent)]/12 via-transparent to-[var(--accent-secondary)]/10 pointer-events-none" />
+                        <div className="relative space-y-3">
+                            <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border)]/60 bg-[var(--surface-elevated)]/70 px-3 py-1 text-[10px] font-semibold tracking-[0.26em] text-[var(--muted)]">
+                                <span className="h-2 w-2 rounded-full bg-[var(--accent)]" />
+                                DEV TOOLS
+                            </div>
+                            <div>
+                                <h3 className="text-lg font-semibold">Test upload</h3>
+                                <p className="text-sm text-[var(--muted)]">
+                                    Load an existing processed video so you can preview/export without uploading & transcribing again.
+                                </p>
+                            </div>
+                            <button
+                                type="button"
+                                className="btn-primary w-full"
+                                onClick={handleLoadDevSample}
+                                disabled={isProcessing || devSampleLoading}
+                            >
+                                {devSampleLoading ? 'Loading sample…' : 'Load sample video'}
+                            </button>
+                            {devSampleError && (
+                                <p className="text-xs text-[var(--danger)]">{devSampleError}</p>
+                            )}
+                        </div>
+                    </div>
+                )}
                 </div>
                 {selectedFile && !isProcessing && (
                     <div className="card space-y-4 animate-fade-in">
@@ -1184,8 +1247,7 @@ export function ProcessView({
                 )}
 
                 <div className="space-y-4" ref={resultsRef} style={{ scrollMarginTop: '100px' }}>
-                    {/* Only show this section if a file was uploaded in the current session */}
-                    {selectedFile && (isProcessing || (selectedJob && selectedJob.status !== 'pending')) && (
+                    {(isProcessing || (selectedJob && selectedJob.status !== 'pending')) && (
                         <div className="card space-y-4">
                             <div className="flex flex-wrap items-start justify-between gap-3">
                                 <div>
@@ -1227,8 +1289,7 @@ export function ProcessView({
                                 </div>
                             )}
 
-                            {/* Strict check: Only show preview if file was uploaded this session, NOT processing and job is completed */}
-                            {selectedFile && !isProcessing && selectedJob && selectedJob.status === 'completed' ? (
+                            {!isProcessing && selectedJob && selectedJob.status === 'completed' ? (
                                 <div className="animate-fade-in relative">
                                     {/* Animated shimmer border */}
                                     <div className="absolute -inset-[2px] rounded-2xl bg-gradient-to-r from-[var(--accent)] via-[var(--accent-secondary)] to-[var(--accent)] bg-[length:200%_100%] animate-shimmer opacity-80" />

@@ -212,6 +212,12 @@ class ApiClient {
         });
     }
 
+    async loadDevSampleJob(): Promise<JobResponse> {
+        return this.request<JobResponse>('/dev/sample-job', {
+            method: 'POST',
+        });
+    }
+
     async getJobStatus(jobId: string): Promise<JobResponse> {
         return this.request<JobResponse>(`/videos/jobs/${jobId}`);
     }

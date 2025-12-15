@@ -44,6 +44,7 @@ jest.mock('@/lib/api', () => ({
         deleteJob: jest.fn(),
         deleteJobs: jest.fn(),
         exportVideo: jest.fn(),
+        loadDevSampleJob: jest.fn(),
     },
 }));
 
@@ -111,6 +112,37 @@ describe('ProcessView', () => {
     it('should render drop zone when no file is selected', () => {
         render(<ProcessView {...defaultProps} />);
         expect(screen.getByText('uploadDropTitle')).toBeInTheDocument();
+    });
+
+    it('should load a dev sample job from dev tools', async () => {
+        const onJobSelect = jest.fn();
+        const onReset = jest.fn();
+
+        const sampleJob: JobResponse = {
+            id: 'sample-job-1',
+            status: 'completed',
+            progress: 100,
+            message: 'Loaded dev sample',
+            created_at: Date.now(),
+            updated_at: Date.now(),
+            result_data: {
+                video_path: 'uploads/sample.mp4',
+                artifacts_dir: 'artifacts/sample',
+                transcription_url: '/static/artifacts/sample/transcription.json',
+            },
+        };
+
+        (api.loadDevSampleJob as jest.Mock).mockResolvedValueOnce(sampleJob);
+
+        render(<ProcessView {...defaultProps} onJobSelect={onJobSelect} onReset={onReset} />);
+
+        fireEvent.click(screen.getByRole('button', { name: /Load sample video/i }));
+
+        await waitFor(() => {
+            expect(api.loadDevSampleJob).toHaveBeenCalled();
+        });
+        expect(onReset).toHaveBeenCalled();
+        expect(onJobSelect).toHaveBeenCalledWith(sampleJob);
     });
 
     it('should upload file via input change', async () => {

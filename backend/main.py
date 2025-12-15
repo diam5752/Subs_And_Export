@@ -16,8 +16,9 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.types import ASGIApp
 
-from backend.app.api.endpoints import auth, history, tiktok, videos
+from backend.app.api.endpoints import auth, dev, history, tiktok, videos
 from backend.app.core import config
+from backend.app.core.env import get_app_env, is_dev_env
 
 app = FastAPI(
     title="Greek Sub Publisher API",
@@ -134,10 +135,12 @@ app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(videos.router, prefix="/videos", tags=["videos"])
 app.include_router(tiktok.router, prefix="/tiktok", tags=["tiktok"])
 app.include_router(history.router, prefix="/history", tags=["history"])
+if is_dev_env():
+    app.include_router(dev.router, prefix="/dev", tags=["dev"])
 
 @app.get("/health")
 async def health_check():
-    return {"status": "ok", "service": "greek-sub-publisher-api"}
+    return {"status": "ok", "service": "greek-sub-publisher-api", "app_env": get_app_env().value}
 
 @app.get("/")
 async def root():

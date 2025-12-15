@@ -7,15 +7,37 @@
   --surface: #0b0f1a;
   --surface-elevated: #10172a;
   --accent: #8df7df;
+  --accent-rgb: 141 247 223;
   --accent-secondary: #ffd479;
+  --accent-secondary-rgb: 255 212 121;
+  --accent-tertiary: #6aa4ff;
+  --accent-tertiary-rgb: 106 164 255;
+  --accent-gradient-mid: #6ddaff;
+  --accent-gradient-mid-rgb: 109 218 255;
+  --accent-gradient-end: #7fa8ff;
+  --accent-gradient-end-rgb: 127 168 255;
   --border: #1a2339;
   --muted: #9aa6c3;
   --danger: #ff6b6b;
-  --glow: 0 20px 70px rgba(141, 247, 223, 0.18);
+  --glow: 0 20px 70px rgb(var(--accent-rgb) / 0.18);
 
   /* UI Variables */
   --radius: 12px;
   --radius-lg: 20px;
+}
+
+:root[data-app-env='dev'] {
+  --accent: #f97316;
+  --accent-rgb: 249 115 22;
+  --accent-secondary: #fdba74;
+  --accent-secondary-rgb: 253 186 116;
+  --accent-tertiary: #f59e0b;
+  --accent-tertiary-rgb: 245 158 11;
+  --accent-gradient-mid: #fb923c;
+  --accent-gradient-mid-rgb: 251 146 60;
+  --accent-gradient-end: #ea580c;
+  --accent-gradient-end-rgb: 234 88 12;
+  --glow: 0 20px 70px rgb(var(--accent-rgb) / 0.22);
 }
 
 @theme inline {
@@ -33,9 +55,9 @@
 
 body {
   background:
-    radial-gradient(circle at 18% 18%, rgba(141, 247, 223, 0.08), transparent 30%),
-    radial-gradient(circle at 82% 12%, rgba(255, 212, 121, 0.14), transparent 26%),
-    radial-gradient(circle at 48% 78%, rgba(106, 164, 255, 0.09), transparent 30%),
+    radial-gradient(circle at 18% 18%, rgb(var(--accent-rgb) / 0.08), transparent 30%),
+    radial-gradient(circle at 82% 12%, rgb(var(--accent-secondary-rgb) / 0.14), transparent 26%),
+    radial-gradient(circle at 48% 78%, rgb(var(--accent-tertiary-rgb) / 0.09), transparent 30%),
     linear-gradient(145deg, #050814 0%, #02040c 55%, #03050b 100%);
   color: var(--foreground);
   font-family: var(--font-display), 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
@@ -108,7 +130,12 @@ a {
 
 /* Button Styles */
 .btn-primary {
-  background: linear-gradient(125deg, #8df7df 0%, #6ddaff 60%, #7fa8ff 100%);
+  background: linear-gradient(
+    125deg,
+    var(--accent) 0%,
+    var(--accent-gradient-mid) 60%,
+    var(--accent-gradient-end) 100%
+  );
   color: #031018;
   font-weight: 600;
   padding: 12px 24px;
@@ -122,7 +149,7 @@ a {
 .btn-primary:hover {
   filter: brightness(1.05);
   transform: translateY(-1px) scale(1.01);
-  box-shadow: 0 25px 70px rgba(109, 218, 255, 0.25);
+  box-shadow: 0 25px 70px rgb(var(--accent-gradient-mid-rgb) / 0.25);
 }
 
 .btn-secondary {
@@ -158,13 +185,13 @@ a {
 }
 
 .input-field:focus {
-  border-color: rgba(141, 247, 223, 0.6);
-  box-shadow: 0 0 0 4px rgba(141, 247, 223, 0.18);
+  border-color: rgb(var(--accent-rgb) / 0.6);
+  box-shadow: 0 0 0 4px rgb(var(--accent-rgb) / 0.18);
 }
 
 /* Card Component */
 .card {
-  background: linear-gradient(160deg, rgba(255, 255, 255, 0.025), rgba(141, 247, 223, 0.03));
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.025), rgb(var(--accent-rgb) / 0.03));
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: var(--radius-lg);
   padding: 24px;

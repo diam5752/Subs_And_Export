@@ -53,8 +53,8 @@ ENV PYTHONUNBUFFERED=1
 # Create symlink so 'backend.app' imports work (codebase uses mixed import styles)
 RUN ln -s /app /app/backend
 
-# Production settings
-ENV APP_ENV=production
+# Default environment (override via Cloud Run env vars)
+ENV APP_ENV=dev
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \

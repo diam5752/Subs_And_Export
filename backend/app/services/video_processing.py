@@ -261,8 +261,11 @@ def _persist_artifacts(
     artifact_dir.mkdir(parents=True, exist_ok=True)
 
     for src in (audio_path, srt_path, ass_path):
-        if src.exists():
-            shutil.copy2(src, artifact_dir / src.name)
+        try:
+            if src.exists():
+                shutil.copy2(src, artifact_dir / src.name)
+        except FileNotFoundError:
+            continue
 
     (artifact_dir / "transcript.txt").write_text(transcript_text, encoding="utf-8")
 
@@ -551,8 +554,8 @@ def normalize_and_stub_subtitles(
                     primary_color=style.primary_color,
                     highlight_style=ass_highlight_style,
                     font_size=style.font_size,
-                    play_res_x=output_width or config.DEFAULT_WIDTH,
-                    play_res_y=output_height or config.DEFAULT_HEIGHT,
+                    play_res_x=config.DEFAULT_WIDTH,
+                    play_res_y=config.DEFAULT_HEIGHT,
                 )
 
             # Step 4: Social Copy & Rendering
@@ -617,7 +620,10 @@ def normalize_and_stub_subtitles(
             if artifact_dir:
                  _persist_artifacts(artifact_dir, audio_path, srt_path, ass_path, transcript_text, social_copy, cues)
                  if destination.exists() and artifact_dir != destination.parent:
-                     shutil.copy2(destination, artifact_dir / destination.name)
+                     try:
+                         shutil.copy2(destination, artifact_dir / destination.name)
+                     except FileNotFoundError:
+                         pass
 
     except Exception as exc:
         pipeline_error = str(exc)

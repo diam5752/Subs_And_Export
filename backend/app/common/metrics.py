@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any, Generator, Optional
 
 from backend.app.core import config
+from backend.app.core.env import get_app_env, is_dev_env
 
 
 def _env_bool(name: str) -> Optional[bool]:
@@ -40,9 +41,7 @@ def should_log_metrics() -> bool:
     if "PYTEST_CURRENT_TEST" in os.environ:
         return False
 
-    env = os.getenv("APP_ENV") or os.getenv("ENV") or "dev"
-    env = env.lower()
-    return env in ("dev", "development", "local", "localhost")
+    return is_dev_env()
 
 
 def _resolve_log_path() -> Path:
@@ -60,7 +59,7 @@ def log_pipeline_metrics(event: dict[str, Any]) -> None:
     payload = {
         "ts": datetime.now(timezone.utc).isoformat(),
         "host": socket.gethostname(),
-        "app_env": os.getenv("APP_ENV") or os.getenv("ENV") or "dev",
+        "app_env": get_app_env().value,
         **event,
     }
 
