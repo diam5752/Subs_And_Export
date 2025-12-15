@@ -50,3 +50,7 @@
 **Vulnerability:** The password update endpoint updated the credential in the database but failed to invalidate existing session tokens. An attacker with a stolen session could maintain access even after the victim changed their password.
 **Learning:** Changing a password does not automatically expire issued tokens (JWT or Database-backed). Session state must be explicitly managed alongside credential updates.
 **Prevention:** In `update_password` and similar flows (e.g., password reset), always call `session_store.revoke_all_sessions(user_id)` to force re-authentication for all clients.
+## 2025-06-25 - [High] Broken Availability via Shared IP Rate Limiting
+**Vulnerability:** The IP-based `RateLimiter` blocked valid authenticated users on Cloud Run because all requests originated from the same Load Balancer IP (`request.client.host`). This effectively created a shared quota for all users, leading to denial of service.
+**Learning:** In containerized/serverless environments (Cloud Run, K8s), relying on source IP for rate limiting is dangerous without strict `Forwarded` header processing. Authenticated endpoints should prefer User ID over IP.
+**Prevention:** For authenticated routes (`/videos/process`, `/upload`), implement `AuthenticatedRateLimiter` that keys off `user.id`. Keep IP-based limiting only for public endpoints (login/register) and ensure `ProxyHeadersMiddleware` is configured if possible.
