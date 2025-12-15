@@ -55,7 +55,7 @@ AUDIO_CHANNELS = 1
 AUDIO_CODEC = "pcm_s16le"
 
 # Encoding defaults for delivery to TikTok / Reels / Shorts
-DEFAULT_VIDEO_CRF = 16  # lower is higher quality
+DEFAULT_VIDEO_CRF = 23  # balanced quality/size - platforms re-encode anyway
 DEFAULT_VIDEO_PRESET = "ultrafast"  # Fast encoding - platforms re-encode anyway
 DEFAULT_AUDIO_BITRATE = "256k"
 DEFAULT_HIGHLIGHT_COLOR = "&H0000FFFF"  # vivid yellow for per-word fill
