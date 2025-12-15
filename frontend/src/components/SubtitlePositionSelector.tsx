@@ -505,6 +505,8 @@ export const SubtitlePositionSelector: React.FC<SubtitlePositionSelectorProps> =
                                                 <button
                                                     onClick={togglePlay}
                                                     className="w-5 h-5 flex items-center justify-center text-white hover:text-[var(--accent)] transition-colors"
+                                                    aria-label={isPlaying ? (t('pausePreview') || 'Pause preview') : (t('playPreview') || 'Play preview')}
+                                                    title={isPlaying ? (t('pausePreview') || 'Pause preview') : (t('playPreview') || 'Play preview')}
                                                 >
                                                     {isPlaying ? (
                                                         <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" /></svg>
@@ -516,6 +518,7 @@ export const SubtitlePositionSelector: React.FC<SubtitlePositionSelectorProps> =
                                                 {/* Scrubber */}
                                                 <div className="flex-1 h-8 flex items-center relative group/scrubber">
                                                     <input
+                                                        aria-label={t('seekVideo') || 'Seek video'}
                                                         type="range"
                                                         min={0}
                                                         max={duration || 100}
@@ -537,6 +540,8 @@ export const SubtitlePositionSelector: React.FC<SubtitlePositionSelectorProps> =
                                                 <button
                                                     onClick={toggleMute}
                                                     className="w-5 h-5 flex items-center justify-center text-white hover:text-[var(--accent)] transition-colors"
+                                                    aria-label={isMuted ? (t('unmutePreview') || 'Unmute preview') : (t('mutePreview') || 'Mute preview')}
+                                                    title={isMuted ? (t('unmutePreview') || 'Unmute preview') : (t('mutePreview') || 'Mute preview')}
                                                 >
                                                     {isMuted ? (
                                                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

@@ -52,6 +52,8 @@ jest.mock('@/lib/api', () => ({
 
 // Mock scrollIntoView
 window.HTMLElement.prototype.scrollIntoView = jest.fn();
+// Mock scrollTo
+window.HTMLElement.prototype.scrollTo = jest.fn();
 
 describe('ProcessView', () => {
   const defaultProps = {
@@ -80,6 +82,13 @@ describe('ProcessView', () => {
         <ProcessView {...defaultProps} />
       </AppEnvProvider>
     );
+
+    // In dev mode, we might still need to select a model or it might be auto-selected depending on implementation
+    // But based on the component logic: const [hasChosenModel, setHasChosenModel] = useState<boolean>(() => Boolean(selectedFile));
+    // If selectedFile is null, hasChosenModel is false.
+    // So we need to select a model first even in dev.
+
+    fireEvent.click(screen.getByTestId('model-whispercpp'));
 
     expect(screen.getByText('uploadDropTitle')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Load sample video/i })).toBeInTheDocument();

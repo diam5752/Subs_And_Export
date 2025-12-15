@@ -295,5 +295,10 @@
   "previewLine2": "SUBTITLES LOOK",
   "previewLine3": "ON YOUR VIDEO",
   "previewWindowLabel": "Real-time Preview",
-  "previewWindowDesc": "Check how your subtitles fit on a mobile screen."
+  "previewWindowDesc": "Check how your subtitles fit on a mobile screen.",
+  "playPreview": "Play preview",
+  "pausePreview": "Pause preview",
+  "mutePreview": "Mute preview",
+  "unmutePreview": "Unmute preview",
+  "seekVideo": "Seek video"
 }
