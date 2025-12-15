@@ -208,7 +208,7 @@ export default function DashboardPage() {
     }
   }, [selectedFile, t, setSelectedJob]);
 
-  const handleProfileSave = async (name: string, password?: string, confirmPassword?: string) => {
+  const handleProfileSave = useCallback(async (name: string, password?: string, confirmPassword?: string) => {
     if (!user) return;
 
     setAccountError('');
@@ -236,7 +236,7 @@ export default function DashboardPage() {
     } finally {
       setAccountSaving(false);
     }
-  };
+  }, [user, refreshUser, t]);
 
   // Memoized to prevent unnecessary re-renders of ProcessView and its children (JobListItem)
   const resetProcessing = useCallback(() => {

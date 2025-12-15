@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, memo } from 'react';
 import { useI18n } from '@/context/I18nContext';
 import { User } from '@/context/AuthContext';
 import { api, JobResponse } from '@/lib/api';
@@ -31,7 +31,7 @@ interface AccountViewProps {
     pageSize?: number;
 }
 
-export function AccountView({
+export const AccountView = memo(function AccountView({
     user,
     onSaveProfile,
     onLogout,
@@ -242,4 +242,4 @@ export function AccountView({
             </div>
         </div>
     );
-}
+});
