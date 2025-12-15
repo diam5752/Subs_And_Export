@@ -97,6 +97,7 @@ def update_password(
     user_in: UserUpdatePassword,
     current_user: User = Depends(get_current_user),
     user_store: UserStore = Depends(get_user_store),
+    session_store: SessionStore = Depends(get_session_store),
 ) -> Any:
     """Update current user password (local users only)."""
     if current_user.provider != "local":
@@ -106,6 +107,7 @@ def update_password(
         raise HTTPException(status_code=400, detail="Passwords do not match")
 
     user_store.update_password(current_user.id, user_in.password)
+    session_store.revoke_all_sessions(current_user.id)
     return {"status": "success"}
 
 
