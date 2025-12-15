@@ -27,6 +27,7 @@ steps:
   # 4. Deploy the new image to Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
+    timeout: 2000s # Increase timeout to 20 minutes (default is 10m)
     args:
       - 'run'
       - 'services'
