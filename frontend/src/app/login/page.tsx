@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 import { useI18n } from '@/context/I18nContext';
@@ -74,9 +75,12 @@ function LoginContent() {
                 <div className="text-center mb-8">
                     <div className="relative inline-block mb-6 group">
                         <div className="absolute inset-0 -inset-y-4 bg-[var(--accent)]/15 blur-3xl opacity-50 group-hover:opacity-75 transition-opacity duration-700 mx-auto w-3/4 rounded-full" />
-                        <img
+                        <Image
                             src="/ascentia-subs.png"
                             alt="Ascentia Subs"
+                            width={300}
+                            height={300}
+                            priority
                             className="relative h-32 w-auto object-contain drop-shadow-[0_10px_30px_rgba(0,0,0,0.4)] group-hover:drop-shadow-[0_0_40px_rgba(141,247,223,0.4)] transition-all duration-500 scale-100 group-hover:scale-[1.02]"
                         />
                     </div>
@@ -177,9 +181,11 @@ function LoginContent() {
                     >
                         <div className="relative">
                             <div className="absolute inset-0 rounded-full bg-[var(--accent)]/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                            <img
+                            <Image
                                 src="/ascentia-logo.png"
                                 alt="Ascentia Logo"
+                                width={100}
+                                height={100}
                                 className="relative h-12 w-auto object-contain drop-shadow-lg group-hover:drop-shadow-[0_0_15px_rgba(141,247,223,0.4)] transition-all duration-300"
                             />
                         </div>
