@@ -1,13 +1,13 @@
 steps:
-  # Build the container image
+  # Build the container image - pointing to 'frontend' directory for context
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'gcr.io/$PROJECT_ID/ascentia-subs-frontend:$COMMIT_SHA', '.']
+    args: ['build', '-t', 'europe-west1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/ascentia-subs-frontend:$COMMIT_SHA', 'frontend']
   
-  # Push the container image
+  # Push the container image to Artifact Registry
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['push', 'gcr.io/$PROJECT_ID/ascentia-subs-frontend:$COMMIT_SHA']
+    args: ['push', 'europe-west1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/ascentia-subs-frontend:$COMMIT_SHA']
   
-  # Deploy container image to Cloud Run
+  # Deploy to Cloud Run
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: gcloud
     args:
@@ -16,11 +16,11 @@ steps:
       - 'update'
       - 'ascentia-subs-frontend'
       - '--image'
-      - 'gcr.io/$PROJECT_ID/ascentia-subs-frontend:$COMMIT_SHA'
+      - 'europe-west1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/ascentia-subs-frontend:$COMMIT_SHA'
       - '--region'
       - 'europe-west1'
       - '--quiet'
 images:
-  - 'gcr.io/$PROJECT_ID/ascentia-subs-frontend:$COMMIT_SHA'
+  - 'europe-west1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/ascentia-subs-frontend:$COMMIT_SHA'
 options:
   logging: CLOUD_LOGGING_ONLY
