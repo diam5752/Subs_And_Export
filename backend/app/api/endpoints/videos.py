@@ -214,8 +214,9 @@ def run_video_processing(
         artifact_public = _relpath_safe(artifact_dir, data_dir).as_posix()
 
         result_data = {
-            "video_path": str(final_path.relative_to(config.PROJECT_ROOT.parent)), # Relative to backend root for serving
-            "artifacts_dir": str(artifact_dir.relative_to(config.PROJECT_ROOT.parent)),
+            # Store relative paths from data_dir for consistent serving across environments
+            "video_path": public_path,  # Same as public_url path (relative to data_dir)
+            "artifacts_dir": artifact_public,  # Same as artifact_url path (relative to data_dir)
             "public_url": f"/static/{public_path}",
             "artifact_url": f"/static/{artifact_public}",
             "social": social.tiktok.title if social else None, # Just storing title for simple view now
@@ -394,7 +395,10 @@ def _ensure_job_size(job):
              video_path = job.result_data.get("video_path")
              if video_path:
                  try:
-                     full_path = config.PROJECT_ROOT.parent / video_path
+                     # Try data_dir first (new format), then fallback to PROJECT_ROOT.parent (legacy)
+                     full_path = DATA_DIR / video_path
+                     if not full_path.exists():
+                         full_path = config.PROJECT_ROOT.parent / video_path
                      if full_path.exists():
                          # Update in-memory object (and potentially could save back, but for now just serving)
                          job.result_data["output_size"] = full_path.stat().st_size
