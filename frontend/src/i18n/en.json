@@ -1,5 +1,12 @@
 {
   "tabTranscript": "Transcript",
+  "transcriptEdit": "Edit",
+  "transcriptSave": "Save",
+  "transcriptCancel": "Cancel",
+  "transcriptSaving": "Saving…",
+  "transcriptSaveError": "Unable to save transcript edits",
+  "modelSelectTitle": "Select a model",
+  "modelSelectSubtitle": "Choose the engine before uploading",
   "tabStyles": "Styles",
   "changeFile": "Change file",
   "languageToggleLabel": "Change language",

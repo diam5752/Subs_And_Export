@@ -47,7 +47,7 @@ jest.mock('next/navigation', () => ({
 let capturedOnReset: (() => void) | null = null;
 
 jest.mock('@/components/ProcessView', () => ({
-    ProcessView: ({ onStartProcessing, onRefreshJobs, onFileSelect, onReset }: { onStartProcessing: (options: unknown) => void; onRefreshJobs: () => void; onFileSelect: (file: File) => void; onReset: () => void; }) => {
+    ProcessView: ({ onStartProcessing, onFileSelect, onReset }: { onStartProcessing: (options: unknown) => void; onFileSelect: (file: File) => void; onReset: () => void; }) => {
         capturedOnReset = onReset;
         return (
             <div data-testid="process-view">
@@ -63,7 +63,6 @@ jest.mock('@/components/ProcessView', () => ({
                     subtitle_position: 'bottom',
                     max_subtitle_lines: 2
                 })}>Start Process</button>
-                <button onClick={onRefreshJobs}>Refresh Jobs</button>
                 <button onClick={onReset}>Reset</button>
             </div>
         );
@@ -71,11 +70,12 @@ jest.mock('@/components/ProcessView', () => ({
 }));
 
 jest.mock('@/components/AccountView', () => ({
-    AccountView: ({ onSaveProfile }: { onSaveProfile: (name: string, pass1: string, pass2: string) => void }) => (
+    AccountView: ({ onSaveProfile, onRefreshJobs }: { onSaveProfile: (name: string, pass1: string, pass2: string) => void; onRefreshJobs?: () => void | Promise<void> }) => (
         <div data-testid="account-view">
             <button data-testid="save-profile-btn" onClick={() => onSaveProfile('NewName', 'pass', 'pass')}>Save Profile</button>
             <button data-testid="save-mismatch-btn" onClick={() => onSaveProfile('Test User', 'pass', 'different')}>Save Mismatch</button>
             <button data-testid="save-name-only-btn" onClick={() => onSaveProfile('NewName', '', '')}>Save Name Only</button>
+            <button data-testid="refresh-jobs-btn" onClick={() => onRefreshJobs?.()}>Refresh Jobs</button>
         </div>
     ),
 }));
@@ -114,7 +114,7 @@ describe('DashboardPage', () => {
     it('renders dashboard components', () => {
         render(<DashboardPage />);
 
-        expect(screen.getByText('brandName')).toBeInTheDocument();
+        expect(screen.getByText('heroTitle')).toBeInTheDocument();
         expect(screen.getByTestId('process-view')).toBeInTheDocument();
         expect(screen.getByLabelText('accountSettingsTitle')).toBeInTheDocument();
         expect(mockLoadJobs).toHaveBeenCalled();
@@ -360,7 +360,8 @@ describe('DashboardPage', () => {
     it('calls refreshActivity via refresh button', async () => {
         render(<DashboardPage />);
 
-        fireEvent.click(screen.getByText('Refresh Jobs'));
+        fireEvent.click(screen.getByLabelText('accountSettingsTitle'));
+        fireEvent.click(screen.getByTestId('refresh-jobs-btn'));
 
         await waitFor(() => {
             expect(mockLoadJobs).toHaveBeenCalledTimes(2); // Once on mount, once on refresh

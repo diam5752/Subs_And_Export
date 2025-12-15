@@ -516,6 +516,57 @@ def get_job(
         raise HTTPException(404, "Job not found")
     return _ensure_job_size(job)
 
+class TranscriptionWordRequest(BaseModel):
+    start: float
+    end: float
+    text: str
+
+
+class TranscriptionCueRequest(BaseModel):
+    start: float
+    end: float
+    text: str
+    words: list[TranscriptionWordRequest] | None = None
+
+
+class UpdateTranscriptionRequest(BaseModel):
+    cues: list[TranscriptionCueRequest]
+
+
+@router.put("/jobs/{job_id}/transcription", dependencies=[Depends(limiter_content)])
+def update_transcription(
+    job_id: str,
+    request: UpdateTranscriptionRequest,
+    current_user: User = Depends(get_current_user),
+    job_store: JobStore = Depends(get_job_store),
+):
+    job = job_store.get_job(job_id)
+    if not job or job.user_id != current_user.id:
+        raise HTTPException(404, "Job not found")
+
+    _, _, artifacts_root = _data_roots()
+    artifacts_root_resolved = artifacts_root.resolve()
+    artifact_dir = (artifacts_root / job_id).resolve()
+    if not artifact_dir.is_relative_to(artifacts_root_resolved):
+        raise HTTPException(status_code=400, detail="Invalid job id")
+
+    transcription_json = artifact_dir / "transcription.json"
+    if not transcription_json.exists():
+        raise HTTPException(status_code=404, detail="Transcript not found")
+
+    import json
+
+    payload = [cue.model_dump() for cue in request.cues]
+    tmp_path = transcription_json.with_suffix(".json.tmp")
+    tmp_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp_path.replace(transcription_json)
+
+    result_data = job.result_data.copy() if job.result_data else {}
+    result_data["transcription_edited"] = True
+    job_store.update_job(job_id, result_data=result_data)
+
+    return {"status": "ok"}
+
 
 @router.delete("/jobs/{job_id}")
 def delete_job(

@@ -6,6 +6,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
+import { redirectTo } from '@/lib/navigation';
 import { useI18n } from '@/context/I18nContext';
 
 function LoginContent() {
@@ -61,7 +62,7 @@ function LoginContent() {
         try {
             const { auth_url, state } = await api.getGoogleAuthUrl();
             localStorage.setItem('google_oauth_state', state);
-            window.location.href = auth_url;
+            redirectTo(auth_url);
         } catch (err) {
             setError(err instanceof Error ? err.message : t('loginGoogleUnavailable'));
             setGoogleLoading(false);

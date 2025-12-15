@@ -19,7 +19,9 @@ test.describe('Job Polling E2E', () => {
         // Dashboard should render with the upload area
         await expect(page.getByText(el.uploadDropTitle)).toBeVisible();
 
-        // History section should be visible with mocked jobs
+        // History lives under the account modal
+        await page.getByRole('button', { name: el.accountSettingsTitle }).click();
+        await page.getByRole('button', { name: el.historyTitle }).click();
         await expect(page.getByText(el.historyTitle)).toBeVisible();
     });
 
@@ -50,7 +52,9 @@ test.describe('Job Polling E2E', () => {
         await stabilizeUi(page);
 
         // The mock includes jobs with various statuses (completed, processing, pending, failed)
-        // History section should be visible
+        // History lives under the account modal
+        await page.getByRole('button', { name: el.accountSettingsTitle }).click();
+        await page.getByRole('button', { name: el.historyTitle }).click();
         await expect(page.getByText(el.historyTitle)).toBeVisible();
     });
 });

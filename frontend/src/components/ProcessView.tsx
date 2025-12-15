@@ -67,6 +67,7 @@ export function ProcessView({
     const { t } = useI18n();
     const { appEnv } = useAppEnv();
     const showDevTools = appEnv === 'dev';
+    const [hasChosenModel, setHasChosenModel] = useState<boolean>(() => showDevTools || Boolean(selectedFile));
     const aiToggleDescId = useId();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const resultsRef = useRef<HTMLDivElement>(null);
@@ -80,7 +81,8 @@ export function ProcessView({
     // Local state for options
     const [showPreview, setShowPreview] = useState(false);
     const [showSettings, setShowSettings] = useState(true);
-    const [showExperiments, setShowExperiments] = useState(false);
+    const [showModelDetails, setShowModelDetails] = useState(false);
+    const [showExperimentalProviders, setShowExperimentalProviders] = useState(false);
     const [transcribeMode, setTranscribeMode] = useState<TranscribeMode>('turbo');
     const [transcribeProvider, setTranscribeProvider] = useState<TranscribeProvider>('local');
     // outputQuality state removed as it is now always high quality
@@ -100,8 +102,127 @@ export function ProcessView({
     const [outputResolutionInfo, setOutputResolutionInfo] = useState<{ text: string; label: string } | null>(null);
     const [previewVideoUrl, setPreviewVideoUrl] = useState<string | null>(null);
     const [cues, setCues] = useState<Cue[]>([]);
+    const [editingCueIndex, setEditingCueIndex] = useState<number | null>(null);
+    const [editingCueDraft, setEditingCueDraft] = useState<string>('');
+    const [isSavingTranscript, setIsSavingTranscript] = useState(false);
+    const [transcriptSaveError, setTranscriptSaveError] = useState<string | null>(null);
     const [devSampleLoading, setDevSampleLoading] = useState(false);
     const [devSampleError, setDevSampleError] = useState<string | null>(null);
+
+    useEffect(() => {
+        if (selectedFile) {
+            setHasChosenModel(true);
+        }
+    }, [selectedFile]);
+
+    useEffect(() => {
+        setTranscriptSaveError(null);
+        setIsSavingTranscript(false);
+        setEditingCueIndex(null);
+        setEditingCueDraft('');
+    }, [selectedJob?.id]);
+
+    const updateCueText = useCallback((cue: Cue, nextText: string): Cue => {
+        const normalizedText = nextText.replace(/\s+/g, ' ').trim();
+        const tokens = normalizedText.length > 0 ? normalizedText.split(' ') : [];
+
+        if (!tokens.length) {
+            return { ...cue, text: '', words: undefined };
+        }
+
+        const oldWords = cue.words?.filter(w => w.text.trim().length > 0) ?? [];
+        if (!oldWords.length) {
+            return { ...cue, text: normalizedText, words: undefined };
+        }
+
+        const oldCount = oldWords.length;
+        const nextCount = tokens.length;
+        const newWords: NonNullable<Cue['words']> = [];
+
+        if (nextCount === oldCount) {
+            for (let i = 0; i < oldCount; i += 1) {
+                const word = oldWords[i];
+                newWords.push({ ...word, text: tokens[i] });
+            }
+            return { ...cue, text: normalizedText, words: newWords };
+        }
+
+        if (nextCount < oldCount) {
+            const base = Math.floor(oldCount / nextCount);
+            const remainder = oldCount % nextCount;
+            let cursor = 0;
+
+            for (let i = 0; i < nextCount; i += 1) {
+                const size = base + (i < remainder ? 1 : 0);
+                const group = oldWords.slice(cursor, cursor + size);
+                cursor += size;
+                const first = group[0];
+                const last = group[group.length - 1];
+                newWords.push({ start: first.start, end: last.end, text: tokens[i] });
+            }
+
+            return { ...cue, text: normalizedText, words: newWords };
+        }
+
+        const base = Math.floor(nextCount / oldCount);
+        const remainder = nextCount % oldCount;
+        let tokenCursor = 0;
+
+        for (let i = 0; i < oldCount; i += 1) {
+            const segments = base + (i < remainder ? 1 : 0);
+            const wordStart = oldWords[i].start;
+            const wordEnd = oldWords[i].end;
+            const duration = Math.max(0, wordEnd - wordStart);
+            const segmentDuration = duration / Math.max(1, segments);
+
+            for (let j = 0; j < segments; j += 1) {
+                const start = wordStart + segmentDuration * j;
+                const end = j === segments - 1 ? wordEnd : wordStart + segmentDuration * (j + 1);
+                newWords.push({ start, end, text: tokens[tokenCursor] });
+                tokenCursor += 1;
+            }
+        }
+
+        return { ...cue, text: normalizedText, words: newWords };
+    }, []);
+
+    const beginEditingCue = useCallback((index: number) => {
+        setTranscriptSaveError(null);
+        setEditingCueIndex(index);
+        setEditingCueDraft(cues[index]?.text ?? '');
+    }, [cues]);
+
+    const cancelEditingCue = useCallback(() => {
+        setTranscriptSaveError(null);
+        setEditingCueIndex(null);
+        setEditingCueDraft('');
+    }, []);
+
+    const saveEditingCue = useCallback(async () => {
+        if (editingCueIndex === null) return;
+
+        setTranscriptSaveError(null);
+        const updatedCues = cues.map((cue, index) => {
+            if (index !== editingCueIndex) return cue;
+            return updateCueText(cue, editingCueDraft);
+        });
+
+        setCues(updatedCues);
+        setEditingCueIndex(null);
+        setEditingCueDraft('');
+
+        if (!selectedJob) return;
+        setIsSavingTranscript(true);
+        try {
+            await api.updateJobTranscription(selectedJob.id, updatedCues);
+        } catch (err) {
+            setTranscriptSaveError(
+                err instanceof Error ? err.message : (t('transcriptSaveError') || 'Unable to save transcript')
+            );
+        } finally {
+            setIsSavingTranscript(false);
+        }
+    }, [cues, editingCueDraft, editingCueIndex, selectedJob, t, updateCueText]);
 
     // Dynamically re-segment cues based on "Max Lines" selection
     const processedCues = useMemo(() => {
@@ -290,13 +411,16 @@ export function ProcessView({
             validationRequestId.current += 1;
             setVideoInfo(null);
             setShowCustomize(false);
+            setShowModelDetails(false);
+            setShowExperimentalProviders(false);
             setPreviewVideoUrl(null); // Clear preview URL
             setCues([]); // Clear cues
             return;
         }
 
         setShowCustomize(true);
-        setShowExperiments(true);
+        setShowModelDetails(false);
+        setShowExperimentalProviders(false);
         initialSelectionMade.current = false;
         const requestId = ++validationRequestId.current;
 
@@ -384,8 +508,8 @@ export function ProcessView({
     const modelListRef = useRef<HTMLDivElement>(null);
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
-            if (showExperiments && modelListRef.current && !modelListRef.current.contains(event.target as Node)) {
-                setShowExperiments(false);
+            if (showModelDetails && modelListRef.current && !modelListRef.current.contains(event.target as Node)) {
+                setShowModelDetails(false);
             }
         };
 
@@ -393,7 +517,7 @@ export function ProcessView({
         return () => {
             document.removeEventListener('click', handleClickOutside);
         };
-    }, [showExperiments]);
+    }, [showModelDetails]);
 
     // Instant download handler - forces download instead of opening in browser
     const handleDownload = async (url: string, filename: string) => {
@@ -420,12 +544,14 @@ export function ProcessView({
 
     // Scroll active cue into view
     useEffect(() => {
-        if (!processedCues || processedCues.length === 0) return;
-        const activeIndex = processedCues.findIndex(c => currentTime >= c.start && currentTime < c.end);
+        if (activeSidebarTab !== 'transcript') return;
+        if (editingCueIndex !== null) return;
+        if (!cues || cues.length === 0) return;
+        const activeIndex = cues.findIndex(c => currentTime >= c.start && currentTime < c.end);
         if (activeIndex !== -1) {
             document.getElementById(`cue-${activeIndex}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
-    }, [currentTime, processedCues]);
+    }, [activeSidebarTab, cues, currentTime, editingCueIndex]);
 
     const handleExport = async (resolution: string) => {
         if (!selectedJob) return;
@@ -461,6 +587,7 @@ export function ProcessView({
     };
 
     const handleStart = () => {
+        if (!selectedFile) return;
         setShowPreview(false); // Hide any previous preview
 
         // Force scroll immediately for better UX
@@ -575,6 +702,7 @@ export function ProcessView({
     };
 
     const modelInfo = describeModel(selectedJob?.result_data?.transcribe_provider, selectedJob?.result_data?.model_size);
+    const showProcessingKit = !isProcessing && (Boolean(selectedFile) || (showDevTools && selectedJob?.status === 'completed'));
 
     // Handler functions (extracted for testability)
     const handleUploadCardClick = useCallback(() => {
@@ -598,124 +726,184 @@ export function ProcessView({
     return (
         <div className="grid xl:grid-cols-[1.05fr,0.95fr] gap-6">
             <div className="space-y-4">
-                <div className={showDevTools ? "grid gap-4 md:grid-cols-2" : ""}>
-                {/* Upload Card */}
-                <div
-                    className={`card relative overflow-hidden cursor - pointer group transition-all ${isDragOver
-                        ? 'border-[var(--accent)] border-2 border-dashed bg-[var(--accent)]/10 scale-[1.02]'
-                        : 'hover:border-[var(--accent)]/60'
-                        } `}
-                    data-clickable="true"
-                    onClick={handleUploadCardClick}
-                    onKeyDown={(e) => handleKeyDown(e, handleUploadCardClick)}
-                    role="button"
-                    tabIndex={0}
-                    aria-label={selectedFile ? t('changeFile') || 'Change file' : t('uploadDropTitle')}
-                    onDragEnter={handleDragEnter}
-                    onDragLeave={handleDragLeave}
-                    onDragOver={handleDragOver}
-                    onDrop={handleDrop}
-                >
-                    <div className={`absolute inset-0 transition-opacity pointer - events - none ${isDragOver
-                        ? 'opacity-100 bg-gradient-to-br from-[var(--accent)]/20 via-transparent to-[var(--accent-secondary)]/25'
-                        : 'opacity-0 group-hover:opacity-100 bg-gradient-to-br from-[var(--accent)]/5 via-transparent to-[var(--accent-secondary)]/10'
-                        } `} />
-                    <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="video/mp4,video/quicktime,video/x-matroska"
-                        onChange={handleFileChange}
-                        className="hidden"
-                        disabled={isProcessing}
-                    />
-                    {isDragOver ? (
-                        <div className="text-center py-12 relative">
-                            <div className="text-6xl mb-3 animate-bounce">📥</div>
-                            <p className="text-2xl font-semibold mb-1 text-[var(--accent)]">{t('dropFileHere')}</p>
-                            <p className="text-[var(--muted)]">{t('releaseToUpload')}</p>
-                        </div>
-                    ) : selectedFile ? (
-
-                        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between relative">
-                            <div className="flex items-start gap-3">
-                                {/* Video Thumbnail */}
-                                {videoInfo?.thumbnailUrl ? (
-                                    <div className="w-16 h-16 rounded-lg overflow-hidden bg-black/40 flex-shrink-0">
-                                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                                        <img
-                                            src={videoInfo.thumbnailUrl}
-                                            alt="Video thumbnail"
-                                            className="w-full h-full object-cover"
-                                        />
-                                    </div>
-                                ) : (
-                                    <div className="text-4xl">🎥</div>
-                                )}
-                                <div>
-                                    <p className="text-xl font-semibold break-words [overflow-wrap:anywhere]">{selectedFile.name}</p>
-                                    <p className="text-[var(--muted)] mt-1">
-                                        {(selectedFile.size / (1024 * 1024)).toFixed(1)} MB · {selectedFile.name.split('.').pop()?.toUpperCase() || 'VIDEO'}
-                                        {uploadResolution && (
-                                            <span className="ml-2">· {uploadResolution.text} ({uploadResolution.label})</span>
-                                        )}
-                                    </p>
-                                </div>
-                            </div>
-                            <div className="flex flex-col items-end gap-1">
-                                <div className="flex items-center gap-2 text-sm text-[var(--muted)]">
-                                    <span className="h-2 w-2 rounded-full bg-[var(--accent)] animate-pulse" />
-                                    {t('uploadReady')}
-                                </div>
-                                {videoInfo?.aspectWarning && (
-                                    <div className="text-xs text-amber-400 flex items-center gap-1">
-                                        <span aria-hidden="true">⚠️</span>
-                                        {t('aspectRatioWarning')}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="text-center py-12 relative">
-                            <div className="text-6xl mb-3 opacity-80">📤</div>
-                            <p className="text-2xl font-semibold mb-1">{t('uploadDropTitle')}</p>
-                            <p className="text-[var(--muted)]">{t('uploadDropSubtitle')}</p>
-                            <p className="text-xs text-[var(--muted)] mt-4">{t('uploadDropFootnote')}</p>
-                        </div>
-                    )}
-                </div>
-                {showDevTools && (
-                    <div
-                        className="card relative overflow-hidden border border-[var(--accent)]/35"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <div className="absolute inset-0 bg-gradient-to-br from-[var(--accent)]/12 via-transparent to-[var(--accent-secondary)]/10 pointer-events-none" />
-                        <div className="relative space-y-3">
-                            <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border)]/60 bg-[var(--surface-elevated)]/70 px-3 py-1 text-[10px] font-semibold tracking-[0.26em] text-[var(--muted)]">
-                                <span className="h-2 w-2 rounded-full bg-[var(--accent)]" />
-                                DEV TOOLS
-                            </div>
+                {!showDevTools && (
+                    <div className="card space-y-4">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
                             <div>
-                                <h3 className="text-lg font-semibold">Test upload</h3>
-                                <p className="text-sm text-[var(--muted)]">
-                                    Load an existing processed video so you can preview/export without uploading & transcribing again.
-                                </p>
+                                <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">{t('transcriptionModelLabel')}</p>
+                                <h3 className="text-xl font-semibold">{t('modelSelectTitle') || 'Select a model'}</h3>
+                                {!hasChosenModel && (
+                                    <p className="text-sm text-[var(--muted)] mt-1">{t('modelSelectSubtitle')}</p>
+                                )}
                             </div>
-                            <button
-                                type="button"
-                                className="btn-primary w-full"
-                                onClick={handleLoadDevSample}
-                                disabled={isProcessing || devSampleLoading}
-                            >
-                                {devSampleLoading ? 'Loading sample…' : 'Load sample video'}
-                            </button>
-                            {devSampleError && (
-                                <p className="text-xs text-[var(--danger)]">{devSampleError}</p>
+                            {hasChosenModel ? (
+                                <span className="inline-flex items-center gap-2 text-xs font-semibold px-3 py-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-300">
+                                    <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                                    {t('statusSynced') || 'Selected'}
+                                </span>
+                            ) : (
+                                <span className="inline-flex items-center gap-2 text-xs font-semibold px-3 py-1 rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-200">
+                                    <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+                                    {t('statusIdle') || 'Select to continue'}
+                                </span>
                             )}
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            {AVAILABLE_MODELS.map((model) => {
+                                const isSelected = transcribeProvider === model.provider && transcribeMode === model.mode;
+                                return (
+                                    <button
+                                        key={model.id}
+                                        type="button"
+                                        onClick={() => {
+                                            setTranscribeProvider(model.provider as TranscribeProvider);
+                                            setTranscribeMode(model.mode as TranscribeMode);
+                                            setHasChosenModel(true);
+                                        }}
+                                        className={`w-full p-3 rounded-xl border text-left transition-all flex flex-col gap-2 h-full relative group ${model.colorClass(isSelected)} `}
+                                    >
+                                        <div className="flex items-center justify-between w-full">
+                                            {model.icon(isSelected)}
+                                            {isSelected ? (
+                                                <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0">
+                                                    <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                                    </svg>
+                                                </div>
+                                            ) : null}
+                                        </div>
+                                        <div className="font-semibold text-base">{model.name}</div>
+                                        <div className="text-xs text-[var(--muted)] leading-snug">{model.description}</div>
+                                        <div className="mt-auto pt-2 flex items-center justify-between gap-2 text-xs">
+                                            <span className={`px-2 py-0.5 rounded-full font-medium ${model.badgeColor}`}>{model.badge}</span>
+                                        </div>
+                                    </button>
+                                );
+                            })}
                         </div>
                     </div>
                 )}
-                </div>
-                {selectedFile && !isProcessing && (
+
+                {(showDevTools || hasChosenModel) && (
+                    <div className={showDevTools ? "grid gap-4 md:grid-cols-2" : ""}>
+                        {/* Upload Card */}
+                        <div
+                            className={`card relative overflow-hidden cursor-pointer group transition-all ${isDragOver
+                                ? 'border-[var(--accent)] border-2 border-dashed bg-[var(--accent)]/10 scale-[1.02]'
+                                : 'hover:border-[var(--accent)]/60'
+                                } `}
+                            data-clickable="true"
+                            onClick={handleUploadCardClick}
+                            onKeyDown={(e) => handleKeyDown(e, handleUploadCardClick)}
+                            role="button"
+                            tabIndex={0}
+                            aria-label={selectedFile ? t('changeFile') || 'Change file' : t('uploadDropTitle')}
+                            onDragEnter={handleDragEnter}
+                            onDragLeave={handleDragLeave}
+                            onDragOver={handleDragOver}
+                            onDrop={handleDrop}
+                        >
+                            <div className={`absolute inset-0 transition-opacity pointer-events-none ${isDragOver
+                                ? 'opacity-100 bg-gradient-to-br from-[var(--accent)]/20 via-transparent to-[var(--accent-secondary)]/25'
+                                : 'opacity-0 group-hover:opacity-100 bg-gradient-to-br from-[var(--accent)]/5 via-transparent to-[var(--accent-secondary)]/10'
+                                } `} />
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="video/mp4,video/quicktime,video/x-matroska"
+                                onChange={handleFileChange}
+                                className="hidden"
+                                disabled={isProcessing}
+                            />
+                            {isDragOver ? (
+                                <div className="text-center py-12 relative">
+                                    <div className="text-6xl mb-3 animate-bounce">📥</div>
+                                    <p className="text-2xl font-semibold mb-1 text-[var(--accent)]">{t('dropFileHere')}</p>
+                                    <p className="text-[var(--muted)]">{t('releaseToUpload')}</p>
+                                </div>
+                            ) : selectedFile ? (
+                                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between relative">
+                                    <div className="flex items-start gap-3">
+                                        {/* Video Thumbnail */}
+                                        {videoInfo?.thumbnailUrl ? (
+                                            <div className="w-16 h-16 rounded-lg overflow-hidden bg-black/40 flex-shrink-0">
+                                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                <img
+                                                    src={videoInfo.thumbnailUrl}
+                                                    alt="Video thumbnail"
+                                                    className="w-full h-full object-cover"
+                                                />
+                                            </div>
+                                        ) : (
+                                            <div className="text-4xl">🎥</div>
+                                        )}
+                                        <div>
+                                            <p className="text-xl font-semibold break-words [overflow-wrap:anywhere]">{selectedFile.name}</p>
+                                            <p className="text-[var(--muted)] mt-1">
+                                                {(selectedFile.size / (1024 * 1024)).toFixed(1)} MB · {selectedFile.name.split('.').pop()?.toUpperCase() || 'VIDEO'}
+                                                {uploadResolution && (
+                                                    <span className="ml-2">· {uploadResolution.text} ({uploadResolution.label})</span>
+                                                )}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-col items-end gap-1">
+                                        <div className="flex items-center gap-2 text-sm text-[var(--muted)]">
+                                            <span className="h-2 w-2 rounded-full bg-[var(--accent)] animate-pulse" />
+                                            {t('uploadReady')}
+                                        </div>
+                                        {videoInfo?.aspectWarning && (
+                                            <div className="text-xs text-amber-400 flex items-center gap-1">
+                                                <span aria-hidden="true">⚠️</span>
+                                                {t('aspectRatioWarning')}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="text-center py-12 relative">
+                                    <div className="text-6xl mb-3 opacity-80">📤</div>
+                                    <p className="text-2xl font-semibold mb-1">{t('uploadDropTitle')}</p>
+                                    <p className="text-[var(--muted)]">{t('uploadDropSubtitle')}</p>
+                                    <p className="text-xs text-[var(--muted)] mt-4">{t('uploadDropFootnote')}</p>
+                                </div>
+                            )}
+                        </div>
+                        {showDevTools && (
+                            <div
+                                className="card relative overflow-hidden border border-[var(--accent)]/35"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                <div className="absolute inset-0 bg-gradient-to-br from-[var(--accent)]/12 via-transparent to-[var(--accent-secondary)]/10 pointer-events-none" />
+                                <div className="relative space-y-3">
+                                    <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border)]/60 bg-[var(--surface-elevated)]/70 px-3 py-1 text-[10px] font-semibold tracking-[0.26em] text-[var(--muted)]">
+                                        <span className="h-2 w-2 rounded-full bg-[var(--accent)]" />
+                                        DEV TOOLS
+                                    </div>
+                                    <div>
+                                        <h3 className="text-lg font-semibold">Test upload</h3>
+                                        <p className="text-sm text-[var(--muted)]">
+                                            Load an existing processed video so you can preview/export without uploading & transcribing again.
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        className="btn-primary w-full"
+                                        onClick={handleLoadDevSample}
+                                        disabled={isProcessing || devSampleLoading}
+                                    >
+                                        {devSampleLoading ? 'Loading sample…' : 'Load sample video'}
+                                    </button>
+                                    {devSampleError && (
+                                        <p className="text-xs text-[var(--danger)]">{devSampleError}</p>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+                {showProcessingKit && (
                     <div className="card space-y-4 animate-fade-in">
                         <div
                             className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] pb-3 cursor-pointer group"
@@ -746,7 +934,7 @@ export function ProcessView({
                                     </label>
 
                                     <div className="flex flex-col gap-3" ref={modelListRef}>
-                                        {!showExperiments ? (
+                                        {!showModelDetails ? (
                                             /* Compact List View-Horizontal Grid */
                                             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                                 {AVAILABLE_MODELS.map((model) => {
@@ -760,7 +948,7 @@ export function ProcessView({
                                                                 // Select and always SHOW skills (details)
                                                                 setTranscribeProvider(model.provider as TranscribeProvider);
                                                                 setTranscribeMode(model.mode as TranscribeMode);
-                                                                setShowExperiments(true);
+                                                                setShowModelDetails(true);
                                                             }}
                                                             className={`w-full p-3 rounded-xl border text-left transition-all flex flex-col gap-2 h-full relative group ${model.colorClass(isSelected)} `}
                                                         >
@@ -771,7 +959,7 @@ export function ProcessView({
                                                                         <span className="text-[10px] text-[var(--muted)] opacity-0 group-hover:opacity-100 transition-opacity">
                                                                             {t('showDetails')}
                                                                         </span>
-                                                                        <div className={`w-4 h-4 rounded-full flex items-center justify - center flex-shrink - 0 ${model.provider === 'groq' ? 'bg-purple-500' :
+                                                                        <div className={`w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 ${model.provider === 'groq' ? 'bg-purple-500' :
                                                                             model.provider === 'whispercpp' ? 'bg-cyan-500' :
                                                                                 'bg-[var(--accent)]'
                                                                             } `}>
@@ -787,7 +975,7 @@ export function ProcessView({
                                                                 <span className="font-semibold text-base block mb-0.5">{model.name}</span>
 
                                                                 <div className="flex flex-wrap gap-1.5 mb-1.5">
-                                                                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font - medium ${model.badgeColor} `}>
+                                                                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${model.badgeColor} `}>
                                                                         {model.badge}
                                                                     </span>
                                                                 </div>
@@ -824,7 +1012,7 @@ export function ProcessView({
                                                     return (
                                                         <button
                                                             key={model.id}
-                                                            data-testid={`model - ${model.provider === 'local' ? 'turbo' : model.provider} `}
+                                                            data-testid={`model-${model.provider === 'local' ? 'turbo' : model.provider}`}
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
                                                                 // Just select, keep open. Minimize handled by click outside.
@@ -840,10 +1028,14 @@ export function ProcessView({
                                                                         <span className="text-[10px] text-[var(--muted)] opacity-0 group-hover:opacity-100 transition-opacity">
                                                                             {t('hideDetails')}
                                                                         </span>
-                                                                        <div className="w-5 h-5 rounded-full flex items-center justify-center ${model.provider === 'groq' ? 'bg-purple-500' :
-        model.provider === 'whispercpp' ? 'bg-cyan-500' :
-            'bg-[var(--accent)]'
-   }">
+                                                                        <div
+                                                                            className={`w-5 h-5 rounded-full flex items-center justify-center ${model.provider === 'groq'
+                                                                                ? 'bg-purple-500'
+                                                                                : model.provider === 'whispercpp'
+                                                                                    ? 'bg-cyan-500'
+                                                                                    : 'bg-[var(--accent)]'
+                                                                                }`}
+                                                                        >
                                                                             <svg className="w-3 h-3 text-white rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
                                                                             </svg>
@@ -866,20 +1058,20 @@ export function ProcessView({
                                                                 </div>
                                                                 <div className="grid grid-cols-[60px,1fr] items-center gap-2">
                                                                     <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">{t('statKaraoke')}</span>
-                                                                    <div className={`text-[10px] font - bold ${model.stats.karaoke ? 'text-emerald-500' : 'text-[var(--muted)]'} `}>
+                                                                    <div className={`text-[10px] font-bold ${model.stats.karaoke ? 'text-emerald-500' : 'text-[var(--muted)]'} `}>
                                                                         {model.stats.karaoke ? t('statKaraokeSupported') : t('statKaraokeNo')}
                                                                     </div>
                                                                 </div>
                                                                 <div className="grid grid-cols-[60px,1fr] items-center gap-2">
                                                                     <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">{t('statLines')}</span>
-                                                                    <div className={`text-[10px] font - bold ${model.stats.linesControl ? 'text-emerald-500' : 'text-cyan-400'} `}>
+                                                                    <div className={`text-[10px] font-bold ${model.stats.linesControl ? 'text-emerald-500' : 'text-cyan-400'} `}>
                                                                         {model.stats.linesControl ? t('statLinesCustom') : t('statLinesAuto')}
                                                                     </div>
                                                                 </div>
                                                             </div>
 
                                                             <div className="flex items-center gap-2 text-xs pt-3 border-t border-[var(--border)]/50">
-                                                                <span className={`px-2 py-0.5 rounded-full font - medium ${model.badgeColor} `}>
+                                                                <span className={`px-2 py-0.5 rounded-full font-medium ${model.badgeColor} `}>
                                                                     {model.badge}
                                                                 </span>
                                                             </div>
@@ -895,13 +1087,14 @@ export function ProcessView({
                                 {selectedJob && selectedJob.status === 'completed' && (
                                     <div className="mt-4 mb-6 animate-fade-in">
                                         <button
+                                            disabled={isProcessing || !selectedFile}
                                             onClick={() => {
                                                 // eslint-disable-next-line no-restricted-globals
                                                 if (confirm('Re-transcribe video with new settings?')) {
                                                     handleStart();
                                                 }
                                             }}
-                                            className="w-full py-3 px-4 rounded-xl bg-[var(--surface-elevated)] border border-[var(--accent)] text-[var(--accent)] hover:bg-[var(--accent)]/10 font-medium transition-colors flex items-center justify-center gap-2 shadow-sm"
+                                            className="w-full py-3 px-4 rounded-xl bg-[var(--surface-elevated)] border border-[var(--accent)] text-[var(--accent)] hover:bg-[var(--accent)]/10 font-medium transition-colors flex items-center justify-center gap-2 shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[var(--surface-elevated)]"
                                         >
                                             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -963,7 +1156,7 @@ export function ProcessView({
                                                         } `}
                                                 >
                                                     {/* Gradient background */}
-                                                    <div className={`absolute inset-0 bg-gradient - to - br ${preset.colorClass} opacity-10`} />
+                                                    <div className={`absolute inset-0 bg-gradient-to-br ${preset.colorClass} opacity-10`} />
 
                                                     <div className="relative flex gap-3">
                                                         {/* Mini Phone Preview */}
@@ -1111,10 +1304,10 @@ export function ProcessView({
                                 <div className="border-t border-dashed border-[var(--border)] pt-4 mt-2">
                                     <button
                                         data-testid="experimenting-toggle"
-                                        aria-expanded={showExperiments}
+                                        aria-expanded={showExperimentalProviders}
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            setShowExperiments(!showExperiments);
+                                            setShowExperimentalProviders(!showExperimentalProviders);
                                         }}
                                         className="flex items-center gap-2 mb-3 w-full hover:opacity-80 transition-opacity"
                                     >
@@ -1126,7 +1319,7 @@ export function ProcessView({
                                             {t('betaBadge')}
                                         </span>
                                         <svg
-                                            className={`w-4 h-4 ml - auto text-[var(--muted)]transition-transform duration-200 ${showExperiments ? 'rotate-180' : ''} `}
+                                            className={`w-4 h-4 ml-auto text-[var(--muted)] transition-transform duration-200 ${showExperimentalProviders ? 'rotate-180' : ''} `}
                                             fill="none"
                                             viewBox="0 0 24 24"
                                             stroke="currentColor"
@@ -1135,7 +1328,7 @@ export function ProcessView({
                                         </svg>
                                     </button>
 
-                                    {showExperiments && (
+                                    {showExperimentalProviders && (
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
                                             {/* ChatGPT API */}
                                             <button
@@ -1191,9 +1384,9 @@ export function ProcessView({
                                         className="flex items-center gap-3 cursor-pointer group w-full text-left bg-transparent border-0 p-0"
                                     >
                                         <div
-                                            className={`w-12 h-6 rounded-full transition-colors relative flex-shrink - 0 ${useAI ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'} `}
+                                            className={`w-12 h-6 rounded-full transition-colors relative flex-shrink-0 ${useAI ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'} `}
                                         >
-                                            <div className={`absolute top-1 left - 1 bg-white w-4 h-4 rounded-full transition-transform ${useAI ? 'translate-x-6' : ''} `} />
+                                            <div className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${useAI ? 'translate-x-6' : ''} `} />
                                         </div>
                                         <span className="font-medium">{t('aiToggleLabel')}</span>
                                     </button>
@@ -1229,7 +1422,7 @@ export function ProcessView({
                                             setShowSettings(false);
                                             handleStart();
                                         }}
-                                        disabled={isProcessing}
+                                        disabled={isProcessing || !selectedFile}
                                         className="btn-primary w-full sm:w-auto px-8"
                                     >
                                         {t('controlsStart') || 'Generate Preview'}
@@ -1259,7 +1452,7 @@ export function ProcessView({
                                     </h3>
                                     <p className="text-sm text-[var(--muted)]">{t('liveOutputSubtitle')}</p>
                                 </div>
-                                <span className={`px-3 py-1 rounded-full text-xs font - semibold border ${statusStyles[selectedJob?.status || (isProcessing ? 'processing' : 'pending')] || ''} `}>
+                                <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${statusStyles[selectedJob?.status || (isProcessing ? 'processing' : 'pending')] || ''} `}>
                                     {selectedJob?.status ? selectedJob.status.toUpperCase() : isProcessing ? t('liveOutputStatusProcessing') : t('liveOutputStatusIdle')}
                                 </span>
                             </div>
@@ -1363,7 +1556,7 @@ export function ProcessView({
                                                     )}
                                                 </div>
 
-                                                <div className="p-6 flex-1 flex flex-col min-h-0 overflow-y-auto">
+                                                <div className="p-6 flex-1 flex flex-col min-h-0 overflow-y-auto custom-scrollbar">
 
                                                     {/* Sidebar Tabs */}
                                                     <div className="flex items-center gap-1 p-1 bg-[var(--surface-elevated)] rounded-lg border border-[var(--border)] mb-4">
@@ -1388,33 +1581,99 @@ export function ProcessView({
                                                     </div>
 
                                                     {/* Tab Content */}
-                                                    <div className="flex-1 overflow-y-auto pr-2 space-y-1 mb-4 custom-scrollbar relative">
+                                                    <div className="space-y-2 pr-1">
                                                         {activeSidebarTab === 'transcript' ? (
                                                             <>
-                                                                {processedCues.map((cue, index) => {
+                                                                {transcriptSaveError && (
+                                                                    <div className="rounded-lg border border-[var(--danger)]/30 bg-[var(--danger)]/10 px-3 py-2 text-xs text-[var(--danger)]">
+                                                                        {transcriptSaveError}
+                                                                    </div>
+                                                                )}
+                                                                {isSavingTranscript && (
+                                                                    <div className="flex items-center gap-2 px-1 text-xs text-[var(--muted)]">
+                                                                        <span className="animate-spin">⏳</span>
+                                                                        {t('transcriptSaving') || 'Saving…'}
+                                                                    </div>
+                                                                )}
+                                                                {cues.map((cue, index) => {
                                                                     const isActive = currentTime >= cue.start && currentTime < cue.end;
+                                                                    const isEditing = editingCueIndex === index;
+                                                                    const canEditThis = !isSavingTranscript && (editingCueIndex === null || isEditing);
+
                                                                     return (
-                                                                        <button
-                                                                            key={index}
+                                                                        <div
+                                                                            key={`${cue.start}-${cue.end}-${index}`}
                                                                             id={`cue-${index}`}
-                                                                            onClick={() => playerRef.current?.seekTo(cue.start)}
-                                                                            className={`w-full text-left p-2 rounded-lg text-sm transition-all duration-200 ${isActive
-                                                                                ? 'bg-[var(--accent)]/20 border-l-2 border-[var(--accent)] pl-3 text-white'
-                                                                                : 'hover:bg-white/5 text-[var(--muted)] hover:text-white'
+                                                                            className={`rounded-lg border px-2 py-2 transition-colors ${isActive
+                                                                                ? 'border-[var(--accent)]/25 bg-[var(--accent)]/10'
+                                                                                : 'border-transparent hover:bg-white/5'
                                                                                 }`}
                                                                         >
-                                                                            <div className="flex gap-3">
-                                                                                <span className="font-mono text-xs opacity-50 pt-0.5 min-w-[35px]">
+                                                                            <div className="flex items-start gap-3">
+                                                                                <button
+                                                                                    type="button"
+                                                                                    onClick={() => playerRef.current?.seekTo(cue.start)}
+                                                                                    className="font-mono text-xs opacity-60 pt-0.5 min-w-[42px] text-left hover:opacity-90 transition-opacity"
+                                                                                >
                                                                                     {Math.floor(cue.start / 60)}:{(cue.start % 60).toFixed(0).padStart(2, '0')}
-                                                                                </span>
-                                                                                <span className={isActive ? 'font-medium' : ''}>
-                                                                                    {cue.text}
-                                                                                </span>
+                                                                                </button>
+                                                                                <div className="flex-1 min-w-0">
+                                                                                    {isEditing ? (
+                                                                                        <textarea
+                                                                                            value={editingCueDraft}
+                                                                                            onChange={(e) => setEditingCueDraft(e.target.value)}
+                                                                                            className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)]/70 px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/30 min-h-[72px] resize-y"
+                                                                                            disabled={isSavingTranscript}
+                                                                                        />
+                                                                                    ) : (
+                                                                                        <button
+                                                                                            type="button"
+                                                                                            onClick={() => playerRef.current?.seekTo(cue.start)}
+                                                                                            className={`w-full text-left text-sm break-words [overflow-wrap:anywhere] ${isActive
+                                                                                                ? 'text-[var(--foreground)] font-medium'
+                                                                                                : 'text-[var(--muted)] hover:text-[var(--foreground)]'
+                                                                                                }`}
+                                                                                        >
+                                                                                            {cue.text}
+                                                                                        </button>
+                                                                                    )}
+                                                                                </div>
+                                                                                <div className="flex items-center gap-2 flex-shrink-0 pt-0.5">
+                                                                                    {isEditing ? (
+                                                                                        <>
+                                                                                            <button
+                                                                                                type="button"
+                                                                                                onClick={saveEditingCue}
+                                                                                                disabled={isSavingTranscript}
+                                                                                                className="px-2 py-1 rounded-md text-xs font-semibold bg-emerald-500/15 text-emerald-200 border border-emerald-500/25 hover:bg-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                                            >
+                                                                                                {isSavingTranscript ? (t('transcriptSaving') || 'Saving…') : (t('transcriptSave') || 'Save')}
+                                                                                            </button>
+                                                                                            <button
+                                                                                                type="button"
+                                                                                                onClick={cancelEditingCue}
+                                                                                                disabled={isSavingTranscript}
+                                                                                                className="px-2 py-1 rounded-md text-xs font-medium bg-white/5 text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-white/10 border border-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                                            >
+                                                                                                {t('transcriptCancel') || 'Cancel'}
+                                                                                            </button>
+                                                                                        </>
+                                                                                    ) : (
+                                                                                        <button
+                                                                                            type="button"
+                                                                                            onClick={() => beginEditingCue(index)}
+                                                                                            disabled={!canEditThis}
+                                                                                            className="px-2 py-1 rounded-md text-xs font-medium bg-white/5 text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-white/10 border border-white/10 disabled:opacity-40 disabled:cursor-not-allowed"
+                                                                                        >
+                                                                                            {t('transcriptEdit') || 'Edit'}
+                                                                                        </button>
+                                                                                    )}
+                                                                                </div>
                                                                             </div>
-                                                                        </button>
+                                                                        </div>
                                                                     );
                                                                 })}
-                                                                {processedCues.length === 0 && (
+                                                                {cues.length === 0 && (
                                                                     <div className="text-center text-[var(--muted)] py-10 opacity-50">
                                                                         {t('liveOutputStatusIdle') || 'Transcript will appear here...'}
                                                                     </div>
@@ -1445,30 +1704,31 @@ export function ProcessView({
                                                         )}
                                                     </div>
 
-                                                </div>
-
-                                                <div className="flex flex-wrap gap-3">
-
-                                                    {videoUrl && (
-                                                        <button
-                                                            className="btn-primary w-full items-center justify-center gap-2 inline-flex disabled:opacity-50 h-10 shadow-lg shadow-primary/20 hover:shadow-primary/40 transition-all font-semibold"
-                                                            onClick={() => {
-                                                                // Use detected dimensions or default to vertical HD
-                                                                const res = videoInfo ? `${videoInfo.width}x${videoInfo.height} ` : '1080x1920';
-                                                                handleExport(res);
-                                                            }}
-                                                            disabled={exportingResolutions[videoInfo ? `${videoInfo.width}x${videoInfo.height} ` : '1080x1920']}
-                                                        >
-                                                            {exportingResolutions[videoInfo ? `${videoInfo.width}x${videoInfo.height} ` : '1080x1920'] ? (
-                                                                <><span className="animate-spin">⏳</span> {'Rendering...'}</>
-                                                            ) : (
-                                                                <>✨ {'Export Video'}</>
+                                                    <div className="pt-4 mt-4 border-t border-[var(--border)]/60 space-y-4">
+                                                        <div className="flex flex-wrap gap-3">
+                                                            {videoUrl && (
+                                                                <button
+                                                                    className="btn-primary w-full items-center justify-center gap-2 inline-flex disabled:opacity-50 h-10 shadow-lg shadow-primary/20 hover:shadow-primary/40 transition-all font-semibold"
+                                                                    onClick={() => {
+                                                                        // Use detected dimensions or default to vertical HD
+                                                                        const res = videoInfo ? `${videoInfo.width}x${videoInfo.height}` : '1080x1920';
+                                                                        handleExport(res);
+                                                                    }}
+                                                                    disabled={exportingResolutions[videoInfo ? `${videoInfo.width}x${videoInfo.height}` : '1080x1920']}
+                                                                >
+                                                                    {exportingResolutions[videoInfo ? `${videoInfo.width}x${videoInfo.height}` : '1080x1920'] ? (
+                                                                        <><span className="animate-spin">⏳</span> {'Rendering...'}</>
+                                                                    ) : (
+                                                                        <>✨ {'Export Video'}</>
+                                                                    )}
+                                                                </button>
                                                             )}
-                                                        </button>
-                                                    )}
-                                                </div>
+                                                        </div>
 
-                                                <ViralIntelligence jobId={selectedJob.id} />
+                                                        <ViralIntelligence jobId={selectedJob.id} />
+                                                    </div>
+
+                                                </div>
                                             </div>
                                         </div>
                                     </div>

@@ -65,6 +65,19 @@ export interface PaginatedJobsResponse {
     total_pages: number;
 }
 
+export interface TranscriptionWordTiming {
+    start: number;
+    end: number;
+    text: string;
+}
+
+export interface TranscriptionCue {
+    start: number;
+    end: number;
+    text: string;
+    words?: TranscriptionWordTiming[] | null;
+}
+
 
 
 
@@ -313,6 +326,13 @@ class ApiClient {
         return this.request<JobResponse>(`/videos/jobs/${jobId}/export`, {
             method: 'POST',
             body: JSON.stringify({ resolution, ...settings }),
+        });
+    }
+
+    async updateJobTranscription(jobId: string, cues: TranscriptionCue[]): Promise<{ status: string }> {
+        return this.request<{ status: string }>(`/videos/jobs/${jobId}/transcription`, {
+            method: 'PUT',
+            body: JSON.stringify({ cues }),
         });
     }
 

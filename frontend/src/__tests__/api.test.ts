@@ -183,6 +183,30 @@ describe('API Client', () => {
         });
     });
 
+    describe('updateJobTranscription', () => {
+        it('should update transcription cues for a job', async () => {
+            const mockResponse = { status: 'ok' };
+            (fetch as jest.Mock).mockResolvedValueOnce({ ok: true, json: async () => mockResponse });
+
+            const { api } = await import('@/lib/api');
+            const cues = [
+                {
+                    start: 0,
+                    end: 1,
+                    text: 'hello world',
+                    words: [{ start: 0, end: 1, text: 'hello' }],
+                },
+            ];
+            const result = await api.updateJobTranscription('job-123', cues);
+
+            expect(fetch).toHaveBeenCalledWith(
+                expect.stringContaining('/videos/jobs/job-123/transcription'),
+                expect.objectContaining({ method: 'PUT', body: JSON.stringify({ cues }) })
+            );
+            expect(result.status).toBe('ok');
+        });
+    });
+
     describe('getJobs', () => {
         it('should fetch all jobs', async () => {
             const mockJobs = [{ id: 'job-1', status: 'completed', progress: 100, message: null, created_at: Date.now(), updated_at: Date.now(), result_data: null }];

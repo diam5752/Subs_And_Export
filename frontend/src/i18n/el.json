@@ -1,5 +1,12 @@
 {
   "tabTranscript": "Απομαγνητοφώνηση",
+  "transcriptEdit": "Επεξεργασία",
+  "transcriptSave": "Αποθήκευση",
+  "transcriptCancel": "Ακύρωση",
+  "transcriptSaving": "Αποθήκευση…",
+  "transcriptSaveError": "Αποτυχία αποθήκευσης αλλαγών",
+  "modelSelectTitle": "Επιλέξτε μοντέλο",
+  "modelSelectSubtitle": "Διαλέξτε μηχανή πριν ανεβάσετε βίντεο",
   "tabStyles": "Στυλ",
   "changeFile": "Αλλαγή αρχείου",
   "languageToggleLabel": "Αλλαγή γλώσσας",

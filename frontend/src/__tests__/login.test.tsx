@@ -4,6 +4,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import LoginPage from '@/app/login/page';
 import { api } from '@/lib/api';
+import { redirectTo } from '@/lib/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter, useSearchParams } from 'next/navigation';
 
@@ -24,6 +25,10 @@ jest.mock('@/context/AuthContext', () => ({
 
 jest.mock('@/context/I18nContext', () => ({
     useI18n: () => ({ t: (key: string) => key }),
+}));
+
+jest.mock('@/lib/navigation', () => ({
+    redirectTo: jest.fn(),
 }));
 
 jest.mock('next/navigation', () => ({
@@ -55,7 +60,7 @@ describe('LoginPage', () => {
 
     it('renders login form by default', () => {
         render(<LoginPage />);
-        expect(screen.getByText('loginTitle')).toBeInTheDocument();
+        expect(screen.getByText('loginHeading')).toBeInTheDocument();
         expect(screen.getByPlaceholderText('loginEmailPlaceholder')).toBeInTheDocument();
     });
 
@@ -98,6 +103,7 @@ describe('LoginPage', () => {
 
         await waitFor(() => {
             expect(api.getGoogleAuthUrl).toHaveBeenCalled();
+            expect(redirectTo).toHaveBeenCalledWith('http://foo.com');
             expect(screen.getByText('loginGoogleSigningIn')).toBeInTheDocument();
         });
     });

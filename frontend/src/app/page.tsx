@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState, useMemo } from 'react';
+import { useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
@@ -24,6 +24,7 @@ export default function DashboardPage() {
   const { user, isLoading, logout, refreshUser } = useAuth();
   const router = useRouter();
   const { t } = useI18n();
+  const didRestoreSession = useRef(false);
 
   // Handler functions (extracted for testability)
   /* istanbul ignore next -- browser reload not testable in JSDOM */
@@ -81,6 +82,9 @@ export default function DashboardPage() {
 
   // Restore session
   useEffect(() => {
+    if (didRestoreSession.current) return;
+    didRestoreSession.current = true;
+
     const restoreSession = async () => {
       const lastJobId = localStorage.getItem('lastActiveJobId');
       if (lastJobId && !selectedJob && !jobId) {
@@ -98,8 +102,8 @@ export default function DashboardPage() {
         }
       }
     };
-    restoreSession();
-  }, []); // Run once on mount
+    void restoreSession();
+  }, [jobId, selectedJob, setSelectedJob]);
 
   // Persist session
   useEffect(() => {
