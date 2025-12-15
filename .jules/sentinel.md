@@ -45,3 +45,8 @@
 **Vulnerability:** The `/videos/jobs/{job_id}/viral-metadata` and `/videos/jobs/{job_id}/export` endpoints triggered expensive operations (LLM calls and video rendering) without rate limiting, exposing the system to resource exhaustion and financial DoS.
 **Learning:** Secondary endpoints that generate content or call external paid APIs are often overlooked for rate limiting compared to primary "upload" endpoints.
 **Prevention:** Apply dedicated rate limiters (e.g. `limiter_content`) to all endpoints that trigger high-cost or high-latency operations, ensuring they are protected independently or share a "heavy ops" quota.
+
+## 2025-06-15 - [High] Session Fixation (Lack of Revocation)
+**Vulnerability:** The password update endpoint updated the credential in the database but failed to invalidate existing session tokens. An attacker with a stolen session could maintain access even after the victim changed their password.
+**Learning:** Changing a password does not automatically expire issued tokens (JWT or Database-backed). Session state must be explicitly managed alongside credential updates.
+**Prevention:** In `update_password` and similar flows (e.g., password reset), always call `session_store.revoke_all_sessions(user_id)` to force re-authentication for all clients.
