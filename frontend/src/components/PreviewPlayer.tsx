@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, forwardRef, useImperativeHandle } from 'react';
+import React, { useRef, useState, useEffect, forwardRef, useImperativeHandle, memo } from 'react';
 import { SubtitleOverlay, Cue } from './SubtitleOverlay';
 
 export interface PreviewPlayerHandle {
@@ -19,7 +19,7 @@ interface PreviewPlayerProps {
     onTimeUpdate?: (time: number) => void;
 }
 
-export const PreviewPlayer = forwardRef<PreviewPlayerHandle, PreviewPlayerProps>(({
+export const PreviewPlayer = memo(forwardRef<PreviewPlayerHandle, PreviewPlayerProps>(({
     videoUrl,
     cues,
     settings,
@@ -135,6 +135,6 @@ export const PreviewPlayer = forwardRef<PreviewPlayerHandle, PreviewPlayerProps>
             </div>
         </div>
     );
-});
+}));
 
 PreviewPlayer.displayName = 'PreviewPlayer';

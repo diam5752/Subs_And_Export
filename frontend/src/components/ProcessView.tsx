@@ -760,6 +760,19 @@ export function ProcessView({
         AVAILABLE_MODELS.find(m => m.provider === transcribeProvider && m.mode === transcribeMode),
         [transcribeProvider, transcribeMode]);
 
+    const playerSettings = useMemo(() => ({
+        position: subtitlePosition,
+        color: subtitleColor,
+        fontSize: subtitleSize,
+        karaoke: karaokeEnabled,
+        maxLines: maxSubtitleLines,
+        shadowStrength: shadowStrength
+    }), [subtitlePosition, subtitleColor, subtitleSize, karaokeEnabled, maxSubtitleLines, shadowStrength]);
+
+    const handlePlayerTimeUpdate = useCallback((t: number) => {
+        setCurrentTime(t);
+    }, []);
+
     return (
         <div className="grid xl:grid-cols-[1.05fr,0.95fr] gap-6">
             <div className="space-y-4">
@@ -1485,15 +1498,8 @@ export function ProcessView({
                                                                 ref={playerRef}
                                                                 videoUrl={videoUrl || ''}
                                                                 cues={processedCues}
-                                                                settings={{
-                                                                    position: subtitlePosition,
-                                                                    color: subtitleColor,
-                                                                    fontSize: subtitleSize,
-                                                                    karaoke: karaokeEnabled,
-                                                                    maxLines: maxSubtitleLines,
-                                                                    shadowStrength: shadowStrength
-                                                                }}
-                                                                onTimeUpdate={(t) => setCurrentTime(t)}
+                                                                settings={playerSettings}
+                                                                onTimeUpdate={handlePlayerTimeUpdate}
                                                             />
                                                         ) : (
                                                             // Fallback / Loading state
