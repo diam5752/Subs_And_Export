@@ -57,8 +57,14 @@ describe('JobListItem', () => {
 
     it('shows delete confirmation when isConfirmingDelete is true', () => {
         render(<JobListItem {...mockProps} isConfirmingDelete={true} />);
-        expect(screen.getByText('✓')).toBeInTheDocument();
-        expect(screen.getByText('✕')).toBeInTheDocument();
+        expect(screen.getByLabelText('confirmDelete')).toBeInTheDocument();
+        expect(screen.getByLabelText('cancel')).toBeInTheDocument();
+    });
+
+    it('shows loading state when isDeleting is true', () => {
+        render(<JobListItem {...mockProps} isConfirmingDelete={true} isDeleting={true} />);
+        expect(screen.getByLabelText('deleting')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'deleting' })).toHaveAttribute('aria-busy', 'true');
     });
 
     it('has correct accessibility attributes', () => {
