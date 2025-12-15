@@ -71,6 +71,7 @@ export function ProcessView({
     const aiToggleDescId = useId();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const resultsRef = useRef<HTMLDivElement>(null);
+    const transcriptContainerRef = useRef<HTMLDivElement>(null);
     const playerRef = useRef<PreviewPlayerHandle>(null);
     const validationRequestId = useRef(0);
     const [currentTime, setCurrentTime] = useState(0);
@@ -470,6 +471,7 @@ export function ProcessView({
         setMaxSubtitleLines(2);
         setSubtitleSize(85);  // Reset to medium (85%)
         setKaraokeEnabled(true);
+        setHasChosenModel(false);
         if (fileInputRef.current) {
             fileInputRef.current.value = '';
         }
@@ -531,9 +533,27 @@ export function ProcessView({
         if (activeSidebarTab !== 'transcript') return;
         if (editingCueIndex !== null) return;
         if (!cues || cues.length === 0) return;
+
         const activeIndex = cues.findIndex(c => currentTime >= c.start && currentTime < c.end);
-        if (activeIndex !== -1) {
-            document.getElementById(`cue-${activeIndex}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+        if (activeIndex !== -1 && transcriptContainerRef.current) {
+            const element = document.getElementById(`cue-${activeIndex}`);
+            const container = transcriptContainerRef.current;
+
+            if (element) {
+                // Calculate position relative to container
+                const elementTop = element.offsetTop;
+                const elementHeight = element.offsetHeight;
+                const containerHeight = container.clientHeight;
+
+                // Scroll to center the element
+                const targetScroll = elementTop - (containerHeight / 2) + (elementHeight / 2);
+
+                container.scrollTo({
+                    top: targetScroll,
+                    behavior: 'smooth'
+                });
+            }
         }
     }, [activeSidebarTab, cues, currentTime, editingCueIndex]);
 
@@ -747,8 +767,8 @@ export function ProcessView({
                     <div className="card space-y-4">
                         <div className="flex flex-wrap items-center justify-between gap-3">
                             <div>
-                                <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">{t('transcriptionModelLabel')}</p>
-                                <h3 className="text-xl font-semibold">{t('modelSelectTitle') || 'Select a model'}</h3>
+                                <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">STEP 1</p>
+                                <h3 className="text-xl font-semibold">{t('modelSelectTitle') || 'Pick a Model'}</h3>
                                 {!hasChosenModel && (
                                     <p className="text-sm text-[var(--muted)] mt-1">{t('modelSelectSubtitle')}</p>
                                 )}
@@ -766,7 +786,8 @@ export function ProcessView({
                             )}
                         </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 animate-slide-down">
+                        {/* Model Grid */}
+                        <div className={`grid grid-cols-1 sm:grid-cols-3 gap-3 transition-all duration-300 ${hasChosenModel ? 'opacity-100' : 'animate-slide-down'}`}>
                             {AVAILABLE_MODELS.map((model) => {
                                 const isSelected = transcribeProvider === model.provider && transcribeMode === model.mode;
 
@@ -795,8 +816,21 @@ export function ProcessView({
                                             setTranscribeProvider(model.provider as TranscribeProvider);
                                             setTranscribeMode(model.mode as TranscribeMode);
                                             setHasChosenModel(true);
+
+                                            // Only scroll if we were not already selected (to avoid jarring jumps if just clicking around)
+                                            if (!isSelected) {
+                                                // Auto-scroll to upload section
+                                                setTimeout(() => {
+                                                    document.getElementById('upload-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                                }, 100);
+                                            }
                                         }}
-                                        className={`p-4 rounded-xl border text-left transition-all relative overflow-hidden group flex flex-col h-full ${model.colorClass(isSelected)} `}
+                                        className={`p-4 rounded-xl border text-left transition-all duration-300 relative overflow-hidden group flex flex-col h-full ${isSelected
+                                            ? `${model.colorClass(true)} scale-[1.02] shadow-lg ring-1`
+                                            : hasChosenModel
+                                                ? 'border-[var(--border)] opacity-60 hover:opacity-100 hover:scale-[1.01] hover:bg-[var(--surface-elevated)] grayscale hover:grayscale-0' // Dimmed but interactive
+                                                : model.colorClass(false)
+                                            }`}
                                     >
                                         <div className="flex items-start justify-between mb-2 w-full">
                                             {model.icon(isSelected)}
@@ -854,8 +888,13 @@ export function ProcessView({
                     </div>
                 )}
 
-                {(hasChosenModel) && (
-                    <div className={`${showDevTools ? "grid gap-4 md:grid-cols-2" : ""} animate-fade-in-up-scale`}>
+                {(hasChosenModel && !selectedFile) && (
+                    <div id="upload-section" className={`${showDevTools ? "grid gap-4 md:grid-cols-2" : ""} animate-fade-in-up-scale`}>
+                        <div className="mb-2">
+                            <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">STEP 2</p>
+                            <h3 className="text-xl font-semibold">Upload Video</h3>
+                        </div>
+
                         {/* Upload Card */}
                         <div
                             className={`card relative overflow-hidden cursor-pointer group transition-all duration-500 ${isDragOver
@@ -906,46 +945,8 @@ export function ProcessView({
                                     <p className={`text-2xl font-semibold mb-1 ${activeTheme.iconColor}`}>{t('dropFileHere')}</p>
                                     <p className="text-[var(--muted)]">{t('releaseToUpload')}</p>
                                 </div>
-                            ) : selectedFile ? (
-                                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between relative">
-                                    <div className="flex items-start gap-3">
-                                        {/* Video Thumbnail */}
-                                        {videoInfo?.thumbnailUrl ? (
-                                            <div className="w-16 h-16 rounded-lg overflow-hidden bg-black/40 flex-shrink-0">
-                                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                                <img
-                                                    src={videoInfo.thumbnailUrl}
-                                                    alt="Video thumbnail"
-                                                    className="w-full h-full object-cover"
-                                                />
-                                            </div>
-                                        ) : (
-                                            <div className="text-4xl">🎥</div>
-                                        )}
-                                        <div>
-                                            <p className="text-xl font-semibold break-words [overflow-wrap:anywhere]">{selectedFile.name}</p>
-                                            <p className="text-[var(--muted)] mt-1">
-                                                {(selectedFile.size / (1024 * 1024)).toFixed(1)} MB · {selectedFile.name.split('.').pop()?.toUpperCase() || 'VIDEO'}
-                                                {uploadResolution && (
-                                                    <span className="ml-2">· {uploadResolution.text} ({uploadResolution.label})</span>
-                                                )}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <div className="flex flex-col items-end gap-1">
-                                        <div className="flex items-center gap-2 text-sm text-[var(--muted)]">
-                                            <span className="h-2 w-2 rounded-full bg-[var(--accent)] animate-pulse" />
-                                            {t('uploadReady')}
-                                        </div>
-                                        {videoInfo?.aspectWarning && (
-                                            <div className="text-xs text-amber-400 flex items-center gap-1">
-                                                <span aria-hidden="true">⚠️</span>
-                                                {t('aspectRatioWarning')}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
                             ) : (
+
                                 <div className="text-center py-12 relative flex flex-col items-center">
                                     <div className="relative">
                                         <div className={`mb-3 transition-all duration-500 p-4 rounded-full bg-white/5 ${activeTheme.iconColor} opacity-90`}>
@@ -997,6 +998,62 @@ export function ProcessView({
                                 </div>
                             </div>
                         )}
+                    </div>
+                )}
+
+                {/* Compact Upload Review (when file selected) */}
+                {/* Compact Upload Review (when file selected) */}
+                {selectedFile && (
+                    <div className="card flex items-center gap-4 py-3 px-4 animate-fade-in border-emerald-500/20 bg-emerald-500/5 transition-all hover:bg-emerald-500/10">
+                        {/* Thumbnail with Tick Overlay */}
+                        <div className="relative h-16 w-16 shrink-0 rounded-lg overflow-hidden bg-black/20 border border-emerald-500/20 group">
+                            {videoInfo?.thumbnailUrl ? (
+                                <img
+                                    src={videoInfo.thumbnailUrl}
+                                    alt="Thumbnail"
+                                    className="h-full w-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
+                                />
+                            ) : (
+                                <div className="h-full w-full flex items-center justify-center bg-emerald-900/20">
+                                    <svg className="w-8 h-8 text-emerald-500/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M15 10l4.553-2.276A1 1 0 0121 8.818v6.364a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                    </svg>
+                                </div>
+                            )}
+
+                            {/* Centered Green Tick Overlay */}
+                            <div className="absolute inset-0 flex items-center justify-center">
+                                <div className="w-8 h-8 rounded-full bg-emerald-500/80 shadow-lg shadow-emerald-500/40 flex items-center justify-center text-white transform scale-100 group-hover:scale-110 transition-transform backdrop-blur-[1px]">
+                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* File Info */}
+                        <div className="flex-1 min-w-0">
+                            <h4 className="text-sm font-semibold text-[var(--foreground)] truncate" title={selectedFile.name}>
+                                {selectedFile.name}
+                            </h4>
+                            <p className="text-xs text-[var(--muted)] flex items-center gap-1.5 mt-0.5">
+                                <span>{(selectedFile.size / (1024 * 1024)).toFixed(1)} MB</span>
+                                <span className="w-1 h-1 rounded-full bg-[var(--border)]" />
+                                <span className="text-emerald-500 font-medium">Ready</span>
+                            </p>
+                        </div>
+
+                        {/* Actions */}
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onFileSelect(null);
+                                setHasChosenModel(true);
+                            }}
+                            className="px-3 py-1.5 text-xs font-medium rounded-lg border border-[var(--border)] hover:bg-[var(--surface-elevated)] hover:text-[var(--foreground)] text-[var(--muted)] transition-colors"
+                        >
+                            Change
+                        </button>
                     </div>
                 )}
                 {showProcessingKit && (
@@ -1364,10 +1421,10 @@ export function ProcessView({
                             <div className="flex flex-wrap items-start justify-between gap-3">
                                 <div>
                                     <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">
-                                        {selectedJob?.status === 'completed' ? t('liveOutputLabel') : t('statusProcessing')}
+                                        {selectedJob?.status === 'completed' ? 'STEP 3: PREVIEW' : 'STEP 3: PROCESSING'}
                                     </p>
                                     <h3 className="text-2xl font-semibold break-words [overflow-wrap:anywhere]">
-                                        {selectedJob?.result_data?.original_filename || (isProcessing ? t('statusProcessingEllipsis') : t('liveOutputPlaceholderTitle'))}
+                                        {selectedJob?.result_data?.original_filename || (isProcessing ? t('statusProcessingEllipsis') : 'Live Preview')}
                                     </h3>
                                     <p className="text-sm text-[var(--muted)]">{t('liveOutputSubtitle')}</p>
                                 </div>
@@ -1422,7 +1479,7 @@ export function ProcessView({
                                             {/* Preview Player Area - Left (Flexible) */}
                                             <div className="flex-1 bg-black/20 rounded-2xl border border-white/5 flex items-center justify-center p-4 lg:p-8 relative overflow-hidden backdrop-blur-sm min-h-0 min-w-0 transition-all duration-500">
                                                 <div className="relative h-[90%] max-h-[600px] w-auto aspect-[9/16] max-w-full shadow-2xl transition-all duration-500 hover:scale-[1.01]">
-                                                    <PhoneFrame className="w-full h-full">
+                                                    <PhoneFrame className="w-full h-full" showSocialOverlays={false}>
                                                         {processedCues && processedCues.length > 0 ? (
                                                             <PreviewPlayer
                                                                 ref={playerRef}
@@ -1475,7 +1532,7 @@ export function ProcessView({
                                                     )}
                                                 </div>
 
-                                                <div className="p-6 flex-1 flex flex-col min-h-0 overflow-y-auto custom-scrollbar">
+                                                <div ref={transcriptContainerRef} className="p-6 flex-1 flex flex-col min-h-0 overflow-y-auto custom-scrollbar relative">
 
                                                     {/* Sidebar Tabs */}
                                                     <div className="flex items-center gap-1 p-1 bg-[var(--surface-elevated)] rounded-lg border border-[var(--border)] mb-4">
