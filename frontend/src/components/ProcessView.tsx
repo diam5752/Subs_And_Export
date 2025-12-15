@@ -67,7 +67,7 @@ export function ProcessView({
     const { t } = useI18n();
     const { appEnv } = useAppEnv();
     const showDevTools = appEnv === 'dev';
-    const [hasChosenModel, setHasChosenModel] = useState<boolean>(() => showDevTools || Boolean(selectedFile));
+    const [hasChosenModel, setHasChosenModel] = useState<boolean>(() => Boolean(selectedFile));
     const aiToggleDescId = useId();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const resultsRef = useRef<HTMLDivElement>(null);
@@ -81,7 +81,6 @@ export function ProcessView({
     // Local state for options
     const [showPreview, setShowPreview] = useState(false);
     const [showSettings, setShowSettings] = useState(true);
-    const [showModelDetails, setShowModelDetails] = useState(false);
     const [showExperimentalProviders, setShowExperimentalProviders] = useState(false);
     const [transcribeMode, setTranscribeMode] = useState<TranscribeMode>('turbo');
     const [transcribeProvider, setTranscribeProvider] = useState<TranscribeProvider>('local');
@@ -319,15 +318,15 @@ export function ProcessView({
             mode: 'turbo',
             stats: { speed: 2, accuracy: 4, karaoke: true, linesControl: true },
             icon: (selected: boolean) => (
-                <div className={`p-2 rounded-lg ${selected ? 'bg-violet-500/20 text-violet-300' : 'bg-violet-500/10 text-violet-500'} `}>
+                <div className={`p-2 rounded-lg ${selected ? 'bg-amber-500/20 text-amber-300' : 'bg-amber-500/10 text-amber-500'} `}>
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
                     </svg>
                 </div>
             ),
             colorClass: (selected: boolean) => selected
-                ? 'border-[var(--accent)] bg-[var(--accent)]/10 ring-1 ring-[var(--accent)]'
-                : 'border-[var(--border)] hover:border-[var(--accent)]/50 hover:bg-[var(--accent)]/5'
+                ? 'border-amber-500 bg-amber-500/10 ring-1 ring-amber-500'
+                : 'border-[var(--border)] hover:border-amber-500/50 hover:bg-amber-500/5'
         },
         {
             id: 'ultimate',
@@ -411,7 +410,6 @@ export function ProcessView({
             validationRequestId.current += 1;
             setVideoInfo(null);
             setShowCustomize(false);
-            setShowModelDetails(false);
             setShowExperimentalProviders(false);
             setPreviewVideoUrl(null); // Clear preview URL
             setCues([]); // Clear cues
@@ -419,7 +417,6 @@ export function ProcessView({
         }
 
         setShowCustomize(true);
-        setShowModelDetails(false);
         setShowExperimentalProviders(false);
         initialSelectionMade.current = false;
         const requestId = ++validationRequestId.current;
@@ -504,20 +501,7 @@ export function ProcessView({
         [devSampleLoading, isProcessing, onJobSelect, onReset]
     );
 
-    // Click outside handler for model selector
-    const modelListRef = useRef<HTMLDivElement>(null);
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (showModelDetails && modelListRef.current && !modelListRef.current.contains(event.target as Node)) {
-                setShowModelDetails(false);
-            }
-        };
 
-        document.addEventListener('click', handleClickOutside);
-        return () => {
-            document.removeEventListener('click', handleClickOutside);
-        };
-    }, [showModelDetails]);
 
     // Instant download handler - forces download instead of opening in browser
     const handleDownload = async (url: string, filename: string) => {
@@ -723,10 +707,43 @@ export function ProcessView({
         setShowPreview(false);
     }, []);
 
+    // Compute dynamic theme color for upload section interaction
+    const activeTheme = useMemo(() => {
+        if (transcribeProvider === 'groq') return {
+            borderColor: 'border-purple-500/50',
+            bgGradient: 'from-purple-500/20 via-transparent to-purple-500/5',
+            iconColor: 'text-purple-400',
+            glowColor: 'shadow-[0_0_30px_-5px_rgba(168,85,247,0.3)]'
+        };
+        if (transcribeProvider === 'whispercpp') return {
+            borderColor: 'border-cyan-500/50',
+            bgGradient: 'from-cyan-500/20 via-transparent to-cyan-500/5',
+            iconColor: 'text-cyan-400',
+            glowColor: 'shadow-[0_0_30px_-5px_rgba(6,182,212,0.3)]'
+        };
+        if (transcribeProvider === 'local') return {
+            borderColor: 'border-amber-500/50',
+            bgGradient: 'from-amber-500/20 via-transparent to-amber-500/5',
+            iconColor: 'text-amber-400',
+            glowColor: 'shadow-[0_0_30px_-5px_rgba(251,191,36,0.3)]'
+        };
+        // Default
+        return {
+            borderColor: 'border-[var(--accent)]/50',
+            bgGradient: 'from-[var(--accent)]/20 via-transparent to-[var(--accent-secondary)]/10',
+            iconColor: 'text-[var(--accent)]',
+            glowColor: 'shadow-[0_0_30px_-5px_rgba(141,247,223,0.3)]'
+        };
+    }, [transcribeProvider]);
+
+    const selectedModel = useMemo(() =>
+        AVAILABLE_MODELS.find(m => m.provider === transcribeProvider && m.mode === transcribeMode),
+        [transcribeProvider, transcribeMode]);
+
     return (
         <div className="grid xl:grid-cols-[1.05fr,0.95fr] gap-6">
             <div className="space-y-4">
-                {!showDevTools && (
+                {(
                     <div className="card space-y-4">
                         <div className="flex flex-wrap items-center justify-between gap-3">
                             <div>
@@ -749,34 +766,86 @@ export function ProcessView({
                             )}
                         </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 animate-slide-down">
                             {AVAILABLE_MODELS.map((model) => {
                                 const isSelected = transcribeProvider === model.provider && transcribeMode === model.mode;
+
+                                // Helper for stat bars (5 dots)
+                                const renderStat = (value: number, max: number = 5) => (
+                                    <div className="flex gap-0.5">
+                                        {Array.from({ length: max }).map((_, i) => (
+                                            <div
+                                                key={i}
+                                                className={`h-1.5 w-full rounded-full transition-colors ${i < value
+                                                    ? (isSelected ? 'bg-current opacity-80' : 'bg-[var(--foreground)] opacity-60')
+                                                    : 'bg-[var(--foreground)] opacity-20'
+                                                    } `}
+                                            />
+                                        ))}
+                                    </div>
+                                );
+
                                 return (
                                     <button
                                         key={model.id}
-                                        type="button"
-                                        onClick={() => {
+                                        data-testid={`model-${model.provider === 'local' ? 'turbo' : model.provider}`}
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            // Select model
                                             setTranscribeProvider(model.provider as TranscribeProvider);
                                             setTranscribeMode(model.mode as TranscribeMode);
                                             setHasChosenModel(true);
                                         }}
-                                        className={`w-full p-3 rounded-xl border text-left transition-all flex flex-col gap-2 h-full relative group ${model.colorClass(isSelected)} `}
+                                        className={`p-4 rounded-xl border text-left transition-all relative overflow-hidden group flex flex-col h-full ${model.colorClass(isSelected)} `}
                                     >
-                                        <div className="flex items-center justify-between w-full">
+                                        <div className="flex items-start justify-between mb-2 w-full">
                                             {model.icon(isSelected)}
-                                            {isSelected ? (
-                                                <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0">
+                                            {isSelected && (
+                                                <div
+                                                    className={`w-5 h-5 rounded-full flex items-center justify-center ${model.provider === 'groq'
+                                                        ? 'bg-purple-500'
+                                                        : model.provider === 'whispercpp'
+                                                            ? 'bg-cyan-500'
+                                                            : 'bg-[var(--accent)]'
+                                                        }`}
+                                                >
                                                     <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                                                     </svg>
                                                 </div>
-                                            ) : null}
+                                            )}
                                         </div>
-                                        <div className="font-semibold text-base">{model.name}</div>
-                                        <div className="text-xs text-[var(--muted)] leading-snug">{model.description}</div>
-                                        <div className="mt-auto pt-2 flex items-center justify-between gap-2 text-xs">
-                                            <span className={`px-2 py-0.5 rounded-full font-medium ${model.badgeColor}`}>{model.badge}</span>
+                                        <div className="font-semibold text-base mb-1">{model.name}</div>
+                                        <div className="text-sm text-[var(--muted)] mb-4">{model.description}</div>
+
+                                        {/* Game-like Stats */}
+                                        <div className="mt-auto space-y-2 mb-3">
+                                            <div className="grid grid-cols-[60px,1fr] items-center gap-2">
+                                                <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">{t('statSpeed')}</span>
+                                                {renderStat(model.stats.speed)}
+                                            </div>
+                                            <div className="grid grid-cols-[60px,1fr] items-center gap-2">
+                                                <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">{t('statAccuracy')}</span>
+                                                {renderStat(model.stats.accuracy)}
+                                            </div>
+                                            <div className="grid grid-cols-[60px,1fr] items-center gap-2">
+                                                <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">{t('statKaraoke')}</span>
+                                                <div className={`text-[10px] font-bold ${model.stats.karaoke ? 'text-emerald-500' : 'text-[var(--muted)]'} `}>
+                                                    {model.stats.karaoke ? t('statKaraokeSupported') : t('statKaraokeNo')}
+                                                </div>
+                                            </div>
+                                            <div className="grid grid-cols-[60px,1fr] items-center gap-2">
+                                                <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">{t('statLines')}</span>
+                                                <div className={`text-[10px] font-bold ${model.stats.linesControl ? 'text-emerald-500' : 'text-cyan-400'} `}>
+                                                    {model.stats.linesControl ? t('statLinesCustom') : t('statLinesAuto')}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-2 text-xs pt-3 border-t border-[var(--border)]/50">
+                                            <span className={`px-2 py-0.5 rounded-full font-medium ${model.badgeColor} `}>
+                                                {model.badge}
+                                            </span>
                                         </div>
                                     </button>
                                 );
@@ -785,14 +854,17 @@ export function ProcessView({
                     </div>
                 )}
 
-                {(showDevTools || hasChosenModel) && (
-                    <div className={showDevTools ? "grid gap-4 md:grid-cols-2" : ""}>
+                {(hasChosenModel) && (
+                    <div className={`${showDevTools ? "grid gap-4 md:grid-cols-2" : ""} animate-fade-in-up-scale`}>
                         {/* Upload Card */}
                         <div
-                            className={`card relative overflow-hidden cursor-pointer group transition-all ${isDragOver
-                                ? 'border-[var(--accent)] border-2 border-dashed bg-[var(--accent)]/10 scale-[1.02]'
-                                : 'hover:border-[var(--accent)]/60'
+                            className={`card relative overflow-hidden cursor-pointer group transition-all duration-500 ${isDragOver
+                                ? `border-2 border-dashed bg-opacity-10 scale-[1.02] ${activeTheme.borderColor}`
+                                : `border-2 ${activeTheme.borderColor} ${activeTheme.glowColor}`
                                 } `}
+                            style={{
+                                borderColor: undefined // Letting tailwind classes handle it
+                            }}
                             data-clickable="true"
                             onClick={handleUploadCardClick}
                             onKeyDown={(e) => handleKeyDown(e, handleUploadCardClick)}
@@ -804,9 +876,9 @@ export function ProcessView({
                             onDragOver={handleDragOver}
                             onDrop={handleDrop}
                         >
-                            <div className={`absolute inset-0 transition-opacity pointer-events-none ${isDragOver
-                                ? 'opacity-100 bg-gradient-to-br from-[var(--accent)]/20 via-transparent to-[var(--accent-secondary)]/25'
-                                : 'opacity-0 group-hover:opacity-100 bg-gradient-to-br from-[var(--accent)]/5 via-transparent to-[var(--accent-secondary)]/10'
+                            <div className={`absolute inset-0 transition-opacity pointer-events-none duration-500 ${isDragOver
+                                ? `opacity-100 bg-gradient-to-br ${activeTheme.bgGradient}`
+                                : `opacity-30 group-hover:opacity-100 bg-gradient-to-br ${activeTheme.bgGradient}`
                                 } `} />
                             <input
                                 ref={fileInputRef}
@@ -817,9 +889,21 @@ export function ProcessView({
                                 disabled={isProcessing}
                             />
                             {isDragOver ? (
-                                <div className="text-center py-12 relative">
-                                    <div className="text-6xl mb-3 animate-bounce">📥</div>
-                                    <p className="text-2xl font-semibold mb-1 text-[var(--accent)]">{t('dropFileHere')}</p>
+                                <div className="text-center py-12 relative flex flex-col items-center">
+                                    <div className="relative">
+                                        <div className={`mb-3 animate-bounce p-4 rounded-full bg-white/5 ${activeTheme.iconColor}`}>
+                                            <svg className="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                            </svg>
+                                        </div>
+                                        {/* Model Icon Badge */}
+                                        <div className={`absolute -bottom-1 -right-1 w-8 h-8 rounded-full border border-[var(--background)] bg-[var(--card-bg)] flex items-center justify-center shadow-lg ${activeTheme.iconColor} animate-pulse`}>
+                                            <div className="scale-75">
+                                                {selectedModel?.icon(true)}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <p className={`text-2xl font-semibold mb-1 ${activeTheme.iconColor}`}>{t('dropFileHere')}</p>
                                     <p className="text-[var(--muted)]">{t('releaseToUpload')}</p>
                                 </div>
                             ) : selectedFile ? (
@@ -862,9 +946,21 @@ export function ProcessView({
                                     </div>
                                 </div>
                             ) : (
-                                <div className="text-center py-12 relative">
-                                    <div className="text-6xl mb-3 opacity-80">📤</div>
-                                    <p className="text-2xl font-semibold mb-1">{t('uploadDropTitle')}</p>
+                                <div className="text-center py-12 relative flex flex-col items-center">
+                                    <div className="relative">
+                                        <div className={`mb-3 transition-all duration-500 p-4 rounded-full bg-white/5 ${activeTheme.iconColor} opacity-90`}>
+                                            <svg className="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                            </svg>
+                                        </div>
+                                        {/* Model Icon Badge */}
+                                        <div className={`absolute -bottom-0 -right-0 w-8 h-8 rounded-full border-2 border-[var(--background)] bg-[var(--card-bg)] flex items-center justify-center shadow-lg ${activeTheme.iconColor}`}>
+                                            <div className="scale-75">
+                                                {selectedModel?.icon(true)}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <p className={`text-2xl font-semibold mb-1 transition-colors duration-500 ${activeTheme.iconColor}`}>{t('uploadDropTitle')}</p>
                                     <p className="text-[var(--muted)]">{t('uploadDropSubtitle')}</p>
                                     <p className="text-xs text-[var(--muted)] mt-4">{t('uploadDropFootnote')}</p>
                                 </div>
@@ -928,184 +1024,7 @@ export function ProcessView({
 
                         {showSettings && (
                             <div className="space-y-5 pt-1 animate-fade-in">
-                                <div>
-                                    <label className="block text-sm font-medium text-[var(--muted)] mb-3">
-                                        {t('transcriptionModelLabel')}
-                                    </label>
 
-                                    <div className="flex flex-col gap-3" ref={modelListRef}>
-                                        {!showModelDetails ? (
-                                            /* Compact List View-Horizontal Grid */
-                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                                                {AVAILABLE_MODELS.map((model) => {
-                                                    const isSelected = transcribeProvider === model.provider && transcribeMode === model.mode;
-
-                                                    return (
-                                                        <button
-                                                            key={model.id}
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                // Select and always SHOW skills (details)
-                                                                setTranscribeProvider(model.provider as TranscribeProvider);
-                                                                setTranscribeMode(model.mode as TranscribeMode);
-                                                                setShowModelDetails(true);
-                                                            }}
-                                                            className={`w-full p-3 rounded-xl border text-left transition-all flex flex-col gap-2 h-full relative group ${model.colorClass(isSelected)} `}
-                                                        >
-                                                            <div className="flex items-center justify-between w-full">
-                                                                {model.icon(isSelected)}
-                                                                {isSelected && (
-                                                                    <div className="flex items-center gap-1">
-                                                                        <span className="text-[10px] text-[var(--muted)] opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                            {t('showDetails')}
-                                                                        </span>
-                                                                        <div className={`w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 ${model.provider === 'groq' ? 'bg-purple-500' :
-                                                                            model.provider === 'whispercpp' ? 'bg-cyan-500' :
-                                                                                'bg-[var(--accent)]'
-                                                                            } `}>
-                                                                            <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
-                                                                            </svg>
-                                                                        </div>
-                                                                    </div>
-                                                                )}
-                                                            </div>
-
-                                                            <div className="flex-1 min-w-0">
-                                                                <span className="font-semibold text-base block mb-0.5">{model.name}</span>
-
-                                                                <div className="flex flex-wrap gap-1.5 mb-1.5">
-                                                                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${model.badgeColor} `}>
-                                                                        {model.badge}
-                                                                    </span>
-                                                                </div>
-
-                                                                <span className="text-xs text-[var(--muted)] line-clamp-2">
-                                                                    {model.description}
-                                                                </span>
-                                                            </div>
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
-                                        ) : (
-                                            /* Detailed Grid View */
-                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 animate-slide-down">
-                                                {AVAILABLE_MODELS.map((model) => {
-                                                    const isSelected = transcribeProvider === model.provider && transcribeMode === model.mode;
-
-                                                    // Helper for stat bars (5 dots)
-                                                    const renderStat = (value: number, max: number = 5) => (
-                                                        <div className="flex gap-0.5">
-                                                            {Array.from({ length: max }).map((_, i) => (
-                                                                <div
-                                                                    key={i}
-                                                                    className={`h-1.5 w-full rounded-full transition-colors ${i < value
-                                                                        ? (isSelected ? 'bg-current opacity-80' : 'bg-[var(--foreground)] opacity-60')
-                                                                        : 'bg-[var(--foreground)] opacity-20'
-                                                                        } `}
-                                                                />
-                                                            ))}
-                                                        </div>
-                                                    );
-
-                                                    return (
-                                                        <button
-                                                            key={model.id}
-                                                            data-testid={`model-${model.provider === 'local' ? 'turbo' : model.provider}`}
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                // Just select, keep open. Minimize handled by click outside.
-                                                                setTranscribeProvider(model.provider as TranscribeProvider);
-                                                                setTranscribeMode(model.mode as TranscribeMode);
-                                                            }}
-                                                            className={`p-4 rounded-xl border text-left transition-all relative overflow-hidden group flex flex-col h-full ${model.colorClass(isSelected)} `}
-                                                        >
-                                                            <div className="flex items-start justify-between mb-2 w-full">
-                                                                {model.icon(isSelected)}
-                                                                {isSelected && (
-                                                                    <div className="flex items-center gap-1">
-                                                                        <span className="text-[10px] text-[var(--muted)] opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                            {t('hideDetails')}
-                                                                        </span>
-                                                                        <div
-                                                                            className={`w-5 h-5 rounded-full flex items-center justify-center ${model.provider === 'groq'
-                                                                                ? 'bg-purple-500'
-                                                                                : model.provider === 'whispercpp'
-                                                                                    ? 'bg-cyan-500'
-                                                                                    : 'bg-[var(--accent)]'
-                                                                                }`}
-                                                                        >
-                                                                            <svg className="w-3 h-3 text-white rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
-                                                                            </svg>
-                                                                        </div>
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                            <div className="font-semibold text-base mb-1">{model.name}</div>
-                                                            <div className="text-sm text-[var(--muted)] mb-4">{model.description}</div>
-
-                                                            {/* Game-like Stats */}
-                                                            <div className="mt-auto space-y-2 mb-3">
-                                                                <div className="grid grid-cols-[60px,1fr] items-center gap-2">
-                                                                    <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">{t('statSpeed')}</span>
-                                                                    {renderStat(model.stats.speed)}
-                                                                </div>
-                                                                <div className="grid grid-cols-[60px,1fr] items-center gap-2">
-                                                                    <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">{t('statAccuracy')}</span>
-                                                                    {renderStat(model.stats.accuracy)}
-                                                                </div>
-                                                                <div className="grid grid-cols-[60px,1fr] items-center gap-2">
-                                                                    <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">{t('statKaraoke')}</span>
-                                                                    <div className={`text-[10px] font-bold ${model.stats.karaoke ? 'text-emerald-500' : 'text-[var(--muted)]'} `}>
-                                                                        {model.stats.karaoke ? t('statKaraokeSupported') : t('statKaraokeNo')}
-                                                                    </div>
-                                                                </div>
-                                                                <div className="grid grid-cols-[60px,1fr] items-center gap-2">
-                                                                    <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">{t('statLines')}</span>
-                                                                    <div className={`text-[10px] font-bold ${model.stats.linesControl ? 'text-emerald-500' : 'text-cyan-400'} `}>
-                                                                        {model.stats.linesControl ? t('statLinesCustom') : t('statLinesAuto')}
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-
-                                                            <div className="flex items-center gap-2 text-xs pt-3 border-t border-[var(--border)]/50">
-                                                                <span className={`px-2 py-0.5 rounded-full font-medium ${model.badgeColor} `}>
-                                                                    {model.badge}
-                                                                </span>
-                                                            </div>
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Re-process Button (Visible only when job is completed) */}
-                                {selectedJob && selectedJob.status === 'completed' && (
-                                    <div className="mt-4 mb-6 animate-fade-in">
-                                        <button
-                                            disabled={isProcessing || !selectedFile}
-                                            onClick={() => {
-                                                // eslint-disable-next-line no-restricted-globals
-                                                if (confirm('Re-transcribe video with new settings?')) {
-                                                    handleStart();
-                                                }
-                                            }}
-                                            className="w-full py-3 px-4 rounded-xl bg-[var(--surface-elevated)] border border-[var(--accent)] text-[var(--accent)] hover:bg-[var(--accent)]/10 font-medium transition-colors flex items-center justify-center gap-2 shadow-sm disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[var(--surface-elevated)]"
-                                        >
-                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                            </svg>
-                                            {'Re-Transcribe'}
-                                        </button>
-                                        <p className="text-xs text-[var(--muted)] text-center mt-2 px-2">
-                                            {'Use this if you want to change the Model, Language, or AI Settings.'}
-                                        </p>
-                                    </div>
-                                )}
 
                                 {/* Style Presets */}
                                 <div ref={customizeSectionRef}>
