@@ -40,6 +40,8 @@ default_origins = [
     "http://127.0.0.1:8000",
     "http://localhost:8080",
     "http://127.0.0.1:8080",
+    # Cloud Run production URLs
+    "https://ascentia-subs-frontend-865728840454.europe-west1.run.app",
 ]
 origins = _env_list("GSP_ALLOWED_ORIGINS", default_origins)
 
