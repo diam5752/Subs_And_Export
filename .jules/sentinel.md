@@ -50,3 +50,8 @@
 **Vulnerability:** The password update endpoint updated the credential in the database but failed to invalidate existing session tokens. An attacker with a stolen session could maintain access even after the victim changed their password.
 **Learning:** Changing a password does not automatically expire issued tokens (JWT or Database-backed). Session state must be explicitly managed alongside credential updates.
 **Prevention:** In `update_password` and similar flows (e.g., password reset), always call `session_store.revoke_all_sessions(user_id)` to force re-authentication for all clients.
+
+## 2025-06-18 - [Medium] Incomplete Model Validation
+**Vulnerability:** While primary fields like `password` were validated, secondary fields like `confirm_password` and `ExportRequest` parameters (`resolution`, `subtitle_color`) lacked `max_length` constraints, re-introducing DoS vectors.
+**Learning:** Security fixes often miss "secondary" or "confirmation" fields. Pydantic's default behavior is permissive.
+**Prevention:** Use a linter or explicit audit step to ensure *every* `str` field in a Pydantic model has a `max_length` constraint or `Field(...)` definition.

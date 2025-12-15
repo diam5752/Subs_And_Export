@@ -90,7 +90,7 @@ def update_user_me(
 
 class UserUpdatePassword(BaseModel):
     password: str = Field(..., min_length=12, max_length=128)
-    confirm_password: str
+    confirm_password: str = Field(..., max_length=128)
 
 @router.put("/password", response_model=Any)
 def update_password(

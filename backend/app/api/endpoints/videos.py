@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import List
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Request, UploadFile
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from ...core import config
 from ...core.auth import User
@@ -678,12 +678,12 @@ def create_viral_metadata(
 
 
 class ExportRequest(BaseModel):
-    resolution: str
+    resolution: str = Field(..., max_length=50)
     subtitle_position: int | None = None
     max_subtitle_lines: int | None = None
-    subtitle_color: str | None = None
+    subtitle_color: str | None = Field(None, max_length=20)
     shadow_strength: int | None = None
-    highlight_style: str | None = None
+    highlight_style: str | None = Field(None, max_length=20)
     subtitle_size: int | None = None
     karaoke_enabled: bool | None = None
 
