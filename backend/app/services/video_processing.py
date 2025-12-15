@@ -67,6 +67,13 @@ def _parse_legacy_position(position_value: int | str | None) -> int:
 def _build_filtergraph(ass_path: Path, *, target_width: int | None = None, target_height: int | None = None) -> str:
     ass_file = ass_path.as_posix().replace("'", r"\'")
     ass_filter = f"ass='{ass_file}'"
+    
+    print(f"DEBUG_FILTERGRAPH: target_width={target_width}, target_height={target_height}")
+    
+    # If no target dimensions, skip scaling - keep original resolution
+    if target_width is None and target_height is None:
+        return f"format=yuv420p,{ass_filter}"
+    
     width = target_width or config.DEFAULT_WIDTH
     height = target_height or config.DEFAULT_HEIGHT
     scale = (

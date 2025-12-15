@@ -55,8 +55,8 @@ class ProcessingSettings(BaseModel):
     transcribe_provider: str = "local"
     openai_model: str | None = None
     video_quality: str = "high quality"
-    target_width: int = config.DEFAULT_WIDTH
-    target_height: int = config.DEFAULT_HEIGHT
+    target_width: int | None = None
+    target_height: int | None = None
     use_llm: bool = APP_SETTINGS.use_llm_by_default
     context_prompt: str = ""
     llm_model: str = APP_SETTINGS.llm_model
@@ -104,14 +104,14 @@ def _record_event_safe(
         return
 
 
-def _parse_resolution(res_str: str | None) -> tuple[int, int]:
-    """Parse resolution strings like '1080x1920' or '2160×3840'. Defaults to configured size on failure."""
+def _parse_resolution(res_str: str | None) -> tuple[int | None, int | None]:
+    """Parse resolution strings like '1080x1920' or '2160×3840'. Returns (None, None) if empty."""
     if not res_str:
-        return config.DEFAULT_WIDTH, config.DEFAULT_HEIGHT
+        return None, None  # Skip scaling, keep original resolution
     cleaned = res_str.lower().replace("×", "x")
     parts = cleaned.split("x")
     if len(parts) != 2:
-        return config.DEFAULT_WIDTH, config.DEFAULT_HEIGHT
+        return None, None  # Skip scaling on parse error
     try:
         w = int(parts[0])
         h = int(parts[1])
@@ -119,7 +119,7 @@ def _parse_resolution(res_str: str | None) -> tuple[int, int]:
             return w, h
     except Exception:
         pass
-    return config.DEFAULT_WIDTH, config.DEFAULT_HEIGHT
+    return None, None  # Skip scaling on invalid dimensions
 
 def run_video_processing(
     job_id: str,
@@ -170,8 +170,8 @@ def run_video_processing(
         provider = settings.transcribe_provider or "local"
         crf_map = {"low size": 28, "balanced": 20, "high quality": 12}
         video_crf = crf_map.get(settings.video_quality.lower(), 12) # Default to high quality (12)
-        target_width = settings.target_width or config.DEFAULT_WIDTH
-        target_height = settings.target_height or config.DEFAULT_HEIGHT
+        target_width = settings.target_width  # None = keep original resolution
+        target_height = settings.target_height  # None = keep original resolution
 
         artifact_dir.mkdir(parents=True, exist_ok=True)
         output_path.parent.mkdir(parents=True, exist_ok=True)

@@ -31,7 +31,7 @@ export interface ProcessingOptions {
     transcribeMode: TranscribeMode;
     transcribeProvider: TranscribeProvider;
     outputQuality: 'low size' | 'balanced' | 'high quality';
-    outputResolution: '1080x1920' | '2160x3840';
+    outputResolution: '1080x1920' | '2160x3840' | ''; // empty = keep original
     useAI: boolean;
     contextPrompt: string;
     subtitle_position: number;
@@ -375,7 +375,7 @@ export function ProcessView({
             transcribeMode,
             transcribeProvider,
             outputQuality: 'high quality',
-            outputResolution: '1080x1920', // Always preview in 1080p
+            outputResolution: '', // Keep original resolution
             useAI,
             contextPrompt,
             subtitle_position: subtitlePosition,
