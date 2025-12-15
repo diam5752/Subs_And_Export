@@ -19,6 +19,36 @@ interface JobListItemProps {
     t: (key: string) => string;
 }
 
+function arePropsEqual(prev: JobListItemProps, next: JobListItemProps) {
+    // Check if job essential data changed
+    const jobChanged =
+        prev.job.id !== next.job.id ||
+        prev.job.status !== next.job.status ||
+        prev.job.progress !== next.job.progress ||
+        prev.job.updated_at !== next.job.updated_at;
+
+    if (jobChanged) return false;
+
+    // Check other props
+    return (
+        prev.selectionMode === next.selectionMode &&
+        prev.isSelected === next.isSelected &&
+        prev.isExpired === next.isExpired &&
+        prev.publicUrl === next.publicUrl &&
+        prev.timestamp === next.timestamp &&
+        prev.isConfirmingDelete === next.isConfirmingDelete &&
+        prev.isDeleting === next.isDeleting &&
+        // Functions (reference equality)
+        prev.formatDate === next.formatDate &&
+        prev.onToggleSelection === next.onToggleSelection &&
+        prev.onJobSelect === next.onJobSelect &&
+        prev.setShowPreview === next.setShowPreview &&
+        prev.setConfirmDeleteId === next.setConfirmDeleteId &&
+        prev.onDeleteConfirmed === next.onDeleteConfirmed &&
+        prev.t === next.t
+    );
+}
+
 export const JobListItem = memo(function JobListItem({
     job,
     selectionMode,
@@ -165,4 +195,4 @@ export const JobListItem = memo(function JobListItem({
             </div>
         </div>
     );
-});
+}, arePropsEqual);
