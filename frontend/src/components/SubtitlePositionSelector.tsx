@@ -302,10 +302,12 @@ export const SubtitlePositionSelector: React.FC<SubtitlePositionSelectorProps> =
                                     </p>
                                 </div>
                             ) : (
-                                <div className="flex flex-col gap-2" role="group" aria-labelledby={linesLabelId}>
+                                <div className="flex flex-col gap-2" role="radiogroup" aria-labelledby={linesLabelId}>
                                     {lineOptions.map((opt) => (
                                         <button
                                             key={opt.value}
+                                            role="radio"
+                                            aria-checked={lines === opt.value}
                                             onClick={handleLineChange(opt.value)}
                                             className={`p-3 rounded-xl border text-left transition-all flex items-center justify-between group ${lines === opt.value
                                                 ? 'border-[var(--accent)] bg-[var(--accent)]/5 ring-1 ring-[var(--accent)] shadow-[0_0_15px_rgba(var(--accent-rgb),0.1)]'
