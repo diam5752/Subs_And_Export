@@ -42,6 +42,10 @@ RUN mkdir -p /data/uploads /data/artifacts /app/logs
 ENV HF_HOME=/models
 RUN mkdir -p /models
 
+# Pre-download the Whisper model during build (eliminates first-run delay)
+# This downloads the large-v3-turbo model (~3GB) and caches it in /models
+RUN python -c "from faster_whisper import WhisperModel; WhisperModel('large-v3-turbo', device='cpu', compute_type='int8')"
+
 # Set environment variables
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
