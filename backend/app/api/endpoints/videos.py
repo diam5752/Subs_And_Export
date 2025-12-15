@@ -199,6 +199,7 @@ def run_video_processing(
             subtitle_size=settings.subtitle_size,
             karaoke_enabled=settings.karaoke_enabled,
             check_cancelled=check_cancelled,
+            transcription_only=True,
         )
         print(f"DEBUG_VIDEOS: normalize called with max_subtitle_lines={settings.max_subtitle_lines} color={settings.subtitle_color} shadow={settings.shadow_strength} style={settings.highlight_style}")
 
@@ -219,6 +220,7 @@ def run_video_processing(
             "artifacts_dir": artifact_public,  # Same as artifact_url path (relative to data_dir)
             "public_url": f"/static/{public_path}",
             "artifact_url": f"/static/{artifact_public}",
+            "transcription_url": f"/static/{artifact_public}/transcription.json",
             "social": social.tiktok.title if social else None, # Just storing title for simple view now
             "original_filename": original_name or input_path.name,
             "video_crf": video_crf,
@@ -626,6 +628,13 @@ def create_viral_metadata(
 
 class ExportRequest(BaseModel):
     resolution: str
+    subtitle_position: int | None = None
+    max_subtitle_lines: int | None = None
+    subtitle_color: str | None = None
+    shadow_strength: int | None = None
+    highlight_style: str | None = None
+    subtitle_size: int | None = None
+    karaoke_enabled: bool | None = None
 
 
 @router.post("/jobs/{job_id}/export", response_model=JobResponse, dependencies=[Depends(limiter_content)])
@@ -670,7 +679,8 @@ def export_video(
             artifact_dir,
             request.resolution,
             job_store,
-            current_user.id
+            current_user.id,
+            subtitle_settings=request.dict(exclude_defaults=True)
         )
 
         # Update job result data with the new variant info

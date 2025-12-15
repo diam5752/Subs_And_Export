@@ -78,6 +78,39 @@ export default function DashboardPage() {
     loadJobs();
   }, [loadJobs]);
 
+  // Restore session
+  useEffect(() => {
+    const restoreSession = async () => {
+      const lastJobId = localStorage.getItem('lastActiveJobId');
+      if (lastJobId && !selectedJob && !jobId) {
+        try {
+          const job = await api.getJobStatus(lastJobId);
+          // Only restore if job is valid/active
+          if (job && job.status !== 'failed') {
+            setSelectedJob(job);
+          } else {
+            localStorage.removeItem('lastActiveJobId');
+          }
+        } catch (err) {
+          console.warn('Failed to restore session job:', err);
+          localStorage.removeItem('lastActiveJobId');
+        }
+      }
+    };
+    restoreSession();
+  }, []); // Run once on mount
+
+  // Persist session
+  useEffect(() => {
+    if (selectedJob?.id) {
+      localStorage.setItem('lastActiveJobId', selectedJob.id);
+    } else if (!isProcessing && !jobId) {
+      // Only clear if we explicitly cleared the job (and not just starting a new one)
+      // actually, we might want to keep it until a new one is set, but let's be safe
+      // If selectedJob became null, checking if it was intentional reset
+    }
+  }, [selectedJob, isProcessing, jobId]);
+
   const refreshActivity = useCallback(async () => {
     await loadJobs();
   }, [loadJobs]);

@@ -12,6 +12,7 @@ export interface JobResultData {
     artifacts_dir: string;
     public_url?: string;
     artifact_url?: string;
+    transcription_url?: string;
     social?: string | null;
     original_filename?: string | null;
     video_crf?: number;
@@ -301,10 +302,18 @@ class ApiClient {
         });
     }
 
-    async exportVideo(jobId: string, resolution: string): Promise<JobResponse> {
+    async exportVideo(jobId: string, resolution: string, settings?: {
+        subtitle_position?: number;
+        max_subtitle_lines?: number;
+        subtitle_color?: string;
+        shadow_strength?: number;
+        highlight_style?: string;
+        subtitle_size?: number;
+        karaoke_enabled?: boolean;
+    }): Promise<JobResponse> {
         return this.request<JobResponse>(`/videos/jobs/${jobId}/export`, {
             method: 'POST',
-            body: JSON.stringify({ resolution }),
+            body: JSON.stringify({ resolution, ...settings }),
         });
     }
 

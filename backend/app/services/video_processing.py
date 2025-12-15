@@ -13,7 +13,7 @@ from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
+from typing import Callable, List
 
 from backend.app.common import metrics
 from backend.app.core import config
@@ -256,6 +256,7 @@ def _persist_artifacts(
     ass_path: Path,
     transcript_text: str,
     social_copy: subtitles.SocialCopy | None,
+    cues: List[subtitles.Cue] | None = None,
 ) -> None:
     artifact_dir.mkdir(parents=True, exist_ok=True)
 
@@ -297,6 +298,23 @@ def _persist_artifacts(
             json.dumps(social_json, ensure_ascii=False, indent=2), encoding="utf-8"
         )
 
+    if cues:
+        cues_data = [
+            {
+                "start": c.start,
+                "end": c.end,
+                "text": c.text,
+                "words": [
+                    {"start": w.start, "end": w.end, "text": w.text}
+                    for w in c.words
+                ] if c.words else None
+            }
+            for c in cues
+        ]
+        (artifact_dir / "transcription.json").write_text(
+            json.dumps(cues_data, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+
 def normalize_and_stub_subtitles(
     input_path: Path,
     output_path: Path,
@@ -326,6 +344,7 @@ def normalize_and_stub_subtitles(
     use_hw_accel: bool = config.USE_HW_ACCEL,
     progress_callback: Callable[[str, float], None] | None = None,
     check_cancelled: Callable[[], None] | None = None,
+    transcription_only: bool = False,
     output_width: int | None = None,
     output_height: int | None = None,
     # Legacy/Passed-through but less impactful now
@@ -549,7 +568,8 @@ def normalize_and_stub_subtitles(
                     else:
                         social_copy = subtitles.build_social_copy(transcript_text)
 
-                # RENDER (The Eye)
+            # RENDER (The Eye)
+            if not transcription_only:
                 if progress_callback: progress_callback("Rendering...", 80.0)
 
                 try:
@@ -595,7 +615,7 @@ def normalize_and_stub_subtitles(
             # Step 5: Artifacts
             if progress_callback: progress_callback("Finalizing...", 95.0)
             if artifact_dir:
-                 _persist_artifacts(artifact_dir, audio_path, srt_path, ass_path, transcript_text, social_copy)
+                 _persist_artifacts(artifact_dir, audio_path, srt_path, ass_path, transcript_text, social_copy, cues)
                  if destination.exists() and artifact_dir != destination.parent:
                      shutil.copy2(destination, artifact_dir / destination.name)
 
@@ -622,15 +642,15 @@ def normalize_and_stub_subtitles(
 
     if progress_callback: progress_callback("Done!", 100.0)
 
-    if not destination.exists():
+    if not transcription_only and not destination.exists():
         raise RuntimeError(f"Output video was not produced. Error: {pipeline_error or 'Unknown'}")
 
     if generate_social_copy:
         if social_copy is None:
             # Safety fallback to deterministic social copy so we never raise on None
             social_copy = subtitles.build_social_copy(transcript_text or "")
-        return destination, social_copy
-    return destination
+        return (destination if not transcription_only else input_path), social_copy
+    return destination if not transcription_only else input_path
 
 def generate_video_variant(
     job_id: str,
@@ -639,6 +659,7 @@ def generate_video_variant(
     resolution: str,
     job_store,
     user_id: str,
+    subtitle_settings: dict | None = None,
 ) -> Path:
     if not input_path.exists():
         raise FileNotFoundError("Original input video not found")
@@ -672,7 +693,67 @@ def generate_video_variant(
     # If we regenerate the ASS at a higher resolution without scaling font sizes,
     # the subtitles appear much smaller than in the original preview/export.
     ass_path = transcript_path.with_suffix(".ass")
-    if not ass_path.exists():
+    
+    # If explicit settings provided, we FORCE regeneration
+    if subtitle_settings:
+        # Load Cues from JSON if available (Better accuracy/Karaoke)
+        cues = None
+        transcription_json = artifact_dir / "transcription.json"
+        if transcription_json.exists():
+            try:
+                import json
+                data = json.loads(transcription_json.read_text(encoding="utf-8"))
+                # Reconstruct Cue objects
+                cues = []
+                for item in data:
+                    words = [subtitles.WordTiming(**w) for w in item["words"]] if item.get("words") else None
+                    cues.append(subtitles.Cue(
+                        start=item["start"],
+                        end=item["end"],
+                        text=item["text"],
+                        words=words
+                    ))
+            except Exception as e:
+                print(f"Failed to load transcription.json: {e}")
+
+        subtitle_size_raw = subtitle_settings.get("subtitle_size")
+        if isinstance(subtitle_size_raw, str):
+            legacy_map = {"small": 70, "medium": 85, "big": 100, "extra-big": 150}
+            subtitle_size = legacy_map.get(subtitle_size_raw.lower(), 100)
+        else:
+            subtitle_size = int(subtitle_size_raw) if subtitle_size_raw else 100
+        font_size = _font_size_from_subtitle_size(subtitle_size)
+
+        karaoke_enabled = bool(subtitle_settings.get("karaoke_enabled", True))
+        requested_highlight_style = str(subtitle_settings.get("highlight_style") or "karaoke").lower()
+        highlight_style = "static" if not karaoke_enabled else requested_highlight_style
+
+        # FIX: Always use reference resolution (1080x1920) for ASS generation.
+        # This ensures the font_size (calibrated to 1080p) scales proportionally
+        # to any output resolution via FFmpeg's internal scaling.
+        # Using specific resolution here would break the font size ratio.
+        base_width, base_height = config.DEFAULT_WIDTH, config.DEFAULT_HEIGHT
+
+        # Helper to safely resolve int params (preserving 0)
+        def _resolve_param(val: Any, default: int) -> int:
+            return int(val) if val is not None else default
+
+        ass_path = subtitles.create_styled_subtitle_file(
+            transcript_path,
+            cues=cues, # Use loaded cues!
+            subtitle_position=_parse_legacy_position(subtitle_settings.get("subtitle_position")),
+            max_lines=_resolve_param(subtitle_settings.get("max_subtitle_lines"), 2),
+            primary_color=str(subtitle_settings.get("subtitle_color") or config.DEFAULT_SUB_COLOR),
+            shadow_strength=_resolve_param(subtitle_settings.get("shadow_strength"), 4),
+            font_size=font_size,
+            highlight_style=highlight_style,
+            play_res_x=base_width,
+            play_res_y=base_height,
+            output_dir=artifact_dir,
+        )
+
+    # Otherwise try to reuse existing ASS
+    elif not ass_path.exists():
         ass_candidates = sorted(artifact_dir.glob("*.ass"))
         ass_path = ass_candidates[0] if ass_candidates else ass_path
 
@@ -693,21 +774,20 @@ def generate_video_variant(
         requested_highlight_style = str(result_data.get("highlight_style") or "karaoke").lower()
         highlight_style = "static" if not karaoke_enabled else requested_highlight_style
 
+        # FIX: Always use reference resolution for ASS PlayRes
         base_width, base_height = config.DEFAULT_WIDTH, config.DEFAULT_HEIGHT
-        try:
-            base_res = str(result_data.get("resolution") or "")
-            w_str, h_str = base_res.lower().replace("×", "x").split("x")
-            base_width, base_height = int(w_str), int(h_str)
-        except Exception:
-            pass
+
+        # Helper to safely resolve int params (preserving 0)
+        def _resolve_param(val: Any, default: int) -> int:
+            return int(val) if val is not None else default
 
         ass_path = subtitles.create_styled_subtitle_file(
             transcript_path,
             cues=None,
             subtitle_position=_parse_legacy_position(result_data.get("subtitle_position")),
-            max_lines=int(result_data.get("max_subtitle_lines") or 2),
+            max_lines=_resolve_param(result_data.get("max_subtitle_lines"), 2),
             primary_color=str(result_data.get("subtitle_color") or config.DEFAULT_SUB_COLOR),
-            shadow_strength=int(result_data.get("shadow_strength") or 4),
+            shadow_strength=_resolve_param(result_data.get("shadow_strength"), 4),
             font_size=font_size,
             highlight_style=highlight_style,
             play_res_x=base_width,
