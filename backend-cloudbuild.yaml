@@ -1,0 +1,46 @@
+steps:
+  # 1. Pull the previous 'latest' image to use as a cache source
+  #    (The '|| exit 0' ensures the build doesn't fail if this is the very first run)
+  - name: 'gcr.io/cloud-builders/docker'
+    entrypoint: 'bash'
+    args: ['-c', 'docker pull europe-west1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/ascentia-subs:latest || exit 0']
+
+  # 2. Build the image using the previous one as a cache
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'europe-west1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/ascentia-subs:$COMMIT_SHA'
+      - '-t'
+      - 'europe-west1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/ascentia-subs:latest'
+      - '--cache-from'
+      - 'europe-west1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/ascentia-subs:latest'
+      - '.'
+
+  # 3. Push both tags (the specific Commit SHA and 'latest' for the next cache)
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'europe-west1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/ascentia-subs:$COMMIT_SHA']
+  
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'europe-west1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/ascentia-subs:latest']
+
+  # 4. Deploy the new image to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'services'
+      - 'update'
+      - 'ascentia-subs'
+      - '--image'
+      - 'europe-west1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/ascentia-subs:$COMMIT_SHA'
+      - '--region'
+      - 'europe-west1'
+      - '--quiet'
+
+images:
+  - 'europe-west1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/ascentia-subs:$COMMIT_SHA'
+  - 'europe-west1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/ascentia-subs:latest'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
