@@ -316,7 +316,7 @@ export function ProcessView({
         return () => {
             URL.revokeObjectURL(blobUrl);
         };
-    }, [selectedFile, t, validateVideoAspectRatio]);
+    }, [selectedFile]);
 
     // Effect: Fetch transcription cues if available
     useEffect(() => {
