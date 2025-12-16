@@ -8,6 +8,7 @@ import { ViralIntelligence } from '@/components/ViralIntelligence';
 import { SubtitlePositionSelector } from '@/components/SubtitlePositionSelector';
 import { Cue } from '@/components/SubtitleOverlay';
 import { PreviewPlayer, PreviewPlayerHandle } from '@/components/PreviewPlayer';
+import { CueItem } from './CueItem';
 import { PhoneFrame } from '@/components/PhoneFrame';
 import { validateVideoAspectRatio } from '@/lib/video';
 import { resegmentCues, findCueIndexAtTime } from '@/lib/subtitleUtils';
@@ -293,6 +294,14 @@ export function ProcessView({
             setIsSavingTranscript(false);
         }
     }, [cues, editingCueDraft, editingCueIndex, selectedJob, t, updateCueText]);
+
+    const handleUpdateDraft = useCallback((text: string) => {
+        setEditingCueDraft(text);
+    }, []);
+
+    const handleSeek = useCallback((time: number) => {
+        playerRef.current?.seekTo(time);
+    }, []);
 
     // Dynamically re-segment cues based on "Max Lines" selection
     const processedCues = useMemo(() => {
@@ -1418,76 +1427,21 @@ export function ProcessView({
                                                                         const canEditThis = !isSavingTranscript && (editingCueIndex === null || isEditing);
 
                                                                         return (
-                                                                            <div
+                                                                            <CueItem
                                                                                 key={`${cue.start}-${cue.end}-${index}`}
-                                                                                id={`cue-${index}`}
-                                                                                className={`rounded-lg border px-2 py-2 transition-colors ${isActive
-                                                                                    ? 'border-[var(--accent)]/25 bg-[var(--accent)]/10'
-                                                                                    : 'border-transparent hover:bg-white/5'
-                                                                                    }`}
-                                                                            >
-                                                                                <div className="flex items-start gap-3">
-                                                                                    <button
-                                                                                        type="button"
-                                                                                        onClick={() => playerRef.current?.seekTo(cue.start)}
-                                                                                        className="font-mono text-xs opacity-60 pt-0.5 min-w-[42px] text-left hover:opacity-90 transition-opacity"
-                                                                                    >
-                                                                                        {Math.floor(cue.start / 60)}:{(cue.start % 60).toFixed(0).padStart(2, '0')}
-                                                                                    </button>
-                                                                                    <div className="flex-1 min-w-0">
-                                                                                        {isEditing ? (
-                                                                                            <textarea
-                                                                                                value={editingCueDraft}
-                                                                                                onChange={(e) => setEditingCueDraft(e.target.value)}
-                                                                                                className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)]/70 px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/30 min-h-[72px] resize-y"
-                                                                                                disabled={isSavingTranscript}
-                                                                                            />
-                                                                                        ) : (
-                                                                                            <button
-                                                                                                type="button"
-                                                                                                onClick={() => playerRef.current?.seekTo(cue.start)}
-                                                                                                className={`w-full text-left text-sm break-words [overflow-wrap:anywhere] ${isActive
-                                                                                                    ? 'text-[var(--foreground)] font-medium'
-                                                                                                    : 'text-[var(--muted)] hover:text-[var(--foreground)]'
-                                                                                                    }`}
-                                                                                            >
-                                                                                                {cue.text}
-                                                                                            </button>
-                                                                                        )}
-                                                                                    </div>
-                                                                                    <div className="flex items-center gap-2 flex-shrink-0 pt-0.5">
-                                                                                        {isEditing ? (
-                                                                                            <>
-                                                                                                <button
-                                                                                                    type="button"
-                                                                                                    onClick={saveEditingCue}
-                                                                                                    disabled={isSavingTranscript}
-                                                                                                    className="px-2 py-1 rounded-md text-xs font-semibold bg-emerald-500/15 text-emerald-200 border border-emerald-500/25 hover:bg-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                                                                                                >
-                                                                                                    {isSavingTranscript ? (t('transcriptSaving') || 'Saving…') : (t('transcriptSave') || 'Save')}
-                                                                                                </button>
-                                                                                                <button
-                                                                                                    type="button"
-                                                                                                    onClick={cancelEditingCue}
-                                                                                                    disabled={isSavingTranscript}
-                                                                                                    className="px-2 py-1 rounded-md text-xs font-medium bg-white/5 text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-white/10 border border-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
-                                                                                                >
-                                                                                                    {t('transcriptCancel') || 'Cancel'}
-                                                                                                </button>
-                                                                                            </>
-                                                                                        ) : (
-                                                                                            <button
-                                                                                                type="button"
-                                                                                                onClick={() => beginEditingCue(index)}
-                                                                                                disabled={!canEditThis}
-                                                                                                className="px-2 py-1 rounded-md text-xs font-medium bg-white/5 text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-white/10 border border-white/10 disabled:opacity-40 disabled:cursor-not-allowed"
-                                                                                            >
-                                                                                                {t('transcriptEdit') || 'Edit'}
-                                                                                            </button>
-                                                                                        )}
-                                                                                    </div>
-                                                                                </div>
-                                                                            </div>
+                                                                                cue={cue}
+                                                                                index={index}
+                                                                                isActive={isActive}
+                                                                                isEditing={isEditing}
+                                                                                canEdit={canEditThis}
+                                                                                draftText={isEditing ? editingCueDraft : ''}
+                                                                                isSaving={isSavingTranscript}
+                                                                                onSeek={handleSeek}
+                                                                                onEdit={beginEditingCue}
+                                                                                onSave={saveEditingCue}
+                                                                                onCancel={cancelEditingCue}
+                                                                                onUpdateDraft={handleUpdateDraft}
+                                                                            />
                                                                         );
                                                                     })}
                                                                     {cues.length === 0 && (
