@@ -132,22 +132,30 @@ describe('localized pages', () => {
     });
 
     it('renders English copy when locale is set to en', async () => {
-        renderWithI18n(
-            <div>
-                <DashboardPage />
-                <LoginPage />
-            </div>,
-            'en',
-        );
+        // Mock scrollIntoView for this test to avoid JSDOM errors
+        const originalScrollIntoView = Element.prototype.scrollIntoView;
+        Element.prototype.scrollIntoView = jest.fn();
 
-        // Check for English hero and UI elements instead of removed 'Workspace' tab
-        expect(await screen.findByText(/Build export-ready shorts/i)).toBeInTheDocument();
+        try {
+            renderWithI18n(
+                <div>
+                    <DashboardPage />
+                    <LoginPage />
+                </div>,
+                'en',
+            );
 
-        // Select a model to show upload section
-        fireEvent.click(screen.getByTestId('model-whispercpp'));
+            // Check for English hero and UI elements instead of removed 'Workspace' tab
+            expect(await screen.findByText(/Build export-ready shorts/i)).toBeInTheDocument();
 
-        expect(screen.getByText('Drop your vertical clip')).toBeInTheDocument();
-        expect(screen.getByText('Sign in to your account')).toBeInTheDocument();
+            // Select a model to show upload section
+            fireEvent.click(screen.getByTestId('model-whispercpp'));
+
+            expect(screen.getByText('Drop your vertical clip')).toBeInTheDocument();
+            expect(screen.getByText('Sign in to your account')).toBeInTheDocument();
+        } finally {
+            Element.prototype.scrollIntoView = originalScrollIntoView;
+        }
     });
 
     it('throws error when useI18n is used outside of I18nProvider', () => {

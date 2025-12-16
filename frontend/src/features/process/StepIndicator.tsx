@@ -1,6 +1,5 @@
 
 import React from 'react';
-import { useI18n } from '@/context/I18nContext';
 
 interface StepIndicatorProps {
     currentStep: number; // 1, 2, or 3
@@ -12,7 +11,6 @@ interface StepIndicatorProps {
 }
 
 export function StepIndicator({ currentStep, steps }: StepIndicatorProps) {
-    const { t } = useI18n();
 
     return (
         <div className="w-full max-w-4xl mx-auto mb-10 px-4">
@@ -28,10 +26,9 @@ export function StepIndicator({ currentStep, steps }: StepIndicatorProps) {
                     }}
                 />
 
-                {steps.map((step, index) => {
+                {steps.map((step) => {
                     const isActive = currentStep === step.id; // Strictly active
                     const isCompleted = currentStep > step.id; // Strictly completed
-                    const isLast = index === steps.length - 1;
 
                     return (
                         <div key={step.id} className="group relative flex flex-col items-center">
