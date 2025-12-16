@@ -68,6 +68,29 @@ export const AccountView = memo(function AccountView({
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [deleting, setDeleting] = useState(false);
     const [deleteError, setDeleteError] = useState('');
+    const [exporting, setExporting] = useState(false);
+    const [exportError, setExportError] = useState('');
+
+    const handleExport = async () => {
+        setExporting(true);
+        setExportError('');
+        try {
+            const data = await api.exportData();
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `ascentia-data-${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        } catch (err) {
+            setExportError(err instanceof Error ? err.message : (t('exportError') || 'Failed to export data'));
+        } finally {
+            setExporting(false);
+        }
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -195,6 +218,27 @@ export const AccountView = memo(function AccountView({
                         </button>
                     </div>
                 </form>
+            </div>
+
+            {/* Data Management */}
+            <div className="card space-y-4">
+                <div>
+                    <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">{t('dataManagement') || 'DATA MANAGEMENT'}</p>
+                    <h3 className="text-lg font-semibold">{t('exportData') || 'Export Data'}</h3>
+                    <p className="text-sm text-[var(--muted)]">{t('exportDataDescription') || 'Download a copy of your personal data.'}</p>
+                </div>
+
+                {exportError && (
+                    <p className="text-[var(--danger)] text-sm">{exportError}</p>
+                )}
+
+                <button
+                    onClick={handleExport}
+                    disabled={exporting}
+                    className="px-4 py-2 rounded-lg border border-[var(--border)] text-[var(--foreground)] hover:bg-white/5 transition-colors disabled:opacity-50"
+                >
+                    {exporting ? (t('exporting') || 'Exporting...') : (t('exportData') || 'Export Data')}
+                </button>
             </div>
 
             {/* Sign Out Button - iOS Style */}

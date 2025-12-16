@@ -42,11 +42,17 @@ export interface HistoryEvent {
     data: Record<string, unknown>;
 }
 
-interface UserResponse {
+export interface UserResponse {
     id: string;
     email: string;
     name: string;
     provider: string;
+}
+
+export interface ExportDataResponse {
+    profile: UserResponse;
+    jobs: JobResponse[];
+    history: HistoryEvent[];
 }
 
 export interface ViralMetadataResponse {
@@ -292,6 +298,10 @@ class ApiClient {
         });
         this.setToken(response.access_token);
         return response;
+    }
+
+    async exportData(): Promise<ExportDataResponse> {
+        return this.request<ExportDataResponse>('/auth/export');
     }
 
     async deleteAccount(): Promise<{ status: string; message: string }> {

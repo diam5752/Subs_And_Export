@@ -13,6 +13,7 @@ jest.mock('next/navigation', () => ({
 jest.mock('@/lib/api', () => ({
     api: {
         deleteAccount: jest.fn(),
+        exportData: jest.fn(),
     },
 }));
 
@@ -123,5 +124,37 @@ describe('AccountView', () => {
 
         // Confirmation should disappear
         expect(screen.queryByText(/this action cannot be undone/i)).not.toBeInTheDocument();
+    });
+
+    it('handles data export', async () => {
+        (api.exportData as jest.Mock).mockResolvedValue({ profile: {}, jobs: [], history: [] });
+
+        // Mock URL methods
+        const mockCreateObjectURL = jest.fn(() => 'blob:test');
+        const mockRevokeObjectURL = jest.fn();
+        global.URL.createObjectURL = mockCreateObjectURL;
+        global.URL.revokeObjectURL = mockRevokeObjectURL;
+
+        renderAccountView();
+
+        const exportBtn = screen.getByRole('button', { name: /Export My Data/i });
+        fireEvent.click(exportBtn);
+
+        // Expect loading state
+        expect(screen.getByText(/Exporting.../i)).toBeInTheDocument();
+
+        await waitFor(() => expect(api.exportData).toHaveBeenCalled());
+        await waitFor(() => expect(mockCreateObjectURL).toHaveBeenCalled());
+        await waitFor(() => expect(mockRevokeObjectURL).toHaveBeenCalled());
+    });
+
+    it('handles data export error', async () => {
+        (api.exportData as jest.Mock).mockRejectedValue(new Error('Export failed'));
+        renderAccountView();
+
+        const exportBtn = screen.getByRole('button', { name: /Export My Data/i });
+        fireEvent.click(exportBtn);
+
+        await waitFor(() => expect(screen.getByText('Export failed')).toBeInTheDocument());
     });
 });

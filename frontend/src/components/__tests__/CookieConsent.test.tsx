@@ -46,4 +46,17 @@ describe('CookieConsent', () => {
       expect(screen.queryByText('cookieTitle')).not.toBeInTheDocument();
     });
   });
+
+  it('hides the prompt and stores declined state when declined', async () => {
+    render(<CookieConsent />);
+
+    await waitFor(() => {
+      expect(screen.getByText('cookieTitle')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'cookieDecline' }));
+
+    expect(localStorage.getItem('cookie-consent')).toBe('declined');
+    expect(screen.queryByText('cookieTitle')).not.toBeInTheDocument();
+  });
 });
