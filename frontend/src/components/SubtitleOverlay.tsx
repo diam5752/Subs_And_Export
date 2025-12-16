@@ -43,42 +43,46 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
 
     // 2. Base Styles
     // Map settings to CSS
-    const bottomPct = settings.position; // Directly use as bottom %
+    const { containerStyle, textStyle, activeColor } = useMemo(() => {
+        const bottomPct = settings.position; // Directly use as bottom %
 
-    // Backend uses 62px base font size on 1080px width (approx 5.74%)
-    // Backend uses 80px margins on 1080px width (approx 7.4%)
-    const baseSize = videoWidth * (62 / 1080);
-    const currentSize = baseSize * (settings.fontSize / 100);
+        // Backend uses 62px base font size on 1080px width (approx 5.74%)
+        // Backend uses 80px margins on 1080px width (approx 7.4%)
+        const baseSize = videoWidth * (62 / 1080);
+        const currentSize = baseSize * (settings.fontSize / 100);
 
-    // Shadow logic (approximate ASS shadow)
-    const shadowPx = settings.shadowStrength * (videoWidth / 1000);
-    const textShadow = `
-        ${shadowPx}px ${shadowPx}px 0px rgba(0,0,0,0.8),
-        -${shadowPx}px -1px 0px rgba(0,0,0,0.8),
-        1px -${shadowPx}px 0px rgba(0,0,0,0.8)
-    `;
+        // Shadow logic (approximate ASS shadow)
+        const shadowPx = settings.shadowStrength * (videoWidth / 1000);
+        const textShadow = `
+            ${shadowPx}px ${shadowPx}px 0px rgba(0,0,0,0.8),
+            -${shadowPx}px -1px 0px rgba(0,0,0,0.8),
+            1px -${shadowPx}px 0px rgba(0,0,0,0.8)
+        `;
 
-    const containerStyle: React.CSSProperties = {
-        position: 'absolute',
-        bottom: `${bottomPct}%`,
-        left: '7.4%', // Match backend 80/1080 margin
-        right: '7.4%',
-        textAlign: 'center',
-        pointerEvents: 'none',
-        zIndex: 20,
-    };
+        const container = {
+            position: 'absolute' as const,
+            bottom: `${bottomPct}%`,
+            left: '7.4%', // Match backend 80/1080 margin
+            right: '7.4%',
+            textAlign: 'center' as const,
+            pointerEvents: 'none' as const,
+            zIndex: 20,
+        };
 
-    const textStyle: React.CSSProperties = {
-        fontFamily: 'Montserrat, sans-serif', // Match generic bold font
-        fontWeight: 900,
-        fontSize: `${currentSize}px`,
-        lineHeight: 1.2,
-        textShadow: textShadow,
-        textTransform: 'uppercase',
-        color: 'white', // Default base color (usually secondary check)
-        // We'll handle primary color in inner spans
-        whiteSpace: 'pre-wrap',
-    };
+        const text = {
+            fontFamily: 'Montserrat, sans-serif', // Match generic bold font
+            fontWeight: 900,
+            fontSize: `${currentSize}px`,
+            lineHeight: 1.2,
+            textShadow: textShadow,
+            textTransform: 'uppercase' as const,
+            color: 'white', // Default base color (usually secondary check)
+            // We'll handle primary color in inner spans
+            whiteSpace: 'pre-wrap' as const,
+        };
+
+        return { containerStyle: container, textStyle: text, activeColor: settings.color };
+    }, [settings.position, settings.fontSize, settings.shadowStrength, settings.color, videoWidth]);
 
     // 3. Render Content
 
