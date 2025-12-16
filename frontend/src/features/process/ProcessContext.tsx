@@ -518,20 +518,35 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
         setEditingCueDraft('');
     }, []);
 
+    // Refs for stable callbacks to prevent re-renders on keystrokes/polling
+    const editingCueDraftRef = useRef(editingCueDraft);
+    const editingCueIndexRef = useRef(editingCueIndex);
+    const cuesRef = useRef(cues);
+
+    useEffect(() => {
+        editingCueDraftRef.current = editingCueDraft;
+        editingCueIndexRef.current = editingCueIndex;
+        cuesRef.current = cues;
+    }, [editingCueDraft, editingCueIndex, cues]);
+
     const saveEditingCue = useCallback(async () => {
-        if (editingCueIndex === null) return;
+        const index = editingCueIndexRef.current;
+        const draft = editingCueDraftRef.current;
+        const currentCues = cuesRef.current;
+
+        if (index === null) return;
 
         setTranscriptSaveError(null);
-        const updatedCues = cues.map((cue, index) => {
-            if (index !== editingCueIndex) return cue;
-            return updateCueText(cue, editingCueDraft);
+        const updatedCues = currentCues.map((cue, idx) => {
+            if (idx !== index) return cue;
+            return updateCueText(cue, draft);
         });
 
         setCues(updatedCues);
         setEditingCueIndex(null);
         setEditingCueDraft('');
 
-        if (!props.selectedJob) return;
+        if (!props.selectedJob?.id) return;
         setIsSavingTranscript(true);
         try {
             await api.updateJobTranscription(props.selectedJob.id, updatedCues);
@@ -542,7 +557,7 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
         } finally {
             setIsSavingTranscript(false);
         }
-    }, [cues, editingCueDraft, editingCueIndex, props.selectedJob, t, updateCueText]);
+    }, [props.selectedJob?.id, t, updateCueText]);
 
     const handleUpdateDraft = useCallback((text: string) => {
         setEditingCueDraft(text);
