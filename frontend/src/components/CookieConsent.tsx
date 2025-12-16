@@ -28,6 +28,15 @@ export default function CookieConsent() {
         setVisible(false);
     };
 
+    const decline = () => {
+        try {
+            localStorage.setItem('cookie-consent', 'declined');
+        } catch {
+            // Ignore write failures
+        }
+        setVisible(false);
+    };
+
     if (!visible) return null;
 
     return (
@@ -51,9 +60,20 @@ export default function CookieConsent() {
                             <Link href="/privacy" className="text-[var(--accent)] hover:underline">
                                 {t('cookieLearnMore')}
                             </Link>
+                            {' & '}
+                            <Link href="/terms" className="text-[var(--accent)] hover:underline">
+                                {t('cookieTerms')}
+                            </Link>
                             .
                         </p>
                         <div className="mt-3 flex items-center justify-end gap-2">
+                            <button
+                                type="button"
+                                onClick={decline}
+                                className="px-3 py-2 text-sm text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+                            >
+                                {t('cookieDecline')}
+                            </button>
                             <button
                                 type="button"
                                 onClick={accept}

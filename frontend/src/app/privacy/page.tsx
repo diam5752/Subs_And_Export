@@ -1,5 +1,6 @@
 
 import React from 'react';
+import Link from 'next/link';
 
 export default function PrivacyPolicy() {
     return (
@@ -22,6 +23,10 @@ export default function PrivacyPolicy() {
 
                 <h2 className="text-2xl font-semibold mt-6 mb-4">5. Contact</h2>
                 <p>For privacy inquiries, please contact support.</p>
+
+                <p className="mt-8 pt-8 border-t border-[var(--border)]">
+                    Please also review our <Link href="/terms" className="text-[var(--accent)] hover:underline">Terms of Service</Link>.
+                </p>
             </div>
         </div>
     );

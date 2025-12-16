@@ -1,45 +1,4 @@
-INFO:     Will watch for changes in these directories: ['/app']
-INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
-INFO:     Started reloader process [6456] using WatchFiles
-INFO:     Started server process [6584]
+INFO:     Started server process [6878]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
-WARNING:  WatchFiles detected changes in 'verify_frontend.py'. Reloading...
-INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-INFO:     Application shutdown complete.
-INFO:     Finished server process [6584]
-INFO:     Started server process [6921]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-INFO:     127.0.0.1:58020 - "OPTIONS /auth/me HTTP/1.1" 200 OK
-INFO:     127.0.0.1:58024 - "GET /auth/me HTTP/1.1" 401 Unauthorized
-WARNING:  WatchFiles detected changes in 'verify_frontend.py'. Reloading...
-INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-INFO:     Application shutdown complete.
-INFO:     Finished server process [6921]
-INFO:     Started server process [7347]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
-INFO:     127.0.0.1:41822 - "OPTIONS /auth/me HTTP/1.1" 200 OK
-INFO:     127.0.0.1:41826 - "GET /auth/me HTTP/1.1" 401 Unauthorized
-INFO:     127.0.0.1:41826 - "OPTIONS /auth/register HTTP/1.1" 200 OK
-INFO:     127.0.0.1:41822 - "POST /auth/register HTTP/1.1" 200 OK
-INFO:     127.0.0.1:41822 - "POST /auth/token HTTP/1.1" 200 OK
-INFO:     127.0.0.1:41822 - "OPTIONS /auth/me HTTP/1.1" 200 OK
-INFO:     127.0.0.1:41826 - "GET /auth/me HTTP/1.1" 200 OK
-INFO:     127.0.0.1:41826 - "OPTIONS /videos/jobs/paginated?page=1&page_size=5 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:41822 - "OPTIONS /videos/jobs/paginated?page=1&page_size=5 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:41842 - "GET /videos/jobs/paginated?page=1&page_size=5 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:41826 - "GET /videos/jobs/paginated?page=1&page_size=5 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:41842 - "GET /videos/jobs/paginated?page=1&page_size=5 HTTP/1.1" 200 OK
-INFO:     127.0.0.1:41826 - "GET /videos/jobs/paginated?page=1&page_size=5 HTTP/1.1" 200 OK
-WARNING:  WatchFiles detected changes in 'verify_frontend.py'. Reloading...
-INFO:     Shutting down
-INFO:     Waiting for application shutdown.
-INFO:     Application shutdown complete.
-INFO:     Finished server process [7347]
-INFO:     Started server process [7769]
-INFO:     Waiting for application startup.
-INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8080 (Press CTRL+C to quit)

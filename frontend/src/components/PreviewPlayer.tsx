@@ -166,6 +166,7 @@ export const PreviewPlayer = memo(forwardRef<PreviewPlayerHandle, PreviewPlayerP
     useEffect(() => {
         if (initialTime > 0 && videoRef.current) {
             videoRef.current.currentTime = initialTime;
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setCurrentTime(initialTime);
         }
     }, [initialTime]);
