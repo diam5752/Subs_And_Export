@@ -110,7 +110,7 @@ export function Sidebar() {
     if (!selectedJob) return null;
 
     return (
-        <div className="w-full md:w-[500px] lg:w-[600px] xl:w-full flex flex-col bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-xl overflow-hidden transition-all duration-500">
+        <div className="w-full md:w-[500px] lg:w-[600px] flex flex-col bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-xl overflow-hidden transition-all duration-500">
             {/* Status Header */}
             <div className="p-4 border-b border-[var(--border)] flex items-center justify-between bg-[var(--surface-elevated)]">
                 <div className="flex items-center gap-3 overflow-hidden">
