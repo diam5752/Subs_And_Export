@@ -133,7 +133,7 @@ export function PreviewSection() {
                                 <div className="preview-card-glow absolute inset-0 rounded-2xl" />
 
                                 <div className="relative rounded-2xl border border-white/10 bg-[var(--surface-elevated)] overflow-hidden">
-                                    <div className="flex flex-col lg:flex-row xl:flex-col gap-6 transition-all duration-500 ease-in-out lg:h-[850px] xl:h-auto">
+                                    <div className="flex flex-col lg:flex-row gap-6 transition-all duration-500 ease-in-out lg:h-[850px]">
                                         {/* Preview Player Area */}
                                         <div className="flex-1 flex flex-col items-center min-w-0">
                                             <div className="w-full h-full bg-black/20 rounded-2xl border border-white/5 flex flex-col items-center justify-center p-4 lg:p-8 relative overflow-hidden backdrop-blur-sm transition-all duration-500">
