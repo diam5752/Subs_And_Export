@@ -1020,7 +1020,7 @@ export function ProcessView({
                         </div>
                         {showDevTools && (
                             <div
-                                className="card relative overflow-hidden border border-[var(--accent)]/35"
+                                className={`card relative overflow-hidden border border-[var(--accent)]/35 ${!hasChosenModel ? 'grayscale' : ''}`}
                                 onClick={(e) => e.stopPropagation()}
                             >
                                 <div className="absolute inset-0 bg-gradient-to-br from-[var(--accent)]/12 via-transparent to-[var(--accent-secondary)]/10 pointer-events-none" />
