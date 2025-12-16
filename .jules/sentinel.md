@@ -55,3 +55,7 @@
 **Vulnerability:** While primary fields like `password` were validated, secondary fields like `confirm_password` and `ExportRequest` parameters (`resolution`, `subtitle_color`) lacked `max_length` constraints, re-introducing DoS vectors.
 **Learning:** Security fixes often miss "secondary" or "confirmation" fields. Pydantic's default behavior is permissive.
 **Prevention:** Use a linter or explicit audit step to ensure *every* `str` field in a Pydantic model has a `max_length` constraint or `Field(...)` definition.
+## 2025-06-25 - [High] Broken Availability via Shared IP Rate Limiting
+**Vulnerability:** The IP-based `RateLimiter` blocked valid authenticated users on Cloud Run because all requests originated from the same Load Balancer IP (`request.client.host`). This effectively created a shared quota for all users, leading to denial of service.
+**Learning:** In containerized/serverless environments (Cloud Run, K8s), relying on source IP for rate limiting is dangerous without strict `Forwarded` header processing. Authenticated endpoints should prefer User ID over IP.
+**Prevention:** For authenticated routes (`/videos/process`, `/upload`), implement `AuthenticatedRateLimiter` that keys off `user.id`. Keep IP-based limiting only for public endpoints (login/register) and ensure `ProxyHeadersMiddleware` is configured if possible.
