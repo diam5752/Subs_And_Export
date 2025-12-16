@@ -7,3 +7,11 @@
 ## 2025-02-24 - Custom Video Controls Accessibility
 **Learning:** Custom video player controls (Play, Pause, Mute, Seek) were implemented as generic buttons/inputs without `aria-label` or state indicators (`aria-pressed`). This makes the preview feature unusable for screen reader users.
 **Action:** When implementing custom media controls, always include `aria-label` (toggling between states like "Play"/"Pause") and `aria-pressed` or `aria-valuenow` for sliders to communicate current state.
+
+## 2025-12-16 - Form Accessibility Pattern
+**Learning:** Using `useId` is the robust way to associate labels with inputs in React, especially when component instances might be reused or rendered multiple times. Simple string IDs can cause conflicts or be fragile.
+**Action:** Always use `useId` for generating unique IDs for form controls and their corresponding labels ().
+
+## 2025-12-16 - Form Accessibility Pattern
+**Learning:** Using `useId` is the robust way to associate labels with inputs in React, especially when component instances might be reused or rendered multiple times. Simple string IDs can cause conflicts or be fragile.
+**Action:** Always use `useId` for generating unique IDs for form controls and their corresponding labels (`htmlFor`).

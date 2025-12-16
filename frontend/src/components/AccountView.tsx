@@ -1,5 +1,5 @@
 
-import React, { useState, memo } from 'react';
+import React, { useState, memo, useId } from 'react';
 import { useI18n } from '@/context/I18nContext';
 import { User } from '@/context/AuthContext';
 import { api, JobResponse } from '@/lib/api';
@@ -56,6 +56,11 @@ export const AccountView = memo(function AccountView({
 }: AccountViewProps) {
     const { t } = useI18n();
     const router = useRouter();
+    const displayNameId = useId();
+    const emailId = useId();
+    const passwordId = useId();
+    const confirmPasswordId = useId();
+
     // Use user.name as key to reset state when user changes - avoids setState in effect
     const [profileName, setProfileName] = useState(user.name);
     const [password, setPassword] = useState('');
@@ -126,28 +131,30 @@ export const AccountView = memo(function AccountView({
                 </div>
                 <form className="space-y-4" onSubmit={handleSubmit}>
                     <div>
-                        <label className="block text-sm font-medium text-[var(--muted)] mb-2">
+                        <label htmlFor={displayNameId} className="block text-sm font-medium text-[var(--muted)] mb-2">
                             {t('displayNameLabel')}
                         </label>
                         <input
+                            id={displayNameId}
                             className="input-field"
                             value={profileName}
                             onChange={(e) => setProfileName(e.target.value)}
                         />
                     </div>
                     <div>
-                        <label className="block text-sm font-medium text-[var(--muted)] mb-2">
+                        <label htmlFor={emailId} className="block text-sm font-medium text-[var(--muted)] mb-2">
                             {t('emailLabel')}
                         </label>
-                        <input className="input-field" value={user.email} disabled />
+                        <input id={emailId} className="input-field" value={user.email} disabled />
                     </div>
                     {user.provider === 'local' && (
                         <>
                             <div>
-                                <label className="block text-sm font-medium text-[var(--muted)] mb-2">
+                                <label htmlFor={passwordId} className="block text-sm font-medium text-[var(--muted)] mb-2">
                                     {t('newPasswordLabel')}
                                 </label>
                                 <input
+                                    id={passwordId}
                                     type="password"
                                     className="input-field"
                                     value={password}
@@ -156,10 +163,11 @@ export const AccountView = memo(function AccountView({
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-[var(--muted)] mb-2">
+                                <label htmlFor={confirmPasswordId} className="block text-sm font-medium text-[var(--muted)] mb-2">
                                     {t('confirmPasswordLabel')}
                                 </label>
                                 <input
+                                    id={confirmPasswordId}
                                     type="password"
                                     className="input-field"
                                     value={confirmPassword}
