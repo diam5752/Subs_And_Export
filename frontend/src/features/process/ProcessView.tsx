@@ -10,7 +10,7 @@ import { Cue } from '@/components/SubtitleOverlay';
 import { PreviewPlayer, PreviewPlayerHandle } from '@/components/PreviewPlayer';
 import { PhoneFrame } from '@/components/PhoneFrame';
 import { validateVideoAspectRatio } from '@/lib/video';
-import { resegmentCues } from '@/lib/subtitleUtils';
+import { resegmentCues, findCueIndexAtTime } from '@/lib/subtitleUtils';
 
 type TranscribeMode = 'balanced' | 'turbo';
 type TranscribeProvider = 'local' | 'openai' | 'groq' | 'whispercpp';
@@ -500,17 +500,17 @@ export function ProcessView({
         }
     }, [isProcessing, onFileSelect]);
 
-	    useEffect(() => {
-	        if (!selectedFile) {
-	            validationRequestId.current += 1;
-	            setVideoInfo(null);
-	            setPreviewVideoUrl(null); // Clear preview URL
-	            setCues([]); // Clear cues
-	            return;
-	        }
+    useEffect(() => {
+        if (!selectedFile) {
+            validationRequestId.current += 1;
+            setVideoInfo(null);
+            setPreviewVideoUrl(null); // Clear preview URL
+            setCues([]); // Clear cues
+            return;
+        }
 
-	        initialSelectionMade.current = false;
-	        const requestId = ++validationRequestId.current;
+        initialSelectionMade.current = false;
+        const requestId = ++validationRequestId.current;
 
         // Create Blob URL for preview
         const blobUrl = URL.createObjectURL(selectedFile);
@@ -607,7 +607,7 @@ export function ProcessView({
         if (editingCueIndex !== null) return;
         if (!cues || cues.length === 0) return;
 
-        const activeIndex = cues.findIndex(c => currentTime >= c.start && currentTime < c.end);
+        const activeIndex = findCueIndexAtTime(cues, currentTime);
 
         if (activeIndex !== -1 && transcriptContainerRef.current) {
             const element = document.getElementById(`cue-${activeIndex}`);
@@ -1055,23 +1055,23 @@ export function ProcessView({
                         </div>
                         <div className="card flex items-center gap-4 py-3 px-4 animate-fade-in border-emerald-500/20 bg-emerald-500/5 transition-all hover:bg-emerald-500/10">
                             {/* Thumbnail with Tick Overlay */}
-	                            <div className="relative h-16 w-16 shrink-0 rounded-lg overflow-hidden bg-black/20 border border-emerald-500/20 group">
-	                                {videoInfo?.thumbnailUrl ? (
-	                                    <Image
-	                                        src={videoInfo.thumbnailUrl}
-	                                        alt="Thumbnail"
-	                                        fill
-	                                        unoptimized
-	                                        className="object-cover opacity-80 transition-opacity group-hover:opacity-100"
-	                                        sizes="64px"
-	                                    />
-	                                ) : (
-	                                    <div className="h-full w-full flex items-center justify-center bg-emerald-900/20">
-	                                        <svg className="w-8 h-8 text-emerald-500/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-	                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M15 10l4.553-2.276A1 1 0 0121 8.818v6.364a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-	                                        </svg>
-	                                    </div>
-	                                )}
+                            <div className="relative h-16 w-16 shrink-0 rounded-lg overflow-hidden bg-black/20 border border-emerald-500/20 group">
+                                {videoInfo?.thumbnailUrl ? (
+                                    <Image
+                                        src={videoInfo.thumbnailUrl}
+                                        alt="Thumbnail"
+                                        fill
+                                        unoptimized
+                                        className="object-cover opacity-80 transition-opacity group-hover:opacity-100"
+                                        sizes="64px"
+                                    />
+                                ) : (
+                                    <div className="h-full w-full flex items-center justify-center bg-emerald-900/20">
+                                        <svg className="w-8 h-8 text-emerald-500/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M15 10l4.553-2.276A1 1 0 0121 8.818v6.364a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                        </svg>
+                                    </div>
+                                )}
 
                                 {/* Centered Green Tick Overlay */}
                                 <div className="absolute inset-0 flex items-center justify-center">
@@ -1107,19 +1107,19 @@ export function ProcessView({
                                 Change
                             </button>
                         </div>
-	                    </div>
-	                )}
+                    </div>
+                )}
 
-	                {error && (
-	                    <div className="rounded-xl border border-[var(--danger)]/30 bg-[var(--danger)]/10 px-4 py-3 text-sm text-[var(--danger)] animate-fade-in">
-	                        {error}
-	                    </div>
-	                )}
-	
-	                {/* ACTION BAR: Start Processing */}
-	                {hasChosenModel && !isProcessing && selectedJob?.status !== 'completed' && (
-	                    <div className="flex justify-end pt-8 pb-4 animate-fade-in">
-	                        <button
+                {error && (
+                    <div className="rounded-xl border border-[var(--danger)]/30 bg-[var(--danger)]/10 px-4 py-3 text-sm text-[var(--danger)] animate-fade-in">
+                        {error}
+                    </div>
+                )}
+
+                {/* ACTION BAR: Start Processing */}
+                {hasChosenModel && !isProcessing && selectedJob?.status !== 'completed' && (
+                    <div className="flex justify-end pt-8 pb-4 animate-fade-in">
+                        <button
                             onClick={(e) => {
                                 e.stopPropagation();
                                 handleStart();
@@ -1137,15 +1137,15 @@ export function ProcessView({
                 )}
 
                 <div className="space-y-4 scroll-mt-[100px]" ref={resultsRef}>
-	                    {(isProcessing || (selectedJob && selectedJob.status !== 'pending')) && (
-	                        <div className="card space-y-4">
-	                            <div className="flex flex-wrap items-start justify-between gap-3">
-	                                <div className="min-w-0 flex-1">
-	                                    <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">
-	                                        {selectedJob?.status === 'completed' ? 'STEP 3: PREVIEW' : 'STEP 3: PROCESSING'}
-	                                    </p>
-	                                    <h3 className="text-2xl font-semibold break-words [overflow-wrap:anywhere]">
-	                                        {selectedJob?.result_data?.original_filename || (isProcessing ? t('statusProcessingEllipsis') : 'Live Preview')}
+                    {(isProcessing || (selectedJob && selectedJob.status !== 'pending')) && (
+                        <div className="card space-y-4">
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                                <div className="min-w-0 flex-1">
+                                    <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">
+                                        {selectedJob?.status === 'completed' ? 'STEP 3: PREVIEW' : 'STEP 3: PROCESSING'}
+                                    </p>
+                                    <h3 className="text-2xl font-semibold break-words [overflow-wrap:anywhere]">
+                                        {selectedJob?.result_data?.original_filename || (isProcessing ? t('statusProcessingEllipsis') : 'Live Preview')}
                                     </h3>
                                     <p className="text-sm text-[var(--muted)]">{t('liveOutputSubtitle')}</p>
                                 </div>
