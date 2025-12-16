@@ -74,3 +74,8 @@
 **Vulnerability:** The `BatchDeleteRequest` accepted a list of unbounded strings (`List[str]`), allowing an attacker to send excessively large payloads (e.g., 1MB strings) that could cause memory exhaustion during parsing or validation.
 **Learning:** `List[str]` in Pydantic does not automatically inherit constraints. You must use `List[Annotated[str, Field(max_length=...)]]` to constrain the items within the list.
 **Prevention:** Audit all list fields in Pydantic models to ensure the contained items have explicit length constraints.
+
+## 2025-06-28 - [Medium] Missing Length Limits on Transcription Lists
+**Vulnerability:** `UpdateTranscriptionRequest` and `TranscriptionCueRequest` allowed unbounded lists of cues and words respectively, enabling DoS attacks via memory exhaustion or CPU consumption during JSON parsing/validation.
+**Learning:** While individual string fields were validated, `list` fields were not. Pydantic's `list[T]` does not imply a max length.
+**Prevention:** Audit all Pydantic models with `list` fields and enforce `Field(max_length=...)` or custom validators to bound the number of items.

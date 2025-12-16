@@ -15,10 +15,10 @@ from ...core.settings import load_app_settings
 from ...schemas.base import (
     BatchDeleteRequest,
     BatchDeleteResponse,
+    FactCheckResponse,
     JobResponse,
     PaginatedJobsResponse,
     ViralMetadataResponse,
-    FactCheckResponse,
 )
 from ...services.history import HistoryStore
 from ...services.jobs import JobStore
@@ -556,11 +556,11 @@ class TranscriptionCueRequest(BaseModel):
     start: float
     end: float
     text: str = Field(..., max_length=2000)
-    words: list[TranscriptionWordRequest] | None = None
+    words: list[TranscriptionWordRequest] | None = Field(None, max_length=100)
 
 
 class UpdateTranscriptionRequest(BaseModel):
-    cues: list[TranscriptionCueRequest]
+    cues: list[TranscriptionCueRequest] = Field(..., max_length=5000)
 
 
 @router.put("/jobs/{job_id}/transcription", dependencies=[Depends(limiter_content)])
