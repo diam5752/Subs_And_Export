@@ -15,3 +15,7 @@
 ## 2025-02-28 - Keyboard Navigation for Interactive Headers
 **Learning:** Section headers that double as "jump to step" controls were implemented as clickable `div`s without `role="button"` or keyboard event handlers. This made navigation impossible for keyboard-only users.
 **Action:** Always add `role="button"`, `tabIndex={0}`, and `onKeyDown` handlers (for Enter/Space) to non-button interactive elements, or prefer semantic `<button>` elements where possible.
+
+## 2024-05-23 - Consistent Loading States
+**Learning:** Using consistent spinner components instead of just text changes for loading states significantly improves perceived performance and visual polish.
+**Action:** Use the shared `<Spinner />` component for all async button states to ensure consistency and accessibility (aria-busy).
