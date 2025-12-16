@@ -54,6 +54,64 @@ describe('resegmentCues', () => {
         // Huge font should result in MORE cues (shorter lines)
         expect(hugeFontCues.length).toBeGreaterThanOrEqual(normalFontCues.length);
     });
+
+    it('splits cues based on wrapped line count (not just total chars)', () => {
+        // REGRESSION: user selected 3 lines but got 4 displayed due to naive total-char packing.
+        const cue: Cue = {
+            start: 0,
+            end: 4,
+            text: 'AAAAAA AAAAAA AAAAAA AAAAAA',
+            words: [
+                { start: 0, end: 1, text: 'AAAAAA' },
+                { start: 1, end: 2, text: 'AAAAAA' },
+                { start: 2, end: 3, text: 'AAAAAA' },
+                { start: 3, end: 4, text: 'AAAAAA' },
+            ],
+        };
+
+        const result = resegmentCues([cue], 3, 300); // very large font => low max chars per line
+        expect(result).toHaveLength(2);
+        expect(result[0].text).toBe('AAAAAA AAAAAA AAAAAA');
+        expect(result[1].text).toBe('AAAAAA');
+    });
+
+    it('expands phrase timings into individual words', () => {
+        const cue: Cue = {
+            start: 0,
+            end: 3,
+            text: 'hello world again',
+            words: [
+                { start: 0, end: 2, text: 'hello world' },
+                { start: 2, end: 3, text: 'again' },
+            ],
+        };
+
+        const result = resegmentCues([cue], 3, 100);
+        expect(result).toHaveLength(1);
+        expect(result[0].words?.map((w) => w.text)).toEqual(['hello', 'world', 'again']);
+        expect(result[0].words?.[0].start).toBe(0);
+        expect(result[0].words?.[0].end).toBe(1);
+        expect(result[0].words?.[1].start).toBe(1);
+        expect(result[0].words?.[1].end).toBe(2);
+    });
+
+    it('interpolates word timings when cues have no word-level data', () => {
+        const cue: Cue = {
+            start: 0,
+            end: 4,
+            text: 'one two three',
+            words: null,
+        };
+
+        const result = resegmentCues([cue], 3, 100);
+        expect(result).toHaveLength(1);
+        const words = result[0].words ?? [];
+        expect(words.map((w) => w.text)).toEqual(['one', 'two', 'three']);
+        expect(words[0].start).toBe(0);
+        expect(words[words.length - 1].end).toBe(4);
+        expect(words[0].end).toBeCloseTo(4 * (3 / 11), 5);
+        expect(words[1].end).toBeCloseTo(4 * (6 / 11), 5);
+    });
 });
 
 describe('findCueIndexAtTime', () => {

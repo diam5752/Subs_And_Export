@@ -1,6 +1,4 @@
-import { TranscriptionCue as Cue } from './api';
-
-
+import { TranscriptionCue as Cue, TranscriptionWordTiming } from './api';
 
 // Configuration matching backend config.py
 const DEFAULT_SUB_FONT_SIZE = 62;
@@ -42,17 +40,134 @@ function getEffectiveMaxChars(fontSizePercent: number): number {
 /**
  * Flatten all words from a list of cues into a single timeline.
  */
-function getAllWords(cues: Cue[]): { start: number; end: number; text: string }[] {
-    const words: { start: number; end: number; text: string }[] = [];
-    cues.forEach(cue => {
-        if (cue.words) {
-            words.push(...cue.words);
+function expandPhraseTiming(word: TranscriptionWordTiming): TranscriptionWordTiming[] {
+    const parts = word.text.split(/\s+/).filter(Boolean);
+    if (parts.length <= 1) return [word];
+
+    const totalDuration = word.end - word.start;
+    const totalChars = word.text.replace(/\s+/g, '').length;
+    const safeTotalChars = totalChars > 0 ? totalChars : parts.length;
+
+    let currentStart = word.start;
+    const expanded: TranscriptionWordTiming[] = [];
+
+    for (let i = 0; i < parts.length; i += 1) {
+        const part = parts[i];
+        const charCount = part.length;
+        const fraction = safeTotalChars > 0 ? charCount / safeTotalChars : 1 / parts.length;
+        const duration = totalDuration * fraction;
+
+        let end = Math.min(currentStart + duration, word.end);
+        if (i === parts.length - 1) end = word.end;
+
+        expanded.push({ start: currentStart, end, text: part });
+        currentStart = end;
+    }
+
+    return expanded;
+}
+
+function interpolateWordsFromCueText(cue: Cue): TranscriptionWordTiming[] {
+    const cueWords = cue.text.split(/\s+/).filter(Boolean);
+    if (cueWords.length === 0) return [];
+
+    const cueDuration = cue.end - cue.start;
+    const totalChars = cue.text.replace(/\s+/g, '').length;
+    const safeTotalChars = totalChars > 0 ? totalChars : cueWords.length;
+
+    let currentStart = cue.start;
+    const timings: TranscriptionWordTiming[] = [];
+
+    for (let i = 0; i < cueWords.length; i += 1) {
+        const word = cueWords[i];
+        const wordChars = word.length;
+        const fraction = safeTotalChars > 0 ? wordChars / safeTotalChars : 1 / cueWords.length;
+        const duration = cueDuration * fraction;
+
+        let end = currentStart + duration;
+        if (i === cueWords.length - 1) {
+            end = cue.end;
         } else {
-            // Fallback for cues without word timings (just one big "word")
-            words.push({ start: cue.start, end: cue.end, text: cue.text });
+            end = Math.min(end, cue.end);
         }
+
+        timings.push({ start: currentStart, end, text: word });
+        currentStart = end;
+    }
+
+    return timings;
+}
+
+function getAllWords(cues: Cue[]): TranscriptionWordTiming[] {
+    const words: TranscriptionWordTiming[] = [];
+
+    cues.forEach((cue) => {
+        if (cue.words && cue.words.length > 0) {
+            cue.words.forEach((word) => {
+                words.push(...expandPhraseTiming(word));
+            });
+            return;
+        }
+
+        words.push(...interpolateWordsFromCueText(cue));
     });
+
     return words.sort((a, b) => a.start - b.start);
+}
+
+function chunkTimedWords(
+    words: TranscriptionWordTiming[],
+    maxChars: number,
+    maxLines: number
+): TranscriptionWordTiming[][] {
+    const chunks: TranscriptionWordTiming[][] = [];
+    if (words.length === 0) return chunks;
+
+    let currentChunk: TranscriptionWordTiming[] = [];
+    let currentLines = 1;
+    let currentLineChars = 0;
+
+    for (const word of words) {
+        const text = word.text;
+        const wordLen = text.length;
+        const space = currentLineChars > 0 ? 1 : 0;
+
+        if (currentLineChars + space + wordLen <= maxChars) {
+            currentLineChars += space + wordLen;
+        } else {
+            const wordLines = wordLen > maxChars ? Math.ceil(wordLen / maxChars) : 1;
+
+            if (currentChunk.length > 0 && currentLines + wordLines > maxLines) {
+                chunks.push(currentChunk);
+                currentChunk = [];
+                currentLines = 1;
+                currentLineChars = 0;
+                currentLines = wordLines;
+            } else {
+                if (currentChunk.length > 0) {
+                    currentLines += 1;
+                } else {
+                    currentLines = 1;
+                }
+
+                if (wordLen > maxChars) {
+                    currentLines += wordLines - 1;
+                }
+            }
+
+            if (wordLen > maxChars) {
+                const remainder = wordLen % maxChars;
+                currentLineChars = remainder === 0 ? maxChars : remainder;
+            } else {
+                currentLineChars = wordLen;
+            }
+        }
+
+        currentChunk.push(word);
+    }
+
+    if (currentChunk.length > 0) chunks.push(currentChunk);
+    return chunks;
 }
 
 /**
@@ -73,60 +188,20 @@ export function resegmentCues(
 
     const maxCharsPerLine = getEffectiveMaxChars(fontSizePercent);
 
-    // We want to group words into Cues such that:
-    // - Total chars <= maxLines * maxCharsPerLine
-    // - Ideally logical breaks (but greedy for now to match backend)
-    // - New cue starts where previous ended (or at next word start)
+    const wordChunks = chunkTimedWords(allWords, maxCharsPerLine, maxLines);
 
-    const newCues: Cue[] = [];
-    let currentChunkWords: typeof allWords = [];
-    let currentChunkLen = 0;
-
-    // Helper to flush current chunk
-    const flushChunk = () => {
-        if (currentChunkWords.length === 0) return;
-
-        const first = currentChunkWords[0];
-        const last = currentChunkWords[currentChunkWords.length - 1];
-
-        // Simple text construction
-        const text = currentChunkWords.map(w => w.text).join(' ');
-
-        newCues.push({
-            start: first.start,
-            end: last.end, // In backend we extended to original cue end? 
-            // Here we treat words as truth. 
-            // Improvement: Extend 'end' to next word's 'start' to avoid flickering?
-            // For now, tight bounding.
-            text: text,
-            words: [...currentChunkWords]
+    const newCues: Cue[] = wordChunks
+        .filter((chunkWords) => chunkWords.length > 0)
+        .map((chunkWords) => {
+            const first = chunkWords[0];
+            const last = chunkWords[chunkWords.length - 1];
+            return {
+                start: first.start,
+                end: last.end,
+                text: chunkWords.map((w) => w.text).join(' '),
+                words: chunkWords,
+            };
         });
-
-        currentChunkWords = [];
-        currentChunkLen = 0;
-    };
-
-    // 2. Greedy Packing
-    const totalMaxChars = maxCharsPerLine * maxLines;
-
-    for (const word of allWords) {
-        const wordLen = word.text.length + 1; // +1 for space
-
-        // If adding this word exceeds limits
-        if (currentChunkLen + wordLen > totalMaxChars && currentChunkWords.length > 0) {
-            flushChunk();
-        }
-
-        currentChunkWords.push(word);
-        currentChunkLen += wordLen;
-
-        // Handling for "newline" logic within a cue?
-        // The backend _chunk_items actually splits into multiple Cues (events).
-        // It does NOT insert \N inside a single cue if it exceeds max_lines.
-        // It creates a NEW event.
-        // So yes, we flush and start new cue.
-    }
-    flushChunk();
 
     // 3. Gap Filling (Optional Polish)
     // Improve smoothness by extending end times to bridge small gaps?
