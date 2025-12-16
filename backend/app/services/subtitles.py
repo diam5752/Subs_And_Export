@@ -71,6 +71,21 @@ def _normalize_text(text: str) -> str:
     return stripped.upper()
 
 
+def _sanitize_ass_text(text: str) -> str:
+    """
+    Sanitize text to prevent ASS injection.
+    Replaces special characters '{', '}' and '\\' to prevent tag injection.
+    """
+    if not text:
+        return text
+    # Replace curlies with parenthesis to prevent tag injection
+    text = text.replace("{", "(").replace("}", ")")
+    # Replace backslashes with forward slashes to prevent escape sequences (like \N)
+    # or tag starts.
+    text = text.replace("\\", "/")
+    return text
+
+
 def extract_audio(
     input_video: Path,
     output_dir: Path | None = None,
@@ -634,6 +649,20 @@ def create_styled_subtitle_file(
         font_size=font_size,
         play_res_x=play_res_x,
     )
+
+    # Security: Sanitize all cues to prevent ASS injection
+    # We do this early to ensure all downstream logic works on safe text.
+    sanitized_cues = []
+    for cue in parsed_cues:
+        safe_text = _sanitize_ass_text(cue.text)
+        safe_words = None
+        if cue.words:
+            safe_words = [
+                WordTiming(start=w.start, end=w.end, text=_sanitize_ass_text(w.text))
+                for w in cue.words
+            ]
+        sanitized_cues.append(Cue(start=cue.start, end=cue.end, text=safe_text, words=safe_words))
+    parsed_cues = sanitized_cues
 
     # Pre-processing: If Single Line mode (max_lines=1) is active,
     # we must ensure segments are short enough to fit on one line without crazy scaling.

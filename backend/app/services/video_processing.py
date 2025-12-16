@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import platform
 import re
+import select
 import shutil
 import subprocess
 import tempfile
@@ -150,6 +151,7 @@ def _run_ffmpeg_with_subs(
         stdout=subprocess.DEVNULL,
         stderr=subprocess.PIPE,
         universal_newlines=True,
+        bufsize=1,  # Line buffered
     )
 
     # Memory optimization: Use deque to keep only last 200 lines
@@ -158,7 +160,7 @@ def _run_ffmpeg_with_subs(
     try:
         if process.stderr:
             last_cancel_check = 0.0
-            for line in process.stderr:
+            while True:
                 # Periodic cancellation check
                 # Optimization: Throttle check to ~2Hz to avoid excessive function call overhead
                 if check_cancelled:
@@ -171,16 +173,25 @@ def _run_ffmpeg_with_subs(
                             process.kill()
                             raise
 
-                stderr_lines.append(line)
-                if progress_callback and total_duration and total_duration > 0:
-                    # Optimization: Fast string check before expensive regex
-                    if "time=" in line:
-                        match = TIME_PATTERN.search(line)
-                        if match:
-                            h, m, s = match.groups()
-                            current_seconds = int(h) * 3600 + int(m) * 60 + float(s)
-                            progress = min(100.0, (current_seconds / total_duration) * 100.0)
-                            progress_callback(progress)
+                # Non-blocking read to ensure we can cancel even if ffmpeg hangs
+                reads, _, _ = select.select([process.stderr], [], [], 0.1)
+                if reads:
+                    line = process.stderr.readline()
+                    if not line:
+                        break
+
+                    stderr_lines.append(line)
+                    if progress_callback and total_duration and total_duration > 0:
+                        # Optimization: Fast string check before expensive regex
+                        if "time=" in line:
+                            match = TIME_PATTERN.search(line)
+                            if match:
+                                h, m, s = match.groups()
+                                current_seconds = int(h) * 3600 + int(m) * 60 + float(s)
+                                progress = min(100.0, (current_seconds / total_duration) * 100.0)
+                                progress_callback(progress)
+                elif process.poll() is not None:
+                    break
 
         process.wait()
         if process.returncode != 0:
