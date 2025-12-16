@@ -67,6 +67,9 @@ function ProcessViewContent() {
             <div className="space-y-4">
                 <ModelSelector />
                 <UploadSection />
+            </div>
+
+            <div className="space-y-4">
                 <PreviewSection />
             </div>
         </div>
