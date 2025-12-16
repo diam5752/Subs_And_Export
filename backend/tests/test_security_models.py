@@ -1,8 +1,10 @@
 
-from pydantic import ValidationError
 import pytest
+from pydantic import ValidationError
+
 from backend.app.api.endpoints.auth import UserUpdatePassword
-from backend.app.api.endpoints.videos import ExportRequest
+from backend.app.api.endpoints.videos import ExportRequest, TranscriptionCueRequest, TranscriptionWordRequest
+
 
 def test_user_update_password_length_limits():
     huge_string = "a" * 129
@@ -26,3 +28,12 @@ def test_export_request_length_limits():
 
     with pytest.raises(ValidationError):
         ExportRequest(resolution="1080x1920", highlight_style=huge_string)
+
+def test_transcription_request_length_limits():
+    huge_string = "a" * 2001
+
+    with pytest.raises(ValidationError):
+        TranscriptionCueRequest(start=0, end=1, text=huge_string)
+
+    with pytest.raises(ValidationError):
+        TranscriptionWordRequest(start=0, end=1, text="a" * 101)
