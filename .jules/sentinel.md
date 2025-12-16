@@ -69,3 +69,8 @@
 **Vulnerability:** The video processing endpoints accepted arbitrary resolution strings (e.g., "100000x100000") via `_parse_resolution` and `ExportRequest`, which FFmpeg would attempt to process, leading to potential server memory exhaustion (DoS).
 **Learning:** Parsing utility functions often focus on format validity (regex/split) but neglect semantic bounds checks (e.g., max dimensions), assuming inputs are "reasonable".
 **Prevention:** Define global maximum constants (e.g. `MAX_RESOLUTION_DIMENSION`) and enforce them strictly in all parsing/validation logic that feeds into resource-intensive subprocesses like FFmpeg.
+
+## 2025-06-27 - [Medium] Missing Input Length Limit on Batch Request
+**Vulnerability:** The `BatchDeleteRequest` accepted a list of unbounded strings (`List[str]`), allowing an attacker to send excessively large payloads (e.g., 1MB strings) that could cause memory exhaustion during parsing or validation.
+**Learning:** `List[str]` in Pydantic does not automatically inherit constraints. You must use `List[Annotated[str, Field(max_length=...)]]` to constrain the items within the list.
+**Prevention:** Audit all list fields in Pydantic models to ensure the contained items have explicit length constraints.
