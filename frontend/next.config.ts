@@ -5,7 +5,7 @@ const nextConfig: NextConfig = {
   async headers() {
     const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
     // Allow connecting to the API backend
-    const csp = `default-src 'self'; img-src 'self' blob: data:; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' ${apiBase}; font-src 'self' data:;`;
+    const csp = `default-src 'self'; img-src 'self' ${apiBase} blob: data:; media-src 'self' ${apiBase} blob: data:; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self' ${apiBase}; font-src 'self' data:;`;
 
     return [
       {

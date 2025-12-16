@@ -3,7 +3,6 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from backend.app.api.endpoints import videos
-from backend.app.core import config
 from backend.main import app
 
 

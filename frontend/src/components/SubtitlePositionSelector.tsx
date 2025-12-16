@@ -1,4 +1,5 @@
 import React, { useCallback, useId, useRef, useState } from 'react';
+import Image from 'next/image';
 import { useI18n } from '@/context/I18nContext';
 import { SubtitleOverlay, Cue } from './SubtitleOverlay';
 
@@ -566,10 +567,13 @@ export const SubtitlePositionSelector: React.FC<SubtitlePositionSelectorProps> =
                                     <>
                                         {/* Static Thumbnail or Gradient */}
                                         {thumbnailUrl ? (
-                                            <img
+                                            <Image
                                                 src={thumbnailUrl}
                                                 alt="Video preview"
-                                                className="absolute inset-0 w-full h-full object-cover opacity-80"
+                                                fill
+                                                unoptimized
+                                                sizes="(max-width: 768px) 100vw, 33vw"
+                                                className="absolute inset-0 object-cover opacity-80"
                                             />
                                         ) : (
                                             <div className="absolute inset-0 bg-gradient-to-br from-purple-500/20 via-blue-500/20 to-purple-500/20" />

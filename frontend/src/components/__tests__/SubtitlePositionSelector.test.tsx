@@ -100,6 +100,11 @@ describe('SubtitlePositionSelector', () => {
         expect(onChangeColor).toHaveBeenCalledWith('#00FF00');
     });
 
+    it('renders a thumbnail when thumbnailUrl is provided', () => {
+        render(<SubtitlePositionSelector {...defaultProps} thumbnailUrl="/ascentia-logo.png" />);
+        expect(screen.getByAltText('Video preview')).toBeInTheDocument();
+    });
+
     it('renders accessible video controls when preview is shown', () => {
         // Need to provide cues to show the interactive video player
         const cues = [{ start: 0, end: 5, text: 'Test' }];

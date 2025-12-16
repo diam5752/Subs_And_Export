@@ -1,6 +1,8 @@
 import os
 from unittest.mock import MagicMock
+
 from backend.app.api.endpoints import videos
+
 
 def test_process_rate_limit(client, user_auth_headers):
     """Verify rate limiting prevents flooding the process endpoint."""
@@ -66,8 +68,8 @@ def test_viral_metadata_rate_limit(client, user_auth_headers, monkeypatch, tmp_p
     job_id = res.json()["id"]
 
     # 2. Manually set job to completed and create transcript
-    from backend.app.services.jobs import JobStore
     from backend.app.core.database import Database
+    from backend.app.services.jobs import JobStore
 
     db_path = os.environ.get("GSP_DATABASE_PATH")
     db = Database(db_path)

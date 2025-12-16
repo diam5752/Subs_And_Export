@@ -48,8 +48,8 @@ export function VideoModal({ isOpen, onClose, videoUrl }: VideoModalProps) {
                 className="vignette-overlay absolute inset-0 pointer-events-none"
             />
 
-            {/* Click outside hint - bottom center */}
-            <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-2 text-white/50 text-sm">
+            {/* Click outside hint (desktop only) */}
+            <div className="absolute bottom-[calc(env(safe-area-inset-bottom)+2rem)] left-1/2 -translate-x-1/2 hidden items-center gap-2 text-white/50 text-sm sm:flex">
                 <span className="px-3 py-1.5 rounded-full bg-white/10 backdrop-blur-sm border border-white/10">
                     Click outside or press <kbd className="px-1.5 py-0.5 mx-1 rounded bg-white/20 text-white/70 text-xs font-mono">ESC</kbd> to close
                 </span>
@@ -57,7 +57,7 @@ export function VideoModal({ isOpen, onClose, videoUrl }: VideoModalProps) {
 
             {/* Video container */}
             <div
-                className="video-container-glow relative h-[85vh] w-auto max-w-[92vw] aspect-[9/16] rounded-2xl overflow-hidden shadow-2xl cursor-default"
+                className="video-container-glow relative h-[85dvh] w-auto max-w-[92vw] aspect-[9/16] rounded-2xl overflow-hidden shadow-2xl cursor-default"
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Close button */}

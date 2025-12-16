@@ -26,6 +26,12 @@ describe('CookieConsent', () => {
       expect(screen.getByText('cookieTitle')).toBeInTheDocument();
     });
 
+    expect(screen.getByRole('dialog', { name: 'cookieTitle' })).toHaveClass(
+      'inset-x-4',
+      'sm:right-auto',
+      'sm:w-[420px]'
+    );
+
     fireEvent.click(screen.getByRole('button', { name: 'cookieAccept' }));
 
     expect(localStorage.getItem('cookie-consent')).toBe('accepted');

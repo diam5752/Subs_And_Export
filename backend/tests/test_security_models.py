@@ -1,8 +1,10 @@
 
-from pydantic import ValidationError
 import pytest
+from pydantic import ValidationError
+
 from backend.app.api.endpoints.auth import UserUpdatePassword
 from backend.app.api.endpoints.videos import ExportRequest
+
 
 def test_user_update_password_length_limits():
     huge_string = "a" * 129

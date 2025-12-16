@@ -274,7 +274,7 @@ export default function DashboardPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-dvh flex items-center justify-center">
         <div className="text-[var(--muted)]">{t('loading')}</div>
       </div>
     );
@@ -283,12 +283,12 @@ export default function DashboardPage() {
   if (!user) return null;
 
   return (
-    <div className="min-h-screen relative overflow-hidden">
+    <div className="min-h-dvh relative overflow-hidden">
       <div className="pointer-events-none absolute -left-16 -top-10 h-80 w-80 rounded-full bg-[var(--accent)]/12 blur-3xl" />
       <div className="pointer-events-none absolute right-4 top-40 h-72 w-72 rounded-full bg-[var(--accent-secondary)]/14 blur-3xl" />
       <div className="pointer-events-none absolute -right-10 bottom-0 h-96 w-96 rounded-full bg-[#6aa4ff]/10 blur-3xl" />
 
-      <nav className="sticky top-0 z-20 backdrop-blur-2xl bg-[var(--background)]/75 border-b border-[var(--border)]/60 px-6 py-4">
+      <nav className="sticky top-0 z-20 backdrop-blur-2xl bg-[var(--background)]/75 border-b border-[var(--border)]/60 px-4 py-3 sm:px-6 sm:py-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
           {/* Left spacer for centering */}
           <div className="flex-1" />
@@ -307,7 +307,7 @@ export default function DashboardPage() {
                 width={300}
                 height={300}
                 priority
-                className="relative h-24 w-auto object-contain drop-shadow-[0_4px_20px_rgba(0,0,0,0.5)] group-hover:drop-shadow-[0_0_30px_rgba(141,247,223,0.6)] transition-all duration-300"
+                className="relative h-16 w-auto object-contain drop-shadow-[0_4px_20px_rgba(0,0,0,0.5)] transition-all duration-300 group-hover:drop-shadow-[0_0_30px_rgba(141,247,223,0.6)] sm:h-20 md:h-24"
               />
             </div>
           </button>
@@ -328,17 +328,17 @@ export default function DashboardPage() {
         </div>
       </nav>
 
-      <main className="relative max-w-6xl mx-auto px-6 py-10 space-y-8">
+      <main className="relative max-w-6xl mx-auto px-4 py-8 space-y-8 sm:px-6 sm:py-10">
         <section className="card border-[var(--border)]/70 bg-white/[0.02] flex flex-col gap-8">
           <div className="space-y-4 w-full">
             <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border)]/70 bg-white/[0.03] px-3 py-1 text-xs uppercase tracking-[0.3em] text-[var(--muted)]">
               <span className="h-2 w-2 rounded-full bg-[var(--accent)] shadow-[0_0_0_3px_rgba(141,247,223,0.25)]" />
               {t('brandBadge')}
             </div>
-            <h1 className="text-4xl lg:text-5xl font-semibold leading-tight">
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-semibold leading-tight">
               {t('heroTitle')}
             </h1>
-            <p className="text-[var(--muted)] text-lg">
+            <p className="text-[var(--muted)] text-base sm:text-lg">
               {t('heroSubtitle')}
             </p>
           </div>
@@ -397,18 +397,18 @@ export default function DashboardPage() {
       </footer>
 
       {/* Language Toggle */}
-      <div className="fixed bottom-4 right-4 z-20">
+      <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] right-[calc(env(safe-area-inset-right)+1rem)] z-20">
         <LanguageToggle />
       </div>
 
       {showAccountPanel && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center pt-20 px-4">
+        <div className="fixed inset-0 z-50 flex items-end justify-center px-4 pt-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:items-start sm:pt-20">
           <div
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={handleCloseAccountPanel}
           />
           <div className="relative z-10 w-full max-w-2xl animate-fade-in">
-            <div className="bg-[var(--surface-elevated)] border border-[var(--border)] rounded-2xl shadow-2xl overflow-hidden max-h-[85vh] flex flex-col">
+            <div className="bg-[var(--surface-elevated)] border border-[var(--border)] rounded-2xl shadow-2xl overflow-hidden max-h-[90dvh] sm:max-h-[85dvh] flex flex-col">
               <div className="flex items-center justify-between p-4 border-b border-[var(--border)]">
                 <div className="flex gap-4">
                   <button

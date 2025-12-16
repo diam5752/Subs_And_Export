@@ -32,7 +32,7 @@ export default function CookieConsent() {
 
     return (
         <div
-            className="fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] left-4 z-50 w-[min(420px,calc(100vw-5rem))] animate-fade-in"
+            className="fixed inset-x-4 bottom-[calc(env(safe-area-inset-bottom)_+_1rem)] z-50 animate-fade-in sm:right-auto sm:w-[420px]"
             role="dialog"
             aria-label={t('cookieTitle')}
         >

@@ -1,6 +1,5 @@
 """Configuration constants for the Greek subtitle publisher."""
 
-import os
 from pathlib import Path
 
 DEFAULT_WIDTH = 1080

@@ -19,8 +19,7 @@ export const PhoneFrame: React.FC<PhoneFrameProps> = ({
 }) => {
     return (
         <div
-            className={`relative bg-slate-900 rounded-[40px] shadow-[0_0_0_8px_rgb(30,41,59),0_20px_50px_-12px_rgba(0,0,0,0.5)] ring-1 ring-white/5 ${className}`}
-            style={{ isolation: 'isolate', transform: 'translateZ(0)', backfaceVisibility: 'hidden' }}
+            className={`relative isolate [transform:translateZ(0)] [backface-visibility:hidden] bg-slate-900 rounded-[40px] shadow-[0_0_0_8px_rgb(30,41,59),0_20px_50px_-12px_rgba(0,0,0,0.5)] ring-1 ring-white/5 ${className}`}
         >
             {/* The bezel is created by the shadow above. The content sits inside. */}
 

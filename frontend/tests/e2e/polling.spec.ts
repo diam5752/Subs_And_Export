@@ -22,7 +22,7 @@ test.describe('Job Polling E2E', () => {
         // History lives under the account modal
         await page.getByRole('button', { name: el.accountSettingsTitle }).click();
         await page.getByRole('button', { name: el.historyTitle }).click();
-        await expect(page.getByText(el.historyTitle)).toBeVisible();
+        await expect(page.getByRole('heading', { name: el.historyTitle })).toBeVisible();
     });
 
     test('dashboard handles authenticated state correctly', async ({ page }) => {
@@ -55,6 +55,6 @@ test.describe('Job Polling E2E', () => {
         // History lives under the account modal
         await page.getByRole('button', { name: el.accountSettingsTitle }).click();
         await page.getByRole('button', { name: el.historyTitle }).click();
-        await expect(page.getByText(el.historyTitle)).toBeVisible();
+        await expect(page.getByRole('heading', { name: el.historyTitle })).toBeVisible();
     });
 });

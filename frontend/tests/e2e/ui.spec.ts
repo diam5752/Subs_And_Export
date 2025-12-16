@@ -39,10 +39,10 @@ for (const [label, viewport] of Object.entries(viewports)) {
       await expect(page.getByText(el.registerSubtitle)).toBeVisible();
     });
 
-    test('workspace renders upload area and history without overflow', async ({ page }) => {
+    test('workspace renders upload area without overflow', async ({ page }) => {
       await mockApi(page);
       await page.goto('/');
-      await page.getByText(new RegExp(el.liveOutputLabel, 'i')).waitFor();
+      await page.getByText(el.uploadDropTitle).waitFor();
 
       // Check that the upload area is visible
       await expect(page.getByText(el.uploadDropTitle)).toBeVisible();
@@ -50,22 +50,37 @@ for (const [label, viewport] of Object.entries(viewports)) {
       await stabilizeUi(page);
       await expectNoHorizontalOverflow(page);
       await expectNoHorizontalOverflow(page, 'nav');
-      // Check for History section which replaces the old recent jobs title
-      await expect(page.getByText(el.historyTitle)).toBeVisible();
+    });
+
+    test('completed preview stays contained without overflow', async ({ page }) => {
+      await mockApi(page);
+      await page.addInitScript(() => {
+        localStorage.setItem('lastActiveJobId', 'job-futurist');
+      });
+      await page.goto('/');
+
+      await page.getByText(el.subtitlesReady).waitFor();
+      await stabilizeUi(page);
+      await expectNoHorizontalOverflow(page);
+      await expectNoHorizontalOverflow(page, 'main');
+      await expect(page.getByText(el.subtitlesReady)).toBeVisible();
+      await expect(page.getByRole('button', { name: el.tabTranscript })).toBeVisible();
+      await expect(page.getByRole('button', { name: el.tabStyles })).toBeVisible();
     });
 
     test('history section shows event cards neatly', async ({ page }) => {
       await mockApi(page);
       await page.goto('/');
-      // History is now shown as a section within the main view
-      await page.getByText(el.historyTitle).waitFor();
+      await page.getByRole('button', { name: el.accountSettingsTitle }).click();
+      await page.getByRole('button', { name: el.historyTitle }).click();
+      await page.getByRole('heading', { name: el.historyTitle }).waitFor();
       await page.getByText(el.historyExpiry).waitFor();
       await stabilizeUi(page);
       await expectNoHorizontalOverflow(page);
 
       // Check that the history section is properly laid out
       // The mock history data might not be loaded automatically, so just verify the section exists
-      await expect(page.getByText(el.historyTitle)).toBeVisible();
+      await expect(page.getByRole('heading', { name: el.historyTitle })).toBeVisible();
       await expect(page.getByText(el.historyExpiry)).toBeVisible();
     });
 

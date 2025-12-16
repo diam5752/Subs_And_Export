@@ -70,7 +70,7 @@ function LoginContent() {
     };
 
     return (
-        <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="min-h-dvh flex items-center justify-center p-4">
             <div className="w-full max-w-md animate-fade-in">
                 {/* Logo / Branding */}
                 <div className="text-center mb-8">
@@ -208,7 +208,7 @@ function LoginContent() {
 export default function LoginPage() {
     return (
         <Suspense fallback={
-            <div className="min-h-screen flex items-center justify-center">
+            <div className="min-h-dvh flex items-center justify-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[var(--accent)]"></div>
             </div>
         }>

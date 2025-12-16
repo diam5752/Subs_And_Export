@@ -4,7 +4,6 @@ import { Cue } from '../components/SubtitleOverlay';
 
 // Configuration matching backend config.py
 const DEFAULT_SUB_FONT_SIZE = 62;
-const DEFAULT_WIDTH = 1080; // Default video width for character count calculations
 
 const MAX_SUB_LINE_CHARS = 28; // Safe characters per line for Greek uppercase
 
@@ -12,7 +11,7 @@ const MAX_SUB_LINE_CHARS = 28; // Safe characters per line for Greek uppercase
  * Estimate the effective character limit per line based on font size and video width.
  * Mirrored from backend `_effective_max_chars`
  */
-function getEffectiveMaxChars(fontSizePercent: number, videoWidth: number): number {
+function getEffectiveMaxChars(fontSizePercent: number): number {
     // Backend logic:
     // base_font = 62
     // font_scale = base_font / (base_font * (percent/100)) = 1 / (percent/100)
@@ -72,7 +71,7 @@ export function resegmentCues(
     const allWords = getAllWords(originalCues);
     if (allWords.length === 0) return originalCues;
 
-    const maxCharsPerLine = getEffectiveMaxChars(fontSizePercent, DEFAULT_WIDTH);
+    const maxCharsPerLine = getEffectiveMaxChars(fontSizePercent);
 
     // We want to group words into Cues such that:
     // - Total chars <= maxLines * maxCharsPerLine

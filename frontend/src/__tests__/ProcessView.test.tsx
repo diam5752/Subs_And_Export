@@ -118,6 +118,16 @@ describe('ProcessView', () => {
     });
   });
 
+  it('renders an error banner when error is set', () => {
+    render(
+      <AppEnvProvider appEnv="dev">
+        <ProcessView {...defaultProps} error="Something went wrong" />
+      </AppEnvProvider>
+    );
+
+    expect(screen.getByText('Something went wrong')).toBeInTheDocument();
+  });
+
   it('allows editing and saving transcript cues', async () => {
     const job: JobResponse = {
       id: 'job-1',
