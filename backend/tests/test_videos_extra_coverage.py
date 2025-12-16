@@ -26,6 +26,9 @@ def test_cancel_job_success(client: TestClient, user_auth_headers: dict, monkeyp
             def update_job(self, job_id, **kwargs):
                 pass
 
+            def count_active_jobs_for_user(self, user_id):
+                return 0
+
         app.dependency_overrides[deps.get_job_store] = lambda: MockJobStore()
 
         # Test cancellation
@@ -58,6 +61,10 @@ def test_cancel_job_invalid_status(client: TestClient, user_auth_headers: dict, 
                     id="job1", user_id="test_user_id", status="completed", progress=100,
                     message="done", created_at=0, updated_at=0, result_data={}
                 )
+
+            def count_active_jobs_for_user(self, user_id):
+                return 0
+
         app.dependency_overrides[deps.get_job_store] = lambda: MockJobStore()
 
         response = client.post("/videos/jobs/job1/cancel", headers=user_auth_headers)
@@ -82,6 +89,10 @@ def test_export_video_failure(client: TestClient, user_auth_headers: dict, monke
                     id="job1", user_id="test_user_id", status="completed", progress=100,
                     message="done", created_at=0, updated_at=0, result_data={}
                 )
+
+            def count_active_jobs_for_user(self, user_id):
+                return 0
+
         app.dependency_overrides[deps.get_job_store] = lambda: MockJobStore()
 
         # Mock file existence

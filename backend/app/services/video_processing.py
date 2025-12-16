@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import platform
 import re
 import select
@@ -15,7 +16,6 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, List
-import logging
 
 from backend.app.common import metrics
 from backend.app.core import config
@@ -215,7 +215,7 @@ class MediaProbe:
         return (self.audio_codec or "").lower() == "aac"
 
 
-def _probe_media(input_path: Path) -> MediaProbe:
+def probe_media(input_path: Path) -> MediaProbe:
     probe_cmd = [
         "ffprobe",
         "-v",
@@ -259,7 +259,7 @@ def _probe_media(input_path: Path) -> MediaProbe:
 
 def _input_audio_is_aac(input_path: Path) -> bool:
     try:
-        return _probe_media(input_path).audio_is_aac
+        return probe_media(input_path).audio_is_aac
     except Exception as e:
         logger.warning(f"Failed to probe audio codec: {e}")
         return False
@@ -455,7 +455,7 @@ def normalize_and_stub_subtitles(
             # Probe once for duration + audio codec (used for progress and audio copy decisions).
             if progress_callback is not None or audio_copy is None:
                 try:
-                    probe = _probe_media(input_path)
+                    probe = probe_media(input_path)
                     if probe.duration_s is not None and probe.duration_s > 0:
                         total_duration = probe.duration_s
                     if audio_copy is None:

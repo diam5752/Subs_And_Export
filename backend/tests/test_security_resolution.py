@@ -1,7 +1,7 @@
 
-import pytest
 from backend.app.api.endpoints import videos
 from backend.app.core import config
+
 
 def test_parse_resolution_huge_values():
     """Test that _parse_resolution rejects huge values."""

@@ -125,6 +125,15 @@ class JobStore:
             ).fetchone()
         return row["count"] if row else 0
 
+    def count_active_jobs_for_user(self, user_id: str) -> int:
+        """Count active (pending or processing) jobs for a user."""
+        with self.db.connect() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) as count FROM jobs WHERE user_id = ? AND status IN ('pending', 'processing')",
+                (user_id,)
+            ).fetchone()
+        return row["count"] if row else 0
+
     def list_jobs_for_user_paginated(
         self, user_id: str, offset: int = 0, limit: int = 10
     ) -> List[Job]:

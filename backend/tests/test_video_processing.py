@@ -96,7 +96,7 @@ def test_normalize_and_stub_subtitles_runs_pipeline(monkeypatch, tmp_path: Path)
     monkeypatch.setattr(video_processing, "_run_ffmpeg_with_subs", fake_burn)
     monkeypatch.setattr(
         video_processing,
-        "_probe_media",
+        "probe_media",
         lambda _p: video_processing.MediaProbe(duration_s=10.0, audio_codec="mp3"),
     )
 
@@ -159,7 +159,7 @@ def test_active_graphics_maps_to_ass_active(monkeypatch, tmp_path: Path) -> None
     monkeypatch.setattr(video_processing, "_run_ffmpeg_with_subs", fake_burn)
     monkeypatch.setattr(
         video_processing,
-        "_probe_media",
+        "probe_media",
         lambda _p: video_processing.MediaProbe(duration_s=10.0, audio_codec="aac"),
     )
 
@@ -247,7 +247,7 @@ def test_normalize_and_stub_subtitles_removes_temporary_directory(
     monkeypatch.setattr(video_processing, "_run_ffmpeg_with_subs", fake_burn)
     monkeypatch.setattr(
         video_processing,
-        "_probe_media",
+        "probe_media",
         lambda _p: video_processing.MediaProbe(duration_s=10.0, audio_codec="mp3"),
     )
 
@@ -307,7 +307,7 @@ def test_normalize_and_stub_subtitles_can_return_social_copy(monkeypatch, tmp_pa
     monkeypatch.setattr(video_processing, "_run_ffmpeg_with_subs", fake_burn)
     monkeypatch.setattr(
         video_processing,
-        "_probe_media",
+        "probe_media",
         lambda _p: video_processing.MediaProbe(duration_s=10.0, audio_codec="mp3"),
     )
 
@@ -368,7 +368,7 @@ def test_normalize_and_stub_subtitles_persists_artifacts(monkeypatch, tmp_path: 
     monkeypatch.setattr(video_processing, "_run_ffmpeg_with_subs", fake_burn)
     monkeypatch.setattr(
         video_processing,
-        "_probe_media",
+        "probe_media",
         lambda _p: video_processing.MediaProbe(duration_s=10.0, audio_codec="mp3"),
     )
 
@@ -447,7 +447,7 @@ def test_normalize_and_stub_subtitles_can_use_llm_social_copy(monkeypatch, tmp_p
     monkeypatch.setattr(video_processing.subtitles, "build_social_copy_llm", fake_social_copy_llm)
     monkeypatch.setattr(
         video_processing,
-        "_probe_media",
+        "probe_media",
         lambda _p: video_processing.MediaProbe(duration_s=10.0, audio_codec="mp3"),
     )
 
@@ -515,7 +515,7 @@ def test_pipeline_logs_metrics(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(video_processing, "_run_ffmpeg_with_subs", fake_burn)
     monkeypatch.setattr(
         video_processing,
-        "_probe_media",
+        "probe_media",
         lambda _p: video_processing.MediaProbe(duration_s=10.0, audio_codec="mp3"),
     )
 
@@ -588,7 +588,7 @@ def test_pipeline_logs_error_when_output_missing(monkeypatch, tmp_path: Path) ->
     monkeypatch.setattr(video_processing, "_run_ffmpeg_with_subs", fake_burn)
     monkeypatch.setattr(
         video_processing,
-        "_probe_media",
+        "probe_media",
         lambda _p: video_processing.MediaProbe(duration_s=10.0, audio_codec="mp3"),
     )
 
@@ -736,7 +736,7 @@ def test_pipeline_retries_without_hw_accel(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(video_processing.subtitles, "create_styled_subtitle_file", fake_style)
     monkeypatch.setattr(video_processing, "_run_ffmpeg_with_subs", fake_burn)
     probe_mock = MagicMock(return_value=video_processing.MediaProbe(duration_s=0.0, audio_codec="mp3"))
-    monkeypatch.setattr(video_processing, "_probe_media", probe_mock)
+    monkeypatch.setattr(video_processing, "probe_media", probe_mock)
 
     source = tmp_path / "source.mp4"
     source.write_bytes(b"video")
@@ -794,7 +794,7 @@ def test_normalize_handles_duration_failure(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(video_processing.subtitles, "create_styled_subtitle_file", fake_style)
     monkeypatch.setattr(
         video_processing,
-        "_probe_media",
+        "probe_media",
         lambda _p: (_ for _ in ()).throw(RuntimeError("fail")),
     )
     def fake_burn(input_path: Path, ass_path: Path, output_path: Path, **kwargs):
@@ -850,7 +850,7 @@ def test_normalize_with_large_model_progress(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(video_processing, "_run_ffmpeg_with_subs", fake_burn)
     monkeypatch.setattr(
         video_processing,
-        "_probe_media",
+        "probe_media",
         lambda _p: video_processing.MediaProbe(duration_s=8.0, audio_codec="mp3"),
     )
 
@@ -942,7 +942,7 @@ def test_normalize_applies_turbo_defaults(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(video_processing, "_run_ffmpeg_with_subs", fake_burn)
     monkeypatch.setattr(
         video_processing,
-        "_probe_media",
+        "probe_media",
         lambda _p: video_processing.MediaProbe(duration_s=0.0, audio_codec="aac"),
     )
 
@@ -1011,7 +1011,7 @@ def test_social_copy_falls_back_if_none(monkeypatch, tmp_path: Path) -> None:
     ))
     monkeypatch.setattr(
         video_processing,
-        "_probe_media",
+        "probe_media",
         lambda _p: video_processing.MediaProbe(duration_s=10.0, audio_codec="mp3"),
     )
 
@@ -1071,7 +1071,7 @@ def test_hw_accel_retry_falls_back(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setattr(video_processing, "_run_ffmpeg_with_subs", fake_burn)
     monkeypatch.setattr(
         video_processing,
-        "_probe_media",
+        "probe_media",
         lambda _p: video_processing.MediaProbe(duration_s=10.0, audio_codec="mp3"),
     )
 
