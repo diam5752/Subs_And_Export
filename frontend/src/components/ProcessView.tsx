@@ -81,10 +81,14 @@ export function ProcessView({
 
     // Local state for options
     const [showPreview, setShowPreview] = useState(false);
-    const [showSettings, setShowSettings] = useState(true);
+
     const [showExperimentalProviders, setShowExperimentalProviders] = useState(false);
-    const [transcribeMode, setTranscribeMode] = useState<TranscribeMode>('turbo');
-    const [transcribeProvider, setTranscribeProvider] = useState<TranscribeProvider>('local');
+    const [transcribeMode, setTranscribeMode] = useState<TranscribeMode | null>(() =>
+        selectedFile ? 'turbo' : null
+    );
+    const [transcribeProvider, setTranscribeProvider] = useState<TranscribeProvider | null>(() =>
+        selectedFile ? 'local' : null
+    );
     // outputQuality state removed as it is now always high quality
     // const [outputQuality, setOutputQuality] = useState<'low size' | 'balanced' | 'high quality'>('balanced');
     const [subtitlePosition, setSubtitlePosition] = useState<number>(16); // TikTok preset: middle (16%)
@@ -228,6 +232,33 @@ export function ProcessView({
     const processedCues = useMemo(() => {
         return resegmentCues(cues, maxSubtitleLines, subtitleSize);
     }, [cues, maxSubtitleLines, subtitleSize, videoInfo?.width]);
+
+    // Auto-seek to first subtitle when preview loads
+    const hasAutoSeekedRef = useRef(false);
+    useEffect(() => {
+        // Only trigger when job is completed and cues are available
+        if (
+            selectedJob?.status === 'completed' &&
+            processedCues &&
+            processedCues.length > 0 &&
+            !hasAutoSeekedRef.current
+        ) {
+            const firstCueStart = processedCues[0].start;
+            // Give slightly more time for the player to mount and video to load
+            const timeout = setTimeout(() => {
+                if (playerRef.current) {
+                    playerRef.current.seekTo(firstCueStart);
+                    hasAutoSeekedRef.current = true;
+                }
+            }, 500);
+            return () => clearTimeout(timeout);
+        }
+    }, [selectedJob?.status, processedCues]);
+
+    // Reset auto-seek flag when new file is selected or job changes
+    useEffect(() => {
+        hasAutoSeekedRef.current = false;
+    }, [selectedFile, selectedJob?.id]);
 
 
     // Color Palette
@@ -472,6 +503,8 @@ export function ProcessView({
         setSubtitleSize(85);  // Reset to medium (85%)
         setKaraokeEnabled(true);
         setHasChosenModel(false);
+        setTranscribeMode(null);
+        setTranscribeProvider(null);
         if (fileInputRef.current) {
             fileInputRef.current.value = '';
         }
@@ -601,6 +634,8 @@ export function ProcessView({
         });
 
         const colorObj = SUBTITLE_COLORS.find(c => c.value === subtitleColor) || SUBTITLE_COLORS[0];
+
+        if (!transcribeMode || !transcribeProvider) return;
 
         onStartProcessing({
             transcribeMode,
@@ -901,11 +936,15 @@ export function ProcessView({
                     </div>
                 )}
 
-                {(hasChosenModel && !selectedFile) && (
-                    <div id="upload-section" className={`${showDevTools ? "grid gap-4 md:grid-cols-2" : ""} animate-fade-in-up-scale`}>
+                {/* STEP 2: Upload Video */}
+                {!selectedFile && (
+                    <div id="upload-section" className={`space-y-4 animate-fade-in-up-scale transition-opacity duration-300 ${!hasChosenModel ? 'opacity-40 pointer-events-none' : ''}`}>
                         <div className="mb-2">
                             <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">STEP 2</p>
                             <h3 className="text-xl font-semibold">Upload Video</h3>
+                            {!hasChosenModel && (
+                                <p className="text-xs text-[var(--muted)] mt-1 italic">Select a model above to unlock</p>
+                            )}
                         </div>
 
                         {/* Upload Card */}
@@ -913,7 +952,7 @@ export function ProcessView({
                             className={`card relative overflow-hidden cursor-pointer group transition-all duration-500 ${isDragOver
                                 ? `border-2 border-dashed bg-opacity-10 scale-[1.02] ${activeTheme.borderColor}`
                                 : `border-2 ${activeTheme.borderColor} ${activeTheme.glowColor}`
-                                } `}
+                                } ${!hasChosenModel ? 'grayscale' : ''}`}
                             style={{
                                 borderColor: undefined // Letting tailwind classes handle it
                             }}
@@ -948,12 +987,14 @@ export function ProcessView({
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                                             </svg>
                                         </div>
-                                        {/* Model Icon Badge */}
-                                        <div className={`absolute -bottom-1 -right-1 w-8 h-8 rounded-full border border-[var(--background)] bg-[var(--card-bg)] flex items-center justify-center shadow-lg ${activeTheme.iconColor} animate-pulse`}>
-                                            <div className="scale-75">
-                                                {selectedModel?.icon(true)}
+                                        {/* Model Icon Badge - only show when model is selected */}
+                                        {hasChosenModel && selectedModel && (
+                                            <div className={`absolute -bottom-1 -right-1 w-8 h-8 rounded-full border border-[var(--background)] bg-[var(--card-bg)] flex items-center justify-center shadow-lg ${activeTheme.iconColor} animate-pulse`}>
+                                                <div className="scale-75">
+                                                    {selectedModel.icon(true)}
+                                                </div>
                                             </div>
-                                        </div>
+                                        )}
                                     </div>
                                     <p className={`text-2xl font-semibold mb-1 ${activeTheme.iconColor}`}>{t('dropFileHere')}</p>
                                     <p className="text-[var(--muted)]">{t('releaseToUpload')}</p>
@@ -967,12 +1008,14 @@ export function ProcessView({
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                                             </svg>
                                         </div>
-                                        {/* Model Icon Badge */}
-                                        <div className={`absolute -bottom-0 -right-0 w-8 h-8 rounded-full border-2 border-[var(--background)] bg-[var(--card-bg)] flex items-center justify-center shadow-lg ${activeTheme.iconColor}`}>
-                                            <div className="scale-75">
-                                                {selectedModel?.icon(true)}
+                                        {/* Model Icon Badge - only show when model is selected */}
+                                        {hasChosenModel && selectedModel && (
+                                            <div className={`absolute -bottom-0 -right-0 w-8 h-8 rounded-full border-2 border-[var(--background)] bg-[var(--card-bg)] flex items-center justify-center shadow-lg ${activeTheme.iconColor}`}>
+                                                <div className="scale-75">
+                                                    {selectedModel.icon(true)}
+                                                </div>
                                             </div>
-                                        </div>
+                                        )}
                                     </div>
                                     <p className={`text-2xl font-semibold mb-1 transition-colors duration-500 ${activeTheme.iconColor}`}>{t('uploadDropTitle')}</p>
                                     <p className="text-[var(--muted)]">{t('uploadDropSubtitle')}</p>
@@ -1014,417 +1057,182 @@ export function ProcessView({
                     </div>
                 )}
 
-                {/* Compact Upload Review (when file selected) */}
-                {/* Compact Upload Review (when file selected) */}
-                {selectedFile && (
-                    <div className="card flex items-center gap-4 py-3 px-4 animate-fade-in border-emerald-500/20 bg-emerald-500/5 transition-all hover:bg-emerald-500/10">
-                        {/* Thumbnail with Tick Overlay */}
-                        <div className="relative h-16 w-16 shrink-0 rounded-lg overflow-hidden bg-black/20 border border-emerald-500/20 group">
-                            {videoInfo?.thumbnailUrl ? (
-                                <img
-                                    src={videoInfo.thumbnailUrl}
-                                    alt="Thumbnail"
-                                    className="h-full w-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
-                                />
-                            ) : (
-                                <div className="h-full w-full flex items-center justify-center bg-emerald-900/20">
-                                    <svg className="w-8 h-8 text-emerald-500/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M15 10l4.553-2.276A1 1 0 0121 8.818v6.364a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                    </svg>
-                                </div>
-                            )}
+                {/* STEP 2: Compact Upload Review (only when file selected - replaces dropzone) */}
+                {selectedFile && !isProcessing && (
+                    <div className="space-y-4 animate-fade-in-up-scale" style={{ animationDelay: '100ms' }}>
+                        <div className="mb-2">
+                            <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">STEP 2</p>
+                            <h3 className="text-xl font-semibold">Upload Video</h3>
+                        </div>
+                        <div className="card flex items-center gap-4 py-3 px-4 animate-fade-in border-emerald-500/20 bg-emerald-500/5 transition-all hover:bg-emerald-500/10">
+                            {/* Thumbnail with Tick Overlay */}
+                            <div className="relative h-16 w-16 shrink-0 rounded-lg overflow-hidden bg-black/20 border border-emerald-500/20 group">
+                                {videoInfo?.thumbnailUrl ? (
+                                    <img
+                                        src={videoInfo.thumbnailUrl}
+                                        alt="Thumbnail"
+                                        className="h-full w-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
+                                    />
+                                ) : (
+                                    <div className="h-full w-full flex items-center justify-center bg-emerald-900/20">
+                                        <svg className="w-8 h-8 text-emerald-500/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M15 10l4.553-2.276A1 1 0 0121 8.818v6.364a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                        </svg>
+                                    </div>
+                                )}
 
-                            {/* Centered Green Tick Overlay */}
-                            <div className="absolute inset-0 flex items-center justify-center">
-                                <div className="w-8 h-8 rounded-full bg-emerald-500/80 shadow-lg shadow-emerald-500/40 flex items-center justify-center text-white transform scale-100 group-hover:scale-110 transition-transform backdrop-blur-[1px]">
-                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                    </svg>
+                                {/* Centered Green Tick Overlay */}
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    <div className="w-8 h-8 rounded-full bg-emerald-500/80 shadow-lg shadow-emerald-500/40 flex items-center justify-center text-white transform scale-100 group-hover:scale-110 transition-transform backdrop-blur-[1px]">
+                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                        </svg>
+                                    </div>
                                 </div>
                             </div>
+
+                            {/* File Info */}
+                            <div className="flex-1 min-w-0">
+                                <h4 className="text-sm font-semibold text-[var(--foreground)] truncate" title={selectedFile.name}>
+                                    {selectedFile.name}
+                                </h4>
+                                <p className="text-xs text-[var(--muted)] flex items-center gap-1.5 mt-0.5">
+                                    <span>{(selectedFile.size / (1024 * 1024)).toFixed(1)} MB</span>
+                                    <span className="w-1 h-1 rounded-full bg-[var(--border)]" />
+                                    <span className="text-emerald-500 font-medium">Ready</span>
+                                </p>
+                            </div>
+
+                            {/* Actions */}
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onFileSelect(null);
+                                    setHasChosenModel(true);
+                                }}
+                                className="px-3 py-1.5 text-xs font-medium rounded-lg border border-[var(--border)] hover:bg-[var(--surface-elevated)] hover:text-[var(--foreground)] text-[var(--muted)] transition-colors"
+                            >
+                                Change
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* STEP 3: Visual Style (DEPRECATED: Moved specific controls to Sidebar, AI section hidden for now) */}
+                {/* 
+                {(selectedFile && !isProcessing) && (
+                    <div className="space-y-4 animate-fade-in-up-scale" style={{ animationDelay: '100ms' }}>
+                        <div className="mb-2">
+                            <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">STEP 3</p>
+                            <h3 className="text-xl font-semibold">{t('subtitleStyleLabel') || 'Visual Style'}</h3>
                         </div>
 
-                        {/* File Info */}
-                        <div className="flex-1 min-w-0">
-                            <h4 className="text-sm font-semibold text-[var(--foreground)] truncate" title={selectedFile.name}>
-                                {selectedFile.name}
-                            </h4>
-                            <p className="text-xs text-[var(--muted)] flex items-center gap-1.5 mt-0.5">
-                                <span>{(selectedFile.size / (1024 * 1024)).toFixed(1)} MB</span>
-                                <span className="w-1 h-1 rounded-full bg-[var(--border)]" />
-                                <span className="text-emerald-500 font-medium">Ready</span>
-                            </p>
+                         // Style Presets Grid (Moved to Sidebar)
+                         // <div ref={customizeSectionRef}>...</div>
+
+                        {/* AI & Context (Hidden per request) * /}
+                        <div className="pt-2 border-t border-[var(--border)] border-dashed mt-4">
+                            <button
+                                type="button"
+                                role="switch"
+                                aria-checked={useAI}
+                                aria-describedby={aiToggleDescId}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setUseAI(!useAI);
+                                }}
+                                className="flex items-center gap-3 cursor-pointer group w-full text-left bg-transparent border-0 p-0"
+                            >
+                                <div
+                                    className={`w-10 h-5 rounded-full transition-colors relative flex-shrink-0 ${useAI ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'} `}
+                                >
+                                    <div className={`absolute top-0.5 left-0.5 bg-white w-4 h-4 rounded-full transition-transform ${useAI ? 'translate-x-5' : ''} `} />
+                                </div>
+                                <div>
+                                    <span className="font-medium text-sm">{t('aiToggleLabel')}</span>
+                                    <p id={aiToggleDescId} className="text-xs text-[var(--muted)]">{t('aiToggleDescription')}</p>
+                                </div>
+                            </button>
+
+                            {useAI && (
+                                <div className="animate-fade-in mt-3" onClick={(e) => e.stopPropagation()}>
+                                    <textarea
+                                        value={contextPrompt}
+                                        onChange={(e) => setContextPrompt(e.target.value)}
+                                        placeholder={t('contextPlaceholder')}
+                                        className="input-field h-20 resize-none text-sm"
+                                    />
+                                </div>
+                            )}
                         </div>
 
-                        {/* Actions */}
+                        {/* 🧪 Experimenting Section Toggle * /}
+                        <div className="pt-2">
+                            <button
+                                data-testid="experimenting-toggle"
+                                aria-expanded={showExperimentalProviders}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setShowExperimentalProviders(!showExperimentalProviders);
+                                }}
+                                className="flex items-center gap-2 w-full hover:opacity-80 transition-opacity"
+                            >
+                                <span className="text-xs font-medium text-[var(--muted)] cursor-pointer">
+                                    {t('experimentingLabel') || 'Advanced Settings'}
+                                </span>
+                                <svg
+                                    className={`w-3 h-3 text-[var(--muted)] transition-transform duration-200 ${showExperimentalProviders ? 'rotate-180' : ''} `}
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                >
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </button>
+
+                            {showExperimentalProviders && (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-2 duration-200 mt-3 p-3 bg-[var(--surface-elevated)] rounded-xl">
+                                    {/* ChatGPT API * /}
+                                    <button
+                                        data-testid="model-chatgpt"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            setTranscribeProvider('openai');
+                                            setTranscribeMode('balanced');
+                                        }}
+                                        className={`p-3 rounded-lg border border-dashed text-left transition-all group ${transcribeProvider === 'openai'
+                                            ? 'border-emerald-500 bg-emerald-500/10'
+                                            : 'border-[var(--border)] hover:border-emerald-500/50'
+                                            } `}
+                                    >
+                                        <div className="font-semibold text-sm mb-0.5">{t('modelChatgptName')}</div>
+                                        <div className="text-xs text-[var(--muted)]">Uses OpenAI Whisper API</div>
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+                */}
+
+
+                {/* ACTION BAR: Start Processing */}
+                {hasChosenModel && !isProcessing && selectedJob?.status !== 'completed' && (
+                    <div className="flex justify-end pt-8 pb-4 animate-fade-in">
                         <button
                             onClick={(e) => {
                                 e.stopPropagation();
-                                onFileSelect(null);
-                                setHasChosenModel(true);
+                                handleStart();
                             }}
-                            className="px-3 py-1.5 text-xs font-medium rounded-lg border border-[var(--border)] hover:bg-[var(--surface-elevated)] hover:text-[var(--foreground)] text-[var(--muted)] transition-colors"
+                            disabled={isProcessing || !selectedFile}
+                            className={`btn-primary w-full py-4 text-base shadow-lg transition-all ${selectedFile
+                                ? 'shadow-[var(--accent)]/20 hover:shadow-[var(--accent)]/40 hover:-translate-y-0.5'
+                                : 'opacity-50 cursor-not-allowed grayscale'
+                                }`}
                         >
-                            Change
+                            <span className="mr-2">✨</span>
+                            {t('controlsStart') || 'Generate Video'}
                         </button>
-                    </div>
-                )}
-                {showProcessingKit && (
-                    <div className="card space-y-4 animate-fade-in">
-                        <div
-                            className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--border)] pb-3 cursor-pointer group"
-                            onClick={() => setShowSettings(!showSettings)}
-                            onKeyDown={(e) => handleKeyDown(e, () => setShowSettings(!showSettings))}
-                            role="button"
-                            tabIndex={0}
-                            aria-expanded={showSettings}
-                        >
-                            <div className="flex items-center gap-3">
-                                <div>
-                                    <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">{t('controlsLabel')}</p>
-                                    <h3 className="text-xl font-semibold">{t('controlsTitle')}</h3>
-                                </div>
-                            </div>
-                            <div className={`transition-transform duration-200 ${showSettings ? 'rotate-180' : ''} `}>
-                                <svg className="w-5 h-5 text-[var(--muted)] group-hover:text-[var(--foreground)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                </svg>
-                            </div>
-                        </div>
-
-                        {showSettings && (
-                            <div className="space-y-5 pt-1 animate-fade-in">
-
-
-                                {/* Style Presets */}
-                                <div ref={customizeSectionRef}>
-                                    <label id="style-presets-label" className="block text-sm font-medium text-[var(--muted)] mb-3">
-                                        {t('subtitleStyleLabel')}
-                                    </label>
-                                    <div
-                                        className="grid grid-cols-3 gap-3 mb-3"
-                                        role="radiogroup"
-                                        aria-labelledby="style-presets-label"
-                                    >
-                                        {STYLE_PRESETS.map((preset) => {
-                                            // Helper to get preview position
-                                            const getPreviewBottom = (pos: number | string) => {
-                                                if (typeof pos === 'number') {
-                                                    // Map numeric positions (6, 16, 45) to visual percentages
-                                                    if (pos >= 40) return '28%'; // High
-                                                    if (pos <= 10) return '8%';  // Low
-                                                    return '18%'; // Middle (16)
-                                                }
-                                                // Legacy string support
-                                                switch (pos) {
-                                                    case 'top': return '28%';
-                                                    case 'bottom': return '8%';
-                                                    default: return '18%';
-                                                }
-                                            };
-
-                                            return (
-                                                <button
-                                                    key={preset.id}
-                                                    role="radio"
-                                                    aria-checked={activePreset === preset.id}
-                                                    aria-label={preset.name}
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setActivePreset(preset.id);
-                                                        setSubtitlePosition(preset.settings.position);
-                                                        setSubtitleSize(preset.settings.size);
-                                                        setMaxSubtitleLines(preset.settings.lines);
-                                                        setSubtitleColor(preset.settings.color);
-                                                        setKaraokeEnabled(preset.settings.karaoke);
-                                                        // Keep settings open if already open, so user sees the changes
-                                                    }}
-                                                    className={`p-3 rounded-xl border text-left transition-all relative overflow-hidden ${activePreset === preset.id
-                                                        ? 'border-[var(--accent)] ring-1 ring-[var(--accent)]'
-                                                        : 'border-[var(--border)] hover:border-[var(--accent)]/50'
-                                                        } `}
-                                                >
-                                                    {/* Gradient background */}
-                                                    <div className={`absolute inset-0 bg-gradient-to-br ${preset.colorClass} opacity-10`} />
-
-                                                    <div className="relative flex gap-3">
-                                                        {/* Mini Phone Preview */}
-                                                        <div className="flex-shrink-0 w-[70px] h-[120px] bg-slate-800 rounded-[12px] border-2 border-slate-700 overflow-hidden relative shadow-lg">
-                                                            {/* Video Thumbnail or Gradient background */}
-                                                            {videoInfo?.thumbnailUrl ? (
-                                                                <>
-                                                                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                                                                    <img
-                                                                        src={videoInfo.thumbnailUrl}
-                                                                        alt=""
-                                                                        className="absolute inset-0 w-full h-full object-cover"
-                                                                    />
-                                                                    {/* Dark overlay for better subtitle visibility */}
-                                                                    <div className="absolute inset-0 bg-black/40" />
-                                                                </>
-                                                            ) : (
-                                                                <div className="absolute inset-0 bg-gradient-to-br from-slate-700 via-slate-800 to-slate-900" />
-                                                            )}
-                                                            {/* Mini notch */}
-                                                            <div className="absolute top-1.5 left-1/2 -translate-x-1/2 w-5 h-1.5 bg-black/50 rounded-full" />
-                                                            {/* Mini UI elements - social icons */}
-                                                            <div className="absolute bottom-5 right-1 flex flex-col gap-1.5">
-                                                                <div className="w-2 h-2 bg-white/30 rounded-full" />
-                                                                <div className="w-2 h-2 bg-white/30 rounded-full" />
-                                                                <div className="w-2 h-2 bg-white/30 rounded-full" />
-                                                            </div>
-                                                            {/* Subtitle bars - clear size differences */}
-                                                            <div
-                                                                className="absolute left-2 right-2 flex flex-col gap-0.5 items-center"
-                                                                style={{ bottom: getPreviewBottom(preset.settings.position) }}
-                                                            >
-                                                                {Array.from({ length: preset.settings.lines === 0 ? 1 : Math.min(preset.settings.lines, 3) }).map((_, i) => {
-                                                                    // Font size mapping: Based on numeric size (50-150 scale)
-                                                                    const fontSize = preset.settings.size >= 100 ? '11px' : preset.settings.size <= 70 ? '7px' : '8px';
-                                                                    const lineHeight = preset.settings.size >= 100 ? '14px' : preset.settings.size <= 70 ? '9px' : '10px';
-
-                                                                    // Sample text with more "viral" feel
-                                                                    const text = preset.settings.lines === 0
-                                                                        ? (preset.settings.karaoke ? (i % 2 === 0 ? t('previewWatch') : t('previewThis')) : t('previewWord'))
-                                                                        : preset.id === 'cinematic'
-                                                                            ? (i === 0 ? t('previewTheJourney') : t('previewBeginsHere'))
-                                                                            : (i === 0 ? t('previewCleanDesign') : i === 1 ? t('previewForEveryone') : t('previewToRead'));
-
-                                                                    return (
-                                                                        <div
-                                                                            key={i}
-                                                                            className="flex items-center justify-center w-full"
-                                                                            style={{ height: lineHeight }}
-                                                                        >
-                                                                            <span
-                                                                                style={{
-                                                                                    fontSize: fontSize,
-                                                                                    fontWeight: 800,
-                                                                                    color: preset.settings.color,
-                                                                                    // Stronger shadow for better visibility/pop
-                                                                                    textShadow: `0 2px 4px rgba(0, 0, 0, 0.9), 0 0 8px ${preset.settings.color} 60`,
-                                                                                    lineHeight: 1,
-                                                                                    fontFamily: 'Inter, sans-serif',
-                                                                                    textTransform: 'uppercase',
-                                                                                    whiteSpace: 'nowrap', // Prevent wrapping overlap
-                                                                                }}
-                                                                            >
-                                                                                {text}
-                                                                            </span>
-                                                                        </div>
-                                                                    );
-                                                                })}
-                                                            </div>
-                                                            {/* Karaoke indicator */}
-                                                            {preset.settings.karaoke && (
-                                                                <div className="absolute top-1.5 right-1.5 w-2 h-2 bg-emerald-400 rounded-full animate-pulse shadow-sm" title="Karaoke" />
-                                                            )}
-                                                        </div>
-
-                                                        {/* Text content */}
-                                                        <div className="flex-1 min-w-0">
-                                                            <div className="flex items-center gap-1.5 mb-1">
-                                                                <span className="text-base">{preset.emoji}</span>
-                                                                <span className="font-semibold text-sm truncate">{preset.name}</span>
-                                                            </div>
-                                                            <p className="text-[11px] text-[var(--muted)] leading-tight mb-1">{preset.description}</p>
-                                                            {/* Detailed Specs - Split into 2 lines */}
-                                                            <div className="flex flex-col gap-1 mt-1.5 opacity-80">
-                                                                <div className="flex gap-1">
-                                                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--surface-elevated)] border border-[var(--border)] text-[var(--muted)] whitespace-nowrap">
-                                                                        {preset.settings.size >= 150 ? t('sizeExtraBig') : preset.settings.size >= 100 ? t('sizeBig') : preset.settings.size >= 85 ? t('sizeMedium') : t('sizeSmall')}
-                                                                    </span>
-                                                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--surface-elevated)] border border-[var(--border)] text-[var(--muted)] whitespace-nowrap">
-                                                                        {preset.settings.color === '#FFFF00' ? t('colorYellow') : preset.settings.color === '#FFFFFF' ? t('colorWhite') : t('colorCyan')}
-                                                                    </span>
-                                                                </div>
-                                                                <div className="flex gap-1">
-                                                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--surface-elevated)] border border-[var(--border)] text-[var(--muted)] whitespace-nowrap">
-                                                                        {preset.settings.position === 16 ? t('positionMiddle') : preset.settings.position === 6 ? t('positionLow') : t('positionHigh')}
-                                                                    </span>
-                                                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--surface-elevated)] border border-[var(--border)] text-[var(--muted)] whitespace-nowrap">
-                                                                        {preset.settings.lines === 0 ? t('lines1WordBadge') : `${preset.settings.lines} ${t('statLines')} `}
-                                                                    </span>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-
-                                                    {activePreset === preset.id && (
-                                                        <div className="absolute top-2 right-2 w-4 h-4 rounded-full bg-[var(--accent)] flex items-center justify-center">
-                                                            <svg className="w-2.5 h-2.5 text-[#031018]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                                                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                                            </svg>
-                                                        </div>
-                                                    )}
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-
-                                    {/* Customize Toggle */}
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            const wasHidden = !showCustomize;
-                                            setShowCustomize(!showCustomize);
-                                            if (wasHidden) {
-                                                setTimeout(() => {
-                                                    customizeSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                                                }, 200);
-                                            }
-                                        }}
-                                        className="w-full mt-4 p-3 rounded-lg bg-[var(--surface-elevated)] border border-[var(--border)] hover:border-[var(--accent)] hover:bg-[var(--surface-elevated)]/80 flex items-center justify-center gap-2 text-sm font-medium text-[var(--foreground)] transition-all shadow-sm"
-                                    >
-                                        <svg className={`w-4 h-4 transition-transform ${showCustomize ? 'rotate-180' : ''} `} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
-                                        </svg>
-                                        {showCustomize ? t('customizeHide') : t('customizeShow')}
-                                    </button>
-                                </div>
-
-
-
-
-
-
-                                {/* 🧪 Experimenting Section Toggle */}
-                                {/* 🧪 Experimenting Section Toggle */}
-                                <div className="border-t border-dashed border-[var(--border)] pt-4 mt-2">
-                                    <button
-                                        data-testid="experimenting-toggle"
-                                        aria-expanded={showExperimentalProviders}
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setShowExperimentalProviders(!showExperimentalProviders);
-                                        }}
-                                        className="flex items-center gap-2 mb-3 w-full hover:opacity-80 transition-opacity"
-                                    >
-                                        <span className="text-lg" aria-hidden="true">🧪</span>
-                                        <span className="text-sm font-medium text-[var(--muted)] cursor-pointer">
-                                            {t('experimentingLabel')}
-                                        </span>
-                                        <span className="bg-purple-500/10 text-purple-400 text-[10px] px-1.5 py-0.5 rounded-full font-medium">
-                                            {t('betaBadge')}
-                                        </span>
-                                        <svg
-                                            className={`w-4 h-4 ml-auto text-[var(--muted)] transition-transform duration-200 ${showExperimentalProviders ? 'rotate-180' : ''} `}
-                                            fill="none"
-                                            viewBox="0 0 24 24"
-                                            stroke="currentColor"
-                                        >
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                        </svg>
-                                    </button>
-
-                                    {showExperimentalProviders && (
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-2 duration-200">
-                                            {/* ChatGPT API */}
-                                            <button
-                                                data-testid="model-chatgpt"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setTranscribeProvider('openai');
-                                                    setTranscribeMode('balanced');
-                                                }}
-                                                className={`p-4 rounded-xl border border-dashed text-left transition-all relative overflow-hidden group ${transcribeProvider === 'openai'
-                                                    ? 'border-emerald-500 bg-emerald-500/10 ring-1 ring-emerald-500'
-                                                    : 'border-[var(--border)] hover:border-emerald-500/50 hover:bg-emerald-500/5'
-                                                    } `}
-                                            >
-                                                <div className="flex items-start justify-between mb-2">
-                                                    <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-500">
-                                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                                                        </svg>
-                                                    </div>
-                                                    {transcribeProvider === 'openai' && (
-                                                        <div className="w-5 h-5 rounded-full bg-emerald-500 flex items-center justify-center">
-                                                            <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                                            </svg>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                <div className="font-semibold text-base mb-1">{t('modelChatgptName')}</div>
-                                                <div className="text-sm text-[var(--muted)] mb-2">{t('modelChatgptDesc')}</div>
-                                                <div className="flex items-center gap-2 text-xs text-[var(--muted)]/80">
-                                                    <span className="bg-emerald-500/10 text-emerald-500 px-1.5 py-0.5 rounded">whisper-1</span>
-                                                </div>
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-
-
-
-
-                                {/* AI & Context */}
-                                <div className="pt-2">
-                                    <button
-                                        type="button"
-                                        role="switch"
-                                        aria-checked={useAI}
-                                        aria-describedby={aiToggleDescId}
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setUseAI(!useAI);
-                                        }}
-                                        className="flex items-center gap-3 cursor-pointer group w-full text-left bg-transparent border-0 p-0"
-                                    >
-                                        <div
-                                            className={`w-12 h-6 rounded-full transition-colors relative flex-shrink-0 ${useAI ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'} `}
-                                        >
-                                            <div className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full transition-transform ${useAI ? 'translate-x-6' : ''} `} />
-                                        </div>
-                                        <span className="font-medium">{t('aiToggleLabel')}</span>
-                                    </button>
-                                    <p id={aiToggleDescId} className="text-xs text-[var(--muted)] mt-1 ml-14">{t('aiToggleDescription')}</p>
-                                </div>
-
-                                {useAI && (
-                                    <div className="animate-fade-in" onClick={(e) => e.stopPropagation()}>
-                                        <label className="block text-sm font-medium text-[var(--muted)] mb-2">
-                                            {t('contextLabel')}
-                                        </label>
-                                        <textarea
-                                            value={contextPrompt}
-                                            onChange={(e) => setContextPrompt(e.target.value)}
-                                            placeholder={t('contextPlaceholder')}
-                                            className="input-field h-20 resize-none"
-                                        />
-                                    </div>
-                                )}
-                                <div className="flex justify-end gap-3 pt-2">
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleResetSelection();
-                                        }}
-                                        className="btn-secondary"
-                                    >
-                                        {t('processingReset')}
-                                    </button>
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setShowSettings(false);
-                                            handleStart();
-                                        }}
-                                        disabled={isProcessing || !selectedFile}
-                                        className="btn-primary w-full sm:w-auto px-8"
-                                    >
-                                        {t('controlsStart') || 'Generate Preview'}
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-
-                        {error && (
-                            <div className="bg-[var(--danger)]/10 border border-[var(--danger)]/30 text-[var(--danger)] px-6 py-4 rounded-xl animate-fade-in">
-                                {error}
-                            </div>
-                        )}
                     </div>
                 )}
 
@@ -1491,6 +1299,23 @@ export function ProcessView({
                                         <div className="flex flex-col lg:flex-row gap-6 h-[800px] lg:h-[850px] transition-all duration-500 ease-in-out">
                                             {/* Preview Player Area - Left (Flexible) */}
                                             <div className="flex-1 bg-black/20 rounded-2xl border border-white/5 flex items-center justify-center p-4 lg:p-8 relative overflow-hidden backdrop-blur-sm min-h-0 min-w-0 transition-all duration-500">
+                                                {/* Model Used Indicator - Floating top-left */}
+                                                {(selectedJob?.result_data?.transcribe_provider || transcribeProvider) && (
+                                                    <div className="absolute top-4 left-4 z-10 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/60 border border-white/10 backdrop-blur-md">
+                                                        {selectedModel && (
+                                                            <span className="text-sm">{selectedModel.icon(true)}</span>
+                                                        )}
+                                                        <span className="text-xs font-medium text-white/80">
+                                                            {(() => {
+                                                                const provider = selectedJob?.result_data?.transcribe_provider || transcribeProvider;
+                                                                if (provider === 'local') return 'Standard';
+                                                                if (provider === 'groq') return 'Enhanced';
+                                                                if (provider === 'openai') return 'Ultimate';
+                                                                return provider;
+                                                            })()}
+                                                        </span>
+                                                    </div>
+                                                )}
                                                 <div className="relative h-[90%] max-h-[600px] w-auto aspect-[9/16] max-w-full shadow-2xl transition-all duration-500 hover:scale-[1.01]">
                                                     <PhoneFrame className="w-full h-full" showSocialOverlays={false}>
                                                         {processedCues && processedCues.length > 0 ? (
@@ -1663,6 +1488,74 @@ export function ProcessView({
                                                             </>
                                                         ) : (
                                                             <div className="animate-fade-in pr-2">
+                                                                {/* Style Presets Grid (Moved from Step 3) */}
+                                                                <div className="grid grid-cols-1 gap-3 mb-6">
+                                                                    {STYLE_PRESETS.map((preset) => {
+                                                                        // Helper to get preview position (Reuse from existing logic)
+                                                                        const getPreviewBottom = (pos: number | string) => {
+                                                                            if (typeof pos === 'number') {
+                                                                                if (pos >= 40) return '28%'; // High
+                                                                                if (pos <= 10) return '8%';  // Low
+                                                                                return '18%'; // Middle (16)
+                                                                            }
+                                                                            return pos === 'top' ? '28%' : pos === 'bottom' ? '8%' : '18%';
+                                                                        };
+
+                                                                        return (
+                                                                            <button
+                                                                                key={preset.id}
+                                                                                role="radio"
+                                                                                aria-checked={activePreset === preset.id}
+                                                                                aria-label={preset.name}
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    setActivePreset(preset.id);
+                                                                                    setSubtitlePosition(preset.settings.position);
+                                                                                    setSubtitleSize(preset.settings.size);
+                                                                                    setMaxSubtitleLines(preset.settings.lines);
+                                                                                    setSubtitleColor(preset.settings.color);
+                                                                                    setKaraokeEnabled(preset.settings.karaoke);
+                                                                                }}
+                                                                                className={`p-3 rounded-xl border text-left transition-all relative overflow-hidden group flex gap-3 items-center ${activePreset === preset.id
+                                                                                    ? 'border-[var(--accent)] ring-1 ring-[var(--accent)]'
+                                                                                    : 'border-[var(--border)] hover:border-[var(--accent)]/50'
+                                                                                    } `}
+                                                                            >
+                                                                                {/* Gradient background */}
+                                                                                <div className={`absolute inset-0 bg-gradient-to-br ${preset.colorClass} opacity-10`} />
+
+                                                                                {/* Preview Icon (simplified for sidebar) */}
+                                                                                <div className="flex-shrink-0 w-12 h-16 bg-slate-800 rounded-lg border border-slate-700 overflow-hidden relative shadow-lg">
+                                                                                    {/* Mini Preview Content */}
+                                                                                    <div className="absolute inset-0 bg-black/40" />
+                                                                                    <div className="absolute left-1 right-1 flex flex-col gap-[2px] items-center" style={{ bottom: getPreviewBottom(preset.settings.position) }}>
+                                                                                        <div className={`h-[2px] w-[80%] rounded-full`} style={{ backgroundColor: preset.settings.color }} />
+                                                                                        {preset.settings.lines > 1 && <div className={`h-[2px] w-[60%] rounded-full`} style={{ backgroundColor: preset.settings.color }} />}
+                                                                                    </div>
+                                                                                </div>
+
+                                                                                {/* Text content */}
+                                                                                <div className="flex-1 min-w-0">
+                                                                                    <div className="flex items-center gap-1.5 mb-0.5">
+                                                                                        <span className="text-sm">{preset.emoji}</span>
+                                                                                        <span className="font-semibold text-sm truncate">{preset.name}</span>
+                                                                                    </div>
+                                                                                    <p className="text-[10px] text-[var(--muted)] leading-tight line-clamp-2">{preset.description}</p>
+                                                                                </div>
+
+                                                                                {activePreset === preset.id && (
+                                                                                    <div className="w-4 h-4 rounded-full bg-[var(--accent)] flex items-center justify-center animate-scale-in">
+                                                                                        <svg className="w-2.5 h-2.5 text-[#031018]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                                                                        </svg>
+                                                                                    </div>
+                                                                                )}
+                                                                            </button>
+                                                                        );
+                                                                    })}
+                                                                </div>
+
+                                                                <h4 className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-3">Custom Settings</h4>
                                                                 <SubtitlePositionSelector
                                                                     value={subtitlePosition}
                                                                     onChange={(v) => { setSubtitlePosition(v); setActivePreset(null); }}
@@ -1726,6 +1619,6 @@ export function ProcessView({
                     />
                 </div>
             </div>
-        </div>
+        </div >
     );
 }

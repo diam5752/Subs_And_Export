@@ -126,12 +126,14 @@ export const PreviewPlayer = memo(forwardRef<PreviewPlayerHandle, PreviewPlayerP
                     pointerEvents: 'none'
                 }}
             >
-                <SubtitleOverlay
-                    currentTime={currentTime}
-                    cues={cues}
-                    settings={settings}
-                    videoWidth={contentRect.width}
-                />
+                {settings && (
+                    <SubtitleOverlay
+                        currentTime={currentTime}
+                        cues={cues}
+                        settings={settings}
+                        videoWidth={contentRect.width}
+                    />
+                )}
             </div>
         </div>
     );

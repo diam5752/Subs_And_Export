@@ -39,8 +39,6 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
         return cues.find(c => currentTime >= c.start && currentTime < c.end);
     }, [currentTime, cues]);
 
-    if (!activeCue) return null;
-
     // 2. Base Styles
     // Map settings to CSS
     const { containerStyle, textStyle, activeColor } = useMemo(() => {
@@ -83,6 +81,8 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
 
         return { containerStyle: container, textStyle: text, activeColor: settings.color };
     }, [settings.position, settings.fontSize, settings.shadowStrength, settings.color, videoWidth]);
+
+    if (!activeCue) return null;
 
     // 3. Render Content
 

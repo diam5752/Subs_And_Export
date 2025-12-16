@@ -308,6 +308,13 @@ class ApiClient {
         });
     }
 
+    async deleteJobs(jobIds: string[]): Promise<{ status: string; deleted_count: number }> {
+        return this.request<{ status: string; deleted_count: number }>('/videos/jobs/batch', {
+            method: 'DELETE',
+            body: JSON.stringify({ job_ids: jobIds }),
+        });
+    }
+
     async cancelJob(jobId: string): Promise<JobResponse> {
         return this.request<JobResponse>(`/videos/jobs/${jobId}/cancel`, {
             method: 'POST',
