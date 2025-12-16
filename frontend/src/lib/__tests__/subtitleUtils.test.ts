@@ -1,5 +1,5 @@
 
-import { resegmentCues } from '../subtitleUtils';
+import { resegmentCues, findCueIndexAtTime } from '../subtitleUtils';
 import { Cue } from '../../components/SubtitleOverlay';
 
 // Mock cues
@@ -53,5 +53,49 @@ describe('resegmentCues', () => {
 
         // Huge font should result in MORE cues (shorter lines)
         expect(hugeFontCues.length).toBeGreaterThanOrEqual(normalFontCues.length);
+    });
+});
+
+describe('findCueIndexAtTime', () => {
+    const cues: Cue[] = [
+        { start: 1.0, end: 2.0, text: 'One', words: [] },
+        { start: 3.0, end: 4.0, text: 'Two', words: [] },
+        { start: 5.0, end: 6.0, text: 'Three', words: [] },
+    ];
+
+    it('finds cue exactly within range', () => {
+        expect(findCueIndexAtTime(cues, 1.5)).toBe(0);
+        expect(findCueIndexAtTime(cues, 3.5)).toBe(1);
+        expect(findCueIndexAtTime(cues, 5.5)).toBe(2);
+    });
+
+    it('finds cue at start boundary (inclusive)', () => {
+        expect(findCueIndexAtTime(cues, 1.0)).toBe(0);
+        expect(findCueIndexAtTime(cues, 3.0)).toBe(1);
+        expect(findCueIndexAtTime(cues, 5.0)).toBe(2);
+    });
+
+    it('does NOT find cue at end boundary (exclusive)', () => {
+        // time < end
+        expect(findCueIndexAtTime(cues, 2.0)).toBe(-1); // Gap or next
+        expect(findCueIndexAtTime(cues, 4.0)).toBe(-1);
+    });
+
+    it('returns -1 for times in gaps', () => {
+        expect(findCueIndexAtTime(cues, 0.5)).toBe(-1); // Before first
+        expect(findCueIndexAtTime(cues, 2.5)).toBe(-1); // Between 1 and 2
+        expect(findCueIndexAtTime(cues, 4.5)).toBe(-1); // Between 2 and 3
+        expect(findCueIndexAtTime(cues, 6.5)).toBe(-1); // After last
+    });
+
+    it('handles overlapping cues (finds one of them)', () => {
+        const overlaps: Cue[] = [
+            { start: 1.0, end: 3.0, text: 'Long', words: [] },
+            { start: 2.0, end: 4.0, text: 'Overlap', words: [] },
+        ];
+        // At 2.5, both are valid. Binary search will find one.
+        const idx = findCueIndexAtTime(overlaps, 2.5);
+        expect(idx).not.toBe(-1);
+        expect([0, 1]).toContain(idx);
     });
 });

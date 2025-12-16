@@ -1,6 +1,4 @@
-import { Cue } from '../components/SubtitleOverlay';
-
-
+import { TranscriptionCue as Cue } from './api';
 
 // Configuration matching backend config.py
 const DEFAULT_SUB_FONT_SIZE = 62;
@@ -142,4 +140,38 @@ export function resegmentCues(
     }
 
     return newCues;
+}
+
+/**
+ * Finds the index of the cue that covers the given time using binary search.
+ * Returns -1 if no cue covers the time.
+ * Assumes cues are sorted by start time.
+ */
+export function findCueIndexAtTime(cues: Cue[], time: number): number {
+    let low = 0;
+    let high = cues.length - 1;
+
+    while (low <= high) {
+        const mid = (low + high) >>> 1;
+        const cue = cues[mid];
+
+        if (time >= cue.start && time < cue.end) {
+            return mid;
+        }
+        if (time < cue.start) {
+            high = mid - 1;
+        } else {
+            low = mid + 1;
+        }
+    }
+    return -1;
+}
+
+/**
+ * Finds the cue that covers the given time using binary search.
+ * Returns undefined if no cue covers the time.
+ */
+export function findCueAtTime(cues: Cue[], time: number): Cue | undefined {
+    const index = findCueIndexAtTime(cues, time);
+    return index !== -1 ? cues[index] : undefined;
 }
