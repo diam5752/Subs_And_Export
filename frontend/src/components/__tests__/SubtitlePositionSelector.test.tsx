@@ -105,18 +105,18 @@ describe('SubtitlePositionSelector', () => {
         const cues = [{ start: 0, end: 5, text: 'Test' }];
         // Mock HTMLMediaElement properties
         Object.defineProperty(window.HTMLMediaElement.prototype, 'paused', {
-            get: function (this: any) { return this._mockPaused !== undefined ? this._mockPaused : false; },
+            get: function (this: HTMLMediaElement & { _mockPaused?: boolean }) { return this._mockPaused !== undefined ? this._mockPaused : false; },
             configurable: true
         });
         Object.defineProperty(window.HTMLMediaElement.prototype, 'play', {
-            value: jest.fn().mockImplementation(function (this: any) {
+            value: jest.fn().mockImplementation(function (this: HTMLMediaElement & { _mockPaused?: boolean }) {
                 this._mockPaused = false;
                 return Promise.resolve();
             }),
             configurable: true,
         });
         Object.defineProperty(window.HTMLMediaElement.prototype, 'pause', {
-            value: jest.fn().mockImplementation(function (this: any) {
+            value: jest.fn().mockImplementation(function (this: HTMLMediaElement & { _mockPaused?: boolean }) {
                 this._mockPaused = true;
             }),
             configurable: true,

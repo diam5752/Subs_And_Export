@@ -262,16 +262,16 @@ export function ProcessView({
 
 
     // Color Palette
-    const SUBTITLE_COLORS = [
+    const SUBTITLE_COLORS = useMemo(() => [
         { label: t('colorYellow'), value: '#FFFF00', ass: '&H0000FFFF' },
         { label: t('colorWhite'), value: '#FFFFFF', ass: '&H00FFFFFF' },
         { label: t('colorCyan'), value: '#00FFFF', ass: '&H00FFFF00' },
         { label: t('colorGreen'), value: '#00FF00', ass: '&H0000FF00' },
         { label: t('colorMagenta'), value: '#FF00FF', ass: '&H00FF00FF' },
-    ];
+    ], [t]);
 
     // Style Presets
-    const STYLE_PRESETS = [
+    const STYLE_PRESETS = useMemo(() => [
         {
             id: 'tiktok',
             name: t('styleTiktokName'),
@@ -314,12 +314,12 @@ export function ProcessView({
             },
             colorClass: 'from-cyan-500 to-teal-500',
         },
-    ];
+    ], [t]);
 
     const [activePreset, setActivePreset] = useState<string | null>('tiktok');
     const [showCustomize, setShowCustomize] = useState(false);
 
-    const AVAILABLE_MODELS = [
+    const AVAILABLE_MODELS = useMemo(() => [
         {
             id: 'standard',
             name: t('modelStandardName'),
@@ -380,7 +380,7 @@ export function ProcessView({
                 ? 'border-purple-500 bg-purple-500/10 ring-1 ring-purple-500'
                 : 'border-[var(--border)] hover:border-purple-500/50 hover:bg-purple-500/5'
         }
-    ];
+    ], [t]);
 
     // Drag and drop state
     const [isDragOver, setIsDragOver] = useState(false);
@@ -793,7 +793,7 @@ export function ProcessView({
 
     const selectedModel = useMemo(() =>
         AVAILABLE_MODELS.find(m => m.provider === transcribeProvider && m.mode === transcribeMode),
-        [transcribeProvider, transcribeMode]);
+        [AVAILABLE_MODELS, transcribeProvider, transcribeMode]);
 
     const playerSettings = useMemo(() => ({
         position: subtitlePosition,
@@ -807,6 +807,107 @@ export function ProcessView({
     const handlePlayerTimeUpdate = useCallback((t: number) => {
         setCurrentTime(t);
     }, []);
+
+    const modelGrid = useMemo(() => (
+        <div className={`grid grid-cols-1 sm:grid-cols-3 gap-3 transition-all duration-300 ${hasChosenModel ? 'opacity-100' : 'animate-slide-down'}`}>
+            {AVAILABLE_MODELS.map((model) => {
+                const isSelected = transcribeProvider === model.provider && transcribeMode === model.mode;
+
+                // Helper for stat bars (5 dots)
+                const renderStat = (value: number, max: number = 5) => (
+                    <div className="flex gap-0.5">
+                        {Array.from({ length: max }).map((_, i) => (
+                            <div
+                                key={i}
+                                className={`h-1.5 w-full rounded-full transition-colors ${i < value
+                                    ? (isSelected ? 'bg-current opacity-80' : 'bg-[var(--foreground)] opacity-60')
+                                    : 'bg-[var(--foreground)] opacity-20'
+                                    } `}
+                            />
+                        ))}
+                    </div>
+                );
+
+                return (
+                    <button
+                        key={model.id}
+                        data-testid={`model-${model.provider === 'local' ? 'turbo' : model.provider}`}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            // Select model
+                            setTranscribeProvider(model.provider as TranscribeProvider);
+                            setTranscribeMode(model.mode as TranscribeMode);
+                            setHasChosenModel(true);
+
+                            // Only scroll if we were not already selected (to avoid jarring jumps if just clicking around)
+                            if (!isSelected) {
+                                // Auto-scroll to upload section
+                                setTimeout(() => {
+                                    document.getElementById('upload-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                }, 100);
+                            }
+                        }}
+                        className={`p-4 rounded-xl border text-left transition-all duration-300 relative overflow-hidden group flex flex-col h-full ${isSelected
+                            ? `${model.colorClass(true)} scale-[1.02] shadow-lg ring-1`
+                            : hasChosenModel
+                                ? 'border-[var(--border)] opacity-60 hover:opacity-100 hover:scale-[1.01] hover:bg-[var(--surface-elevated)] grayscale hover:grayscale-0' // Dimmed but interactive
+                                : model.colorClass(false)
+                            }`}
+                    >
+                        <div className="flex items-start justify-between mb-2 w-full">
+                            {model.icon(isSelected)}
+                            {isSelected && (
+                                <div
+                                    className={`w-5 h-5 rounded-full flex items-center justify-center ${model.provider === 'groq'
+                                        ? 'bg-purple-500'
+                                        : model.provider === 'whispercpp'
+                                            ? 'bg-cyan-500'
+                                            : 'bg-[var(--accent)]'
+                                        }`}
+                                >
+                                    <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                </div>
+                            )}
+                        </div>
+                        <div className="font-semibold text-base mb-1">{model.name}</div>
+                        <div className="text-sm text-[var(--muted)] mb-4">{model.description}</div>
+
+                        {/* Game-like Stats */}
+                        <div className="mt-auto space-y-2 mb-3">
+                            <div className="grid grid-cols-[60px,1fr] items-center gap-2">
+                                <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">{t('statSpeed')}</span>
+                                {renderStat(model.stats.speed)}
+                            </div>
+                            <div className="grid grid-cols-[60px,1fr] items-center gap-2">
+                                <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">{t('statAccuracy')}</span>
+                                {renderStat(model.stats.accuracy)}
+                            </div>
+                            <div className="grid grid-cols-[60px,1fr] items-center gap-2">
+                                <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">{t('statKaraoke')}</span>
+                                <div className={`text-[10px] font-bold ${model.stats.karaoke ? 'text-emerald-500' : 'text-[var(--muted)]'} `}>
+                                    {model.stats.karaoke ? t('statKaraokeSupported') : t('statKaraokeNo')}
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-[60px,1fr] items-center gap-2">
+                                <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">{t('statLines')}</span>
+                                <div className={`text-[10px] font-bold ${model.stats.linesControl ? 'text-emerald-500' : 'text-cyan-400'} `}>
+                                    {model.stats.linesControl ? t('statLinesCustom') : t('statLinesAuto')}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 text-xs pt-3 border-t border-[var(--border)]/50">
+                            <span className={`px-2 py-0.5 rounded-full font-medium ${model.badgeColor} `}>
+                                {model.badge}
+                            </span>
+                        </div>
+                    </button>
+                );
+            })}
+        </div>
+    ), [AVAILABLE_MODELS, transcribeProvider, transcribeMode, hasChosenModel, t]);
 
     return (
         <div className="grid xl:grid-cols-[1.05fr,0.95fr] gap-6">
@@ -835,104 +936,7 @@ export function ProcessView({
                         </div>
 
                         {/* Model Grid */}
-                        <div className={`grid grid-cols-1 sm:grid-cols-3 gap-3 transition-all duration-300 ${hasChosenModel ? 'opacity-100' : 'animate-slide-down'}`}>
-                            {AVAILABLE_MODELS.map((model) => {
-                                const isSelected = transcribeProvider === model.provider && transcribeMode === model.mode;
-
-                                // Helper for stat bars (5 dots)
-                                const renderStat = (value: number, max: number = 5) => (
-                                    <div className="flex gap-0.5">
-                                        {Array.from({ length: max }).map((_, i) => (
-                                            <div
-                                                key={i}
-                                                className={`h-1.5 w-full rounded-full transition-colors ${i < value
-                                                    ? (isSelected ? 'bg-current opacity-80' : 'bg-[var(--foreground)] opacity-60')
-                                                    : 'bg-[var(--foreground)] opacity-20'
-                                                    } `}
-                                            />
-                                        ))}
-                                    </div>
-                                );
-
-                                return (
-                                    <button
-                                        key={model.id}
-                                        data-testid={`model-${model.provider === 'local' ? 'turbo' : model.provider}`}
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            // Select model
-                                            setTranscribeProvider(model.provider as TranscribeProvider);
-                                            setTranscribeMode(model.mode as TranscribeMode);
-                                            setHasChosenModel(true);
-
-                                            // Only scroll if we were not already selected (to avoid jarring jumps if just clicking around)
-                                            if (!isSelected) {
-                                                // Auto-scroll to upload section
-                                                setTimeout(() => {
-                                                    document.getElementById('upload-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                                }, 100);
-                                            }
-                                        }}
-                                        className={`p-4 rounded-xl border text-left transition-all duration-300 relative overflow-hidden group flex flex-col h-full ${isSelected
-                                            ? `${model.colorClass(true)} scale-[1.02] shadow-lg ring-1`
-                                            : hasChosenModel
-                                                ? 'border-[var(--border)] opacity-60 hover:opacity-100 hover:scale-[1.01] hover:bg-[var(--surface-elevated)] grayscale hover:grayscale-0' // Dimmed but interactive
-                                                : model.colorClass(false)
-                                            }`}
-                                    >
-                                        <div className="flex items-start justify-between mb-2 w-full">
-                                            {model.icon(isSelected)}
-                                            {isSelected && (
-                                                <div
-                                                    className={`w-5 h-5 rounded-full flex items-center justify-center ${model.provider === 'groq'
-                                                        ? 'bg-purple-500'
-                                                        : model.provider === 'whispercpp'
-                                                            ? 'bg-cyan-500'
-                                                            : 'bg-[var(--accent)]'
-                                                        }`}
-                                                >
-                                                    <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                                    </svg>
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div className="font-semibold text-base mb-1">{model.name}</div>
-                                        <div className="text-sm text-[var(--muted)] mb-4">{model.description}</div>
-
-                                        {/* Game-like Stats */}
-                                        <div className="mt-auto space-y-2 mb-3">
-                                            <div className="grid grid-cols-[60px,1fr] items-center gap-2">
-                                                <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">{t('statSpeed')}</span>
-                                                {renderStat(model.stats.speed)}
-                                            </div>
-                                            <div className="grid grid-cols-[60px,1fr] items-center gap-2">
-                                                <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">{t('statAccuracy')}</span>
-                                                {renderStat(model.stats.accuracy)}
-                                            </div>
-                                            <div className="grid grid-cols-[60px,1fr] items-center gap-2">
-                                                <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">{t('statKaraoke')}</span>
-                                                <div className={`text-[10px] font-bold ${model.stats.karaoke ? 'text-emerald-500' : 'text-[var(--muted)]'} `}>
-                                                    {model.stats.karaoke ? t('statKaraokeSupported') : t('statKaraokeNo')}
-                                                </div>
-                                            </div>
-                                            <div className="grid grid-cols-[60px,1fr] items-center gap-2">
-                                                <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">{t('statLines')}</span>
-                                                <div className={`text-[10px] font-bold ${model.stats.linesControl ? 'text-emerald-500' : 'text-cyan-400'} `}>
-                                                    {model.stats.linesControl ? t('statLinesCustom') : t('statLinesAuto')}
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex items-center gap-2 text-xs pt-3 border-t border-[var(--border)]/50">
-                                            <span className={`px-2 py-0.5 rounded-full font-medium ${model.badgeColor} `}>
-                                                {model.badge}
-                                            </span>
-                                        </div>
-                                    </button>
-                                );
-                            })}
-                        </div>
+                        {modelGrid}
                     </div>
                 )}
 

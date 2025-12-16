@@ -41,7 +41,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
 
     // 2. Base Styles
     // Map settings to CSS
-    const { containerStyle, textStyle, activeColor } = useMemo(() => {
+    const { containerStyle, textStyle } = useMemo(() => {
         const bottomPct = settings.position; // Directly use as bottom %
 
         // Backend uses 62px base font size on 1080px width (approx 5.74%)
