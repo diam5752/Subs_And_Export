@@ -801,9 +801,9 @@ export function ProcessView({
             {AVAILABLE_MODELS.map((model) => {
                 const isSelected = transcribeProvider === model.provider && transcribeMode === model.mode;
 
-                // Helper for stat bars (5 dots)
-                const renderStat = (value: number, max: number = 5) => (
-                    <div className="flex gap-0.5">
+                // Helper for stat bars (5 dots) with accessibility label
+                const renderStat = (value: number, label: string, max: number = 5) => (
+                    <div className="flex gap-0.5" role="meter" aria-label={`${label}: ${value} out of ${max}`} aria-valuenow={value} aria-valuemin={0} aria-valuemax={max}>
                         {Array.from({ length: max }).map((_, i) => (
                             <div
                                 key={i}
@@ -866,11 +866,11 @@ export function ProcessView({
                         <div className="mt-auto space-y-2 mb-3">
                             <div className="grid grid-cols-[60px,1fr] items-center gap-2">
                                 <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">{t('statSpeed')}</span>
-                                {renderStat(model.stats.speed)}
+                                {renderStat(model.stats.speed, t('statSpeed'))}
                             </div>
                             <div className="grid grid-cols-[60px,1fr] items-center gap-2">
                                 <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">{t('statAccuracy')}</span>
-                                {renderStat(model.stats.accuracy)}
+                                {renderStat(model.stats.accuracy, t('statAccuracy'))}
                             </div>
                             <div className="grid grid-cols-[60px,1fr] items-center gap-2">
                                 <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">{t('statKaraoke')}</span>
