@@ -19,11 +19,10 @@ def normalize_app_env(value: str | None) -> AppEnv:
     """
     Normalize an environment string into a known application environment.
 
-    Defaults to DEV when unset, and treats unknown values as PRODUCTION to avoid
-    accidentally enabling dev-only behavior.
+    Defaults to PRODUCTION when unset (Secure by Default).
     """
     if value is None:
-        return AppEnv.DEV
+        return AppEnv.PRODUCTION
     lowered = value.strip().lower()
     if lowered in _DEV_ALIASES:
         return AppEnv.DEV
@@ -38,4 +37,3 @@ def get_app_env() -> AppEnv:
 
 def is_dev_env() -> bool:
     return get_app_env() == AppEnv.DEV
-

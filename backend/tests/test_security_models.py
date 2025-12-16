@@ -11,7 +11,6 @@ from backend.app.api.endpoints.videos import (
 from backend.app.schemas.base import BatchDeleteRequest
 
 
-
 def test_user_update_password_length_limits():
     huge_string = "a" * 129
 

@@ -8,7 +8,7 @@ install:
 
 test:
 	@echo "Running backend tests..."
-	cd backend && pytest
+	cd backend && APP_ENV=dev pytest
 	@echo "Running frontend tests..."
 	cd frontend && npm test -- --watchAll=false
 
@@ -16,7 +16,7 @@ test-frontend:
 	cd frontend && npm test -- --watchAll=false
 
 test-backend:
-	cd backend && pytest
+	cd backend && APP_ENV=dev pytest
 
 lint:
 	@echo "Running ruff..."
@@ -33,7 +33,7 @@ coverage-frontend:
 
 coverage-backend:
 	@echo "Running backend tests with coverage..."
-	cd backend && python3 -m pytest --cov=app --cov-report=html --cov-report=term
+	cd backend && APP_ENV=dev python3 -m pytest --cov=app --cov-report=html --cov-report=term
 
 coverage-open:
 	@echo "Opening coverage reports..."
@@ -42,7 +42,7 @@ coverage-open:
 
 run:
 	@echo "Running backend locally..."
-	cd backend && uvicorn main:app --reload
+	cd backend && APP_ENV=dev uvicorn main:app --reload
 
 docker-up:
 	docker-compose up --build

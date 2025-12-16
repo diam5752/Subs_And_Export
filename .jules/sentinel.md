@@ -74,3 +74,8 @@
 **Vulnerability:** The `BatchDeleteRequest` accepted a list of unbounded strings (`List[str]`), allowing an attacker to send excessively large payloads (e.g., 1MB strings) that could cause memory exhaustion during parsing or validation.
 **Learning:** `List[str]` in Pydantic does not automatically inherit constraints. You must use `List[Annotated[str, Field(max_length=...)]]` to constrain the items within the list.
 **Prevention:** Audit all list fields in Pydantic models to ensure the contained items have explicit length constraints.
+
+## 2025-06-29 - [Critical] Insecure Default Environment
+**Vulnerability:** The application defaulted to `DEV` mode when `APP_ENV` was unset, exposing debug endpoints (e.g., `/dev/sample-job`) and potentially insecure configurations in production if the environment variable was missing.
+**Learning:** Default configurations should always favor security (Fail Secure). Relying on the presence of an environment variable to *enable* security is fragile.
+**Prevention:** Changed `normalize_app_env` to default to `PRODUCTION` when the environment is unspecified. Updated build and run scripts to explicitly set `APP_ENV=dev` for development environments.

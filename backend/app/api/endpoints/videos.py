@@ -15,10 +15,10 @@ from ...core.settings import load_app_settings
 from ...schemas.base import (
     BatchDeleteRequest,
     BatchDeleteResponse,
+    FactCheckResponse,
     JobResponse,
     PaginatedJobsResponse,
     ViralMetadataResponse,
-    FactCheckResponse,
 )
 from ...services.history import HistoryStore
 from ...services.jobs import JobStore

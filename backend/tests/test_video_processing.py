@@ -626,19 +626,32 @@ def test_run_ffmpeg_with_subs_parses_progress(monkeypatch, tmp_path: Path):
     input_path.write_text("video")
     output_path = tmp_path / "out.mp4"
 
+    class MockStderr:
+        def __init__(self, lines):
+            self.lines = iter(lines)
+        def readline(self):
+            return next(self.lines, "")
+
     class DummyProc:
         def __init__(self):
-            self.stderr = [
+            self.stderr = MockStderr([
                 "frame=1 time=00:00:01.00",
                 "frame=2 time=00:00:02.00",
-            ]
+            ])
             self.returncode = 0
             self.stdout = []
 
         def wait(self):
             return 0
 
+        def poll(self):
+            return None
+
+        def kill(self):
+            pass
+
     monkeypatch.setattr(video_processing.subprocess, "Popen", lambda *a, **k: DummyProc())
+    monkeypatch.setattr(video_processing.select, "select", lambda r, w, x, t: (r, [], []))
     progress = []
 
     video_processing._run_ffmpeg_with_subs(
@@ -666,12 +679,18 @@ def test_run_ffmpeg_with_subs_uses_hw_accel(monkeypatch, tmp_path: Path):
 
     class DummyProc:
         def __init__(self):
-            self.stderr = []
+            self.stderr = None
             self.returncode = 0
             self.stdout = []
 
         def wait(self):
             return 0
+
+        def poll(self):
+            return 0
+
+        def kill(self):
+            pass
 
     monkeypatch.setattr(video_processing.platform, "system", lambda: "Darwin")
     monkeypatch.setattr(video_processing.subprocess, "Popen", lambda *a, **k: DummyProc())
@@ -876,9 +895,15 @@ def test_run_ffmpeg_with_subs_raises_on_failure(monkeypatch, tmp_path: Path):
     input_path.write_text("video")
     output_path = tmp_path / "out.mp4"
 
+    class MockStderr:
+        def __init__(self, lines):
+            self.lines = iter(lines)
+        def readline(self):
+            return next(self.lines, "")
+
     class DummyProc:
         def __init__(self):
-            self.stderr = ["error"]
+            self.stderr = MockStderr(["error"])
             self.returncode = 1
             self.stdout = []
 
@@ -892,6 +917,7 @@ def test_run_ffmpeg_with_subs_raises_on_failure(monkeypatch, tmp_path: Path):
             pass
 
     monkeypatch.setattr(video_processing.subprocess, "Popen", lambda *a, **k: DummyProc())
+    monkeypatch.setattr(video_processing.select, "select", lambda r, w, x, t: (r, [], []))
 
     with pytest.raises(subprocess.CalledProcessError):
         video_processing._run_ffmpeg_with_subs(
