@@ -1,6 +1,7 @@
 import React from 'react';
 import { StepIndicator } from './StepIndicator';
 import { ProcessProvider, useProcessContext, ProcessingOptions } from './ProcessContext';
+export type { ProcessingOptions } from './ProcessContext';
 import { ModelSelector } from './components/ModelSelector';
 import { UploadSection } from './components/UploadSection';
 import { PreviewSection } from './components/PreviewSection';

@@ -205,6 +205,9 @@ export function UploadSection() {
             <>
                 <div id="upload-section-compact" className="space-y-4 animate-fade-in-up-scale">
                     <div
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => handleKeyDown(e, () => handleStepClick('upload-section-compact'))}
                         className={`mb-2 flex items-center gap-4 transition-all duration-300 cursor-pointer group/step ${currentStep !== 2 ? 'opacity-40 grayscale blur-[1px] hover:opacity-80 hover:grayscale-0 hover:blur-0' : 'opacity-100 scale-[1.01]'}`}
                         onClick={() => handleStepClick('upload-section-compact')}
                     >
@@ -305,6 +308,9 @@ export function UploadSection() {
     return (
         <div id="upload-section" className={`space-y-4 animate-fade-in-up-scale transition-opacity duration-300 ${!hasChosenModel ? 'opacity-40 pointer-events-none' : ''}`}>
             <div
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => handleKeyDown(e, () => handleStepClick('upload-section'))}
                 className={`mb-2 flex items-center gap-4 transition-all duration-300 cursor-pointer group/step ${currentStep !== 2 ? 'opacity-40 grayscale blur-[1px] hover:opacity-80 hover:grayscale-0 hover:blur-0' : 'opacity-100 scale-[1.01]'}`}
                 onClick={() => handleStepClick('upload-section')}
             >

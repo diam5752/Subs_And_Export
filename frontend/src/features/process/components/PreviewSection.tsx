@@ -56,6 +56,13 @@ export function PreviewSection() {
         document.getElementById('preview-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     };
 
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleStepClick();
+        }
+    };
+
     const selectedModel = useMemo(() =>
         AVAILABLE_MODELS.find(m => m.provider === transcribeProvider && m.mode === transcribeMode),
         [AVAILABLE_MODELS, transcribeProvider, transcribeMode]);
@@ -64,6 +71,9 @@ export function PreviewSection() {
         <div id="preview-section" className={`space-y-4 scroll-mt-[100px] transition-all duration-500 ${!selectedJob && !isProcessing ? 'opacity-50 grayscale' : ''}`} ref={resultsRef}>
 
             <div
+                role="button"
+                tabIndex={0}
+                onKeyDown={handleKeyDown}
                 className={`mb-2 flex items-center gap-4 transition-all duration-300 cursor-pointer group/step ${currentStep !== 3 ? 'opacity-40 grayscale blur-[1px] hover:opacity-80 hover:grayscale-0 hover:blur-0' : 'opacity-100 scale-[1.01]'}`}
                 onClick={handleStepClick}
             >
