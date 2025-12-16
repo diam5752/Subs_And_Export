@@ -1,6 +1,6 @@
 
-import { resegmentCues } from '../subtitleUtils';
-import { Cue } from '../../components/SubtitleOverlay';
+import { resegmentCues, findCueIndexAtTime, findCueAtTime } from '../subtitleUtils';
+import { TranscriptionCue as Cue } from '../api';
 
 // Mock cues
 const mockCues: Cue[] = [
@@ -53,5 +53,56 @@ describe('resegmentCues', () => {
 
         // Huge font should result in MORE cues (shorter lines)
         expect(hugeFontCues.length).toBeGreaterThanOrEqual(normalFontCues.length);
+    });
+});
+
+describe('findCueIndexAtTime', () => {
+    const cues: Cue[] = [
+        { start: 0, end: 1, text: "A" },
+        { start: 1, end: 2, text: "B" },
+        { start: 3, end: 4, text: "C" }
+    ];
+
+    it('finds cue at start time', () => {
+        expect(findCueIndexAtTime(cues, 0)).toBe(0);
+        expect(findCueIndexAtTime(cues, 1)).toBe(1);
+        expect(findCueIndexAtTime(cues, 3)).toBe(2);
+    });
+
+    it('finds cue in middle of duration', () => {
+        expect(findCueIndexAtTime(cues, 0.5)).toBe(0);
+        expect(findCueIndexAtTime(cues, 1.5)).toBe(1);
+        expect(findCueIndexAtTime(cues, 3.9)).toBe(2);
+    });
+
+    it('returns -1 for time before first cue', () => {
+        expect(findCueIndexAtTime(cues, -1)).toBe(-1);
+    });
+
+    it('returns -1 for time in gap', () => {
+        expect(findCueIndexAtTime(cues, 2.5)).toBe(-1);
+    });
+
+    it('returns -1 for time after last cue', () => {
+        expect(findCueIndexAtTime(cues, 5)).toBe(-1);
+    });
+
+    it('returns -1 for exact end time (exclusive)', () => {
+        expect(findCueIndexAtTime(cues, 1)).not.toBe(0); // 1 is start of B
+        expect(findCueIndexAtTime(cues, 2)).toBe(-1);
+    });
+});
+
+describe('findCueAtTime', () => {
+    const cues: Cue[] = [
+        { start: 0, end: 1, text: "A" }
+    ];
+
+    it('returns cue object when found', () => {
+        expect(findCueAtTime(cues, 0.5)).toEqual(cues[0]);
+    });
+
+    it('returns undefined when not found', () => {
+        expect(findCueAtTime(cues, 1.5)).toBeUndefined();
     });
 });
