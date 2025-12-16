@@ -1,6 +1,6 @@
-from typing import Dict, List, Optional
+from typing import Annotated, Dict, List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class JobResponse(BaseModel):
@@ -22,7 +22,7 @@ class PaginatedJobsResponse(BaseModel):
     total_pages: int
 
 class BatchDeleteRequest(BaseModel):
-    job_ids: List[str]
+    job_ids: List[Annotated[str, Field(max_length=64)]]
 
 class BatchDeleteResponse(BaseModel):
     status: str

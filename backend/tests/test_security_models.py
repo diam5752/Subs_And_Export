@@ -1,10 +1,15 @@
-
 import pytest
 from pydantic import ValidationError
 
 from backend.app.api.endpoints.auth import UserUpdatePassword
 from backend.app.api.endpoints.tiktok import TikTokUploadRequest
-from backend.app.api.endpoints.videos import ExportRequest, TranscriptionCueRequest, TranscriptionWordRequest
+from backend.app.api.endpoints.videos import (
+    ExportRequest,
+    TranscriptionCueRequest,
+    TranscriptionWordRequest,
+)
+from backend.app.schemas.base import BatchDeleteRequest
+
 
 def test_user_update_password_length_limits():
     huge_string = "a" * 129
@@ -16,6 +21,7 @@ def test_user_update_password_length_limits():
     # Verify confirm_password limit is enforced
     with pytest.raises(ValidationError):
         UserUpdatePassword(password="valid1234567", confirm_password=huge_string)
+
 
 def test_export_request_length_limits():
     huge_string = "a" * 100
@@ -48,7 +54,7 @@ def test_tiktok_request_limits():
             access_token="valid",
             video_path="valid",
             title=huge_string,
-            description="valid"
+            description="valid",
         )
 
     with pytest.raises(ValidationError):
@@ -56,7 +62,7 @@ def test_tiktok_request_limits():
             access_token="valid",
             video_path="valid",
             title="valid",
-            description=huge_string
+            description=huge_string,
         )
 
     with pytest.raises(ValidationError):
@@ -64,5 +70,15 @@ def test_tiktok_request_limits():
             access_token="a" * 4097,
             video_path="valid",
             title="valid",
-            description="valid"
+            description="valid",
         )
+
+
+def test_batch_delete_request_limits():
+    # Verify job_ids limit (64 chars)
+    valid_id = "a" * 64
+    # Ensure valid passes
+    BatchDeleteRequest(job_ids=[valid_id])
+
+    with pytest.raises(ValidationError):
+        BatchDeleteRequest(job_ids=["a" * 65])
