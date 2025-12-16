@@ -59,3 +59,8 @@
 **Vulnerability:** The IP-based `RateLimiter` blocked valid authenticated users on Cloud Run because all requests originated from the same Load Balancer IP (`request.client.host`). This effectively created a shared quota for all users, leading to denial of service.
 **Learning:** In containerized/serverless environments (Cloud Run, K8s), relying on source IP for rate limiting is dangerous without strict `Forwarded` header processing. Authenticated endpoints should prefer User ID over IP.
 **Prevention:** For authenticated routes (`/videos/process`, `/upload`), implement `AuthenticatedRateLimiter` that keys off `user.id`. Keep IP-based limiting only for public endpoints (login/register) and ensure `ProxyHeadersMiddleware` is configured if possible.
+
+## 2025-06-25 - [Medium] Missing Input Length Limits in Nested Models
+**Vulnerability:** `TranscriptionCueRequest` and `TikTokUploadRequest` lacked `max_length` constraints on string fields, allowing potential DoS via memory exhaustion or large file writes.
+**Learning:** Secondary or nested Pydantic models often miss validation that is present on primary user models. `BaseModel` does not imply safety.
+**Prevention:** Audit all Pydantic models, especially those used for lists or nested structures, and ensure every `str` field has a `max_length`.

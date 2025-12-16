@@ -74,9 +74,9 @@ def tiktok_callback(
 
 class TikTokUploadRequest(BaseModel):
     access_token: str = Field(..., max_length=4096)
-    video_path: str = Field(..., max_length=1024)
-    title: str = Field(..., max_length=500)
-    description: str = Field(..., max_length=2500)
+    video_path: str = Field(..., max_length=1024) # Relative path on server
+    title: str = Field(..., max_length=2200)
+    description: str = Field(..., max_length=2200)
 
 @router.post("/upload", dependencies=[Depends(limiter_content)])
 def upload_video_tiktok(
