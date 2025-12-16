@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import logging
 import os
 import re
 import secrets
@@ -15,6 +16,8 @@ from typing import Dict, Optional
 
 from . import config
 from .database import Database
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -286,7 +289,8 @@ def _verify_password(password: str, encoded: str) -> bool:
                 dklen=len(expected),
             )
             return hmac.compare_digest(derived, expected)
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Scrypt verification failed: {e}")
             return False
 
     if "$" not in encoded:
@@ -347,7 +351,8 @@ def _get_secret(key: str) -> str | None:
             data = tomllib.loads(path.read_text())
             if key in data:
                 return str(data[key])
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Failed to read secrets file: {e}")
             return None
     return None
 

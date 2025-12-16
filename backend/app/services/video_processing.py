@@ -14,6 +14,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, List
+import logging
 
 from backend.app.common import metrics
 from backend.app.core import config
@@ -23,6 +24,8 @@ from backend.app.services.transcription.groq_cloud import GroqTranscriber
 from backend.app.services.transcription.local_whisper import LocalWhisperTranscriber
 from backend.app.services.transcription.openai_cloud import OpenAITranscriber
 from backend.app.services.transcription.standard_whisper import StandardTranscriber
+
+logger = logging.getLogger(__name__)
 
 
 def _font_size_from_subtitle_size(subtitle_size: int | None) -> int:
@@ -246,7 +249,8 @@ def _probe_media(input_path: Path) -> MediaProbe:
 def _input_audio_is_aac(input_path: Path) -> bool:
     try:
         return _probe_media(input_path).audio_is_aac
-    except Exception:
+    except Exception as e:
+        logger.warning(f"Failed to probe audio codec: {e}")
         return False
 
 def _persist_artifacts(
@@ -674,8 +678,8 @@ def generate_video_variant(
     try:
         w_str, h_str = resolution.lower().replace("×", "x").split("x")
         width, height = int(w_str), int(h_str)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Failed to parse resolution in variant gen: {e}")
 
     transcript_path = artifact_dir / f"{input_path.stem}.srt"
     if not transcript_path.exists():
@@ -720,7 +724,7 @@ def generate_video_variant(
                         words=words
                     ))
             except Exception as e:
-                print(f"Failed to load transcription.json: {e}")
+                logger.warning(f"Failed to load transcription.json: {e}")
 
         subtitle_size_raw = subtitle_settings.get("subtitle_size")
         if isinstance(subtitle_size_raw, str):

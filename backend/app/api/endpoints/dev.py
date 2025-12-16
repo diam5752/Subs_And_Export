@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 import shutil
 import uuid
@@ -15,6 +16,7 @@ from ...services.jobs import JobStore
 from ..deps import get_current_user, get_job_store
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 def _data_roots() -> tuple[Path, Path, Path]:
