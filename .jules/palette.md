@@ -11,3 +11,7 @@
 ## 2025-02-27 - Focus Management in Conditional Lists
 **Learning:** When action buttons in list items are replaced conditionally (e.g., Delete -> Confirm/Cancel), focus is lost unless manually managed. This disorients keyboard users.
 **Action:** Use `useEffect` and `refs` to programmatically move focus to the new primary action, and restore it to the triggering element when the action is cancelled.
+
+## 2025-02-28 - Keyboard Navigation for Interactive Headers
+**Learning:** Section headers that double as "jump to step" controls were implemented as clickable `div`s without `role="button"` or keyboard event handlers. This made navigation impossible for keyboard-only users.
+**Action:** Always add `role="button"`, `tabIndex={0}`, and `onKeyDown` handlers (for Enter/Space) to non-button interactive elements, or prefer semantic `<button>` elements where possible.

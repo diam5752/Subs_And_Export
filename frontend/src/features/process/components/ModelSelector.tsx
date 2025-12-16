@@ -126,10 +126,20 @@ export function ModelSelector() {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleStepClick();
+        }
+    };
+
     return (
         <div className="card space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <div
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={handleKeyDown}
                     className={`flex items-center gap-4 transition-all duration-300 cursor-pointer group/step ${currentStep !== 1 ? 'opacity-40 grayscale blur-[1px] hover:opacity-80 hover:grayscale-0 hover:blur-0' : 'opacity-100 scale-[1.01]'}`}
                     onClick={handleStepClick}
                 >
