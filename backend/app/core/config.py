@@ -5,6 +5,7 @@ from pathlib import Path
 DEFAULT_WIDTH = 1080
 DEFAULT_HEIGHT = 1920
 DEFAULT_FPS = 30
+MAX_RESOLUTION_DIMENSION = 4096  # Max 4K DCI width/height to prevent DoS
 
 DEFAULT_SUB_FONT = "Arial Black"
 DEFAULT_SUB_FONT_SIZE = 62  # Default tuned for 1080x1920 safe area
