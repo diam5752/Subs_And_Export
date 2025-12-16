@@ -101,13 +101,20 @@ describe('ProcessView', () => {
       </AppEnvProvider>
     );
 
-    expect(screen.queryByText('uploadDropTitle')).not.toBeInTheDocument();
+    // Upload section is visible but greyed out (opacity-40, pointer-events-none)
+    // before model selection
+    expect(screen.getByText('uploadDropTitle')).toBeInTheDocument();
     expect(screen.getByText('modelSelectTitle')).toBeInTheDocument();
+
+    // The upload section should have the disabled state class before model selection
+    const uploadSection = screen.getByText('uploadDropTitle').closest('[id="upload-section"]');
+    expect(uploadSection).toHaveClass('opacity-40', 'pointer-events-none');
 
     fireEvent.click(screen.getByRole('button', { name: /modelEnhancedName/ }));
 
     await waitFor(() => {
-      expect(screen.getByText('uploadDropTitle')).toBeInTheDocument();
+      // After model selection, upload section should be enabled
+      expect(uploadSection).not.toHaveClass('opacity-40');
     });
   });
 

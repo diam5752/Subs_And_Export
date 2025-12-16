@@ -15,6 +15,18 @@ import { resegmentCues } from '@/lib/subtitleUtils';
 type TranscribeMode = 'balanced' | 'turbo';
 type TranscribeProvider = 'local' | 'openai' | 'groq' | 'whispercpp';
 
+const LAST_USED_SETTINGS_KEY = 'lastUsedSubtitleSettings';
+
+interface LastUsedSettings {
+    position: number;
+    size: number;
+    lines: number;
+    color: string;
+    karaoke: boolean;
+    timestamp: number;
+}
+
+
 interface ProcessViewProps {
     selectedFile: File | null;
     onFileSelect: (file: File | null) => void;
@@ -112,6 +124,35 @@ export function ProcessView({
     const [transcriptSaveError, setTranscriptSaveError] = useState<string | null>(null);
     const [devSampleLoading, setDevSampleLoading] = useState(false);
     const [devSampleError, setDevSampleError] = useState<string | null>(null);
+
+    // Last Used Settings - load from localStorage on mount
+    const [lastUsedSettings, setLastUsedSettings] = useState<LastUsedSettings | null>(() => {
+        if (typeof window === 'undefined') return null;
+        try {
+            const stored = localStorage.getItem(LAST_USED_SETTINGS_KEY);
+            return stored ? JSON.parse(stored) : null;
+        } catch {
+            return null;
+        }
+    });
+
+    // Save settings to localStorage after export
+    const saveLastUsedSettings = useCallback(() => {
+        const settings: LastUsedSettings = {
+            position: subtitlePosition,
+            size: subtitleSize,
+            lines: maxSubtitleLines,
+            color: subtitleColor,
+            karaoke: karaokeEnabled,
+            timestamp: Date.now(),
+        };
+        try {
+            localStorage.setItem(LAST_USED_SETTINGS_KEY, JSON.stringify(settings));
+            setLastUsedSettings(settings);
+        } catch {
+            // Ignore localStorage errors
+        }
+    }, [subtitlePosition, subtitleSize, maxSubtitleLines, subtitleColor, karaokeEnabled]);
 
     useEffect(() => {
         if (selectedFile) {
@@ -278,7 +319,7 @@ export function ProcessView({
             description: t('styleTiktokDesc'),
             emoji: '🔥',
             settings: {
-                position: 16,  // Middle = 16%
+                position: 30,  // Middle = 30%
                 size: 100,  // 100% = big
                 lines: 0, // 1 word at a time
                 color: '#FFFF00',
@@ -292,7 +333,7 @@ export function ProcessView({
             description: t('styleCinematicDesc'),
             emoji: '🎬',
             settings: {
-                position: 6,  // Low = 6%
+                position: 15,  // Low = 15%
                 size: 85,  // 85% = medium
                 lines: 2,
                 color: '#FFFFFF',
@@ -301,12 +342,12 @@ export function ProcessView({
             colorClass: 'from-slate-500 to-zinc-600',
         },
         {
-            id: 'minimal',
+            id: 'podcast',
             name: t('styleMinimalName'),
             description: t('styleMinimalDesc'),
-            emoji: '✨',
+            emoji: '🎙️',
             settings: {
-                position: 6,  // Low = 6%
+                position: 15,  // Low = 15%
                 size: 70,  // 70% = small
                 lines: 3,
                 color: '#00FFFF',
@@ -608,6 +649,9 @@ export function ProcessView({
                 karaoke_enabled: karaokeEnabled,
             });
             onJobSelect(updatedJob);
+
+            // Save settings to localStorage for "Last Used" preset
+            saveLastUsedSettings();
 
             // Auto-trigger download if we have the variant URL now
             if (updatedJob.result_data?.variants?.[resolution]) {
@@ -1493,16 +1537,17 @@ export function ProcessView({
                                                         ) : (
                                                             <div className="animate-fade-in pr-2">
                                                                 {/* Style Presets Grid (Moved from Step 3) */}
-                                                                <div className="grid grid-cols-1 gap-3 mb-6">
+                                                                <div className="grid grid-cols-2 gap-3 mb-6">
                                                                     {STYLE_PRESETS.map((preset) => {
-                                                                        // Helper to get preview position (Reuse from existing logic)
+                                                                        // Helper to get preview position - made more visually distinct
                                                                         const getPreviewBottom = (pos: number | string) => {
-                                                                            if (typeof pos === 'number') {
-                                                                                if (pos >= 40) return '28%'; // High
-                                                                                if (pos <= 10) return '8%';  // Low
-                                                                                return '18%'; // Middle (16)
+                                                                            const numPos = Number(pos);
+                                                                            if (!isNaN(numPos)) {
+                                                                                if (numPos >= 40) return '80%'; // High - near top
+                                                                                if (numPos <= 15) return '20%';  // Low - near bottom
+                                                                                return '50%'; // Middle (20) - center
                                                                             }
-                                                                            return pos === 'top' ? '28%' : pos === 'bottom' ? '8%' : '18%';
+                                                                            return pos === 'top' ? '80%' : pos === 'bottom' ? '20%' : '50%';
                                                                         };
 
                                                                         return (
@@ -1520,7 +1565,7 @@ export function ProcessView({
                                                                                     setSubtitleColor(preset.settings.color);
                                                                                     setKaraokeEnabled(preset.settings.karaoke);
                                                                                 }}
-                                                                                className={`p-3 rounded-xl border text-left transition-all relative overflow-hidden group flex gap-3 items-center ${activePreset === preset.id
+                                                                                className={`p-3 rounded-xl border text-left transition-all relative overflow-hidden group flex flex-row gap-3 items-center ${activePreset === preset.id
                                                                                     ? 'border-[var(--accent)] ring-1 ring-[var(--accent)]'
                                                                                     : 'border-[var(--border)] hover:border-[var(--accent)]/50'
                                                                                     } `}
@@ -1528,27 +1573,32 @@ export function ProcessView({
                                                                                 {/* Gradient background */}
                                                                                 <div className={`absolute inset-0 bg-gradient-to-br ${preset.colorClass} opacity-10`} />
 
-                                                                                {/* Preview Icon (simplified for sidebar) */}
-                                                                                <div className="flex-shrink-0 w-12 h-16 bg-slate-800 rounded-lg border border-slate-700 overflow-hidden relative shadow-lg">
-                                                                                    {/* Mini Preview Content */}
-                                                                                    <div className="absolute inset-0 bg-black/40" />
-                                                                                    <div className="absolute left-1 right-1 flex flex-col gap-[2px] items-center" style={{ bottom: getPreviewBottom(preset.settings.position) }}>
-                                                                                        <div className={`h-[2px] w-[80%] rounded-full`} style={{ backgroundColor: preset.settings.color }} />
-                                                                                        {preset.settings.lines > 1 && <div className={`h-[2px] w-[60%] rounded-full`} style={{ backgroundColor: preset.settings.color }} />}
+                                                                                {/* Vertical Phone Preview (9:16 aspect ratio) */}
+                                                                                <div className="flex-shrink-0 w-10 h-[72px] bg-slate-900 rounded-lg border border-slate-600 overflow-hidden relative shadow-lg" style={{ aspectRatio: '9/16' }}>
+                                                                                    {/* Phone notch */}
+                                                                                    <div className="absolute top-1 left-1/2 -translate-x-1/2 w-4 h-1 bg-slate-700 rounded-full" />
+                                                                                    {/* Screen content */}
+                                                                                    <div className="absolute inset-0 bg-gradient-to-b from-slate-800/50 to-black/60" />
+                                                                                    {/* Subtitle lines */}
+                                                                                    <div className="absolute left-1 right-1 flex flex-col gap-[1px] items-center" style={{ bottom: getPreviewBottom(preset.settings.position) }}>
+                                                                                        <div className="h-[2px] w-[75%] rounded-full" style={{ backgroundColor: preset.settings.color }} />
+                                                                                        {preset.settings.lines > 1 && <div className="h-[2px] w-[55%] rounded-full" style={{ backgroundColor: preset.settings.color }} />}
                                                                                     </div>
+                                                                                    {/* Home indicator */}
+                                                                                    <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-4 h-0.5 bg-slate-600 rounded-full" />
                                                                                 </div>
 
                                                                                 {/* Text content */}
-                                                                                <div className="flex-1 min-w-0">
+                                                                                <div className="flex-1 min-w-0 relative">
                                                                                     <div className="flex items-center gap-1.5 mb-0.5">
                                                                                         <span className="text-sm">{preset.emoji}</span>
-                                                                                        <span className="font-semibold text-sm truncate">{preset.name}</span>
+                                                                                        <span className="font-semibold text-xs truncate">{preset.name}</span>
                                                                                     </div>
                                                                                     <p className="text-[10px] text-[var(--muted)] leading-tight line-clamp-2">{preset.description}</p>
                                                                                 </div>
 
                                                                                 {activePreset === preset.id && (
-                                                                                    <div className="w-4 h-4 rounded-full bg-[var(--accent)] flex items-center justify-center animate-scale-in">
+                                                                                    <div className="absolute top-2 right-2 w-4 h-4 rounded-full bg-[var(--accent)] flex items-center justify-center animate-scale-in">
                                                                                         <svg className="w-2.5 h-2.5 text-[#031018]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                                                                                             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                                                                                         </svg>
@@ -1557,6 +1607,78 @@ export function ProcessView({
                                                                             </button>
                                                                         );
                                                                     })}
+
+                                                                    {/* Last Used Tile */}
+                                                                    <button
+                                                                        role="radio"
+                                                                        aria-checked={activePreset === 'lastUsed'}
+                                                                        aria-label={t('styleLastUsedName') || 'Last Used'}
+                                                                        aria-disabled={!lastUsedSettings}
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            if (!lastUsedSettings) return;
+                                                                            setActivePreset('lastUsed');
+                                                                            setSubtitlePosition(lastUsedSettings.position);
+                                                                            setSubtitleSize(lastUsedSettings.size);
+                                                                            setMaxSubtitleLines(lastUsedSettings.lines);
+                                                                            setSubtitleColor(lastUsedSettings.color);
+                                                                            setKaraokeEnabled(lastUsedSettings.karaoke);
+                                                                        }}
+                                                                        className={`p-3 rounded-xl border text-left transition-all relative overflow-hidden group flex flex-row gap-3 items-center ${activePreset === 'lastUsed'
+                                                                            ? 'border-[var(--accent)] ring-1 ring-[var(--accent)]'
+                                                                            : !lastUsedSettings
+                                                                                ? 'border-[var(--border)] opacity-50 grayscale cursor-not-allowed'
+                                                                                : 'border-[var(--border)] hover:border-[var(--accent)]/50'
+                                                                            } `}
+                                                                        disabled={!lastUsedSettings}
+                                                                    >
+                                                                        {/* Gradient background */}
+                                                                        <div className="absolute inset-0 bg-gradient-to-br from-emerald-500 to-teal-600 opacity-10" />
+
+                                                                        {/* Vertical Phone Preview (9:16 aspect ratio) */}
+                                                                        <div className="flex-shrink-0 w-10 h-[72px] bg-slate-900 rounded-lg border border-slate-600 overflow-hidden relative shadow-lg" style={{ aspectRatio: '9/16' }}>
+                                                                            {/* Phone notch */}
+                                                                            <div className="absolute top-1 left-1/2 -translate-x-1/2 w-4 h-1 bg-slate-700 rounded-full" />
+                                                                            {/* Screen content */}
+                                                                            <div className="absolute inset-0 bg-gradient-to-b from-slate-800/50 to-black/60" />
+                                                                            {lastUsedSettings ? (
+                                                                                <>
+                                                                                    {/* Subtitle lines */}
+                                                                                    <div className="absolute left-1 right-1 flex flex-col gap-[1px] items-center" style={{ bottom: lastUsedSettings.position >= 40 ? '80%' : lastUsedSettings.position <= 15 ? '20%' : '50%' }}>
+                                                                                        <div className="h-[2px] w-[75%] rounded-full" style={{ backgroundColor: lastUsedSettings.color }} />
+                                                                                        {lastUsedSettings.lines > 1 && <div className="h-[2px] w-[55%] rounded-full" style={{ backgroundColor: lastUsedSettings.color }} />}
+                                                                                    </div>
+                                                                                </>
+                                                                            ) : (
+                                                                                <div className="absolute inset-0 flex items-center justify-center">
+                                                                                    <svg className="w-4 h-4 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                                                    </svg>
+                                                                                </div>
+                                                                            )}
+                                                                            {/* Home indicator */}
+                                                                            <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-4 h-0.5 bg-slate-600 rounded-full" />
+                                                                        </div>
+
+                                                                        {/* Text content */}
+                                                                        <div className="flex-1 min-w-0 relative">
+                                                                            <div className="flex items-center gap-1.5 mb-0.5">
+                                                                                <span className="text-sm">🕐</span>
+                                                                                <span className="font-semibold text-xs truncate">{t('styleLastUsedName') || 'Last Used'}</span>
+                                                                            </div>
+                                                                            <p className="text-[10px] text-[var(--muted)] leading-tight line-clamp-2">
+                                                                                {lastUsedSettings ? (t('styleLastUsedDesc') || 'Your most recent settings') : (t('styleLastUsedNoHistory') || 'No previous exports yet')}
+                                                                            </p>
+                                                                        </div>
+
+                                                                        {activePreset === 'lastUsed' && (
+                                                                            <div className="absolute top-2 right-2 w-4 h-4 rounded-full bg-[var(--accent)] flex items-center justify-center animate-scale-in">
+                                                                                <svg className="w-2.5 h-2.5 text-[#031018]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                                                                </svg>
+                                                                            </div>
+                                                                        )}
+                                                                    </button>
                                                                 </div>
 
                                                                 <h4 className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-3">Custom Settings</h4>

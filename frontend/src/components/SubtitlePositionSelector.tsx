@@ -100,17 +100,18 @@ export const SubtitlePositionSelector: React.FC<SubtitlePositionSelectorProps> =
         }
     };
 
-    // Map numeric position (5-35) to CSS 'bottom' percentage for preview
+    // Map numeric position (5-50) to CSS 'bottom' percentage for preview
+    // Scaled to provide good visual spread (approx 18% to 85%)
     const getPreviewBottom = (pos: number) => {
-        return `${pos}%`;
+        return `${pos * 1.5 + 10}%`;
     };
 
 
 
     // Preset tick marks for position
     const positionPresets = [
-        { value: 6, label: t('positionLow') },
-        { value: 16, label: t('positionMiddle') },
+        { value: 15, label: t('positionLow') },
+        { value: 30, label: t('positionMiddle') },
         { value: 45, label: t('positionHigh') },
     ];
 
@@ -222,7 +223,7 @@ export const SubtitlePositionSelector: React.FC<SubtitlePositionSelectorProps> =
                                                 {/* Subtitle line indicator */}
                                                 <div
                                                     className="absolute left-1 right-1 h-1 bg-[var(--accent)] rounded-full transition-all duration-200 shadow-[0_0_6px_var(--accent)]"
-                                                    style={{ bottom: `${((value - 5) / 45) * 70 + 10}%` }}
+                                                    style={{ bottom: `${20 + ((value - 5) / 45) * 65}%` }}
                                                 />
                                             </div>
                                         </div>
