@@ -348,6 +348,22 @@ class ApiClient {
             method: 'POST',
         });
     }
+
+    async factCheck(jobId: string): Promise<FactCheckResponse> {
+        return this.request<FactCheckResponse>(`/videos/jobs/${jobId}/fact-check`, {
+            method: 'POST',
+        });
+    }
+}
+
+export interface FactCheckItem {
+    mistake: string;
+    correction: string;
+    explanation: string;
+}
+
+export interface FactCheckResponse {
+    items: FactCheckItem[];
 }
 
 export const api = new ApiClient();

@@ -30,6 +30,9 @@ export function PreviewSection() {
         setOverrideStep,
         AVAILABLE_MODELS,
         transcribeMode,
+        handleExport,
+        exportingResolutions,
+        videoInfo,
     } = useProcessContext();
 
     // Local state for VideoModal
@@ -122,51 +125,95 @@ export function PreviewSection() {
                                 <div className="relative rounded-2xl border border-white/10 bg-[var(--surface-elevated)] overflow-hidden">
                                     <div className="flex flex-col lg:flex-row gap-6 transition-all duration-500 ease-in-out lg:h-[850px]">
                                         {/* Preview Player Area */}
-                                        <div className="flex-1 bg-black/20 rounded-2xl border border-white/5 flex items-center justify-center p-4 lg:p-8 relative overflow-hidden backdrop-blur-sm min-h-0 min-w-0 transition-all duration-500">
-                                            {(selectedJob?.result_data?.transcribe_provider || transcribeProvider) && (
-                                                <div className="absolute top-4 left-4 z-10 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/60 border border-white/10 backdrop-blur-md">
-                                                    {selectedModel && (
-                                                        <span className="text-sm">{selectedModel.icon(true)}</span>
-                                                    )}
-                                                    <span className="text-xs font-medium text-white/80">
-                                                        {(() => {
-                                                            const provider = selectedJob?.result_data?.transcribe_provider || transcribeProvider;
-                                                            if (provider === 'local') return 'Standard';
-                                                            if (provider === 'groq') return 'Enhanced';
-                                                            if (provider === 'openai') return 'Ultimate';
-                                                            return provider;
-                                                        })()}
-                                                    </span>
-                                                </div>
-                                            )}
-                                            <div className="relative h-[min(70dvh,600px)] w-auto aspect-[9/16] max-w-full shadow-2xl transition-all duration-500 hover:scale-[1.01] lg:h-[90%] lg:max-h-[600px]">
-                                                <PhoneFrame className="w-full h-full" showSocialOverlays={false}>
-                                                    {processedCues && processedCues.length > 0 ? (
-                                                        <PreviewPlayer
-                                                            ref={playerRef}
-                                                            videoUrl={videoUrl || ''}
-                                                            cues={processedCues}
-                                                            settings={playerSettings}
-                                                            onTimeUpdate={handlePlayerTimeUpdate}
-                                                            initialTime={processedCues && processedCues.length > 0 ? processedCues[0].start : 0}
-                                                        />
-                                                    ) : (
-                                                        <div className="relative group w-full h-full flex items-center justify-center bg-gray-900">
-                                                            {videoUrl ? (
-                                                                <video
-                                                                    src={`${videoUrl}#t=0.5`}
-                                                                    className="absolute inset-0 w-full h-full object-cover opacity-30 blur-sm"
-                                                                    muted
-                                                                    playsInline
-                                                                />
-                                                            ) : null}
-                                                            <div className="relative z-10 text-center p-6">
-                                                                <div className="mb-3 text-4xl animate-bounce">👆</div>
-                                                                <p className="text-sm font-medium text-white/90">{t('clickToPreview') || 'Preview Pending...'}</p>
+                                        <div className="flex-1 flex flex-col items-center min-w-0">
+                                            <div className="w-full h-full bg-black/20 rounded-2xl border border-white/5 flex flex-col items-center justify-center p-4 lg:p-8 relative overflow-hidden backdrop-blur-sm transition-all duration-500">
+                                                {(selectedJob?.result_data?.transcribe_provider || transcribeProvider) && (
+                                                    <div className="absolute top-4 left-4 z-10 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/60 border border-white/10 backdrop-blur-md">
+                                                        {selectedModel && (
+                                                            <span className="text-sm">{selectedModel.icon(true)}</span>
+                                                        )}
+                                                        <span className="text-xs font-medium text-white/80">
+                                                            {(() => {
+                                                                const provider = selectedJob?.result_data?.transcribe_provider || transcribeProvider;
+                                                                if (provider === 'local') return 'Standard';
+                                                                if (provider === 'groq') return 'Enhanced';
+                                                                if (provider === 'openai') return 'Ultimate';
+                                                                return provider;
+                                                            })()}
+                                                        </span>
+                                                    </div>
+                                                )}
+
+                                                <div className="relative h-[min(70dvh,600px)] w-auto aspect-[9/16] max-w-full shadow-2xl transition-all duration-500 hover:scale-[1.01] lg:h-[85%] lg:max-h-[600px] flex-shrink-0">
+                                                    <PhoneFrame className="w-full h-full" showSocialOverlays={false}>
+                                                        {processedCues && processedCues.length > 0 ? (
+                                                            <PreviewPlayer
+                                                                ref={playerRef}
+                                                                videoUrl={videoUrl || ''}
+                                                                cues={processedCues}
+                                                                settings={playerSettings}
+                                                                onTimeUpdate={handlePlayerTimeUpdate}
+                                                                initialTime={processedCues && processedCues.length > 0 ? processedCues[0].start : 0}
+                                                            />
+                                                        ) : (
+                                                            <div className="relative group w-full h-full flex items-center justify-center bg-gray-900">
+                                                                {videoUrl ? (
+                                                                    <video
+                                                                        src={`${videoUrl}#t=0.5`}
+                                                                        className="absolute inset-0 w-full h-full object-cover opacity-30 blur-sm"
+                                                                        muted
+                                                                        playsInline
+                                                                    />
+                                                                ) : null}
+                                                                <div className="relative z-10 text-center p-6">
+                                                                    <div className="mb-3 text-4xl animate-bounce">👆</div>
+                                                                    <p className="text-sm font-medium text-white/90">{t('clickToPreview') || 'Preview Pending...'}</p>
+                                                                </div>
                                                             </div>
-                                                        </div>
-                                                    )}
-                                                </PhoneFrame>
+                                                        )}
+                                                    </PhoneFrame>
+                                                </div>
+
+                                                {/* Export Actions */}
+                                                <div className="flex flex-col sm:flex-row gap-4 mt-8 w-full max-w-[500px] mx-auto z-10 relative">
+                                                    {/* Full HD Button */}
+                                                    <button
+                                                        className="flex-1 py-3 px-6 rounded-xl flex items-center justify-center gap-2 bg-[var(--surface-elevated)] border border-[var(--border)] hover:bg-[var(--surface)] hover:border-[var(--accent)]/50 transition-all transform hover:-translate-y-0.5 shadow-lg"
+                                                        onClick={() => handleExport('1080x1920')}
+                                                        disabled={exportingResolutions['1080x1920']}
+                                                    >
+                                                        {exportingResolutions['1080x1920'] ? (
+                                                            <><span className="animate-spin">⏳</span> Rendering HD...</>
+                                                        ) : (
+                                                            <>
+                                                                <span className="text-xl">📺</span>
+                                                                <div className="flex flex-col items-start leading-tight">
+                                                                    <span className="font-bold">Export Full HD</span>
+                                                                    <span className="text-[10px] opacity-60">1080p • Standard</span>
+                                                                </div>
+                                                            </>
+                                                        )}
+                                                    </button>
+
+                                                    {/* 4K Button (VIP/Turbo style - Cyan/Blue) */}
+                                                    <button
+                                                        className="flex-1 py-3 px-6 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/40 transition-all transform hover:-translate-y-0.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white border border-cyan-400/30"
+                                                        onClick={() => handleExport('2160x3840')}
+                                                        disabled={exportingResolutions['2160x3840']}
+                                                    >
+                                                        {exportingResolutions['2160x3840'] ? (
+                                                            <><span className="animate-spin">⏳</span> Rendering 4K...</>
+                                                        ) : (
+                                                            <>
+                                                                <span className="text-xl">🚀</span>
+                                                                <div className="flex flex-col items-start leading-tight">
+                                                                    <span className="font-bold">Export 4K Turbo</span>
+                                                                    <span className="text-[10px] opacity-90 font-medium">2160p • VIP Quality</span>
+                                                                </div>
+                                                            </>
+                                                        )}
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
 

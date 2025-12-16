@@ -18,6 +18,7 @@ from ...schemas.base import (
     JobResponse,
     PaginatedJobsResponse,
     ViralMetadataResponse,
+    FactCheckResponse,
 )
 from ...services.history import HistoryStore
 from ...services.jobs import JobStore
@@ -680,6 +681,43 @@ def create_viral_metadata(
         )
     except Exception as e:
         raise HTTPException(500, f"Failed to generate metadata: {str(e)}")
+
+
+@router.post("/jobs/{job_id}/fact-check", response_model=FactCheckResponse, dependencies=[Depends(limiter_content)])
+def fact_check_video(
+    job_id: str,
+    current_user: User = Depends(get_current_user),
+    job_store: JobStore = Depends(get_job_store),
+):
+    """Analyze transcript for historical or factual correctness."""
+    job = job_store.get_job(job_id)
+    if not job or job.user_id != current_user.id:
+        raise HTTPException(404, "Job not found")
+
+    if job.status != "completed":
+        raise HTTPException(400, "Job must be completed to fact check")
+
+    _, _, artifacts_root = _data_roots()
+    artifact_dir = artifacts_root / job_id
+    transcript_path = artifact_dir / "transcript.txt"
+
+    if not transcript_path.exists():
+        raise HTTPException(404, "Transcript not found for this job")
+
+    from ...services.subtitles import generate_fact_check
+
+    try:
+        transcript_text = transcript_path.read_text(encoding="utf-8")
+        result = generate_fact_check(transcript_text)
+
+        return FactCheckResponse(
+            items=[
+                {"mistake": item.mistake, "correction": item.correction, "explanation": item.explanation}
+                for item in result.items
+            ]
+        )
+    except Exception as e:
+        raise HTTPException(500, f"Failed to fact check: {str(e)}")
 
 
 class ExportRequest(BaseModel):

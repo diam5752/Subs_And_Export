@@ -73,9 +73,7 @@ export function Sidebar() {
         transcribeProvider,
         transcribeMode,
         previewVideoUrl,
-        videoUrl,
-        handleExport,
-        exportingResolutions
+        videoUrl
     } = useProcessContext();
 
     const handleSeek = useCallback((time: number) => {
@@ -126,7 +124,7 @@ export function Sidebar() {
                 )}
             </div>
 
-            <div ref={transcriptContainerRef} className="p-4 sm:p-6 flex-1 flex flex-col min-h-0 custom-scrollbar relative lg:overflow-y-auto">
+            <div className="p-4 sm:p-6 flex-1 flex flex-col min-h-0 custom-scrollbar relative lg:overflow-y-auto">
 
                 {/* Sidebar Tabs */}
                 <div className="flex items-center gap-1 p-1 bg-[var(--surface-elevated)] rounded-lg border border-[var(--border)] mb-4">
@@ -165,34 +163,43 @@ export function Sidebar() {
                                     {t('transcriptSaving') || 'Saving…'}
                                 </div>
                             )}
-                            {cues.map((cue, index) => {
-                                const isActive = currentTime >= cue.start && currentTime < cue.end;
-                                const isEditing = editingCueIndex === index;
-                                const canEditThis = !isSavingTranscript && (editingCueIndex === null || isEditing);
 
-                                return (
-                                    <CueItem
-                                        key={`${cue.start}-${cue.end}-${index}`}
-                                        cue={cue}
-                                        index={index}
-                                        isActive={isActive}
-                                        isEditing={isEditing}
-                                        canEdit={canEditThis}
-                                        draftText={isEditing ? editingCueDraft : ''}
-                                        isSaving={isSavingTranscript}
-                                        onSeek={handleSeek}
-                                        onEdit={beginEditingCue}
-                                        onSave={saveEditingCue}
-                                        onCancel={cancelEditingCue}
-                                        onUpdateDraft={handleUpdateDraft}
-                                    />
-                                );
-                            })}
-                            {cues.length === 0 && (
-                                <div className="text-center text-[var(--muted)] py-10 opacity-50">
-                                    {t('liveOutputStatusIdle') || 'Transcript will appear here...'}
-                                </div>
-                            )}
+                            {/* Scrollable Transcript List */}
+                            <div
+                                ref={transcriptContainerRef}
+                                className="max-h-[50vh] overflow-y-auto custom-scrollbar pr-2 space-y-1 scroll-smooth"
+                                style={{ scrollBehavior: 'smooth' }}
+                            >
+                                {cues.map((cue, index) => {
+                                    const isActive = currentTime >= cue.start && currentTime < cue.end;
+                                    const isEditing = editingCueIndex === index;
+                                    const canEditThis = !isSavingTranscript && (editingCueIndex === null || isEditing);
+
+                                    return (
+                                        <div id={`cue-${index}`} key={`${cue.start}-${cue.end}-${index}`}>
+                                            <CueItem
+                                                cue={cue}
+                                                index={index}
+                                                isActive={isActive}
+                                                isEditing={isEditing}
+                                                canEdit={canEditThis}
+                                                draftText={isEditing ? editingCueDraft : ''}
+                                                isSaving={isSavingTranscript}
+                                                onSeek={handleSeek}
+                                                onEdit={beginEditingCue}
+                                                onSave={saveEditingCue}
+                                                onCancel={cancelEditingCue}
+                                                onUpdateDraft={handleUpdateDraft}
+                                            />
+                                        </div>
+                                    );
+                                })}
+                                {cues.length === 0 && (
+                                    <div className="text-center text-[var(--muted)] py-10 opacity-50">
+                                        {t('liveOutputStatusIdle') || 'Transcript will appear here...'}
+                                    </div>
+                                )}
+                            </div>
                         </>
                     ) : (
                         <div className="animate-fade-in pr-2">
@@ -340,22 +347,7 @@ export function Sidebar() {
 
                 <div className="pt-4 mt-4 border-t border-[var(--border)]/60 space-y-4">
                     <div className="flex flex-wrap gap-3">
-                        {videoUrl && (
-                            <button
-                                className="btn-primary w-full items-center justify-center gap-2 inline-flex disabled:opacity-50 h-10 shadow-lg shadow-primary/20 hover:shadow-primary/40 transition-all font-semibold"
-                                onClick={() => {
-                                    const res = videoInfo ? `${videoInfo.width}x${videoInfo.height}` : '1080x1920';
-                                    handleExport(res);
-                                }}
-                                disabled={exportingResolutions[videoInfo ? `${videoInfo.width}x${videoInfo.height}` : '1080x1920']}
-                            >
-                                {exportingResolutions[videoInfo ? `${videoInfo.width}x${videoInfo.height}` : '1080x1920'] ? (
-                                    <><span className="animate-spin">⏳</span> {'Rendering...'}</>
-                                ) : (
-                                    <>✨ {'Export Video'}</>
-                                )}
-                            </button>
-                        )}
+                        {/* Export buttons moved to PreviewSection */}
                     </div>
 
                     <ViralIntelligence jobId={selectedJob.id} />

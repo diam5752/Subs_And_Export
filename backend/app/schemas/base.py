@@ -36,3 +36,13 @@ class ViralMetadataResponse(BaseModel):
     cta: str
     hashtags: List[str]
 
+
+class FactCheckItemSchema(BaseModel):
+    mistake: str
+    correction: str
+    explanation: str
+
+
+class FactCheckResponse(BaseModel):
+    items: List[FactCheckItemSchema]
+

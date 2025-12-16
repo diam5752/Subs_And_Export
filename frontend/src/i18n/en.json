@@ -304,5 +304,9 @@
   "mutePreview": "Mute preview",
   "unmutePreview": "Unmute preview",
   "seekVideo": "Seek video",
-  "previewVideoToggle": "Preview video, tap to toggle play"
+  "previewVideoToggle": "Preview video, tap to toggle play",
+  "viralIntelligence": "Viral Intelligence",
+  "factCheck": "Fact Check",
+  "checkingFacts": "Checking facts...",
+  "factCheckResults": "Fact Check Results"
 }

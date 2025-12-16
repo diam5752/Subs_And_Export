@@ -304,5 +304,9 @@
   "mutePreview": "Σίγαση προεπισκόπησης",
   "unmutePreview": "Κατάργηση σίγασης",
   "seekVideo": "Αναζήτηση βίντεο",
-  "previewVideoToggle": "Προεπισκόπηση βίντεο, πατήστε για εναλλαγή"
+  "previewVideoToggle": "Προεπισκόπηση βίντεο, πατήστε για εναλλαγή",
+  "viralIntelligence": "Viral Intelligence",
+  "factCheck": "Έλεγχος Γεγονότων",
+  "checkingFacts": "Έλεγχος γεγονότων...",
+  "factCheckResults": "Αποτελέσματα Ελέγχου"
 }

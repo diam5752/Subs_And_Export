@@ -163,12 +163,26 @@ export const PreviewPlayer = memo(forwardRef<PreviewPlayerHandle, PreviewPlayerP
     }, []);
 
     // Set initial time when video loads or initialTime changes
+    // Set initial time when video loads or initialTime changes
     useEffect(() => {
-        if (initialTime > 0 && videoRef.current) {
-            videoRef.current.currentTime = initialTime;
-            setCurrentTime(initialTime);
+        if (typeof initialTime === 'number' && videoRef.current) {
+            // Add slight offset (0.1s) to ensure renderer catches it, as requested
+            const targetTime = initialTime + 0.1;
+
+            // Seek if discrepancy > 0.1s to avoid fighting with playback
+            if (Math.abs(videoRef.current.currentTime - targetTime) > 0.1) {
+                videoRef.current.currentTime = targetTime;
+                setCurrentTime(targetTime);
+            }
         }
     }, [initialTime]);
+
+    // Force content rect update on mount to catch cached video metadata
+    useEffect(() => {
+        if (videoRef.current && videoRef.current.readyState >= 1) {
+            updateContentRect();
+        }
+    }, []);
 
     useEffect(() => {
         const video = videoRef.current as VideoWithFrameCallback | null;

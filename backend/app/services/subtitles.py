@@ -1454,3 +1454,96 @@ def generate_viral_metadata(
                 continue
 
     raise ValueError("Failed to generate viral metadata after retries") from last_exc
+
+
+@dataclass
+class FactCheckItem:
+    mistake: str
+    correction: str
+    explanation: str
+
+
+@dataclass
+class FactCheckResult:
+    items: List[FactCheckItem]
+
+
+def generate_fact_check(
+    transcript_text: str,
+    *,
+    api_key: str | None = None,
+    model: str | None = None,
+    temperature: float = 0.3,  # Lower temperature for factual accuracy
+) -> FactCheckResult:
+    """
+    Analyze transcript for historical, logical, or factual errors using an LLM.
+    """
+    if not api_key:
+        api_key = _resolve_openai_api_key()
+
+    if not api_key:
+        raise RuntimeError("OpenAI API key is required for Fact Checking.")
+
+    model_name = model or config.SOCIAL_LLM_MODEL
+    client = _load_openai_client(api_key)
+
+    system_prompt = (
+        "### ROLE\n"
+        "You are an expert Fact Checker and Editor. Your goal is to verify the accuracy of the provided Greek transcript.\n\n"
+        "### TASK\n"
+        "Identify valid factual, historical, or logical errors in the text. Ignore minor grammar/spelling issues unless they change the meaning.\n"
+        "If the text is subjective/opinion-based, only flag contradictory statements.\n"
+        "If no significant errors are found, return an empty list.\n\n"
+        "### OUTPUT FORMAT\n"
+        "Return ONLY a VALID JSON object:\n"
+        "{\n"
+        '  "items": [\n'
+        '    {\n'
+        '      "mistake": "Quote text containing the error",\n'
+        '      "correction": "Correct factual statement",\n'
+        '      "explanation": "Brief reason why it is wrong"\n'
+        '    }\n'
+        '  ]\n'
+        "}\n"
+    )
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": transcript_text.strip()},
+    ]
+
+    max_retries = 1
+    last_exc = None
+
+    for attempt in range(max_retries + 1):
+        try:
+            response = client.chat.completions.create(
+                model=model_name,
+                messages=messages,
+                temperature=temperature,
+                response_format={"type": "json_object"},
+            )
+            content = response.choices[0].message.content
+            if not content:
+                raise ValueError("Empty response from LLM")
+
+            parsed = json.loads(content)
+            items_data = parsed.get("items", [])
+
+            items = [
+                FactCheckItem(
+                    mistake=item["mistake"],
+                    correction=item["correction"],
+                    explanation=item["explanation"]
+                )
+                for item in items_data
+            ]
+
+            return FactCheckResult(items=items)
+
+        except (json.JSONDecodeError, KeyError, ValueError) as exc:
+            last_exc = exc
+            if attempt < max_retries:
+                continue
+
+    raise ValueError("Failed to generate fact check after retries") from last_exc
