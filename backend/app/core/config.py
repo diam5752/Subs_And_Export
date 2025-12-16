@@ -6,6 +6,8 @@ DEFAULT_WIDTH = 1080
 DEFAULT_HEIGHT = 1920
 DEFAULT_FPS = 30
 MAX_RESOLUTION_DIMENSION = 4096  # Max 4K DCI width/height to prevent DoS
+MAX_VIDEO_DURATION_SECONDS = 600  # Max 10 minutes to prevent resource exhaustion
+MAX_CONCURRENT_JOBS = 2  # Max concurrent processing jobs per user
 
 DEFAULT_SUB_FONT = "Arial Black"
 DEFAULT_SUB_FONT_SIZE = 62  # Default tuned for 1080x1920 safe area

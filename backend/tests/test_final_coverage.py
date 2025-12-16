@@ -145,6 +145,9 @@ def test_process_video_content_length_invalid(client: TestClient, user_auth_head
                 message="queued", created_at=0, updated_at=0, result_data={}
             )
 
+        def count_active_jobs_for_user(self, user_id):
+            return 0
+
     app_overrides = {
         deps.get_current_user: mock_user,
         deps.get_job_store: lambda: MockStore()
@@ -393,6 +396,8 @@ def test_video_processing_turbo_alias(monkeypatch):
     monkeypatch.setattr(video_processing, "_run_ffmpeg_with_subs", lambda *a, **k: "")
     monkeypatch.setattr(video_processing, "_persist_artifacts", lambda *a: None)
     monkeypatch.setattr(video_processing.subtitles, "get_video_duration", lambda *a: 10.0)
+    # Patch probe_media because normalize now calls it
+    monkeypatch.setattr(video_processing, "probe_media", lambda p: video_processing.MediaProbe(duration_s=10.0, audio_codec="aac"))
 
     import tempfile
     with tempfile.TemporaryDirectory() as td:

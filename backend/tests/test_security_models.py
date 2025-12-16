@@ -6,6 +6,7 @@ from backend.app.api.endpoints.auth import UserUpdatePassword
 from backend.app.api.endpoints.tiktok import TikTokUploadRequest
 from backend.app.api.endpoints.videos import ExportRequest, TranscriptionCueRequest, TranscriptionWordRequest
 
+
 def test_user_update_password_length_limits():
     huge_string = "a" * 129
 

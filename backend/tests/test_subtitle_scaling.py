@@ -15,7 +15,7 @@ def test_ass_generation_forces_1080p_playres():
     """
     with patch("app.services.video_processing.subtitles.create_styled_subtitle_file") as mock_create_ass, \
          patch("app.services.video_processing.Path.exists", return_value=True), \
-         patch("app.services.video_processing._probe_media") as mock_probe, \
+         patch("app.services.video_processing.probe_media") as mock_probe, \
          patch("app.services.video_processing.subtitles.extract_audio") as mock_extract, \
          patch("app.services.video_processing._run_ffmpeg_with_subs"):
 
@@ -49,7 +49,7 @@ def test_generate_video_variant_forces_1080p_playres():
     """Verify export logic also forces 1080p reference."""
     with patch("app.services.video_processing.subtitles.create_styled_subtitle_file") as mock_create_ass, \
          patch("app.services.video_processing.Path.exists", return_value=True), \
-         patch("app.services.video_processing._probe_media"), \
+         patch("app.services.video_processing.probe_media"), \
          patch("app.services.video_processing._run_ffmpeg_with_subs"):
 
         job_id = "test_job"

@@ -22,7 +22,7 @@ from ...schemas.base import (
 from ...services.history import HistoryStore
 from ...services.jobs import JobStore
 from ...services.subtitles import generate_viral_metadata
-from ...services.video_processing import normalize_and_stub_subtitles
+from ...services.video_processing import normalize_and_stub_subtitles, probe_media
 from ..deps import get_current_user, get_history_store, get_job_store
 
 router = APIRouter()
@@ -308,6 +308,14 @@ async def process_video(
         if not re.match(r"^&H[0-9A-Fa-f]{8}$", subtitle_color):
             raise HTTPException(400, "Invalid subtitle color format (expected &HAABBGGRR)")
 
+    # Rate Limiting: Check concurrent jobs
+    active_jobs = job_store.count_active_jobs_for_user(current_user.id)
+    if active_jobs >= config.MAX_CONCURRENT_JOBS:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Too many active jobs. Please wait for your current jobs to finish (max {config.MAX_CONCURRENT_JOBS})."
+        )
+
     job_id = str(uuid.uuid4())
     data_dir, uploads_dir, artifacts_root = _data_roots()
 
@@ -328,6 +336,22 @@ async def process_video(
         except ValueError:
             pass
     _save_upload_with_limit(file, input_path)
+
+    # Validate Duration
+    try:
+        probe = probe_media(input_path)
+        if probe.duration_s and probe.duration_s > config.MAX_VIDEO_DURATION_SECONDS:
+            input_path.unlink(missing_ok=True)
+            raise HTTPException(
+                status_code=400,
+                detail=f"Video too long (max {config.MAX_VIDEO_DURATION_SECONDS/60:.1f} minutes)"
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"Failed to probe video duration: {e}")
+        # For security, if we can't probe it, it might be safer to reject or allow but log.
+        # Assuming allow for now to avoid blocking valid but weird files, but monitoring logs is key.
 
     # Prepare Output
     output_path = artifacts_root / job_id / "processed.mp4"
@@ -709,6 +733,15 @@ def export_video(
 
     if job.status != "completed":
         raise HTTPException(400, "Job must be completed to export")
+
+    # Prevent abuse: Check if user has too many active jobs
+    # We restrict export if the user is already clogging the queue
+    active_jobs = job_store.count_active_jobs_for_user(current_user.id)
+    if active_jobs >= config.MAX_CONCURRENT_JOBS:
+        raise HTTPException(
+            status_code=429,
+            detail="System busy. Please wait for your other jobs to finish."
+        )
 
     data_dir, uploads_dir, artifacts_root = _data_roots()
     artifact_dir = artifacts_root / job_id
