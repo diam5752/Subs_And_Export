@@ -9,7 +9,7 @@
    Press Ctrl+C to stop both.
 INFO:     Will watch for changes in these directories: ['/app']
 INFO:     Uvicorn running on http://127.0.0.1:8080 (Press CTRL+C to quit)
-INFO:     Started reloader process [3887] using WatchFiles
+INFO:     Started reloader process [3014] using WatchFiles
 
 > frontend@0.1.0 dev
 > next dev
@@ -24,32 +24,106 @@ This information is used to shape Next.js' roadmap and prioritize features.
 You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
 https://nextjs.org/telemetry
 
- ✓ Ready in 1712ms
-INFO:     Started server process [4019]
+ ✓ Ready in 1380ms
+INFO:     Started server process [3146]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+WARNING:  WatchFiles detected changes in 'verification/verify_frontend.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [3146]
+INFO:     Started server process [3856]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
  ○ Compiling /register ...
- GET /register 200 in 3.8s (compile: 3.5s, render: 328ms)
- GET /register 200 in 71ms (compile: 7ms, render: 65ms)
- GET / 200 in 1276ms (compile: 1053ms, render: 223ms)
- GET /login 200 in 914ms (compile: 780ms, render: 134ms)
-WARNING:  WatchFiles detected changes in 'verify_frontend.py'. Reloading...
+ GET /register 200 in 3.9s (compile: 3.5s, render: 356ms)
+INFO:     127.0.0.1:41934 - "OPTIONS /auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41938 - "GET /auth/me HTTP/1.1" 401 Unauthorized
+WARNING:  WatchFiles detected changes in 'verification/verify_frontend.py'. Reloading...
 INFO:     Shutting down
 INFO:     Waiting for application shutdown.
 INFO:     Application shutdown complete.
-INFO:     Finished server process [4019]
-INFO:     Started server process [5749]
+INFO:     Finished server process [3856]
+INFO:     Started server process [4407]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
- GET /auth/register 404 in 705ms (compile: 611ms, render: 94ms)
+ GET /register 200 in 71ms (compile: 6ms, render: 65ms)
+INFO:     127.0.0.1:52038 - "OPTIONS /auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52040 - "GET /auth/me HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:52040 - "OPTIONS /auth/register HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52038 - "POST /auth/register HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52038 - "POST /auth/token HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52038 - "OPTIONS /auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52040 - "GET /auth/me HTTP/1.1" 200 OK
+ GET / 200 in 1255ms (compile: 1147ms, render: 108ms)
+INFO:     127.0.0.1:52040 - "OPTIONS /videos/jobs/paginated?page=1&page_size=5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52038 - "OPTIONS /videos/jobs/paginated?page=1&page_size=5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52040 - "GET /videos/jobs/paginated?page=1&page_size=5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52038 - "GET /videos/jobs/paginated?page=1&page_size=5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52040 - "GET /videos/jobs/paginated?page=1&page_size=5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52038 - "GET /videos/jobs/paginated?page=1&page_size=5 HTTP/1.1" 200 OK
+WARNING:  WatchFiles detected changes in 'verification/verify_frontend.py'. Reloading...
 INFO:     Shutting down
 INFO:     Waiting for application shutdown.
 INFO:     Application shutdown complete.
-INFO:     Finished server process [5749]
-INFO:     Stopping reloader process [3887]
-[?25h
-npm notice
-npm notice New minor version of npm available! 11.6.2 -> 11.7.0
-npm notice Changelog: https://github.com/npm/cli/releases/tag/v11.7.0
-npm notice To update run: npm install -g npm@11.7.0
-npm notice
+INFO:     Finished server process [4407]
+INFO:     Started server process [4842]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+ GET /register 200 in 81ms (compile: 5ms, render: 76ms)
+INFO:     127.0.0.1:41698 - "OPTIONS /auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41712 - "GET /auth/me HTTP/1.1" 401 Unauthorized
+WARNING:  WatchFiles detected changes in 'verification/verify_frontend.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [4842]
+INFO:     Started server process [5222]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+ GET /register 200 in 63ms (compile: 4ms, render: 59ms)
+INFO:     127.0.0.1:52278 - "OPTIONS /auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52282 - "GET /auth/me HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:52282 - "OPTIONS /auth/register HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52278 - "POST /auth/register HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52278 - "POST /auth/token HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52278 - "OPTIONS /auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52282 - "GET /auth/me HTTP/1.1" 200 OK
+ GET / 200 in 41ms (compile: 7ms, render: 34ms)
+INFO:     127.0.0.1:52282 - "OPTIONS /videos/jobs/paginated?page=1&page_size=5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52278 - "OPTIONS /videos/jobs/paginated?page=1&page_size=5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52288 - "GET /videos/jobs/paginated?page=1&page_size=5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52278 - "GET /videos/jobs/paginated?page=1&page_size=5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52288 - "GET /videos/jobs/paginated?page=1&page_size=5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52278 - "GET /videos/jobs/paginated?page=1&page_size=5 HTTP/1.1" 200 OK
+WARNING:  WatchFiles detected changes in 'verification/verify_frontend.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [5222]
+INFO:     Started server process [5574]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+ GET /register 200 in 59ms (compile: 4ms, render: 55ms)
+INFO:     127.0.0.1:50304 - "OPTIONS /auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50314 - "GET /auth/me HTTP/1.1" 401 Unauthorized
+INFO:     127.0.0.1:50314 - "OPTIONS /auth/register HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50304 - "POST /auth/register HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50304 - "POST /auth/token HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50304 - "OPTIONS /auth/me HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50314 - "GET /auth/me HTTP/1.1" 200 OK
+ GET / 200 in 32ms (compile: 4ms, render: 28ms)
+INFO:     127.0.0.1:50314 - "OPTIONS /videos/jobs/paginated?page=1&page_size=5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50304 - "GET /videos/jobs/paginated?page=1&page_size=5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50304 - "GET /videos/jobs/paginated?page=1&page_size=5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50314 - "GET /videos/jobs/paginated?page=1&page_size=5 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50304 - "GET /videos/jobs/paginated?page=1&page_size=5 HTTP/1.1" 200 OK
+WARNING:  WatchFiles detected changes in 'verification/verify_frontend.py'. Reloading...
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [5574]
+INFO:     Started server process [6430]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.

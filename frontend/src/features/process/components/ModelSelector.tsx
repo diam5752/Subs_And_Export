@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { useI18n } from '@/context/I18nContext';
 import { useProcessContext, TranscribeProvider, TranscribeMode } from '../ProcessContext';
 
@@ -121,19 +121,19 @@ export function ModelSelector() {
         </div>
     ), [AVAILABLE_MODELS, transcribeProvider, transcribeMode, hasChosenModel, t, setTranscribeProvider, setTranscribeMode, setHasChosenModel, setOverrideStep, onJobSelect]);
 
-    const handleStepClick = () => {
+    const handleStepClick = useCallback(() => {
         setOverrideStep(1);
         window.scrollTo({ top: 0, behavior: 'smooth' });
-    };
+    }, [setOverrideStep]);
 
-    const handleKeyDown = (e: React.KeyboardEvent) => {
+    const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
         if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
             handleStepClick();
         }
-    };
+    }, [handleStepClick]);
 
-    return (
+    return useMemo(() => (
         <div className="card space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <div
@@ -169,5 +169,5 @@ export function ModelSelector() {
 
             {modelGrid}
         </div>
-    );
+    ), [t, currentStep, hasChosenModel, modelGrid, handleStepClick, handleKeyDown]);
 }
