@@ -28,7 +28,7 @@ function ProcessViewContent() {
     const { t } = useI18n();
     const { currentStep } = useProcessContext();
 
-    const STEPS = [
+    const STEPS = React.useMemo(() => [
         {
             id: 1,
             label: t('modelSelectTitle') || 'Pick Model',
@@ -56,7 +56,7 @@ function ProcessViewContent() {
                 </svg>
             )
         }
-    ];
+    ], [t]);
 
     return (
         <div className="grid grid-cols-1 xl:grid-cols-[1.05fr,0.95fr] gap-6">

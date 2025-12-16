@@ -29,7 +29,7 @@ export const PreviewPlayer = memo(forwardRef<PreviewPlayerHandle, PreviewPlayerP
 }, ref) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
-    const [currentTime, setCurrentTime] = useState(0);
+    const [currentTime, setCurrentTime] = useState(initialTime);
     const [contentRect, setContentRect] = useState({ width: 1080, height: 1920, top: 0, left: 0 });
     const rafIdRef = useRef<number | null>(null);
     const frameCallbackIdRef = useRef<number | null>(null);
@@ -175,82 +175,83 @@ export const PreviewPlayer = memo(forwardRef<PreviewPlayerHandle, PreviewPlayerP
                 setCurrentTime(targetTime);
             }
         }
+    }
     }, [initialTime]);
 
-    // Force content rect update on mount to catch cached video metadata
-    useEffect(() => {
-        if (videoRef.current && videoRef.current.readyState >= 1) {
-            updateContentRect();
-        }
-    }, []);
+// Force content rect update on mount to catch cached video metadata
+useEffect(() => {
+    if (videoRef.current && videoRef.current.readyState >= 1) {
+        updateContentRect();
+    }
+}, []);
 
-    useEffect(() => {
-        const video = videoRef.current as VideoWithFrameCallback | null;
-        if (!video) return;
+useEffect(() => {
+    const video = videoRef.current as VideoWithFrameCallback | null;
+    if (!video) return;
 
-        const handlePlay = () => startHighResTimeSync();
-        const handlePause = () => {
-            setCurrentTime(video.currentTime);
-            stopHighResTimeSync();
-        };
-        const handleSeeked = () => setCurrentTime(video.currentTime);
-        const handleEnded = () => {
-            setCurrentTime(video.currentTime);
-            stopHighResTimeSync();
-        };
+    const handlePlay = () => startHighResTimeSync();
+    const handlePause = () => {
+        setCurrentTime(video.currentTime);
+        stopHighResTimeSync();
+    };
+    const handleSeeked = () => setCurrentTime(video.currentTime);
+    const handleEnded = () => {
+        setCurrentTime(video.currentTime);
+        stopHighResTimeSync();
+    };
 
-        video.addEventListener('play', handlePlay);
-        video.addEventListener('pause', handlePause);
-        video.addEventListener('seeked', handleSeeked);
-        video.addEventListener('ended', handleEnded);
+    video.addEventListener('play', handlePlay);
+    video.addEventListener('pause', handlePause);
+    video.addEventListener('seeked', handleSeeked);
+    video.addEventListener('ended', handleEnded);
 
-        if (!video.paused && !video.ended) startHighResTimeSync();
+    if (!video.paused && !video.ended) startHighResTimeSync();
 
-        return () => {
-            stopHighResTimeSync();
-            video.removeEventListener('play', handlePlay);
-            video.removeEventListener('pause', handlePause);
-            video.removeEventListener('seeked', handleSeeked);
-            video.removeEventListener('ended', handleEnded);
-        };
-    }, [startHighResTimeSync, stopHighResTimeSync]);
+    return () => {
+        stopHighResTimeSync();
+        video.removeEventListener('play', handlePlay);
+        video.removeEventListener('pause', handlePause);
+        video.removeEventListener('seeked', handleSeeked);
+        video.removeEventListener('ended', handleEnded);
+    };
+}, [startHighResTimeSync, stopHighResTimeSync]);
 
-    return (
+return (
+    <div
+        ref={containerRef}
+        className="relative w-full h-full bg-black rounded-xl overflow-hidden shadow-lg border border-white/10"
+    >
+        <video
+            ref={videoRef}
+            src={videoUrl}
+            className="w-full h-full object-contain"
+            controls
+            playsInline
+            onTimeUpdate={handleTimeUpdate}
+            onLoadedMetadata={updateContentRect}
+        />
+
         <div
-            ref={containerRef}
-            className="relative w-full h-full bg-black rounded-xl overflow-hidden shadow-lg border border-white/10"
+            style={{
+                position: 'absolute',
+                top: contentRect.top,
+                left: contentRect.left,
+                width: contentRect.width,
+                height: contentRect.height,
+                pointerEvents: 'none'
+            }}
         >
-            <video
-                ref={videoRef}
-                src={videoUrl}
-                className="w-full h-full object-contain"
-                controls
-                playsInline
-                onTimeUpdate={handleTimeUpdate}
-                onLoadedMetadata={updateContentRect}
-            />
-
-            <div
-                style={{
-                    position: 'absolute',
-                    top: contentRect.top,
-                    left: contentRect.left,
-                    width: contentRect.width,
-                    height: contentRect.height,
-                    pointerEvents: 'none'
-                }}
-            >
-                {settings && (
-                    <SubtitleOverlay
-                        currentTime={currentTime}
-                        cues={cues}
-                        settings={settings}
-                        videoWidth={contentRect.width}
-                    />
-                )}
-            </div>
+            {settings && (
+                <SubtitleOverlay
+                    currentTime={currentTime}
+                    cues={cues}
+                    settings={settings}
+                    videoWidth={contentRect.width}
+                />
+            )}
         </div>
-    );
+    </div>
+);
 }));
 
 PreviewPlayer.displayName = 'PreviewPlayer';
