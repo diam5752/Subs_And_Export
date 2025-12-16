@@ -678,8 +678,14 @@ def generate_video_variant(
     try:
         w_str, h_str = resolution.lower().replace("×", "x").split("x")
         width, height = int(w_str), int(h_str)
+        if width > config.MAX_RESOLUTION_DIMENSION or height > config.MAX_RESOLUTION_DIMENSION:
+            raise ValueError(f"Resolution exceeds max {config.MAX_RESOLUTION_DIMENSION}")
     except Exception as e:
         logger.warning(f"Failed to parse resolution in variant gen: {e}")
+        # If explicit resolution fails, we should probably fail rather than fallback to defaults?
+        # But keeping existing behavior of fallback for parse errors, BUT raising for security violations.
+        if "exceeds max" in str(e):
+            raise e
 
     transcript_path = artifact_dir / f"{input_path.stem}.srt"
     if not transcript_path.exists():

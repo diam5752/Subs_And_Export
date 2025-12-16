@@ -64,3 +64,8 @@
 **Vulnerability:** `TranscriptionCueRequest` and `TikTokUploadRequest` lacked `max_length` constraints on string fields, allowing potential DoS via memory exhaustion or large file writes.
 **Learning:** Secondary or nested Pydantic models often miss validation that is present on primary user models. `BaseModel` does not imply safety.
 **Prevention:** Audit all Pydantic models, especially those used for lists or nested structures, and ensure every `str` field has a `max_length`.
+
+## 2025-06-26 - [High] DoS via Unbounded Resolution
+**Vulnerability:** The video processing endpoints accepted arbitrary resolution strings (e.g., "100000x100000") via `_parse_resolution` and `ExportRequest`, which FFmpeg would attempt to process, leading to potential server memory exhaustion (DoS).
+**Learning:** Parsing utility functions often focus on format validity (regex/split) but neglect semantic bounds checks (e.g., max dimensions), assuming inputs are "reasonable".
+**Prevention:** Define global maximum constants (e.g. `MAX_RESOLUTION_DIMENSION`) and enforce them strictly in all parsing/validation logic that feeds into resource-intensive subprocesses like FFmpeg.
