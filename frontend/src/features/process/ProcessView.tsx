@@ -1123,7 +1123,7 @@ export function ProcessView({
                 )}
 
                 {/* ACTION BAR: Start Processing */}
-                {hasChosenModel && !isProcessing && selectedJob?.status !== 'completed' && (
+                {hasChosenModel && selectedFile && !isProcessing && selectedJob?.status !== 'completed' && (
                     <div className="flex justify-end pt-8 pb-4 animate-fade-in">
                         <button
                             onClick={(e) => {
