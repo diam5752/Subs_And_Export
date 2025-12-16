@@ -5,6 +5,12 @@ const DEFAULT_SUB_FONT_SIZE = 62;
 
 const MAX_SUB_LINE_CHARS = 28; // Safe characters per line for Greek uppercase
 
+const BASE_VIDEO_WIDTH = 1080;
+const SAFE_MARGIN_PCT = 0.074; // Match SubtitleOverlay left/right (7.4%).
+const BASE_SAFE_WIDTH = BASE_VIDEO_WIDTH * (1 - SAFE_MARGIN_PCT * 2);
+const OVERLAY_FONT_FAMILY = 'Montserrat, sans-serif';
+const OVERLAY_FONT_WEIGHT = 900;
+
 /**
  * Estimate the effective character limit per line based on font size and video width.
  * Mirrored from backend `_effective_max_chars`
@@ -37,15 +43,55 @@ function getEffectiveMaxChars(fontSizePercent: number): number {
     return Math.max(10, Math.min(60, effective));
 }
 
+type TextMeasurer = {
+    measureText: (text: string) => number;
+    spaceWidth: number;
+    maxLineWidth: number;
+};
+
+function createTextMeasurer(fontSizePercent: number): TextMeasurer | null {
+    /* istanbul ignore next -- exercised in browser or via canvas mocking */
+    if (typeof document === 'undefined') return null;
+
+    /* istanbul ignore next -- exercised in browser or via canvas mocking */
+    const canvas = document.createElement('canvas');
+
+    /* istanbul ignore next -- exercised in browser or via canvas mocking */
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    const fontSizePx = Math.max(1, Math.round(DEFAULT_SUB_FONT_SIZE * (fontSizePercent / 100)));
+    ctx.font = `${OVERLAY_FONT_WEIGHT} ${fontSizePx}px ${OVERLAY_FONT_FAMILY}`;
+
+    const cache = new Map<string, number>();
+    const measureText = (text: string) => {
+        const cached = cache.get(text);
+        if (cached !== undefined) return cached;
+        const width = ctx.measureText(text).width;
+        cache.set(text, width);
+        return width;
+    };
+
+    return {
+        measureText,
+        spaceWidth: measureText(' '),
+        // Use a slightly conservative width to avoid edge-case overflows from measurement differences.
+        maxLineWidth: BASE_SAFE_WIDTH * 0.98,
+    };
+}
+
 /**
  * Flatten all words from a list of cues into a single timeline.
  */
 function expandPhraseTiming(word: TranscriptionWordTiming): TranscriptionWordTiming[] {
-    const parts = word.text.split(/\s+/).filter(Boolean);
-    if (parts.length <= 1) return [word];
+    const normalized = word.text.trim();
+    if (!normalized) return [];
+
+    const parts = normalized.split(/\s+/).filter(Boolean);
+    if (parts.length <= 1) return [{ ...word, text: normalized }];
 
     const totalDuration = word.end - word.start;
-    const totalChars = word.text.replace(/\s+/g, '').length;
+    const totalChars = normalized.replace(/\s+/g, '').length;
     const safeTotalChars = totalChars > 0 ? totalChars : parts.length;
 
     let currentStart = word.start;
@@ -68,7 +114,7 @@ function expandPhraseTiming(word: TranscriptionWordTiming): TranscriptionWordTim
 }
 
 function interpolateWordsFromCueText(cue: Cue): TranscriptionWordTiming[] {
-    const cueWords = cue.text.split(/\s+/).filter(Boolean);
+    const cueWords = cue.text.trim().split(/\s+/).filter(Boolean);
     if (cueWords.length === 0) return [];
 
     const cueDuration = cue.end - cue.start;
@@ -170,6 +216,49 @@ function chunkTimedWords(
     return chunks;
 }
 
+function chunkTimedWordsByWidth(
+    words: TranscriptionWordTiming[],
+    maxLines: number,
+    measurer: TextMeasurer
+): TranscriptionWordTiming[][] {
+    const chunks: TranscriptionWordTiming[][] = [];
+    if (words.length === 0) return chunks;
+
+    let currentChunk: TranscriptionWordTiming[] = [];
+    let currentLines = 1;
+    let currentLineWidth = 0;
+
+    for (const word of words) {
+        const normalizedText = word.text.trim();
+        if (!normalizedText) continue;
+
+        const renderText = normalizedText.toUpperCase();
+        const wordWidth = measurer.measureText(renderText);
+
+        const needsSpace = currentLineWidth > 0;
+        const spaceWidth = needsSpace ? measurer.spaceWidth : 0;
+
+        if (currentLineWidth + spaceWidth + wordWidth <= measurer.maxLineWidth || currentLineWidth === 0) {
+            currentLineWidth += spaceWidth + wordWidth;
+        } else {
+            // Wrap to next line; if no room, start a new chunk/cue.
+            if (currentChunk.length > 0 && currentLines + 1 > maxLines) {
+                chunks.push(currentChunk);
+                currentChunk = [];
+                currentLines = 1;
+            } else {
+                currentLines += 1;
+            }
+            currentLineWidth = wordWidth;
+        }
+
+        currentChunk.push({ ...word, text: normalizedText });
+    }
+
+    if (currentChunk.length > 0) chunks.push(currentChunk);
+    return chunks;
+}
+
 /**
  * Re-segment cues to fit within maxLines constraints.
  * Ports backend `_split_long_cues` logic.
@@ -186,9 +275,11 @@ export function resegmentCues(
     const allWords = getAllWords(originalCues);
     if (allWords.length === 0) return originalCues;
 
-    const maxCharsPerLine = getEffectiveMaxChars(fontSizePercent);
+    const measurer = createTextMeasurer(fontSizePercent);
 
-    const wordChunks = chunkTimedWords(allWords, maxCharsPerLine, maxLines);
+    const wordChunks = measurer
+        ? chunkTimedWordsByWidth(allWords, maxLines, measurer)
+        : chunkTimedWords(allWords, getEffectiveMaxChars(fontSizePercent), maxLines);
 
     const newCues: Cue[] = wordChunks
         .filter((chunkWords) => chunkWords.length > 0)

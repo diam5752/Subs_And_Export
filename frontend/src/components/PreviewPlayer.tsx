@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, forwardRef, useImperativeHandle, memo } from 'react';
+import React, { useCallback, useEffect, useImperativeHandle, useRef, useState, forwardRef, memo } from 'react';
 import { SubtitleOverlay, Cue } from './SubtitleOverlay';
 
 export interface PreviewPlayerHandle {
@@ -29,6 +29,17 @@ export const PreviewPlayer = memo(forwardRef<PreviewPlayerHandle, PreviewPlayerP
     const containerRef = useRef<HTMLDivElement>(null);
     const [currentTime, setCurrentTime] = useState(0);
     const [contentRect, setContentRect] = useState({ width: 1080, height: 1920, top: 0, left: 0 });
+    const rafIdRef = useRef<number | null>(null);
+    const frameCallbackIdRef = useRef<number | null>(null);
+    const frameCallbackVideoRef = useRef<VideoWithFrameCallback | null>(null);
+    const isTimeSyncRunningRef = useRef(false);
+
+    type VideoWithFrameCallback = HTMLVideoElement & {
+        requestVideoFrameCallback?: (
+            callback: (now: DOMHighResTimeStamp, metadata: unknown) => void
+        ) => number;
+        cancelVideoFrameCallback?: (handle: number) => void;
+    };
 
     useImperativeHandle(ref, () => ({
         seekTo: (time: number) => {
@@ -42,11 +53,59 @@ export const PreviewPlayer = memo(forwardRef<PreviewPlayerHandle, PreviewPlayerP
     // Handle time update from video
     const handleTimeUpdate = () => {
         if (videoRef.current) {
-            const time = videoRef.current.currentTime;
-            setCurrentTime(time);
-            if (onTimeUpdate) onTimeUpdate(time);
+            if (onTimeUpdate) onTimeUpdate(videoRef.current.currentTime);
         }
     };
+
+    const stopHighResTimeSync = useCallback(() => {
+        const video = (frameCallbackVideoRef.current ?? (videoRef.current as VideoWithFrameCallback | null));
+
+        if (frameCallbackIdRef.current !== null && video?.cancelVideoFrameCallback) {
+            video.cancelVideoFrameCallback(frameCallbackIdRef.current);
+        }
+        frameCallbackIdRef.current = null;
+        frameCallbackVideoRef.current = null;
+
+        if (rafIdRef.current !== null) {
+            cancelAnimationFrame(rafIdRef.current);
+        }
+        rafIdRef.current = null;
+        isTimeSyncRunningRef.current = false;
+    }, []);
+
+    const startHighResTimeSync = useCallback(() => {
+        const video = videoRef.current as VideoWithFrameCallback | null;
+        if (!video || isTimeSyncRunningRef.current) return;
+        isTimeSyncRunningRef.current = true;
+        frameCallbackVideoRef.current = video;
+
+        const sync = () => {
+            const currentVideo = videoRef.current as VideoWithFrameCallback | null;
+            if (!currentVideo) {
+                stopHighResTimeSync();
+                return;
+            }
+
+            setCurrentTime(currentVideo.currentTime);
+
+            if (currentVideo.paused || currentVideo.ended) {
+                stopHighResTimeSync();
+                return;
+            }
+
+            if (currentVideo.requestVideoFrameCallback) {
+                frameCallbackIdRef.current = currentVideo.requestVideoFrameCallback(() => sync());
+            } else {
+                rafIdRef.current = requestAnimationFrame(sync);
+            }
+        };
+
+        if (video.requestVideoFrameCallback) {
+            frameCallbackIdRef.current = video.requestVideoFrameCallback(() => sync());
+        } else {
+            rafIdRef.current = requestAnimationFrame(sync);
+        }
+    }, [stopHighResTimeSync]);
 
     // Calculate actual video position within the container (object-contain logic)
     const updateContentRect = () => {
@@ -100,6 +159,37 @@ export const PreviewPlayer = memo(forwardRef<PreviewPlayerHandle, PreviewPlayerP
             window.removeEventListener('resize', updateContentRect);
         };
     }, []);
+
+    useEffect(() => {
+        const video = videoRef.current as VideoWithFrameCallback | null;
+        if (!video) return;
+
+        const handlePlay = () => startHighResTimeSync();
+        const handlePause = () => {
+            setCurrentTime(video.currentTime);
+            stopHighResTimeSync();
+        };
+        const handleSeeked = () => setCurrentTime(video.currentTime);
+        const handleEnded = () => {
+            setCurrentTime(video.currentTime);
+            stopHighResTimeSync();
+        };
+
+        video.addEventListener('play', handlePlay);
+        video.addEventListener('pause', handlePause);
+        video.addEventListener('seeked', handleSeeked);
+        video.addEventListener('ended', handleEnded);
+
+        if (!video.paused && !video.ended) startHighResTimeSync();
+
+        return () => {
+            stopHighResTimeSync();
+            video.removeEventListener('play', handlePlay);
+            video.removeEventListener('pause', handlePause);
+            video.removeEventListener('seeked', handleSeeked);
+            video.removeEventListener('ended', handleEnded);
+        };
+    }, [startHighResTimeSync, stopHighResTimeSync]);
 
     return (
         <div

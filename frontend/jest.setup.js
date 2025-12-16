@@ -11,3 +11,12 @@ jest.mock('next/navigation', () => ({
         get: jest.fn(),
     }),
 }));
+
+// JSDOM doesn't implement canvas; avoid noisy "Not implemented" errors in tests.
+if (typeof HTMLCanvasElement !== 'undefined') {
+    Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
+        value: () => null,
+        writable: true,
+        configurable: true,
+    });
+}

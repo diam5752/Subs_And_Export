@@ -87,7 +87,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
         return (
             <div style={containerStyle}>
                 <div style={{ ...textStyle, color: settings.color, transform: 'scale(1.1)', transition: 'all 0.1s ease-out' }}>
-                    {String(currentWord.text).toUpperCase()}
+                    {String(currentWord.text).trim().toUpperCase()}
                 </div>
             </div>
         );
@@ -106,31 +106,39 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
     }
 
     // Mode C: Karaoke Fill (Highlight active word in sentence)
+    const karaokeNodes: React.ReactNode[] = [];
+    for (const [idx, word] of activeCue.words.entries()) {
+        const trimmedText = String(word.text).trim();
+        if (!trimmedText) continue;
+
+        const isActive = currentTime >= word.start && currentTime < word.end;
+        const wordColor = isActive ? settings.color : 'rgba(255,255,255, 0.9)';
+        const wordScale = isActive ? 'scale(1.1)' : 'scale(1)';
+        const transition = 'all 0.1s ease-out';
+
+        karaokeNodes.push(
+            <span
+                key={`${word.start}-${idx}`}
+                style={{
+                    color: wordColor,
+                    display: 'inline-block',
+                    transform: wordScale,
+                    transition,
+                }}
+            >
+                {trimmedText.toUpperCase()}
+            </span>
+        );
+
+        if (idx < activeCue.words.length - 1) {
+            karaokeNodes.push(' ');
+        }
+    }
+
     return (
         <div style={containerStyle}>
             <div style={textStyle}>
-                {activeCue.words.map((word, idx) => {
-                    const isActive = currentTime >= word.start && currentTime < word.end;
-
-                    const wordColor = isActive ? settings.color : 'rgba(255,255,255, 0.9)';
-                    const wordScale = isActive ? 'scale(1.1)' : 'scale(1)';
-                    const transition = 'all 0.1s ease-out';
-
-                    return (
-                        <span
-                            key={`${word.start}-${idx}`}
-                            style={{
-                                color: wordColor,
-                                display: 'inline-block',
-                                transform: wordScale,
-                                transition: transition,
-                                margin: '0 0.2em'
-                            }}
-                        >
-                            {String(word.text).toUpperCase()}
-                        </span>
-                    );
-                })}
+                {karaokeNodes}
             </div>
         </div>
     );

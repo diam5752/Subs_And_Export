@@ -75,6 +75,41 @@ describe('resegmentCues', () => {
         expect(result[1].text).toBe('AAAAAA');
     });
 
+    it('uses canvas text measurement (when available) to enforce maxLines', () => {
+        // REGRESSION: char-count heuristics can under-estimate actual rendered width and allow
+        // an on-screen 4th line even when "Three Lines" is selected.
+        const getContextSpy = jest
+            .spyOn(HTMLCanvasElement.prototype, 'getContext')
+            .mockImplementation(() => {
+                return {
+                    measureText: (text: string) => ({
+                        width: text === ' ' ? 20 : text.length * 100,
+                    }),
+                } as unknown as CanvasRenderingContext2D;
+            });
+
+        try {
+            const cue: Cue = {
+                start: 0,
+                end: 4,
+                text: 'AAAAAA AAAAAA AAAAAA AAAAAA',
+                words: [
+                    { start: 0, end: 1, text: 'AAAAAA' },
+                    { start: 1, end: 2, text: 'AAAAAA' },
+                    { start: 2, end: 3, text: 'AAAAAA' },
+                    { start: 3, end: 4, text: 'AAAAAA' },
+                ],
+            };
+
+            const result = resegmentCues([cue], 3, 100);
+            expect(result).toHaveLength(2);
+            expect(result[0].text).toBe('AAAAAA AAAAAA AAAAAA');
+            expect(result[1].text).toBe('AAAAAA');
+        } finally {
+            getContextSpy.mockRestore();
+        }
+    });
+
     it('expands phrase timings into individual words', () => {
         const cue: Cue = {
             start: 0,
@@ -93,6 +128,22 @@ describe('resegmentCues', () => {
         expect(result[0].words?.[0].end).toBe(1);
         expect(result[0].words?.[1].start).toBe(1);
         expect(result[0].words?.[1].end).toBe(2);
+    });
+
+    it('trims whitespace from word timings (whisper-style tokens)', () => {
+        const cue: Cue = {
+            start: 0,
+            end: 2,
+            text: ' hello world',
+            words: [
+                { start: 0, end: 1, text: ' hello' },
+                { start: 1, end: 2, text: ' world' },
+            ],
+        };
+
+        const result = resegmentCues([cue], 2, 100);
+        expect(result).toHaveLength(1);
+        expect(result[0].words?.map((w) => w.text)).toEqual(['hello', 'world']);
     });
 
     it('interpolates word timings when cues have no word-level data', () => {
