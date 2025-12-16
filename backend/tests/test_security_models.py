@@ -1,8 +1,11 @@
 
-from pydantic import ValidationError
 import pytest
+from pydantic import ValidationError
+
 from backend.app.api.endpoints.auth import UserUpdatePassword
-from backend.app.api.endpoints.videos import ExportRequest
+from backend.app.api.endpoints.tiktok import TikTokUploadRequest
+from backend.app.api.endpoints.videos import ExportRequest, TranscriptionCueRequest, TranscriptionWordRequest
+
 
 def test_user_update_password_length_limits():
     huge_string = "a" * 129
@@ -26,3 +29,43 @@ def test_export_request_length_limits():
 
     with pytest.raises(ValidationError):
         ExportRequest(resolution="1080x1920", highlight_style=huge_string)
+
+
+def test_transcription_request_limits():
+    huge_string = "a" * 5001
+
+    # Verify word limit (500)
+    with pytest.raises(ValidationError):
+        TranscriptionWordRequest(start=0.0, end=1.0, text="a" * 501)
+
+    # Verify cue limit (5000)
+    with pytest.raises(ValidationError):
+        TranscriptionCueRequest(start=0.0, end=1.0, text=huge_string)
+
+
+def test_tiktok_request_limits():
+    huge_string = "a" * 2201
+
+    with pytest.raises(ValidationError):
+        TikTokUploadRequest(
+            access_token="valid",
+            video_path="valid",
+            title=huge_string,
+            description="valid"
+        )
+
+    with pytest.raises(ValidationError):
+        TikTokUploadRequest(
+            access_token="valid",
+            video_path="valid",
+            title="valid",
+            description=huge_string
+        )
+
+    with pytest.raises(ValidationError):
+        TikTokUploadRequest(
+            access_token="a" * 1025,
+            video_path="valid",
+            title="valid",
+            description="valid"
+        )

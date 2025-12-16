@@ -2,7 +2,7 @@ import secrets
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from ...core import config
 from ...core.auth import User
@@ -73,10 +73,10 @@ def tiktok_callback(
         raise HTTPException(status_code=400, detail=f"TikTok auth failed: {str(e)}")
 
 class TikTokUploadRequest(BaseModel):
-    access_token: str
-    video_path: str # Relative path on server
-    title: str
-    description: str
+    access_token: str = Field(..., max_length=1024)
+    video_path: str = Field(..., max_length=1024) # Relative path on server
+    title: str = Field(..., max_length=2200)
+    description: str = Field(..., max_length=2200)
 
 @router.post("/upload", dependencies=[Depends(limiter_content)])
 def upload_video_tiktok(
