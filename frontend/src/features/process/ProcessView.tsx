@@ -59,19 +59,12 @@ function ProcessViewContent() {
     ], [t]);
 
     return (
-        <div className="grid grid-cols-1 xl:grid-cols-[1.05fr,0.95fr] gap-6">
-            <div className="col-span-1 xl:col-span-2">
-                <StepIndicator currentStep={currentStep} steps={STEPS} />
-            </div>
+        <div className="space-y-6">
+            <StepIndicator currentStep={currentStep} steps={STEPS} />
 
-            <div className="space-y-4">
-                <ModelSelector />
-                <UploadSection />
-            </div>
-
-            <div className="space-y-4">
-                <PreviewSection />
-            </div>
+            <ModelSelector />
+            <UploadSection />
+            <PreviewSection />
         </div>
     );
 }
