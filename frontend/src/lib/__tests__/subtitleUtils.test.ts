@@ -1,6 +1,6 @@
 
-import { resegmentCues } from '../subtitleUtils';
-import { Cue } from '../../components/SubtitleOverlay';
+import { resegmentCues, findCueIndexAtTime, findCueAtTime } from '../subtitleUtils';
+import { TranscriptionCue as Cue } from '../api';
 
 // Mock cues
 const mockCues: Cue[] = [
@@ -53,5 +53,41 @@ describe('resegmentCues', () => {
 
         // Huge font should result in MORE cues (shorter lines)
         expect(hugeFontCues.length).toBeGreaterThanOrEqual(normalFontCues.length);
+    });
+});
+
+describe('findCueIndexAtTime', () => {
+    it('should find the correct cue index', () => {
+        expect(findCueIndexAtTime(mockCues, 0)).toBe(0);
+        expect(findCueIndexAtTime(mockCues, 1.5)).toBe(0);
+        expect(findCueIndexAtTime(mockCues, 2)).toBe(1);
+        expect(findCueIndexAtTime(mockCues, 4.9)).toBe(1);
+    });
+
+    it('should return -1 if time is before first cue', () => {
+        expect(findCueIndexAtTime(mockCues, -1)).toBe(-1);
+    });
+
+    it('should return -1 if time is after last cue', () => {
+        expect(findCueIndexAtTime(mockCues, 6)).toBe(-1);
+    });
+
+    it('should return -1 if time is in a gap (if any)', () => {
+        // Create gap
+        const gapCues: Cue[] = [
+            { start: 0, end: 1, text: "A" },
+            { start: 2, end: 3, text: "B" }
+        ];
+        expect(findCueIndexAtTime(gapCues, 1.5)).toBe(-1);
+    });
+});
+
+describe('findCueAtTime', () => {
+    it('should find the correct cue', () => {
+        expect(findCueAtTime(mockCues, 1.5)).toEqual(mockCues[0]);
+    });
+
+    it('should return undefined if no cue found', () => {
+        expect(findCueAtTime(mockCues, 10)).toBeUndefined();
     });
 });
