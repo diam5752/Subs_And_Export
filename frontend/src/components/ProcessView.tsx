@@ -2,15 +2,14 @@ import React, { useCallback, useEffect, useRef, useState, useId, useMemo } from 
 import { api, JobResponse, API_BASE, JobResultData } from '@/lib/api';
 import { useI18n } from '@/context/I18nContext';
 import { useAppEnv } from '@/context/AppEnvContext';
-import { RecentJobsList } from './RecentJobsList';
 import { VideoModal } from './VideoModal';
 import { ViralIntelligence } from './ViralIntelligence';
 import { SubtitlePositionSelector } from './SubtitlePositionSelector';
-import { Cue } from './SubtitleOverlay';
+import { TranscriptionCue as Cue } from '@/lib/api';
 import { PreviewPlayer, PreviewPlayerHandle } from './PreviewPlayer';
 import { PhoneFrame } from './PhoneFrame';
 import { describeResolution, describeResolutionString, validateVideoAspectRatio } from '@/lib/video';
-import { resegmentCues } from '@/lib/subtitleUtils';
+import { resegmentCues, findCueIndexAtTime } from '@/lib/subtitleUtils';
 
 type TranscribeMode = 'balanced' | 'turbo';
 type TranscribeProvider = 'local' | 'openai' | 'groq' | 'whispercpp';
@@ -608,7 +607,7 @@ export function ProcessView({
         if (editingCueIndex !== null) return;
         if (!cues || cues.length === 0) return;
 
-        const activeIndex = cues.findIndex(c => currentTime >= c.start && currentTime < c.end);
+        const activeIndex = findCueIndexAtTime(cues, currentTime);
 
         if (activeIndex !== -1 && transcriptContainerRef.current) {
             const element = document.getElementById(`cue-${activeIndex}`);

@@ -1,18 +1,8 @@
 import React, { useMemo } from 'react';
+import { TranscriptionCue } from '../lib/api';
+import { findCueAtTime } from '../lib/subtitleUtils';
 
-// Types matching Backend Cue
-interface WordTiming {
-    start: number;
-    end: number;
-    text: string;
-}
-
-export interface Cue {
-    start: number;
-    end: number;
-    text: string;
-    words?: WordTiming[];
-}
+export type Cue = TranscriptionCue;
 
 interface SubtitleOverlayProps {
     currentTime: number;
@@ -36,7 +26,7 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
 }) => {
     // 1. Find active cue
     const activeCue = useMemo(() => {
-        return cues.find(c => currentTime >= c.start && currentTime < c.end);
+        return findCueAtTime(cues, currentTime);
     }, [currentTime, cues]);
 
     // 2. Base Styles
