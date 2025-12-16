@@ -15,3 +15,7 @@
 ## 2025-12-16 - Form Accessibility Pattern
 **Learning:** Using `useId` is the robust way to associate labels with inputs in React, especially when component instances might be reused or rendered multiple times. Simple string IDs can cause conflicts or be fragile.
 **Action:** Always use `useId` for generating unique IDs for form controls and their corresponding labels (`htmlFor`).
+
+## 2025-02-27 - Radio Group Accessibility
+**Learning:** Model selection grids that function as radio buttons (select one of N) should be explicitly marked with `role="radiogroup"` and `role="radio"`. relying on `role="button"` and visual cues is insufficient for screen readers to understand the "single selection" behavior.
+**Action:** When implementing selection grids, wrap them in a container with `role="radiogroup"` and an accessible label, and ensure items have `role="radio"` and `aria-checked` attributes.

@@ -853,7 +853,11 @@ export function ProcessView({
     }, []);
 
     const modelGrid = useMemo(() => (
-        <div className={`grid grid-cols-1 sm:grid-cols-3 gap-3 transition-all duration-300 ${hasChosenModel ? 'opacity-100' : 'animate-slide-down'}`}>
+        <div
+            role="radiogroup"
+            aria-label={t('modelSelectTitle') || 'Pick a Model'}
+            className={`grid grid-cols-1 sm:grid-cols-3 gap-3 transition-all duration-300 ${hasChosenModel ? 'opacity-100' : 'animate-slide-down'}`}
+        >
             {AVAILABLE_MODELS.map((model) => {
                 const isSelected = transcribeProvider === model.provider && transcribeMode === model.mode;
 
@@ -875,6 +879,8 @@ export function ProcessView({
                 return (
                     <button
                         key={model.id}
+                        role="radio"
+                        aria-checked={isSelected}
                         data-testid={`model-${model.provider === 'local' ? 'turbo' : model.provider}`}
                         onClick={(e) => {
                             e.stopPropagation();
