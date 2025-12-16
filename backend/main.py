@@ -15,6 +15,7 @@ from secure import (
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.types import ASGIApp
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from backend.app.api.endpoints import auth, dev, history, tiktok, videos
 from backend.app.core import config
@@ -97,6 +98,11 @@ app.add_middleware(
 
 if os.getenv("GSP_FORCE_HTTPS", "0") == "1":
     app.add_middleware(HTTPSRedirectMiddleware)
+
+# Ensure we trust X-Forwarded-For headers from Cloud Run Load Balancer
+# This must be added last (executed first) to ensure request.client.host is correct
+# for rate limiting and logging.
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 
 # Mount Static Files with Directory Listing
 # config.PROJECT_ROOT is the project root, e.g. /path/to/Subs_And_Export_Project
