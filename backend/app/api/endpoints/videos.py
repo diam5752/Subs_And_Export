@@ -118,6 +118,9 @@ def _parse_resolution(res_str: str | None) -> tuple[int | None, int | None]:
         w = int(parts[0])
         h = int(parts[1])
         if w > 0 and h > 0:
+            if w > config.MAX_RESOLUTION_DIMENSION or h > config.MAX_RESOLUTION_DIMENSION:
+                logger.warning(f"Resolution {w}x{h} exceeds max {config.MAX_RESOLUTION_DIMENSION}")
+                return None, None
             return w, h
     except Exception as e:
         logger.warning(f"Failed to parse resolution: {e}")
