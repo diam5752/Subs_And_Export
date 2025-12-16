@@ -858,8 +858,16 @@ export function ProcessView({
                 const isSelected = transcribeProvider === model.provider && transcribeMode === model.mode;
 
                 // Helper for stat bars (5 dots)
-                const renderStat = (value: number, max: number = 5) => (
-                    <div className="flex gap-0.5">
+                const renderStat = (value: number, max: number = 5, labelId?: string) => (
+                    <div
+                        className="flex gap-0.5"
+                        role="meter"
+                        aria-valuenow={value}
+                        aria-valuemin={0}
+                        aria-valuemax={max}
+                        aria-labelledby={labelId}
+                        title={`${value}/${max}`}
+                    >
                         {Array.from({ length: max }).map((_, i) => (
                             <div
                                 key={i}
@@ -867,10 +875,14 @@ export function ProcessView({
                                     ? (isSelected ? 'bg-current opacity-80' : 'bg-[var(--foreground)] opacity-60')
                                     : 'bg-[var(--foreground)] opacity-20'
                                     } `}
+                                aria-hidden="true"
                             />
                         ))}
                     </div>
                 );
+
+                const speedLabelId = `speed-label-${model.id}`;
+                const accuracyLabelId = `accuracy-label-${model.id}`;
 
                 return (
                     <button
@@ -921,12 +933,12 @@ export function ProcessView({
                         {/* Game-like Stats */}
                         <div className="mt-auto space-y-2 mb-3">
                             <div className="grid grid-cols-[60px,1fr] items-center gap-2">
-                                <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">{t('statSpeed')}</span>
-                                {renderStat(model.stats.speed)}
+                                <span id={speedLabelId} className="text-[10px] uppercase font-bold tracking-wider opacity-60">{t('statSpeed')}</span>
+                                {renderStat(model.stats.speed, 5, speedLabelId)}
                             </div>
                             <div className="grid grid-cols-[60px,1fr] items-center gap-2">
-                                <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">{t('statAccuracy')}</span>
-                                {renderStat(model.stats.accuracy)}
+                                <span id={accuracyLabelId} className="text-[10px] uppercase font-bold tracking-wider opacity-60">{t('statAccuracy')}</span>
+                                {renderStat(model.stats.accuracy, 5, accuracyLabelId)}
                             </div>
                             <div className="grid grid-cols-[60px,1fr] items-center gap-2">
                                 <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">{t('statKaraoke')}</span>
