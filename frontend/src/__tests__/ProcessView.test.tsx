@@ -110,7 +110,7 @@ describe('ProcessView', () => {
     const uploadSection = screen.getByText('uploadDropTitle').closest('[id="upload-section"]');
     expect(uploadSection).toHaveClass('opacity-40', 'pointer-events-none');
 
-    fireEvent.click(screen.getByTestId('model-turbo'));
+    fireEvent.click(screen.getByRole('radio', { name: /modelEnhancedName/ }));
 
     await waitFor(() => {
       // After model selection, upload section should be enabled

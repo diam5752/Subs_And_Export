@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import functools
 import json
+import logging
 import math
 import os
 import re
@@ -16,6 +17,8 @@ from pathlib import Path
 from typing import Any, Callable, Iterable, List, Optional, Sequence, Tuple
 
 from backend.app.core import config
+
+logger = logging.getLogger(__name__)
 
 TimeRange = Tuple[float, float, str]
 
@@ -234,8 +237,8 @@ def _resolve_openai_api_key(explicit_key: str | None = None) -> str | None:
             with open(secrets_path, "rb") as f:
                 secrets = tomllib.load(f)
                 return secrets.get("OPENAI_API_KEY")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to read secrets for OPENAI_API_KEY: {e}")
 
     return None
 
@@ -257,8 +260,8 @@ def _resolve_groq_api_key(explicit_key: str | None = None) -> str | None:
             with open(secrets_path, "rb") as f:
                 secrets = tomllib.load(f)
                 return secrets.get("GROQ_API_KEY")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to read secrets for GROQ_API_KEY: {e}")
 
     return None
 

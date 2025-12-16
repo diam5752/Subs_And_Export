@@ -1,3 +1,4 @@
+import logging
 import re
 import time
 import uuid
@@ -25,6 +26,7 @@ from ...services.video_processing import normalize_and_stub_subtitles
 from ..deps import get_current_user, get_history_store, get_job_store
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 APP_SETTINGS = load_app_settings()
 MAX_UPLOAD_BYTES = APP_SETTINGS.max_upload_mb * 1024 * 1024
@@ -117,8 +119,8 @@ def _parse_resolution(res_str: str | None) -> tuple[int | None, int | None]:
         h = int(parts[1])
         if w > 0 and h > 0:
             return w, h
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Failed to parse resolution: {e}")
     return None, None  # Skip scaling on invalid dimensions
 
 def run_video_processing(
@@ -404,8 +406,8 @@ def _ensure_job_size(job):
                      if full_path.exists():
                          # Update in-memory object (and potentially could save back, but for now just serving)
                          job.result_data["output_size"] = full_path.stat().st_size
-                 except Exception:
-                     pass
+                 except Exception as e:
+                     logger.warning(f"Failed to ensure job size: {e}")
     return job
 
 @router.get("/jobs", response_model=List[JobResponse])

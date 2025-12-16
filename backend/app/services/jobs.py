@@ -66,7 +66,7 @@ class JobStore:
 
         params.append(job_id)
 
-        query = f"UPDATE jobs SET {', '.join(updates)} WHERE id = ?"
+        query = f"UPDATE jobs SET {', '.join(updates)} WHERE id = ?"  # nosec: updates are hardcoded
         with self.db.connect() as conn:
             conn.execute(query, tuple(params))
 
@@ -156,7 +156,7 @@ class JobStore:
         placeholders = ",".join("?" * len(job_ids))
         with self.db.connect() as conn:
             cursor = conn.execute(
-                f"DELETE FROM jobs WHERE id IN ({placeholders}) AND user_id = ?",
+                f"DELETE FROM jobs WHERE id IN ({placeholders}) AND user_id = ?",  # nosec: placeholders generated safely
                 (*job_ids, user_id)
             )
             return cursor.rowcount
