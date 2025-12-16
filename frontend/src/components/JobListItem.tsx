@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import React, { memo, useRef, useEffect } from 'react';
 import { JobResponse } from '@/lib/api';
 
 interface JobListItemProps {
@@ -66,6 +66,34 @@ export const JobListItem = memo(function JobListItem({
     onDeleteConfirmed,
     t
 }: JobListItemProps) {
+    const deleteBtnRef = useRef<HTMLButtonElement>(null);
+    const confirmBtnRef = useRef<HTMLButtonElement>(null);
+    const prevConfirmingRef = useRef(isConfirmingDelete);
+    const wasCancelledRef = useRef(false);
+
+    useEffect(() => {
+        // If entering confirmation mode
+        if (isConfirmingDelete && !prevConfirmingRef.current) {
+            // Focus the confirm button to continue the flow seamlessly
+            requestAnimationFrame(() => {
+                confirmBtnRef.current?.focus();
+            });
+        }
+
+        // If exiting confirmation mode via cancel
+        if (!isConfirmingDelete && prevConfirmingRef.current) {
+            if (wasCancelledRef.current) {
+                // Restore focus to the delete button that initiated it
+                requestAnimationFrame(() => {
+                    deleteBtnRef.current?.focus();
+                });
+                wasCancelledRef.current = false;
+            }
+        }
+
+        prevConfirmingRef.current = isConfirmingDelete;
+    }, [isConfirmingDelete]);
+
     const handleContainerClick = () => {
         if (selectionMode) {
             onToggleSelection(job.id, isSelected);
@@ -155,6 +183,7 @@ export const JobListItem = memo(function JobListItem({
                             isConfirmingDelete ? (
                                 <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                                     <button
+                                        ref={confirmBtnRef}
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             onDeleteConfirmed(job.id);
@@ -178,6 +207,7 @@ export const JobListItem = memo(function JobListItem({
                                     <button
                                         onClick={(e) => {
                                             e.stopPropagation();
+                                            wasCancelledRef.current = true;
                                             setConfirmDeleteId(null);
                                         }}
                                         className="text-xs px-2 py-1 rounded border border-[var(--border)] hover:bg-white/5 flex items-center justify-center min-w-[28px]"
@@ -190,6 +220,7 @@ export const JobListItem = memo(function JobListItem({
                                 </div>
                             ) : (
                                 <button
+                                    ref={deleteBtnRef}
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         setConfirmDeleteId(job.id);
