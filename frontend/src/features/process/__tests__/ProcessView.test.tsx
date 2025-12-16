@@ -35,10 +35,18 @@ window.scrollTo = jest.fn();
 
 // Mock ResizeObserver
 global.ResizeObserver = class ResizeObserver {
-    observe() {}
-    unobserve() {}
-    disconnect() {}
+    observe() { }
+    unobserve() { }
+    disconnect() { }
 };
+
+// Mock fetch
+global.fetch = jest.fn(() =>
+    Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve([]),
+    })
+) as jest.Mock;
 
 const mockJob: JobResponse = {
     id: 'job-123',
@@ -74,8 +82,8 @@ const defaultProps = {
 
 const renderWithProviders = (ui: React.ReactNode) => {
     return render(
-        <AppEnvProvider>
-            <I18nProvider initialLocale="en" initialMessages={en}>
+        <AppEnvProvider appEnv="dev">
+            <I18nProvider initialLocale="en">
                 {ui}
             </I18nProvider>
         </AppEnvProvider>
@@ -90,7 +98,7 @@ describe('ProcessView', () => {
     it('renders Step 1 initially', () => {
         renderWithProviders(<ProcessView {...defaultProps} />);
 
-        expect(screen.getByText('Pick a Model')).toBeInTheDocument();
+        expect(screen.getByRole('radiogroup', { name: en.modelSelectTitle })).toBeInTheDocument();
         // Check for model options - Use regex to match potential whitespace or substrings
         expect(screen.getByText(/Standard/)).toBeInTheDocument();
         expect(screen.getByText(/Enhanced/)).toBeInTheDocument();
@@ -105,11 +113,11 @@ describe('ProcessView', () => {
         fireEvent.click(enhancedModel);
 
         // Should advance to step 2 (Upload)
-        // Wait for the "Selected" badge to appear
-        await waitFor(() => {
-             const badges = screen.getAllByText(/Selected/i);
-             expect(badges.length).toBeGreaterThan(0);
-        });
+        await screen.findByText(new RegExp(en.statusSynced, 'i'));
+
+        const uploadSection = document.getElementById('upload-section');
+        expect(uploadSection).not.toBeNull();
+        expect(uploadSection).not.toHaveClass('opacity-40');
     });
 
     it('renders Step 2 (Upload) when file is selected', async () => {

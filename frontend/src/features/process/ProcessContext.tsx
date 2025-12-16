@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useMemo, useState, useEffect, useRef, useCallback } from 'react';
-import { JobResponse, api } from '@/lib/api';
+import { API_BASE, JobResponse, api } from '@/lib/api';
 import { useI18n } from '@/context/I18nContext';
 import { Cue } from '@/components/SubtitleOverlay';
 import { resegmentCues } from '@/lib/subtitleUtils';
@@ -76,6 +76,8 @@ interface ProcessContextType {
     videoInfo: { width: number; height: number; aspectWarning: boolean; thumbnailUrl: string | null } | null;
     setVideoInfo: (v: { width: number; height: number; aspectWarning: boolean; thumbnailUrl: string | null } | null) => void;
     previewVideoUrl: string | null;
+    setPreviewVideoUrl: (url: string | null) => void;
+    videoUrl: string | null;
     cues: Cue[];
     setCues: (cues: Cue[]) => void;
     processedCues: Cue[];
@@ -202,6 +204,10 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
     }, [hasChosenModel, props.selectedJob?.status]);
 
     const currentStep = overrideStep ?? calculatedStep;
+
+    const videoUrl = useMemo(() => {
+        return props.buildStaticUrl(props.selectedJob?.result_data?.public_url || props.selectedJob?.result_data?.video_path);
+    }, [props]);
 
     // Last Used Settings
     const [lastUsedSettings, setLastUsedSettings] = useState<LastUsedSettings | null>(() => {
@@ -557,6 +563,38 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
     }, [props.selectedJob?.id]);
 
     useEffect(() => {
+        let cancelled = false;
+        const transcriptionUrl = props.selectedJob?.result_data?.transcription_url;
+
+        if (!transcriptionUrl) {
+            setCues([]);
+            return () => {
+                cancelled = true;
+            };
+        }
+
+        const resolvedUrl = transcriptionUrl.startsWith('http') ? transcriptionUrl : `${API_BASE}${transcriptionUrl}`;
+
+        fetch(resolvedUrl)
+            .then(res => {
+                if (!res.ok) throw new Error('Failed to fetch transcription');
+                return res.json();
+            })
+            .then(data => {
+                if (cancelled) return;
+                setCues(data as Cue[]);
+            })
+            .catch(err => {
+                console.error('Error loading transcription cues:', err);
+                if (!cancelled) setCues([]);
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [props.selectedJob?.result_data?.transcription_url]);
+
+    useEffect(() => {
         if (overrideStep && calculatedStep > overrideStep) {
             setOverrideStep(null);
         }
@@ -577,6 +615,7 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
         activePreset, setActivePreset,
         videoInfo, setVideoInfo,
         previewVideoUrl, setPreviewVideoUrl,
+        videoUrl,
         cues, setCues,
         processedCues,
         currentTime, setCurrentTime,
