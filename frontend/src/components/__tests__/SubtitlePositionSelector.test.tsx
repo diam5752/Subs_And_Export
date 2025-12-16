@@ -103,10 +103,29 @@ describe('SubtitlePositionSelector', () => {
     it('renders accessible video controls when preview is shown', () => {
         // Need to provide cues to show the interactive video player
         const cues = [{ start: 0, end: 5, text: 'Test' }];
+        // Mock HTMLMediaElement properties
+        Object.defineProperty(window.HTMLMediaElement.prototype, 'paused', {
+            get: function (this: any) { return this._mockPaused !== undefined ? this._mockPaused : false; },
+            configurable: true
+        });
+        Object.defineProperty(window.HTMLMediaElement.prototype, 'play', {
+            value: jest.fn().mockImplementation(function (this: any) {
+                this._mockPaused = false;
+                return Promise.resolve();
+            }),
+            configurable: true,
+        });
+        Object.defineProperty(window.HTMLMediaElement.prototype, 'pause', {
+            value: jest.fn().mockImplementation(function (this: any) {
+                this._mockPaused = true;
+            }),
+            configurable: true,
+        });
+
         render(<SubtitlePositionSelector {...defaultProps} previewVideoUrl="blob:test" cues={cues} />);
 
-        // Play/Pause button (defaults to playing, so label is 'pause')
-        const playButton = screen.getByRole('button', { name: 'pause' });
+        // Play/Pause button (defaults to playing, so label is 'pausePreview')
+        const playButton = screen.getByRole('button', { name: 'pausePreview' });
         expect(playButton).toBeInTheDocument();
         expect(playButton).toHaveAttribute('aria-pressed', 'true');
 
@@ -115,10 +134,18 @@ describe('SubtitlePositionSelector', () => {
         expect(containerToggle).toBeInTheDocument();
         expect(containerToggle).toHaveAttribute('aria-pressed', 'true');
 
-        // Mute button (defaults to muted, so label is 'unmute')
-        const muteButton = screen.getByRole('button', { name: 'unmute' });
+        // Mute button (defaults to muted, so label is 'unmutePreview')
+        const muteButton = screen.getByRole('button', { name: 'unmutePreview' });
         expect(muteButton).toBeInTheDocument();
         expect(muteButton).toHaveAttribute('aria-pressed', 'true');
+
+        // Interact
+        fireEvent.click(playButton);
+        // Expect label change
+        expect(screen.getByRole('button', { name: 'playPreview' })).toHaveAttribute('aria-pressed', 'false');
+
+        fireEvent.click(muteButton);
+        expect(screen.getByRole('button', { name: 'mutePreview' })).toHaveAttribute('aria-pressed', 'false');
 
         // Scrubber
         const scrubber = screen.getByLabelText('seekVideo');

@@ -124,6 +124,10 @@ describe('localized pages', () => {
 
         // Check for Greek hero title text instead of removed tabs
         expect(await screen.findByText(/Φτιάξτε shorts έτοιμα/i)).toBeInTheDocument();
+
+        // Select a model to show upload section
+        fireEvent.click(screen.getByTestId('model-whispercpp'));
+
         expect(screen.getByText('Ρίξτε το κάθετο κλιπ σας')).toBeInTheDocument();
     });
 
@@ -138,6 +142,10 @@ describe('localized pages', () => {
 
         // Check for English hero and UI elements instead of removed 'Workspace' tab
         expect(await screen.findByText(/Build export-ready shorts/i)).toBeInTheDocument();
+
+        // Select a model to show upload section
+        fireEvent.click(screen.getByTestId('model-whispercpp'));
+
         expect(screen.getByText('Drop your vertical clip')).toBeInTheDocument();
         expect(screen.getByText('Sign in to your account')).toBeInTheDocument();
     });

@@ -507,7 +507,8 @@ export const SubtitlePositionSelector: React.FC<SubtitlePositionSelectorProps> =
                                                 <button
                                                     onClick={togglePlay}
                                                     className="w-5 h-5 flex items-center justify-center text-white hover:text-[var(--accent)] transition-colors"
-                                                    aria-label={isPlaying ? (t('pause') || 'Pause') : (t('play') || 'Play')}
+                                                    aria-label={isPlaying ? (t('pausePreview') || 'Pause preview') : (t('playPreview') || 'Play preview')}
+                                                    title={isPlaying ? (t('pausePreview') || 'Pause preview') : (t('playPreview') || 'Play preview')}
                                                     aria-pressed={isPlaying}
                                                 >
                                                     {isPlaying ? (
@@ -542,7 +543,8 @@ export const SubtitlePositionSelector: React.FC<SubtitlePositionSelectorProps> =
                                                 <button
                                                     onClick={toggleMute}
                                                     className="w-5 h-5 flex items-center justify-center text-white hover:text-[var(--accent)] transition-colors"
-                                                    aria-label={isMuted ? (t('unmute') || 'Unmute') : (t('mute') || 'Mute')}
+                                                    aria-label={isMuted ? (t('unmutePreview') || 'Unmute preview') : (t('mutePreview') || 'Mute preview')}
+                                                    title={isMuted ? (t('unmutePreview') || 'Unmute preview') : (t('mutePreview') || 'Mute preview')}
                                                     aria-pressed={isMuted}
                                                 >
                                                     {isMuted ? (
