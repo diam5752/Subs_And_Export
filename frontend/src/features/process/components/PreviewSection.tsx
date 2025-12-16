@@ -83,7 +83,7 @@ export function PreviewSection() {
                         <div className="flex flex-wrap items-start justify-between gap-3">
                             <div className="min-w-0 flex-1">
                                 <h3 className="text-2xl font-semibold break-words [overflow-wrap:anywhere]">
-                                    {selectedJob?.result_data?.original_filename || (isProcessing ? t('statusProcessingEllipsis') : 'Live Preview')}
+                                    {(isProcessing ? t('statusProcessingEllipsis') : 'Live Preview')}
                                 </h3>
                                 <p className="text-sm text-[var(--muted)]">{t('liveOutputSubtitle')}</p>
                             </div>
@@ -148,6 +148,7 @@ export function PreviewSection() {
                                                             cues={processedCues}
                                                             settings={playerSettings}
                                                             onTimeUpdate={handlePlayerTimeUpdate}
+                                                            initialTime={processedCues && processedCues.length > 0 ? processedCues[0].start : 0}
                                                         />
                                                     ) : (
                                                         <div className="relative group w-full h-full flex items-center justify-center bg-gray-900">

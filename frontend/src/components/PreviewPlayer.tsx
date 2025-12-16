@@ -17,13 +17,15 @@ interface PreviewPlayerProps {
         shadowStrength: number;
     };
     onTimeUpdate?: (time: number) => void;
+    initialTime?: number;
 }
 
 export const PreviewPlayer = memo(forwardRef<PreviewPlayerHandle, PreviewPlayerProps>(({
     videoUrl,
     cues,
     settings,
-    onTimeUpdate
+    onTimeUpdate,
+    initialTime = 0
 }, ref) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -159,6 +161,14 @@ export const PreviewPlayer = memo(forwardRef<PreviewPlayerHandle, PreviewPlayerP
             window.removeEventListener('resize', updateContentRect);
         };
     }, []);
+
+    // Set initial time when video loads or initialTime changes
+    useEffect(() => {
+        if (initialTime > 0 && videoRef.current) {
+            videoRef.current.currentTime = initialTime;
+            setCurrentTime(initialTime);
+        }
+    }, [initialTime]);
 
     useEffect(() => {
         const video = videoRef.current as VideoWithFrameCallback | null;
