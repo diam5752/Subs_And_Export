@@ -29,8 +29,8 @@ export function StepIndicator({ currentStep, steps }: StepIndicatorProps) {
                 />
 
                 {steps.map((step, index) => {
-                    const isActive = currentStep >= step.id;
-                    const isCompleted = currentStep > step.id;
+                    const isActive = currentStep === step.id; // Strictly active
+                    const isCompleted = currentStep > step.id; // Strictly completed
                     const isLast = index === steps.length - 1;
 
                     return (
@@ -38,7 +38,9 @@ export function StepIndicator({ currentStep, steps }: StepIndicatorProps) {
                             {/* Step Circle */}
                             <div
                                 className={`w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all duration-500 z-10 ${isActive
-                                        ? 'bg-[var(--surface)] border-[var(--accent)] shadow-[0_0_20px_-5px_var(--accent)] scale-110'
+                                    ? 'bg-[var(--surface)] border-[var(--accent)] shadow-[0_0_20px_-5px_var(--accent)] scale-110'
+                                    : isCompleted
+                                        ? 'bg-[var(--surface-elevated)] border-[var(--accent)] text-[var(--accent)] scale-100'
                                         : 'bg-[var(--surface)] border-[var(--border)] text-[var(--muted)] grayscale'
                                     }`}
                             >
@@ -55,10 +57,10 @@ export function StepIndicator({ currentStep, steps }: StepIndicatorProps) {
 
                             {/* Label */}
                             <div className={`absolute top-full mt-3 text-center transition-all duration-500 whitespace-nowrap ${isActive
-                                    ? 'opacity-100 transform translate-y-0'
-                                    : 'opacity-50 transform -translate-y-1'
+                                ? 'opacity-100 transform translate-y-0'
+                                : 'opacity-50 transform -translate-y-1'
                                 }`}>
-                                <span className={`text-xs font-bold tracking-wider uppercase block mb-0.5 ${isActive ? 'text-[var(--accent)]' : 'text-[var(--muted)]'}`}>
+                                <span className={`text-xs font-bold tracking-wider uppercase block mb-0.5 ${isActive ? 'text-[var(--accent)] scale-110' : isCompleted ? 'text-[var(--accent)] opacity-80' : 'text-[var(--muted)]'}`}>
                                     Step {step.id}
                                 </span>
                                 <span className={`text-sm font-semibold ${isActive ? 'text-[var(--foreground)]' : 'text-[var(--muted)]'}`}>
@@ -71,6 +73,6 @@ export function StepIndicator({ currentStep, steps }: StepIndicatorProps) {
             </div>
             {/* Spacing for labels */}
             <div className="h-14"></div>
-        </div>
+        </div >
     );
 }

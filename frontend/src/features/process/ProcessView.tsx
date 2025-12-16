@@ -897,6 +897,7 @@ export function ProcessView({
                             setTranscribeMode(model.mode as TranscribeMode);
                             setHasChosenModel(true);
                             setOverrideStep(2); // Explicitly advance to Step 2 visual
+                            onJobSelect(null); // Reset wizard state to avoid "stuck on step 3"
 
                             // Only scroll if we were not already selected (to avoid jarring jumps if just clicking around)
                             if (!isSelected) {
