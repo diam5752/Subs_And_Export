@@ -1,3 +1,4 @@
+import functools
 import unicodedata
 from pathlib import Path
 from typing import Iterable, List, Tuple
@@ -5,6 +6,7 @@ from typing import Iterable, List, Tuple
 # Type alias for TimeRange
 TimeRange = Tuple[float, float, str]
 
+@functools.lru_cache(maxsize=4096)
 def normalize_text(text: str) -> str:
     """
     Uppercase + strip accents for consistent, bold subtitle styling.
