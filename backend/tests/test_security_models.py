@@ -6,8 +6,6 @@ from backend.app.api.endpoints.auth import UserUpdatePassword
 from backend.app.api.endpoints.tiktok import TikTokUploadRequest
 from backend.app.api.endpoints.videos import ExportRequest, TranscriptionCueRequest, TranscriptionWordRequest
 
-
-
 def test_user_update_password_length_limits():
     huge_string = "a" * 129
 
@@ -33,11 +31,9 @@ def test_export_request_length_limits():
 
 
 def test_transcription_request_limits():
-    huge_string = "a" * 5001
-
-    # Verify word limit (200)
+    # Verify word limit (100) - stricter limit from sentinel fix
     with pytest.raises(ValidationError):
-        TranscriptionWordRequest(start=0.0, end=1.0, text="a" * 201)
+        TranscriptionWordRequest(start=0.0, end=1.0, text="a" * 101)
 
     # Verify cue limit (2000)
     with pytest.raises(ValidationError):

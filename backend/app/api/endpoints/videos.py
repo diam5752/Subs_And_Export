@@ -519,7 +519,7 @@ def get_job(
 class TranscriptionWordRequest(BaseModel):
     start: float
     end: float
-    text: str = Field(..., max_length=200)
+    text: str = Field(..., max_length=100)
 
 
 class TranscriptionCueRequest(BaseModel):
