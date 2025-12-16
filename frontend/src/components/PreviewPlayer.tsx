@@ -29,7 +29,7 @@ export const PreviewPlayer = memo(forwardRef<PreviewPlayerHandle, PreviewPlayerP
 }, ref) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
-    const [currentTime, setCurrentTime] = useState(0);
+    const [currentTime, setCurrentTime] = useState(initialTime);
     const [contentRect, setContentRect] = useState({ width: 1080, height: 1920, top: 0, left: 0 });
     const rafIdRef = useRef<number | null>(null);
     const frameCallbackIdRef = useRef<number | null>(null);
@@ -164,8 +164,9 @@ export const PreviewPlayer = memo(forwardRef<PreviewPlayerHandle, PreviewPlayerP
 
     // Set initial time when video loads or initialTime changes
     useEffect(() => {
-        if (initialTime > 0 && videoRef.current) {
+        if (initialTime > 0 && videoRef.current && Math.abs(videoRef.current.currentTime - initialTime) > 0.1) {
             videoRef.current.currentTime = initialTime;
+            // eslint-disable-next-line
             setCurrentTime(initialTime);
         }
     }, [initialTime]);

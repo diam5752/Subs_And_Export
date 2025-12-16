@@ -10,7 +10,7 @@ interface StepIndicatorProps {
     }[];
 }
 
-export function StepIndicator({ currentStep, steps }: StepIndicatorProps) {
+export const StepIndicator = React.memo(function StepIndicator({ currentStep, steps }: StepIndicatorProps) {
 
     return (
         <div className="w-full max-w-4xl mx-auto mb-10 px-4">
@@ -72,4 +72,4 @@ export function StepIndicator({ currentStep, steps }: StepIndicatorProps) {
             <div className="h-14"></div>
         </div >
     );
-}
+});
