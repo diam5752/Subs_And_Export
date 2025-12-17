@@ -88,3 +88,8 @@
 **Vulnerability:** The `/videos/process` endpoint accepted unbounded strings for `transcribe_provider`, `openai_model`, and `video_resolution` form fields. While primary fields were validated, these secondary fields could allow large payloads, potentially leading to DoS or memory exhaustion.
 **Learning:** Form parameters in FastAPI (even with default values) do not automatically enforce length limits. Manual validation is required unless Pydantic models are used for the form body (which is complex with file uploads).
 **Prevention:** Explicitly check `len(field) > MAX` for all `Form()` parameters in file upload endpoints.
+
+## 2025-07-02 - [High] Dormant Password Persistence on SSO Conversion
+**Vulnerability:** When a local user logged in via Google SSO (creating an account link), the original local password hash remained in the database. This allowed continued access via the local password, even though the user provider was switched to "google" (which blocks password updates), creating an unmanageable shadow credential.
+**Learning:** "Provider" fields in databases are often descriptive but not enforced by the authentication logic itself unless explicitly checked. When upgrading authentication assurance (e.g. to SSO), lower-assurance credentials must be actively revoked.
+**Prevention:** In account linking/upgrading flows (`upsert_google_user`), explicitly nullify conflicting credentials (`password_hash = NULL`) to enforce the new authentication source.
