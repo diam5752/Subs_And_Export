@@ -73,7 +73,6 @@ export function Sidebar() {
         transcribeProvider,
         transcribeMode,
         previewVideoUrl,
-        videoUrl
     } = useProcessContext();
 
     const handleSeek = useCallback((time: number) => {
@@ -127,8 +126,15 @@ export function Sidebar() {
             <div className="p-4 sm:p-6 flex-1 flex flex-col min-h-0 custom-scrollbar relative lg:overflow-y-auto">
 
                 {/* Sidebar Tabs */}
-                <div className="flex items-center gap-1 p-1 bg-[var(--surface-elevated)] rounded-lg border border-[var(--border)] mb-4">
+                <div
+                    role="tablist"
+                    className="flex items-center gap-1 p-1 bg-[var(--surface-elevated)] rounded-lg border border-[var(--border)] mb-4"
+                >
                     <button
+                        role="tab"
+                        id="tab-transcript"
+                        aria-selected={activeSidebarTab === 'transcript'}
+                        aria-controls="panel-transcript"
                         onClick={() => setActiveSidebarTab('transcript')}
                         className={`flex-1 py-1.5 px-3 rounded-md text-xs font-medium transition-all ${activeSidebarTab === 'transcript'
                             ? 'bg-[var(--accent)] text-[#031018] shadow-sm'
@@ -138,6 +144,10 @@ export function Sidebar() {
                         {t('tabTranscript') || 'Transcript'}
                     </button>
                     <button
+                        role="tab"
+                        id="tab-styles"
+                        aria-selected={activeSidebarTab === 'styles'}
+                        aria-controls="panel-styles"
                         onClick={() => setActiveSidebarTab('styles')}
                         className={`flex-1 py-1.5 px-3 rounded-md text-xs font-medium transition-all ${activeSidebarTab === 'styles'
                             ? 'bg-[var(--accent)] text-[#031018] shadow-sm'
@@ -149,9 +159,14 @@ export function Sidebar() {
                 </div>
 
                 {/* Tab Content */}
-                <div className="space-y-2 pr-1">
+                <div className="pr-1">
                     {activeSidebarTab === 'transcript' ? (
-                        <>
+                        <div
+                            role="tabpanel"
+                            id="panel-transcript"
+                            aria-labelledby="tab-transcript"
+                            className="space-y-2"
+                        >
                             {transcriptSaveError && (
                                 <div className="rounded-lg border border-[var(--danger)]/30 bg-[var(--danger)]/10 px-3 py-2 text-xs text-[var(--danger)]">
                                     {transcriptSaveError}
@@ -200,9 +215,14 @@ export function Sidebar() {
                                     </div>
                                 )}
                             </div>
-                        </>
+                        </div>
                     ) : (
-                        <div className="animate-fade-in pr-2">
+                        <div
+                            role="tabpanel"
+                            id="panel-styles"
+                            aria-labelledby="tab-styles"
+                            className="animate-fade-in pr-2"
+                        >
                             {/* Style Presets Grid */}
                             <div
                                 className="grid grid-cols-2 gap-3 mb-6"
