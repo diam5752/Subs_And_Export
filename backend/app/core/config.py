@@ -58,7 +58,7 @@ AUDIO_CODEC = "pcm_s16le"
 
 # Encoding defaults for delivery to TikTok / Reels / Shorts
 DEFAULT_VIDEO_CRF = 23  # balanced quality/size - platforms re-encode anyway
-DEFAULT_VIDEO_PRESET = "ultrafast"  # Fast encoding - platforms re-encode anyway
+DEFAULT_VIDEO_PRESET = "veryfast"  # Fast encoding - platforms re-encode anyway
 DEFAULT_AUDIO_BITRATE = "256k"
 DEFAULT_HIGHLIGHT_COLOR = "&H0000FFFF"  # vivid yellow for per-word fill
 USE_HW_ACCEL = True  # Use VideoToolbox on macOS by default

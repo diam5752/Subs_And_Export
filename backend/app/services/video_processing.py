@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import platform
 import re
 import select
@@ -131,6 +132,9 @@ def _run_ffmpeg_with_subs(
             str(q_val),
         ]
     else:
+        # Optimization: Limit threads to physical cores to prevent Serverless thrashing
+        # and use 'film' tuning for better live-action quality retention.
+        threads = os.cpu_count() or 1
         cmd += [
             "-c:v",
             "libx264",
@@ -138,6 +142,10 @@ def _run_ffmpeg_with_subs(
             video_preset,
             "-crf",
             str(video_crf),
+            "-threads",
+            str(threads),
+            "-tune",
+            "film",
         ]
 
     if audio_copy:
@@ -847,11 +855,16 @@ def generate_video_variant(
     output_filename = f"processed_{width}x{height}.mp4"
     destination = artifact_dir / output_filename
 
+    # Use stored CRF if available (respecting user's original quality choice),
+    # otherwise fallback to default.
+    stored_crf = result_data.get("video_crf")
+    video_crf = int(stored_crf) if stored_crf is not None else config.DEFAULT_VIDEO_CRF
+
     _run_ffmpeg_with_subs(
         input_path,
         ass_path,
         destination,
-        video_crf=20,
+        video_crf=video_crf,
         video_preset=config.DEFAULT_VIDEO_PRESET,
         audio_bitrate=config.DEFAULT_AUDIO_BITRATE,
         audio_copy=True,
