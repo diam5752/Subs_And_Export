@@ -169,4 +169,37 @@ describe('ProcessView', () => {
         const transcriptTab = screen.getByText('Transcript');
         fireEvent.click(transcriptTab);
     });
+
+    it('has accessible ARIA tab interface for sidebar', async () => {
+        const props = { ...defaultProps, selectedJob: mockJob };
+
+        await act(async () => {
+            renderWithProviders(<ProcessView {...props} />);
+        });
+
+        // Check tablist
+        const tablist = screen.getByRole('tablist', { name: /Sidebar tabs/i });
+        expect(tablist).toBeInTheDocument();
+
+        // Check tabs
+        const transcriptTab = screen.getByRole('tab', { name: 'Transcript' });
+        const stylesTab = screen.getByRole('tab', { name: 'Styles' });
+
+        expect(transcriptTab).toHaveAttribute('aria-selected', 'true');
+        expect(stylesTab).toHaveAttribute('aria-selected', 'false');
+
+        // Check panel
+        const panel = screen.getByRole('tabpanel');
+        expect(panel).toHaveAttribute('aria-labelledby', 'tab-transcript');
+        expect(panel).toHaveAttribute('tabIndex', '0');
+
+        // Switch tab
+        fireEvent.click(stylesTab);
+
+        expect(transcriptTab).toHaveAttribute('aria-selected', 'false');
+        expect(stylesTab).toHaveAttribute('aria-selected', 'true');
+
+        const stylePanel = screen.getByRole('tabpanel');
+        expect(stylePanel).toHaveAttribute('aria-labelledby', 'tab-styles');
+    });
 });
