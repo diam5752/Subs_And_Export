@@ -42,6 +42,7 @@ export function UploadSection() {
     const [isDragOver, setIsDragOver] = useState(false);
     const [devSampleLoading, setDevSampleLoading] = useState(false);
     const [devSampleError, setDevSampleError] = useState<string | null>(null);
+    const [pendingAutoStart, setPendingAutoStart] = useState(false);
     const validationRequestId = React.useRef(0);
 
     const activeTheme = useMemo(() => {
@@ -77,7 +78,10 @@ export function UploadSection() {
 
     const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0] || null;
-        onFileSelect(file);
+        if (file) {
+            setPendingAutoStart(true);
+            onFileSelect(file);
+        }
     }, [onFileSelect]);
 
     const handleUploadCardClick = useCallback(() => {
@@ -125,6 +129,7 @@ export function UploadSection() {
         if (files && files.length > 0) {
             const file = files[0];
             if (file.type.startsWith('video/') || /\.(mp4|mov|mkv|webm|avi)$/i.test(file.name)) {
+                setPendingAutoStart(true);
                 onFileSelect(file);
                 setOverrideStep(null);
             }
@@ -186,18 +191,13 @@ export function UploadSection() {
         };
     }, [selectedFile, setCues, setPreviewVideoUrl, setVideoInfo]);
 
-    // Auto-start processing when file is selected
-    const hasAutoStartedRef = React.useRef(false);
+    // Auto-start processing when file is selected AND pendingAutoStart is true
     useEffect(() => {
-        hasAutoStartedRef.current = false;
-    }, [selectedFile]);
-
-    useEffect(() => {
-        if (!selectedFile || isProcessing || selectedJob) return;
-        if (hasAutoStartedRef.current) return;
-        hasAutoStartedRef.current = true;
-        handleStart();
-    }, [handleStart, isProcessing, selectedFile, selectedJob]);
+        if (pendingAutoStart && selectedFile && !isProcessing && !selectedJob && hasChosenModel) {
+            setPendingAutoStart(false);
+            handleStart();
+        }
+    }, [pendingAutoStart, selectedFile, isProcessing, selectedJob, hasChosenModel, handleStart]);
 
     const handleStepClick = useCallback((id: string) => {
         setOverrideStep(2);
@@ -270,17 +270,32 @@ export function UploadSection() {
                                 </p>
                             </div>
 
-                            {/* Actions */}
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    onFileSelect(null);
-                                    setHasChosenModel(true);
-                                }}
-                                className="px-3 py-1.5 text-xs font-medium rounded-lg border border-[var(--border)] hover:bg-[var(--surface-elevated)] hover:text-[var(--foreground)] text-[var(--muted)] transition-colors"
-                            >
-                                Change
-                            </button>
+                            {/* Actions Group */}
+                            <div className="flex items-center gap-2">
+                                {/* Manual Start Button (only if NOT processing and NO completed job) */}
+                                {!isProcessing && selectedJob?.status !== 'completed' && (
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleStart();
+                                        }}
+                                        className="px-4 py-1.5 text-xs font-bold rounded-lg bg-[var(--accent)] text-[var(--background)] hover:brightness-110 shadow-lg shadow-[var(--accent)]/20 transition-all active:scale-95"
+                                    >
+                                        {t('startProcessing') || 'Start Processing'}
+                                    </button>
+                                )}
+
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onFileSelect(null);
+                                        setHasChosenModel(true);
+                                    }}
+                                    className="px-3 py-1.5 text-xs font-medium rounded-lg border border-[var(--border)] hover:bg-[var(--surface-elevated)] hover:text-[var(--foreground)] text-[var(--muted)] transition-colors"
+                                >
+                                    Change
+                                </button>
+                            </div>
                         </div>
                     </div>
                     {error && (

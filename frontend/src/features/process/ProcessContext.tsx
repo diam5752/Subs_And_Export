@@ -602,6 +602,38 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
         }
     }, [props.selectedFile]);
 
+    // Dev: Auto-load most recent job if no file selected
+    const autoLoadAttempted = useRef(false);
+
+    // Mark as attempted if we have a job or file
+    useEffect(() => {
+        if (props.selectedFile || props.selectedJob) {
+            autoLoadAttempted.current = true;
+        }
+    }, [props.selectedFile, props.selectedJob]);
+
+    useEffect(() => {
+        if (process.env.NODE_ENV === 'development' && !props.selectedFile && !props.selectedJob && !autoLoadAttempted.current) {
+            // Wait a bit for auth/init
+            const timer = setTimeout(() => {
+                if (autoLoadAttempted.current) return; // Double check inside timeout
+
+                api.getJobsPaginated(1, 1).then((res) => {
+                    if (res.items && res.items.length > 0) {
+                        const latestJob = res.items[0];
+                        // Only load if it has a video path
+                        if (latestJob.result_data?.video_path) {
+                            props.onJobSelect(latestJob);
+                            setHasChosenModel(true);
+                            autoLoadAttempted.current = true;
+                        }
+                    }
+                }).catch(err => console.error("Dev auto-load failed:", err));
+            }, 1000);
+            return () => clearTimeout(timer);
+        }
+    }, [props.selectedFile, props.selectedJob]);
+
     useEffect(() => {
         setTranscriptSaveError(null);
         setIsSavingTranscript(false);

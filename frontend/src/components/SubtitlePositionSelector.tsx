@@ -1,4 +1,4 @@
-import React, { useCallback, useId, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import Image from 'next/image';
 import { useI18n } from '@/context/I18nContext';
 import { SubtitleOverlay, Cue } from './SubtitleOverlay';
@@ -58,6 +58,28 @@ export const SubtitlePositionSelector: React.FC<SubtitlePositionSelectorProps> =
     const videoRef = useRef<HTMLVideoElement>(null);
     const [isMuted, setIsMuted] = useState(true); // Default muted for autoplay
     const [duration, setDuration] = useState(0);
+    const [showColorGrid, setShowColorGrid] = useState(false);
+    const gridRef = useRef<HTMLDivElement>(null);
+
+    // Close color grid when clicking outside
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            if (gridRef.current && !gridRef.current.contains(event.target as Node)) {
+                setShowColorGrid(false);
+            }
+        }
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+        };
+    }, []);
+
+    const MORE_COLORS = [
+        '#FF0000', '#FF7F00', '#FFFF00', '#7FFF00',
+        '#00FF00', '#00FF7F', '#00FFFF', '#007FFF',
+        '#0000FF', '#7F00FF', '#FF00FF', '#FF007F',
+        '#FFFFFF', '#C0C0C0', '#808080', '#000000'
+    ];
 
     // Sync play/pause
     const togglePlay = useCallback((e?: React.MouseEvent) => {
@@ -339,27 +361,29 @@ export const SubtitlePositionSelector: React.FC<SubtitlePositionSelectorProps> =
                                     {t('colorLabel')}
                                 </label>
                                 <div
-                                    className="flex items-center gap-3 p-3 rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)]"
+                                    className="flex items-center gap-3 p-4 rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)] min-h-[88px]"
                                     role="radiogroup"
                                     aria-labelledby={colorLabelId}
                                 >
                                     {/* Color Swatches */}
-                                    <div className="flex flex-wrap gap-2 justify-center w-full">
-                                        {colors.map((c) => (
+                                    <div className="flex flex-nowrap gap-4 justify-center w-full items-center relative" ref={gridRef}>
+                                        {/* First 3 Presets */}
+                                        {colors.slice(0, 3).map((c) => (
                                             <button
                                                 key={c.value}
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     onChangeColor(c.value);
+                                                    setShowColorGrid(false);
                                                 }}
-                                                className="group relative p-1"
+                                                className="group relative p-1 transition-transform active:scale-95"
                                                 title={c.label}
                                                 role="radio"
                                                 aria-checked={subtitleColor === c.value}
                                                 aria-label={c.label}
                                             >
                                                 <div
-                                                    className={`w-8 h-8 rounded-full border-2 shadow-sm transition-all duration-300 ease-out ${subtitleColor === c.value
+                                                    className={`w-10 h-10 rounded-full border-2 shadow-sm transition-all duration-300 ease-out ${subtitleColor === c.value
                                                         ? 'border-white scale-110 ring-2 ring-white/20'
                                                         : 'border-transparent hover:scale-110 hover:border-white/30 opacity-80 hover:opacity-100'
                                                         }`}
@@ -367,6 +391,65 @@ export const SubtitlePositionSelector: React.FC<SubtitlePositionSelectorProps> =
                                                 />
                                             </button>
                                         ))}
+
+                                        {/* More Colors Button (Toggle Popover) */}
+                                        <div className="relative">
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setShowColorGrid(!showColorGrid);
+                                                }}
+                                                className="group relative p-1 transition-transform active:scale-95"
+                                                title={t('moreColors') || "More Colors"}
+                                                aria-expanded={showColorGrid}
+                                                aria-haspopup="true"
+                                            >
+                                                <div
+                                                    className={`w-10 h-10 rounded-full border-2 shadow-md transition-all duration-300 ease-out flex items-center justify-center overflow-hidden bg-[var(--surface)] ${showColorGrid || !colors.slice(0, 3).some(c => c.value === subtitleColor)
+                                                        ? 'border-white ring-2 ring-white/20'
+                                                        : 'border-[var(--border)] hover:scale-110 hover:border-white/30'
+                                                        }`}
+                                                >
+                                                    {/* Conic Gradient Icon */}
+                                                    <div
+                                                        className="w-full h-full opacity-80 group-hover:opacity-100 transition-opacity"
+                                                        style={{
+                                                            background: 'conic-gradient(from 180deg at 50% 50%, #FF0000 0deg, #00FF00 120deg, #0000FF 240deg, #FF0000 360deg)'
+                                                        }}
+                                                    />
+
+                                                    {/* Plus Icon Overlay */}
+                                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                                        <svg className="w-5 h-5 text-white drop-shadow-md" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                                                        </svg>
+                                                    </div>
+                                                </div>
+                                            </button>
+
+                                            {/* Color Grid Popover */}
+                                            {showColorGrid && (
+                                                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-3 p-3 bg-[var(--surface-elevated)] border border-[var(--border)] rounded-xl shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-200 min-w-[180px]">
+                                                    <div className="grid grid-cols-4 gap-2">
+                                                        {MORE_COLORS.map((color) => (
+                                                            <button
+                                                                key={color}
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    onChangeColor(color);
+                                                                    setShowColorGrid(false);
+                                                                }}
+                                                                className="w-8 h-8 rounded-full border border-white/10 hover:border-white hover:scale-110 transition-all shadow-sm"
+                                                                style={{ backgroundColor: color }}
+                                                                title={color}
+                                                            />
+                                                        ))}
+                                                    </div>
+                                                    {/* Triangle Pointer */}
+                                                    <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-[var(--surface-elevated)] border-t border-l border-[var(--border)] rotate-45" />
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -376,7 +459,7 @@ export const SubtitlePositionSelector: React.FC<SubtitlePositionSelectorProps> =
                         {onChangeKaraoke && karaokeSupported && (
                             <div className="flex-1 min-w-[200px]">
                                 <label id={karaokeLabelId} className="block text-sm font-medium text-[var(--muted)] mb-3">
-                                    {t('karaokeLabel')}
+                                    {t('karaokeLabel') || 'Karaoke'}
                                 </label>
                                 <button
                                     onClick={(e) => {
@@ -386,24 +469,29 @@ export const SubtitlePositionSelector: React.FC<SubtitlePositionSelectorProps> =
                                     role="switch"
                                     aria-checked={karaokeEnabled}
                                     aria-labelledby={karaokeLabelId}
-                                    className={`w-full p-4 rounded-xl border text-left transition-all duration-300 flex items-center justify-between group h-[88px] ${karaokeEnabled
-                                        ? 'border-[var(--accent)] bg-[var(--accent)]/10 shadow-[0_0_20px_rgba(var(--accent-rgb),0.15)]'
+                                    className={`w-full p-4 rounded-xl border text-left transition-all duration-300 flex items-center justify-between group min-h-[88px] relative overflow-hidden ${karaokeEnabled
+                                        ? 'border-orange-500/50 bg-gradient-to-r from-orange-500/10 to-transparent shadow-[0_0_20px_rgba(249,115,22,0.1)]'
                                         : 'border-[var(--border)] hover:border-[var(--accent)]/50 hover:bg-[var(--surface-elevated)]'
                                         }`}
                                 >
-                                    <div className="flex flex-col gap-1">
-                                        <div className={`font-medium text-sm transition-colors ${karaokeEnabled ? 'text-[var(--accent)]' : 'text-[var(--foreground)]'}`}>
+                                    {/* Active Indicator Line */}
+                                    {karaokeEnabled && (
+                                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-orange-500 shadow-[0_0_10px_rgba(249,115,22,0.5)]" />
+                                    )}
+
+                                    <div className="flex flex-col gap-1 pl-2">
+                                        <div className={`font-semibold text-base transition-colors ${karaokeEnabled ? 'text-orange-500' : 'text-[var(--foreground)]'}`}>
                                             {t('karaokeMode')}
                                         </div>
-                                        <div className="text-xs text-[var(--muted)]">
-                                            {karaokeEnabled ? t('karaokeActive') : "Standard"}
+                                        <div className={`text-xs ${karaokeEnabled ? 'text-[var(--muted)]' : 'text-[var(--muted)]/70'}`}>
+                                            {karaokeEnabled ? (t('activeWordsHighlighted') || 'Active words highlighted') : (t('standardCaptions') || 'Standard captions')}
                                         </div>
                                     </div>
 
-                                    {/* Animated Icon instead of toggle switch */}
-                                    <div className={`p-2 rounded-full transition-all duration-300 ${karaokeEnabled ? 'bg-[var(--accent)] text-black rotate-12 scale-110' : 'bg-[var(--surface-elevated)] text-[var(--muted)]'}`}>
-                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                                    {/* Animated Icon */}
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 ${karaokeEnabled ? 'bg-orange-500 text-white rotate-6 scale-110 shadow-lg shadow-orange-500/30' : 'bg-[var(--surface-elevated)] text-[var(--muted)] group-hover:scale-105'}`}>
+                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
                                         </svg>
                                     </div>
                                 </button>
