@@ -201,14 +201,14 @@ export function UploadSection() {
 
     const handleStepClick = useCallback((id: string) => {
         setOverrideStep(2);
-        document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, [setOverrideStep]);
 
     return useMemo(() => {
         if (selectedFile) {
             return (
                 <>
-                    <div id="upload-section-compact" className="space-y-4 animate-fade-in-up-scale">
+                    <div id="upload-section-compact" className="space-y-4 scroll-mt-32 animate-fade-in-up-scale">
                         <div
                             role="button"
                             tabIndex={0}
@@ -322,7 +322,7 @@ export function UploadSection() {
         }
 
         return (
-            <div id="upload-section" className={`space-y-4 animate-fade-in-up-scale transition-opacity duration-300 ${!hasChosenModel ? 'opacity-40 pointer-events-none' : ''}`}>
+            <div id="upload-section" className={`space-y-4 scroll-mt-32 animate-fade-in-up-scale transition-opacity duration-300 ${!hasChosenModel ? 'opacity-40 pointer-events-none' : ''}`}>
                 <div
                     role="button"
                     tabIndex={0}

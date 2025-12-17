@@ -56,7 +56,7 @@ export function ModelSelector() {
 
                             if (!isSelected) {
                                 setTimeout(() => {
-                                    document.getElementById('upload-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                    document.getElementById('upload-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                                 }, 100);
                             }
                         }}

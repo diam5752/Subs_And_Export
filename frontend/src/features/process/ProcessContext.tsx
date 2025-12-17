@@ -375,13 +375,24 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
         }
     ], [t]);
 
+    // Scroll to results when job completes
+    useEffect(() => {
+        if (props.selectedJob?.status === 'completed') {
+            // Small timeout to ensure DOM is ready/expanded
+            setTimeout(() => {
+                resultsRef.current?.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'start',
+                });
+            }, 100);
+        }
+    }, [props.selectedJob?.status]);
+
     const handleStart = useCallback(() => {
         if (!props.selectedFile) return;
 
-        resultsRef.current?.scrollIntoView({
-            behavior: 'smooth',
-            block: 'start',
-        });
+        // Note: Removed immediate scroll to resultsRef here because we want to stay on Step 2 (Upload)
+        // to show the progress bar. The scroll to Step 3 now happens automatically upon completion via the effect above.
 
         const colorObj = SUBTITLE_COLORS.find(c => c.value === subtitleColor) || SUBTITLE_COLORS[0];
 

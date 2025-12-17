@@ -49,7 +49,7 @@ export function PreviewSection() {
 
     const handleStepClick = () => {
         setOverrideStep(3);
-        document.getElementById('preview-section')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        document.getElementById('preview-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -64,7 +64,7 @@ export function PreviewSection() {
         [AVAILABLE_MODELS, transcribeProvider, transcribeMode]);
 
     return (
-        <div id="preview-section" className={`space-y-4 scroll-mt-[100px] transition-all duration-500 ${!selectedJob && !isProcessing ? 'opacity-50 grayscale' : ''}`} ref={resultsRef}>
+        <div id="preview-section" className={`space-y-4 scroll-mt-32 transition-all duration-500 ${!selectedJob && !isProcessing ? 'opacity-50 grayscale' : ''}`} ref={resultsRef}>
 
             <div
                 role="button"
