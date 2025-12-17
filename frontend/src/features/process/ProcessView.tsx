@@ -24,7 +24,7 @@ interface ProcessViewProps {
     buildStaticUrl: (path?: string | null) => string | null;
 }
 
-function ProcessViewContent() {
+export function ProcessViewContent() {
     const { t } = useI18n();
     const { currentStep } = useProcessContext();
 

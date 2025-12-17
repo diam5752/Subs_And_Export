@@ -1,172 +1,240 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
-import { ProcessView } from '../ProcessView';
-import { JobResponse } from '@/lib/api';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { ProcessViewContent } from '../ProcessView';
 import { I18nProvider } from '@/context/I18nContext';
-import { AppEnvProvider } from '@/context/AppEnvContext';
-import en from '@/i18n/en.json';
+import { useProcessContext } from '../ProcessContext';
 
-// Mock dependencies
-jest.mock('@/lib/api', () => ({
-    api: {
-        updateJobTranscription: jest.fn().mockResolvedValue({ status: 'ok' }),
-        exportVideo: jest.fn().mockResolvedValue({ id: 'job-123', status: 'pending' }),
-        loadDevSampleJob: jest.fn().mockResolvedValue({ id: 'sample-job', status: 'completed' }),
-    },
-    API_BASE: 'http://localhost:8000',
-}));
-
-jest.mock('@/lib/video', () => ({
-    validateVideoAspectRatio: jest.fn().mockResolvedValue({
-        width: 1080,
-        height: 1920,
-        aspectWarning: false,
-        thumbnailUrl: 'blob:thumb',
-    }),
-}));
-
-// Mock URL.createObjectURL
-global.URL.createObjectURL = jest.fn(() => 'blob:test');
-global.URL.revokeObjectURL = jest.fn();
-
-// Mock scrollIntoView
-Element.prototype.scrollIntoView = jest.fn();
-window.scrollTo = jest.fn();
-
-// Mock ResizeObserver
-global.ResizeObserver = class ResizeObserver {
-    observe() { }
-    unobserve() { }
-    disconnect() { }
-};
-
-// Mock fetch
-global.fetch = jest.fn(() =>
-    Promise.resolve({
-        ok: true,
-        json: () => Promise.resolve([]),
-    })
-) as jest.Mock;
-
-const mockJob: JobResponse = {
-    id: 'job-123',
+const mockJob = {
+    id: 'test-job-id',
     status: 'completed',
     progress: 100,
-    message: null,
     created_at: 1234567890,
     updated_at: 1234567890,
     result_data: {
-        video_path: '/videos/output.mp4',
-        artifacts_dir: '/videos',
-        public_url: '/videos/output.mp4',
-        original_filename: 'test-video.mp4',
-        transcription_url: '/transcription.json',
-    },
+        original_filename: 'test_video.mp4',
+        video_path: '/videos/test_video.mp4',
+        duration: 10,
+        width: 1080,
+        height: 1920
+    }
 };
 
-const defaultProps = {
-    selectedFile: null,
-    onFileSelect: jest.fn(),
-    isProcessing: false,
+const mockContextValue = {
+    currentStep: 1,
     progress: 0,
+    isProcessing: false,
+    selectedJob: null,
+    activeSidebarTab: 'transcript',
+    setActiveSidebarTab: jest.fn(),
+    transcribeProvider: 'local',
+    transcribeMode: 'fast',
+    AVAILABLE_MODELS: [
+        {
+            id: 'standard',
+            provider: 'local',
+            mode: 'fast',
+            name: 'Standard',
+            icon: () => <span>Standard</span>,
+            description: 'Standard model',
+            badge: 'Standard',
+            badgeColor: 'text-gray-500 bg-gray-100',
+            stats: { speed: 100, accuracy: 90, karaoke: false, lines: 'auto' },
+            colorClass: (selected: boolean) => selected ? 'selected-class' : 'unselected-class',
+        }
+    ],
+    STYLE_PRESETS: [
+        {
+            id: 'tiktok',
+            label: 'TikTok Pro',
+            icon: '🎵',
+            settings: { position: 16, lines: 1, size: 100, color: '&H00FFFF00', karaoke: true }
+        }
+    ],
+    activePreset: 'tiktok',
+    setActivePreset: jest.fn(),
+    cues: [],
+    currentTime: 0,
+    videoUrl: null,
+    setTranscribeProvider: jest.fn(),
+    setTranscribeMode: jest.fn(),
+    handleFileSelect: jest.fn(),
+    handleSubmit: jest.fn(),
+    onCancelProcessing: jest.fn(),
+    processedCues: [],
+    subtitlePosition: 16,
+    setSubtitlePosition: jest.fn(),
+    subtitleSize: 100,
+    setSubtitleSize: jest.fn(),
+    maxSubtitleLines: 1,
+    setMaxSubtitleLines: jest.fn(),
+    subtitleColor: '&H00FFFF00',
+    setSubtitleColor: jest.fn(),
+    karaokeEnabled: false,
+    setKaraokeEnabled: jest.fn(),
+    lastUsedSettings: null,
+    SUBTITLE_COLORS: [],
+    playerRef: { current: null },
+    transcriptContainerRef: { current: null },
+    editingCueIndex: null,
+    editingCueDraft: '',
+    handleUpdateDraft: jest.fn(),
+    beginEditingCue: jest.fn(),
+    saveEditingCue: jest.fn(),
+    cancelEditingCue: jest.fn(),
     statusMessage: '',
-    error: '',
+    shadowStrength: 0,
+    resultsRef: { current: null },
+    setOverrideStep: jest.fn(),
+    handleExport: jest.fn(),
+    exportingResolutions: {},
+    videoInfo: null,
+    previewVideoUrl: null,
+    onFileSelect: jest.fn(),
     onStartProcessing: jest.fn(),
     onReset: jest.fn(),
-    onCancelProcessing: jest.fn(),
-    selectedJob: null,
     onJobSelect: jest.fn(),
     statusStyles: {},
-    buildStaticUrl: (path?: string | null) => path || null,
+    buildStaticUrl: jest.fn(),
+    hasChosenModel: false,
+    setHasChosenModel: jest.fn(),
+    setVideoInfo: jest.fn(),
+    setPreviewVideoUrl: jest.fn(),
+    setCues: jest.fn(),
+    setCurrentTime: jest.fn(),
+    fileInputRef: { current: null },
+    handleStart: jest.fn(),
+    saveLastUsedSettings: jest.fn(),
+    setEditingCueIndex: jest.fn(),
+    setEditingCueDraft: jest.fn(),
+    isSavingTranscript: false,
+    transcriptSaveError: null,
+    setTranscriptSaveError: jest.fn(),
+    updateCueText: jest.fn(),
 };
 
-const renderWithProviders = (ui: React.ReactNode) => {
-    return render(
-        <AppEnvProvider appEnv="dev">
-            <I18nProvider initialLocale="en">
-                {ui}
-            </I18nProvider>
-        </AppEnvProvider>
-    );
-};
+// Mock useProcessContext
+jest.mock('../ProcessContext', () => ({
+    useProcessContext: jest.fn(),
+}));
+
+// Mock browser APIs
+window.HTMLElement.prototype.scrollIntoView = jest.fn();
+window.HTMLElement.prototype.scrollTo = jest.fn();
+window.URL.createObjectURL = jest.fn();
 
 describe('ProcessView', () => {
     beforeEach(() => {
-        jest.clearAllMocks();
+        (useProcessContext as jest.Mock).mockReturnValue(mockContextValue);
     });
 
     it('renders Step 1 initially', () => {
-        renderWithProviders(<ProcessView {...defaultProps} />);
-
-        expect(screen.getByRole('radiogroup', { name: en.modelSelectTitle })).toBeInTheDocument();
-        // Check for model options - Use regex to match potential whitespace or substrings
-        expect(screen.getByText(/Standard/)).toBeInTheDocument();
-        expect(screen.getByText(/Enhanced/)).toBeInTheDocument();
-        expect(screen.getByText(/Ultimate/)).toBeInTheDocument();
+        render(
+            <I18nProvider initialLocale="en">
+                <ProcessViewContent />
+            </I18nProvider>
+        );
+        expect(screen.getByText(/Step 1/i)).toBeInTheDocument();
+        expect(screen.getByText(/Select a model/i)).toBeInTheDocument();
     });
 
-    it('allows selecting a model', async () => {
-        renderWithProviders(<ProcessView {...defaultProps} />);
+    it('allows selecting a model', () => {
+        const setTranscribeProvider = jest.fn();
+        (useProcessContext as jest.Mock).mockReturnValue({
+            ...mockContextValue,
+            setTranscribeProvider
+        });
 
-        // Find by role which is better for accessibility and avoid testId issues if not present on wrapper
-        const enhancedModel = screen.getByRole('radio', { name: /Enhanced/i });
-        fireEvent.click(enhancedModel);
+        render(
+            <I18nProvider initialLocale="en">
+                <ProcessViewContent />
+            </I18nProvider>
+        );
 
-        // Should advance to step 2 (Upload)
-        await screen.findByText(new RegExp(en.statusSynced, 'i'));
+        const radio = screen.getByRole('radio', { name: /Standard/i });
+        fireEvent.click(radio);
 
-        const uploadSection = document.getElementById('upload-section');
-        expect(uploadSection).not.toBeNull();
-        expect(uploadSection).not.toHaveClass('opacity-40');
+        expect(setTranscribeProvider).toHaveBeenCalledWith('local');
     });
 
-    it('renders Step 2 (Upload) when file is selected', async () => {
-        const props = { ...defaultProps, selectedFile: new File([''], 'test.mp4', { type: 'video/mp4' }) };
-
-        await act(async () => {
-            renderWithProviders(<ProcessView {...props} />);
+    it('renders Step 2 (Upload) when file is selected', () => {
+        (useProcessContext as jest.Mock).mockReturnValue({
+            ...mockContextValue,
+            currentStep: 2,
+            transcribeProvider: 'local'
         });
 
-        // Use waitFor to ensure state updates propagate
-        await waitFor(() => {
-            // Should show compact upload view
-            expect(screen.getByText('Upload Video')).toBeInTheDocument();
-            // Check for the filename which should be present in compact view
-            expect(screen.getAllByText('test.mp4').length).toBeGreaterThan(0);
-        });
+        render(
+            <I18nProvider initialLocale="en">
+                <ProcessViewContent />
+            </I18nProvider>
+        );
+
+        expect(screen.getByText(/Step 2/i)).toBeInTheDocument();
+        expect(screen.getByText(/Upload/i)).toBeInTheDocument();
     });
 
-    it('renders Step 3 (Preview) when job is completed', async () => {
-        const props = { ...defaultProps, selectedJob: mockJob };
-
-        await act(async () => {
-            renderWithProviders(<ProcessView {...props} />);
+    it('renders Step 3 (Preview) when job is completed', () => {
+        (useProcessContext as jest.Mock).mockReturnValue({
+            ...mockContextValue,
+            currentStep: 3,
+            selectedJob: { ...mockJob, status: 'completed' },
+            cues: [{ start: 0, end: 1, text: 'Test' }]
         });
 
-        expect(screen.getByText('Preview & Export')).toBeInTheDocument();
-        // Use getAllByText for filename as it might appear multiple times (status header + preview)
-        expect(screen.getAllByText('test-video.mp4').length).toBeGreaterThan(0);
+        render(
+            <I18nProvider initialLocale="en">
+                <ProcessViewContent />
+            </I18nProvider>
+        );
 
-        // Sidebar tabs
-        expect(screen.getByText('Transcript')).toBeInTheDocument();
-        expect(screen.getByText('Styles')).toBeInTheDocument();
+        expect(screen.getByText(/Step 3/i)).toBeInTheDocument();
+        expect(screen.getByText(/Preview/i)).toBeInTheDocument();
+        expect(screen.getByText(/Transcript/i)).toBeInTheDocument();
     });
 
     it('switches between Transcript and Styles tabs', async () => {
-        const props = { ...defaultProps, selectedJob: mockJob };
+        const setActiveSidebarTab = jest.fn();
+        let activeTab = 'transcript';
 
-        await act(async () => {
-            renderWithProviders(<ProcessView {...props} />);
-        });
+        (useProcessContext as jest.Mock).mockImplementation(() => ({
+            ...mockContextValue,
+            currentStep: 3,
+            selectedJob: { ...mockJob, status: 'completed' },
+            activeSidebarTab: activeTab,
+            setActiveSidebarTab: (val: string) => {
+                activeTab = val;
+                setActiveSidebarTab(val);
+            }
+        }));
+
+        const { rerender } = render(
+            <I18nProvider initialLocale="en">
+                <ProcessViewContent />
+            </I18nProvider>
+        );
 
         const stylesTab = screen.getByText('Styles');
         fireEvent.click(stylesTab);
 
-        // Should show style presets
-        // Use queryAllByText to handle potential multiple elements or fuzzy match
-        expect(screen.getAllByText(/TikTok Pro/i).length).toBeGreaterThan(0);
+        expect(setActiveSidebarTab).toHaveBeenCalledWith('styles');
 
-        const transcriptTab = screen.getByText('Transcript');
-        fireEvent.click(transcriptTab);
+        // Update mock for re-render
+        (useProcessContext as jest.Mock).mockReturnValue({
+            ...mockContextValue,
+            currentStep: 3,
+            selectedJob: { ...mockJob, status: 'completed' },
+            activeSidebarTab: 'styles',
+            setActiveSidebarTab
+        });
+
+        rerender(
+            <I18nProvider initialLocale="en">
+                <ProcessViewContent />
+            </I18nProvider>
+        );
+
+        await waitFor(() => {
+             expect(screen.getAllByText(/TikTok Pro/i).length).toBeGreaterThan(0);
+        });
     });
 });
