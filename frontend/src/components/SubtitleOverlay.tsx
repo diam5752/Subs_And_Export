@@ -41,11 +41,11 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
 
         // Shadow logic (approximate ASS shadow)
         const shadowPx = settings.shadowStrength * (videoWidth / 1000);
-        const textShadow = `
-            ${shadowPx}px ${shadowPx}px 0px rgba(0,0,0,0.8),
-            -${shadowPx}px -1px 0px rgba(0,0,0,0.8),
-            1px -${shadowPx}px 0px rgba(0,0,0,0.8)
-        `;
+        // const textShadow = `
+        //     ${shadowPx}px ${shadowPx}px 0px rgba(0,0,0,0.8),
+        //     -${shadowPx}px -1px 0px rgba(0,0,0,0.8),
+        //     1px -${shadowPx}px 0px rgba(0,0,0,0.8)
+        // `;
 
         const container = {
             position: 'absolute' as const,
@@ -58,11 +58,14 @@ export const SubtitleOverlay: React.FC<SubtitleOverlayProps> = ({
         };
 
         const text = {
-            fontFamily: 'Montserrat, sans-serif', // Match generic bold font
+            fontFamily: "'Arial Black', 'Montserrat', sans-serif", // Match backend default
             fontWeight: 900,
             fontSize: `${currentSize}px`,
             lineHeight: 1.2,
-            textShadow: textShadow,
+            // textShadow: textShadow,
+            WebkitTextStroke: `${shadowPx}px rgba(0,0,0,0.8)`,
+            paintOrder: 'stroke fill',
+            textShadow: `${shadowPx}px ${shadowPx}px 0px rgba(0,0,0,0.8)`, // Drop shadow to match backend
             textTransform: 'uppercase' as const,
             color: 'white', // Default base color (usually secondary check)
             // We'll handle primary color in inner spans

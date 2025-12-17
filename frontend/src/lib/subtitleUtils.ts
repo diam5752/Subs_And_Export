@@ -3,12 +3,12 @@ import { TranscriptionCue as Cue, TranscriptionWordTiming } from './api';
 // Configuration matching backend config.py
 const DEFAULT_SUB_FONT_SIZE = 62;
 
-const MAX_SUB_LINE_CHARS = 28; // Safe characters per line for Greek uppercase
+const MAX_SUB_LINE_CHARS = 26; // Safe characters per line for Greek uppercase (reduced from 28)
 
 const BASE_VIDEO_WIDTH = 1080;
 const SAFE_MARGIN_PCT = 0.074; // Match SubtitleOverlay left/right (7.4%).
 const BASE_SAFE_WIDTH = BASE_VIDEO_WIDTH * (1 - SAFE_MARGIN_PCT * 2);
-const OVERLAY_FONT_FAMILY = 'Montserrat, sans-serif';
+const OVERLAY_FONT_FAMILY = "'Arial Black', 'Montserrat', sans-serif";
 const OVERLAY_FONT_WEIGHT = 900;
 
 /**
@@ -61,6 +61,9 @@ function createTextMeasurer(fontSizePercent: number): TextMeasurer | null {
     if (!ctx) return null;
 
     const fontSizePx = Math.max(1, Math.round(DEFAULT_SUB_FONT_SIZE * (fontSizePercent / 100)));
+    // Add stroke width buffer? 
+    // The stroke is around 3px scaled.
+    // Using a conservative 90% width below handles this implicitly.
     ctx.font = `${OVERLAY_FONT_WEIGHT} ${fontSizePx}px ${OVERLAY_FONT_FAMILY}`;
 
     const cache = new Map<string, number>();
@@ -76,7 +79,8 @@ function createTextMeasurer(fontSizePercent: number): TextMeasurer | null {
         measureText,
         spaceWidth: measureText(' '),
         // Use a slightly conservative width to avoid edge-case overflows from measurement differences.
-        maxLineWidth: BASE_SAFE_WIDTH * 0.98,
+        // Reduced from 0.98 to 0.90 to be safer against stroke width and anti-aliasing differences.
+        maxLineWidth: BASE_SAFE_WIDTH * 0.90,
     };
 }
 
@@ -262,6 +266,7 @@ function chunkTimedWordsByWidth(
 /**
  * Re-segment cues to fit within maxLines constraints.
  * Ports backend `_split_long_cues` logic.
+ * Processes each cue individually to preserve original time boundaries/silences.
  */
 export function resegmentCues(
     originalCues: Cue[],
@@ -271,42 +276,47 @@ export function resegmentCues(
     if (!originalCues || originalCues.length === 0) return [];
     if (maxLines === 0) return originalCues; // Handled by SubtitleOverlay specially ("One Word" mode)
 
-    // 1. Get all words
-    const allWords = getAllWords(originalCues);
-    if (allWords.length === 0) return originalCues;
-
     const measurer = createTextMeasurer(fontSizePercent);
+    const effectiveMaxChars = getEffectiveMaxChars(fontSizePercent);
 
-    const wordChunks = measurer
-        ? chunkTimedWordsByWidth(allWords, maxLines, measurer)
-        : chunkTimedWords(allWords, getEffectiveMaxChars(fontSizePercent), maxLines);
-
-    const newCues: Cue[] = wordChunks
-        .filter((chunkWords) => chunkWords.length > 0)
-        .map((chunkWords) => {
-            const first = chunkWords[0];
-            const last = chunkWords[chunkWords.length - 1];
-            return {
-                start: first.start,
-                end: last.end,
-                text: chunkWords.map((w) => w.text).join(' '),
-                words: chunkWords,
-            };
-        });
-
-    // 3. Gap Filling (Optional Polish)
-    // Improve smoothness by extending end times to bridge small gaps?
-    // Backend does: "desired_end = next_cue.start - min_gap".
-    // Let's apply a simple pass:
-    for (let i = 0; i < newCues.length - 1; i++) {
-        const curr = newCues[i];
-        const next = newCues[i + 1];
-        if (curr.end < next.start && (next.start - curr.end) < 0.5) {
-            curr.end = next.start; // Bridge small silence gaps
+    return originalCues.flatMap((cue) => {
+        // 1. Get words for this SPECIFIC cue (real or interpolated)
+        let cueWords: TranscriptionWordTiming[] = [];
+        if (cue.words && cue.words.length > 0) {
+            cue.words.forEach((word) => {
+                cueWords.push(...expandPhraseTiming(word));
+            });
+        } else {
+            cueWords = interpolateWordsFromCueText(cue);
         }
-    }
 
-    return newCues;
+        if (cueWords.length === 0) return [cue];
+
+        // 2. Chunk ONLY this cue's words
+        const wordChunks = measurer
+            ? chunkTimedWordsByWidth(cueWords, maxLines, measurer)
+            : chunkTimedWords(cueWords, effectiveMaxChars, maxLines);
+
+        // 3. Create new cues from chunks
+        return wordChunks
+            .filter((chunkWords) => chunkWords.length > 0)
+            .map((chunkWords) => {
+                const first = chunkWords[0];
+                const last = chunkWords[chunkWords.length - 1];
+
+                // Ensure the last chunk extends to the original cue end time 
+                // to match backend logic (avoid shortening due to word timing precision)
+                const isLastChunk = chunkWords === wordChunks[wordChunks.length - 1];
+                const endTime = isLastChunk ? Math.max(last.end, cue.end) : last.end;
+
+                return {
+                    start: first.start,
+                    end: endTime,
+                    text: chunkWords.map((w) => w.text).join(' '),
+                    words: chunkWords,
+                };
+            });
+    });
 }
 
 /**
