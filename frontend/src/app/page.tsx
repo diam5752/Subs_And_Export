@@ -392,6 +392,16 @@ export default function DashboardPage() {
                 </p>
               </div>
             </a>
+
+            {/* Legal Links */}
+            <div className="flex items-center gap-6 mt-4 text-sm text-[var(--muted)]">
+              <a href="/privacy" className="hover:text-[var(--foreground)] transition-colors hover:underline">
+                {t('cookieLearnMore') || 'Privacy Policy'}
+              </a>
+              <a href="/terms" className="hover:text-[var(--foreground)] transition-colors hover:underline">
+                {t('cookieTerms') || 'Terms of Service'}
+              </a>
+            </div>
           </div>
         </div>
       </footer>

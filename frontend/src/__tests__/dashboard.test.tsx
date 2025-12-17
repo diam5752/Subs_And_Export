@@ -120,6 +120,19 @@ describe('DashboardPage', () => {
         expect(mockLoadJobs).toHaveBeenCalled();
     });
 
+    it('renders footer with privacy and terms links', () => {
+        render(<DashboardPage />);
+
+        const privacyLink = screen.getByText('cookieLearnMore');
+        const termsLink = screen.getByText('cookieTerms');
+
+        expect(privacyLink).toBeInTheDocument();
+        expect(privacyLink.closest('a')).toHaveAttribute('href', '/privacy');
+
+        expect(termsLink).toBeInTheDocument();
+        expect(termsLink.closest('a')).toHaveAttribute('href', '/terms');
+    });
+
     it('shows loading state when isLoading is true', () => {
         (useAuth as jest.Mock).mockReturnValue({
             user: null,
