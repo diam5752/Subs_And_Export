@@ -36,7 +36,8 @@ export function UploadSection() {
         error,
         progress,
         statusMessage,
-        onCancelProcessing
+        onCancelProcessing,
+        videoUrl
     } = useProcessContext();
 
     const [isDragOver, setIsDragOver] = useState(false);
@@ -282,6 +283,16 @@ export function UploadSection() {
                                         unoptimized
                                         className="object-cover opacity-80 transition-opacity group-hover:opacity-100"
                                         sizes="64px"
+                                    />
+                                ) : videoUrl ? (
+                                    <video
+                                        src={videoUrl}
+                                        className="w-full h-full object-cover opacity-80 transition-opacity group-hover:opacity-100"
+                                        muted
+                                        playsInline
+                                        loop
+                                        onMouseOver={e => e.currentTarget.play().catch(() => { })}
+                                        onMouseOut={e => e.currentTarget.pause()}
                                     />
                                 ) : (
                                     <div className="h-full w-full flex items-center justify-center bg-emerald-900/20">
