@@ -726,6 +726,7 @@ def generate_video_variant(
         # Load Cues from JSON if available (Better accuracy/Karaoke)
         cues = None
         transcription_json = artifact_dir / "transcription.json"
+        
         if transcription_json.exists():
             try:
                 import json
@@ -742,7 +743,7 @@ def generate_video_variant(
                     ))
             except Exception as e:
                 logger.warning(f"Failed to load transcription.json: {e}")
-
+        
         subtitle_size_raw = subtitle_settings.get("subtitle_size")
         if isinstance(subtitle_size_raw, str):
             legacy_map = {"small": 70, "medium": 85, "big": 100, "extra-big": 150}
@@ -754,7 +755,7 @@ def generate_video_variant(
         karaoke_enabled = bool(subtitle_settings.get("karaoke_enabled", True))
         requested_highlight_style = str(subtitle_settings.get("highlight_style") or "karaoke").lower()
         highlight_style = "static" if not karaoke_enabled else requested_highlight_style
-
+        
         # FIX: Always use reference resolution (1080x1920) for ASS generation.
         # This ensures the font_size (calibrated to 1080p) scales proportionally
         # to any output resolution via FFmpeg's internal scaling.
@@ -779,6 +780,7 @@ def generate_video_variant(
             output_dir=artifact_dir,
         )
 
+
     # Otherwise try to reuse existing ASS
     elif not ass_path.exists():
         ass_candidates = sorted(artifact_dir.glob("*.ass"))
@@ -801,16 +803,36 @@ def generate_video_variant(
         requested_highlight_style = str(result_data.get("highlight_style") or "karaoke").lower()
         highlight_style = "static" if not karaoke_enabled else requested_highlight_style
 
+        # Load Cues from JSON if available (Better accuracy/Karaoke)
+        cues = None
+        transcription_json = artifact_dir / "transcription.json"
+        if transcription_json.exists():
+            try:
+                import json
+                data = json.loads(transcription_json.read_text(encoding="utf-8"))
+                # Reconstruct Cue objects
+                cues = []
+                for item in data:
+                    words = [subtitles.WordTiming(**w) for w in item["words"]] if item.get("words") else None
+                    cues.append(subtitles.Cue(
+                        start=item["start"],
+                        end=item["end"],
+                        text=item["text"],
+                        words=words
+                    ))
+            except Exception as e:
+                logger.warning(f"Failed to load transcription.json: {e}")
+        
         # FIX: Always use reference resolution for ASS PlayRes
         base_width, base_height = config.DEFAULT_WIDTH, config.DEFAULT_HEIGHT
 
         # Helper to safely resolve int params (preserving 0)
         def _resolve_param(val: Any, default: int) -> int:
             return int(val) if val is not None else default
-
+        
         ass_path = subtitles.create_styled_subtitle_file(
             transcript_path,
-            cues=None,
+            cues=cues,
             subtitle_position=_parse_legacy_position(result_data.get("subtitle_position")),
             max_lines=_resolve_param(result_data.get("max_subtitle_lines"), 2),
             primary_color=str(result_data.get("subtitle_color") or config.DEFAULT_SUB_COLOR),
@@ -829,11 +851,11 @@ def generate_video_variant(
         input_path,
         ass_path,
         destination,
-        video_crf=12,
+        video_crf=20,
         video_preset=config.DEFAULT_VIDEO_PRESET,
         audio_bitrate=config.DEFAULT_AUDIO_BITRATE,
         audio_copy=True,
-        use_hw_accel=False,
+        use_hw_accel=config.USE_HW_ACCEL,
         output_width=width,
         output_height=height,
     )

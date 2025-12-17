@@ -1083,26 +1083,109 @@ def _wrap_lines(
     return lines
 
 
+def _wrap_word_timings(
+    words: List[WordTiming],
+    max_chars: int = config.MAX_SUB_LINE_CHARS,
+    max_lines: int = 2,
+) -> List[List[WordTiming]]:
+    """
+    Wrap WordTiming objects into multiple lines without overflowing the safe width.
+    Similar to _wrap_lines but operates on structured word objects.
+    """
+    if not words:
+        return []
+
+    lines = []
+    current_line = []
+    current_length = 0
+
+    for word in words:
+        word_len = len(word.text)
+        space_needed = 1 if current_length > 0 else 0
+
+        # Case 1: Word fits on current line
+        if current_length + space_needed + word_len <= max_chars:
+            current_line.append(word)
+            current_length += space_needed + word_len
+            continue
+
+        # Case 2: Word does not fit
+        # For WordTiming, we generally avoid splitting active words mid-word 
+        # unless absolutely necessary because it complicates timing significantly.
+        # Simple strategy: Move to next line.
+        
+        # If current line is not empty, push it and start new line
+        if current_line:
+            lines.append(current_line)
+            current_line = []
+            current_length = 0
+            space_needed = 0
+
+        # Now check if word alone exceeds max_chars (very long word)
+        if word_len > max_chars:
+             # Force it onto the line anyway (better than dropping it)
+             # Ideally we would split the WordTiming into sub-timings, but that logic exists in _split_long_cues.
+             # Here we assume cues are already pre-split or reasonable length.
+             lines.append([word])
+        else:
+             current_line = [word]
+             current_length = word_len
+    
+    if current_line:
+        lines.append(current_line)
+
+    return lines
+
+
 def _format_karaoke_text(
     cue: Cue, max_lines: int = 2, max_chars: int = config.MAX_SUB_LINE_CHARS
 ) -> str:
     """
-    Format text for ASS subtitles.
-    Formerly handled karaoke highlighting; currently only performs line wrapping.
+    Format text for ASS subtitles with karaoke tags (\\k).
+    Wraps words into lines and calculates per-word duration in centiseconds.
     """
-    # Use existing cues text splitting or wrapping
-    text = cue.text
-    if not text and cue.words:
-        text = " ".join(w.text for w in cue.words)
+    if not cue.words:
+        # Fallback to static wrapping if no timing data
+        text = cue.text or ""
+        raw_lines = _wrap_lines(text.split(), max_chars=max_chars, max_lines=max_lines)
+        return "\\N".join(" ".join(line) for line in raw_lines)
 
-    raw_words = text.split()
-    wrapped_lines = _wrap_lines(raw_words, max_chars=max_chars, max_lines=max_lines)
-
-    if not wrapped_lines:
-        return ""
-
-    joined = [" ".join(line) for line in wrapped_lines]
-    return "\\N".join(joined)
+    # Use _wrap_word_timings to splits WordTiming objects into LINES (not pages)
+    lines_of_words = _wrap_word_timings(cue.words, max_chars=max_chars, max_lines=max_lines)
+    
+    ass_lines = []
+    current_time = cue.start
+    
+    for line_words in lines_of_words:
+        line_parts = []
+        for i, word in enumerate(line_words):
+            # Calculate gap from previous event
+            gap = word.start - current_time
+            
+            # Determine prefix (space or gap filler)
+            # If not the very first word of the line, we usually want a space visual
+            prefix = " " if i > 0 else ""
+            
+            if gap > 0.01:
+                # Significant gap: assign it to the prefix
+                gap_cs = int(round(gap * 100))
+                line_parts.append(f"{{\\k{gap_cs}}}{prefix}")
+            elif i > 0:
+                # No significant gap, but we have a space.
+                line_parts.append(prefix)
+            
+            # Duration of the word itself
+            dur = word.end - word.start
+            dur_cs = int(round(dur * 100))
+            if dur_cs < 1: dur_cs = 1 # Minimal duration
+            
+            line_parts.append(f"{{\\k{dur_cs}}}{word.text}")
+            
+            current_time = word.end
+            
+        ass_lines.append("".join(line_parts))
+        
+    return "\\N".join(ass_lines)
 
 
 def _format_active_word_text(
