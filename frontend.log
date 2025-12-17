@@ -1,0 +1,15 @@
+
+> frontend@0.1.0 dev /app/frontend
+> next dev
+
+   ▲ Next.js 16.0.10 (Turbopack)
+   - Local:         http://localhost:3002
+   - Network:       http://192.168.0.2:3002
+
+ ✓ Starting...
+ ✓ Ready in 1150ms
+ ○ Compiling /register ...
+ GET /register 200 in 3.8s (compile: 3.4s, render: 409ms)
+ GET /register 200 in 73ms (compile: 6ms, render: 67ms)
+ GET /register 200 in 67ms (compile: 4ms, render: 63ms)
+ GET / 200 in 1017ms (compile: 913ms, render: 105ms)
