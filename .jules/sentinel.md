@@ -93,3 +93,7 @@
 **Vulnerability:** `GoogleCallback` and `TikTokCallback` lacked `max_length` constraints on `code` and `state` fields, allowing potential DoS via memory exhaustion or large payloads.
 **Learning:** Input models used for callbacks (OAuth) are often overlooked because they feel like "internal" or "machine-to-machine" inputs, but they are publicly exposed via the callback URL.
 **Prevention:** Audit all input models, including those used for third-party callbacks, and strictly enforce `max_length` on all string fields.
+## 2025-07-02 - [High] Dormant Password Persistence on SSO Conversion
+**Vulnerability:** When a local user logged in via Google SSO (creating an account link), the original local password hash remained in the database. This allowed continued access via the local password, even though the user provider was switched to "google" (which blocks password updates), creating an unmanageable shadow credential.
+**Learning:** "Provider" fields in databases are often descriptive but not enforced by the authentication logic itself unless explicitly checked. When upgrading authentication assurance (e.g. to SSO), lower-assurance credentials must be actively revoked.
+**Prevention:** In account linking/upgrading flows (`upsert_google_user`), explicitly nullify conflicting credentials (`password_hash = NULL`) to enforce the new authentication source.
