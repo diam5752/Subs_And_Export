@@ -3,8 +3,8 @@ from __future__ import annotations
 from backend.app.core.env import AppEnv, get_app_env, normalize_app_env
 
 
-def test_normalize_app_env_defaults_to_dev() -> None:
-    assert normalize_app_env(None) == AppEnv.DEV
+def test_normalize_app_env_defaults_to_production() -> None:
+    assert normalize_app_env(None) == AppEnv.PRODUCTION
 
 
 def test_normalize_app_env_maps_common_values() -> None:
@@ -30,4 +30,3 @@ def test_get_app_env_falls_back_to_env(monkeypatch) -> None:
     monkeypatch.delenv("APP_ENV", raising=False)
     monkeypatch.setenv("ENV", "development")
     assert get_app_env() == AppEnv.DEV
-

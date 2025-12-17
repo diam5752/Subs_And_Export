@@ -54,7 +54,7 @@ ENV PYTHONUNBUFFERED=1
 RUN ln -s /app /app/backend
 
 # Default environment (override via Cloud Run env vars)
-ENV APP_ENV=dev
+ENV APP_ENV=production
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
