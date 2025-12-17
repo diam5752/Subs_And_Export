@@ -59,9 +59,41 @@ export function PreviewSection() {
         }
     };
 
-    const selectedModel = useMemo(() =>
-        AVAILABLE_MODELS.find(m => m.provider === transcribeProvider && m.mode === transcribeMode),
-        [AVAILABLE_MODELS, transcribeProvider, transcribeMode]);
+    const displayedModel = useMemo(() => {
+        // If a job is completed, we MUST show the model that generated it, NOT the current selection
+        if (selectedJob?.status === 'completed' && selectedJob.result_data) {
+            const provider = selectedJob.result_data.transcribe_provider;
+            const model = selectedJob.result_data.model_size;
+
+            // Map job data back to AVAILABLE_MODELS entry
+            return AVAILABLE_MODELS.find(m => {
+                if (m.provider !== provider) return false;
+
+                // Specific matching logic strictly for Groq vs others
+                if (provider === 'groq') {
+                    const isEnhancedJob = model === 'enhanced' || (model && model.includes('turbo'));
+                    const isUltimateJob = model === 'ultimate' || (model && !model.includes('turbo') && !model.includes('enhanced'));
+
+                    if (m.mode === 'enhanced') return isEnhancedJob;
+                    if (m.mode === 'ultimate') return isUltimateJob;
+                    return false;
+                }
+
+                // For others (openai, whispercpp)
+                // If model is present in job, we could match, but usually provider is unique enough for now 
+                // except if we had multiple modes per provider. 
+                // Currently only Groq splits modes. Whispercpp is just 'turbo'/'balanced' but usually maps to one provider entry in UI?
+                // Actually AVAILABLE_MODELS has multiple entries for whispercpp/local in past, now check:
+                // whispercpp -> mode: 'turbo' in UI. 
+                return m.mode === transcribeMode; // Fallback if no specific logic, but ideally we match strictly?
+                // Actually easier: just find first match for provider if not groq
+                return true;
+            });
+        }
+
+        // Default to current selection
+        return AVAILABLE_MODELS.find(m => m.provider === transcribeProvider && m.mode === transcribeMode);
+    }, [AVAILABLE_MODELS, selectedJob, transcribeProvider, transcribeMode]);
 
     return (
         <div id="preview-section" className={`space-y-4 scroll-mt-32 transition-all duration-500 ${!selectedJob && !isProcessing ? 'opacity-50 grayscale' : ''}`} ref={resultsRef}>
@@ -110,21 +142,11 @@ export function PreviewSection() {
                                             <div className="w-full h-full bg-black/20 rounded-2xl border border-white/5 flex flex-col items-center justify-center p-4 lg:p-8 relative overflow-hidden backdrop-blur-sm transition-all duration-500">
                                                 {(selectedJob?.result_data?.transcribe_provider || transcribeProvider) && (
                                                     <div className="absolute top-4 left-4 z-10 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/60 border border-white/10 backdrop-blur-md">
-                                                        {selectedModel && (
-                                                            <span className="text-sm">{selectedModel.icon(true)}</span>
+                                                        {displayedModel && (
+                                                            <span className="text-sm">{displayedModel.icon(true)}</span>
                                                         )}
                                                         <span className="text-xs font-medium text-white/80">
-                                                            {(() => {
-                                                                const provider = selectedJob?.result_data?.transcribe_provider || transcribeProvider;
-                                                                const model = selectedJob?.result_data?.model_size || transcribeMode;
-                                                                if (provider === 'local' || provider === 'whispercpp') return 'Standard';
-                                                                if (provider === 'groq') {
-                                                                    if (model && (model.includes('turbo') || model === 'enhanced')) return 'Enhanced';
-                                                                    return 'Ultimate';
-                                                                }
-                                                                if (provider === 'openai') return 'Chat GPT';
-                                                                return provider;
-                                                            })()}
+                                                            {displayedModel?.name || 'Standard'}
                                                         </span>
                                                     </div>
                                                 )}

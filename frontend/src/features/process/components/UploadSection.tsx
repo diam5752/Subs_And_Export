@@ -46,23 +46,28 @@ export function UploadSection() {
     const validationRequestId = React.useRef(0);
 
     const activeTheme = useMemo(() => {
-        if (transcribeProvider === 'groq') return {
-            borderColor: 'border-purple-500/50',
-            bgGradient: 'from-purple-500/20 via-transparent to-purple-500/5',
-            iconColor: 'text-purple-400',
-            glowColor: 'shadow-[0_0_30px_-5px_rgba(168,85,247,0.3)]'
-        };
+        if (transcribeProvider === 'groq') {
+            if (transcribeMode === 'enhanced') {
+                return {
+                    borderColor: 'border-emerald-500/50',
+                    bgGradient: 'from-emerald-500/20 via-transparent to-emerald-500/5',
+                    iconColor: 'text-emerald-400',
+                    glowColor: 'shadow-[0_0_30px_-5px_rgba(52,211,153,0.3)]'
+                };
+            }
+            // Default to Ultimate (Purple)
+            return {
+                borderColor: 'border-purple-500/50',
+                bgGradient: 'from-purple-500/20 via-transparent to-purple-500/5',
+                iconColor: 'text-purple-400',
+                glowColor: 'shadow-[0_0_30px_-5px_rgba(168,85,247,0.3)]'
+            };
+        }
         if (transcribeProvider === 'whispercpp') return {
             borderColor: 'border-cyan-500/50',
             bgGradient: 'from-cyan-500/20 via-transparent to-cyan-500/5',
             iconColor: 'text-cyan-400',
             glowColor: 'shadow-[0_0_30px_-5px_rgba(6,182,212,0.3)]'
-        };
-        if (transcribeProvider === 'local') return {
-            borderColor: 'border-amber-500/50',
-            bgGradient: 'from-amber-500/20 via-transparent to-amber-500/5',
-            iconColor: 'text-amber-400',
-            glowColor: 'shadow-[0_0_30px_-5px_rgba(251,191,36,0.3)]'
         };
         return {
             borderColor: 'border-[var(--accent)]/50',
@@ -70,7 +75,7 @@ export function UploadSection() {
             iconColor: 'text-[var(--accent)]',
             glowColor: 'shadow-[0_0_30px_-5px_rgba(141,247,223,0.3)]'
         };
-    }, [transcribeProvider]);
+    }, [transcribeProvider, transcribeMode]);
 
     const selectedModel = useMemo(() =>
         AVAILABLE_MODELS.find(m => m.provider === transcribeProvider && m.mode === transcribeMode),

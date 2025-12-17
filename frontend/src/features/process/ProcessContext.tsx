@@ -222,15 +222,27 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
         if (props.selectedJob?.status === 'completed') {
             // Check if current settings match the job results
             const jobProvider = props.selectedJob.result_data?.transcribe_provider;
-            const jobModel = props.selectedJob.result_data?.model_size; // 'medium', 'turbo', 'openai/whisper-1'
+            const jobModel = props.selectedJob.result_data?.model_size; // 'medium', 'enhanced', 'ultimate', 'turbo'
 
             // loose match logic
             const providerMatch = !transcribeProvider || jobProvider === transcribeProvider;
 
-            // Model mapping match check
-            // We only check if specific provider matches, assuming mode maps correctly.
-            // If user switched provider, definitely mismatch.
-            if (providerMatch) {
+            let modelMatch = true;
+            if (providerMatch && jobProvider === 'groq') {
+                // For Groq, we must differentiate between Enhanced (Turbo) and Ultimate (Large)
+                // Enhanced maps to 'enhanced' or 'turbo' (legacy)
+                // Ultimate maps to 'ultimate'
+                const isEnhancedJob = jobModel === 'enhanced' || (jobModel && jobModel.includes('turbo'));
+                const isUltimateJob = jobModel === 'ultimate' || (jobModel && !jobModel.includes('turbo') && !jobModel.includes('enhanced')); // default large
+
+                if (transcribeMode === 'enhanced') {
+                    modelMatch = isEnhancedJob;
+                } else if (transcribeMode === 'ultimate') {
+                    modelMatch = isUltimateJob;
+                }
+            }
+
+            if (providerMatch && modelMatch) {
                 return 3;
             }
             // If mismatch, we fallback to Step 2, but we keep the job for history/preview if needed
@@ -361,7 +373,7 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
             icon: (selected: boolean) => (
                 <div className={`p-2 rounded-lg ${selected ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-500/10 text-emerald-500'} `}>
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
                     </svg>
                 </div>
             ),
