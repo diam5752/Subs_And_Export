@@ -23,7 +23,7 @@ from backend.app.core import config
 from backend.app.services import subtitles
 from backend.app.services.styles import SubtitleStyle
 from backend.app.services.transcription.groq_cloud import GroqTranscriber
-# from backend.app.services.transcription.local_whisper import LocalWhisperTranscriber # REMOVED
+from backend.app.services.transcription.local_whisper import LocalWhisperTranscriber
 from backend.app.services.transcription.openai_cloud import OpenAITranscriber
 from backend.app.services.transcription.standard_whisper import StandardTranscriber
 
@@ -433,8 +433,8 @@ def normalize_and_stub_subtitles(
         elif "groq" in selected_model.lower(): 
              provider_name = "groq"
         else:
-            # Default to whispercpp (Standard) as "local" (Python) is removed
-            provider_name = "whispercpp"
+            # Default to local (stable-ts / faster-whisper) for local-first workflows.
+            provider_name = "local"
 
     # Sanity check: If provider is Groq, ensure model is valid Groq model.
     # Frontend might send 'medium' or 'turbo' legacies.
@@ -443,6 +443,9 @@ def normalize_and_stub_subtitles(
         if selected_model not in valid_groq:
             # Default fallback for Groq
             selected_model = config.GROQ_MODEL_ENHANCED
+    elif provider_name == "local" and selected_model == "turbo":
+        # Map 'turbo' alias to concrete default model for local whisper.
+        selected_model = config.WHISPER_MODEL
     elif provider_name == "whispercpp" and selected_model == "turbo":
         # Map 'turbo' alias to concrete 'large-v3-turbo' for whisper.cpp
         selected_model = "large-v3-turbo"
@@ -453,12 +456,16 @@ def normalize_and_stub_subtitles(
         transcriber = GroqTranscriber()
     elif provider_name == "openai":
         transcriber = OpenAITranscriber(api_key=openai_api_key)
+    elif provider_name == "local":
+        transcriber = LocalWhisperTranscriber(
+            device=device,
+            compute_type=compute_type,
+            beam_size=beam_size or 5,
+        )
     elif provider_name == "whispercpp":
         transcriber = StandardTranscriber()
     else:
-        # "local" (Python Whisper) is removed. Fallback to Standard or Error.
-        # We raise error to enforce "Remove local from everywhere".
-        raise ValueError(f"Provider '{provider_name}' is not supported or has been removed.")
+        raise ValueError(f"Provider '{provider_name}' is not supported.")
 
     # --- PIPELINE EXECUTION ---
     pipeline_timings: dict[str, float] = {}

@@ -45,9 +45,11 @@ const mockContextValue = {
     STYLE_PRESETS: [
         {
             id: 'tiktok',
-            label: 'TikTok Pro',
-            icon: '🎵',
-            settings: { position: 16, lines: 1, size: 100, color: '&H00FFFF00', karaoke: true }
+            name: 'TikTok Pro',
+            description: 'Viral, attention-grabbing',
+            emoji: '🎵',
+            colorClass: 'from-yellow-500 to-orange-500',
+            settings: { position: 16, lines: 1, size: 100, color: '#FFFF00', karaoke: true }
         }
     ],
     activePreset: 'tiktok',
@@ -67,7 +69,7 @@ const mockContextValue = {
     setSubtitleSize: jest.fn(),
     maxSubtitleLines: 1,
     setMaxSubtitleLines: jest.fn(),
-    subtitleColor: '&H00FFFF00',
+    subtitleColor: '#FFFF00',
     setSubtitleColor: jest.fn(),
     karaokeEnabled: false,
     setKaraokeEnabled: jest.fn(),
@@ -133,8 +135,9 @@ describe('ProcessView', () => {
                 <ProcessViewContent />
             </I18nProvider>
         );
-        expect(screen.getByText(/Step 1/i)).toBeInTheDocument();
-        expect(screen.getByText(/Select a model/i)).toBeInTheDocument();
+        expect(screen.getAllByText(/Step 1/i).length).toBeGreaterThan(0);
+        expect(screen.getByRole('heading', { name: /select a model/i })).toBeInTheDocument();
+        expect(screen.getByText(/choose the engine before uploading/i)).toBeInTheDocument();
     });
 
     it('allows selecting a model', () => {
@@ -169,8 +172,8 @@ describe('ProcessView', () => {
             </I18nProvider>
         );
 
-        expect(screen.getByText(/Step 2/i)).toBeInTheDocument();
-        expect(screen.getByText(/Upload/i)).toBeInTheDocument();
+        expect(screen.getAllByText(/Step 2/i).length).toBeGreaterThan(0);
+        expect(screen.getAllByText(/^Upload$/i).length).toBeGreaterThan(0);
     });
 
     it('renders Step 3 (Preview) when job is completed', () => {
@@ -187,9 +190,9 @@ describe('ProcessView', () => {
             </I18nProvider>
         );
 
-        expect(screen.getByText(/Step 3/i)).toBeInTheDocument();
-        expect(screen.getByText(/Preview/i)).toBeInTheDocument();
-        expect(screen.getByText(/Transcript/i)).toBeInTheDocument();
+        expect(screen.getAllByText(/Step 3/i).length).toBeGreaterThan(0);
+        expect(screen.getAllByText(/^Preview$/i).length).toBeGreaterThan(0);
+        expect(screen.getByRole('tab', { name: /Transcript/i })).toBeInTheDocument();
     });
 
     it('switches between Transcript and Styles tabs', async () => {

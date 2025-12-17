@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import Image from 'next/image';
 import { useI18n } from '@/context/I18nContext';
+import { InfoTooltip } from '@/components/InfoTooltip';
 import { SubtitleOverlay, Cue } from './SubtitleOverlay';
 
 export interface SubtitlePositionSelectorProps {
@@ -49,6 +50,7 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
     const { t } = useI18n();
     const colorLabelId = useId();
     const sizeLabelId = useId();
+    const positionLabelId = useId();
     const karaokeLabelId = useId();
     const linesLabelId = useId();
 
@@ -168,9 +170,25 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
                         {/* Size Slider */}
                         {onChangeSize && (
                             <div className="flex-1 min-w-[200px]">
-                                <label htmlFor={sizeLabelId} className="block text-sm font-medium text-[var(--muted)] mb-3">
-                                    {t('sizeLabel')}
-                                </label>
+                                <div className="flex items-center gap-2 mb-3">
+                                    <label htmlFor={sizeLabelId} className="block text-sm font-medium text-[var(--muted)]">
+                                        {t('sizeLabel')}
+                                    </label>
+                                    <InfoTooltip ariaLabel={`${t('infoPrefix')} ${t('sizeLabel')}`}>
+                                        <div className="space-y-2">
+                                            <div className="font-semibold text-[11px]">{t('sizeLabel')}</div>
+                                            <p className="text-[var(--muted)] leading-snug">{t('tooltipSizeDesc')}</p>
+                                            <div className="flex items-end justify-between gap-3 rounded-lg border border-white/10 bg-black/20 p-2">
+                                                <span aria-hidden="true" className="text-[10px] font-bold text-white/70">
+                                                    Aa
+                                                </span>
+                                                <span aria-hidden="true" className="text-base font-black text-white">
+                                                    Aa
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </InfoTooltip>
+                                </div>
                                 <div className="p-4 rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)]">
                                     {/* Size Preview Text */}
                                     <div className="flex items-center justify-center mb-4">
@@ -240,6 +258,28 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
 
                                     {/* Position Slider - Under Size */}
                                     <div className="mt-4 pt-4 border-t border-[var(--border)]">
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <label htmlFor={positionLabelId} className="text-xs font-medium text-[var(--muted)]">
+                                                {t('positionLabel')}
+                                            </label>
+                                            <InfoTooltip ariaLabel={`${t('infoPrefix')} ${t('positionLabel')}`}>
+                                                <div className="space-y-2">
+                                                    <div className="font-semibold text-[11px]">{t('positionLabel')}</div>
+                                                    <p className="text-[var(--muted)] leading-snug">{t('tooltipPositionDesc')}</p>
+                                                    <div className="grid grid-cols-3 gap-2 rounded-lg border border-white/10 bg-black/20 p-2">
+                                                        <div className="relative h-12 rounded-md border border-white/10 bg-white/5">
+                                                            <div className="absolute left-1 right-1 top-2 h-1 rounded-full bg-white/20" />
+                                                        </div>
+                                                        <div className="relative h-12 rounded-md border border-white/10 bg-white/5">
+                                                            <div className="absolute left-1 right-1 top-1/2 -translate-y-1/2 h-1 rounded-full bg-white/20" />
+                                                        </div>
+                                                        <div className="relative h-12 rounded-md border border-white/10 bg-white/5">
+                                                            <div className="absolute left-1 right-1 bottom-2 h-1 rounded-full bg-white/20" />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </InfoTooltip>
+                                        </div>
                                         {/* Centered Mini phone preview - like the Aa preview above */}
                                         <div className="flex items-center justify-center mb-4">
                                             <div className="relative w-8 h-14 bg-slate-700/50 rounded-lg border border-slate-600/50 overflow-hidden">
@@ -254,7 +294,7 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
                                         {/* Slider */}
                                         <div className="relative">
                                             <input
-                                                aria-label={t('positionLabel') || 'Subtitle Position'}
+                                                id={positionLabelId}
                                                 type="range"
                                                 min={5}
                                                 max={50}
@@ -311,9 +351,24 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
 
                         {/* Lines Selector */}
                         <div className="flex-1 min-w-[200px]">
-                            <label id={linesLabelId} className="block text-sm font-medium text-[var(--muted)] mb-3">
-                                {t('maxLinesLabel')}
-                            </label>
+                            <div className="flex items-center gap-2 mb-3">
+                                <label id={linesLabelId} className="block text-sm font-medium text-[var(--muted)]">
+                                    {t('maxLinesLabel')}
+                                </label>
+                                <InfoTooltip ariaLabel={`${t('infoPrefix')} ${t('maxLinesLabel')}`}>
+                                    <div className="space-y-2">
+                                        <div className="font-semibold text-[11px]">{t('maxLinesLabel')}</div>
+                                        <p className="text-[var(--muted)] leading-snug">{t('tooltipMaxLinesDesc')}</p>
+                                        <div className="rounded-lg border border-white/10 bg-black/20 p-2">
+                                            <div className="space-y-1">
+                                                <div className="h-1.5 w-full rounded-full bg-[var(--accent)]/50" />
+                                                <div className="h-1.5 w-4/5 rounded-full bg-[var(--accent)]/35" />
+                                                <div className="h-1.5 w-3/5 rounded-full bg-white/10" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </InfoTooltip>
+                            </div>
                             {disableMaxLines ? (
                                 /* Disabled state for Standard model */
                                 <div className="p-4 rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface)]/50 h-full">
@@ -357,9 +412,22 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
 
                         {colors && onChangeColor && (
                             <div className="flex-1">
-                                <label id={colorLabelId} className="block text-sm font-medium text-[var(--muted)] mb-3">
-                                    {t('colorLabel')}
-                                </label>
+                                <div className="flex items-center gap-2 mb-3">
+                                    <label id={colorLabelId} className="block text-sm font-medium text-[var(--muted)]">
+                                        {t('colorLabel')}
+                                    </label>
+                                    <InfoTooltip ariaLabel={`${t('infoPrefix')} ${t('colorLabel')}`}>
+                                        <div className="space-y-2">
+                                            <div className="font-semibold text-[11px]">{t('colorLabel')}</div>
+                                            <p className="text-[var(--muted)] leading-snug">{t('tooltipColorDesc')}</p>
+                                            <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/20 p-2">
+                                                <span aria-hidden="true" className="h-3.5 w-3.5 rounded-full bg-[#FFFF00] border border-white/10" />
+                                                <span aria-hidden="true" className="h-3.5 w-3.5 rounded-full bg-white border border-white/10" />
+                                                <span aria-hidden="true" className="h-3.5 w-3.5 rounded-full bg-[#00FFFF] border border-white/10" />
+                                            </div>
+                                        </div>
+                                    </InfoTooltip>
+                                </div>
                                 <div
                                     className="flex items-center gap-3 p-4 rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)] min-h-[88px]"
                                     role="radiogroup"
@@ -458,9 +526,31 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
                         {/* Karaoke Toggle (separate column, next to colors) */}
                         {onChangeKaraoke && karaokeSupported && (
                             <div className="flex-1 min-w-[200px]">
-                                <label id={karaokeLabelId} className="block text-sm font-medium text-[var(--muted)] mb-3">
-                                    {t('karaokeLabel') || 'Karaoke'}
-                                </label>
+                                <div className="flex items-center gap-2 mb-3">
+                                    <label id={karaokeLabelId} className="block text-sm font-medium text-[var(--muted)]">
+                                        {t('karaokeLabel') || 'Karaoke'}
+                                    </label>
+                                    <InfoTooltip ariaLabel={`${t('infoPrefix')} ${t('karaokeLabel') || 'Karaoke'}`}>
+                                        <div className="space-y-2">
+                                            <div className="font-semibold text-[11px]">{t('karaokeMode')}</div>
+                                            <p className="text-[var(--muted)] leading-snug">{t('tooltipKaraokeDesc')}</p>
+                                            <div className="rounded-lg border border-white/10 bg-black/20 p-2">
+                                                <div className="flex items-center justify-between text-[9px] font-semibold text-white/60 uppercase tracking-wide">
+                                                    <span>{t('karaokeStatic')}</span>
+                                                    <span className="text-white/40">→</span>
+                                                    <span className="text-orange-300">{t('karaokeActive')}</span>
+                                                </div>
+                                                <div className="mt-2 rounded-md bg-white/5 px-2 py-1 text-[10px] font-black uppercase tracking-wide">
+                                                    <span className="rounded bg-orange-500 px-1 text-white">HELLO</span>{' '}
+                                                    <span className="text-white/50">WORLD</span>
+                                                </div>
+                                                <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+                                                    <div className="h-full w-1/2 rounded-full bg-orange-500" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </InfoTooltip>
+                                </div>
                                 <button
                                     onClick={(e) => {
                                         e.stopPropagation();

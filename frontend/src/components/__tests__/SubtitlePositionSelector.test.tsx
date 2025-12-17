@@ -83,6 +83,33 @@ describe('SubtitlePositionSelector', () => {
         expect(defaultProps.onChangeKaraoke).toHaveBeenCalledWith(false); // toggles
     });
 
+    it('shows info tooltips for subtitle controls', () => {
+        const colors = [{ label: 'Green', value: '#00FF00', ass: '&H0000FF00' }];
+        const onChangeColor = jest.fn();
+        render(
+            <SubtitlePositionSelector
+                {...defaultProps}
+                colors={colors}
+                onChangeColor={onChangeColor}
+                subtitleColor="#00FF00"
+            />
+        );
+
+        const assertTooltip = (buttonLabel: string, tooltipText: string) => {
+            const button = screen.getByRole('button', { name: buttonLabel });
+            fireEvent.focus(button);
+            expect(screen.getByText(tooltipText)).toBeInTheDocument();
+            fireEvent.blur(button);
+            expect(screen.queryByText(tooltipText)).not.toBeInTheDocument();
+        };
+
+        assertTooltip('infoPrefix sizeLabel', 'tooltipSizeDesc');
+        assertTooltip('infoPrefix positionLabel', 'tooltipPositionDesc');
+        assertTooltip('infoPrefix maxLinesLabel', 'tooltipMaxLinesDesc');
+        assertTooltip('infoPrefix colorLabel', 'tooltipColorDesc');
+        assertTooltip('infoPrefix karaokeLabel', 'tooltipKaraokeDesc');
+    });
+
     it('does not render karaoke toggle when not supported', () => {
         render(<SubtitlePositionSelector {...defaultProps} karaokeSupported={false} />);
 

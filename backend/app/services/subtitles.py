@@ -345,7 +345,7 @@ def generate_subtitles_from_audio(
     Legacy wrapper to maintain backward compatibility during refactoring.
     """
     from backend.app.services.transcription.groq_cloud import GroqTranscriber
-    # from backend.app.services.transcription.local_whisper import LocalWhisperTranscriber # REMOVED
+    from backend.app.services.transcription.local_whisper import LocalWhisperTranscriber
     from backend.app.services.transcription.openai_cloud import OpenAITranscriber
     from backend.app.services.transcription.standard_whisper import StandardTranscriber
 
@@ -370,11 +370,37 @@ def generate_subtitles_from_audio(
             initial_prompt=initial_prompt, progress_callback=progress_callback
         )
 
-    if provider == "whispercpp" or provider == "local":
+    if provider == "local":
+        resolved_model = model_size
+        if resolved_model == "turbo":
+            resolved_model = config.WHISPER_MODEL
+
+        transcriber = LocalWhisperTranscriber(
+            device=device,
+            compute_type=compute_type,
+            beam_size=beam_size or 5,
+        )
+        return transcriber.transcribe(
+            audio_path,
+            output_dir,
+            language=language,
+            model=resolved_model,
+            progress_callback=progress_callback,
+            best_of=best_of,
+            temperature=temperature,
+            initial_prompt=initial_prompt,
+            vad_filter=vad_filter,
+            condition_on_previous_text=condition_on_previous_text,
+        )
+
+    if provider == "whispercpp":
         transcriber = StandardTranscriber()
         return transcriber.transcribe(
-            audio_path, output_dir, language=language, model=config.WHISPERCPP_MODEL,
-            progress_callback=progress_callback
+            audio_path,
+            output_dir,
+            language=language,
+            model=config.WHISPERCPP_MODEL,
+            progress_callback=progress_callback,
         )
 
     raise ValueError(f"Unknown or removed provider: {provider}")

@@ -6,7 +6,7 @@ steps:
       - '-t'
       - 'europe-west1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/ascentia-subs-frontend:$COMMIT_SHA'
       - '--build-arg'
-      - 'NEXT_PUBLIC_API_URL=https://ascentia-subs-865728840454.europe-west1.run.app'
+      - 'NEXT_PUBLIC_API_URL=$_NEXT_PUBLIC_API_URL'
       - 'frontend'
   
   # Push the container image to Artifact Registry

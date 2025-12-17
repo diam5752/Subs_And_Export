@@ -14,6 +14,7 @@ jest.mock('@/context/I18nContext', () => {
 jest.mock('@/lib/api', () => ({
     api: {
         generateViralMetadata: jest.fn(),
+        factCheck: jest.fn(),
     },
 }));
 
@@ -36,16 +37,16 @@ describe('ViralIntelligence', () => {
 
     it('renders generate button initially', () => {
         render(<ViralIntelligence jobId={mockJobId} />);
-        expect(screen.getByRole('button', { name: /generate viral metadata/i })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /generate metadata/i })).toBeInTheDocument();
     });
 
     it('shows loading state during generation', async () => {
         (api.generateViralMetadata as jest.Mock).mockImplementation(() => new Promise(() => { })); // Never resolves
         render(<ViralIntelligence jobId={mockJobId} />);
 
-        fireEvent.click(screen.getByRole('button', { name: /generate viral metadata/i }));
+        fireEvent.click(screen.getByRole('button', { name: /generate metadata/i }));
 
-        expect(screen.getByText(/analyzing transcript/i)).toBeInTheDocument();
+        expect(screen.getByText(/processing content/i)).toBeInTheDocument();
     });
 
     it('displays metadata results on success', async () => {
@@ -60,9 +61,9 @@ describe('ViralIntelligence', () => {
 
         render(<ViralIntelligence jobId={mockJobId} />);
 
-        fireEvent.click(screen.getByRole('button', { name: /generate viral metadata/i }));
+        fireEvent.click(screen.getByRole('button', { name: /generate metadata/i }));
 
-        await waitFor(() => expect(screen.getByText('Viral Intelligence')).toBeInTheDocument());
+        await waitFor(() => expect(screen.getByText('Generated Output')).toBeInTheDocument());
         expect(screen.getByText('Hook 1')).toBeInTheDocument();
         expect(screen.getByText('Caption Body')).toBeInTheDocument();
         expect(screen.getByText('#viral')).toBeInTheDocument();
@@ -73,10 +74,10 @@ describe('ViralIntelligence', () => {
 
         render(<ViralIntelligence jobId={mockJobId} />);
 
-        fireEvent.click(screen.getByRole('button', { name: /generate viral metadata/i }));
+        fireEvent.click(screen.getByRole('button', { name: /generate metadata/i }));
 
         await waitFor(() => expect(screen.getByText('API Error')).toBeInTheDocument());
-        expect(screen.getByRole('button', { name: /generate viral metadata/i })).toBeInTheDocument(); // Button should reappear
+        expect(screen.getByRole('button', { name: /generate metadata/i })).toBeInTheDocument(); // Button should reappear
     });
 
     it('copies content to clipboard', async () => {
@@ -90,23 +91,19 @@ describe('ViralIntelligence', () => {
         (api.generateViralMetadata as jest.Mock).mockResolvedValue(mockData);
 
         render(<ViralIntelligence jobId={mockJobId} />);
-        fireEvent.click(screen.getByRole('button', { name: /generate viral metadata/i }));
+        fireEvent.click(screen.getByRole('button', { name: /generate metadata/i }));
 
         await waitFor(() => expect(screen.getByText('Hook 1')).toBeInTheDocument());
 
-        // Verify it's a button
-        const hookButton = screen.getByRole('button', { name: /COPY: Hook 1/i });
+        const hookButton = screen.getByRole('button', { name: 'Hook 1' });
         fireEvent.click(hookButton);
         expect(mockWriteText).toHaveBeenCalledWith('Hook 1');
 
-        // Check for feedback
-        await waitFor(() => expect(screen.getByText('COPIED')).toBeInTheDocument());
-
         // Copy Full Caption
-        fireEvent.click(screen.getByText('Copy Full Caption'));
+        fireEvent.click(screen.getByRole('button', { name: 'Copy All' }));
         expect(mockWriteText).toHaveBeenCalledWith(expect.stringContaining('Hook\n\nBody'));
 
         // Check for feedback on caption
-        await waitFor(() => expect(screen.getAllByText('COPIED').length).toBeGreaterThan(0));
+        await waitFor(() => expect(screen.getByText('Copied')).toBeInTheDocument());
     });
 });

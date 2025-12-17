@@ -42,8 +42,6 @@ default_origins = [
     "http://127.0.0.1:8000",
     "http://localhost:8080",
     "http://127.0.0.1:8080",
-    # Cloud Run production URLs
-    "https://ascentia-subs-frontend-865728840454.europe-west1.run.app",
 ]
 origins = _env_list("GSP_ALLOWED_ORIGINS", default_origins)
 
@@ -141,8 +139,7 @@ app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(videos.router, prefix="/videos", tags=["videos"])
 app.include_router(tiktok.router, prefix="/tiktok", tags=["tiktok"])
 app.include_router(history.router, prefix="/history", tags=["history"])
-if is_dev_env():
-    app.include_router(dev.router, prefix="/dev", tags=["dev"])
+app.include_router(dev.router, prefix="/dev", tags=["dev"])
 
 @app.get("/health")
 async def health_check():
