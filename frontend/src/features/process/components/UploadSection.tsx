@@ -33,7 +33,10 @@ export function UploadSection() {
         setPreviewVideoUrl,
         setCues,
         selectedJob,
-        error
+        error,
+        progress,
+        statusMessage,
+        onCancelProcessing
     } = useProcessContext();
 
     const [isDragOver, setIsDragOver] = useState(false);
@@ -239,14 +242,16 @@ export function UploadSection() {
                                     </div>
                                 )}
 
-                                {/* Centered Green Tick Overlay */}
-                                <div className="absolute inset-0 flex items-center justify-center">
-                                    <div className="w-8 h-8 rounded-full bg-emerald-500/80 shadow-lg shadow-emerald-500/40 flex items-center justify-center text-white transform scale-100 group-hover:scale-110 transition-transform backdrop-blur-[1px]">
-                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                        </svg>
+                                {/* Centered Green Tick Overlay - Only show when completed */}
+                                {selectedJob?.status === 'completed' && (
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                        <div className="w-8 h-8 rounded-full bg-emerald-500/80 shadow-lg shadow-emerald-500/40 flex items-center justify-center text-white transform scale-100 group-hover:scale-110 transition-transform backdrop-blur-[1px]">
+                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                            </svg>
+                                        </div>
                                     </div>
-                                </div>
+                                )}
                             </div>
 
                             {/* File Info */}
@@ -284,23 +289,32 @@ export function UploadSection() {
                         </div>
                     )}
 
-                    {/* ACTION BAR: Start Processing */}
-                    {hasChosenModel && selectedFile && !isProcessing && selectedJob?.status !== 'completed' && (
-                        <div className="flex justify-end pt-8 pb-4 animate-fade-in">
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleStart();
-                                }}
-                                disabled={isProcessing || !selectedFile}
-                                className={`btn-primary w-full py-4 text-base shadow-lg transition-all ${selectedFile
-                                    ? 'shadow-[var(--accent)]/20 hover:shadow-[var(--accent)]/40 hover:-translate-y-0.5'
-                                    : 'opacity-50 cursor-not-allowed grayscale'
-                                    }`}
-                            >
-                                <span className="mr-2">✨</span>
-                                {t('controlsStart') || 'Generate Video'}
-                            </button>
+                    {/* PROCESSING STATE: Progress Bar */}
+                    {isProcessing && (
+                        <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3 space-y-3 animate-fade-in mt-4">
+                            <div className="flex items-center justify-between text-sm">
+                                <span className="font-medium">{statusMessage || t('progressLabel')}</span>
+                                <span className="text-[var(--accent)] font-semibold">{progress}%</span>
+                            </div>
+                            <div className="w-full bg-[var(--surface)] rounded-full h-2 overflow-hidden">
+                                <div
+                                    className="progress-bar bg-gradient-to-r from-[var(--accent)] to-[var(--accent-secondary)] h-2 rounded-full"
+                                    style={{ width: `${progress}%` }}
+                                />
+                            </div>
+                            {onCancelProcessing && (
+                                <div className="flex justify-end pt-1">
+                                    <button
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onCancelProcessing();
+                                        }}
+                                        className="px-4 py-1.5 rounded-lg text-sm font-medium bg-[var(--danger)]/10 text-[var(--danger)] hover:bg-[var(--danger)]/20 border border-[var(--danger)]/30 transition-colors"
+                                    >
+                                        {t('cancelProcessing')}
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     )}
                 </>

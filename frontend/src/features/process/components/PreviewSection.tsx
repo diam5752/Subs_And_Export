@@ -11,9 +11,6 @@ export function PreviewSection() {
     const {
         selectedJob,
         isProcessing,
-        progress,
-        statusMessage,
-        onCancelProcessing,
         transcribeProvider,
         videoUrl,
         processedCues,
@@ -84,7 +81,7 @@ export function PreviewSection() {
             </div>
 
             <div className="card space-y-4 min-h-[200px]">
-                {(!(isProcessing || (selectedJob && selectedJob.status !== 'pending'))) ? (
+                {(!selectedJob || selectedJob.status !== 'completed') ? (
                     <div className="py-20 flex flex-col items-center justify-center text-center text-[var(--muted)] border-2 border-dashed border-[var(--border)]/50 rounded-xl bg-[var(--surface-elevated)]/30">
                         <div className="text-5xl mb-4 opacity-20">🎬</div>
                         <p className="font-semibold text-lg opacity-60">Result Preview</p>
@@ -95,36 +92,11 @@ export function PreviewSection() {
                         <div className="flex flex-wrap items-start justify-between gap-3">
                             <div className="min-w-0 flex-1">
                                 <h3 className="text-2xl font-semibold break-words [overflow-wrap:anywhere]">
-                                    {(isProcessing ? t('statusProcessingEllipsis') : 'Live Preview')}
+                                    Live Preview
                                 </h3>
                                 <p className="text-sm text-[var(--muted)]">{t('liveOutputSubtitle')}</p>
                             </div>
                         </div>
-
-                        {isProcessing && (
-                            <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3 space-y-3 animate-fade-in">
-                                <div className="flex items-center justify-between text-sm">
-                                    <span className="font-medium">{statusMessage || t('progressLabel')}</span>
-                                    <span className="text-[var(--accent)] font-semibold">{progress}%</span>
-                                </div>
-                                <div className="w-full bg-[var(--surface)] rounded-full h-2 overflow-hidden">
-                                    <div
-                                        className="progress-bar bg-gradient-to-r from-[var(--accent)] to-[var(--accent-secondary)] h-2 rounded-full"
-                                        style={{ width: `${progress}% ` }}
-                                    />
-                                </div>
-                                {onCancelProcessing && (
-                                    <div className="flex justify-end pt-1">
-                                        <button
-                                            onClick={onCancelProcessing}
-                                            className="px-4 py-1.5 rounded-lg text-sm font-medium bg-[var(--danger)]/10 text-[var(--danger)] hover:bg-[var(--danger)]/20 border border-[var(--danger)]/30 transition-colors"
-                                        >
-                                            {t('cancelProcessing')}
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                        )}
 
                         {!isProcessing && selectedJob && selectedJob.status === 'completed' ? (
                             <div className="animate-fade-in relative">
