@@ -1,4 +1,3 @@
-import pytest
 
 def test_process_video_resolution_length_limit(client, user_auth_headers):
     """

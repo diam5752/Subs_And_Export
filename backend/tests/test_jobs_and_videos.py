@@ -109,7 +109,8 @@ def test_run_video_processing_failure(monkeypatch, tmp_path: Path):
 
     failed = store.get_job(job.id)
     assert failed and failed.status == "failed"
-    assert "explode" in (failed.message or "")
+    # Sentinel Update: Error is now sanitized to prevent leaking internals
+    assert "Processing failed due to an internal error" in (failed.message or "")
 
 
 def test_run_video_processing_handles_path_only(monkeypatch, tmp_path: Path):

@@ -19,7 +19,7 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from backend.app.api.endpoints import auth, dev, history, tiktok, videos
 from backend.app.core import config
-from backend.app.core.env import get_app_env, is_dev_env
+from backend.app.core.env import get_app_env
 
 app = FastAPI(
     title="Greek Sub Publisher API",

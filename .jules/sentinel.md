@@ -97,3 +97,8 @@
 **Vulnerability:** When a local user logged in via Google SSO (creating an account link), the original local password hash remained in the database. This allowed continued access via the local password, even though the user provider was switched to "google" (which blocks password updates), creating an unmanageable shadow credential.
 **Learning:** "Provider" fields in databases are often descriptive but not enforced by the authentication logic itself unless explicitly checked. When upgrading authentication assurance (e.g. to SSO), lower-assurance credentials must be actively revoked.
 **Prevention:** In account linking/upgrading flows (`upsert_google_user`), explicitly nullify conflicting credentials (`password_hash = NULL`) to enforce the new authentication source.
+
+## 2025-07-03 - [Medium] Error Handling Leaking Stack Traces
+**Vulnerability:** Uncaught exceptions in API endpoints and background tasks were exposing raw error messages (including potentially sensitive file paths and library internals) to users via API responses and job history.
+**Learning:** Background tasks updating database state with `str(e)` persist internal error details that are then served to users via separate history endpoints.
+**Prevention:** Use a centralized `sanitize_error` utility to wrap exceptions before returning them to users or persisting them in user-accessible storage.

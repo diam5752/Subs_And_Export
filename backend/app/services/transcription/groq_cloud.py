@@ -1,7 +1,6 @@
 from pathlib import Path
 from typing import List
 
-from backend.app.core import config
 from backend.app.services.subtitles import Cue, TimeRange, WordTiming, _resolve_groq_api_key
 from backend.app.services.transcription.base import Transcriber
 from backend.app.services.transcription.utils import normalize_text, write_srt_from_segments

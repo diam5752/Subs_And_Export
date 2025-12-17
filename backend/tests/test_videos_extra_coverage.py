@@ -123,7 +123,8 @@ def test_export_video_failure(client: TestClient, user_auth_headers: dict, monke
                 json={"resolution": "1080p"}
             )
             assert response.status_code == 500
-            assert "Export failed" in response.json()["detail"]
+            # Sentinel Update: Error is sanitized. ValueErrors are passed through as safe.
+            assert "FFmpeg error" in response.json()["detail"]
 
     finally:
         app.dependency_overrides = {}

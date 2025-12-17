@@ -5,6 +5,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, Field
 
 from ...core.auth import SessionStore, User, UserStore
+from ...core.errors import sanitize_error
 from ...core.ratelimit import limiter_login, limiter_register
 from ...services.history import HistoryStore
 from ...services.jobs import JobStore
@@ -190,9 +191,10 @@ def delete_account(
 
         return {"status": "deleted", "message": "Account and all data have been permanently deleted"}
     except Exception as e:
+        safe_msg = sanitize_error(e, "Failed to delete account due to an internal error")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete account: {str(e)}"
+            detail=safe_msg
         )
 
 
@@ -251,4 +253,5 @@ def google_oauth_callback(
             "name": user.name
         }
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Google auth failed: {str(e)}")
+        safe_msg = sanitize_error(e, "Google auth failed")
+        raise HTTPException(status_code=400, detail=safe_msg)

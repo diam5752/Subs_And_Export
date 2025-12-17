@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from ...core import config
 from ...core.auth import User
+from ...core.errors import sanitize_error
 from ...core.ratelimit import limiter_content, limiter_processing
 from ...core.settings import load_app_settings
 from ...schemas.base import (
@@ -261,13 +262,14 @@ def run_video_processing(
         )
 
     except Exception as e:
-        job_store.update_job(job_id, status="failed", message=str(e))
+        safe_msg = sanitize_error(e, "Processing failed due to an internal error")
+        job_store.update_job(job_id, status="failed", message=safe_msg)
         _record_event_safe(
             history_store,
             user,
             "process_failed",
             f"Processing failed for {original_name or input_path.name}",
-            {"job_id": job_id, "error": str(e)},
+            {"job_id": job_id, "error": safe_msg},
         )
 
 
@@ -711,7 +713,8 @@ def create_viral_metadata(
             hashtags=metadata.hashtags,
         )
     except Exception as e:
-        raise HTTPException(500, f"Failed to generate metadata: {str(e)}")
+        safe_msg = sanitize_error(e, "Failed to generate metadata")
+        raise HTTPException(500, safe_msg)
 
 
 @router.post("/jobs/{job_id}/fact-check", response_model=FactCheckResponse, dependencies=[Depends(limiter_content)])
@@ -748,7 +751,8 @@ def fact_check_video(
             ]
         )
     except Exception as e:
-        raise HTTPException(500, f"Failed to fact check: {str(e)}")
+        safe_msg = sanitize_error(e, "Failed to fact check")
+        raise HTTPException(500, safe_msg)
 
 
 class ExportRequest(BaseModel):
@@ -837,7 +841,8 @@ def export_video(
         return _ensure_job_size(updated_job)
 
     except Exception as e:
-        raise HTTPException(500, f"Export failed: {str(e)}")
+        safe_msg = sanitize_error(e, "Export failed due to an internal error")
+        raise HTTPException(500, safe_msg)
 
 
 @router.post("/jobs/cleanup")
