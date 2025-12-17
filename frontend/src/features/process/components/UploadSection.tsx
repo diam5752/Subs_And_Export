@@ -430,11 +430,18 @@ export function UploadSection() {
                     {/* PROCESSING STATE: Progress Bar */}
                     {isProcessing && (
                         <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3 space-y-3 animate-fade-in mt-4">
-                            <div className="flex items-center justify-between text-sm">
+                            <div className="flex items-center justify-between text-sm" id="progress-label">
                                 <span className="font-medium">{statusMessage || t('progressLabel')}</span>
                                 <span className="text-[var(--accent)] font-semibold">{progress}%</span>
                             </div>
-                            <div className="w-full bg-[var(--surface)] rounded-full h-2 overflow-hidden">
+                            <div
+                                className="w-full bg-[var(--surface)] rounded-full h-2 overflow-hidden"
+                                role="progressbar"
+                                aria-labelledby="progress-label"
+                                aria-valuenow={progress}
+                                aria-valuemin={0}
+                                aria-valuemax={100}
+                            >
                                 <div
                                     className="progress-bar bg-gradient-to-r from-[var(--accent)] to-[var(--accent-secondary)] h-2 rounded-full"
                                     style={{ width: `${progress}%` }}
@@ -586,6 +593,8 @@ export function UploadSection() {
         handleStepClick, activeTheme, isDragOver, selectedModel, showDevTools,
         handleUploadCardClick, handleDragEnter, handleDragLeave, handleDragOver,
         handleDrop, fileInputRef, handleLoadDevSample, devSampleLoading,
-        devSampleError, handleFileChange
+        devSampleError, handleFileChange,
+        onCancelProcessing, onJobSelect, progress, setOverrideStep, statusMessage,
+        transcribeMode, transcribeProvider, videoUrl
     ]);
 }

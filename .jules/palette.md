@@ -19,3 +19,7 @@
 ## 2024-05-23 - Consistent Loading States
 **Learning:** Using consistent spinner components instead of just text changes for loading states significantly improves perceived performance and visual polish.
 **Action:** Use the shared `<Spinner />` component for all async button states to ensure consistency and accessibility (aria-busy).
+
+## 2025-03-01 - Progress Bar Accessibility and React Memoization
+**Learning:** Progress bars implemented as `div`s lack semantic meaning for screen readers. Also, memoized components (using `useMemo`) must include all used state variables (like `progress`) in the dependency array to ensure UI updates during rapid state changes.
+**Action:** Always use `role="progressbar"` with `aria-valuenow`/`min`/`max` and `aria-labelledby`. Verify `useMemo` dependencies when debugging "stuck" UI states.
