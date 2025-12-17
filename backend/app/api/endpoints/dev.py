@@ -48,54 +48,119 @@ def _link_or_copy_file(source: Path, destination: Path) -> None:
     shutil.copy2(source, destination)
 
 
-def _resolve_sample_source(uploads_dir: Path, artifacts_root: Path) -> tuple[str, Path, Path]:
+from pydantic import BaseModel
+
+class DevSampleRequest(BaseModel):
+    provider: str | None = None
+    model_size: str | None = None
+
+def _resolve_sample_source(
+    uploads_dir: Path, 
+    artifacts_root: Path, 
+    job_store: JobStore,
+    req: DevSampleRequest
+) -> tuple[str, Path, Path]:
     """
     Returns (source_job_id, source_input_video, source_artifact_dir).
 
-    Prefers GSP_DEV_SAMPLE_JOB_ID when provided, otherwise picks the first job
-    under artifacts containing transcription.json with a matching upload file.
+    If provider/model_size are specified, searches for a matching existing job.
+    Otherwise/fallback: Prefers GSP_DEV_SAMPLE_JOB_ID or picks first available.
     """
     preferred = os.getenv("GSP_DEV_SAMPLE_JOB_ID")
-    candidates: list[str]
-    if preferred:
-        candidates = [preferred]
+    candidates: list[str] = []
+    
+    # 1. Gather all candidates from artifacts directory
+    all_candidates = sorted({p.parent.name for p in artifacts_root.glob("*/transcription.json")})
+    
+    # 2. If filtering is requested, check job store
+    if req.provider or req.model_size:
+        filtered_candidates = []
+        for job_id in all_candidates:
+            job = job_store.get_job(job_id)
+            if not job or not job.result_data:
+                continue
+            
+            # Check match
+            job_provider = job.result_data.get("transcribe_provider")
+            job_model = job.result_data.get("model_size")
+            
+            # Loose matching: if req param is None, it ignores it.
+            match_provider = (not req.provider) or (job_provider == req.provider)
+            match_model = (not req.model_size) or (job_model == req.model_size)
+            
+            if match_provider and match_model:
+                filtered_candidates.append(job_id)
+        
+        # If we found matches, use them. If not, we fall through?
+        # User requested specific model alignment. If we fallback, it breaks expectation.
+        # But we can fallback to *any* if we fail? strict=False?
+        # Let's try strict.
+        if filtered_candidates:
+            candidates = filtered_candidates
+            # Put preferred first if it's in the filtered list
+            if preferred and preferred in candidates:
+                candidates.remove(preferred)
+                candidates.insert(0, preferred)
+        else:
+             # If explicit filter was requested but nothing found, we should probably fail check logic below
+             # But for now let's set candidates empty to trigger 404
+             candidates = []
+             
     else:
-        candidates = sorted({p.parent.name for p in artifacts_root.glob("*/transcription.json")})
+        # No filter, use preferred or all
+        if preferred:
+            candidates = [preferred]
+        else:
+            candidates = all_candidates
 
     for job_id in candidates:
         artifact_dir = artifacts_root / job_id
         transcription_json = artifact_dir / "transcription.json"
+        
+        # Double check existence (redundant matching check but safe)
         if not transcription_json.exists():
             continue
+            
         for ext in (".mp4", ".mov", ".mkv"):
             input_path = uploads_dir / f"{job_id}_input{ext}"
             if input_path.exists():
                 return job_id, input_path, artifact_dir
 
     hint = (
-        "Set GSP_DEV_SAMPLE_JOB_ID to a job id with "
-        "`data/uploads/{job_id}_input.mp4` and `data/artifacts/{job_id}/transcription.json`."
+        f"No sample video found matching provider={req.provider}, model={req.model_size}. "
+        "Run a job with these settings first to create a sample."
     )
-    raise HTTPException(status_code=404, detail=f"No dev sample video found. {hint}")
+    raise HTTPException(status_code=404, detail=hint)
 
 
 @router.post("/sample-job", response_model=JobResponse)
 def create_sample_job(
+    request: DevSampleRequest | None = None,
     current_user: User = Depends(get_current_user),
     job_store: JobStore = Depends(get_job_store),
 ):
     """
     DEV-only helper: Create a completed job by linking/copying an existing sample.
-
-    This avoids repeatedly uploading & transcribing a large video while iterating
-    on UI/export behavior.
+    Accepts optional provider/model_size to find a matching previously run job.
     """
     if not is_dev_env():
         raise HTTPException(status_code=404, detail="Not found")
 
-    data_dir, uploads_dir, artifacts_root = _data_roots()
-    source_job_id, source_input, source_artifacts = _resolve_sample_source(uploads_dir, artifacts_root)
+    if request is None:
+        request = DevSampleRequest()
 
+    data_dir, uploads_dir, artifacts_root = _data_roots()
+    source_job_id, source_input, source_artifacts = _resolve_sample_source(
+        uploads_dir, artifacts_root, job_store, request
+    )
+
+    # ... Rest logic is similar but we need to fetch source job data to replicate result_data properly?
+    # The original implementation hardcoded some result_data defaults but kept source job_id.
+    # We should arguably copy result_data from source job if available + update paths.
+    
+    source_job = job_store.get_job(source_job_id)
+    base_result_data = source_job.result_data if source_job and source_job.result_data else {}
+    
     job_id = str(uuid.uuid4())
     job_store.create_job(job_id, current_user.id)
 
@@ -114,27 +179,35 @@ def create_sample_job(
     video_rel = input_path.relative_to(data_dir).as_posix()
     artifacts_rel = artifact_dir.relative_to(data_dir).as_posix()
 
-    result_data = {
+    # Merge/Overlay result data
+    result_data = base_result_data.copy()
+    result_data.update({
         "video_path": video_rel,
         "artifacts_dir": artifacts_rel,
         "public_url": f"/static/{video_rel}",
         "artifact_url": f"/static/{artifacts_rel}",
         "transcription_url": f"/static/{artifacts_rel}/transcription.json",
         "original_filename": os.getenv("GSP_DEV_SAMPLE_FILENAME") or "DEV_SAMPLE.mp4",
-        "model_size": "dev-sample",
-        "transcribe_provider": "dev-sample",
-        "resolution": "",
-        # Defaults for export fallback / UI:
-        "max_subtitle_lines": 2,
-        "subtitle_position": 16,
-        "subtitle_color": None,
-        "shadow_strength": 4,
-        "highlight_style": "active-graphics",
-        "subtitle_size": 100,
-        "karaoke_enabled": True,
-        # Debug aid:
+        # Keep original model info if present, else fallback
+        "model_size": result_data.get("model_size", "dev-sample"),
+        "transcribe_provider": result_data.get("transcribe_provider", "dev-sample"),
         "dev_sample_source_job_id": source_job_id,
+    })
+    
+    # Ensure defaults like resolution exist for UI if missing in source
+    defaults = {
+         "resolution": "",
+         "max_subtitle_lines": 2,
+         "subtitle_position": 16,
+         "subtitle_color": None,
+         "shadow_strength": 4,
+         "highlight_style": "active-graphics",
+         "subtitle_size": 100,
+         "karaoke_enabled": True,
     }
+    for k, v in defaults.items():
+        if k not in result_data:
+            result_data[k] = v
 
     job_store.update_job(
         job_id,

@@ -207,6 +207,8 @@
   "standardCaptions": "Standard captions",
   "homeWelcome": "Turn your videos into",
   "startProcessing": "Start Processing",
+  "uploadNew": "Upload New Video",
+  "dragToReplace": "Drag & drop to replace",
   "dropFileHere": "Drop your video here!",
   "releaseToUpload": "Release to upload",
   "paginationShowing": "Showing {start}-{end} of {total}",

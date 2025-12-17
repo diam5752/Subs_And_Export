@@ -148,17 +148,52 @@ export function UploadSection() {
                 if (fileInputRef.current) {
                     fileInputRef.current.value = '';
                 }
-                onReset();
-                const job = await api.loadDevSampleJob();
+
+                // We do NOT want to full reset because it might flicker
+                // But we should ensure we are clean.
+                // onReset(); // Removed full reset to avoid state fighting
+
+                // Instead just clear file and job if needed, but we are overwriting anyway.
+                onFileSelect(null);
+
+                // Map mode to model_size (logic copied from ProcessProvider)
+                const modelMap: Record<string, string> = {
+                    fast: 'tiny',
+                    balanced: 'medium',
+                    turbo: 'turbo',
+                    best: 'large-v3',
+                };
+                const safeMode = transcribeMode || 'turbo';
+                const modelSize = modelMap[safeMode] || 'turbo';
+                const safeProvider = transcribeProvider || 'local';
+
+                const job = await api.loadDevSampleJob(safeProvider, modelSize);
+
+                // IMPORTANT: Ensure UI enters "Model Chosen" state so Step 2/3 are visible
+                setHasChosenModel(true);
                 onJobSelect(job);
-                resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            } catch (err) {
-                setDevSampleError(err instanceof Error ? err.message : 'Failed to load dev sample');
+
+                // Wait for render cycle
+                setTimeout(() => {
+                    resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 100);
+
+            } catch (err: any) {
+                console.error('Failed to load dev sample:', err);
+                let msg = 'Failed to load sample';
+                if (err instanceof Error) msg = err.message;
+                // Extract detail from backend error if available
+                if (err.response?.data?.detail) {
+                    msg = err.response.data.detail;
+                }
+                setDevSampleError(msg);
+                // Also show in main error for visibility
+                // setVideoInfo(null); // Clear video info if failed
             } finally {
                 setDevSampleLoading(false);
             }
         },
-        [devSampleLoading, isProcessing, onJobSelect, onReset, fileInputRef, resultsRef]
+        [isProcessing, devSampleLoading, fileInputRef, onFileSelect, setHasChosenModel, onJobSelect, resultsRef]
     );
 
     // Effect for validating video when selectedFile changes
@@ -259,30 +294,74 @@ export function UploadSection() {
                                 <h4 className="text-sm font-semibold text-[var(--foreground)] truncate" title={selectedFile.name}>
                                     {selectedFile.name}
                                 </h4>
-                                <p className="text-xs text-[var(--muted)] flex items-center gap-1.5 mt-0.5">
-                                    <span>{(selectedFile.size / (1024 * 1024)).toFixed(1)} MB</span>
-                                    <span className="w-1 h-1 rounded-full bg-[var(--border)]" />
-                                    {isProcessing ? (
-                                        <span className="text-amber-400 font-medium animate-pulse">Processing...</span>
-                                    ) : (
-                                        <span className="text-emerald-500 font-medium">Ready</span>
+                                <div className="flex items-center gap-3 text-xs mt-0.5">
+                                    <p className="text-[var(--muted)] flex items-center gap-1.5">
+                                        <span>{(selectedFile.size / (1024 * 1024)).toFixed(1)} MB</span>
+                                        <span className="w-1 h-1 rounded-full bg-[var(--border)]" />
+                                        {isProcessing ? (
+                                            <span className="text-amber-400 font-medium animate-pulse">Processing...</span>
+                                        ) : (
+                                            <span className="text-emerald-500 font-medium">Ready</span>
+                                        )}
+                                    </p>
+
+                                    {!isProcessing && (
+                                        <span className="hidden sm:inline-block text-[var(--muted)] opacity-60 text-[10px] uppercase tracking-wider">
+                                            {t('dragToReplace')}
+                                        </span>
                                     )}
-                                </p>
+                                </div>
                             </div>
 
                             {/* Actions Group */}
                             <div className="flex items-center gap-2">
-                                {/* Manual Start Button (only if NOT processing and NO completed job) */}
-                                {!isProcessing && selectedJob?.status !== 'completed' && (
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleStart();
-                                        }}
-                                        className="px-4 py-1.5 text-xs font-bold rounded-lg bg-[var(--accent)] text-[var(--background)] hover:brightness-110 shadow-lg shadow-[var(--accent)]/20 transition-all active:scale-95"
-                                    >
-                                        {t('startProcessing') || 'Start Processing'}
-                                    </button>
+                                {/* Action Button Logic */}
+                                {!isProcessing && (
+                                    <>
+                                        {(() => {
+                                            // Check if we have a completed job that matches current provider
+                                            const jobCompleted = selectedJob?.status === 'completed';
+                                            const jobProvider = selectedJob?.result_data?.transcribe_provider;
+                                            const isMatch = jobCompleted && jobProvider === transcribeProvider;
+
+                                            if (isMatch) {
+                                                // MATCH: Show "View Results"
+                                                return (
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setOverrideStep(3);
+                                                            document.getElementById('preview-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                                        }}
+                                                        className="px-4 py-1.5 text-xs font-bold rounded-lg bg-emerald-500 text-white hover:brightness-110 shadow-lg shadow-emerald-500/20 transition-all active:scale-95 flex items-center gap-2"
+                                                    >
+                                                        <span>View Results</span>
+                                                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                        </svg>
+                                                    </button>
+                                                );
+                                            } else {
+                                                // MISMATCH or NO JOB: Show "Start Processing"
+                                                // Only show if we selected a file (or have a file selected)
+                                                // If we have a job but it's mismatch, we re-process.
+                                                if (!isProcessing && (selectedFile || selectedJob)) {
+                                                    // If selectedJob is present but mismatch, we allow re-processing
+                                                    return (
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleStart();
+                                                            }}
+                                                            className="px-4 py-1.5 text-xs font-bold rounded-lg bg-[var(--accent)] text-[var(--background)] hover:brightness-110 shadow-lg shadow-[var(--accent)]/20 transition-all active:scale-95"
+                                                        >
+                                                            {t('startProcessing')}
+                                                        </button>
+                                                    );
+                                                }
+                                            }
+                                        })()}
+                                    </>
                                 )}
 
                                 <button
@@ -291,9 +370,13 @@ export function UploadSection() {
                                         onFileSelect(null);
                                         setHasChosenModel(true);
                                     }}
-                                    className="px-3 py-1.5 text-xs font-medium rounded-lg border border-[var(--border)] hover:bg-[var(--surface-elevated)] hover:text-[var(--foreground)] text-[var(--muted)] transition-colors"
+                                    className="px-3 py-1.5 text-xs font-medium rounded-lg border border-dashed border-[var(--border)] hover:border-[var(--accent)]/50 hover:bg-[var(--surface-elevated)] hover:text-[var(--foreground)] text-[var(--muted)] transition-all flex items-center gap-2 group/upload"
+                                    title={t('uploadNew')}
                                 >
-                                    Change
+                                    <svg className="w-3.5 h-3.5 group-hover/upload:text-[var(--accent)] transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                    </svg>
+                                    <span className="hidden sm:inline">{t('uploadNew')}</span>
                                 </button>
                             </div>
                         </div>

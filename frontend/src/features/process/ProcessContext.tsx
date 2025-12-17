@@ -219,10 +219,26 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
     }, [cues, maxSubtitleLines, subtitleSize]);
 
     const calculatedStep = useMemo(() => {
-        if (props.selectedJob?.status === 'completed') return 3;
+        if (props.selectedJob?.status === 'completed') {
+            // Check if current settings match the job results
+            const jobProvider = props.selectedJob.result_data?.transcribe_provider;
+            const jobModel = props.selectedJob.result_data?.model_size; // 'medium', 'turbo', 'openai/whisper-1'
+
+            // loose match logic
+            const providerMatch = !transcribeProvider || jobProvider === transcribeProvider;
+
+            // Model mapping match check
+            // We only check if specific provider matches, assuming mode maps correctly.
+            // If user switched provider, definitely mismatch.
+            if (providerMatch) {
+                return 3;
+            }
+            // If mismatch, we fallback to Step 2, but we keep the job for history/preview if needed
+            return 2;
+        }
         if (hasChosenModel) return 2;
         return 1;
-    }, [hasChosenModel, props.selectedJob?.status]);
+    }, [hasChosenModel, props.selectedJob, transcribeProvider, transcribeMode]);
 
     const currentStep = overrideStep ?? calculatedStep;
 

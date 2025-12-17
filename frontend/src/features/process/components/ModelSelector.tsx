@@ -52,7 +52,8 @@ export function ModelSelector() {
                             setTranscribeMode(model.mode as TranscribeMode);
                             setHasChosenModel(true);
                             setOverrideStep(2);
-                            onJobSelect(null);
+                            // Do NOT clear job here. We want to persist it until new upload or new start.
+                            // onJobSelect(null);
 
                             if (!isSelected) {
                                 setTimeout(() => {
