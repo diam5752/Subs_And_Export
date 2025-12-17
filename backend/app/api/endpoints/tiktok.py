@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 from ...core import config
 from ...core.auth import User
+from ...core.errors import sanitize_error
 from ...core.ratelimit import limiter_content, limiter_login
 from ...services import tiktok
 from ...services.history import HistoryStore
@@ -70,7 +71,8 @@ def tiktok_callback(
     except tiktok.TikTokError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"TikTok auth failed: {str(e)}")
+        safe_msg = sanitize_error(e, "TikTok auth failed")
+        raise HTTPException(status_code=400, detail=safe_msg)
 
 class TikTokUploadRequest(BaseModel):
     access_token: str = Field(..., max_length=4096)
@@ -124,4 +126,5 @@ def upload_video_tiktok(
     except tiktok.TikTokError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+        safe_msg = sanitize_error(e, "Upload failed")
+        raise HTTPException(status_code=500, detail=safe_msg)
