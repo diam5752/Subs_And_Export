@@ -79,14 +79,9 @@ export function PreviewSection() {
                     return false;
                 }
 
-                // For others (openai, whispercpp)
-                // If model is present in job, we could match, but usually provider is unique enough for now 
-                // except if we had multiple modes per provider. 
-                // Currently only Groq splits modes. Whispercpp is just 'turbo'/'balanced' but usually maps to one provider entry in UI?
-                // Actually AVAILABLE_MODELS has multiple entries for whispercpp/local in past, now check:
-                // whispercpp -> mode: 'turbo' in UI. 
-                return m.mode === transcribeMode; // Fallback if no specific logic, but ideally we match strictly?
-                // Actually easier: just find first match for provider if not groq
+                // For others (whispercpp, etc)
+                // Since we only have one model per provider for non-Groq currently (Standard = whispercpp),
+                // we should match purely on provider to persist the tag regardless of current UI selection.
                 return true;
             });
         }
@@ -182,40 +177,58 @@ export function PreviewSection() {
                                                 </div>
 
                                                 {/* Export Actions */}
-                                                <div className="flex flex-col sm:flex-row gap-4 mt-8 w-full max-w-[500px] mx-auto z-10 relative">
-                                                    {/* Full HD Button */}
+                                                <div className="flex flex-col sm:flex-row gap-5 mt-8 w-full max-w-[560px] mx-auto z-10 relative">
+                                                    {/* Full HD Button - "Refined Glass" (Apple) */}
                                                     <button
-                                                        className="flex-1 py-3 px-6 rounded-xl flex items-center justify-center gap-2 bg-[var(--surface-elevated)] border border-[var(--border)] hover:bg-[var(--surface)] hover:border-[var(--accent)]/50 transition-all transform hover:-translate-y-0.5 shadow-lg"
+                                                        className="group relative flex-1 py-4 px-6 rounded-2xl flex items-center justify-center gap-4 bg-white/5 backdrop-blur-xl border border-white/10 hover:bg-white/10 hover:border-white/20 transition-all duration-300 active:scale-[0.98] shadow-sm hover:shadow-lg hover:shadow-black/20 overflow-hidden"
                                                         onClick={() => handleExport('1080x1920')}
                                                         disabled={exportingResolutions['1080x1920']}
                                                     >
                                                         {exportingResolutions['1080x1920'] ? (
-                                                            <><span className="animate-spin">⏳</span> Rendering HD...</>
+                                                            <><span className="animate-spin text-lg opacity-70">⏳</span> <span className="text-sm font-medium text-white/70">Processing...</span></>
                                                         ) : (
                                                             <>
-                                                                <span className="text-xl">📺</span>
-                                                                <div className="flex flex-col items-start leading-tight">
-                                                                    <span className="font-bold">Export Full HD</span>
-                                                                    <span className="text-[10px] opacity-60">1080p • Standard</span>
+                                                                <div className="flex items-center justify-center w-10 h-10 rounded-full bg-white/5 group-hover:bg-white/10 transition-colors text-white/80 group-hover:text-white">
+                                                                    {/* HD Icon: Video Camera */}
+                                                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.818v6.364a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                                                    </svg>
+                                                                </div>
+                                                                <div className="flex flex-col items-start gap-0.5">
+                                                                    <span className="font-semibold text-[15px] text-white/90 group-hover:text-white tracking-wide">Export Full HD</span>
+                                                                    <span className="text-[11px] font-medium text-white/40 group-hover:text-white/60">1080p • Standard</span>
                                                                 </div>
                                                             </>
                                                         )}
                                                     </button>
 
-                                                    {/* 4K Button (VIP/Turbo style - Cyan/Blue) */}
+                                                    {/* 4K Button - "Deep Dimensions" (Google/Material 3) */}
                                                     <button
-                                                        className="flex-1 py-3 px-6 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/40 transition-all transform hover:-translate-y-0.5 bg-gradient-to-r from-cyan-500 to-blue-600 text-white border border-cyan-400/30"
+                                                        className="group relative flex-1 py-4 px-6 rounded-2xl flex items-center justify-center gap-4 bg-gradient-to-br from-[#1A1A2E] via-[#16213E] to-[#0F3460] border border-white/10 hover:border-white/20 transition-all duration-500 hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-indigo-500/20 overflow-hidden"
                                                         onClick={() => handleExport('2160x3840')}
                                                         disabled={exportingResolutions['2160x3840']}
                                                     >
+                                                        {/* Subtle Aurora Glow background */}
+                                                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-purple-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700 blur-xl" />
+
+                                                        {/* Sharp "Holographic" Shine */}
+                                                        <div className="absolute inset-0 -translate-x-[150%] group-hover:translate-x-[150%] transition-transform duration-1000 bg-gradient-to-r from-transparent via-white/10 to-transparent -skew-x-12 ease-[cubic-bezier(0.4,0,0.2,1)]" />
+
                                                         {exportingResolutions['2160x3840'] ? (
-                                                            <><span className="animate-spin">⏳</span> Rendering 4K...</>
+                                                            <><span className="animate-spin text-lg">⏳</span> <span className="text-sm font-medium text-white">Mastering 4K...</span></>
                                                         ) : (
                                                             <>
-                                                                <span className="text-xl">🚀</span>
-                                                                <div className="flex flex-col items-start leading-tight">
-                                                                    <span className="font-bold">Export 4K Turbo</span>
-                                                                    <span className="text-[10px] opacity-90 font-medium">2160p • VIP Quality</span>
+                                                                <div className="relative flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-400/30 text-indigo-300 group-hover:text-white group-hover:border-indigo-400/50 transition-colors shadow-inner">
+                                                                    {/* 4K Icon: Sparkles/Stars */}
+                                                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                                                                    </svg>
+                                                                </div>
+                                                                <div className="flex flex-col items-start gap-0.5 relative z-10">
+                                                                    <span className="font-semibold text-[15px] text-white tracking-wide drop-shadow-sm">Export 4K</span>
+                                                                    <div className="flex items-center gap-1.5">
+                                                                        <span className="text-[11px] font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-300 to-purple-300 uppercase tracking-wider">Pro Quality</span>
+                                                                    </div>
                                                                 </div>
                                                             </>
                                                         )}

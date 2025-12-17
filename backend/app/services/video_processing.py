@@ -443,6 +443,9 @@ def normalize_and_stub_subtitles(
         if selected_model not in valid_groq:
             # Default fallback for Groq
             selected_model = config.GROQ_MODEL_ENHANCED
+    elif provider_name == "whispercpp" and selected_model == "turbo":
+        # Map 'turbo' alias to concrete 'large-v3-turbo' for whisper.cpp
+        selected_model = "large-v3-turbo"
 
     # Instantiate Transcriber (The Ear)
     transcriber = None

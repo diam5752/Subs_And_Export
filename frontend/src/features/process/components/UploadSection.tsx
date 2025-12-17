@@ -245,7 +245,16 @@ export function UploadSection() {
     }, [setOverrideStep]);
 
     return useMemo(() => {
-        if (selectedFile) {
+        // Show compact view if we have a file OR a completed job (restored state)
+        // Check if we have consistent job data to display if file is missing
+        const hasJobData = selectedJob?.status === 'completed' && selectedJob.result_data;
+
+        if (selectedFile || hasJobData) {
+            const fileName = selectedFile?.name || selectedJob?.result_data?.original_filename || 'Processed Video';
+            const fileSize = selectedFile?.size
+                ? (selectedFile.size / (1024 * 1024)).toFixed(1)
+                : (selectedJob?.result_data?.output_size ? (selectedJob.result_data.output_size / (1024 * 1024)).toFixed(1) : '--');
+
             return (
                 <>
                     <div id="upload-section-compact" className="space-y-4 scroll-mt-32 animate-fade-in-up-scale">
@@ -296,12 +305,12 @@ export function UploadSection() {
 
                             {/* File Info */}
                             <div className="flex-1 min-w-0">
-                                <h4 className="text-sm font-semibold text-[var(--foreground)] truncate" title={selectedFile.name}>
-                                    {selectedFile.name}
+                                <h4 className="text-sm font-semibold text-[var(--foreground)] truncate" title={fileName}>
+                                    {fileName}
                                 </h4>
                                 <div className="flex items-center gap-3 text-xs mt-0.5">
                                     <p className="text-[var(--muted)] flex items-center gap-1.5">
-                                        <span>{(selectedFile.size / (1024 * 1024)).toFixed(1)} MB</span>
+                                        <span>{fileSize} MB</span>
                                         <span className="w-1 h-1 rounded-full bg-[var(--border)]" />
                                         {isProcessing ? (
                                             <span className="text-amber-400 font-medium animate-pulse">Processing...</span>
@@ -327,7 +336,21 @@ export function UploadSection() {
                                             // Check if we have a completed job that matches current provider
                                             const jobCompleted = selectedJob?.status === 'completed';
                                             const jobProvider = selectedJob?.result_data?.transcribe_provider;
-                                            const isMatch = jobCompleted && jobProvider === transcribeProvider;
+                                            const jobModel = selectedJob?.result_data?.model_size;
+
+                                            let isMatch = jobCompleted && jobProvider === transcribeProvider;
+
+                                            // Strict check for Groq models
+                                            if (isMatch && jobProvider === 'groq') {
+                                                const isEnhancedJob = jobModel === 'enhanced' || (jobModel && jobModel.includes('turbo'));
+                                                const isUltimateJob = jobModel === 'ultimate' || (jobModel && !jobModel.includes('turbo') && !jobModel.includes('enhanced'));
+
+                                                if (transcribeMode === 'enhanced') {
+                                                    isMatch = isEnhancedJob;
+                                                } else if (transcribeMode === 'ultimate') {
+                                                    isMatch = isUltimateJob;
+                                                }
+                                            }
 
                                             if (isMatch) {
                                                 // MATCH: Show "View Results"
@@ -373,6 +396,7 @@ export function UploadSection() {
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         onFileSelect(null);
+                                        onJobSelect(null);
                                         setHasChosenModel(true);
                                     }}
                                     className="px-3 py-1.5 text-xs font-medium rounded-lg border border-dashed border-[var(--border)] hover:border-[var(--accent)]/50 hover:bg-[var(--surface-elevated)] hover:text-[var(--foreground)] text-[var(--muted)] transition-all flex items-center gap-2 group/upload"

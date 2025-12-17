@@ -60,19 +60,43 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
     };
 
     return (
-        <div className="mt-6 space-y-4 animate-fade-in border-t border-[var(--border)] pt-6">
-            <h3 className="text-lg font-bold flex items-center gap-2">
-                <span>🤖</span> {t('viralIntelligence') || 'AI Intelligence'}
-            </h3>
+        <div className="mt-8 pt-8 space-y-6">
+            {/* VisionOS Header - Floating Platter Effect */}
+            <div className="flex items-center justify-between p-1">
+                <h3 className="text-xl font-medium tracking-tight text-white/90 flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/10 shadow-[0_4px_12px_rgba(0,0,0,0.1)]">
+                        {/* Brain / Chip Icon */}
+                        <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M9.5 2A5.5 5.5 0 0 0 4 7.5a5.5 5.5 0 0 0 .5 2.5A3.5 3.5 0 0 0 2 13a3.5 3.5 0 0 0 3 3.23A4.5 4.5 0 0 0 9.5 20h5a4.5 4.5 0 0 0 4.5-4.77A3.5 3.5 0 0 0 22 13a3.5 3.5 0 0 0-2.5-3.5 5.5 5.5 0 0 0 .5-2.5 5.5 5.5 0 0 0-5.5-5.5h-5z" />
+                            <rect x="10" y="10" width="4" height="4" rx="1" />
+                            <path d="M12 10V8" />
+                            <path d="M12 14v2" />
+                            <path d="M10 12H8" />
+                            <path d="M16 12h-2" />
+                        </svg>
+                    </div>
+                    <span>Intelligence</span>
+                </h3>
+            </div>
 
-            <div className="flex gap-2">
+            <div className="grid grid-cols-2 gap-4">
                 {!metadata && !loading && (
                     <button
                         onClick={handleGenerate}
                         disabled={loading || checkingFacts}
-                        className="btn-secondary flex-1 flex items-center justify-center gap-2 py-2"
+                        className="group relative flex flex-col items-center justify-center gap-3 py-6 px-4 rounded-[2rem] bg-white/5 hover:bg-white/10 backdrop-blur-2xl border border-white/10 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-xl hover:shadow-purple-500/10"
                     >
-                        <span>✨</span> {t('viralGenerate')}
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-400/20 to-purple-400/20 flex items-center justify-center text-indigo-300 shadow-inner mb-1 group-hover:scale-110 group-hover:bg-gradient-to-br group-hover:from-indigo-400 group-hover:to-purple-400 group-hover:text-white transition-all duration-300">
+                            {/* Magic Spark Icon */}
+                            <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                                <path d="M12 2v0" />
+                            </svg>
+                        </div>
+                        <div className="text-center">
+                            <span className="block text-sm font-medium text-white/90 group-hover:text-white">Generate Metadata</span>
+                            <span className="block text-xs text-white/40 mt-1">AI-Powered Tags & Caption</span>
+                        </div>
                     </button>
                 )}
 
@@ -80,53 +104,84 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
                     <button
                         onClick={handleFactCheck}
                         disabled={loading || checkingFacts}
-                        className="btn-secondary flex-1 flex items-center justify-center gap-2 py-2 border-emerald-500/30 hover:border-emerald-500/60 bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-400"
+                        className="group relative flex flex-col items-center justify-center gap-3 py-6 px-4 rounded-[2rem] bg-white/5 hover:bg-white/10 backdrop-blur-2xl border border-white/10 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-xl hover:shadow-emerald-500/10"
                     >
-                        <span>✅</span> {t('factCheck') || 'Fact Check'}
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-400/20 to-teal-400/20 flex items-center justify-center text-emerald-300 shadow-inner mb-1 group-hover:scale-110 group-hover:bg-gradient-to-br group-hover:from-emerald-400 group-hover:to-teal-400 group-hover:text-white transition-all duration-300">
+                            {/* Shield Check Icon */}
+                            <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                                <path d="M9 12l2 2 4-4" />
+                            </svg>
+                        </div>
+                        <div className="text-center">
+                            <span className="block text-sm font-medium text-white/90 group-hover:text-white">Verify Facts</span>
+                            <span className="block text-xs text-white/40 mt-1">Check Accuracy & Trust</span>
+                        </div>
                     </button>
                 )}
             </div>
 
-            {error && <p className="text-[var(--danger)] text-sm mt-2 text-center">{error}</p>}
+            {error && (
+                <div className="p-4 rounded-[1.5rem] bg-red-500/10 backdrop-blur-xl border border-red-500/10 text-red-200 text-sm text-center font-medium">
+                    {error}
+                </div>
+            )}
 
             {(loading || checkingFacts) && (
-                <div className="flex flex-col items-center justify-center py-8 space-y-3 bg-[var(--surface-elevated)] rounded-xl border border-[var(--border)]">
-                    <div className="animate-spin text-2xl">⚡</div>
-                    <p className="text-[var(--muted)] animate-pulse">
-                        {loading ? t('viralAnalyzing') : (t('checkingFacts') || 'Verifying accuracy...')}
+                <div className="flex flex-col items-center justify-center py-16 space-y-4 rounded-[2.5rem] bg-white/5 border border-white/10 backdrop-blur-2xl shadow-2xl">
+                    <div className="relative">
+                        <div className="w-12 h-12 rounded-full border-2 border-white/10 border-t-white animate-spin" />
+                        <div className="absolute inset-0 flex items-center justify-center">
+                            <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+                            </svg>
+                        </div>
+                    </div>
+                    <p className="text-white/60 font-medium tracking-wide text-sm animate-pulse">
+                        {loading ? 'Processing Content...' : 'Verifying Accuracy...'}
                     </p>
                 </div>
             )}
 
-            {/* Fact Check Results */}
+            {/* Fact Check Results - VisionOS Card */}
             {factCheckResult && (
-                <div className="space-y-3 animate-fade-in">
-                    <div className="flex items-center justify-between">
-                        <h4 className="text-sm font-semibold text-emerald-400 uppercase tracking-wider flex items-center gap-2">
-                            <span>🛡️</span> {t('factCheckResults') || 'Fact Check Report'}
+                <div className="space-y-4 animate-fade-in">
+                    <div className="flex items-center justify-between px-2">
+                        <h4 className="text-xs font-semibold text-white/40 uppercase tracking-widest pl-2 flex items-center gap-2">
+                            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                            Report
                         </h4>
-                        <button onClick={() => setFactCheckResult(null)} className="text-xs opacity-50 hover:opacity-100">Clear</button>
+                        <button onClick={() => setFactCheckResult(null)} className="px-3 py-1 rounded-full bg-white/5 hover:bg-white/10 text-xs text-white/60 hover:text-white transition-colors backdrop-blur-md">Close</button>
                     </div>
 
                     {factCheckResult.items.length === 0 ? (
-                        <div className="p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-sm text-center">
-                            ✅ No significant factual errors found.
+                        <div className="p-6 rounded-[2rem] bg-emerald-500/5 border border-emerald-500/10 backdrop-blur-xl text-emerald-200/90 text-sm text-center font-medium shadow-lg flex flex-col items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400">
+                                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 6L9 17l-5-5" /></svg>
+                            </div>
+                            <span>No factual errors detected by the system.</span>
                         </div>
                     ) : (
                         <div className="space-y-3">
                             {factCheckResult.items.map((item, i) => (
-                                <div key={i} className="card bg-[var(--surface-elevated)] p-4 border-l-4 border-l-[var(--danger)]">
-                                    <div className="mb-2">
-                                        <span className="text-xs font-bold text-[var(--danger)] uppercase">Mistake</span>
-                                        <p className="text-sm italic opacity-80 mt-0.5">&quot;{item.mistake}&quot;</p>
-                                    </div>
-                                    <div className="mb-2">
-                                        <span className="text-xs font-bold text-emerald-400 uppercase">Correction</span>
-                                        <p className="text-sm font-medium mt-0.5">{item.correction}</p>
-                                    </div>
-                                    <div>
-                                        <span className="text-xs font-bold text-[var(--accent)] uppercase">Why</span>
-                                        <p className="text-xs opacity-70 mt-0.5">{item.explanation}</p>
+                                <div key={i} className="p-5 rounded-[2rem] bg-white/5 border border-white/10 backdrop-blur-md hover:bg-white/10 transition-colors">
+                                    <div className="space-y-4">
+                                        <div className="flex gap-4">
+                                            <div className="shrink-0 w-8 h-8 rounded-full bg-red-500/10 flex items-center justify-center text-red-400">
+                                                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                                            </div>
+                                            <div>
+                                                <div className="text-xs font-medium text-red-400 mb-1 opacity-80 uppercase tracking-wide">Inaccuracy Detected</div>
+                                                <p className="text-white/80 text-[15px] leading-relaxed">&quot;{item.mistake}&quot;</p>
+                                            </div>
+                                        </div>
+                                        <div className="pl-12">
+                                            <div className="p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/10">
+                                                <div className="text-xs font-medium text-emerald-400 mb-1 opacity-80 uppercase tracking-wide">Correction</div>
+                                                <p className="text-white/90 text-[15px] font-medium leading-relaxed">{item.correction}</p>
+                                                <p className="text-xs text-white/40 mt-3 pt-3 border-t border-white/5 leading-relaxed">{item.explanation}</p>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             ))}
@@ -135,58 +190,72 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
                 </div>
             )}
 
-            {/* Viral Metadata Results */}
+            {/* Viral Metadata Results - VisionOS Stack */}
             {metadata && (
-                <div className="space-y-4 animate-fade-in">
-                    <div className="flex items-center justify-between">
-                        <h4 className="text-sm font-semibold text-[var(--accent)] uppercase tracking-wider flex items-center gap-2">
-                            <span>🚀</span> {t('viralTitle')}
+                <div className="space-y-6 animate-fade-in">
+                    <div className="flex items-center justify-between px-2">
+                        <h4 className="text-xs font-semibold text-white/40 uppercase tracking-widest pl-2 flex items-center gap-2">
+                            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" /></svg>
+                            Generated Output
                         </h4>
-                        <button onClick={() => setMetadata(null)} className="text-xs opacity-50 hover:opacity-100">Clear</button>
+                        <button onClick={() => setMetadata(null)} className="px-3 py-1 rounded-full bg-white/5 hover:bg-white/10 text-xs text-white/60 hover:text-white transition-colors backdrop-blur-md">Close</button>
                     </div>
 
-                    {/* Hooks */}
-                    <div className="card bg-[var(--surface-elevated)] p-4 space-y-3">
-                        <h4 className="text-sm font-semibold text-[var(--muted)] uppercase tracking-wider">{t('viralHooksLabel')}</h4>
-                        <div className="space-y-2">
-                            {metadata.hooks.map((hook, i) => (
-                                <button
-                                    key={i}
-                                    type="button"
-                                    onClick={() => copyToClipboard(hook, i)}
-                                    className="w-full text-left p-3 rounded-lg border border-[var(--border)] hover:border-[var(--accent)] cursor-pointer transition-colors bg-[var(--surface)] flex justify-between items-center group focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
-                                    aria-label={`${t('viralCopy')}: ${hook}`}
-                                >
-                                    <span className="font-bold">{hook}</span>
-                                    <span className={`text-xs font-medium transition-all ${copiedIndex === i
-                                        ? 'text-emerald-500 opacity-100'
-                                        : 'text-[var(--muted)] opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100'
-                                        }`}>
-                                        {copiedIndex === i ? t('viralCopied') : t('viralCopy')}
-                                    </span>
-                                </button>
-                            ))}
-                        </div>
+                    {/* Hooks - Glass List */}
+                    <div className="space-y-2">
+                        {metadata.hooks.map((hook, i) => (
+                            <button
+                                key={i}
+                                type="button"
+                                onClick={() => copyToClipboard(hook, i)}
+                                className="group w-full text-left p-5 rounded-[1.5rem] border border-white/5 hover:border-white/20 bg-white/5 hover:bg-white/10 cursor-pointer transition-all flex justify-between items-center backdrop-blur-md active:scale-[0.99] shadow-sm hover:shadow-md"
+                            >
+                                <span className="font-medium text-[15px] text-white/90 pr-8 leading-snug">{hook}</span>
+                                <div className={`w-8 h-8 shrink-0 rounded-full flex items-center justify-center transition-all ${copiedIndex === i
+                                    ? 'bg-emerald-500 text-white scale-100'
+                                    : 'bg-white/10 text-white/40 scale-75 group-hover:scale-100 group-hover:bg-white/20'
+                                    }`}>
+                                    {copiedIndex === i ? (
+                                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 13l4 4L19 7" /></svg>
+                                    ) : (
+                                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+                                    )}
+                                </div>
+                            </button>
+                        ))}
                     </div>
 
-                    {/* Caption */}
-                    <div className="card bg-[var(--surface-elevated)] p-4 space-y-3">
-                        <div className="flex justify-between items-center">
-                            <h4 className="text-sm font-semibold text-[var(--muted)] uppercase tracking-wider">{t('viralCaptionLabel')}</h4>
+                    {/* Caption - Glass Card */}
+                    <div className="p-6 rounded-[2.5rem] bg-white/5 border border-white/10 backdrop-blur-xl shadow-2xl relative overflow-hidden group hover:bg-white/[0.07] transition-colors">
+                        <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+
+                        <div className="flex justify-between items-center mb-6">
+                            <span className="text-xs font-bold text-white/30 uppercase tracking-widest">Caption & Tags</span>
                             <button
                                 onClick={() => copyToClipboard(`${metadata.caption_hook}\n\n${metadata.caption_body}\n\n${metadata.cta}\n\n${metadata.hashtags.join(' ')}`, undefined, true)}
-                                className={`text-xs font-medium transition-colors hover:underline ${copiedFull ? 'text-emerald-500' : 'text-[var(--accent)]'}`}
+                                className={`text-xs px-3 py-1.5 rounded-full transition-all font-medium flex items-center gap-2 ${copiedFull ? 'bg-emerald-500/20 text-emerald-300' : 'bg-white/10 text-white/60 hover:bg-white/20 hover:text-white'}`}
                             >
-                                {copiedFull ? t('viralCopied') : t('viralCopyFull')}
+                                {copiedFull ? (
+                                    <>
+                                        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 13l4 4L19 7" /></svg>
+                                        Copied
+                                    </>
+                                ) : (
+                                    <>
+                                        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
+                                        Copy All
+                                    </>
+                                )}
                             </button>
                         </div>
-                        <div className="space-y-4 text-sm">
-                            <p className="font-bold">{metadata.caption_hook}</p>
-                            <p className="whitespace-pre-wrap">{metadata.caption_body}</p>
-                            <p className="font-medium text-[var(--foreground)]">{metadata.cta}</p>
-                            <div className="flex flex-wrap gap-2 text-[var(--accent)]">
+
+                        <div className="space-y-4 text-white/80 text-[15px] leading-relaxed font-light">
+                            <p className="font-semibold text-white text-lg">{metadata.caption_hook}</p>
+                            <p className="whitespace-pre-wrap opacity-90">{metadata.caption_body}</p>
+                            <p className="font-medium text-white">{metadata.cta}</p>
+                            <div className="flex flex-wrap gap-2 pt-4">
                                 {metadata.hashtags.map(tag => (
-                                    <span key={tag}>{tag}</span>
+                                    <span key={tag} className="text-indigo-300 text-xs px-2.5 py-1 rounded-md bg-indigo-500/10 border border-indigo-500/10">{tag}</span>
                                 ))}
                             </div>
                         </div>
