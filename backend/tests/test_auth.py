@@ -328,6 +328,9 @@ class TestGoogleOAuthEndpoints:
             def __init__(self):
                 self.credentials = types.SimpleNamespace(id_token="tok")
 
+            def authorization_url(self, **_kwargs):
+                return "http://example.com/auth", None
+
             def fetch_token(self, code):
                 self.fetched = code
 
@@ -350,14 +353,18 @@ class TestGoogleOAuthEndpoints:
         # Patch exchange to exercise both success and error branches
         monkeypatch.setattr(auth_ep, "exchange_google_code", backend_auth.exchange_google_code)
 
+        # Get a valid state
+        state = client.get("/auth/google/url").json()["state"]
+
         # Success path
-        resp = client.post("/auth/google/callback", json={"code": "123", "state": "s"})
+        resp = client.post("/auth/google/callback", json={"code": "123", "state": state})
         assert resp.status_code == 200
         assert resp.json()["access_token"]
 
         # Failure path
+        state2 = client.get("/auth/google/url").json()["state"]
         monkeypatch.setattr(auth_ep, "exchange_google_code", lambda cfg, code: (_ for _ in ()).throw(RuntimeError("boom")))
-        resp_fail = client.post("/auth/google/callback", json={"code": "bad", "state": "s"})
+        resp_fail = client.post("/auth/google/callback", json={"code": "bad", "state": state2})
         assert resp_fail.status_code == 400
 
 

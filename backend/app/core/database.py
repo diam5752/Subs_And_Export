@@ -105,6 +105,33 @@ class Database:
                 FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
             );
             CREATE INDEX IF NOT EXISTS idx_jobs_user ON jobs(user_id, created_at DESC);
+
+            CREATE TABLE IF NOT EXISTS oauth_states (
+                state TEXT PRIMARY KEY,
+                provider TEXT NOT NULL,
+                user_id TEXT,
+                created_at INTEGER NOT NULL,
+                expires_at INTEGER NOT NULL,
+                user_agent TEXT,
+                ip TEXT,
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_oauth_states_expires ON oauth_states(expires_at);
+            CREATE INDEX IF NOT EXISTS idx_oauth_states_provider ON oauth_states(provider);
+
+            CREATE TABLE IF NOT EXISTS gcs_uploads (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                object_name TEXT NOT NULL,
+                content_type TEXT NOT NULL,
+                original_filename TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                expires_at INTEGER NOT NULL,
+                used_at INTEGER,
+                FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_gcs_uploads_user ON gcs_uploads(user_id, created_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_gcs_uploads_expires ON gcs_uploads(expires_at);
             """
         )
 

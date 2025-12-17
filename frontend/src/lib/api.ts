@@ -13,6 +13,7 @@ export interface JobResultData {
     public_url?: string;
     artifact_url?: string;
     transcription_url?: string;
+    source_gcs_object?: string;
     social?: string | null;
     original_filename?: string | null;
     video_crf?: number;
@@ -31,6 +32,14 @@ export interface JobResponse {
     created_at: number;
     updated_at: number;
     result_data: JobResultData | null;
+}
+
+export interface GcsUploadUrlResponse {
+    upload_id: string;
+    object_name: string;
+    upload_url: string;
+    expires_at: number;
+    required_headers: Record<string, string>;
 }
 
 export interface HistoryEvent {
@@ -231,6 +240,85 @@ class ApiClient {
         });
     }
 
+    async createGcsUploadUrl(file: File): Promise<GcsUploadUrlResponse> {
+        const contentType = file.type || 'application/octet-stream';
+        return this.request<GcsUploadUrlResponse>('/videos/gcs/upload-url', {
+            method: 'POST',
+            body: JSON.stringify({
+                filename: file.name,
+                content_type: contentType,
+                size_bytes: file.size,
+            }),
+        });
+    }
+
+    async uploadToSignedUrl(
+        uploadUrl: string,
+        file: File,
+        contentType: string,
+        onProgress?: (percent: number) => void,
+    ): Promise<void> {
+        await new Promise<void>((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open('PUT', uploadUrl);
+            xhr.setRequestHeader('Content-Type', contentType);
+
+            xhr.upload.onprogress = (event) => {
+                if (!onProgress) return;
+                if (!event.lengthComputable || event.total <= 0) return;
+                onProgress(Math.round((event.loaded / event.total) * 100));
+            };
+
+            xhr.onload = () => {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    resolve();
+                    return;
+                }
+                reject(new Error(`Upload failed with status ${xhr.status}`));
+            };
+            xhr.onerror = () => reject(new Error('Upload failed'));
+            xhr.send(file);
+        });
+    }
+
+    async processVideoFromGcs(uploadId: string, settings: {
+        transcribe_model?: string;
+        transcribe_provider?: string;
+        openai_model?: string;
+        video_quality?: string;
+        video_resolution?: string;
+        use_llm?: boolean;
+        context_prompt?: string;
+        subtitle_position?: number;
+        max_subtitle_lines?: number;
+        subtitle_color?: string;
+        shadow_strength?: number;
+        highlight_style?: string;
+        subtitle_size?: number;
+        karaoke_enabled?: boolean;
+    }): Promise<JobResponse> {
+        return this.request<JobResponse>('/videos/gcs/process', {
+            method: 'POST',
+            body: JSON.stringify({
+                upload_id: uploadId,
+                transcribe_model: settings.transcribe_model || 'medium',
+                transcribe_provider: settings.transcribe_provider || 'local',
+                openai_model: settings.openai_model || '',
+                video_quality: settings.video_quality || 'balanced',
+                video_resolution: settings.video_resolution || '',
+                use_llm: Boolean(settings.use_llm),
+                context_prompt: settings.context_prompt || '',
+                subtitle_position: settings.subtitle_position ?? 16,
+                max_subtitle_lines: settings.max_subtitle_lines ?? 2,
+                subtitle_color: settings.subtitle_color ?? null,
+                shadow_strength: settings.shadow_strength ?? 4,
+                highlight_style: settings.highlight_style || 'karaoke',
+                subtitle_size: settings.subtitle_size ?? 100,
+                karaoke_enabled: settings.karaoke_enabled ?? true,
+            }),
+        });
+    }
+
     async loadDevSampleJob(provider?: string, model_size?: string): Promise<JobResponse> {
         return this.request<JobResponse>('/dev/sample-job', {
             method: 'POST',
@@ -347,6 +435,43 @@ class ApiClient {
         return this.request<JobResponse>(`/videos/jobs/${jobId}/export`, {
             method: 'POST',
             body: JSON.stringify({ resolution, ...settings }),
+        });
+    }
+
+    async reprocessJob(jobId: string, settings: {
+        transcribe_model?: string;
+        transcribe_provider?: string;
+        openai_model?: string;
+        video_quality?: string;
+        video_resolution?: string;
+        use_llm?: boolean;
+        context_prompt?: string;
+        subtitle_position?: number;
+        max_subtitle_lines?: number;
+        subtitle_color?: string | null;
+        shadow_strength?: number;
+        highlight_style?: string;
+        subtitle_size?: number;
+        karaoke_enabled?: boolean;
+    }): Promise<JobResponse> {
+        return this.request<JobResponse>(`/videos/jobs/${jobId}/reprocess`, {
+            method: 'POST',
+            body: JSON.stringify({
+                transcribe_model: settings.transcribe_model || 'medium',
+                transcribe_provider: settings.transcribe_provider || 'local',
+                openai_model: settings.openai_model || '',
+                video_quality: settings.video_quality || 'balanced',
+                video_resolution: settings.video_resolution || '',
+                use_llm: Boolean(settings.use_llm),
+                context_prompt: settings.context_prompt || '',
+                subtitle_position: settings.subtitle_position ?? 16,
+                max_subtitle_lines: settings.max_subtitle_lines ?? 2,
+                subtitle_color: settings.subtitle_color ?? null,
+                shadow_strength: settings.shadow_strength ?? 4,
+                highlight_style: settings.highlight_style || 'karaoke',
+                subtitle_size: settings.subtitle_size ?? 100,
+                karaoke_enabled: settings.karaoke_enabled ?? true,
+            }),
         });
     }
 

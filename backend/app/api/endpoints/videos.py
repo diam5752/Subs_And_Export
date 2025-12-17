@@ -1,15 +1,19 @@
 import logging
+import os
 import re
+import shutil
 import time
 import uuid
 from pathlib import Path
-from typing import List
+from typing import Any, List
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Request, UploadFile
 from pydantic import BaseModel, Field
 
 from ...core import config
 from ...core.auth import User
+from ...core.gcs import delete_object, download_object, generate_signed_upload_url, get_gcs_settings, upload_object
+from ...core.gcs_uploads import GcsUploadStore
 from ...core.ratelimit import limiter_content, limiter_processing
 from ...core.settings import load_app_settings
 from ...schemas.base import (
@@ -24,13 +28,97 @@ from ...services.history import HistoryStore
 from ...services.jobs import JobStore
 from ...services.subtitles import generate_viral_metadata
 from ...services.video_processing import normalize_and_stub_subtitles, probe_media
-from ..deps import get_current_user, get_history_store, get_job_store
+from ..deps import get_current_user, get_gcs_upload_store, get_history_store, get_job_store
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
 APP_SETTINGS = load_app_settings()
 MAX_UPLOAD_BYTES = APP_SETTINGS.max_upload_mb * 1024 * 1024
+
+ALLOWED_VIDEO_EXTENSIONS = {".mp4", ".mov", ".mkv"}
+ALLOWED_VIDEO_CONTENT_TYPES = {
+    "video/mp4",
+    "video/quicktime",
+    "video/x-matroska",
+    "application/octet-stream",
+}
+ALLOWED_TRANSCRIBE_PROVIDERS = {"local", "openai", "groq", "whispercpp"}
+ALLOWED_VIDEO_QUALITIES = {"low size", "balanced", "high quality"}
+ALLOWED_HIGHLIGHT_STYLES = {"static", "karaoke", "pop", "active-graphics", "active"}
+MODEL_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/\\-]{0,63}$")
+
+
+def _link_or_copy_file(source: Path, destination: Path) -> None:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    if destination.exists():
+        raise FileExistsError(f"Refusing to overwrite {destination}")
+
+    try:
+        os.link(source, destination)
+        return
+    except Exception:
+        pass
+
+    shutil.copy2(source, destination)
+
+
+def _validate_transcribe_provider(provider: str) -> str:
+    normalized = provider.strip().lower()
+    if normalized not in ALLOWED_TRANSCRIBE_PROVIDERS:
+        raise HTTPException(status_code=400, detail="Invalid transcribe provider")
+    return normalized
+
+
+def _validate_model_name(value: str, *, allow_empty: bool, field_name: str) -> str | None:
+    cleaned = value.strip()
+    if not cleaned:
+        if allow_empty:
+            return None
+        raise HTTPException(status_code=400, detail=f"{field_name} is required")
+    if ".." in cleaned or cleaned.startswith(("/", "\\")) or "\\" in cleaned or ":" in cleaned:
+        raise HTTPException(status_code=400, detail=f"Invalid {field_name}")
+    if not MODEL_NAME_PATTERN.match(cleaned):
+        raise HTTPException(status_code=400, detail=f"Invalid {field_name}")
+    return cleaned
+
+
+def _validate_video_quality(value: str) -> str:
+    normalized = value.strip().lower()
+    if normalized not in ALLOWED_VIDEO_QUALITIES:
+        raise HTTPException(status_code=400, detail="Invalid video quality")
+    return normalized
+
+
+def _validate_subtitle_position(value: int) -> int:
+    if value < 5 or value > 35:
+        raise HTTPException(status_code=400, detail="subtitle_position out of range (5-35)")
+    return value
+
+
+def _validate_max_subtitle_lines(value: int) -> int:
+    if value < 0 or value > 4:
+        raise HTTPException(status_code=400, detail="max_subtitle_lines out of range (0-4)")
+    return value
+
+
+def _validate_shadow_strength(value: int) -> int:
+    if value < 0 or value > 10:
+        raise HTTPException(status_code=400, detail="shadow_strength out of range (0-10)")
+    return value
+
+
+def _validate_subtitle_size(value: int) -> int:
+    if value < 50 or value > 150:
+        raise HTTPException(status_code=400, detail="subtitle_size out of range (50-150)")
+    return value
+
+
+def _validate_highlight_style(value: str) -> str:
+    normalized = value.strip().lower()
+    if normalized not in ALLOWED_HIGHLIGHT_STYLES:
+        raise HTTPException(status_code=400, detail="Invalid highlight style")
+    return normalized
 
 def _data_roots() -> tuple[Path, Path, Path]:
     """Resolve data directories relative to the configured project root."""
@@ -73,6 +161,85 @@ class ProcessingSettings(BaseModel):
     karaoke_enabled: bool = True
 
 
+def _validate_upload_content_type(content_type: str) -> str:
+    normalized = content_type.strip().lower()
+    if not normalized:
+        normalized = "application/octet-stream"
+    if normalized not in ALLOWED_VIDEO_CONTENT_TYPES:
+        raise HTTPException(status_code=400, detail="Invalid content type")
+    return normalized
+
+
+def _build_processing_settings(
+    *,
+    transcribe_model: str,
+    transcribe_provider: str,
+    openai_model: str,
+    video_quality: str,
+    video_resolution: str,
+    use_llm: bool,
+    context_prompt: str,
+    subtitle_position: int,
+    max_subtitle_lines: int,
+    subtitle_color: str | None,
+    shadow_strength: int,
+    highlight_style: str,
+    subtitle_size: int,
+    karaoke_enabled: bool,
+) -> ProcessingSettings:
+    # Security: Validate input lengths to prevent DoS
+    if len(context_prompt) > 5000:
+        raise HTTPException(status_code=400, detail="Context prompt too long (max 5000 chars)")
+    if len(transcribe_model) > 50:
+        raise HTTPException(status_code=400, detail="Model name too long")
+    if len(video_quality) > 50:
+        raise HTTPException(status_code=400, detail="Video quality string too long")
+    if len(transcribe_provider) > 50:
+        raise HTTPException(status_code=400, detail="Provider name too long")
+    if len(openai_model) > 50:
+        raise HTTPException(status_code=400, detail="OpenAI model name too long")
+    if len(video_resolution) > 50:
+        raise HTTPException(status_code=400, detail="Resolution string too long")
+
+    provider = _validate_transcribe_provider(transcribe_provider)
+    model = _validate_model_name(transcribe_model, allow_empty=False, field_name="transcribe_model") or "medium"
+    openai_model_value = _validate_model_name(openai_model, allow_empty=True, field_name="openai_model")
+    if provider == "openai" and not openai_model_value:
+        raise HTTPException(status_code=400, detail="openai_model is required when using the openai provider")
+
+    quality = _validate_video_quality(video_quality)
+    subtitle_position = _validate_subtitle_position(subtitle_position)
+    max_subtitle_lines = _validate_max_subtitle_lines(max_subtitle_lines)
+    shadow_strength = _validate_shadow_strength(shadow_strength)
+    highlight_style = _validate_highlight_style(highlight_style)
+    subtitle_size = _validate_subtitle_size(subtitle_size)
+
+    if subtitle_color:
+        if len(subtitle_color) > 20:
+            raise HTTPException(status_code=400, detail="Subtitle color too long")
+        if not re.match(r"^&H[0-9A-Fa-f]{8}$", subtitle_color):
+            raise HTTPException(status_code=400, detail="Invalid subtitle color format (expected &HAABBGGRR)")
+
+    target_width, target_height = _parse_resolution(video_resolution)
+    return ProcessingSettings(
+        transcribe_model=model,
+        transcribe_provider=provider,
+        openai_model=openai_model_value,
+        video_quality=quality,
+        target_width=target_width,
+        target_height=target_height,
+        use_llm=use_llm,
+        context_prompt=context_prompt,
+        subtitle_position=subtitle_position,
+        max_subtitle_lines=max_subtitle_lines,
+        subtitle_color=subtitle_color,
+        shadow_strength=shadow_strength,
+        highlight_style=highlight_style,
+        subtitle_size=subtitle_size,
+        karaoke_enabled=karaoke_enabled,
+    )
+
+
 def _save_upload_with_limit(upload: UploadFile, destination: Path) -> None:
     """Write an upload to disk while enforcing the configured size limit."""
     destination.parent.mkdir(parents=True, exist_ok=True)
@@ -89,6 +256,9 @@ def _save_upload_with_limit(upload: UploadFile, destination: Path) -> None:
                     detail=f"File too large; limit is {APP_SETTINGS.max_upload_mb}MB",
                 )
             buffer.write(chunk)
+    if total == 0:
+        destination.unlink(missing_ok=True)
+        raise HTTPException(status_code=400, detail="Empty upload")
 
 
 def _record_event_safe(
@@ -137,6 +307,7 @@ def run_video_processing(
     history_store: HistoryStore | None = None,
     user: User | None = None,
     original_name: str | None = None,
+    source_gcs_object_name: str | None = None,
 ):
     """Background task to run the heavy video processing."""
     try:
@@ -207,7 +378,6 @@ def run_video_processing(
             check_cancelled=check_cancelled,
             transcription_only=True,
         )
-        print(f"DEBUG_VIDEOS: normalize called with max_subtitle_lines={settings.max_subtitle_lines} color={settings.subtitle_color} shadow={settings.shadow_strength} style={settings.highlight_style}")
 
         # Result unpacking
         social = None
@@ -217,8 +387,37 @@ def run_video_processing(
         else:
             final_path = result
 
+        logger.debug(
+            "normalize_and_stub_subtitles completed: max_subtitle_lines=%s subtitle_color=%s shadow_strength=%s highlight_style=%s",
+            settings.max_subtitle_lines,
+            settings.subtitle_color,
+            settings.shadow_strength,
+            settings.highlight_style,
+        )
+
         public_path = _relpath_safe(final_path, data_dir).as_posix()
         artifact_public = _relpath_safe(artifact_dir, data_dir).as_posix()
+
+        gcs_settings = get_gcs_settings()
+        if gcs_settings:
+            try:
+                upload_object(
+                    settings=gcs_settings,
+                    object_name=f"{gcs_settings.static_prefix}/{public_path}",
+                    source=final_path,
+                    content_type="video/mp4",
+                )
+                transcription_path = artifact_dir / "transcription.json"
+                if transcription_path.exists():
+                    transcription_rel = _relpath_safe(transcription_path, data_dir).as_posix()
+                    upload_object(
+                        settings=gcs_settings,
+                        object_name=f"{gcs_settings.static_prefix}/{transcription_rel}",
+                        source=transcription_path,
+                        content_type="application/json",
+                    )
+            except Exception as exc:
+                logger.warning("Failed to upload job artifacts to GCS (%s): %s", job_id, exc)
 
         result_data = {
             # Store relative paths from data_dir for consistent serving across environments
@@ -243,6 +442,8 @@ def run_video_processing(
             "subtitle_size": settings.subtitle_size,
             "karaoke_enabled": settings.karaoke_enabled,
         }
+        if source_gcs_object_name:
+            result_data["source_gcs_object"] = source_gcs_object_name
 
         job_store.update_job(job_id, status="completed", progress=100, message="Done!", result_data=result_data)
         _record_event_safe(
@@ -271,6 +472,75 @@ def run_video_processing(
         )
 
 
+def run_gcs_video_processing(
+    *,
+    job_id: str,
+    gcs_object_name: str,
+    input_path: Path,
+    output_path: Path,
+    artifact_dir: Path,
+    settings: ProcessingSettings,
+    job_store: JobStore,
+    history_store: HistoryStore | None = None,
+    user: User | None = None,
+    original_name: str | None = None,
+) -> None:
+    gcs_settings = get_gcs_settings()
+    if not gcs_settings:
+        job_store.update_job(job_id, status="failed", message="GCS is not configured")
+        return
+
+    try:
+        job_store.update_job(job_id, status="processing", progress=0, message="Downloading upload…")
+        download_object(
+            settings=gcs_settings,
+            object_name=gcs_object_name,
+            destination=input_path,
+            max_bytes=MAX_UPLOAD_BYTES,
+        )
+
+        try:
+            probe = probe_media(input_path)
+        except Exception as exc:
+            raise ValueError("Could not validate uploaded media file") from exc
+
+        if probe.duration_s is None or probe.duration_s <= 0:
+            raise ValueError("Could not determine video duration")
+        if probe.duration_s > config.MAX_VIDEO_DURATION_SECONDS:
+            raise ValueError(f"Video too long (max {config.MAX_VIDEO_DURATION_SECONDS/60:.1f} minutes)")
+
+        run_video_processing(
+            job_id,
+            input_path,
+            output_path,
+            artifact_dir,
+            settings,
+            job_store,
+            history_store,
+            user,
+            original_name,
+            source_gcs_object_name=gcs_object_name,
+        )
+
+        if not gcs_settings.keep_uploads:
+            final_job = job_store.get_job(job_id)
+            if final_job and final_job.status == "completed":
+                try:
+                    delete_object(settings=gcs_settings, object_name=gcs_object_name)
+                except Exception:
+                    pass
+    except Exception as exc:
+        input_path.unlink(missing_ok=True)
+        job_store.update_job(job_id, status="failed", message=str(exc))
+        _record_event_safe(
+            history_store,
+            user,
+            "process_failed",
+            f"Processing failed for {original_name or gcs_object_name}",
+            {"job_id": job_id, "error": str(exc)},
+        )
+
+
 @router.post("/process", response_model=JobResponse, dependencies=[Depends(limiter_processing)])
 async def process_video(
     background_tasks: BackgroundTasks,
@@ -295,26 +565,22 @@ async def process_video(
     history_store: HistoryStore = Depends(get_history_store)
 ):
     """Upload a video and start processing."""
-    # Security: Validate input lengths to prevent DoS
-    if len(context_prompt) > 5000:
-        raise HTTPException(400, "Context prompt too long (max 5000 chars)")
-    if len(transcribe_model) > 50:
-        raise HTTPException(400, "Model name too long")
-    if len(video_quality) > 50:
-        raise HTTPException(400, "Video quality string too long")
-    if len(transcribe_provider) > 50:
-        raise HTTPException(400, "Provider name too long")
-    if len(openai_model) > 50:
-        raise HTTPException(400, "OpenAI model name too long")
-    if len(video_resolution) > 50:
-        raise HTTPException(400, "Resolution string too long")
-
-    if subtitle_color:
-        if len(subtitle_color) > 20:
-            raise HTTPException(400, "Subtitle color too long")
-        # Validate ASS color format (&HAABBGGRR)
-        if not re.match(r"^&H[0-9A-Fa-f]{8}$", subtitle_color):
-            raise HTTPException(400, "Invalid subtitle color format (expected &HAABBGGRR)")
+    settings = _build_processing_settings(
+        transcribe_model=transcribe_model,
+        transcribe_provider=transcribe_provider,
+        openai_model=openai_model,
+        video_quality=video_quality,
+        video_resolution=video_resolution,
+        use_llm=use_llm,
+        context_prompt=context_prompt,
+        subtitle_position=subtitle_position,
+        max_subtitle_lines=max_subtitle_lines,
+        subtitle_color=subtitle_color,
+        shadow_strength=shadow_strength,
+        highlight_style=highlight_style,
+        subtitle_size=subtitle_size,
+        karaoke_enabled=karaoke_enabled,
+    )
 
     # Rate Limiting: Check concurrent jobs
     active_jobs = job_store.count_active_jobs_for_user(current_user.id)
@@ -328,8 +594,9 @@ async def process_video(
     data_dir, uploads_dir, artifacts_root = _data_roots()
 
     # Save Upload
-    file_ext = Path(file.filename).suffix
-    if file_ext not in [".mp4", ".mov", ".mkv"]:
+    filename = file.filename or ""
+    file_ext = Path(filename).suffix.lower()
+    if file_ext not in ALLOWED_VIDEO_EXTENSIONS:
         raise HTTPException(400, "Invalid file type")
 
     input_path = uploads_dir / f"{job_id}_input{file_ext}"
@@ -348,18 +615,21 @@ async def process_video(
     # Validate Duration
     try:
         probe = probe_media(input_path)
-        if probe.duration_s and probe.duration_s > config.MAX_VIDEO_DURATION_SECONDS:
-            input_path.unlink(missing_ok=True)
-            raise HTTPException(
-                status_code=400,
-                detail=f"Video too long (max {config.MAX_VIDEO_DURATION_SECONDS/60:.1f} minutes)"
-            )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.warning(f"Failed to probe video duration: {e}")
-        # For security, if we can't probe it, it might be safer to reject or allow but log.
-        # Assuming allow for now to avoid blocking valid but weird files, but monitoring logs is key.
+    except Exception as exc:
+        input_path.unlink(missing_ok=True)
+        logger.warning("Failed to probe uploaded media; rejecting upload: %s", exc)
+        raise HTTPException(status_code=400, detail="Could not validate uploaded media file")
+
+    if probe.duration_s is None or probe.duration_s <= 0:
+        input_path.unlink(missing_ok=True)
+        raise HTTPException(status_code=400, detail="Could not determine video duration")
+
+    if probe.duration_s > config.MAX_VIDEO_DURATION_SECONDS:
+        input_path.unlink(missing_ok=True)
+        raise HTTPException(
+            status_code=400,
+            detail=f"Video too long (max {config.MAX_VIDEO_DURATION_SECONDS/60:.1f} minutes)",
+        )
 
     # Prepare Output
     output_path = artifacts_root / job_id / "processed.mp4"
@@ -373,35 +643,30 @@ async def process_video(
         "process_started",
         f"Queued {file.filename}",
         {
-        "job_id": job_id,
-        "model_size": transcribe_model,
-        "provider": transcribe_provider or "local",
-        "video_quality": video_quality,
-        "video_resolution": video_resolution,
-        "use_llm": use_llm,
-    },
+            "job_id": job_id,
+            "model_size": settings.transcribe_model,
+            "provider": settings.transcribe_provider or "local",
+            "video_quality": settings.video_quality,
+            "video_resolution": video_resolution,
+            "use_llm": use_llm,
+        },
     )
 
     # Enqueue Task
-    target_width, target_height = _parse_resolution(video_resolution)
-    settings = ProcessingSettings(
-        transcribe_model=transcribe_model,
-        transcribe_provider=transcribe_provider,
-        openai_model=openai_model or None,
-        video_quality=video_quality,
-        target_width=target_width,
-        target_height=target_height,
-        use_llm=use_llm,
-        context_prompt=context_prompt,
-        subtitle_position=subtitle_position,
-        max_subtitle_lines=max_subtitle_lines,
-        subtitle_color=subtitle_color,
-        shadow_strength=shadow_strength,
-        highlight_style=highlight_style,
-        subtitle_size=subtitle_size,
-        karaoke_enabled=karaoke_enabled,
+    logger.debug(
+        "Received process request: max_subtitle_lines=%s highlight_style=%s",
+        max_subtitle_lines,
+        highlight_style,
     )
-    print(f"DEBUG_API: Received process request max_lines={max_subtitle_lines} style={highlight_style}")
+
+    gcs_settings = get_gcs_settings()
+    source_gcs_object_name: str | None = None
+    if gcs_settings:
+        source_gcs_object_name = f"{gcs_settings.uploads_prefix}/{current_user.id}/{job_id}{file_ext}"
+
+    processing_kwargs: dict[str, Any] = {}
+    if source_gcs_object_name:
+        processing_kwargs["source_gcs_object_name"] = source_gcs_object_name
 
     background_tasks.add_task(
         run_video_processing,
@@ -414,7 +679,17 @@ async def process_video(
         history_store,
         current_user,
         file.filename,
+        **processing_kwargs,
     )
+
+    if gcs_settings and source_gcs_object_name:
+        background_tasks.add_task(
+            upload_object,
+            settings=gcs_settings,
+            object_name=source_gcs_object_name,
+            source=input_path,
+            content_type=file.content_type or "application/octet-stream",
+        )
 
     # Trigger Cleanup
     from ...common.cleanup import cleanup_old_jobs
@@ -426,6 +701,197 @@ async def process_video(
     )
 
     return job
+
+
+class GcsUploadUrlRequest(BaseModel):
+    filename: str = Field(..., max_length=255)
+    content_type: str = Field(..., max_length=100)
+    size_bytes: int = Field(..., ge=1)
+
+
+class GcsUploadUrlResponse(BaseModel):
+    upload_id: str
+    object_name: str
+    upload_url: str
+    expires_at: int
+    required_headers: dict[str, str]
+
+
+@router.post("/gcs/upload-url", response_model=GcsUploadUrlResponse, dependencies=[Depends(limiter_processing)])
+def create_gcs_upload_url(
+    payload: GcsUploadUrlRequest,
+    current_user: User = Depends(get_current_user),
+    gcs_upload_store: GcsUploadStore = Depends(get_gcs_upload_store),
+    history_store: HistoryStore = Depends(get_history_store),
+) -> Any:
+    """Create a signed upload URL for direct-to-GCS uploads (Cloud Run safe)."""
+    gcs_settings = get_gcs_settings()
+    if not gcs_settings:
+        raise HTTPException(status_code=503, detail="GCS uploads are not configured")
+
+    file_ext = Path(payload.filename).suffix.lower()
+    if file_ext not in ALLOWED_VIDEO_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="Invalid file type")
+
+    if payload.size_bytes > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large; limit is {APP_SETTINGS.max_upload_mb}MB",
+        )
+
+    content_type = _validate_upload_content_type(payload.content_type)
+
+    object_name = f"{gcs_settings.uploads_prefix}/{current_user.id}/{uuid.uuid4().hex}{file_ext}"
+    session = gcs_upload_store.issue_upload(
+        user_id=current_user.id,
+        object_name=object_name,
+        content_type=content_type,
+        original_filename=payload.filename,
+        ttl_seconds=gcs_settings.upload_url_ttl_seconds,
+    )
+
+    try:
+        upload_url = generate_signed_upload_url(
+            settings=gcs_settings,
+            object_name=object_name,
+            content_type=content_type,
+        )
+    except Exception as exc:
+        logger.warning("Failed to generate GCS signed upload URL: %s", exc)
+        raise HTTPException(status_code=503, detail="Could not generate signed upload URL")
+
+    _record_event_safe(
+        history_store,
+        current_user,
+        "gcs_upload_url_issued",
+        f"Issued GCS upload URL for {payload.filename}",
+        {
+            "object_name": object_name,
+            "content_type": content_type,
+            "size_bytes": payload.size_bytes,
+        },
+    )
+
+    return {
+        "upload_id": session.id,
+        "object_name": object_name,
+        "upload_url": upload_url,
+        "expires_at": session.expires_at,
+        "required_headers": {"Content-Type": content_type},
+    }
+
+
+class GcsProcessRequest(BaseModel):
+    upload_id: str = Field(..., max_length=128)
+    transcribe_model: str = Field("medium", max_length=50)
+    transcribe_provider: str = Field("local", max_length=50)
+    openai_model: str = Field("", max_length=50)
+    video_quality: str = Field("high quality", max_length=50)
+    video_resolution: str = Field("", max_length=50)
+    use_llm: bool = APP_SETTINGS.use_llm_by_default
+    context_prompt: str = Field("", max_length=5000)
+    subtitle_position: int = 16
+    max_subtitle_lines: int = 2
+    subtitle_color: str | None = Field(None, max_length=20)
+    shadow_strength: int = 4
+    highlight_style: str = Field("karaoke", max_length=20)
+    subtitle_size: int = 100
+    karaoke_enabled: bool = True
+
+
+@router.post("/gcs/process", response_model=JobResponse, dependencies=[Depends(limiter_processing)])
+def process_video_from_gcs(
+    payload: GcsProcessRequest,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    job_store: JobStore = Depends(get_job_store),
+    history_store: HistoryStore = Depends(get_history_store),
+    gcs_upload_store: GcsUploadStore = Depends(get_gcs_upload_store),
+) -> Any:
+    """Start processing for an already-uploaded GCS object (via upload_id)."""
+    gcs_settings = get_gcs_settings()
+    if not gcs_settings:
+        raise HTTPException(status_code=503, detail="GCS uploads are not configured")
+
+    # Rate Limiting: Check concurrent jobs
+    active_jobs = job_store.count_active_jobs_for_user(current_user.id)
+    if active_jobs >= config.MAX_CONCURRENT_JOBS:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Too many active jobs. Please wait for your current jobs to finish (max {config.MAX_CONCURRENT_JOBS}).",
+        )
+
+    session = gcs_upload_store.consume_upload(upload_id=payload.upload_id, user_id=current_user.id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Upload not found or expired")
+
+    settings = _build_processing_settings(
+        transcribe_model=payload.transcribe_model,
+        transcribe_provider=payload.transcribe_provider,
+        openai_model=payload.openai_model,
+        video_quality=payload.video_quality,
+        video_resolution=payload.video_resolution,
+        use_llm=payload.use_llm,
+        context_prompt=payload.context_prompt,
+        subtitle_position=payload.subtitle_position,
+        max_subtitle_lines=payload.max_subtitle_lines,
+        subtitle_color=payload.subtitle_color,
+        shadow_strength=payload.shadow_strength,
+        highlight_style=payload.highlight_style,
+        subtitle_size=payload.subtitle_size,
+        karaoke_enabled=payload.karaoke_enabled,
+    )
+
+    job_id = str(uuid.uuid4())
+    _, uploads_dir, artifacts_root = _data_roots()
+
+    file_ext = Path(session.original_filename).suffix.lower()
+    if file_ext not in ALLOWED_VIDEO_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="Invalid original filename extension")
+
+    input_path = uploads_dir / f"{job_id}_input{file_ext}"
+    output_path = artifacts_root / job_id / "processed.mp4"
+    artifact_path = artifacts_root / job_id
+
+    job = job_store.create_job(job_id, current_user.id)
+    _record_event_safe(
+        history_store,
+        current_user,
+        "process_started",
+        f"Queued {session.original_filename}",
+        {
+            "job_id": job_id,
+            "provider": settings.transcribe_provider,
+            "model_size": settings.transcribe_model,
+            "video_quality": settings.video_quality,
+            "source": "gcs",
+        },
+    )
+
+    background_tasks.add_task(
+        run_gcs_video_processing,
+        job_id=job_id,
+        gcs_object_name=session.object_name,
+        input_path=input_path,
+        output_path=output_path,
+        artifact_dir=artifact_path,
+        settings=settings,
+        job_store=job_store,
+        history_store=history_store,
+        user=current_user,
+        original_name=session.original_filename,
+    )
+
+    from ...common.cleanup import cleanup_old_jobs
+    background_tasks.add_task(
+        cleanup_old_jobs,
+        uploads_dir,
+        artifacts_root,
+        24,
+    )
+
+    return job
+
 
 def _ensure_job_size(job):
     """Helper to backfill output_size for legacy jobs."""
@@ -678,6 +1144,213 @@ def cancel_job(
     return _ensure_job_size(updated_job)
 
 
+class ReprocessRequest(BaseModel):
+    transcribe_model: str = Field("medium", max_length=50)
+    transcribe_provider: str = Field("local", max_length=50)
+    openai_model: str = Field("", max_length=50)
+    video_quality: str = Field("high quality", max_length=50)
+    video_resolution: str = Field("", max_length=50)
+    use_llm: bool = APP_SETTINGS.use_llm_by_default
+    context_prompt: str = Field("", max_length=5000)
+    subtitle_position: int = 16
+    max_subtitle_lines: int = 2
+    subtitle_color: str | None = Field(None, max_length=20)
+    shadow_strength: int = 4
+    highlight_style: str = Field("karaoke", max_length=20)
+    subtitle_size: int = 100
+    karaoke_enabled: bool = True
+
+
+@router.post("/jobs/{job_id}/reprocess", response_model=JobResponse, dependencies=[Depends(limiter_processing)])
+def reprocess_job(
+    job_id: str,
+    request: ReprocessRequest,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    job_store: JobStore = Depends(get_job_store),
+    history_store: HistoryStore = Depends(get_history_store),
+):
+    source_job = job_store.get_job(job_id)
+    if not source_job or source_job.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    if source_job.status != "completed":
+        raise HTTPException(status_code=400, detail="Job must be completed to reprocess")
+
+    active_jobs = job_store.count_active_jobs_for_user(current_user.id)
+    if active_jobs >= config.MAX_CONCURRENT_JOBS:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Too many active jobs. Please wait for your current jobs to finish (max {config.MAX_CONCURRENT_JOBS}).",
+        )
+
+    settings = _build_processing_settings(
+        transcribe_model=request.transcribe_model,
+        transcribe_provider=request.transcribe_provider,
+        openai_model=request.openai_model,
+        video_quality=request.video_quality,
+        video_resolution=request.video_resolution,
+        use_llm=request.use_llm,
+        context_prompt=request.context_prompt,
+        subtitle_position=request.subtitle_position,
+        max_subtitle_lines=request.max_subtitle_lines,
+        subtitle_color=request.subtitle_color,
+        shadow_strength=request.shadow_strength,
+        highlight_style=request.highlight_style,
+        subtitle_size=request.subtitle_size,
+        karaoke_enabled=request.karaoke_enabled,
+    )
+
+    data_dir, uploads_dir, artifacts_root = _data_roots()
+
+    gcs_settings = get_gcs_settings()
+    source_gcs_object = (source_job.result_data or {}).get("source_gcs_object")
+    if (
+        gcs_settings
+        and isinstance(source_gcs_object, str)
+        and source_gcs_object.startswith(f"{gcs_settings.uploads_prefix}/{current_user.id}/")
+    ):
+        file_ext = Path(source_gcs_object).suffix.lower()
+        if file_ext not in ALLOWED_VIDEO_EXTENSIONS:
+            raise HTTPException(status_code=400, detail="Invalid source video extension")
+
+        new_job_id = str(uuid.uuid4())
+        input_path = uploads_dir / f"{new_job_id}_input{file_ext}"
+        output_path = artifacts_root / new_job_id / "processed.mp4"
+        artifact_path = artifacts_root / new_job_id
+
+        job = job_store.create_job(new_job_id, current_user.id)
+        _record_event_safe(
+            history_store,
+            current_user,
+            "process_started",
+            f"Reprocessing {source_job.result_data.get('original_filename', 'video') if source_job.result_data else 'video'}",
+            {
+                "job_id": new_job_id,
+                "source_job_id": job_id,
+                "provider": settings.transcribe_provider,
+                "model_size": settings.transcribe_model,
+                "source": "gcs",
+            },
+        )
+
+        background_tasks.add_task(
+            run_gcs_video_processing,
+            job_id=new_job_id,
+            gcs_object_name=source_gcs_object,
+            input_path=input_path,
+            output_path=output_path,
+            artifact_dir=artifact_path,
+            settings=settings,
+            job_store=job_store,
+            history_store=history_store,
+            user=current_user,
+            original_name=(source_job.result_data or {}).get("original_filename"),
+        )
+
+        from ...common.cleanup import cleanup_old_jobs
+        background_tasks.add_task(
+            cleanup_old_jobs,
+            uploads_dir,
+            artifacts_root,
+            24,
+        )
+
+        return job
+
+    source_input: Path | None = None
+    for ext in sorted(ALLOWED_VIDEO_EXTENSIONS):
+        candidate = uploads_dir / f"{job_id}_input{ext}"
+        if candidate.exists():
+            source_input = candidate
+            break
+
+    if not source_input:
+        candidate_rel = (source_job.result_data or {}).get("video_path")
+        if isinstance(candidate_rel, str) and candidate_rel:
+            candidate = (data_dir / candidate_rel).resolve()
+            data_dir_resolved = data_dir.resolve()
+            if candidate.is_relative_to(data_dir_resolved) and candidate.exists():
+                source_input = candidate
+
+    if not source_input:
+        raise HTTPException(status_code=404, detail="Source video not found; upload again to reprocess")
+
+    file_ext = source_input.suffix.lower()
+    if file_ext not in ALLOWED_VIDEO_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="Invalid source video extension")
+
+    size_bytes = source_input.stat().st_size
+    if size_bytes <= 0:
+        raise HTTPException(status_code=400, detail="Empty source video")
+    if size_bytes > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large; limit is {APP_SETTINGS.max_upload_mb}MB",
+        )
+
+    try:
+        probe = probe_media(source_input)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Could not validate source media file") from exc
+
+    if probe.duration_s is None or probe.duration_s <= 0:
+        raise HTTPException(status_code=400, detail="Could not determine video duration")
+    if probe.duration_s > config.MAX_VIDEO_DURATION_SECONDS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Video too long (max {config.MAX_VIDEO_DURATION_SECONDS/60:.1f} minutes)",
+        )
+
+    new_job_id = str(uuid.uuid4())
+    input_path = uploads_dir / f"{new_job_id}_input{file_ext}"
+    output_path = artifacts_root / new_job_id / "processed.mp4"
+    artifact_path = artifacts_root / new_job_id
+
+    try:
+        _link_or_copy_file(source_input, input_path)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="Source video not found; upload again to reprocess")
+
+    job = job_store.create_job(new_job_id, current_user.id)
+    _record_event_safe(
+        history_store,
+        current_user,
+        "process_started",
+        f"Reprocessing {source_job.result_data.get('original_filename', 'video') if source_job.result_data else 'video'}",
+        {
+            "job_id": new_job_id,
+            "source_job_id": job_id,
+            "provider": settings.transcribe_provider,
+            "model_size": settings.transcribe_model,
+            "source": "local",
+        },
+    )
+
+    background_tasks.add_task(
+        run_video_processing,
+        new_job_id,
+        input_path,
+        output_path,
+        artifact_path,
+        settings,
+        job_store,
+        history_store,
+        current_user,
+        (source_job.result_data or {}).get("original_filename"),
+    )
+
+    from ...common.cleanup import cleanup_old_jobs
+    background_tasks.add_task(
+        cleanup_old_jobs,
+        uploads_dir,
+        artifacts_root,
+        24,
+    )
+
+    return job
+
+
 @router.post("/jobs/{job_id}/viral-metadata", response_model=ViralMetadataResponse, dependencies=[Depends(limiter_content)])
 def create_viral_metadata(
     job_id: str,
@@ -800,11 +1473,63 @@ def export_video(
             break
 
     if not input_video:
+        gcs_settings = get_gcs_settings()
+        source_gcs_object = (job.result_data or {}).get("source_gcs_object")
+        if (
+            gcs_settings
+            and isinstance(source_gcs_object, str)
+            and source_gcs_object.startswith(f"{gcs_settings.uploads_prefix}/")
+        ):
+            ext = Path(source_gcs_object).suffix.lower()
+            if ext in ALLOWED_VIDEO_EXTENSIONS:
+                destination = uploads_dir / f"{job_id}_input{ext}"
+                try:
+                    download_object(
+                        settings=gcs_settings,
+                        object_name=source_gcs_object,
+                        destination=destination,
+                        max_bytes=MAX_UPLOAD_BYTES,
+                    )
+                    input_video = destination
+                except Exception as exc:
+                    logger.warning("Failed to download input video from GCS for export (%s): %s", job_id, exc)
+
+    if not input_video:
         raise HTTPException(404, "Original input video not found")
 
     from ...services.video_processing import generate_video_variant
 
+    if request.subtitle_position is not None:
+        _validate_subtitle_position(request.subtitle_position)
+    if request.max_subtitle_lines is not None:
+        _validate_max_subtitle_lines(request.max_subtitle_lines)
+    if request.shadow_strength is not None:
+        _validate_shadow_strength(request.shadow_strength)
+    if request.subtitle_size is not None:
+        _validate_subtitle_size(request.subtitle_size)
+    if request.highlight_style is not None:
+        _validate_highlight_style(request.highlight_style)
+    if request.subtitle_color and not re.match(r"^&H[0-9A-Fa-f]{8}$", request.subtitle_color):
+        raise HTTPException(status_code=400, detail="Invalid subtitle color format (expected &HAABBGGRR)")
+
     try:
+        subtitle_settings = request.model_dump(exclude_defaults=True)
+        subtitle_settings.pop("resolution", None)
+        if subtitle_settings.get("highlight_style"):
+            subtitle_settings["highlight_style"] = _validate_highlight_style(str(subtitle_settings["highlight_style"]))
+        if subtitle_settings.get("subtitle_position") is not None:
+            subtitle_settings["subtitle_position"] = _validate_subtitle_position(int(subtitle_settings["subtitle_position"]))
+        if subtitle_settings.get("max_subtitle_lines") is not None:
+            subtitle_settings["max_subtitle_lines"] = _validate_max_subtitle_lines(int(subtitle_settings["max_subtitle_lines"]))
+        if subtitle_settings.get("shadow_strength") is not None:
+            subtitle_settings["shadow_strength"] = _validate_shadow_strength(int(subtitle_settings["shadow_strength"]))
+        if subtitle_settings.get("subtitle_size") is not None:
+            subtitle_settings["subtitle_size"] = _validate_subtitle_size(int(subtitle_settings["subtitle_size"]))
+        if subtitle_settings.get("subtitle_color") and not re.match(
+            r"^&H[0-9A-Fa-f]{8}$", str(subtitle_settings["subtitle_color"])
+        ):
+            raise HTTPException(status_code=400, detail="Invalid subtitle color format (expected &HAABBGGRR)")
+
         # Note: This is synchronous/blocking for now as per MVP plan.
         # Ideally this should be a background task that updates job status.
         output_path = generate_video_variant(
@@ -814,7 +1539,7 @@ def export_video(
             request.resolution,
             job_store,
             current_user.id,
-            subtitle_settings=request.dict(exclude_defaults=True)
+            subtitle_settings=subtitle_settings or None,
         )
 
         # Update job result data with the new variant info
@@ -825,6 +1550,18 @@ def export_video(
         public_path = _relpath_safe(output_path, data_dir).as_posix()
         variants[request.resolution] = f"/static/{public_path}"
         result_data["variants"] = variants
+
+        gcs_settings = get_gcs_settings()
+        if gcs_settings:
+            try:
+                upload_object(
+                    settings=gcs_settings,
+                    object_name=f"{gcs_settings.static_prefix}/{public_path}",
+                    source=output_path,
+                    content_type="video/mp4",
+                )
+            except Exception as exc:
+                logger.warning("Failed to upload export variant to GCS (%s): %s", job_id, exc)
 
         # We assume the user might want this to be the 'main' video now?
         # Or just return the link.

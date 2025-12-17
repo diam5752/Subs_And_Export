@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useI18n } from '@/context/I18nContext';
 import { api, ViralMetadataResponse, FactCheckResponse } from '@/lib/api';
 
@@ -8,6 +8,7 @@ interface ViralIntelligenceProps {
 
 export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
     const { t } = useI18n();
+    const activeJobIdRef = useRef(jobId);
     const [loading, setLoading] = useState(false);
     const [checkingFacts, setCheckingFacts] = useState(false);
     const [metadata, setMetadata] = useState<ViralMetadataResponse | null>(null);
@@ -16,30 +17,49 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
     const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
     const [copiedFull, setCopiedFull] = useState(false);
 
+    useEffect(() => {
+        activeJobIdRef.current = jobId;
+        setLoading(false);
+        setCheckingFacts(false);
+        setMetadata(null);
+        setFactCheckResult(null);
+        setError(null);
+        setCopiedIndex(null);
+        setCopiedFull(false);
+    }, [jobId]);
+
     const handleGenerate = async () => {
+        const requestJobId = jobId;
         setLoading(true);
         setError(null);
         try {
-            const result = await api.generateViralMetadata(jobId);
+            const result = await api.generateViralMetadata(requestJobId);
+            if (activeJobIdRef.current !== requestJobId) return;
             setMetadata(result);
         } catch (err: unknown) {
+            if (activeJobIdRef.current !== requestJobId) return;
             const message = err instanceof Error ? err.message : 'Failed to generate metadata';
             setError(message);
         } finally {
+            if (activeJobIdRef.current !== requestJobId) return;
             setLoading(false);
         }
     };
 
     const handleFactCheck = async () => {
+        const requestJobId = jobId;
         setCheckingFacts(true);
         setError(null);
         try {
-            const result = await api.factCheck(jobId);
+            const result = await api.factCheck(requestJobId);
+            if (activeJobIdRef.current !== requestJobId) return;
             setFactCheckResult(result);
         } catch (err: unknown) {
+            if (activeJobIdRef.current !== requestJobId) return;
             const message = err instanceof Error ? err.message : 'Failed to fact check';
             setError(message);
         } finally {
+            if (activeJobIdRef.current !== requestJobId) return;
             setCheckingFacts(false);
         }
     };

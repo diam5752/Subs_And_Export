@@ -73,7 +73,7 @@ def _build_filtergraph(ass_path: Path, *, target_width: int | None = None, targe
     ass_file = ass_path.as_posix().replace("'", r"\'")
     ass_filter = f"ass='{ass_file}'"
 
-    print(f"DEBUG_FILTERGRAPH: target_width={target_width}, target_height={target_height}")
+    logger.debug("FFmpeg filtergraph target dimensions: width=%s height=%s", target_width, target_height)
 
     # If no target dimensions, skip scaling - keep original resolution
     if target_width is None and target_height is None:
@@ -425,12 +425,12 @@ def normalize_and_stub_subtitles(
     elif model_size == "ultimate":
         selected_model = config.GROQ_MODEL_ULTIMATE
         provider_name = "groq"
-    
+
     # Determine Provider Strategy if not set
     if not provider_name:
         if subtitles.should_use_openai(selected_model):
             provider_name = "openai"
-        elif "groq" in selected_model.lower(): 
+        elif "groq" in selected_model.lower():
              provider_name = "groq"
         else:
             # Default to local (stable-ts / faster-whisper) for local-first workflows.
@@ -638,7 +638,7 @@ def normalize_and_stub_subtitles(
                     )
                 except subprocess.CalledProcessError as exc:
                     if use_hw_accel:
-                        print(f"Hardware acceleration failed: {exc}. Retrying with software encoding...")
+                        logger.warning("Hardware acceleration failed; retrying with software encoding: %s", exc)
                         # Retry without hardware acceleration
                         _run_ffmpeg_with_subs(
                             input_path, ass_path, destination,
@@ -755,7 +755,7 @@ def generate_video_variant(
         # Load Cues from JSON if available (Better accuracy/Karaoke)
         cues = None
         transcription_json = artifact_dir / "transcription.json"
-        
+
         if transcription_json.exists():
             try:
                 import json
@@ -772,7 +772,7 @@ def generate_video_variant(
                     ))
             except Exception as e:
                 logger.warning(f"Failed to load transcription.json: {e}")
-        
+
         subtitle_size_raw = subtitle_settings.get("subtitle_size")
         if isinstance(subtitle_size_raw, str):
             legacy_map = {"small": 70, "medium": 85, "big": 100, "extra-big": 150}
@@ -784,7 +784,7 @@ def generate_video_variant(
         karaoke_enabled = bool(subtitle_settings.get("karaoke_enabled", True))
         requested_highlight_style = str(subtitle_settings.get("highlight_style") or "karaoke").lower()
         highlight_style = "static" if not karaoke_enabled else requested_highlight_style
-        
+
         # FIX: Always use reference resolution (1080x1920) for ASS generation.
         # This ensures the font_size (calibrated to 1080p) scales proportionally
         # to any output resolution via FFmpeg's internal scaling.
@@ -851,14 +851,14 @@ def generate_video_variant(
                     ))
             except Exception as e:
                 logger.warning(f"Failed to load transcription.json: {e}")
-        
+
         # FIX: Always use reference resolution for ASS PlayRes
         base_width, base_height = config.DEFAULT_WIDTH, config.DEFAULT_HEIGHT
 
         # Helper to safely resolve int params (preserving 0)
         def _resolve_param(val: Any, default: int) -> int:
             return int(val) if val is not None else default
-        
+
         ass_path = subtitles.create_styled_subtitle_file(
             transcript_path,
             cues=cues,

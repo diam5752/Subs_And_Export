@@ -16,6 +16,7 @@ interface ProcessViewProps {
     statusMessage: string;
     error: string;
     onStartProcessing: (options: ProcessingOptions) => Promise<void>;
+    onReprocessJob: (sourceJobId: string, options: ProcessingOptions) => Promise<void>;
     onReset: () => void;
     onCancelProcessing?: () => void;
     selectedJob: JobResponse | null;

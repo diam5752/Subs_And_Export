@@ -44,6 +44,7 @@ interface ProcessContextType {
     statusMessage: string;
     error: string;
     onStartProcessing: (options: ProcessingOptions) => Promise<void>;
+    onReprocessJob: (sourceJobId: string, options: ProcessingOptions) => Promise<void>;
     onReset: () => void;
     onCancelProcessing?: () => void;
     selectedJob: JobResponse | null;
@@ -144,6 +145,7 @@ interface ProcessProviderProps {
     statusMessage: string;
     error: string;
     onStartProcessing: (options: ProcessingOptions) => Promise<void>;
+    onReprocessJob: (sourceJobId: string, options: ProcessingOptions) => Promise<void>;
     onReset: () => void;
     onCancelProcessing?: () => void;
     selectedJob: JobResponse | null;
@@ -155,6 +157,22 @@ interface ProcessProviderProps {
 export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
     const { t } = useI18n();
 
+    const clampNumber = (value: unknown, min: number, max: number): number | null => {
+        const num = typeof value === 'number' ? value : Number(value);
+        if (!Number.isFinite(num)) return null;
+        return Math.max(min, Math.min(max, num));
+    };
+
+    const parseBoolean = (value: unknown): boolean | null => {
+        if (typeof value === 'boolean') return value;
+        if (typeof value === 'number') return value !== 0;
+        if (typeof value === 'string') {
+            const cleaned = value.trim().toLowerCase();
+            if (['1', 'true', 'yes', 'on'].includes(cleaned)) return true;
+            if (['0', 'false', 'no', 'off'].includes(cleaned)) return false;
+        }
+        return null;
+    };
 
     // Helper to get initial value from localStorage or default
     const getInitialValue = <T,>(key: keyof LastUsedSettings, defaultValue: T): T => {
@@ -164,7 +182,23 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
             if (stored) {
                 const parsed = JSON.parse(stored);
                 if (parsed && parsed[key] !== undefined) {
-                    return parsed[key];
+                    const rawValue = parsed[key] as unknown;
+                    if (key === 'position') {
+                        return (clampNumber(rawValue, 5, 35) ?? defaultValue) as T;
+                    }
+                    if (key === 'size') {
+                        return (clampNumber(rawValue, 50, 150) ?? defaultValue) as T;
+                    }
+                    if (key === 'lines') {
+                        return (clampNumber(rawValue, 0, 4) ?? defaultValue) as T;
+                    }
+                    if (key === 'karaoke') {
+                        return (parseBoolean(rawValue) ?? defaultValue) as T;
+                    }
+                    if (key === 'color') {
+                        return (typeof rawValue === 'string' && rawValue.trim() ? rawValue : defaultValue) as T;
+                    }
+                    return rawValue as T;
                 }
             }
         } catch {
@@ -417,14 +451,44 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
     }, [props.selectedJob?.status]);
 
     const handleStart = useCallback(() => {
-        if (!props.selectedFile) return;
-
-        // Note: Removed immediate scroll to resultsRef here because we want to stay on Step 2 (Upload)
-        // to show the progress bar. The scroll to Step 3 now happens automatically upon completion via the effect above.
+        if (!transcribeMode || !transcribeProvider) {
+            setOverrideStep(1);
+            try {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            } catch {
+            }
+            return;
+        }
 
         const colorObj = SUBTITLE_COLORS.find(c => c.value === subtitleColor) || SUBTITLE_COLORS[0];
 
-        if (!transcribeMode || !transcribeProvider) return;
+        if (!props.selectedFile) {
+            if (props.selectedJob?.status === 'completed') {
+                void props.onReprocessJob(props.selectedJob.id, {
+                    transcribeMode,
+                    transcribeProvider,
+                    outputQuality: 'high quality',
+                    outputResolution: '',
+                    useAI: false,
+                    contextPrompt: '',
+                    subtitle_position: subtitlePosition,
+                    max_subtitle_lines: maxSubtitleLines,
+                    subtitle_color: colorObj.ass,
+                    shadow_strength: shadowStrength,
+                    highlight_style: 'active-graphics',
+                    subtitle_size: subtitleSize,
+                    karaoke_enabled: karaokeEnabled,
+                });
+                return;
+            }
+
+            setOverrideStep(2);
+            fileInputRef.current?.click();
+            return;
+        }
+
+        // Note: Removed immediate scroll to resultsRef here because we want to stay on Step 2 (Upload)
+        // to show the progress bar. The scroll to Step 3 now happens automatically upon completion via the effect above.
 
         props.onStartProcessing({
             transcribeMode,
@@ -446,6 +510,8 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
         karaokeEnabled,
         maxSubtitleLines,
         props,
+        fileInputRef,
+        setOverrideStep,
         shadowStrength,
         subtitleColor,
         subtitlePosition,
@@ -701,8 +767,12 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
         };
     }, [props.selectedJob?.result_data?.transcription_url]);
 
+    const previousCalculatedStep = useRef(calculatedStep);
     useEffect(() => {
-        if (overrideStep && calculatedStep > overrideStep) {
+        const previous = previousCalculatedStep.current;
+        previousCalculatedStep.current = calculatedStep;
+
+        if (overrideStep !== null && calculatedStep > previous && calculatedStep > overrideStep) {
             setOverrideStep(null);
         }
     }, [calculatedStep, overrideStep]);

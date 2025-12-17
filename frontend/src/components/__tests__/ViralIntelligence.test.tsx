@@ -106,4 +106,37 @@ describe('ViralIntelligence', () => {
         // Check for feedback on caption
         await waitFor(() => expect(screen.getByText('Copied')).toBeInTheDocument());
     });
+
+    it('calls fact check endpoint and renders report', async () => {
+        (api.factCheck as jest.Mock).mockResolvedValue({ items: [] });
+
+        render(<ViralIntelligence jobId={mockJobId} />);
+
+        fireEvent.click(screen.getByRole('button', { name: /verify facts/i }));
+
+        await waitFor(() => expect(api.factCheck).toHaveBeenCalledWith(mockJobId));
+        expect(await screen.findByText('Report')).toBeInTheDocument();
+    });
+
+    it('resets results when jobId changes', async () => {
+        (api.generateViralMetadata as jest.Mock).mockResolvedValue({
+            hooks: ['Hook 1'],
+            caption_hook: 'Caption Hook',
+            caption_body: 'Caption Body',
+            cta: 'CTA',
+            hashtags: ['#tag'],
+        });
+
+        const { rerender } = render(<ViralIntelligence jobId="job-1" />);
+
+        fireEvent.click(screen.getByRole('button', { name: /generate metadata/i }));
+        await waitFor(() => expect(screen.getByText('Generated Output')).toBeInTheDocument());
+        expect(screen.getByText('Hook 1')).toBeInTheDocument();
+
+        rerender(<ViralIntelligence jobId="job-2" />);
+
+        await waitFor(() => expect(screen.queryByText('Generated Output')).not.toBeInTheDocument());
+        expect(screen.getByRole('button', { name: /generate metadata/i })).toBeInTheDocument();
+        expect(screen.queryByText('Hook 1')).not.toBeInTheDocument();
+    });
 });

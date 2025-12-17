@@ -33,7 +33,8 @@ def test_tiktok_callback_handles_errors(client: TestClient, monkeypatch):
         pass
 
     monkeypatch.setattr(tiktok_ep.tiktok, "exchange_code_for_token", lambda cfg, code: (_ for _ in ()).throw(Boom("bad")) )
-    resp = client.post("/tiktok/callback", json={"code": "abc", "state": "s"}, headers=headers)
+    state = client.get("/tiktok/url", headers=headers).json()["state"]
+    resp = client.post("/tiktok/callback", json={"code": "abc", "state": state}, headers=headers)
     assert resp.status_code == 400
 
 
@@ -44,7 +45,8 @@ def test_tiktok_callback_handles_generic_error(client: TestClient, monkeypatch):
     monkeypatch.setenv("TIKTOK_REDIRECT_URI", "u")
 
     monkeypatch.setattr(tiktok_ep.tiktok, "exchange_code_for_token", lambda cfg, code: (_ for _ in ()).throw(RuntimeError("oops")))
-    resp = client.post("/tiktok/callback", json={"code": "abc", "state": "s"}, headers=headers)
+    state = client.get("/tiktok/url", headers=headers).json()["state"]
+    resp = client.post("/tiktok/callback", json={"code": "abc", "state": state}, headers=headers)
     assert resp.status_code == 400
 
 

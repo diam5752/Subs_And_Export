@@ -170,6 +170,50 @@ def test_process_video_creates_job(client: TestClient, monkeypatch):
     assert detail.status_code == 200
 
 
+def test_reprocess_job_creates_new_job(client: TestClient, monkeypatch):
+    headers = _auth_header(client, email="reprocess@example.com")
+    calls: list[str] = []
+
+    def fake_run(job_id, _input_path, _output_path, _artifact_dir, _settings, job_store, *_args, **_kwargs):
+        calls.append(job_id)
+        job_store.update_job(job_id, status="completed", progress=100, message="Done!")
+
+    monkeypatch.setattr(videos, "run_video_processing", fake_run)
+
+    source = client.post(
+        "/videos/process",
+        headers=headers,
+        files={"file": ("clip.mp4", io.BytesIO(b"123"), "video/mp4")},
+    )
+    assert source.status_code == 200
+    source_job_id = source.json()["id"]
+
+    resp = client.post(f"/videos/jobs/{source_job_id}/reprocess", headers=headers, json={})
+    assert resp.status_code == 200
+    new_job_id = resp.json()["id"]
+    assert new_job_id != source_job_id
+
+    # Background task should have been scheduled (and executed by the test client)
+    assert calls[0] == source_job_id
+    assert calls[1] == new_job_id
+
+
+def test_reprocess_job_requires_completed_source_job(client: TestClient, monkeypatch):
+    headers = _auth_header(client, email="reprocess_pending@example.com")
+
+    monkeypatch.setattr(videos, "run_video_processing", lambda *args, **kwargs: None)
+    source = client.post(
+        "/videos/process",
+        headers=headers,
+        files={"file": ("clip.mp4", io.BytesIO(b"123"), "video/mp4")},
+    )
+    assert source.status_code == 200
+    source_job_id = source.json()["id"]
+
+    resp = client.post(f"/videos/jobs/{source_job_id}/reprocess", headers=headers, json={})
+    assert resp.status_code == 400
+
+
 def test_get_job_not_found(client: TestClient):
     headers = _auth_header(client, email="fetch@example.com")
     resp = client.get(f"/videos/jobs/{uuid.uuid4()}", headers=headers)
@@ -217,4 +261,3 @@ def test_cancel_job_not_found(client: TestClient):
     headers = _auth_header(client, email="cancel_notfound@example.com")
     resp = client.post(f"/videos/jobs/{uuid.uuid4()}/cancel", headers=headers)
     assert resp.status_code == 404
-

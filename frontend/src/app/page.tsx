@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { useAppEnv } from '@/context/AppEnvContext';
 import { api, JobResponse } from '@/lib/api';
 import { formatDate, buildStaticUrl } from '@/lib/utils';
 import { useI18n } from '@/context/I18nContext';
@@ -24,6 +25,7 @@ export default function DashboardPage() {
   const { user, isLoading, logout, refreshUser } = useAuth();
   const router = useRouter();
   const { t } = useI18n();
+  const { appEnv } = useAppEnv();
   const didRestoreSession = useRef(false);
 
   // Handler functions (extracted for testability)
@@ -176,20 +178,16 @@ export default function DashboardPage() {
     setSelectedJob(null);
     setStatusMessage(t('statusUploading'));
 
-    const modelMap: Record<string, string> = {
-      fast: 'tiny',
-      balanced: 'medium',
-      turbo: 'turbo', // Backend maps 'turbo' -> large-v3 for maximum accuracy
-      best: 'large-v3',
-    };
-
     const provider = options.transcribeProvider;
-    // Robustly handle OpenAI model selection: Always use whisper-1 regardless of current transcribeMode
-    // This fixes the issue where having 'turbo' selected then switching to OpenAI resulted in undefined model mapping
-    const selectedModel = provider === 'openai' ? 'openai/whisper-1' : modelMap[options.transcribeMode];
+    const selectedModel = (() => {
+      if (provider === 'openai') return 'openai/whisper-1';
+      if (provider === 'groq') return options.transcribeMode === 'ultimate' ? 'ultimate' : 'enhanced';
+      if (provider === 'local') return options.transcribeMode === 'balanced' ? 'medium' : 'turbo';
+      return 'turbo';
+    })();
 
     try {
-      const result = await api.processVideo(selectedFile, {
+      const settings = {
         transcribe_model: selectedModel,
         transcribe_provider: provider,
         openai_model: provider === 'openai' ? selectedModel.replace('openai/', '') : undefined,
@@ -204,13 +202,73 @@ export default function DashboardPage() {
         highlight_style: options.highlight_style,
         subtitle_size: options.subtitle_size,
         karaoke_enabled: options.karaoke_enabled,
-      });
+      };
+
+      const result = appEnv === 'production'
+        ? await (async () => {
+          const upload = await api.createGcsUploadUrl(selectedFile);
+          setStatusMessage(t('statusUploading'));
+          setProgress(0);
+          await api.uploadToSignedUrl(
+            upload.upload_url,
+            selectedFile,
+            upload.required_headers['Content-Type'],
+            (percent) => {
+              setProgress(percent);
+              setStatusMessage(`${t('statusUploading')} ${percent}%`);
+            },
+          );
+          setStatusMessage(t('statusProcessing'));
+          setProgress(0);
+          return api.processVideoFromGcs(upload.upload_id, settings);
+        })()
+        : await api.processVideo(selectedFile, settings);
       setJobId(result.id);
     } catch (err) {
       setProcessError(err instanceof Error ? err.message : t('startProcessingError'));
       setIsProcessing(false);
     }
-  }, [selectedFile, t, setSelectedJob]);
+  }, [appEnv, selectedFile, t, setSelectedJob]);
+
+  const handleReprocessJob = useCallback(async (sourceJobId: string, options: ProcessingOptions) => {
+    setIsProcessing(true);
+    setProcessError('');
+    setProgress(0);
+    setStatusMessage(t('statusProcessing'));
+
+    const provider = options.transcribeProvider;
+    const selectedModel = (() => {
+      if (provider === 'openai') return 'openai/whisper-1';
+      if (provider === 'groq') return options.transcribeMode === 'ultimate' ? 'ultimate' : 'enhanced';
+      if (provider === 'local') return options.transcribeMode === 'balanced' ? 'medium' : 'turbo';
+      return 'turbo';
+    })();
+
+    try {
+      const settings = {
+        transcribe_model: selectedModel,
+        transcribe_provider: provider,
+        openai_model: provider === 'openai' ? selectedModel.replace('openai/', '') : undefined,
+        video_quality: options.outputQuality,
+        video_resolution: options.outputResolution,
+        use_llm: options.useAI,
+        context_prompt: options.contextPrompt,
+        subtitle_position: options.subtitle_position,
+        max_subtitle_lines: options.max_subtitle_lines,
+        subtitle_color: options.subtitle_color,
+        shadow_strength: options.shadow_strength,
+        highlight_style: options.highlight_style,
+        subtitle_size: options.subtitle_size,
+        karaoke_enabled: options.karaoke_enabled,
+      };
+
+      const result = await api.reprocessJob(sourceJobId, settings);
+      setJobId(result.id);
+    } catch (err) {
+      setProcessError(err instanceof Error ? err.message : t('startProcessingError'));
+      setIsProcessing(false);
+    }
+  }, [t]);
 
   const handleProfileSave = useCallback(async (name: string, password?: string, confirmPassword?: string) => {
     if (!user) return;
@@ -351,12 +409,13 @@ export default function DashboardPage() {
           onFileSelect={handleFileSelect}
           isProcessing={isProcessing}
           progress={progress}
-          statusMessage={statusMessage}
-          error={processError}
-          onStartProcessing={handleStartProcessing}
-          onReset={resetProcessing}
-          onCancelProcessing={handleCancelProcessing}
-          selectedJob={selectedJob}
+	          statusMessage={statusMessage}
+	          error={processError}
+	          onStartProcessing={handleStartProcessing}
+	          onReprocessJob={handleReprocessJob}
+	          onReset={resetProcessing}
+	          onCancelProcessing={handleCancelProcessing}
+	          selectedJob={selectedJob}
           onJobSelect={setSelectedJob}
           statusStyles={statusStyles}
           buildStaticUrl={buildStaticUrl}

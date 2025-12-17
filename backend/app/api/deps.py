@@ -5,6 +5,8 @@ from fastapi.security import OAuth2PasswordBearer
 
 from ..core.auth import SessionStore, User, UserStore
 from ..core.database import Database
+from ..core.gcs_uploads import GcsUploadStore
+from ..core.oauth_state import OAuthStateStore
 from ..services.history import HistoryStore
 from ..services.jobs import JobStore
 
@@ -30,6 +32,12 @@ def get_job_store(db: Database = Depends(get_db)) -> JobStore:
 
 def get_history_store(db: Database = Depends(get_db)) -> HistoryStore:
     return HistoryStore(db=db)
+
+def get_oauth_state_store(db: Database = Depends(get_db)) -> OAuthStateStore:
+    return OAuthStateStore(db=db)
+
+def get_gcs_upload_store(db: Database = Depends(get_db)) -> GcsUploadStore:
+    return GcsUploadStore(db=db)
 
 async def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],

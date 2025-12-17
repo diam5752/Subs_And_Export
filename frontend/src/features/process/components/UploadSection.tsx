@@ -5,7 +5,10 @@ import { useAppEnv } from '@/context/AppEnvContext';
 import { useProcessContext } from '../ProcessContext';
 import { api } from '@/lib/api';
 import { validateVideoAspectRatio } from '@/lib/video';
-import { Spinner } from '@/components/Spinner';
+
+const MAX_UPLOAD_BYTES = 1024 * 1024 * 1024; // 1GiB
+const MAX_VIDEO_DURATION_SECONDS = 3 * 60;
+const ALLOWED_VIDEO_EXT = /\.(mp4|mov|mkv)$/i;
 
 export function UploadSection() {
     const { t } = useI18n();
@@ -24,7 +27,6 @@ export function UploadSection() {
         setOverrideStep,
         setHasChosenModel,
         onJobSelect,
-        onReset,
         handleStart,
         fileInputRef,
         resultsRef,
@@ -43,6 +45,7 @@ export function UploadSection() {
     const [isDragOver, setIsDragOver] = useState(false);
     const [devSampleLoading, setDevSampleLoading] = useState(false);
     const [devSampleError, setDevSampleError] = useState<string | null>(null);
+    const [fileValidationError, setFileValidationError] = useState<string | null>(null);
     const [pendingAutoStart, setPendingAutoStart] = useState(false);
     const validationRequestId = React.useRef(0);
 
@@ -84,7 +87,16 @@ export function UploadSection() {
 
     const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0] || null;
+        setFileValidationError(null);
         if (file) {
+            if (!ALLOWED_VIDEO_EXT.test(file.name)) {
+                setFileValidationError('Unsupported file type. Please upload an MP4, MOV, or MKV video.');
+                return;
+            }
+            if (file.size > MAX_UPLOAD_BYTES) {
+                setFileValidationError('File too large. Maximum allowed size is 1GB.');
+                return;
+            }
             setPendingAutoStart(true);
             onFileSelect(file);
         }
@@ -134,11 +146,18 @@ export function UploadSection() {
         const files = e.dataTransfer.files;
         if (files && files.length > 0) {
             const file = files[0];
-            if (file.type.startsWith('video/') || /\.(mp4|mov|mkv|webm|avi)$/i.test(file.name)) {
-                setPendingAutoStart(true);
-                onFileSelect(file);
-                setOverrideStep(null);
+            setFileValidationError(null);
+            if (!ALLOWED_VIDEO_EXT.test(file.name)) {
+                setFileValidationError('Unsupported file type. Please upload an MP4, MOV, or MKV video.');
+                return;
             }
+            if (file.size > MAX_UPLOAD_BYTES) {
+                setFileValidationError('File too large. Maximum allowed size is 1GB.');
+                return;
+            }
+            setPendingAutoStart(true);
+            onFileSelect(file);
+            setOverrideStep(null);
         }
     }, [isProcessing, onFileSelect, setOverrideStep]);
 
@@ -184,13 +203,14 @@ export function UploadSection() {
                     resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 }, 100);
 
-            } catch (err: any) {
+            } catch (err: unknown) {
                 console.error('Failed to load dev sample:', err);
                 let msg = 'Failed to load sample';
                 if (err instanceof Error) msg = err.message;
                 // Extract detail from backend error if available
-                if (err.response?.data?.detail) {
-                    msg = err.response.data.detail;
+                const responseDetail = (err as { response?: { data?: { detail?: unknown } } }).response?.data?.detail;
+                if (typeof responseDetail === 'string' && responseDetail.trim()) {
+                    msg = responseDetail;
                 }
                 setDevSampleError(msg);
                 // Also show in main error for visibility
@@ -199,7 +219,7 @@ export function UploadSection() {
                 setDevSampleLoading(false);
             }
         },
-        [isProcessing, devSampleLoading, fileInputRef, onFileSelect, setHasChosenModel, onJobSelect, resultsRef]
+        [isProcessing, devSampleLoading, fileInputRef, onFileSelect, setHasChosenModel, onJobSelect, resultsRef, transcribeMode, transcribeProvider]
     );
 
     // Effect for validating video when selectedFile changes
@@ -211,6 +231,7 @@ export function UploadSection() {
             setVideoInfo(null);
             setPreviewVideoUrl(null);
             setCues([]);
+            setFileValidationError(null);
             return;
         }
 
@@ -223,6 +244,13 @@ export function UploadSection() {
         validateVideoAspectRatio(selectedFile).then(info => {
             if (!isCancelled && requestId === validationRequestId.current) {
                 setVideoInfo(info);
+                if (info.durationSeconds <= 0) {
+                    setFileValidationError('Could not read video duration. Please try another file.');
+                    setPendingAutoStart(false);
+                } else if (info.durationSeconds > MAX_VIDEO_DURATION_SECONDS) {
+                    setFileValidationError('Video too long. Maximum allowed duration is 3 minutes.');
+                    setPendingAutoStart(false);
+                }
             }
         });
 
@@ -234,11 +262,11 @@ export function UploadSection() {
 
     // Auto-start processing when file is selected AND pendingAutoStart is true
     useEffect(() => {
-        if (pendingAutoStart && selectedFile && !isProcessing && !selectedJob && hasChosenModel) {
+        if (pendingAutoStart && selectedFile && videoInfo && !fileValidationError && !isProcessing && !selectedJob && hasChosenModel) {
             setPendingAutoStart(false);
             handleStart();
         }
-    }, [pendingAutoStart, selectedFile, isProcessing, selectedJob, hasChosenModel, handleStart]);
+    }, [pendingAutoStart, selectedFile, videoInfo, fileValidationError, isProcessing, selectedJob, hasChosenModel, handleStart]);
 
     const handleStepClick = useCallback((id: string) => {
         setOverrideStep(2);
@@ -258,6 +286,14 @@ export function UploadSection() {
 
             return (
                 <>
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="video/mp4,video/quicktime,video/x-matroska"
+                        onChange={handleFileChange}
+                        className="hidden"
+                        disabled={isProcessing}
+                    />
                     <div id="upload-section-compact" className="space-y-4 scroll-mt-32 animate-fade-in-up-scale">
                         <div
                             role="button"
@@ -384,20 +420,26 @@ export function UploadSection() {
                                                 // MISMATCH or NO JOB: Show "Start Processing"
                                                 // Only show if we selected a file (or have a file selected)
                                                 // If we have a job but it's mismatch, we re-process.
-                                                if (!isProcessing && (selectedFile || selectedJob)) {
-                                                    // If selectedJob is present but mismatch, we allow re-processing
-                                                    return (
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                handleStart();
-                                                            }}
-                                                            className="px-4 py-1.5 text-xs font-bold rounded-lg bg-[var(--accent)] text-[var(--background)] hover:brightness-110 shadow-lg shadow-[var(--accent)]/20 transition-all active:scale-95"
-                                                        >
-                                                            {t('startProcessing')}
-                                                        </button>
-                                                    );
-                                                }
+                                        if (!isProcessing && (selectedFile || selectedJob)) {
+                                            // If selectedJob is present but mismatch, we allow re-processing
+                                            return (
+                                                <button
+                                                    disabled={Boolean(fileValidationError)}
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        if (fileValidationError) return;
+                                                        handleStart();
+                                                    }}
+                                                    className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all active:scale-95 ${
+                                                        fileValidationError
+                                                            ? 'bg-[var(--border)] text-[var(--muted)] cursor-not-allowed'
+                                                            : 'bg-[var(--accent)] text-[var(--background)] hover:brightness-110 shadow-lg shadow-[var(--accent)]/20'
+                                                    }`}
+                                                >
+                                                    {t('startProcessing')}
+                                                </button>
+                                            );
+                                        }
                                             }
                                         })()}
                                     </>
@@ -424,6 +466,11 @@ export function UploadSection() {
                     {error && (
                         <div className="rounded-xl border border-[var(--danger)]/30 bg-[var(--danger)]/10 px-4 py-3 text-sm text-[var(--danger)] animate-fade-in">
                             {error}
+                        </div>
+                    )}
+                    {fileValidationError && (
+                        <div className="rounded-xl border border-[var(--danger)]/30 bg-[var(--danger)]/10 px-4 py-3 text-sm text-[var(--danger)] animate-fade-in">
+                            {fileValidationError}
                         </div>
                     )}
 
@@ -586,6 +633,6 @@ export function UploadSection() {
         handleStepClick, activeTheme, isDragOver, selectedModel, showDevTools,
         handleUploadCardClick, handleDragEnter, handleDragLeave, handleDragOver,
         handleDrop, fileInputRef, handleLoadDevSample, devSampleLoading,
-        devSampleError, handleFileChange
+        devSampleError, handleFileChange, fileValidationError, videoUrl, progress, statusMessage, onCancelProcessing
     ]);
 }

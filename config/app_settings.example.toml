@@ -7,4 +7,4 @@ temperature = 0.6
 
 [uploads]
 # Cap upload size (MB) for video ingestion
-max_upload_mb = 2048
+max_upload_mb = 1024

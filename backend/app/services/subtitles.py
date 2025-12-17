@@ -206,11 +206,11 @@ def _get_whisper_model(
     Load a Stable-Whisper wrapped Faster-Whisper model.
     """
     # Map "turbo" alias to the config constant (which might be large-v3 now)
-    print(f"DEBUG_RUNTIME_CONFIG: config.WHISPER_MODEL is '{config.WHISPER_MODEL}'")
+    logger.debug("Runtime whisper model config: WHISPER_MODEL=%s", config.WHISPER_MODEL)
     if model_size == "turbo":
         model_size = config.WHISPER_MODEL
 
-    print(f"DEBUG: Loading Whisper model '{model_size}' (Device: {device})")
+    logger.debug("Loading Whisper model: model=%s device=%s", model_size, device)
 
     # stable-ts wrapper for faster-whisper
     # It internally loads FasterWhisperModel and wraps it.
@@ -779,7 +779,7 @@ def create_styled_subtitle_file(
     # Convert numeric subtitle_position (percentage) to margin_v
     # Clamp to valid range (5-35% of screen height)
     subtitle_position = subtitle_position if subtitle_position is not None else 16
-    position_pct = max(5, min(80, subtitle_position))
+    position_pct = max(5, min(35, subtitle_position))
     final_margin_v = int(play_res_y * position_pct / 100)
     final_alignment = alignment  # Default alignment (2 = bottom center)
 
@@ -1129,10 +1129,10 @@ def _wrap_word_timings(
             continue
 
         # Case 2: Word does not fit
-        # For WordTiming, we generally avoid splitting active words mid-word 
+        # For WordTiming, we generally avoid splitting active words mid-word
         # unless absolutely necessary because it complicates timing significantly.
         # Simple strategy: Move to next line.
-        
+
         # If current line is not empty, push it and start new line
         if current_line:
             lines.append(current_line)
@@ -1149,7 +1149,7 @@ def _wrap_word_timings(
         else:
              current_line = [word]
              current_length = word_len
-    
+
     if current_line:
         lines.append(current_line)
 
@@ -1171,20 +1171,20 @@ def _format_karaoke_text(
 
     # Use _wrap_word_timings to splits WordTiming objects into LINES (not pages)
     lines_of_words = _wrap_word_timings(cue.words, max_chars=max_chars, max_lines=max_lines)
-    
+
     ass_lines = []
     current_time = cue.start
-    
+
     for line_words in lines_of_words:
         line_parts = []
         for i, word in enumerate(line_words):
             # Calculate gap from previous event
             gap = word.start - current_time
-            
+
             # Determine prefix (space or gap filler)
             # If not the very first word of the line, we usually want a space visual
             prefix = " " if i > 0 else ""
-            
+
             if gap > 0.01:
                 # Significant gap: assign it to the prefix
                 gap_cs = int(round(gap * 100))
@@ -1192,18 +1192,18 @@ def _format_karaoke_text(
             elif i > 0:
                 # No significant gap, but we have a space.
                 line_parts.append(prefix)
-            
+
             # Duration of the word itself
             dur = word.end - word.start
             dur_cs = int(round(dur * 100))
             if dur_cs < 1: dur_cs = 1 # Minimal duration
-            
+
             line_parts.append(f"{{\\k{dur_cs}}}{word.text}")
-            
+
             current_time = word.end
-            
+
         ass_lines.append("".join(line_parts))
-        
+
     return "\\N".join(ass_lines)
 
 

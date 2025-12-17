@@ -50,13 +50,14 @@ def _link_or_copy_file(source: Path, destination: Path) -> None:
 
 from pydantic import BaseModel
 
+
 class DevSampleRequest(BaseModel):
     provider: str | None = None
     model_size: str | None = None
 
 def _resolve_sample_source(
-    uploads_dir: Path, 
-    artifacts_root: Path, 
+    uploads_dir: Path,
+    artifacts_root: Path,
     job_store: JobStore,
     req: DevSampleRequest
 ) -> tuple[str, Path, Path]:
@@ -68,10 +69,10 @@ def _resolve_sample_source(
     """
     preferred = os.getenv("GSP_DEV_SAMPLE_JOB_ID")
     candidates: list[str] = []
-    
+
     # 1. Gather all candidates from artifacts directory
     all_candidates = sorted({p.parent.name for p in artifacts_root.glob("*/transcription.json")})
-    
+
     # 2. If filtering is requested, check job store
     if req.provider or req.model_size:
         filtered_candidates = []
@@ -79,18 +80,18 @@ def _resolve_sample_source(
             job = job_store.get_job(job_id)
             if not job or not job.result_data:
                 continue
-            
+
             # Check match
             job_provider = job.result_data.get("transcribe_provider")
             job_model = job.result_data.get("model_size")
-            
+
             # Loose matching: if req param is None, it ignores it.
             match_provider = (not req.provider) or (job_provider == req.provider)
             match_model = (not req.model_size) or (job_model == req.model_size)
-            
+
             if match_provider and match_model:
                 filtered_candidates.append(job_id)
-        
+
         # If we found matches, use them. If not, we fall through?
         # User requested specific model alignment. If we fallback, it breaks expectation.
         # But we can fallback to *any* if we fail? strict=False?
@@ -105,7 +106,7 @@ def _resolve_sample_source(
              # If explicit filter was requested but nothing found, we should probably fail check logic below
              # But for now let's set candidates empty to trigger 404
              candidates = []
-             
+
     else:
         # No filter, use preferred or all
         if preferred:
@@ -116,11 +117,11 @@ def _resolve_sample_source(
     for job_id in candidates:
         artifact_dir = artifacts_root / job_id
         transcription_json = artifact_dir / "transcription.json"
-        
+
         # Double check existence (redundant matching check but safe)
         if not transcription_json.exists():
             continue
-            
+
         for ext in (".mp4", ".mov", ".mkv"):
             input_path = uploads_dir / f"{job_id}_input{ext}"
             if input_path.exists():
@@ -157,10 +158,10 @@ def create_sample_job(
     # ... Rest logic is similar but we need to fetch source job data to replicate result_data properly?
     # The original implementation hardcoded some result_data defaults but kept source job_id.
     # We should arguably copy result_data from source job if available + update paths.
-    
+
     source_job = job_store.get_job(source_job_id)
     base_result_data = source_job.result_data if source_job and source_job.result_data else {}
-    
+
     job_id = str(uuid.uuid4())
     job_store.create_job(job_id, current_user.id)
 
@@ -193,7 +194,7 @@ def create_sample_job(
         "transcribe_provider": result_data.get("transcribe_provider", "dev-sample"),
         "dev_sample_source_job_id": source_job_id,
     })
-    
+
     # Ensure defaults like resolution exist for UI if missing in source
     defaults = {
          "resolution": "",

@@ -1,9 +1,11 @@
+import logging
 import os
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.responses import FileResponse, RedirectResponse
 from secure import (
     ContentSecurityPolicy,
     ReferrerPolicy,
@@ -20,11 +22,17 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from backend.app.api.endpoints import auth, dev, history, tiktok, videos
 from backend.app.core import config
 from backend.app.core.env import get_app_env, is_dev_env
+from backend.app.core.gcs import generate_signed_download_url, get_gcs_settings
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Greek Sub Publisher API",
     description="Backend API for Greek Sub Publisher Video Processing",
-    version="2.0.0"
+    version="2.0.0",
+    docs_url="/docs" if is_dev_env() else None,
+    redoc_url="/redoc" if is_dev_env() else None,
+    openapi_url="/openapi.json" if is_dev_env() else None,
 )
 
 
@@ -34,29 +42,39 @@ def _env_list(key: str, default: list[str]) -> list[str]:
         return default
     return [item.strip() for item in value.split(",") if item.strip()]
 
-# Configure CORS
-default_origins = [
-    "http://localhost:3000",  # Next.js frontend
-    "http://127.0.0.1:3000",
-    "http://localhost:8000",
-    "http://127.0.0.1:8000",
-    "http://localhost:8080",
-    "http://127.0.0.1:8080",
-]
+# Configure CORS (secure-by-default in production)
+default_origins = (
+    [
+        "http://localhost:3000",  # Next.js frontend
+        "http://127.0.0.1:3000",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://localhost:8080",
+        "http://127.0.0.1:8080",
+    ]
+    if is_dev_env()
+    else []
+)
 origins = _env_list("GSP_ALLOWED_ORIGINS", default_origins)
+if not is_dev_env() and not origins:
+    raise RuntimeError("GSP_ALLOWED_ORIGINS must be set in production")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
-trusted_hosts = _env_list(
-    "GSP_TRUSTED_HOSTS",
-    ["localhost", "127.0.0.1", "0.0.0.0", "[::1]", "*"],  # Allow all for Cloud Run
+default_trusted_hosts = (
+    ["localhost", "127.0.0.1", "0.0.0.0", "[::1]", "testserver"]
+    if is_dev_env()
+    else ["*.run.app", "*.a.run.app"]
 )
+trusted_hosts = _env_list("GSP_TRUSTED_HOSTS", default_trusted_hosts)
+if not is_dev_env() and "*" in trusted_hosts:
+    raise RuntimeError("GSP_TRUSTED_HOSTS cannot include '*' in production")
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=trusted_hosts)
 
 # Harden default security headers; CSP is conservative for API-only responses
@@ -81,8 +99,8 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
         await self.secure_headers.set_headers_async(response)
-        # Avoid sending HSTS on cleartext requests to keep dev/proxy setups flexible.
-        if request.url.scheme not in ("https", "wss"):
+        # Avoid sending HSTS on cleartext requests to keep local dev/proxy setups flexible.
+        if is_dev_env() and request.url.scheme not in ("https", "wss"):
             if "Strict-Transport-Security" in response.headers:
                 del response.headers["Strict-Transport-Security"]
         return response
@@ -97,19 +115,29 @@ app.add_middleware(
 if os.getenv("GSP_FORCE_HTTPS", "0") == "1":
     app.add_middleware(HTTPSRedirectMiddleware)
 
-# Ensure we trust X-Forwarded-For headers from Cloud Run Load Balancer
-# This must be added last (executed first) to ensure request.client.host is correct
-# for rate limiting and logging.
-app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
+# Trust proxy headers only from known proxy networks (Cloud Run / local dev).
+# Added last (executed first) so request.client.host & scheme are correct.
+proxy_trusted_hosts: list[str] | str = (
+    "*"
+    if is_dev_env()
+    else _env_list(
+        "GSP_PROXY_TRUSTED_HOSTS",
+        [
+            "127.0.0.1",
+            "::1",
+            "10.0.0.0/8",
+            "172.16.0.0/12",
+            "192.168.0.0/16",
+        ],
+    )
+)
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=proxy_trusted_hosts)
 
 # Mount Static Files with Directory Listing
 # config.PROJECT_ROOT is the project root, e.g. /path/to/Subs_And_Export_Project
 # Use PROJECT_ROOT/data for all artifacts (consistent with videos.py)
 DATA_DIR = config.PROJECT_ROOT / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
-
-from fastapi import HTTPException
-from fastapi.responses import FileResponse
 
 
 @app.get("/static/{file_path:path}")
@@ -122,15 +150,24 @@ async def serve_static(file_path: str):
     except ValueError:
         raise HTTPException(status_code=403, detail="Access denied")
 
-    if not full_path.exists():
-        raise HTTPException(status_code=404, detail="File not found")
-
     if full_path.is_file():
         return FileResponse(full_path)
 
     if full_path.is_dir():
         # Security: Disable directory listing to prevent information disclosure
         raise HTTPException(status_code=404, detail="Not found")
+
+    gcs_settings = get_gcs_settings()
+    if gcs_settings:
+        object_name = f"{gcs_settings.static_prefix}/{file_path.strip('/')}"
+        try:
+            signed_url = generate_signed_download_url(settings=gcs_settings, object_name=object_name)
+            return RedirectResponse(url=signed_url, status_code=302)
+        except Exception:
+            pass
+
+    if not full_path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
 
     raise HTTPException(status_code=404, detail="Not found")
 

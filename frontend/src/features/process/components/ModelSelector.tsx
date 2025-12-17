@@ -17,6 +17,13 @@ export function ModelSelector() {
         currentStep,
     } = useProcessContext();
 
+    const scrollToUploadStep = useCallback(() => {
+        const target =
+            document.getElementById('upload-section') ??
+            document.getElementById('upload-section-compact');
+        target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, []);
+
     const modelGrid = useMemo(() => (
         <div
             role="radiogroup"
@@ -55,11 +62,7 @@ export function ModelSelector() {
                             // Do NOT clear job here. We want to persist it until new upload or new start.
                             // onJobSelect(null);
 
-                            if (!isSelected) {
-                                setTimeout(() => {
-                                    document.getElementById('upload-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                                }, 100);
-                            }
+                            setTimeout(scrollToUploadStep, 100);
                         }}
                         className={`p-4 rounded-xl border text-left transition-all duration-300 relative overflow-hidden group flex flex-col h-full ${isSelected
                             ? `${model.colorClass(true)} scale-[1.02] shadow-lg ring-1`
@@ -120,7 +123,7 @@ export function ModelSelector() {
                 );
             })}
         </div>
-    ), [AVAILABLE_MODELS, transcribeProvider, transcribeMode, hasChosenModel, t, setTranscribeProvider, setTranscribeMode, setHasChosenModel, setOverrideStep, onJobSelect]);
+    ), [AVAILABLE_MODELS, transcribeProvider, transcribeMode, hasChosenModel, t, setTranscribeProvider, setTranscribeMode, setHasChosenModel, setOverrideStep, onJobSelect, scrollToUploadStep]);
 
     const handleStepClick = useCallback(() => {
         setOverrideStep(1);

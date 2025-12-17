@@ -42,17 +42,20 @@ class TestTikTokEndpoints:
         # Login
         client.post("/auth/register", json={"email": "c@e.com", "password": "testpassword123", "name": "C"})
         token = client.post("/auth/token", data={"username": "c@e.com", "password": "testpassword123"}).json()["access_token"]
+        headers = {"Authorization": f"Bearer {token}"}
+
+        state = client.get("/tiktok/url", headers=headers).json()["state"]
 
         response = client.post(
             "/tiktok/callback",
-            json={"code": "123", "state": "s"},
-            headers={"Authorization": f"Bearer {token}"}
+            json={"code": "123", "state": state},
+            headers=headers
         )
         assert response.status_code == 200
         assert response.json()["access_token"] == "acc"
 
         # Verify history
-        h_res = client.get("/history/", headers={"Authorization": f"Bearer {token}"})
+        h_res = client.get("/history/", headers=headers)
         assert h_res.status_code == 200
         events = h_res.json()
         assert len(events) > 0

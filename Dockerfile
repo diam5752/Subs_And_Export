@@ -36,7 +36,7 @@ RUN pip install --no-cache-dir /wheels/* && rm -rf /wheels
 COPY backend/ .
 
 # Create directories for data and logs
-RUN mkdir -p /data/uploads /data/artifacts /app/logs
+RUN mkdir -p /data/uploads /data/artifacts /logs /app/logs /app/data/uploads /app/data/artifacts
 
 # Whisper model cache directory (mount as volume for persistence)
 ENV HF_HOME=/models
@@ -52,6 +52,12 @@ ENV PYTHONUNBUFFERED=1
 
 # Create symlink so 'backend.app' imports work (codebase uses mixed import styles)
 RUN ln -s /app /app/backend
+
+# Drop root privileges for runtime.
+# Cloud Run runs containers as root by default; use a dedicated unprivileged user instead.
+RUN useradd --create-home --uid 10001 --user-group --shell /usr/sbin/nologin appuser \
+    && chown -R appuser:appuser /data /logs /models /app/logs /app/data
+USER appuser
 
 # Default environment (override via Cloud Run env vars)
 ENV APP_ENV=production

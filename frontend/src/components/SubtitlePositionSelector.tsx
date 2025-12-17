@@ -94,7 +94,7 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
             videoRef.current.pause();
             setIsPlaying(false);
         }
-    }, []);
+    }, [setIsPlaying]);
 
     const toggleMute = useCallback((e: React.MouseEvent) => {
         e.stopPropagation();
@@ -125,7 +125,7 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
         }
     };
 
-    // Map numeric position (5-50) to CSS 'bottom' percentage for preview
+    // Map numeric position (5-35) to CSS 'bottom' percentage for preview
     // Scaled to provide good visual spread (approx 18% to 85%)
     const getPreviewBottom = (pos: number) => {
         return `${pos * 1.5 + 10}%`;
@@ -135,9 +135,9 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
 
     // Preset tick marks for position
     const positionPresets = [
-        { value: 15, label: t('positionLow') },
-        { value: 30, label: t('positionMiddle') },
-        { value: 45, label: t('positionHigh') },
+        { value: 10, label: t('positionLow') },
+        { value: 20, label: t('positionMiddle') },
+        { value: 30, label: t('positionHigh') },
     ];
 
     // Preset tick marks for size
@@ -286,7 +286,7 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
                                                 {/* Subtitle line indicator */}
                                                 <div
                                                     className="absolute left-1 right-1 h-1 bg-[var(--accent)] rounded-full transition-all duration-200 shadow-[0_0_6px_var(--accent)]"
-                                                    style={{ bottom: `${20 + ((value - 5) / 45) * 65}%` }}
+                                                    style={{ bottom: `${20 + ((value - 5) / 30) * 65}%` }}
                                                 />
                                             </div>
                                         </div>
@@ -297,7 +297,7 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
                                                 id={positionLabelId}
                                                 type="range"
                                                 min={5}
-                                                max={50}
+                                                max={35}
                                                 value={value}
                                                 onChange={(e) => {
                                                     e.stopPropagation();
@@ -322,7 +322,7 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
                                                     [&::-moz-range-thumb]:shadow-lg
                                                     [&::-moz-range-thumb]:cursor-pointer"
                                                 style={{
-                                                    background: `linear-gradient(to right, var(--accent) 0%, var(--accent) ${((value - 5) / 45) * 100}%, var(--border) ${((value - 5) / 45) * 100}%, var(--border) 100%)`
+                                                    background: `linear-gradient(to right, var(--accent) 0%, var(--accent) ${((value - 5) / 30) * 100}%, var(--border) ${((value - 5) / 30) * 100}%, var(--border) 100%)`
                                                 }}
                                             />
                                             {/* Preset Tick Marks */}

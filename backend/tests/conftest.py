@@ -15,13 +15,21 @@ def client(tmp_path, monkeypatch) -> TestClient:
     monkeypatch.setenv("APP_ENV", "dev")
     monkeypatch.setenv("GSP_DATABASE_PATH", str(tmp_path / "app.db"))
 
+    from backend.app.api.endpoints import videos as videos_endpoints
     from backend.app.core import ratelimit
+    from backend.app.services.video_processing import MediaProbe
     from backend.main import app
 
     ratelimit.limiter_login.reset()
     ratelimit.limiter_register.reset()
     ratelimit.limiter_processing.reset()
     ratelimit.limiter_content.reset()
+
+    monkeypatch.setattr(
+        videos_endpoints,
+        "probe_media",
+        lambda _path: MediaProbe(duration_s=10.0, audio_codec="aac"),
+    )
 
     with TestClient(app) as test_client:
         yield test_client

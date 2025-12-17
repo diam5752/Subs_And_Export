@@ -114,6 +114,7 @@ describe('video utils', () => {
             expect(result).toEqual({
                 width: 1080,
                 height: 1920,
+                durationSeconds: 10,
                 aspectWarning: false,
                 thumbnailUrl: 'data:image/jpeg;base64,test',
             });
@@ -142,6 +143,7 @@ describe('video utils', () => {
             expect(result).toEqual({
                 width: 0,
                 height: 0,
+                durationSeconds: 10,
                 aspectWarning: true,
                 thumbnailUrl: null,
             });

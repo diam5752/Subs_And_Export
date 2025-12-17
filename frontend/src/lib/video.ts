@@ -31,7 +31,7 @@ export const describeResolutionString = (resolution?: string | null): { text: st
     return describeResolution(parsed.width, parsed.height);
 };
 
-export const validateVideoAspectRatio = (file: File): Promise<{ width: number; height: number; aspectWarning: boolean; thumbnailUrl: string | null }> => {
+export const validateVideoAspectRatio = (file: File): Promise<{ width: number; height: number; aspectWarning: boolean; thumbnailUrl: string | null; durationSeconds: number }> => {
     return new Promise((resolve) => {
         const video = document.createElement('video');
         const objectUrl = URL.createObjectURL(file);
@@ -60,10 +60,11 @@ export const validateVideoAspectRatio = (file: File): Promise<{ width: number; h
             resolved = true;
             const width = video.videoWidth || 0;
             const height = video.videoHeight || 0;
+            const durationSeconds = Number.isFinite(video.duration) ? video.duration : 0;
             const ratio = width && height ? width / height : 0;
             const is916 = ratio >= 0.5 && ratio <= 0.625;
             cleanup();
-            resolve({ width, height, aspectWarning: !is916, thumbnailUrl });
+            resolve({ width, height, durationSeconds, aspectWarning: !is916, thumbnailUrl });
         };
 
         const captureFrame = () => {

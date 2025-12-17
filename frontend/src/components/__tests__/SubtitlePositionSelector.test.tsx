@@ -42,7 +42,10 @@ describe('SubtitlePositionSelector', () => {
         render(<SubtitlePositionSelector {...defaultProps} />);
 
         // Verify accessible label
-        expect(screen.getByLabelText('positionLabel')).toHaveAttribute('type', 'range');
+        const slider = screen.getByLabelText('positionLabel');
+        expect(slider).toHaveAttribute('type', 'range');
+        expect(slider).toHaveAttribute('min', '5');
+        expect(slider).toHaveAttribute('max', '35');
 
         // Presets
         expect(screen.getByText('positionLow')).toBeInTheDocument();
@@ -61,7 +64,7 @@ describe('SubtitlePositionSelector', () => {
         render(<SubtitlePositionSelector {...defaultProps} />);
 
         fireEvent.click(screen.getByText('positionHigh'));
-        expect(defaultProps.onChange).toHaveBeenCalledWith(45);
+        expect(defaultProps.onChange).toHaveBeenCalledWith(30);
     });
 
     it('calls onChangeLines when line option is clicked', () => {

@@ -1,4 +1,5 @@
-from backend.app.core.auth import UserStore, Database
+from backend.app.core.auth import UserStore
+
 
 def test_sso_persistence_vulnerability(tmp_path):
     """

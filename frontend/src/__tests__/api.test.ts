@@ -2,10 +2,13 @@
 global.fetch = jest.fn();
 
 describe('API Client', () => {
+    const originalXMLHttpRequest = global.XMLHttpRequest;
+
     beforeEach(() => {
         (fetch as jest.Mock).mockClear();
         localStorage.clear();
         jest.resetModules();
+        global.XMLHttpRequest = originalXMLHttpRequest;
     });
 
     describe('login', () => {
@@ -154,6 +157,166 @@ describe('API Client', () => {
             expect(formData.get('max_subtitle_lines')).toBe('2');
             expect(formData.get('subtitle_size')).toBe('100');
             expect(formData.get('karaoke_enabled')).toBe('true');
+        });
+    });
+
+    describe('createGcsUploadUrl', () => {
+        it('should request a signed upload URL', async () => {
+            const mockResponse = {
+                upload_id: 'u1',
+                object_name: 'uploads/u/file.mp4',
+                upload_url: 'https://signed.example/upload',
+                expires_at: 123,
+                required_headers: { 'Content-Type': 'video/mp4' },
+            };
+
+            (fetch as jest.Mock).mockResolvedValueOnce({
+                ok: true,
+                json: async () => mockResponse,
+            });
+
+            const { api } = await import('@/lib/api');
+            const file = new File(['video'], 'test.mp4', { type: 'video/mp4' });
+            const result = await api.createGcsUploadUrl(file);
+
+            expect(fetch).toHaveBeenCalledWith(
+                expect.stringContaining('/videos/gcs/upload-url'),
+                expect.objectContaining({
+                    method: 'POST',
+                    body: JSON.stringify({
+                        filename: 'test.mp4',
+                        content_type: 'video/mp4',
+                        size_bytes: file.size,
+                    }),
+                }),
+            );
+            expect(result.upload_url).toBe('https://signed.example/upload');
+        });
+    });
+
+    describe('uploadToSignedUrl', () => {
+        it('should upload via XMLHttpRequest with progress', async () => {
+            const open = jest.fn();
+            const setRequestHeader = jest.fn();
+            const send = jest.fn();
+            const upload: Record<string, unknown> = {};
+            let onload: (() => void) | null = null;
+
+            const xhrMock = {
+                open,
+                setRequestHeader,
+                send,
+                upload,
+                status: 200,
+                set onload(fn: (() => void) | null) {
+                    onload = fn;
+                },
+                get onload() {
+                    return onload;
+                },
+                onerror: null as null | (() => void),
+            };
+
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (global as any).XMLHttpRequest = jest.fn(() => xhrMock);
+
+            const { api } = await import('@/lib/api');
+            const file = new File(['video'], 'test.mp4', { type: 'video/mp4' });
+            const onProgress = jest.fn();
+
+            const promise = api.uploadToSignedUrl('https://signed.example/upload', file, 'video/mp4', onProgress);
+
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (xhrMock.upload as any).onprogress({ lengthComputable: true, loaded: 50, total: 100 });
+            onload?.();
+
+            await promise;
+
+            expect(open).toHaveBeenCalledWith('PUT', 'https://signed.example/upload');
+            expect(setRequestHeader).toHaveBeenCalledWith('Content-Type', 'video/mp4');
+            expect(send).toHaveBeenCalledWith(file);
+            expect(onProgress).toHaveBeenCalledWith(50);
+        });
+
+        it('should reject on non-2xx status', async () => {
+            const open = jest.fn();
+            const setRequestHeader = jest.fn();
+            const send = jest.fn();
+            const upload: Record<string, unknown> = {};
+            let onload: (() => void) | null = null;
+
+            const xhrMock = {
+                open,
+                setRequestHeader,
+                send,
+                upload,
+                status: 403,
+                set onload(fn: (() => void) | null) {
+                    onload = fn;
+                },
+                get onload() {
+                    return onload;
+                },
+                onerror: null as null | (() => void),
+            };
+
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (global as any).XMLHttpRequest = jest.fn(() => xhrMock);
+
+            const { api } = await import('@/lib/api');
+            const file = new File(['video'], 'test.mp4', { type: 'video/mp4' });
+
+            const promise = api.uploadToSignedUrl('https://signed.example/upload', file, 'video/mp4');
+            onload?.();
+
+            await expect(promise).rejects.toThrow('Upload failed with status 403');
+        });
+    });
+
+    describe('processVideoFromGcs', () => {
+        it('should start processing using an upload id', async () => {
+            const mockResponse = {
+                id: 'job-123',
+                status: 'pending',
+                progress: 0,
+                message: null,
+                created_at: Date.now(),
+                updated_at: Date.now(),
+                result_data: null,
+            };
+
+            (fetch as jest.Mock).mockResolvedValueOnce({
+                ok: true,
+                json: async () => mockResponse,
+            });
+
+            const { api } = await import('@/lib/api');
+            const result = await api.processVideoFromGcs('upload-123', { transcribe_provider: 'local' });
+
+            expect(fetch).toHaveBeenCalledWith(
+                expect.stringContaining('/videos/gcs/process'),
+                expect.objectContaining({
+                    method: 'POST',
+                    body: JSON.stringify({
+                        upload_id: 'upload-123',
+                        transcribe_model: 'medium',
+                        transcribe_provider: 'local',
+                        openai_model: '',
+                        video_quality: 'balanced',
+                        video_resolution: '',
+                        use_llm: false,
+                        context_prompt: '',
+                        subtitle_position: 16,
+                        max_subtitle_lines: 2,
+                        subtitle_color: null,
+                        shadow_strength: 4,
+                        highlight_style: 'karaoke',
+                        subtitle_size: 100,
+                        karaoke_enabled: true,
+                    }),
+                }),
+            );
+            expect(result.id).toBe('job-123');
         });
     });
 

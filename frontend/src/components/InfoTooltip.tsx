@@ -63,10 +63,7 @@ export function InfoTooltip({ ariaLabel, children }: InfoTooltipProps) {
     }, []);
 
     useLayoutEffect(() => {
-        if (!open) {
-            setLayout(null);
-            return;
-        }
+        if (!open) return;
         updateLayout();
     }, [open, updateLayout]);
 

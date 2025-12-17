@@ -1,14 +1,22 @@
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, Field
 
 from ...core.auth import SessionStore, User, UserStore
+from ...core.oauth_state import OAuthStateStore
 from ...core.ratelimit import limiter_login, limiter_register
 from ...services.history import HistoryStore
 from ...services.jobs import JobStore
-from ..deps import get_current_user, get_history_store, get_job_store, get_session_store, get_user_store
+from ..deps import (
+    get_current_user,
+    get_history_store,
+    get_job_store,
+    get_oauth_state_store,
+    get_session_store,
+    get_user_store,
+)
 
 router = APIRouter()
 
@@ -197,8 +205,6 @@ def delete_account(
 
 
 # Google OAuth
-import secrets
-
 from ...core.auth import build_google_flow, exchange_google_code, google_oauth_config
 
 
@@ -207,13 +213,21 @@ class GoogleAuthURL(BaseModel):
     state: str
 
 @router.get("/google/url", response_model=GoogleAuthURL)
-def get_google_auth_url() -> Any:
+def get_google_auth_url(
+    request: Request,
+    oauth_state_store: OAuthStateStore = Depends(get_oauth_state_store),
+) -> Any:
     """Get Google OAuth URL for frontend to redirect to."""
     cfg = google_oauth_config()
     if not cfg:
         raise HTTPException(status_code=503, detail="Google OAuth not configured")
 
-    state = secrets.token_urlsafe(16)
+    state = oauth_state_store.issue_state(
+        provider="google",
+        user_id=None,
+        user_agent=request.headers.get("user-agent"),
+        ip=request.client.host if request.client else None,
+    )
     flow = build_google_flow(cfg)
     auth_url, _ = flow.authorization_url(
         access_type='offline',
@@ -230,8 +244,10 @@ class GoogleCallback(BaseModel):
 @router.post("/google/callback", response_model=Token, dependencies=[Depends(limiter_login)])
 def google_oauth_callback(
     callback: GoogleCallback,
+    request: Request,
     user_store: UserStore = Depends(get_user_store),
     session_store: SessionStore = Depends(get_session_store),
+    oauth_state_store: OAuthStateStore = Depends(get_oauth_state_store),
 ) -> Any:
     """Handle Google OAuth callback and issue session token."""
     cfg = google_oauth_config()
@@ -239,6 +255,15 @@ def google_oauth_callback(
         raise HTTPException(status_code=503, detail="Google OAuth not configured")
 
     try:
+        if not oauth_state_store.consume_state(
+            provider="google",
+            state=callback.state,
+            user_id=None,
+            user_agent=request.headers.get("user-agent"),
+            ip=request.client.host if request.client else None,
+        ):
+            raise HTTPException(status_code=400, detail="Invalid OAuth state")
+
         profile = exchange_google_code(cfg, callback.code)
         user = user_store.upsert_google_user(
             profile["email"], profile["name"], profile.get("sub") or ""

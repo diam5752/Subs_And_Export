@@ -13,7 +13,8 @@ from . import config
 DEFAULT_USE_LLM = False
 DEFAULT_LLM_MODEL = config.SOCIAL_LLM_MODEL
 DEFAULT_LLM_TEMPERATURE = 0.6
-DEFAULT_MAX_UPLOAD_MB = 2048
+DEFAULT_MAX_UPLOAD_MB = 1024
+HARD_MAX_UPLOAD_MB = 1024
 
 
 @dataclass(frozen=True)
@@ -50,6 +51,12 @@ def _coerce_float(value: object, fallback: float) -> float:
         return fallback
 
 
+def _clamp_upload_mb(value: int) -> int:
+    if value <= 0:
+        return DEFAULT_MAX_UPLOAD_MB
+    return min(value, HARD_MAX_UPLOAD_MB)
+
+
 def load_app_settings(path: str | Path | None = None) -> AppSettings:
     """
     Load app settings from a TOML file, falling back to sensible defaults.
@@ -82,5 +89,5 @@ def load_app_settings(path: str | Path | None = None) -> AppSettings:
         use_llm_by_default=_coerce_bool(ai.get("enable_by_default"), DEFAULT_USE_LLM),
         llm_model=str(ai.get("model", DEFAULT_LLM_MODEL)),
         llm_temperature=_coerce_float(ai.get("temperature"), DEFAULT_LLM_TEMPERATURE),
-        max_upload_mb=_coerce_int(uploads.get("max_upload_mb"), DEFAULT_MAX_UPLOAD_MB),
+        max_upload_mb=_clamp_upload_mb(_coerce_int(uploads.get("max_upload_mb"), DEFAULT_MAX_UPLOAD_MB)),
     )
