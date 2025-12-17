@@ -155,6 +155,24 @@ interface ProcessProviderProps {
 export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
     const { t } = useI18n();
 
+
+    // Helper to get initial value from localStorage or default
+    const getInitialValue = <T,>(key: keyof LastUsedSettings, defaultValue: T): T => {
+        if (typeof window === 'undefined') return defaultValue;
+        try {
+            const stored = localStorage.getItem(LAST_USED_SETTINGS_KEY);
+            if (stored) {
+                const parsed = JSON.parse(stored);
+                if (parsed && parsed[key] !== undefined) {
+                    return parsed[key];
+                }
+            }
+        } catch {
+            // Ignore errors
+        }
+        return defaultValue;
+    };
+
     const [hasChosenModel, setHasChosenModel] = useState<boolean>(() => Boolean(props.selectedFile));
     const [transcribeMode, setTranscribeMode] = useState<TranscribeMode | null>(() =>
         props.selectedFile ? 'turbo' : null
@@ -163,15 +181,18 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
         props.selectedFile ? 'local' : null
     );
 
-    const [subtitlePosition, setSubtitlePosition] = useState<number>(16);
-    const [maxSubtitleLines, setMaxSubtitleLines] = useState(0);
-    const [subtitleColor, setSubtitleColor] = useState<string>('#FFFF00');
-    const [subtitleSize, setSubtitleSize] = useState<number>(100);
-    const [karaokeEnabled, setKaraokeEnabled] = useState(true);
+    // Initial values with priority: LocalStorage > Defaults
+    // Defaults: Position: 30 (Middle), Size: 85 (Medium), Lines: 2 (Double), Color: Yellow, Karaoke: True
+    const [subtitlePosition, setSubtitlePosition] = useState<number>(() => getInitialValue('position', 20));
+    const [maxSubtitleLines, setMaxSubtitleLines] = useState(() => getInitialValue('lines', 2));
+    const [subtitleColor, setSubtitleColor] = useState<string>(() => getInitialValue('color', '#FFFF00'));
+    const [subtitleSize, setSubtitleSize] = useState<number>(() => getInitialValue('size', 85));
+    const [karaokeEnabled, setKaraokeEnabled] = useState(() => getInitialValue('karaoke', true));
+
     const [shadowStrength] = useState<number>(4);
 
     const [activeSidebarTab, setActiveSidebarTab] = useState<'transcript' | 'styles'>('transcript');
-    const [activePreset, setActivePreset] = useState<string | null>('tiktok');
+    const [activePreset, setActivePreset] = useState<string | null>(null); // No preset active by default if we load custom settings
 
     const [videoInfo, setVideoInfo] = useState<{ width: number; height: number; aspectWarning: boolean; thumbnailUrl: string | null } | null>(null);
     const [previewVideoUrl, setPreviewVideoUrl] = useState<string | null>(null);
@@ -209,7 +230,7 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
         return props.buildStaticUrl(props.selectedJob?.result_data?.public_url || props.selectedJob?.result_data?.video_path);
     }, [props]);
 
-    // Last Used Settings
+    // Last Used Settings State (synced with above, mainly for context access if needed directly)
     const [lastUsedSettings, setLastUsedSettings] = useState<LastUsedSettings | null>(() => {
         if (typeof window === 'undefined') return null;
         try {
