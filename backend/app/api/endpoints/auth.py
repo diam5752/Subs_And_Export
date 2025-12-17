@@ -224,8 +224,8 @@ def get_google_auth_url() -> Any:
 
 
 class GoogleCallback(BaseModel):
-    code: str
-    state: str
+    code: str = Field(..., max_length=4096)
+    state: str = Field(..., max_length=1024)
 
 @router.post("/google/callback", response_model=Token, dependencies=[Depends(limiter_login)])
 def google_oauth_callback(

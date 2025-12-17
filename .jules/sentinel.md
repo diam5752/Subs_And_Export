@@ -88,3 +88,8 @@
 **Vulnerability:** The `/videos/process` endpoint accepted unbounded strings for `transcribe_provider`, `openai_model`, and `video_resolution` form fields. While primary fields were validated, these secondary fields could allow large payloads, potentially leading to DoS or memory exhaustion.
 **Learning:** Form parameters in FastAPI (even with default values) do not automatically enforce length limits. Manual validation is required unless Pydantic models are used for the form body (which is complex with file uploads).
 **Prevention:** Explicitly check `len(field) > MAX` for all `Form()` parameters in file upload endpoints.
+
+## 2025-07-02 - [Medium] Missing Input Length Limits on OAuth Callbacks
+**Vulnerability:** `GoogleCallback` and `TikTokCallback` lacked `max_length` constraints on `code` and `state` fields, allowing potential DoS via memory exhaustion or large payloads.
+**Learning:** Input models used for callbacks (OAuth) are often overlooked because they feel like "internal" or "machine-to-machine" inputs, but they are publicly exposed via the callback URL.
+**Prevention:** Audit all input models, including those used for third-party callbacks, and strictly enforce `max_length` on all string fields.
