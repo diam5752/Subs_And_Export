@@ -34,8 +34,8 @@ def get_tiktok_auth_url(
     return {"auth_url": url, "state": state}
 
 class TikTokCallback(BaseModel):
-    code: str
-    state: str
+    code: str = Field(..., max_length=4096)
+    state: str = Field(..., max_length=1024)
 
 @router.post("/callback", dependencies=[Depends(limiter_login)])
 def tiktok_callback(
