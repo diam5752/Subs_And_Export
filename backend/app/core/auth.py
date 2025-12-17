@@ -93,8 +93,10 @@ class UserStore:
                 "SELECT * FROM users WHERE email = ?", (email,)
             ).fetchone()
             if row:
+                # Security: Clear password hash when converting to Google SSO
+                # to prevent "shadow" local credentials that cannot be managed.
                 conn.execute(
-                    "UPDATE users SET name = ?, google_sub = ?, provider = ? WHERE email = ?",
+                    "UPDATE users SET name = ?, google_sub = ?, provider = ?, password_hash = NULL WHERE email = ?",
                     (name, sub, "google", email),
                 )
                 updated = conn.execute(
