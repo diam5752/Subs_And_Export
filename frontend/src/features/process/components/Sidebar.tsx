@@ -204,7 +204,11 @@ export function Sidebar() {
                     ) : (
                         <div className="animate-fade-in pr-2">
                             {/* Style Presets Grid */}
-                            <div className="grid grid-cols-2 gap-3 mb-6">
+                            <div
+                                className="grid grid-cols-2 gap-3 mb-6"
+                                role="radiogroup"
+                                aria-label={t('tabStyles') || 'Style Presets'}
+                            >
                                 {STYLE_PRESETS.map((preset) => {
                                     return (
                                         <button
