@@ -9,3 +9,7 @@
 ## 2025-02-24 - [Context Thrashing in High-Frequency Updates]
 **Learning:** Consuming a large Context in child components causes them to re-render whenever *any* part of the Context changes (e.g., `currentTime` updating 60fps during playback), even if the child only uses static properties (e.g., `AVAILABLE_MODELS`). `React.memo` on the child component itself is insufficient because the Context hook hook is a hidden dependency that bypasses the memo check.
 **Action:** Wrap the *return value* of the context-consuming component in `useMemo`, including only the strictly necessary bits of the context in the dependency array. This isolates the DOM generation from the context updates.
+
+## 2025-05-23 - [Memoizing Sidebar Sub-components]
+**Learning:** `Sidebar` component re-renders on every `currentTime` update (60fps) because it consumes `ProcessContext`. This caused the "Style Presets" grid and `SubtitlePositionSelector` to re-render unnecessarily, creating significant DOM diffing overhead during playback.
+**Action:** Extracted `StylePresetTiles` into a memoized component. Memoized `SubtitlePositionSelector`. Implemented stable `useCallback` handlers in `Sidebar` to ensure props remain stable for these components.

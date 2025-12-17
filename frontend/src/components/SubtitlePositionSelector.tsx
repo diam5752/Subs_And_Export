@@ -1,4 +1,4 @@
-import React, { useCallback, useId, useRef, useState } from 'react';
+import React, { useCallback, useId, useRef, useState, memo } from 'react';
 import Image from 'next/image';
 import { useI18n } from '@/context/I18nContext';
 import { SubtitleOverlay, Cue } from './SubtitleOverlay';
@@ -25,7 +25,7 @@ export interface SubtitlePositionSelectorProps {
     hidePreview?: boolean; // New: Option to hide the phone mockup
 }
 
-export const SubtitlePositionSelector: React.FC<SubtitlePositionSelectorProps> = ({
+export const SubtitlePositionSelector = memo<SubtitlePositionSelectorProps>(({
     value,
     onChange,
     lines,
@@ -639,4 +639,6 @@ export const SubtitlePositionSelector: React.FC<SubtitlePositionSelectorProps> =
             </div>
         </div>
     );
-}
+});
+
+SubtitlePositionSelector.displayName = 'SubtitlePositionSelector';
