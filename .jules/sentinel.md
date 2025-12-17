@@ -61,7 +61,7 @@
 **Prevention:** For authenticated routes (`/videos/process`, `/upload`), implement `AuthenticatedRateLimiter` that keys off `user.id`. Keep IP-based limiting only for public endpoints (login/register) and ensure `ProxyHeadersMiddleware` is configured if possible.
 
 ## 2025-06-25 - [Medium] Missing Input Length Limits in Nested Models
-**Vulnerability:** `TranscriptionCueRequest` and `TikTokUploadRequest` lacked `max_length` constraints on string fields, allowing potential DoS via memory exhaustion or large file writes.
+**Vulnerability:** `TranscriptionCueRequest` and `TikTokUploadRequest` lacked `max_length` constraints on `code` and `state` fields, allowing potential DoS via memory exhaustion or large file writes.
 **Learning:** Secondary or nested Pydantic models often miss validation that is present on primary user models. `BaseModel` does not imply safety.
 **Prevention:** Audit all Pydantic models, especially those used for lists or nested structures, and ensure every `str` field has a `max_length`.
 
@@ -97,3 +97,8 @@
 **Vulnerability:** When a local user logged in via Google SSO (creating an account link), the original local password hash remained in the database. This allowed continued access via the local password, even though the user provider was switched to "google" (which blocks password updates), creating an unmanageable shadow credential.
 **Learning:** "Provider" fields in databases are often descriptive but not enforced by the authentication logic itself unless explicitly checked. When upgrading authentication assurance (e.g. to SSO), lower-assurance credentials must be actively revoked.
 **Prevention:** In account linking/upgrading flows (`upsert_google_user`), explicitly nullify conflicting credentials (`password_hash = NULL`) to enforce the new authentication source.
+
+## 2025-07-03 - [Medium] Inconsistent Input Validation on Export Endpoint
+**Vulnerability:** The `/videos/jobs/{job_id}/export` endpoint lacked regex validation for `subtitle_color`, which was present in the `/process` endpoint. This allowed malformed color codes (up to 20 chars) to be passed to the underlying ASS generator.
+**Learning:** Logic duplicated across endpoints (e.g., input schemas vs form parameters) often leads to drift where security fixes are applied in one place but missed in others.
+**Prevention:** Centralize shared validation logic (e.g. using a shared Pydantic `validator` mixin or reusable regex constants) rather than duplicating regex checks in multiple request models or endpoint functions.

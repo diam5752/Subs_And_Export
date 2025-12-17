@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import List
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Request, UploadFile
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from ...core import config
 from ...core.auth import User
@@ -760,6 +760,15 @@ class ExportRequest(BaseModel):
     highlight_style: str | None = Field(None, max_length=20)
     subtitle_size: int | None = None
     karaoke_enabled: bool | None = None
+
+    @field_validator('subtitle_color')
+    @classmethod
+    def validate_subtitle_color(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        if not re.match(r"^&H[0-9A-Fa-f]{8}$", v):
+             raise ValueError("Invalid subtitle color format (expected &HAABBGGRR)")
+        return v
 
 
 @router.post("/jobs/{job_id}/export", response_model=JobResponse, dependencies=[Depends(limiter_content)])
