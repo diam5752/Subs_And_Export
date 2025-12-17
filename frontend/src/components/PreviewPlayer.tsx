@@ -172,6 +172,7 @@ export const PreviewPlayer = memo(forwardRef<PreviewPlayerHandle, PreviewPlayerP
             // Seek if discrepancy > 0.1s to avoid fighting with playback
             if (Math.abs(videoRef.current.currentTime - targetTime) > 0.1) {
                 videoRef.current.currentTime = targetTime;
+                // eslint-disable-next-line react-hooks/set-state-in-effect
                 setCurrentTime(targetTime);
             }
         }
@@ -180,6 +181,7 @@ export const PreviewPlayer = memo(forwardRef<PreviewPlayerHandle, PreviewPlayerP
     // Force content rect update on mount to catch cached video metadata
     useEffect(() => {
         if (videoRef.current && videoRef.current.readyState >= 1) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             updateContentRect();
         }
     }, []);
@@ -227,7 +229,16 @@ export const PreviewPlayer = memo(forwardRef<PreviewPlayerHandle, PreviewPlayerP
                 controls
                 playsInline
                 onTimeUpdate={handleTimeUpdate}
-                onLoadedMetadata={updateContentRect}
+                onLoadedMetadata={() => {
+                    updateContentRect();
+                    if (typeof initialTime === 'number' && videoRef.current) {
+                        const targetTime = initialTime + 0.1;
+                        if (Math.abs(videoRef.current.currentTime - targetTime) > 0.1) {
+                            videoRef.current.currentTime = targetTime;
+                            setCurrentTime(targetTime);
+                        }
+                    }
+                }}
             />
 
             <div

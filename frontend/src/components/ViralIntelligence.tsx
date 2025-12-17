@@ -118,7 +118,7 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
                                 <div key={i} className="card bg-[var(--surface-elevated)] p-4 border-l-4 border-l-[var(--danger)]">
                                     <div className="mb-2">
                                         <span className="text-xs font-bold text-[var(--danger)] uppercase">Mistake</span>
-                                        <p className="text-sm italic opacity-80 mt-0.5">"{item.mistake}"</p>
+                                        <p className="text-sm italic opacity-80 mt-0.5">&quot;{item.mistake}&quot;</p>
                                     </div>
                                     <div className="mb-2">
                                         <span className="text-xs font-bold text-emerald-400 uppercase">Correction</span>

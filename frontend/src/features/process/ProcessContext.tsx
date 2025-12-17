@@ -54,10 +54,10 @@ interface ProcessContextType {
     // Local state
     hasChosenModel: boolean;
     setHasChosenModel: (v: boolean) => void;
-    transcribeMode: TranscribeMode;
-    setTranscribeMode: (v: TranscribeMode) => void;
-    transcribeProvider: TranscribeProvider;
-    setTranscribeProvider: (v: TranscribeProvider) => void;
+    transcribeMode: TranscribeMode | null;
+    setTranscribeMode: (v: TranscribeMode | null) => void;
+    transcribeProvider: TranscribeProvider | null;
+    setTranscribeProvider: (v: TranscribeProvider | null) => void;
     subtitlePosition: number;
     setSubtitlePosition: (v: number) => void;
     maxSubtitleLines: number;
@@ -85,9 +85,9 @@ interface ProcessContextType {
     setCurrentTime: (t: number) => void;
 
     // Derived/Refs
-    fileInputRef: React.RefObject<HTMLInputElement>;
-    resultsRef: React.RefObject<HTMLDivElement>;
-    transcriptContainerRef: React.RefObject<HTMLDivElement>;
+    fileInputRef: React.RefObject<HTMLInputElement | null>;
+    resultsRef: React.RefObject<HTMLDivElement | null>;
+    transcriptContainerRef: React.RefObject<HTMLDivElement | null>;
     playerRef: React.RefObject<PreviewPlayerHandle | null>;
 
     // Step management

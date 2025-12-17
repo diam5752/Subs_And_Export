@@ -133,7 +133,7 @@ export function PreviewSection() {
                                 <div className="preview-card-glow absolute inset-0 rounded-2xl" />
 
                                 <div className="relative rounded-2xl border border-white/10 bg-[var(--surface-elevated)] overflow-hidden">
-                                    <div className="flex flex-col lg:flex-row xl:flex-col 2xl:flex-row gap-6 transition-all duration-500 ease-in-out lg:h-[850px] xl:h-auto 2xl:h-[850px]">
+                                    <div className="flex flex-col lg:flex-row gap-6 transition-all duration-500 ease-in-out lg:h-[850px]">
                                         {/* Preview Player Area */}
                                         <div className="flex-1 flex flex-col items-center min-w-0">
                                             <div className="w-full h-full bg-black/20 rounded-2xl border border-white/5 flex flex-col items-center justify-center p-4 lg:p-8 relative overflow-hidden backdrop-blur-sm transition-all duration-500">
@@ -167,14 +167,14 @@ export function PreviewSection() {
                                                             />
                                                         ) : (
                                                             <div className="relative group w-full h-full flex items-center justify-center bg-gray-900">
-                                                                {videoUrl ? (
+                                                                {videoUrl && (
                                                                     <video
                                                                         src={`${videoUrl}#t=0.5`}
                                                                         className="absolute inset-0 w-full h-full object-cover opacity-30 blur-sm"
                                                                         muted
                                                                         playsInline
                                                                     />
-                                                                ) : null}
+                                                                )}
                                                                 <div className="relative z-10 text-center p-6">
                                                                     <div className="mb-3 text-4xl animate-bounce">👆</div>
                                                                     <p className="text-sm font-medium text-white/90">{t('clickToPreview') || 'Preview Pending...'}</p>
