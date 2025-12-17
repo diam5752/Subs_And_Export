@@ -302,6 +302,13 @@ async def process_video(
         raise HTTPException(400, "Model name too long")
     if len(video_quality) > 50:
         raise HTTPException(400, "Video quality string too long")
+    if len(transcribe_provider) > 50:
+        raise HTTPException(400, "Provider name too long")
+    if len(openai_model) > 50:
+        raise HTTPException(400, "OpenAI model name too long")
+    if len(video_resolution) > 50:
+        raise HTTPException(400, "Resolution string too long")
+
     if subtitle_color:
         if len(subtitle_color) > 20:
             raise HTTPException(400, "Subtitle color too long")

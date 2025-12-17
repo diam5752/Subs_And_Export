@@ -83,3 +83,8 @@
 **Vulnerability:** `UpdateTranscriptionRequest` and `TranscriptionCueRequest` allowed unbounded lists of cues and words respectively, enabling DoS attacks via memory exhaustion or CPU consumption during JSON parsing/validation.
 **Learning:** While individual string fields were validated, `list` fields were not. Pydantic's `list[T]` does not imply a max length.
 **Prevention:** Audit all Pydantic models with `list` fields and enforce `Field(max_length=...)` or custom validators to bound the number of items.
+
+## 2025-06-30 - [Medium] Missing Input Length Limits on Form Fields
+**Vulnerability:** The `/videos/process` endpoint accepted unbounded strings for `transcribe_provider`, `openai_model`, and `video_resolution` form fields. While primary fields were validated, these secondary fields could allow large payloads, potentially leading to DoS or memory exhaustion.
+**Learning:** Form parameters in FastAPI (even with default values) do not automatically enforce length limits. Manual validation is required unless Pydantic models are used for the form body (which is complex with file uploads).
+**Prevention:** Explicitly check `len(field) > MAX` for all `Form()` parameters in file upload endpoints.
