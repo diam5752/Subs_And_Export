@@ -32,7 +32,6 @@ export function PreviewSection() {
         transcribeMode,
         handleExport,
         exportingResolutions,
-        videoInfo,
     } = useProcessContext();
 
     // Local state for VideoModal
