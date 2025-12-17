@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { useI18n } from '@/context/I18nContext';
+import { Spinner } from '@/components/Spinner';
 
 export default function RegisterPage() {
     const [name, setName] = useState('');
@@ -101,8 +102,10 @@ export default function RegisterPage() {
                         <button
                             type="submit"
                             disabled={isLoading}
-                            className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
+                            aria-busy={isLoading}
+                            className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                         >
+                            {isLoading && <Spinner className="w-5 h-5" />}
                             {isLoading ? t('registerSubmitting') : t('registerSubmit')}
                         </button>
                     </form>

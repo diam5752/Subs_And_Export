@@ -5,6 +5,7 @@ import { useAppEnv } from '@/context/AppEnvContext';
 import { useProcessContext } from '../ProcessContext';
 import { api } from '@/lib/api';
 import { validateVideoAspectRatio } from '@/lib/video';
+import { Spinner } from '@/components/Spinner';
 
 export function UploadSection() {
     const { t } = useI18n();
@@ -412,10 +413,12 @@ export function UploadSection() {
                         </div>
                         <button
                             type="button"
-                            className="btn-primary w-full"
+                            className="btn-primary w-full flex items-center justify-center gap-2"
                             onClick={handleLoadDevSample}
                             disabled={isProcessing || devSampleLoading}
+                            aria-busy={devSampleLoading}
                         >
+                            {devSampleLoading && <Spinner className="w-4 h-4" />}
                             {devSampleLoading ? 'Loading sample…' : 'Load sample video'}
                         </button>
                         {devSampleError && (
