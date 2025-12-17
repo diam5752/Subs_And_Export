@@ -1,7 +1,10 @@
 from pathlib import Path
 from typing import List
 
-from moviepy.editor import CompositeVideoClip, VideoClip, VideoFileClip
+try:
+    from moviepy.editor import CompositeVideoClip, VideoClip, VideoFileClip
+except ModuleNotFoundError:  # MoviePy >= 2.0
+    from moviepy import CompositeVideoClip, VideoClip, VideoFileClip
 
 from backend.app.core import config
 from backend.app.services.renderers.active_word import ActiveWordRenderer

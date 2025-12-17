@@ -268,10 +268,19 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
 
   await page.route('**/static/**', async (route) => {
     const url = new URL(route.request().url());
-    if (url.port !== '8000') {
+
+    // Never intercept Next.js assets (e.g. `/_next/static/**`) or we break hydration.
+    if (url.pathname.startsWith('/_next/static/')) {
       await route.fallback();
       return;
     }
+
+    // Only stub backend-served assets under `/static/**`.
+    if (!url.pathname.startsWith('/static/')) {
+      await route.fallback();
+      return;
+    }
+
     await route.fulfill({
       status: 200,
       headers: corsHeaders,

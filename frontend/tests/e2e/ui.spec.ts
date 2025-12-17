@@ -64,8 +64,8 @@ for (const [label, viewport] of Object.entries(viewports)) {
       await expectNoHorizontalOverflow(page);
       await expectNoHorizontalOverflow(page, 'main');
       await expect(page.getByText(el.subtitlesReady)).toBeVisible();
-      await expect(page.getByRole('button', { name: el.tabTranscript })).toBeVisible();
-      await expect(page.getByRole('button', { name: el.tabStyles })).toBeVisible();
+      await expect(page.getByRole('tab', { name: el.tabTranscript })).toBeVisible();
+      await expect(page.getByRole('tab', { name: el.tabStyles })).toBeVisible();
     });
 
     test('history section shows event cards neatly', async ({ page }) => {

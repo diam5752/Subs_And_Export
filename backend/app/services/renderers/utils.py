@@ -1,6 +1,9 @@
 from pathlib import Path
 
-from moviepy.editor import VideoFileClip, vfx
+try:
+    from moviepy.editor import VideoFileClip, vfx
+except ModuleNotFoundError:  # MoviePy >= 2.0
+    from moviepy import VideoFileClip, vfx
 from PIL import ImageFont
 
 

@@ -65,7 +65,7 @@ describe('useJobs Hook', () => {
         expect(result.current.recentJobs).toHaveLength(0);
     });
 
-    it('auto-selects latest completed job on initial load', async () => {
+    it('does not auto-select the latest completed job on initial load', async () => {
         const job1 = { id: '1', status: 'completed', result_data: { video_path: 'v1' } };
         const job2 = { id: '2', status: 'pending' };
 
@@ -80,8 +80,10 @@ describe('useJobs Hook', () => {
         const { result } = renderHook(() => useJobs());
 
         await waitFor(() => {
-            expect(result.current.selectedJob).toEqual(job1);
+            expect(result.current.recentJobs).toHaveLength(2);
         });
+
+        expect(result.current.selectedJob).toBeNull();
     });
 
     it('handles pagination: nextPage', async () => {

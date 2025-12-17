@@ -79,7 +79,7 @@ export function useJobs() {
     // Initial load
     useEffect(() => {
         if (user) {
-            loadJobs(true, 1);
+            loadJobs(false, 1);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user, pageSize]);
@@ -102,4 +102,3 @@ export function useJobs() {
         changePageSize,
     };
 }
-
