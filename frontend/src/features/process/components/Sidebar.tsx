@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo } from 'react';
 import { useI18n } from '@/context/I18nContext';
 import { useProcessContext } from '../ProcessContext';
-import { CueItem } from '../CueItem';
+import { CueList } from './CueList';
 import { findCueIndexAtTime } from '@/lib/subtitleUtils';
 import { SubtitlePositionSelector } from '@/components/SubtitlePositionSelector';
 import { ViralIntelligence } from '@/components/ViralIntelligence';
@@ -52,6 +52,10 @@ export function Sidebar() {
     const handleSeek = useCallback((time: number) => {
         playerRef.current?.seekTo(time);
     }, [playerRef]);
+
+    const activeCueIndex = useMemo(() => {
+        return findCueIndexAtTime(cues, currentTime);
+    }, [cues, currentTime]);
 
     // Scroll active cue into view
     useEffect(() => {
@@ -181,41 +185,19 @@ export function Sidebar() {
                             )}
 
                             {/* Scrollable Transcript List */}
-                            <div
-                                ref={transcriptContainerRef}
-                                className="max-h-[50vh] overflow-y-auto custom-scrollbar pr-2 space-y-1 scroll-smooth"
-                                style={{ scrollBehavior: 'smooth' }}
-                            >
-                                {cues.map((cue, index) => {
-                                    const isActive = currentTime >= cue.start && currentTime < cue.end;
-                                    const isEditing = editingCueIndex === index;
-                                    const canEditThis = !isSavingTranscript && (editingCueIndex === null || isEditing);
-
-                                    return (
-                                        <div id={`cue-${index}`} key={`${cue.start}-${cue.end}-${index}`}>
-                                            <CueItem
-                                                cue={cue}
-                                                index={index}
-                                                isActive={isActive}
-                                                isEditing={isEditing}
-                                                canEdit={canEditThis}
-                                                draftText={isEditing ? editingCueDraft : ''}
-                                                isSaving={isSavingTranscript}
-                                                onSeek={handleSeek}
-                                                onEdit={beginEditingCue}
-                                                onSave={saveEditingCue}
-                                                onCancel={cancelEditingCue}
-                                                onUpdateDraft={handleUpdateDraft}
-                                            />
-                                        </div>
-                                    );
-                                })}
-                                {cues.length === 0 && (
-                                    <div className="text-center text-[var(--muted)] py-10 opacity-50">
-                                        {t('liveOutputStatusIdle') || 'Transcript will appear here...'}
-                                    </div>
-                                )}
-                            </div>
+                            <CueList
+                                cues={cues}
+                                activeCueIndex={activeCueIndex}
+                                editingCueIndex={editingCueIndex}
+                                editingCueDraft={editingCueDraft}
+                                isSavingTranscript={isSavingTranscript}
+                                transcriptContainerRef={transcriptContainerRef}
+                                onSeek={handleSeek}
+                                onBeginEditing={beginEditingCue}
+                                onSaveEditing={saveEditingCue}
+                                onCancelEditing={cancelEditingCue}
+                                onUpdateDraft={handleUpdateDraft}
+                            />
                         </div>
                     ) : (
                         <div
