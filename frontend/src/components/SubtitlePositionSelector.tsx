@@ -25,7 +25,7 @@ export interface SubtitlePositionSelectorProps {
     hidePreview?: boolean; // New: Option to hide the phone mockup
 }
 
-export const SubtitlePositionSelector: React.FC<SubtitlePositionSelectorProps> = ({
+export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps>(({
     value,
     onChange,
     lines,
@@ -727,4 +727,6 @@ export const SubtitlePositionSelector: React.FC<SubtitlePositionSelectorProps> =
             </div>
         </div>
     );
-}
+});
+
+SubtitlePositionSelector.displayName = 'SubtitlePositionSelector';
