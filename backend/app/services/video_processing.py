@@ -23,7 +23,7 @@ from backend.app.core import config
 from backend.app.services import subtitles
 from backend.app.services.styles import SubtitleStyle
 from backend.app.services.transcription.groq_cloud import GroqTranscriber
-from backend.app.services.transcription.local_whisper import LocalWhisperTranscriber
+# from backend.app.services.transcription.local_whisper import LocalWhisperTranscriber # REMOVED
 from backend.app.services.transcription.openai_cloud import OpenAITranscriber
 from backend.app.services.transcription.standard_whisper import StandardTranscriber
 
@@ -414,20 +414,35 @@ def normalize_and_stub_subtitles(
         font_size=font_size
     )
 
+    # Map abstract model names to concrete models & providers
     selected_model = model_size or config.WHISPER_MODEL
-    if "turbo" in selected_model.lower() and "ct2" not in selected_model.lower():
-        selected_model = config.WHISPER_MODEL
-
-    # Determine Provider Strategy
-    # Simplified logic: If provider explicit, use it. Else if OpenAI-model, use OpenAI. Else Local.
     provider_name = transcribe_provider
+
+    # Explicit Overrides for tiered models
+    if model_size == "enhanced":
+        selected_model = config.GROQ_MODEL_ENHANCED
+        provider_name = "groq"
+    elif model_size == "ultimate":
+        selected_model = config.GROQ_MODEL_ULTIMATE
+        provider_name = "groq"
+    
+    # Determine Provider Strategy if not set
     if not provider_name:
         if subtitles.should_use_openai(selected_model):
             provider_name = "openai"
-        elif "groq" in selected_model.lower(): # Or some other hint if passed
+        elif "groq" in selected_model.lower(): 
              provider_name = "groq"
         else:
-            provider_name = "local"
+            # Default to whispercpp (Standard) as "local" (Python) is removed
+            provider_name = "whispercpp"
+
+    # Sanity check: If provider is Groq, ensure model is valid Groq model.
+    # Frontend might send 'medium' or 'turbo' legacies.
+    if provider_name == "groq":
+        valid_groq = [config.GROQ_MODEL_ENHANCED, config.GROQ_MODEL_ULTIMATE]
+        if selected_model not in valid_groq:
+            # Default fallback for Groq
+            selected_model = config.GROQ_MODEL_ENHANCED
 
     # Instantiate Transcriber (The Ear)
     transcriber = None
@@ -438,13 +453,9 @@ def normalize_and_stub_subtitles(
     elif provider_name == "whispercpp":
         transcriber = StandardTranscriber()
     else:
-        # Pass through all the legacy tuning params to LocalWhisper
-        # Ideally these should be in a config object too, but for backward compat we pass them.
-        transcriber = LocalWhisperTranscriber(
-            device=device,
-            compute_type=compute_type,
-            beam_size=beam_size or 5
-        )
+        # "local" (Python Whisper) is removed. Fallback to Standard or Error.
+        # We raise error to enforce "Remove local from everywhere".
+        raise ValueError(f"Provider '{provider_name}' is not supported or has been removed.")
 
     # --- PIPELINE EXECUTION ---
     pipeline_timings: dict[str, float] = {}

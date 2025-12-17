@@ -42,6 +42,8 @@ OPENAI_TRANSCRIBE_MODEL = "gpt-4o-mini-transcribe"
 
 # Cloud providers
 GROQ_TRANSCRIBE_MODEL = "whisper-large-v3"  # ~200x realtime for Greek
+GROQ_MODEL_ENHANCED = "whisper-large-v3-turbo"
+GROQ_MODEL_ULTIMATE = "whisper-large-v3"
 
 # whisper.cpp / pywhispercpp settings (Metal optimized for Apple Silicon)
 WHISPERCPP_MODEL = "large-v3-turbo"  # Best speed/quality balance for Apple Silicon

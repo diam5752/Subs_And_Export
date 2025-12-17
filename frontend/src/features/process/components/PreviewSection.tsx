@@ -116,9 +116,13 @@ export function PreviewSection() {
                                                         <span className="text-xs font-medium text-white/80">
                                                             {(() => {
                                                                 const provider = selectedJob?.result_data?.transcribe_provider || transcribeProvider;
-                                                                if (provider === 'local') return 'Standard';
-                                                                if (provider === 'groq') return 'Enhanced';
-                                                                if (provider === 'openai') return 'Ultimate';
+                                                                const model = selectedJob?.result_data?.model_size || transcribeMode;
+                                                                if (provider === 'local' || provider === 'whispercpp') return 'Standard';
+                                                                if (provider === 'groq') {
+                                                                    if (model && (model.includes('turbo') || model === 'enhanced')) return 'Enhanced';
+                                                                    return 'Ultimate';
+                                                                }
+                                                                if (provider === 'openai') return 'Chat GPT';
                                                                 return provider;
                                                             })()}
                                                         </span>
