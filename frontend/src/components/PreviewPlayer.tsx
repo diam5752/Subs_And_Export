@@ -227,7 +227,16 @@ export const PreviewPlayer = memo(forwardRef<PreviewPlayerHandle, PreviewPlayerP
                 controls
                 playsInline
                 onTimeUpdate={handleTimeUpdate}
-                onLoadedMetadata={updateContentRect}
+                onLoadedMetadata={() => {
+                    updateContentRect();
+                    if (typeof initialTime === 'number' && videoRef.current) {
+                        const targetTime = initialTime + 0.1;
+                        if (Math.abs(videoRef.current.currentTime - targetTime) > 0.1) {
+                            videoRef.current.currentTime = targetTime;
+                            setCurrentTime(targetTime);
+                        }
+                    }
+                }}
             />
 
             <div

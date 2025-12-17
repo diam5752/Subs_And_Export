@@ -156,17 +156,25 @@ export function PreviewSection() {
 
                                                 <div className="relative h-[min(70dvh,600px)] w-auto aspect-[9/16] max-w-full shadow-2xl transition-all duration-500 hover:scale-[1.01] lg:h-[85%] lg:max-h-[600px] flex-shrink-0">
                                                     <PhoneFrame className="w-full h-full" showSocialOverlays={false}>
-                                                        {videoUrl ? (
+                                                        {processedCues && processedCues.length > 0 ? (
                                                             <PreviewPlayer
                                                                 ref={playerRef}
-                                                                videoUrl={videoUrl}
-                                                                cues={processedCues || []}
+                                                                videoUrl={videoUrl || ''}
+                                                                cues={processedCues}
                                                                 settings={playerSettings}
                                                                 onTimeUpdate={handlePlayerTimeUpdate}
                                                                 initialTime={processedCues && processedCues.length > 0 ? processedCues[0].start : 0}
                                                             />
                                                         ) : (
                                                             <div className="relative group w-full h-full flex items-center justify-center bg-gray-900">
+                                                                {videoUrl && (
+                                                                    <video
+                                                                        src={`${videoUrl}#t=0.5`}
+                                                                        className="absolute inset-0 w-full h-full object-cover opacity-30 blur-sm"
+                                                                        muted
+                                                                        playsInline
+                                                                    />
+                                                                )}
                                                                 <div className="relative z-10 text-center p-6">
                                                                     <div className="mb-3 text-4xl animate-bounce">👆</div>
                                                                     <p className="text-sm font-medium text-white/90">{t('clickToPreview') || 'Preview Pending...'}</p>
