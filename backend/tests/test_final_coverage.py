@@ -139,7 +139,7 @@ def test_process_video_content_length_invalid(client: TestClient, user_auth_head
         return User(id="u1", email="e", name="n", provider="local")
 
     class MockStore:
-        def create_job(self, *args):
+        def create_job(self, *args, **_kwargs):
             return Job(
                 id="j1", user_id="u1", status="queued", progress=0,
                 message="queued", created_at=0, updated_at=0, result_data={}
@@ -161,7 +161,7 @@ def test_process_video_content_length_invalid(client: TestClient, user_auth_head
     # Mock save to avoid disk I/O
     monkeypatch.setattr("backend.app.api.endpoints.videos._save_upload_with_limit", lambda *args: None)
     # Mock background task add to avoid running processing
-    monkeypatch.setattr("starlette.background.BackgroundTasks.add_task", lambda *args: None)
+    monkeypatch.setattr("starlette.background.BackgroundTasks.add_task", lambda *args, **kwargs: None)
 
     # Mock dirs
     import tempfile

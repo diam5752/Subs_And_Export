@@ -33,7 +33,7 @@ class JobStore:
             message=None,
             created_at=now,
             updated_at=now,
-            result_data=None
+            result_data=None,
         )
         with self.db.session() as session:
             session.add(

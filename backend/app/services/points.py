@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import time
 import uuid
 from typing import Any
@@ -25,11 +26,21 @@ PROCESS_VIDEO_MODEL_COSTS: dict[str, int] = {
 }
 
 FACT_CHECK_COST = 100
+REFUND_REASON_PREFIX = "refund_"
 
 
 def process_video_cost(transcribe_model: str) -> int:
     normalized = transcribe_model.strip().lower()
     return PROCESS_VIDEO_MODEL_COSTS.get(normalized, PROCESS_VIDEO_DEFAULT_COST)
+
+def refund_reason(original_reason: str) -> str:
+    cleaned = original_reason.strip()
+    reason = f"{REFUND_REASON_PREFIX}{cleaned}" if cleaned else f"{REFUND_REASON_PREFIX}unknown"
+    return reason[:64]
+
+def make_idempotency_id(*parts: str) -> str:
+    payload = "|".join(parts).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()[:32]
 
 
 class PointsStore:
@@ -130,6 +141,71 @@ class PointsStore:
                     created_at=now,
                 )
             )
+            new_balance = session.scalar(
+                select(DbUserPoints.balance).where(DbUserPoints.user_id == user_id).limit(1)
+            )
+            return int(new_balance or 0)
+
+    def refund(
+        self,
+        user_id: str,
+        amount: int,
+        *,
+        original_reason: str,
+        meta: dict[str, Any] | None = None,
+    ) -> int:
+        return self.credit(user_id, amount, reason=refund_reason(original_reason), meta=meta)
+
+    def refund_once(
+        self,
+        user_id: str,
+        amount: int,
+        *,
+        original_reason: str,
+        transaction_id: str,
+        meta: dict[str, Any] | None = None,
+    ) -> int:
+        if amount <= 0:
+            raise HTTPException(status_code=400, detail="Invalid amount")
+        if not transaction_id or len(transaction_id) > 32:
+            raise HTTPException(status_code=400, detail="Invalid transaction id")
+        _validate_reason(original_reason)
+        if meta is not None and not isinstance(meta, dict):
+            raise HTTPException(status_code=400, detail="Invalid meta")
+
+        now = int(time.time())
+        with self.db.session() as session:
+            self._ensure_account_in_session(session, user_id=user_id, now=now)
+
+            dialect_name = session.get_bind().dialect.name
+            insert_stmt = (
+                pg_insert(DbPointTransaction)
+                if dialect_name == "postgresql"
+                else sqlite_insert(DbPointTransaction)
+            )
+            insert_result = session.execute(
+                insert_stmt
+                .values(
+                    id=transaction_id,
+                    user_id=user_id,
+                    delta=amount,
+                    reason=refund_reason(original_reason),
+                    meta=meta,
+                    created_at=now,
+                )
+                .on_conflict_do_nothing(index_elements=["id"])
+            )
+            inserted = int(insert_result.rowcount or 0) == 1
+            if inserted:
+                session.execute(
+                    update(DbUserPoints)
+                    .where(DbUserPoints.user_id == user_id)
+                    .values(
+                        balance=DbUserPoints.balance + amount,
+                        updated_at=now,
+                    )
+                )
+
             new_balance = session.scalar(
                 select(DbUserPoints.balance).where(DbUserPoints.user_id == user_id).limit(1)
             )

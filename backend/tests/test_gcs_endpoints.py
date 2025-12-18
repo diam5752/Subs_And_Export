@@ -95,7 +95,19 @@ def test_export_falls_back_to_gcs_when_input_missing(client: TestClient, user_au
     monkeypatch.setattr(videos, "download_object", fake_download)
     monkeypatch.setattr(videos, "upload_object", lambda **_kwargs: None)
 
-    def fake_run_processing(job_id: str, input_path, output_path, artifact_dir, settings, job_store, history_store=None, user=None, original_name=None, source_gcs_object_name=None):
+    def fake_run_processing(
+        job_id: str,
+        input_path,
+        output_path,
+        artifact_dir,
+        settings,
+        job_store,
+        history_store=None,
+        user=None,
+        original_name=None,
+        source_gcs_object_name=None,
+        **_kwargs,
+    ):
         artifact_dir.mkdir(parents=True, exist_ok=True)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_bytes(b"ok")

@@ -4,6 +4,7 @@ import re
 import shutil
 import time
 import uuid
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, List
 
@@ -26,7 +27,7 @@ from ...schemas.base import (
 )
 from ...services.history import HistoryStore
 from ...services.jobs import JobStore
-from ...services.points import FACT_CHECK_COST, PointsStore, process_video_cost
+from ...services.points import FACT_CHECK_COST, PointsStore, make_idempotency_id, process_video_cost
 from ...services.subtitles import generate_viral_metadata
 from ...services.video_processing import normalize_and_stub_subtitles, probe_media
 from ..deps import get_current_user, get_gcs_upload_store, get_history_store, get_job_store, get_points_store
@@ -48,6 +49,58 @@ ALLOWED_TRANSCRIBE_PROVIDERS = {"local", "openai", "groq", "whispercpp"}
 ALLOWED_VIDEO_QUALITIES = {"low size", "balanced", "high quality"}
 ALLOWED_HIGHLIGHT_STYLES = {"static", "karaoke", "pop", "active-graphics", "active"}
 MODEL_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/\\-]{0,63}$")
+
+
+@dataclass(frozen=True)
+class _ChargeContext:
+    user_id: str
+    cost: int
+    reason: str
+    meta: dict[str, Any] | None
+
+
+def _refund_charge_best_effort(
+    points_store: PointsStore | None,
+    charge: _ChargeContext | None,
+    *,
+    status: str,
+    error: str | None = None,
+) -> None:
+    if not points_store or not charge:
+        return
+    if charge.cost <= 0:
+        return
+
+    meta: dict[str, Any] = dict(charge.meta or {})
+    meta["refunded_for_status"] = status
+    if error:
+        meta["error"] = error[:500]
+
+    try:
+        charge_id = meta.get("charge_id") or meta.get("job_id")
+        if isinstance(charge_id, str) and charge_id:
+            tx_id = make_idempotency_id("refund", charge.user_id, charge.reason, charge_id, str(charge.cost))
+            points_store.refund_once(
+                charge.user_id,
+                charge.cost,
+                original_reason=charge.reason,
+                transaction_id=tx_id,
+                meta=meta,
+            )
+        else:
+            points_store.refund(
+                charge.user_id,
+                charge.cost,
+                original_reason=charge.reason,
+                meta=meta,
+            )
+    except Exception:
+        logger.exception(
+            "Failed to refund points (user_id=%s reason=%s status=%s)",
+            charge.user_id,
+            charge.reason,
+            status,
+        )
 
 
 def _link_or_copy_file(source: Path, destination: Path) -> None:
@@ -309,6 +362,9 @@ def run_video_processing(
     user: User | None = None,
     original_name: str | None = None,
     source_gcs_object_name: str | None = None,
+    *,
+    points_store: PointsStore | None = None,
+    charge: _ChargeContext | None = None,
 ):
     """Background task to run the heavy video processing."""
     try:
@@ -462,15 +518,26 @@ def run_video_processing(
             },
         )
 
-    except Exception as e:
-        job_store.update_job(job_id, status="failed", message=str(e))
+    except InterruptedError as exc:
+        job_store.update_job(job_id, status="cancelled", message="Cancelled by user")
+        _record_event_safe(
+            history_store,
+            user,
+            "process_cancelled",
+            f"Processing cancelled for {original_name or input_path.name}",
+            {"job_id": job_id, "error": str(exc)},
+        )
+        _refund_charge_best_effort(points_store, charge, status="cancelled", error=str(exc))
+    except Exception as exc:
+        job_store.update_job(job_id, status="failed", message=str(exc))
         _record_event_safe(
             history_store,
             user,
             "process_failed",
             f"Processing failed for {original_name or input_path.name}",
-            {"job_id": job_id, "error": str(e)},
+            {"job_id": job_id, "error": str(exc)},
         )
+        _refund_charge_best_effort(points_store, charge, status="failed", error=str(exc))
 
 
 def run_gcs_video_processing(
@@ -485,10 +552,13 @@ def run_gcs_video_processing(
     history_store: HistoryStore | None = None,
     user: User | None = None,
     original_name: str | None = None,
+    points_store: PointsStore | None = None,
+    charge: _ChargeContext | None = None,
 ) -> None:
     gcs_settings = get_gcs_settings()
     if not gcs_settings:
         job_store.update_job(job_id, status="failed", message="GCS is not configured")
+        _refund_charge_best_effort(points_store, charge, status="failed", error="GCS is not configured")
         return
 
     try:
@@ -521,6 +591,8 @@ def run_gcs_video_processing(
             user,
             original_name,
             source_gcs_object_name=gcs_object_name,
+            points_store=points_store,
+            charge=charge,
         )
 
         if not gcs_settings.keep_uploads:
@@ -540,6 +612,7 @@ def run_gcs_video_processing(
             f"Processing failed for {original_name or gcs_object_name}",
             {"job_id": job_id, "error": str(exc)},
         )
+        _refund_charge_best_effort(points_store, charge, status="failed", error=str(exc))
 
 
 @router.post("/process", response_model=JobResponse, dependencies=[Depends(limiter_processing)])
@@ -634,12 +707,18 @@ async def process_video(
         )
 
     cost = process_video_cost(settings.transcribe_model)
+    charge = _ChargeContext(
+        user_id=current_user.id,
+        cost=cost,
+        reason="process_video",
+        meta={"charge_id": job_id, "job_id": job_id, "model": settings.transcribe_model, "source": "upload"},
+    )
     try:
         new_balance = points_store.spend(
             current_user.id,
             cost,
             reason="process_video",
-            meta={"job_id": job_id, "model": settings.transcribe_model},
+            meta=charge.meta,
         )
     except Exception:
         input_path.unlink(missing_ok=True)
@@ -649,69 +728,77 @@ async def process_video(
     output_path = artifacts_root / job_id / "processed.mp4"
     artifact_path = artifacts_root / job_id
 
-    # Create Job
-    job = job_store.create_job(job_id, current_user.id)
-    _record_event_safe(
-        history_store,
-        current_user,
-        "process_started",
-        f"Queued {file.filename}",
-        {
-            "job_id": job_id,
-            "model_size": settings.transcribe_model,
-            "provider": settings.transcribe_provider or "local",
-            "video_quality": settings.video_quality,
-            "video_resolution": video_resolution,
-            "use_llm": use_llm,
-        },
-    )
-
-    # Enqueue Task
-    logger.debug(
-        "Received process request: max_subtitle_lines=%s highlight_style=%s",
-        max_subtitle_lines,
-        highlight_style,
-    )
-
-    gcs_settings = get_gcs_settings()
-    source_gcs_object_name: str | None = None
-    if gcs_settings:
-        source_gcs_object_name = f"{gcs_settings.uploads_prefix}/{current_user.id}/{job_id}{file_ext}"
-
-    processing_kwargs: dict[str, Any] = {}
-    if source_gcs_object_name:
-        processing_kwargs["source_gcs_object_name"] = source_gcs_object_name
-
-    background_tasks.add_task(
-        run_video_processing,
-        job_id,
-        input_path,
-        output_path,
-        artifact_path,
-        settings,
-        job_store,
-        history_store,
-        current_user,
-        file.filename,
-        **processing_kwargs,
-    )
-
-    if gcs_settings and source_gcs_object_name:
-        background_tasks.add_task(
-            upload_object,
-            settings=gcs_settings,
-            object_name=source_gcs_object_name,
-            source=input_path,
-            content_type=file.content_type or "application/octet-stream",
+    try:
+        # Create Job
+        job = job_store.create_job(job_id, current_user.id)
+        _record_event_safe(
+            history_store,
+            current_user,
+            "process_started",
+            f"Queued {file.filename}",
+            {
+                "job_id": job_id,
+                "model_size": settings.transcribe_model,
+                "provider": settings.transcribe_provider or "local",
+                "video_quality": settings.video_quality,
+                "video_resolution": video_resolution,
+                "use_llm": use_llm,
+            },
         )
 
-    # Trigger Cleanup
-    from ...common.cleanup import cleanup_old_uploads
-    background_tasks.add_task(
-        cleanup_old_uploads,
-        uploads_dir,
-        24,  # 24 hours retention
-    )
+        # Enqueue Task
+        logger.debug(
+            "Received process request: max_subtitle_lines=%s highlight_style=%s",
+            max_subtitle_lines,
+            highlight_style,
+        )
+
+        gcs_settings = get_gcs_settings()
+        source_gcs_object_name: str | None = None
+        if gcs_settings:
+            source_gcs_object_name = f"{gcs_settings.uploads_prefix}/{current_user.id}/{job_id}{file_ext}"
+
+        processing_kwargs: dict[str, Any] = {}
+        if source_gcs_object_name:
+            processing_kwargs["source_gcs_object_name"] = source_gcs_object_name
+
+        background_tasks.add_task(
+            run_video_processing,
+            job_id,
+            input_path,
+            output_path,
+            artifact_path,
+            settings,
+            job_store,
+            history_store,
+            current_user,
+            file.filename,
+            points_store=points_store,
+            charge=charge,
+            **processing_kwargs,
+        )
+
+        if gcs_settings and source_gcs_object_name:
+            background_tasks.add_task(
+                upload_object,
+                settings=gcs_settings,
+                object_name=source_gcs_object_name,
+                source=input_path,
+                content_type=file.content_type or "application/octet-stream",
+            )
+
+        # Trigger Cleanup
+        from ...common.cleanup import cleanup_old_uploads
+
+        background_tasks.add_task(
+            cleanup_old_uploads,
+            uploads_dir,
+            24,  # 24 hours retention
+        )
+    except Exception as exc:
+        _refund_charge_best_effort(points_store, charge, status="failed", error=str(exc))
+        input_path.unlink(missing_ok=True)
+        raise
 
     return {**job.__dict__, "balance": new_balance}
 
@@ -868,48 +955,61 @@ def process_video_from_gcs(
     artifact_path = artifacts_root / job_id
 
     cost = process_video_cost(settings.transcribe_model)
+    charge = _ChargeContext(
+        user_id=current_user.id,
+        cost=cost,
+        reason="process_video",
+        meta={"charge_id": job_id, "job_id": job_id, "model": settings.transcribe_model, "source": "gcs"},
+    )
     new_balance = points_store.spend(
         current_user.id,
         cost,
-        reason="process_video",
-        meta={"job_id": job_id, "model": settings.transcribe_model, "source": "gcs"},
+        reason=charge.reason,
+        meta=charge.meta,
     )
 
-    job = job_store.create_job(job_id, current_user.id)
-    _record_event_safe(
-        history_store,
-        current_user,
-        "process_started",
-        f"Queued {session.original_filename}",
-        {
-            "job_id": job_id,
-            "provider": settings.transcribe_provider,
-            "model_size": settings.transcribe_model,
-            "video_quality": settings.video_quality,
-            "source": "gcs",
-        },
-    )
+    try:
+        job = job_store.create_job(job_id, current_user.id)
+        _record_event_safe(
+            history_store,
+            current_user,
+            "process_started",
+            f"Queued {session.original_filename}",
+            {
+                "job_id": job_id,
+                "provider": settings.transcribe_provider,
+                "model_size": settings.transcribe_model,
+                "video_quality": settings.video_quality,
+                "source": "gcs",
+            },
+        )
 
-    background_tasks.add_task(
-        run_gcs_video_processing,
-        job_id=job_id,
-        gcs_object_name=session.object_name,
-        input_path=input_path,
-        output_path=output_path,
-        artifact_dir=artifact_path,
-        settings=settings,
-        job_store=job_store,
-        history_store=history_store,
-        user=current_user,
-        original_name=session.original_filename,
-    )
+        background_tasks.add_task(
+            run_gcs_video_processing,
+            job_id=job_id,
+            gcs_object_name=session.object_name,
+            input_path=input_path,
+            output_path=output_path,
+            artifact_dir=artifact_path,
+            settings=settings,
+            job_store=job_store,
+            history_store=history_store,
+            user=current_user,
+            original_name=session.original_filename,
+            points_store=points_store,
+            charge=charge,
+        )
 
-    from ...common.cleanup import cleanup_old_uploads
-    background_tasks.add_task(
-        cleanup_old_uploads,
-        uploads_dir,
-        24,
-    )
+        from ...common.cleanup import cleanup_old_uploads
+
+        background_tasks.add_task(
+            cleanup_old_uploads,
+            uploads_dir,
+            24,
+        )
+    except Exception as exc:
+        _refund_charge_best_effort(points_store, charge, status="failed", error=str(exc))
+        raise
 
     return {**job.__dict__, "balance": new_balance}
 
@@ -1242,11 +1342,12 @@ def reprocess_job(
         artifact_path = artifacts_root / new_job_id
 
         cost = process_video_cost(settings.transcribe_model)
-        new_balance = points_store.spend(
-            current_user.id,
-            cost,
+        charge = _ChargeContext(
+            user_id=current_user.id,
+            cost=cost,
             reason="process_video",
             meta={
+                "charge_id": new_job_id,
                 "job_id": new_job_id,
                 "model": settings.transcribe_model,
                 "action": "reprocess",
@@ -1254,42 +1355,55 @@ def reprocess_job(
                 "source": "gcs",
             },
         )
-
-        job = job_store.create_job(new_job_id, current_user.id)
-        _record_event_safe(
-            history_store,
-            current_user,
-            "process_started",
-            f"Reprocessing {source_job.result_data.get('original_filename', 'video') if source_job.result_data else 'video'}",
-            {
-                "job_id": new_job_id,
-                "source_job_id": job_id,
-                "provider": settings.transcribe_provider,
-                "model_size": settings.transcribe_model,
-                "source": "gcs",
-            },
+        new_balance = points_store.spend(
+            current_user.id,
+            cost,
+            reason=charge.reason,
+            meta=charge.meta,
         )
 
-        background_tasks.add_task(
-            run_gcs_video_processing,
-            job_id=new_job_id,
-            gcs_object_name=source_gcs_object,
-            input_path=input_path,
-            output_path=output_path,
-            artifact_dir=artifact_path,
-            settings=settings,
-            job_store=job_store,
-            history_store=history_store,
-            user=current_user,
-            original_name=(source_job.result_data or {}).get("original_filename"),
-        )
+        try:
+            job = job_store.create_job(new_job_id, current_user.id)
+            _record_event_safe(
+                history_store,
+                current_user,
+                "process_started",
+                f"Reprocessing {source_job.result_data.get('original_filename', 'video') if source_job.result_data else 'video'}",
+                {
+                    "job_id": new_job_id,
+                    "source_job_id": job_id,
+                    "provider": settings.transcribe_provider,
+                    "model_size": settings.transcribe_model,
+                    "source": "gcs",
+                },
+            )
 
-        from ...common.cleanup import cleanup_old_uploads
-        background_tasks.add_task(
-            cleanup_old_uploads,
-            uploads_dir,
-            24,
-        )
+            background_tasks.add_task(
+                run_gcs_video_processing,
+                job_id=new_job_id,
+                gcs_object_name=source_gcs_object,
+                input_path=input_path,
+                output_path=output_path,
+                artifact_dir=artifact_path,
+                settings=settings,
+                job_store=job_store,
+                history_store=history_store,
+                user=current_user,
+                original_name=(source_job.result_data or {}).get("original_filename"),
+                points_store=points_store,
+                charge=charge,
+            )
+
+            from ...common.cleanup import cleanup_old_uploads
+
+            background_tasks.add_task(
+                cleanup_old_uploads,
+                uploads_dir,
+                24,
+            )
+        except Exception as exc:
+            _refund_charge_best_effort(points_store, charge, status="failed", error=str(exc))
+            raise
 
         return {**job.__dict__, "balance": new_balance}
 
@@ -1348,57 +1462,72 @@ def reprocess_job(
         raise HTTPException(status_code=404, detail="Source video not found; upload again to reprocess")
 
     cost = process_video_cost(settings.transcribe_model)
+    charge = _ChargeContext(
+        user_id=current_user.id,
+        cost=cost,
+        reason="process_video",
+        meta={
+            "charge_id": new_job_id,
+            "job_id": new_job_id,
+            "model": settings.transcribe_model,
+            "action": "reprocess",
+            "source_job_id": job_id,
+            "source": "local",
+        },
+    )
     try:
         new_balance = points_store.spend(
             current_user.id,
             cost,
             reason="process_video",
-            meta={
-                "job_id": new_job_id,
-                "model": settings.transcribe_model,
-                "action": "reprocess",
-                "source_job_id": job_id,
-                "source": "local",
-            },
+            meta=charge.meta,
         )
     except Exception:
         input_path.unlink(missing_ok=True)
         raise
 
-    job = job_store.create_job(new_job_id, current_user.id)
-    _record_event_safe(
-        history_store,
-        current_user,
-        "process_started",
-        f"Reprocessing {source_job.result_data.get('original_filename', 'video') if source_job.result_data else 'video'}",
-        {
-            "job_id": new_job_id,
-            "source_job_id": job_id,
-            "provider": settings.transcribe_provider,
-            "model_size": settings.transcribe_model,
-            "source": "local",
-        },
-    )
+    try:
+        job = job_store.create_job(new_job_id, current_user.id)
+        _record_event_safe(
+            history_store,
+            current_user,
+            "process_started",
+            f"Reprocessing {source_job.result_data.get('original_filename', 'video') if source_job.result_data else 'video'}",
+            {
+                "job_id": new_job_id,
+                "source_job_id": job_id,
+                "provider": settings.transcribe_provider,
+                "model_size": settings.transcribe_model,
+                "source": "local",
+            },
+        )
 
-    background_tasks.add_task(
-        run_video_processing,
-        new_job_id,
-        input_path,
-        output_path,
-        artifact_path,
-        settings,
-        job_store,
-        history_store,
-        current_user,
-        (source_job.result_data or {}).get("original_filename"),
-    )
+        background_tasks.add_task(
+            run_video_processing,
+            new_job_id,
+            input_path,
+            output_path,
+            artifact_path,
+            settings,
+            job_store,
+            history_store,
+            current_user,
+            (source_job.result_data or {}).get("original_filename"),
+            points_store=points_store,
+            charge=charge,
+        )
 
-    from ...common.cleanup import cleanup_old_uploads
-    background_tasks.add_task(
-        cleanup_old_uploads,
-        uploads_dir,
-        24,
-    )
+        from ...common.cleanup import cleanup_old_uploads
+
+        background_tasks.add_task(
+            cleanup_old_uploads,
+            uploads_dir,
+            24,
+        )
+    except Exception as exc:
+        _refund_charge_best_effort(points_store, charge, status="failed", error=str(exc))
+        input_path.unlink(missing_ok=True)
+        raise
 
     return {**job.__dict__, "balance": new_balance}
 
@@ -1465,13 +1594,24 @@ def fact_check_video(
 
     try:
         transcript_text = transcript_path.read_text(encoding="utf-8")
+        charge = _ChargeContext(
+            user_id=current_user.id,
+            cost=FACT_CHECK_COST,
+            reason="fact_check",
+            meta={"charge_id": uuid.uuid4().hex, "job_id": job_id},
+        )
         new_balance = points_store.spend(
             current_user.id,
             FACT_CHECK_COST,
-            reason="fact_check",
-            meta={"job_id": job_id},
+            reason=charge.reason,
+            meta=charge.meta,
         )
-        result = generate_fact_check(transcript_text)
+
+        try:
+            result = generate_fact_check(transcript_text)
+        except Exception as exc:
+            _refund_charge_best_effort(points_store, charge, status="failed", error=str(exc))
+            raise
 
         return FactCheckResponse(
             items=[
