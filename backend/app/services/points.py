@@ -20,12 +20,11 @@ STARTING_POINTS_BALANCE = 1000
 
 PROCESS_VIDEO_DEFAULT_COST = 200
 PROCESS_VIDEO_MODEL_COSTS: dict[str, int] = {
-    "turbo": 200,
-    "large": 500,
     "ultimate": 500,
 }
 
 FACT_CHECK_COST = 100
+SOCIAL_COPY_COST = 50
 REFUND_REASON_PREFIX = "refund_"
 
 

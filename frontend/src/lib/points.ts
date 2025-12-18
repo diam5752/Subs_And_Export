@@ -9,6 +9,7 @@ export const PROCESS_VIDEO_MODEL_COSTS: Record<string, number> = {
 };
 
 export const FACT_CHECK_COST = 100;
+export const SOCIAL_COPY_COST = 50;
 
 export function processVideoCostForTranscribeModel(transcribeModel: string): number {
     const normalized = transcribeModel.trim().toLowerCase();

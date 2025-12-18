@@ -15,6 +15,7 @@ jest.mock('@/lib/api', () => ({
     api: {
         generateViralMetadata: jest.fn(),
         factCheck: jest.fn(),
+        socialCopy: jest.fn(),
     },
 }));
 
@@ -58,6 +59,28 @@ describe('ViralIntelligence', () => {
 
         await waitFor(() => expect(api.factCheck).toHaveBeenCalledWith(mockJobId));
         expect(__setBalanceMock).toHaveBeenCalledWith(900);
-        expect(await screen.findByText('Report')).toBeInTheDocument();
+        expect(await screen.findByText('Fact Report')).toBeInTheDocument();
+    });
+
+    it('calls social copy endpoint and renders result', async () => {
+        (api.socialCopy as jest.Mock).mockResolvedValue({
+            social_copy: {
+                title: 'Test Title',
+                description: 'Test Description',
+                hashtags: ['#test']
+            },
+            balance: 850
+        });
+
+        render(<ViralIntelligence jobId={mockJobId} />);
+
+        fireEvent.click(screen.getByText(/social copy/i));
+
+        await waitFor(() => expect(api.socialCopy).toHaveBeenCalledWith(mockJobId));
+        expect(__setBalanceMock).toHaveBeenCalledWith(850);
+
+        expect(await screen.findByText('Test Title')).toBeInTheDocument();
+        expect(screen.getByText('Test Description')).toBeInTheDocument();
+        expect(screen.getByText('#test')).toBeInTheDocument();
     });
 });

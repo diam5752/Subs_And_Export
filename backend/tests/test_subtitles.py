@@ -13,7 +13,7 @@ def test_extract_audio_invokes_ffmpeg(monkeypatch, tmp_path: Path) -> None:
     input_video.write_bytes(b"video")
 
     class MockPopen:
-        def __init__(self, cmd, stdout, stderr):
+        def __init__(self, cmd, stdout, stderr, **kwargs):
             assert cmd[0] == "ffmpeg"
             Path(cmd[-1]).write_bytes(b"audio")
             self.returncode = 0

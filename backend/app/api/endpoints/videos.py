@@ -23,6 +23,7 @@ from ...schemas.base import (
     FactCheckResponse,
     JobResponse,
     PaginatedJobsResponse,
+    SocialCopyResponse,
 )
 from ...services.history import HistoryStore
 from ...services.jobs import JobStore
@@ -1598,6 +1599,78 @@ def fact_check_video(
         raise
     except Exception as e:
         raise HTTPException(500, f"Failed to fact check: {str(e)}")
+
+
+@router.post("/jobs/{job_id}/social-copy", response_model=SocialCopyResponse, dependencies=[Depends(limiter_content)])
+def generate_social_copy_video(
+    job_id: str,
+    current_user: User = Depends(get_current_user),
+    job_store: JobStore = Depends(get_job_store),
+    points_store: PointsStore = Depends(get_points_store),
+):
+    """Generate viral social media copy (title, description, tags) for a video."""
+    job = job_store.get_job(job_id)
+    if not job or job.user_id != current_user.id:
+        raise HTTPException(404, "Job not found")
+
+    if job.status != "completed":
+        raise HTTPException(400, "Job must be completed to generate social copy")
+
+    _, _, artifacts_root = _data_roots()
+    artifact_dir = artifacts_root / job_id
+    transcript_path = artifact_dir / "transcript.txt"
+
+    if not transcript_path.exists():
+        raise HTTPException(404, "Transcript not found for this job")
+
+    from ...services.subtitles import build_social_copy_llm
+    from ...services.points import SOCIAL_COPY_COST
+
+    try:
+        transcript_text = transcript_path.read_text(encoding="utf-8")
+        charge = _ChargeContext(
+            user_id=current_user.id,
+            cost=SOCIAL_COPY_COST,
+            reason="social_copy",
+            meta={"charge_id": uuid.uuid4().hex, "job_id": job_id},
+        )
+        new_balance = points_store.spend(
+            current_user.id,
+            SOCIAL_COPY_COST,
+            reason=charge.reason,
+            meta=charge.meta,
+        )
+
+        try:
+            # Generate the copy
+            social_copy = build_social_copy_llm(transcript_text, temperature=0.7)
+            
+            # Persist it
+            social_path = artifact_dir / "social.json"
+            social_data = {
+                "title": social_copy.generic.title,
+                "description": social_copy.generic.description,
+                "hashtags": social_copy.generic.hashtags,
+            }
+            import json
+            social_path.write_text(json.dumps(social_data, ensure_ascii=False, indent=2), encoding="utf-8")
+
+        except Exception as exc:
+            _refund_charge_best_effort(points_store, charge, status="failed", error=str(exc))
+            raise
+
+        return SocialCopyResponse(
+            social_copy={
+                "title": social_copy.generic.title,
+                "description": social_copy.generic.description,
+                "hashtags": social_copy.generic.hashtags,
+            },
+            balance=new_balance,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"Failed to generate social copy: {str(e)}")
 
 
 class ExportRequest(BaseModel):

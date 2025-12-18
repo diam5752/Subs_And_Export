@@ -476,10 +476,19 @@ def normalize_and_stub_subtitles(
                     resolved_audio_copy = audio_copy if audio_copy is not None else False
 
             # Step 1: Extract Audio
+            def _extract_cb(p: float):
+                if progress_callback: progress_callback(f"Extracting Audio ({int(p)}%)...", p * 0.05) # Scaling 0-5%
+
             if progress_callback: progress_callback("Extracting audio...", 0.0)
             if check_cancelled: check_cancelled()
             with metrics.measure_time(pipeline_timings, "extract_audio_s"):
-                audio_path = subtitles.extract_audio(input_path, output_dir=scratch, check_cancelled=check_cancelled)
+                audio_path = subtitles.extract_audio(
+                    input_path, 
+                    output_dir=scratch, 
+                    check_cancelled=check_cancelled,
+                    progress_callback=_extract_cb if total_duration else None,
+                    total_duration=total_duration
+                )
 
             # Step 2: Transcribe
             if progress_callback: progress_callback("Transcribing audio...", 5.0)

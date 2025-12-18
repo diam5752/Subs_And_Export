@@ -1,10 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useI18n } from '@/context/I18nContext';
-import { api, FactCheckResponse } from '@/lib/api';
+import { api, FactCheckResponse, SocialCopyResponse } from '@/lib/api';
 import { InfoTooltip } from '@/components/InfoTooltip';
 import { usePoints } from '@/context/PointsContext';
 import { TokenIcon } from '@/components/icons';
-import { FACT_CHECK_COST, formatPoints } from '@/lib/points';
+import { FACT_CHECK_COST, SOCIAL_COPY_COST, formatPoints } from '@/lib/points';
 
 interface ViralIntelligenceProps {
     jobId: string;
@@ -14,16 +14,25 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
     const { t } = useI18n();
     const { setBalance } = usePoints();
     const activeJobIdRef = useRef(jobId);
-    const [loading, setLoading] = useState(false);
+
+    // Fact Check State
     const [checkingFacts, setCheckingFacts] = useState(false);
     const [factCheckResult, setFactCheckResult] = useState<FactCheckResponse | null>(null);
+
+    // Social Copy State
+    const [generatingCopy, setGeneratingCopy] = useState(false);
+    const [socialCopyResult, setSocialCopyResult] = useState<SocialCopyResponse | null>(null);
+
     const [error, setError] = useState<string | null>(null);
+
+    const loading = checkingFacts || generatingCopy;
 
     useEffect(() => {
         activeJobIdRef.current = jobId;
-        setLoading(false);
         setCheckingFacts(false);
+        setGeneratingCopy(false);
         setFactCheckResult(null);
+        setSocialCopyResult(null);
         setError(null);
     }, [jobId]);
 
@@ -48,22 +57,39 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
         }
     };
 
-
+    const handleSocialCopy = async () => {
+        const requestJobId = jobId;
+        setGeneratingCopy(true);
+        setError(null);
+        try {
+            const result = await api.socialCopy(requestJobId);
+            if (activeJobIdRef.current !== requestJobId) return;
+            setSocialCopyResult(result);
+            if (typeof result.balance === 'number') {
+                setBalance(result.balance);
+            }
+        } catch (err: unknown) {
+            if (activeJobIdRef.current !== requestJobId) return;
+            const message = err instanceof Error ? err.message : 'Failed to generate social copy';
+            setError(message);
+        } finally {
+            if (activeJobIdRef.current !== requestJobId) return;
+            setGeneratingCopy(false);
+        }
+    };
 
     return (
         <div className="space-y-6">
             <div className="grid grid-cols-2 gap-4">
-
-
-                {!factCheckResult && !checkingFacts && (
+                {/* Fact Check Button */}
+                {!factCheckResult && !loading && (
                     <div className="relative group/btn">
                         <button
                             onClick={handleFactCheck}
-                            disabled={loading || checkingFacts}
+                            disabled={loading}
                             className="w-full group relative flex flex-col items-center justify-center gap-3 py-6 px-4 rounded-[2rem] bg-white/5 hover:bg-white/10 backdrop-blur-2xl border border-white/10 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-xl hover:shadow-emerald-500/10"
                         >
                             <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-400/20 to-teal-400/20 flex items-center justify-center text-emerald-300 shadow-inner mb-1 group-hover:scale-110 group-hover:bg-gradient-to-br group-hover:from-emerald-400 group-hover:to-teal-400 group-hover:text-white transition-all duration-300">
-                                {/* Shield Check Icon */}
                                 <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                     <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
                                     <path d="M9 12l2 2 4-4" />
@@ -89,6 +115,49 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
                         </div>
                     </div>
                 )}
+
+                {/* Social Copy Button */}
+                {!socialCopyResult && !loading && (
+                    <div className="relative group/btn">
+                        <button
+                            onClick={handleSocialCopy}
+                            disabled={loading}
+                            className="w-full group relative flex flex-col items-center justify-center gap-3 py-6 px-4 rounded-[2rem] bg-white/5 hover:bg-white/10 backdrop-blur-2xl border border-white/10 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-xl hover:shadow-purple-500/10"
+                        >
+                            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-400/20 to-pink-400/20 flex items-center justify-center text-purple-300 shadow-inner mb-1 group-hover:scale-110 group-hover:bg-gradient-to-br group-hover:from-purple-400 group-hover:to-pink-400 group-hover:text-white transition-all duration-300">
+                                {/* Wand / Sparkles Icon */}
+                                <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M15 4V2" />
+                                    <path d="M15 16v-2" />
+                                    <path d="M8 9h2" />
+                                    <path d="M20 9h2" />
+                                    <path d="M17.8 11.8L19 13" />
+                                    <path d="M10.6 6.6L12 8" />
+                                    <path d="M4.8 13.6l1.4 1.4" />
+                                    <path d="M11.9 16.3l1.4 1.4" />
+                                    <path d="M7.1 21L2.1 16l2.8-2.8c.8-.8 2.1-.8 2.8 0L9.9 15.4c.8.8.8 2.1 0 2.8L7.1 21z" />
+                                </svg>
+                            </div>
+                            <div className="text-center">
+                                <span className="block text-sm font-medium text-white/90 group-hover:text-white">Generate Metadata</span>
+                                <div className="flex items-center justify-center gap-1.5 opacity-80 mt-1">
+                                    <TokenIcon className="w-3.5 h-3.5" />
+                                    <span className="text-xs font-semibold text-white/70">
+                                        {formatPoints(SOCIAL_COPY_COST)}
+                                    </span>
+                                </div>
+                            </div>
+                        </button>
+                        <div className="absolute top-3 right-3">
+                            <InfoTooltip ariaLabel="Generate title, description and tags">
+                                <div className="space-y-1">
+                                    <div className="font-semibold text-[11px]">Generate Metadata</div>
+                                    <p className="text-[var(--muted)] leading-snug">Generate optimized title, description, and hashtags.</p>
+                                </div>
+                            </InfoTooltip>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {error && (
@@ -97,7 +166,7 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
                 </div>
             )}
 
-            {(loading || checkingFacts) && (
+            {loading && (
                 <div className="flex flex-col items-center justify-center py-16 space-y-4 rounded-[2.5rem] bg-white/5 border border-white/10 backdrop-blur-2xl shadow-2xl">
                     <div className="relative">
                         <div className="w-12 h-12 rounded-full border-2 border-white/10 border-t-white animate-spin" />
@@ -108,18 +177,18 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
                         </div>
                     </div>
                     <p className="text-white/60 font-medium tracking-wide text-sm animate-pulse">
-                        {loading ? 'Processing Content...' : 'Verifying Accuracy...'}
+                        {checkingFacts ? 'Verifying Accuracy...' : 'Generating Metadata...'}
                     </p>
                 </div>
             )}
 
-            {/* Fact Check Results - VisionOS Card */}
+            {/* Fact Check Results */}
             {factCheckResult && (
                 <div className="space-y-4 animate-fade-in">
                     <div className="flex items-center justify-between px-2">
                         <h4 className="text-xs font-semibold text-white/40 uppercase tracking-widest pl-2 flex items-center gap-2">
                             <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                            Report
+                            Fact Report
                         </h4>
                         <button onClick={() => setFactCheckResult(null)} className="px-3 py-1 rounded-full bg-white/5 hover:bg-white/10 text-xs text-white/60 hover:text-white transition-colors backdrop-blur-md">Close</button>
                     </div>
@@ -160,6 +229,43 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
                 </div>
             )}
 
+            {/* Social Copy Results */}
+            {socialCopyResult && (
+                <div className="space-y-4 animate-fade-in">
+                    <div className="flex items-center justify-between px-2">
+                        <h4 className="text-xs font-semibold text-white/40 uppercase tracking-widest pl-2 flex items-center gap-2">
+                            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 4V2" /><path d="M15 16v-2" /></svg>
+                            Metadata
+                        </h4>
+                        <button onClick={() => setSocialCopyResult(null)} className="px-3 py-1 rounded-full bg-white/5 hover:bg-white/10 text-xs text-white/60 hover:text-white transition-colors backdrop-blur-md">Close</button>
+                    </div>
+
+                    <div className="p-5 rounded-[2rem] bg-white/5 border border-white/10 backdrop-blur-md hover:bg-white/10 transition-colors space-y-4">
+                        <div className="space-y-2">
+                            <label className="text-xs font-medium text-purple-400 uppercase tracking-wide">Title</label>
+                            <div className="p-3 rounded-xl bg-black/20 border border-white/5 text-white/90 text-sm font-medium">
+                                {socialCopyResult.social_copy.title}
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-xs font-medium text-purple-400 uppercase tracking-wide">Description</label>
+                            <div className="p-3 rounded-xl bg-black/20 border border-white/5 text-white/80 text-sm leading-relaxed whitespace-pre-wrap">
+                                {socialCopyResult.social_copy.description}
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-xs font-medium text-purple-400 uppercase tracking-wide">Hashtags</label>
+                            <div className="flex flex-wrap gap-2">
+                                {socialCopyResult.social_copy.hashtags.map((tag, i) => (
+                                    <span key={i} className="px-2 py-1 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-300 text-xs">
+                                        {tag}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
         </div>
     );

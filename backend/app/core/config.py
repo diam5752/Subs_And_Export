@@ -29,7 +29,7 @@ DEFAULT_OUTPUT_SUFFIX = "_subbed"
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent  # /backend/app/core -> project root
 
 # Whisper / STT defaults
-WHISPER_MODEL = "large-v3-turbo"  # Fast turbo model with great Greek accuracy
+WHISPER_MODEL = "medium"  # Optimized for CPU usage (Docker/Mac)
 
 WHISPER_LANGUAGE = "el"
 WHISPER_DEVICE = "auto"  # "cpu", "cuda", "auto"
@@ -46,12 +46,13 @@ GROQ_MODEL_ENHANCED = "whisper-large-v3-turbo"
 GROQ_MODEL_ULTIMATE = "whisper-large-v3"
 
 # whisper.cpp / pywhispercpp settings (Metal optimized for Apple Silicon)
-WHISPERCPP_MODEL = "large-v3-turbo"  # Best speed/quality balance for Apple Silicon
+WHISPERCPP_MODEL = "medium"  # Optimized for CPU usage (Docker/Mac)
 WHISPERCPP_LANGUAGE = "el"  # Greek default
 
 
 # LLM social copy defaults (OpenAI API)
-SOCIAL_LLM_MODEL = "gpt-4o-mini"
+SOCIAL_LLM_MODEL = "gpt-5-mini"
+FACTCHECK_LLM_MODEL = "gpt-5-mini"
 
 # Audio extraction settings
 AUDIO_SAMPLE_RATE = 16000

@@ -42,3 +42,14 @@ class FactCheckItemSchema(BaseModel):
 class FactCheckResponse(BaseModel):
     items: List[FactCheckItemSchema]
     balance: int | None = None
+
+
+class SocialCopySchema(BaseModel):
+    title: str
+    description: str
+    hashtags: List[str]
+
+
+class SocialCopyResponse(BaseModel):
+    social_copy: SocialCopySchema
+    balance: int | None = None

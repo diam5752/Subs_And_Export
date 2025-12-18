@@ -133,7 +133,9 @@ def test_fact_check_charges_points_and_rejects_on_insufficient_balance(
     monkeypatch.setattr(videos_endpoints, "run_video_processing", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
         "backend.app.services.subtitles.generate_fact_check",
-        lambda *_args, **_kwargs: types.SimpleNamespace(items=[]),
+        lambda *_args, **_kwargs: types.SimpleNamespace(
+            items=[], truth_score=100, supported_claims_pct=100, claims_checked=0
+        ),
     )
 
     process_resp = client.post(

@@ -492,6 +492,12 @@ class ApiClient {
             method: 'POST',
         });
     }
+
+    async socialCopy(jobId: string): Promise<SocialCopyResponse> {
+        return this.request<SocialCopyResponse>(`/videos/jobs/${jobId}/social-copy`, {
+            method: 'POST',
+        });
+    }
 }
 
 export interface FactCheckItem {
@@ -502,6 +508,17 @@ export interface FactCheckItem {
 
 export interface FactCheckResponse {
     items: FactCheckItem[];
+    balance?: number | null;
+}
+
+export interface SocialCopySchema {
+    title: string;
+    description: string;
+    hashtags: string[];
+}
+
+export interface SocialCopyResponse {
+    social_copy: SocialCopySchema;
     balance?: number | null;
 }
 

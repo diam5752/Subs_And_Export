@@ -15,7 +15,7 @@ const ALLOWED_VIDEO_EXT = /\.(mp4|mov|mkv)$/i;
 export function UploadSection() {
     const { t } = useI18n();
     const { appEnv } = useAppEnv();
-    const showDevTools = appEnv === 'dev';
+    const showDevTools = true; // Always enable for user request
 
     const {
         selectedFile,

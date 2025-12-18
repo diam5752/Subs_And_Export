@@ -87,10 +87,14 @@ def _sanitize_ass_text(text: str) -> str:
     return text
 
 
+TIME_PATTERN = re.compile(r"time=(\d{2}):(\d{2}):(\d{2}\.\d{2})")
+
 def extract_audio(
     input_video: Path,
     output_dir: Path | None = None,
-    check_cancelled: Callable[[], None] | None = None
+    check_cancelled: Callable[[], None] | None = None,
+    progress_callback: Callable[[float], None] | None = None,
+    total_duration: float | None = None,
 ) -> Path:
     """
     Extract the audio track from a video file into a mono WAV for transcription.
@@ -114,38 +118,56 @@ def extract_audio(
         str(audio_path),
     ]
 
-    # Use Popen to allow interruption if check_cancelled is provided
     process = subprocess.Popen(
         cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE,
+        universal_newlines=True,
+        bufsize=1,
     )
 
     try:
-        # We need to read output to prevent buffer filling (deadlock)
-        # process.communicate(timeout=...) reads pipes until timeout or completion
+        import select
+        import time
+
+        last_cancel_check = 0.0
 
         while True:
+            # 1. Periodic cancellation check
             if check_cancelled:
-                check_cancelled()
+                now = time.monotonic()
+                # Throttle check to avoid excessive DB overhead (every 0.5s)
+                if now - last_cancel_check > 0.5:
+                    check_cancelled()
+                    last_cancel_check = now
 
-            try:
-                # Read output with timeout
-                # This drains the pipes so ffmpeg won't block
-                _, stderr_data = process.communicate(timeout=0.2)
+            # 2. Non-blocking read of ffmpeg stderr
+            if process.stderr:
+                reads, _, _ = select.select([process.stderr], [], [], 0.1)
+                if reads:
+                    line = process.stderr.readline()
+                    if not line:
+                        break # EOF
+                    
+                    if progress_callback and total_duration and total_duration > 0:
+                         if "time=" in line:
+                            match = TIME_PATTERN.search(line)
+                            if match:
+                                h, m, s = match.groups()
+                                current_seconds = int(h) * 3600 + int(m) * 60 + float(s)
+                                progress = min(100.0, (current_seconds / total_duration) * 100.0)
+                                progress_callback(progress)
 
-                # If communicate returns, the process has finished
-                if process.returncode != 0:
-                    err_msg = stderr_data.decode("utf-8") if stderr_data else "Unknown error"
-                    raise subprocess.CalledProcessError(process.returncode, cmd, output=None, stderr=err_msg)
+            if process.poll() is not None:
                 break
 
-            except subprocess.TimeoutExpired:
-                # Process still running, loop again to check_cancelled
-                continue
+        process.wait()
+        if process.returncode != 0:
+            raise subprocess.CalledProcessError(process.returncode, cmd, output=None)
 
     except Exception:
-        process.kill()
+        if process.poll() is None:
+            process.kill()
         process.wait()
         raise
 
@@ -1416,16 +1438,29 @@ def build_social_copy_llm(
 
     model_name = model or config.SOCIAL_LLM_MODEL
     client = _load_openai_client(api_key)
+
+    system_prompt = (
+        "You are a concise Greek-first social copywriter for short-form videos.\n"
+        "Input is a transcript derived from subtitles (may contain timestamps, line breaks, filler words).\n"
+        "Ignore timestamps and subtitle formatting. Do not invent facts not present in the transcript.\n\n"
+        "Return ONLY valid JSON matching EXACTLY this schema:\n"
+        '{ "title": "...", "description": "...", "hashtags": ["#tag1", "#tag2"] }\n\n'
+        "Rules:\n"
+        "- No extra keys. No markdown. No explanations.\n"
+        "- Write in Greek unless the transcript is clearly not Greek.\n"
+        "- title: 35–90 characters, high-signal, no clickbait lies.\n"
+        "- description: 1–3 sentences, 160–600 characters. Summarize + add ONE soft CTA question at the end.\n"
+        '- hashtags: 8–14 items, unique, lowercase, each starts with "#", no spaces, no punctuation.\n'
+        "  Mix: mostly Greek + a few English keywords when relevant.\n"
+        "- Avoid generic spam tags (#fyp #viral) unless transcript is explicitly about TikTok.\n\n"
+        "Fallback (if transcript is empty/garbage):\n"
+        'title="Σύντομο απόσπασμα"\n'
+        'description="Σύντομο απόσπασμα από βίντεο. Τι σου έκανε εντύπωση;"\n'
+        'hashtags=["#ελλαδα","#mindset","#shortvideo"]'
+    )
+
     messages = [
-        {
-            "role": "system",
-            "content": (
-                "You are a concise, creative copywriter for social media video content. "
-                "Given a transcript, produce an engaging title, description, and hashtags. "
-                "Respond ONLY with JSON matching this schema:\n"
-                '{ "title": "...", "description": "...", "hashtags": ["#tag1", "#tag2"] }'
-            ),
-        },
+        {"role": "system", "content": system_prompt},
         {"role": "user", "content": transcript_text.strip()},
     ]
 
@@ -1438,7 +1473,8 @@ def build_social_copy_llm(
             response = client.chat.completions.create(
                 model=model_name,
                 messages=messages,
-                temperature=temperature,
+                temperature=0,
+                max_tokens=350,
                 timeout=60.0,
             )
             content = response.choices[0].message.content
@@ -1458,6 +1494,8 @@ def build_social_copy_llm(
         except (json.JSONDecodeError, KeyError, ValueError) as exc:
             last_exc = exc
             if attempt < max_retries:
+                # Retry prompt
+                messages.append({"role": "user", "content": "FIX_JSON_ONLY: return ONLY valid JSON matching the schema."})
                 continue
 
     raise ValueError("Failed to generate valid social copy after retries") from last_exc  # pragma: no cover
@@ -1471,10 +1509,15 @@ class FactCheckItem:
     mistake: str
     correction: str
     explanation: str
+    severity: str
+    confidence: int
 
 
 @dataclass
 class FactCheckResult:
+    truth_score: int
+    supported_claims_pct: int
+    claims_checked: int
     items: List[FactCheckItem]
 
 
@@ -1483,7 +1526,7 @@ def generate_fact_check(
     *,
     api_key: str | None = None,
     model: str | None = None,
-    temperature: float = 0.3,  # Lower temperature for factual accuracy
+    temperature: float = 0,
 ) -> FactCheckResult:
     """
     Analyze transcript for historical, logical, or factual errors using an LLM.
@@ -1494,27 +1537,47 @@ def generate_fact_check(
     if not api_key:
         raise RuntimeError("OpenAI API key is required for Fact Checking.")
 
-    model_name = model or config.SOCIAL_LLM_MODEL
+    model_name = model or config.FACTCHECK_LLM_MODEL
     client = _load_openai_client(api_key)
 
     system_prompt = (
         "### ROLE\n"
-        "You are an expert Fact Checker and Editor. Your goal is to verify the accuracy of the provided Greek transcript.\n\n"
+        "You are an expert Fact Checker and Editor for Greek transcripts.\n\n"
+        "### INPUT NOTE\n"
+        "The text comes from subtitle transcription. Ignore formatting artifacts.\n"
+        "Do not flag grammar/spelling unless it changes meaning.\n\n"
         "### TASK\n"
-        "Identify valid factual, historical, or logical errors in the text. Ignore minor grammar/spelling issues unless they change the meaning.\n"
-        "If the text is subjective/opinion-based, only flag contradictory statements.\n"
-        "If no significant errors are found, return an empty list.\n\n"
-        "### OUTPUT FORMAT\n"
-        "Return ONLY a VALID JSON object:\n"
+        "1) Identify up to 12 atomic claims stated as facts (skip obvious opinions).\n"
+        "2) For each claim, internally classify: supported / incorrect / misleading / unverifiable / opinion.\n"
+        "3) Output items ONLY for incorrect, misleading, or strong internal contradictions.\n\n"
+        "### TRUTH SCORES\n"
+        "Return:\n"
+        "- truth_score (0–100): overall \"truth-proof\" score.\n"
+        "- supported_claims_pct (0–100): supported / claims_checked.\n"
+        "- claims_checked (0–12)\n\n"
+        "Scoring rubric:\n"
+        "- Start truth_score at 100.\n"
+        "- Subtract: major 25, medium 15, minor 8.\n"
+        "- If many unverifiable claims are presented as facts, subtract 5–15 total.\n"
+        "Clamp 0–100.\n\n"
+        "### OUTPUT\n"
+        "Return ONLY valid JSON with EXACTLY this schema:\n"
         "{\n"
+        '  "truth_score": 0-100,\n'
+        '  "supported_claims_pct": 0-100,\n'
+        '  "claims_checked": 0-12,\n'
         '  "items": [\n'
         '    {\n'
-        '      "mistake": "Quote text containing the error",\n'
-        '      "correction": "Correct factual statement",\n'
-        '      "explanation": "Brief reason why it is wrong"\n'
+        '      "mistake": "quote containing the error (<=160 chars)",\n'
+        '      "correction": "correct statement (<=180 chars)",\n'
+        '      "explanation": "brief reason (<=220 chars)",\n'
+        '      "severity": "minor|medium|major",\n'
+        '      "confidence": 0-100\n'
         '    }\n'
         '  ]\n'
-        "}\n"
+        "}\n\n"
+        "If no significant errors: items=[]\n"
+        "No extra keys. No markdown. No explanations."
     )
 
     messages = [
@@ -1531,6 +1594,7 @@ def generate_fact_check(
                 model=model_name,
                 messages=messages,
                 temperature=temperature,
+                max_tokens=900,
                 response_format={"type": "json_object"},
                 timeout=60.0,
             )
@@ -1545,16 +1609,24 @@ def generate_fact_check(
                 FactCheckItem(
                     mistake=item["mistake"],
                     correction=item["correction"],
-                    explanation=item["explanation"]
+                    explanation=item["explanation"],
+                    severity=item["severity"],
+                    confidence=item["confidence"],
                 )
                 for item in items_data
             ]
 
-            return FactCheckResult(items=items)
+            return FactCheckResult(
+                truth_score=parsed["truth_score"],
+                supported_claims_pct=parsed["supported_claims_pct"],
+                claims_checked=parsed["claims_checked"],
+                items=items,
+            )
 
         except (json.JSONDecodeError, KeyError, ValueError) as exc:
             last_exc = exc
             if attempt < max_retries:
+                messages.append({"role": "user", "content": "FIX_JSON_ONLY: return ONLY valid JSON matching the schema."})
                 continue
 
     raise ValueError("Failed to generate fact check after retries") from last_exc
