@@ -1479,6 +1479,7 @@ def build_social_copy_llm(
                 model=model_name,
                 messages=messages,
                 temperature=temperature,
+                timeout=60.0,
             )
             content = response.choices[0].message.content
             if not content:
@@ -1567,6 +1568,7 @@ def generate_viral_metadata(
                 messages=messages,
                 temperature=temperature,
                 response_format={"type": "json_object"},
+                timeout=60.0,
             )
             content = response.choices[0].message.content
             if not content:
@@ -1655,6 +1657,7 @@ def generate_fact_check(
                 messages=messages,
                 temperature=temperature,
                 response_format={"type": "json_object"},
+                timeout=60.0,
             )
             content = response.choices[0].message.content
             if not content:
