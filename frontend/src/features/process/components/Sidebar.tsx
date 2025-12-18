@@ -172,15 +172,21 @@ export function Sidebar() {
     return (
         <div className="w-full md:w-[500px] lg:w-[600px] flex flex-col bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-xl overflow-hidden transition-all duration-500">
             {/* Status Header */}
-            <div className="p-4 border-b border-[var(--border)] flex items-center justify-between bg-[var(--surface-elevated)]">
+            <div
+                className="p-4 border-b border-[var(--border)] flex items-center justify-between bg-[var(--surface-elevated)]"
+                role="status"
+            >
                 <div className="flex items-center gap-3 overflow-hidden">
-                    <div className={`w-2.5 h-2.5 rounded-full shrink-0 animate-pulse ${isProcessing ? 'bg-amber-400' : 'bg-emerald-400'}`} />
+                    <div
+                        className={`w-2.5 h-2.5 rounded-full shrink-0 animate-pulse ${isProcessing ? 'bg-amber-400' : 'bg-emerald-400'}`}
+                        aria-label={isProcessing ? (t('statusProcessing') || "Processing") : (t('statusReady') || "Ready")}
+                    />
                     <h3 className="font-semibold text-[var(--foreground)] truncate" title={selectedJob.result_data?.original_filename || undefined}>
                         {selectedJob.result_data?.original_filename || t('processedVideoFallback')}
                     </h3>
                 </div>
                 {isProcessing && (
-                    <span className="text-xs font-mono text-amber-400">{progress}%</span>
+                    <span className="text-xs font-mono text-amber-400" aria-label={`${progress}% complete`}>{progress}%</span>
                 )}
             </div>
 

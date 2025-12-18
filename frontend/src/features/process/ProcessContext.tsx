@@ -270,9 +270,9 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
                 const isUltimateJob = jobModel === 'ultimate' || (jobModel && !jobModel.includes('turbo') && !jobModel.includes('enhanced')); // default large
 
                 if (transcribeMode === 'enhanced') {
-                    modelMatch = isEnhancedJob;
+                    modelMatch = Boolean(isEnhancedJob);
                 } else if (transcribeMode === 'ultimate') {
-                    modelMatch = isUltimateJob;
+                    modelMatch = Boolean(isUltimateJob);
                 }
             }
 

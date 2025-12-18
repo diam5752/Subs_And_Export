@@ -39,6 +39,7 @@
   "aiCopyLabel": "AI copy",
   "aiCopyNote": "hooks + captions",
   "statusProcessing": "Processing",
+  "statusReady": "Ready",
   "statusCompleted": "Completed",
   "statusIdle": "Idle",
   "statusSynced": "synced",
