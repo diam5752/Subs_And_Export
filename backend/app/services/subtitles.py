@@ -83,6 +83,8 @@ def _sanitize_ass_text(text: str) -> str:
     # Replace backslashes with forward slashes to prevent escape sequences (like \N)
     # or tag starts.
     text = text.replace("\\", "/")
+    # Replace newlines (which are event delimiters in ASS) with spaces
+    text = text.replace("\n", " ").replace("\r", " ")
     return text
 
 
