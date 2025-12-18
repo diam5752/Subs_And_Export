@@ -12,8 +12,12 @@ import time
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Optional
 
+from sqlalchemy import delete, select
+from sqlalchemy.exc import IntegrityError
+
+from ..db.models import DbSession, DbUser
 from . import config
 from .database import Database
 
@@ -68,42 +72,34 @@ class UserStore:
             password_hash=_hash_password(password),
             created_at=_utc_iso(),
         )
-        with self.db.connect() as conn:
-            conn.execute(
-                """
-                INSERT INTO users(id, email, name, provider, password_hash, google_sub, created_at)
-                VALUES(?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    user.id,
-                    user.email,
-                    user.name,
-                    user.provider,
-                    user.password_hash,
-                    user.google_sub,
-                    user.created_at,
-                ),
-            )
+        try:
+            with self.db.session() as session:
+                session.add(
+                    DbUser(
+                        id=user.id,
+                        email=user.email,
+                        name=user.name,
+                        provider=user.provider,
+                        password_hash=user.password_hash,
+                        google_sub=user.google_sub,
+                        created_at=user.created_at,
+                    )
+                )
+        except IntegrityError as exc:
+            raise ValueError("User already exists") from exc
         return user
 
     def upsert_google_user(self, email: str, name: str, sub: str) -> User:
         email = email.strip().lower()
-        with self.db.connect() as conn:
-            row = conn.execute(
-                "SELECT * FROM users WHERE email = ?", (email,)
-            ).fetchone()
-            if row:
-                # Security: Clear password hash when converting to Google SSO
-                # to prevent "shadow" local credentials that cannot be managed.
-                conn.execute(
-                    "UPDATE users SET name = ?, google_sub = ?, provider = ?, password_hash = NULL WHERE email = ?",
-                    (name, sub, "google", email),
-                )
-                updated = conn.execute(
-                    "SELECT * FROM users WHERE email = ?",
-                    (email,),
-                ).fetchone()
-                return _user_from_row(dict(updated)) if updated else _user_from_row(dict(row))
+        with self.db.session() as session:
+            existing = session.scalar(select(DbUser).where(DbUser.email == email).limit(1))
+            if existing:
+                existing.name = name.strip() or email.split("@")[0]
+                existing.google_sub = sub
+                existing.provider = "google"
+                existing.password_hash = None
+                session.flush()
+                return _user_from_db(existing)
 
             user = User(
                 id=secrets.token_hex(8),
@@ -113,39 +109,36 @@ class UserStore:
                 google_sub=sub,
                 created_at=_utc_iso(),
             )
-            conn.execute(
-                """
-                INSERT INTO users(id, email, name, provider, google_sub, created_at)
-                VALUES(?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    user.id,
-                    user.email,
-                    user.name,
-                    user.provider,
-                    user.google_sub,
-                    user.created_at,
-                ),
+            session.add(
+                DbUser(
+                    id=user.id,
+                    email=user.email,
+                    name=user.name,
+                    provider=user.provider,
+                    password_hash=None,
+                    google_sub=user.google_sub,
+                    created_at=user.created_at,
+                )
             )
             return user
 
 
 
     def update_name(self, user_id: str, new_name: str) -> None:
-        with self.db.connect() as conn:
-            conn.execute(
-                "UPDATE users SET name = ? WHERE id = ?",
-                (new_name.strip(), user_id),
-            )
+        with self.db.session() as session:
+            user = session.get(DbUser, user_id)
+            if not user:
+                return
+            user.name = new_name.strip()
 
     def update_password(self, user_id: str, new_password: str) -> None:
         _validate_password_strength(new_password)
         p_hash = _hash_password(new_password)
-        with self.db.connect() as conn:
-            conn.execute(
-                "UPDATE users SET password_hash = ? WHERE id = ?",
-                (p_hash, user_id),
-            )
+        with self.db.session() as session:
+            user = session.get(DbUser, user_id)
+            if not user:
+                return
+            user.password_hash = p_hash
 
     def authenticate_local(self, email: str, password: str) -> Optional[User]:
         email = email.strip().lower()
@@ -162,23 +155,19 @@ class UserStore:
 
     def get_user_by_email(self, email: str) -> Optional[User]:
         email = email.strip().lower()
-        with self.db.connect() as conn:
-            row = conn.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
-        if not row:
-            return None
-        return _user_from_row(dict(row))
+        with self.db.session() as session:
+            user = session.scalar(select(DbUser).where(DbUser.email == email).limit(1))
+            if not user:
+                return None
+            return _user_from_db(user)
 
     def delete_user(self, user_id: str) -> None:
         """Delete a user and all associated data (GDPR compliance)."""
-        with self.db.connect() as conn:
-            # Delete associated sessions
-            conn.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
-            # Delete associated jobs
-            conn.execute("DELETE FROM jobs WHERE user_id = ?", (user_id,))
-            # Delete associated history
-            conn.execute("DELETE FROM history WHERE user_id = ?", (user_id,))
-            # Delete the user
-            conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+        with self.db.session() as session:
+            user = session.get(DbUser, user_id)
+            if not user:
+                return
+            session.delete(user)
 
 
 class SessionStore:
@@ -194,13 +183,15 @@ class SessionStore:
         token_hash = _hash_token(token)
         now = int(time.time())
         expires_at = now + self.SESSION_TTL_SECONDS
-        with self.db.connect() as conn:
-            conn.execute(
-                """
-                INSERT OR REPLACE INTO sessions(token_hash, user_id, created_at, expires_at, user_agent)
-                VALUES(?, ?, ?, ?, ?)
-                """,
-                (token_hash, user.id, now, expires_at, user_agent),
+        with self.db.session() as session:
+            session.merge(
+                DbSession(
+                    token_hash=token_hash,
+                    user_id=user.id,
+                    created_at=now,
+                    expires_at=expires_at,
+                    user_agent=user_agent,
+                )
             )
         return token
 
@@ -209,41 +200,39 @@ class SessionStore:
             return None
         token_hash = _hash_token(token)
         now = int(time.time())
-        with self.db.connect() as conn:
-            row = conn.execute(
-                """
-                SELECT u.* FROM sessions s
-                JOIN users u ON u.id = s.user_id
-                WHERE s.token_hash = ? AND s.expires_at > ?
-                ORDER BY s.created_at DESC
-                LIMIT 1
-                """,
-                (token_hash, now),
-            ).fetchone()
-        if not row:
-            return None
-        return _user_from_row(dict(row))
+        with self.db.session() as session:
+            stmt = (
+                select(DbUser)
+                .join(DbSession, DbSession.user_id == DbUser.id)
+                .where(DbSession.token_hash == token_hash, DbSession.expires_at > now)
+                .order_by(DbSession.created_at.desc())
+                .limit(1)
+            )
+            user = session.scalar(stmt)
+            if not user:
+                return None
+            return _user_from_db(user)
 
     def revoke(self, token: str) -> None:
         token_hash = _hash_token(token)
-        with self.db.connect() as conn:
-            conn.execute("DELETE FROM sessions WHERE token_hash = ?", (token_hash,))
+        with self.db.session() as session:
+            session.execute(delete(DbSession).where(DbSession.token_hash == token_hash))
 
     def revoke_all_sessions(self, user_id: str) -> None:
         """Revoke all sessions for a user (for account deletion or security)."""
-        with self.db.connect() as conn:
-            conn.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
+        with self.db.session() as session:
+            session.execute(delete(DbSession).where(DbSession.user_id == user_id))
 
 
-def _user_from_row(row: Dict) -> User:
+def _user_from_db(user: DbUser) -> User:
     return User(
-        id=row.get("id") or secrets.token_hex(8),
-        email=row.get("email", ""),
-        name=row.get("name", "") or row.get("email", "User"),
-        provider=row.get("provider", "local"),
-        password_hash=row.get("password_hash"),
-        google_sub=row.get("google_sub"),
-        created_at=row.get("created_at"),
+        id=user.id or secrets.token_hex(8),
+        email=user.email or "",
+        name=user.name or user.email or "User",
+        provider=user.provider or "local",
+        password_hash=user.password_hash,
+        google_sub=user.google_sub,
+        created_at=user.created_at,
     )
 
 

@@ -1,6 +1,7 @@
 
 import time
 
+from backend.app.db.models import DbJob, DbUser
 from backend.app.services.jobs import JobStore
 
 
@@ -11,15 +12,9 @@ def test_job_store_retention(tmp_path):
     # Use file DB to ensure persistence across connections
     db_path = tmp_path / "test.db"
     db = Database(str(db_path))
-    with db.connect() as conn:
-        # Schema is created automatically by Database() init logic (via connect)
-        # We just need to seed a user
-        try:
-            conn.execute("INSERT INTO users (id, email, name, provider) VALUES ('u1', 'test@test.com', 'Test User', 'local')")
-        except:
-            # User might already exist if setup_db fixture interfere? No, tmp_path is unique per test function call usually?
-            # Actually tmp_path is per test function. But let's use INSERT OR IGNORE just in case.
-            conn.execute("INSERT OR IGNORE INTO users (id, email, name, provider) VALUES ('u1', 'test@test.com', 'Test User', 'local')")
+    with db.session() as session:
+        if not session.get(DbUser, "u1"):
+            session.add(DbUser(id="u1", email="test@test.com", name="Test User", provider="local"))
 
     store = JobStore(db)
 
@@ -30,8 +25,10 @@ def test_job_store_retention(tmp_path):
     # Manually age "old"
     now = int(time.time())
     old_time = now - (31 * 24 * 3600)
-    with db.connect() as conn:
-        conn.execute("UPDATE jobs SET created_at = ? WHERE id = 'old'", (old_time,))
+    with db.session() as session:
+        job = session.get(DbJob, "old")
+        assert job is not None
+        job.created_at = old_time
 
     # Test query
     cutoff = now - (30 * 24 * 3600)

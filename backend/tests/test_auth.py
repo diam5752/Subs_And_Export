@@ -7,6 +7,7 @@ import pytest
 from backend.app.api.endpoints import auth as auth_ep
 from backend.app.core import auth as backend_auth
 from backend.app.core.database import Database
+from backend.app.db.models import DbUser
 
 
 @pytest.fixture
@@ -260,9 +261,13 @@ class TestUserUpdates:
         token = login_response.json()["access_token"]
 
         # Flip the provider to google directly in the DB to simulate external account
+        from sqlalchemy import select
+
         db = Database()
-        with db.connect() as conn:
-            conn.execute("UPDATE users SET provider = 'google' WHERE email = ?", (test_user_data["email"],))
+        with db.session() as session:
+            user = session.scalar(select(DbUser).where(DbUser.email == test_user_data["email"]).limit(1))
+            assert user is not None
+            user.provider = "google"
 
         # Use a valid password (>=12 chars) to pass validation, so we hit the provider check
         response = client.put(

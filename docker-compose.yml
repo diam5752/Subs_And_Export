@@ -1,4 +1,19 @@
 services:
+  db:
+    image: postgres:16-alpine
+    env_file:
+      - .env.docker
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\"" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   backend:
     build:
       context: .
@@ -16,7 +31,13 @@ services:
     environment:
       - APP_ENV=${APP_ENV:-dev}
       - GSP_ALLOWED_ORIGINS=http://localhost:3000,http://frontend:3000
+    depends_on:
+      db:
+        condition: service_healthy
     restart: unless-stopped
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080}"
     healthcheck:
       test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')" ]
       interval: 30s
@@ -50,3 +71,5 @@ services:
 volumes:
   whisper_models:
     name: gsp_whisper_models
+  postgres_data:
+    name: gsp_postgres_data

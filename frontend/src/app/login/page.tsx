@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, Suspense, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -20,6 +20,7 @@ function LoginContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { t } = useI18n();
+    const hasHandledGoogleCallback = useRef(false);
 
     // Handle Google OAuth callback
     useEffect(() => {
@@ -27,16 +28,21 @@ function LoginContent() {
         const state = searchParams.get('state');
         const storedState = typeof window !== 'undefined' ? localStorage.getItem('google_oauth_state') : null;
 
+        if (hasHandledGoogleCallback.current) {
+            return;
+        }
+
         if (code && state && storedState === state) {
+            hasHandledGoogleCallback.current = true;
             setGoogleLoading(true);
+            // Clear immediately to avoid duplicate callback posts (e.g. React strict mode in dev).
+            localStorage.removeItem('google_oauth_state');
             googleLogin(code, state)
                 .then(() => {
-                    localStorage.removeItem('google_oauth_state');
                     router.push('/');
                 })
                 .catch((err) => {
                     setError(err.message || t('loginErrorGoogle'));
-                    localStorage.removeItem('google_oauth_state');
                 })
                 .finally(() => setGoogleLoading(false));
         }

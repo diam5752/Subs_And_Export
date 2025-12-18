@@ -5,9 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Dict, List
 
+from sqlalchemy import select
+
 from ..core import config
 from ..core.auth import User
 from ..core.database import Database
+from ..db.models import DbHistoryEvent, DbUser
 
 
 @dataclass
@@ -43,56 +46,51 @@ class HistoryStore:
             summary=summary,
             data=data,
         )
-        with self.db.connect() as conn:
-            conn.execute(
-                """
-                INSERT OR IGNORE INTO users(id, email, name, provider, created_at)
-                VALUES(?, ?, ?, ?, ?)
-                """,
-                (
-                    user.id,
-                    user.email,
-                    user.name,
-                    user.provider,
-                    user.created_at or event.ts,
-                ),
-            )
-            conn.execute(
-                """
-                INSERT INTO history(ts, user_id, email, kind, summary, data)
-                VALUES(?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    event.ts,
-                    event.user_id,
-                    event.email,
-                    event.kind,
-                    event.summary,
-                    self.db.dumps(event.data),
-                ),
+        with self.db.session() as session:
+            existing_user = session.get(DbUser, user.id)
+            if not existing_user:
+                session.add(
+                    DbUser(
+                        id=user.id,
+                        email=user.email,
+                        name=user.name,
+                        provider=user.provider,
+                        password_hash=None,
+                        google_sub=None,
+                        created_at=user.created_at or event.ts,
+                    )
+                )
+                session.flush()
+
+            session.add(
+                DbHistoryEvent(
+                    ts=event.ts,
+                    user_id=event.user_id,
+                    email=event.email,
+                    kind=event.kind,
+                    summary=event.summary,
+                    data=event.data,
+                )
             )
         return event
 
     def recent_for_user(self, user: User, limit: int = 20) -> List[HistoryEvent]:
-        with self.db.connect() as conn:
-            rows = conn.execute(
-                """
-                SELECT ts, user_id, email, kind, summary, data
-                FROM history
-                WHERE user_id = ?
-                ORDER BY ts DESC
-                LIMIT ?
-                """,
-                (user.id, limit),
-            ).fetchall()
+        with self.db.session() as session:
+            stmt = (
+                select(DbHistoryEvent)
+                .where(DbHistoryEvent.user_id == user.id)
+                .order_by(DbHistoryEvent.ts.desc())
+                .limit(limit)
+            )
+            rows = list(session.scalars(stmt).all())
         return [
             HistoryEvent(
-                ts=row["ts"],
-                user_id=row["user_id"],
-                email=row["email"],
-                kind=row["kind"],
-                summary=row["summary"],
-                data=self.db.loads(row["data"]),
+                ts=row.ts,
+                user_id=row.user_id,
+                email=row.email,
+                kind=row.kind,
+                summary=row.summary,
+                data=row.data,
             )
             for row in rows
         ]

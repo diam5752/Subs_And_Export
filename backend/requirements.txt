@@ -24,6 +24,11 @@ google-auth>=2.29.0
 google-auth-oauthlib>=1.2.0
 passlib[bcrypt]>=1.7.4
 
+# Database (production-grade)
+sqlalchemy>=2.0.0
+alembic>=1.13.0
+psycopg[binary]>=3.1.0
+
 # Cloud Storage (direct-to-GCS uploads for Cloud Run)
 google-cloud-storage>=3.7.0
 

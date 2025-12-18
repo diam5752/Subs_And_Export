@@ -2,6 +2,7 @@
 import pytest
 
 from backend.app.core import auth, database
+from backend.app.db.models import DbUser
 from backend.app.services import history, tiktok
 
 
@@ -219,10 +220,17 @@ def test_password_policy_and_legacy_hash(tmp_path):
     # Legacy SHA-based hashes remain compatible for existing records
     legacy_salt = "abc123ef"
     legacy_hash = auth._hash_password_legacy("OldPassword9", legacy_salt)
-    with store.db.connect() as conn:
-        conn.execute(
-            "INSERT INTO users(id, email, name, provider, password_hash) VALUES(?, ?, ?, ?, ?)",
-            ("legacy1", "legacy@example.com", "Legacy", "local", legacy_hash),
+    with store.db.session() as session:
+        session.add(
+            DbUser(
+                id="legacy1",
+                email="legacy@example.com",
+                name="Legacy",
+                provider="local",
+                password_hash=legacy_hash,
+                google_sub=None,
+                created_at=None,
+            )
         )
     assert store.authenticate_local("legacy@example.com", "OldPassword9")
 
