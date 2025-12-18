@@ -102,3 +102,8 @@
 **Vulnerability:** The `/videos/jobs/{job_id}/export` endpoint lacked regex validation for `subtitle_color`, which was present in the `/process` endpoint. This allowed malformed color codes (up to 20 chars) to be passed to the underlying ASS generator.
 **Learning:** Logic duplicated across endpoints (e.g., input schemas vs form parameters) often leads to drift where security fixes are applied in one place but missed in others.
 **Prevention:** Centralize shared validation logic (e.g. using a shared Pydantic `validator` mixin or reusable regex constants) rather than duplicating regex checks in multiple request models or endpoint functions.
+
+## 2025-07-04 - [Medium] Missing List Length Limit on Batch Delete
+**Vulnerability:** The `BatchDeleteRequest` Pydantic model lacked a `max_length` constraint on the `job_ids` list field. While the endpoint manually checked `len > 50`, Pydantic would still parse and validate arbitrarily large lists (e.g., 1 million items), exposing the service to Denial of Service via memory exhaustion before the application logic could reject it.
+**Learning:** `List[Annotated[T, ...]]` only validates individual items `T`. The container `List` itself requires its own validation via `Annotated[List[...], Field(max_length=...)]` or `List[...] = Field(max_length=...)`. Manual checks in endpoint functions are "too late" for memory DoS protection.
+**Prevention:** Audit all `List` fields in Pydantic models. Always apply `Field(max_length=...)` to the list container itself, not just the inner types.
