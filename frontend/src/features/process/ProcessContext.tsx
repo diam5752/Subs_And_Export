@@ -6,7 +6,7 @@ import { resegmentCues } from '@/lib/subtitleUtils';
 import { PreviewPlayerHandle } from '@/components/PreviewPlayer';
 
 export type TranscribeMode = 'balanced' | 'turbo' | 'enhanced' | 'ultimate';
-export type TranscribeProvider = 'local' | 'openai' | 'groq' | 'whispercpp';
+export type TranscribeProvider = 'local' | 'groq' | 'whispercpp';
 
 export interface ProcessingOptions {
     transcribeMode: TranscribeMode;

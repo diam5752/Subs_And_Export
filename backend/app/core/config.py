@@ -38,7 +38,7 @@ WHISPER_CHUNK_LENGTH = 90  # seconds; testing shows 90s is faster than 30s for t
 WHISPER_BATCH_SIZE = 16  # batch size for faster-whisper processing
 
 # Hosted STT (OpenAI)
-OPENAI_TRANSCRIBE_MODEL = "gpt-4o-mini-transcribe"
+
 
 # Cloud providers
 GROQ_TRANSCRIBE_MODEL = "whisper-large-v3"  # ~200x realtime for Greek

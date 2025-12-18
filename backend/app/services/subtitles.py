@@ -225,14 +225,7 @@ def _get_whisper_model(
     return model
 
 
-def should_use_openai(model_name: str | None) -> bool:
-    """Check if the model name implies using OpenAI's API."""
-    return model_name is not None and "openai" in model_name.lower()
-
-
-def _model_uses_openai(model_name: str | None) -> bool:
-    """Helper for internal use (alias of should_use_openai)."""
-    return should_use_openai(model_name)
+    return False
 
 
 
@@ -348,23 +341,15 @@ def generate_subtitles_from_audio(
     """
     from backend.app.services.transcription.groq_cloud import GroqTranscriber
     from backend.app.services.transcription.local_whisper import LocalWhisperTranscriber
-    from backend.app.services.transcription.openai_cloud import OpenAITranscriber
+
     from backend.app.services.transcription.standard_whisper import StandardTranscriber
 
     if not language or language.lower() == "auto":
         language = config.WHISPER_LANGUAGE
 
-    wants_openai = provider == "openai" or _model_uses_openai(model_size)
+
     output_dir = output_dir or Path(tempfile.mkdtemp())
     output_dir.mkdir(parents=True, exist_ok=True)
-
-    if wants_openai:
-        transcriber = OpenAITranscriber(api_key=openai_api_key)
-        return transcriber.transcribe(
-            audio_path, output_dir, language=language, model=model_size or config.OPENAI_TRANSCRIBE_MODEL,
-            initial_prompt=initial_prompt, progress_callback=progress_callback
-        )
-
     if provider == "groq":
         transcriber = GroqTranscriber(api_key=openai_api_key)
         return transcriber.transcribe(
