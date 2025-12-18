@@ -8,6 +8,7 @@
   "modelSelectTitle": "Select a model",
   "modelSelectSubtitle": "Choose the engine before uploading",
   "tabStyles": "Styles",
+  "tabIntelligence": "Intelligence",
   "changeFile": "Change file",
   "languageToggleLabel": "Change language",
   "languageNameEl": "Greek",
@@ -237,6 +238,7 @@
   "generating4k": "Generating 4K...",
   "previewButton": "Preview",
   "viralGenerate": "Generate Viral Metadata",
+  "viralGenerateTooltip": "Analyze your video to generate attention-grabbing hooks, captions, and hashtags.",
   "viralAnalyzing": "Analyzing transcript...",
   "viralTitle": "Viral Intelligence",
   "viralHooksLabel": "On-Screen Hooks",
@@ -332,5 +334,6 @@
   "viralIntelligence": "Viral Intelligence",
   "factCheck": "Fact Check",
   "checkingFacts": "Checking facts...",
+  "factCheckTooltip": "Verify the accuracy of claims in your video to ensure maximum credibility.",
   "factCheckResults": "Fact Check Results"
 }

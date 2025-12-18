@@ -8,6 +8,7 @@
   "modelSelectTitle": "Επιλέξτε μοντέλο",
   "modelSelectSubtitle": "Διαλέξτε μηχανή πριν ανεβάσετε βίντεο",
   "tabStyles": "Στυλ",
+  "tabIntelligence": "Intelligence",
   "changeFile": "Αλλαγή αρχείου",
   "languageToggleLabel": "Αλλαγή γλώσσας",
   "languageNameEl": "Ελληνικά",
@@ -291,6 +292,7 @@
   "karaokeStatic": "Απλοί στατικοί υπότιτλοι",
   "tooltipKaraokeDesc": "Τονίζει τη λέξη που ακούγεται εκείνη τη στιγμή για πιο \"karaoke\" αίσθηση.",
   "viralGenerate": "Δημιουργία Viral Metadata",
+  "viralGenerateTooltip": "Αναλύστε το βίντεο για να δημιουργήσετε hooks, λεζάντες και hashtags που τραβούν την προσοχή.",
   "viralAnalyzing": "Ανάλυση μεταγραφής...",
   "viralTitle": "Viral Intelligence",
   "viralHooksLabel": "On-Screen Hooks",
@@ -332,5 +334,6 @@
   "viralIntelligence": "Viral Intelligence",
   "factCheck": "Έλεγχος Γεγονότων",
   "checkingFacts": "Έλεγχος γεγονότων...",
+  "factCheckTooltip": "Επαληθεύστε την εγκυρότητα των ισχυρισμών στο βίντεό σας για μέγιστη αξιοπιστία.",
   "factCheckResults": "Αποτελέσματα Ελέγχου"
 }

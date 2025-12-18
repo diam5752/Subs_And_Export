@@ -45,4 +45,3 @@ class FactCheckItemSchema(BaseModel):
 
 class FactCheckResponse(BaseModel):
     items: List[FactCheckItemSchema]
-

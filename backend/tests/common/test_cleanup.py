@@ -2,7 +2,7 @@
 import time
 from pathlib import Path
 
-from backend.app.common.cleanup import cleanup_old_jobs
+from backend.app.common.cleanup import cleanup_old_jobs, cleanup_old_uploads
 
 
 def test_cleanup_removes_old_files(tmp_path):
@@ -35,6 +35,33 @@ def test_cleanup_removes_old_files(tmp_path):
     assert not old_file.exists()
     assert new_file.exists()
     assert not old_dir.exists()
+
+
+def test_cleanup_uploads_only_removes_old_uploads(tmp_path):
+    """Uploads-only cleanup should not touch artifacts."""
+    uploads = tmp_path / "uploads"
+    artifacts = tmp_path / "artifacts"
+    uploads.mkdir()
+    artifacts.mkdir()
+
+    old_file = uploads / "old.mp4"
+    old_file.touch()
+    new_file = uploads / "new.mp4"
+    new_file.touch()
+
+    old_dir = artifacts / "old_job"
+    old_dir.mkdir()
+
+    past = time.time() - (25 * 3600)
+    import os
+    os.utime(old_file, (past, past))
+    os.utime(old_dir, (past, past))
+
+    cleanup_old_uploads(uploads, retention_hours=24)
+
+    assert not old_file.exists()
+    assert new_file.exists()
+    assert old_dir.exists()
 
 def test_cleanup_skips_gitkeep(tmp_path):
     """Test that .gitkeep is preserved."""

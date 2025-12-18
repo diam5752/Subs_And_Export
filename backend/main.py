@@ -2,10 +2,12 @@ import logging
 import os
 
 from fastapi import FastAPI, HTTPException
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from secure import (
     ContentSecurityPolicy,
     ReferrerPolicy,
@@ -35,6 +37,26 @@ app = FastAPI(
     redoc_url="/redoc" if is_dev_env() else None,
     openapi_url="/openapi.json" if is_dev_env() else None,
 )
+
+
+@app.exception_handler(RequestValidationError)
+async def _validation_exception_handler(request: Request, exc: RequestValidationError):
+    # FastAPI returns 422 for validation errors by default; for this endpoint we treat an oversized delete
+    # request as a regular 400 "bad request" to align with other API-level limits.
+    if request.url.path == "/videos/jobs/batch-delete":
+        for error in exc.errors():
+            loc = error.get("loc", ())
+            ctx = error.get("ctx", {})
+            if (
+                error.get("type") == "too_long"
+                and isinstance(loc, tuple)
+                and loc[-1] == "job_ids"
+                and ctx.get("max_length") == 50
+            ):
+                return JSONResponse(status_code=400, content={"detail": "Cannot delete more than 50 jobs at once"})
+
+    return await request_validation_exception_handler(request, exc)
+
 
 @app.on_event("startup")
 def _startup_db() -> None:

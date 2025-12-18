@@ -70,8 +70,8 @@ interface ProcessContextType {
     karaokeEnabled: boolean;
     setKaraokeEnabled: (v: boolean) => void;
     shadowStrength: number;
-    activeSidebarTab: 'transcript' | 'styles';
-    setActiveSidebarTab: (v: 'transcript' | 'styles') => void;
+    activeSidebarTab: 'transcript' | 'styles' | 'intelligence';
+    setActiveSidebarTab: (v: 'transcript' | 'styles' | 'intelligence') => void;
     activePreset: string | null;
     setActivePreset: (v: string | null) => void;
     videoInfo: { width: number; height: number; aspectWarning: boolean; thumbnailUrl: string | null } | null;
@@ -225,7 +225,7 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
 
     const [shadowStrength] = useState<number>(4);
 
-    const [activeSidebarTab, setActiveSidebarTab] = useState<'transcript' | 'styles'>('transcript');
+    const [activeSidebarTab, setActiveSidebarTab] = useState<'transcript' | 'styles' | 'intelligence'>('transcript');
     const [activePreset, setActivePreset] = useState<string | null>(null); // No preset active by default if we load custom settings
 
     const [videoInfo, setVideoInfo] = useState<{ width: number; height: number; aspectWarning: boolean; thumbnailUrl: string | null } | null>(null);

@@ -692,12 +692,11 @@ async def process_video(
         )
 
     # Trigger Cleanup
-    from ...common.cleanup import cleanup_old_jobs
+    from ...common.cleanup import cleanup_old_uploads
     background_tasks.add_task(
-        cleanup_old_jobs,
+        cleanup_old_uploads,
         uploads_dir,
-        artifacts_root,
-        24 # 24 hours retention
+        24,  # 24 hours retention
     )
 
     return job
@@ -882,11 +881,10 @@ def process_video_from_gcs(
         original_name=session.original_filename,
     )
 
-    from ...common.cleanup import cleanup_old_jobs
+    from ...common.cleanup import cleanup_old_uploads
     background_tasks.add_task(
-        cleanup_old_jobs,
+        cleanup_old_uploads,
         uploads_dir,
-        artifacts_root,
         24,
     )
 
@@ -1248,11 +1246,10 @@ def reprocess_job(
             original_name=(source_job.result_data or {}).get("original_filename"),
         )
 
-        from ...common.cleanup import cleanup_old_jobs
+        from ...common.cleanup import cleanup_old_uploads
         background_tasks.add_task(
-            cleanup_old_jobs,
+            cleanup_old_uploads,
             uploads_dir,
-            artifacts_root,
             24,
         )
 
@@ -1340,11 +1337,10 @@ def reprocess_job(
         (source_job.result_data or {}).get("original_filename"),
     )
 
-    from ...common.cleanup import cleanup_old_jobs
+    from ...common.cleanup import cleanup_old_uploads
     background_tasks.add_task(
-        cleanup_old_jobs,
+        cleanup_old_uploads,
         uploads_dir,
-        artifacts_root,
         24,
     )
 

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useI18n } from '@/context/I18nContext';
 import { api, ViralMetadataResponse, FactCheckResponse } from '@/lib/api';
+import { InfoTooltip } from '@/components/InfoTooltip';
 
 interface ViralIntelligenceProps {
     jobId: string;
@@ -80,64 +81,66 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
     };
 
     return (
-        <div className="mt-8 pt-8 space-y-6">
-            {/* VisionOS Header - Floating Platter Effect */}
-            <div className="flex items-center justify-between p-1">
-                <h3 className="text-xl font-medium tracking-tight text-white/90 flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/10 shadow-[0_4px_12px_rgba(0,0,0,0.1)]">
-                        {/* Brain / Chip Icon */}
-                        <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M9.5 2A5.5 5.5 0 0 0 4 7.5a5.5 5.5 0 0 0 .5 2.5A3.5 3.5 0 0 0 2 13a3.5 3.5 0 0 0 3 3.23A4.5 4.5 0 0 0 9.5 20h5a4.5 4.5 0 0 0 4.5-4.77A3.5 3.5 0 0 0 22 13a3.5 3.5 0 0 0-2.5-3.5 5.5 5.5 0 0 0 .5-2.5 5.5 5.5 0 0 0-5.5-5.5h-5z" />
-                            <rect x="10" y="10" width="4" height="4" rx="1" />
-                            <path d="M12 10V8" />
-                            <path d="M12 14v2" />
-                            <path d="M10 12H8" />
-                            <path d="M16 12h-2" />
-                        </svg>
-                    </div>
-                    <span>Intelligence</span>
-                </h3>
-            </div>
-
+        <div className="space-y-6">
             <div className="grid grid-cols-2 gap-4">
                 {!metadata && !loading && (
-                    <button
-                        onClick={handleGenerate}
-                        disabled={loading || checkingFacts}
-                        className="group relative flex flex-col items-center justify-center gap-3 py-6 px-4 rounded-[2rem] bg-white/5 hover:bg-white/10 backdrop-blur-2xl border border-white/10 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-xl hover:shadow-purple-500/10"
-                    >
-                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-400/20 to-purple-400/20 flex items-center justify-center text-indigo-300 shadow-inner mb-1 group-hover:scale-110 group-hover:bg-gradient-to-br group-hover:from-indigo-400 group-hover:to-purple-400 group-hover:text-white transition-all duration-300">
-                            {/* Magic Spark Icon */}
-                            <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-                                <path d="M12 2v0" />
-                            </svg>
+                    <div className="relative group/btn">
+                        <button
+                            onClick={handleGenerate}
+                            disabled={loading || checkingFacts}
+                            className="w-full group relative flex flex-col items-center justify-center gap-3 py-6 px-4 rounded-[2rem] bg-white/5 hover:bg-white/10 backdrop-blur-2xl border border-white/10 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-xl hover:shadow-purple-500/10"
+                        >
+                            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-400/20 to-purple-400/20 flex items-center justify-center text-indigo-300 shadow-inner mb-1 group-hover:scale-110 group-hover:bg-gradient-to-br group-hover:from-indigo-400 group-hover:to-purple-400 group-hover:text-white transition-all duration-300">
+                                {/* Magic Spark Icon */}
+                                <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                                    <path d="M12 2v0" />
+                                </svg>
+                            </div>
+                            <div className="text-center">
+                                <span className="block text-sm font-medium text-white/90 group-hover:text-white">{t('viralGenerate') || 'Generate Metadata'}</span>
+                                <span className="block text-xs text-white/40 mt-1">AI-Powered Tags & Caption</span>
+                            </div>
+                        </button>
+                        <div className="absolute top-3 right-3">
+                            <InfoTooltip ariaLabel={t('viralGenerateTooltip')}>
+                                <div className="space-y-1">
+                                    <div className="font-semibold text-[11px]">{t('viralGenerate') || 'Generate Metadata'}</div>
+                                    <p className="text-[var(--muted)] leading-snug">{t('viralGenerateTooltip')}</p>
+                                </div>
+                            </InfoTooltip>
                         </div>
-                        <div className="text-center">
-                            <span className="block text-sm font-medium text-white/90 group-hover:text-white">Generate Metadata</span>
-                            <span className="block text-xs text-white/40 mt-1">AI-Powered Tags & Caption</span>
-                        </div>
-                    </button>
+                    </div>
                 )}
 
                 {!factCheckResult && !checkingFacts && (
-                    <button
-                        onClick={handleFactCheck}
-                        disabled={loading || checkingFacts}
-                        className="group relative flex flex-col items-center justify-center gap-3 py-6 px-4 rounded-[2rem] bg-white/5 hover:bg-white/10 backdrop-blur-2xl border border-white/10 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-xl hover:shadow-emerald-500/10"
-                    >
-                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-400/20 to-teal-400/20 flex items-center justify-center text-emerald-300 shadow-inner mb-1 group-hover:scale-110 group-hover:bg-gradient-to-br group-hover:from-emerald-400 group-hover:to-teal-400 group-hover:text-white transition-all duration-300">
-                            {/* Shield Check Icon */}
-                            <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                                <path d="M9 12l2 2 4-4" />
-                            </svg>
+                    <div className="relative group/btn">
+                        <button
+                            onClick={handleFactCheck}
+                            disabled={loading || checkingFacts}
+                            className="w-full group relative flex flex-col items-center justify-center gap-3 py-6 px-4 rounded-[2rem] bg-white/5 hover:bg-white/10 backdrop-blur-2xl border border-white/10 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-xl hover:shadow-emerald-500/10"
+                        >
+                            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-400/20 to-teal-400/20 flex items-center justify-center text-emerald-300 shadow-inner mb-1 group-hover:scale-110 group-hover:bg-gradient-to-br group-hover:from-emerald-400 group-hover:to-teal-400 group-hover:text-white transition-all duration-300">
+                                {/* Shield Check Icon */}
+                                <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                                    <path d="M9 12l2 2 4-4" />
+                                </svg>
+                            </div>
+                            <div className="text-center">
+                                <span className="block text-sm font-medium text-white/90 group-hover:text-white">{t('factCheck') || 'Verify Facts'}</span>
+                                <span className="block text-xs text-white/40 mt-1">Check Accuracy & Trust</span>
+                            </div>
+                        </button>
+                        <div className="absolute top-3 right-3">
+                            <InfoTooltip ariaLabel={t('factCheckTooltip')}>
+                                <div className="space-y-1">
+                                    <div className="font-semibold text-[11px]">{t('factCheck') || 'Verify Facts'}</div>
+                                    <p className="text-[var(--muted)] leading-snug">{t('factCheckTooltip')}</p>
+                                </div>
+                            </InfoTooltip>
                         </div>
-                        <div className="text-center">
-                            <span className="block text-sm font-medium text-white/90 group-hover:text-white">Verify Facts</span>
-                            <span className="block text-xs text-white/40 mt-1">Check Accuracy & Trust</span>
-                        </div>
-                    </button>
+                    </div>
                 )}
             </div>
 
