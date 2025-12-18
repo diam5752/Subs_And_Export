@@ -1,0 +1,28 @@
+🚀 Starting Full Stack Environment...
+⚠️  No venv found in root. Assuming python/pip are in path or handled otherwise.
+🧹 Killing old servers on ports 8080 and 3000...
+⚙️  Starting Backend (Port 8080)...
+🎨 Starting Frontend (Port 3000)...
+✅ Servers are running!
+   Backend: http://localhost:8080
+   Frontend: http://localhost:3000
+   Press Ctrl+C to stop both.
+./run_servers.sh: line 39: uvicorn: command not found
+
+> frontend@0.1.0 dev
+> next dev
+
+   ▲ Next.js 16.0.10 (Turbopack)
+   - Local:         http://localhost:3000
+   - Network:       http://192.168.0.2:3000
+
+ ✓ Starting...
+Attention: Next.js now collects completely anonymous telemetry regarding usage.
+This information is used to shape Next.js' roadmap and prioritize features.
+You can learn more, including how to opt-out if you'd not like to participate in this anonymous program, by visiting the following URL:
+https://nextjs.org/telemetry
+
+ ✓ Ready in 1180ms
+ ○ Compiling /test-sidebar ...
+ GET /test-sidebar 200 in 5.3s (compile: 4.7s, render: 577ms)
+ ✓ Compiled in 92ms
