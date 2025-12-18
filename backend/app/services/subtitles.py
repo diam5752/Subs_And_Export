@@ -1304,6 +1304,65 @@ def _extract_keywords(text: str, limit: int = 5) -> List[str]:
     return [kw for kw, _ in ordered[:limit]]
 
 
+def _extract_important_segments(text: str, target_chars: int = 2500) -> str:
+    """
+    Extract key segments from text to reduce token usage while keeping context.
+    Prioritizes:
+    1. Beginning (Hook)
+    2. End (Conclusion)
+    3. Sentences with high keyword density
+    """
+    text = text.strip()
+    if len(text) <= target_chars:
+        return text
+
+    # Simple sentence splitting (Greek/English/Common punctuation)
+    # Includes Greek question mark (;) and semicolon (;)
+    sentences = re.split(r'(?<=[.!?;;])\s+', text)
+    if len(sentences) < 5:
+        return text[:target_chars]
+
+    # Identify keywords
+    keywords = [k for k in _extract_keywords(text, limit=10)]
+
+    # Score sentences
+    scored = []
+    for i, s in enumerate(sentences):
+        score = sum(1 for k in keywords if k in s.lower())
+        scored.append((i, s, score))
+
+    # Always keep first 2 and last 2
+    keep_indices = {0, 1, len(sentences)-1, len(sentences)-2}
+
+    current_chars = sum(len(sentences[i]) for i in keep_indices if 0 <= i < len(sentences))
+
+    # Fill remaining budget with high score sentences
+    remaining_candidates = [x for x in scored if x[0] not in keep_indices]
+    # Sort by score desc
+    remaining_candidates.sort(key=lambda x: x[2], reverse=True)
+
+    for idx, s, score in remaining_candidates:
+        if current_chars + len(s) < target_chars:
+            keep_indices.add(idx)
+            current_chars += len(s)
+        else:
+            if current_chars > target_chars * 0.9:
+                break
+
+    # Reassemble in order
+    final_indices = sorted(list(keep_indices))
+    result_parts = []
+    last_idx = -1
+    for idx in final_indices:
+        if 0 <= idx < len(sentences):
+            if last_idx != -1 and idx > last_idx + 1:
+                result_parts.append("[...]")
+            result_parts.append(sentences[idx])
+            last_idx = idx
+
+    return " ".join(result_parts)
+
+
 def _summarize_text(text: str, max_words: int = 45) -> str:
     words = text.split()
     summary_words = words[:max_words]
@@ -1512,39 +1571,24 @@ def build_social_copy_llm(
     model_name = model or config.SOCIAL_LLM_MODEL
     client = _load_openai_client(api_key)
 
+    # Compress prompt to save tokens
     system_prompt = (
-        "You are a viral Greek TikTok/Reels copywriter. Your job is to make viewers STOP scrolling.\n"
-        "Input: a transcript from a short video (may have timestamps, filler words—ignore those).\n\n"
-        "Return ONLY valid JSON matching EXACTLY this schema:\n"
-        '{ "title": "...", "description": "...", "hashtags": ["#tag1", "#tag2"] }\n\n'
-        "### TITLE (35–80 chars)\n"
-        "- Hook the viewer IMMEDIATELY. Use curiosity, controversy, or a bold claim.\n"
-        "- Examples: 'Αυτό δεν στο λένε ποτέ...', 'Γιατί όλοι κάνουν λάθος σε αυτό', 'Η αλήθεια που κανείς δεν θέλει να ακούσεις'\n"
-        "- NO boring summaries. Make them NEED to watch.\n\n"
-        "### DESCRIPTION (100–400 chars)\n"
-        "- Start with a punchy hook or provocative statement that continues the title's energy.\n"
-        "- Use short, punchy sentences. Add emotion, relatability, or controversy.\n"
-        "- End with an engaging question or call-to-action that sparks comments.\n"
-        "- Examples of good CTAs: 'Συμφωνείς;', 'Tag κάποιον που πρέπει να το δει', 'Πες μου τη γνώμη σου 👇'\n"
-        "- Use 1-2 emojis strategically (🔥💡🤯👇) but don't overdo it.\n\n"
-        "### HASHTAGS (8–14 items)\n"
-        "- Mix trending Greek tags + niche topic tags + 2-3 English discovery tags\n"
-        "- Include at least ONE emotion/vibe tag (#mindset, #αλήθειες, #facts)\n"
-        "- NO generic spam (#fyp #viral) unless content is meta about TikTok\n\n"
-        "### RULES\n"
-        "- Write in Greek (unless transcript is clearly another language)\n"
-        "- Stay true to the content—don't invent claims\n"
-        "- Sound like a creator posting their own video, NOT a news anchor\n"
-        "- No markdown, no extra keys, ONLY the JSON\n\n"
-        "Fallback (empty/garbage transcript):\n"
-        'title="Αυτό πρέπει να το δεις..."\n'
-        'description="Κάτι που θα σε βάλει σε σκέψεις 🤔 Πες μου τη γνώμη σου 👇"\n'
-        'hashtags=["#ελλαδα","#mindset","#greektiktok","#viral"]'
+        "You are a viral Greek TikTok copywriter.\n"
+        "Input: video transcript.\n"
+        "Output: JSON ONLY { \"title\": \"...\", \"description\": \"...\", \"hashtags\": [...] }\n\n"
+        "TITLE (35-80 chars): Hook immediate curiosity/controversy. No summaries.\n"
+        "DESCRIPTION (100-250 chars): Punchy hook, short sentences, engaging question/CTA at end. 1-2 emojis.\n"
+        "HASHTAGS (8-14): Mix Greek trending + niche + emotion. No generic spam.\n"
+        "Language: Greek.\n"
+        "Fallback if empty: title=\"Αυτό πρέπει να το δεις...\", description=\"Κάτι που θα σε βάλει σε σκέψεις 🤔 Πες μου τη γνώμη σου 👇\", hashtags=[\"#ελλαδα\",\"#mindset\",\"#greektiktok\",\"#viral\"]"
     )
+
+    # Reduce input tokens using smart truncation
+    optimized_text = _extract_important_segments(transcript_text, target_chars=2500)
 
     messages = [
         {"role": "system", "content": system_prompt},
-        {"role": "user", "content": transcript_text.strip()},
+        {"role": "user", "content": optimized_text},
     ]
 
     # Retry mechanism
@@ -1558,7 +1602,7 @@ def build_social_copy_llm(
                 model=model_name,
                 messages=messages,
                 temperature=temperature,
-                max_completion_tokens=1200,
+                max_completion_tokens=500,  # Reduced from 1200
                 response_format={"type": "json_object"},
                 timeout=60.0,
             )
@@ -1632,48 +1676,22 @@ def generate_fact_check(
     model_name = model or config.FACTCHECK_LLM_MODEL
     client = _load_openai_client(api_key)
 
+    # Condensed prompt
     system_prompt = (
-        "### ROLE\n"
-        "Expert Fact Checker for Greek transcripts.\n\n"
-        "### TASK\n"
-        "1) Identify up to 6 key factual claims (skip opinions).\n"
-        "2) Output items ONLY for incorrect/misleading claims.\n\n"
-        "### FOR EACH ERROR:\n"
-        "- MISTAKE: Quote the error.\n"
-        "- CORRECTION: Correct facts.\n"
-        "- EXPLANATION: Brief reason.\n"
-        "- REAL_LIFE_EXAMPLE: Concrete scenario showing why it's wrong (1 sentence).\n"
-        "- SCIENTIFIC_EVIDENCE: Citation/proof (1 sentence).\n"
-        "- SEVERITY: minor/medium/major.\n"
-        "- CONFIDENCE: 0-100.\n\n"
-        "### SCORES\n"
-        "- truth_score (0-100)\n"
-        "- supported_claims_pct (0-100)\n"
-        "- claims_checked (0-6)\n\n"
-        "### OUTPUT JSON\n"
-        "{\n"
-        '  "truth_score": 0-100,\n'
-        '  "supported_claims_pct": 0-100,\n'
-        '  "claims_checked": 0-6,\n'
-        '  "items": [\n'
-        '    {\n'
-        '      "mistake": "str",\n'
-        '      "correction": "str",\n'
-        '      "explanation": "str",\n'
-        '      "severity": "str",\n'
-        '      "confidence": int,\n'
-        '      "real_life_example": "str",\n'
-        '      "scientific_evidence": "str"\n'
-        '    }\n'
-        '  ]\n'
-        "}\n"
-        "If no errors: items=[]\n"
-        "JSON ONLY. No markdown."
+        "Role: Expert Fact Checker (Greek).\n"
+        "Task: Identify up to 3 factual errors (skip opinions).\n"
+        "JSON Output: { \"truth_score\": 0-100, \"supported_claims_pct\": 0-100, \"claims_checked\": 0-3, \"items\": [{ \"mistake\": \"...\", \"correction\": \"...\", \"explanation\": \"...\", \"severity\": \"minor|medium|major\", \"confidence\": 0-100, \"real_life_example\": \"...\", \"scientific_evidence\": \"...\" }] }\n"
+        "If no errors, items=[].\n"
+        "Include only incorrect factual claims.\n"
+        "JSON ONLY."
     )
+
+    # Reduce input tokens
+    optimized_text = _extract_important_segments(transcript_text, target_chars=3000)
 
     messages = [
         {"role": "system", "content": system_prompt},
-        {"role": "user", "content": transcript_text.strip()},
+        {"role": "user", "content": optimized_text},
     ]
 
     max_retries = 2
@@ -1686,6 +1704,7 @@ def generate_fact_check(
                 model=model_name,
                 messages=messages,
                 timeout=120.0,
+                max_completion_tokens=800,  # Enforce limit to prevent runaway costs
             )
             content, refusal = _extract_chat_completion_text(response)
             if refusal:
