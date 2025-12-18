@@ -64,26 +64,112 @@ const CueList = memo(({
 });
 CueList.displayName = 'CueList';
 
+const TranscriptPanel = memo(() => {
+    const { t } = useI18n();
+    const {
+        cues,
+        currentTime,
+        editingCueIndex,
+        editingCueDraft,
+        isSavingTranscript,
+        transcriptSaveError,
+        transcriptContainerRef,
+        playerRef,
+        handleUpdateDraft,
+        beginEditingCue,
+        saveEditingCue,
+        cancelEditingCue
+    } = useProcessContext();
+
+    const handleSeek = useCallback((time: number) => {
+        playerRef.current?.seekTo(time);
+    }, [playerRef]);
+
+    const activeCueIndex = useMemo(() => {
+        if (!cues || cues.length === 0) return -1;
+        return findCueIndexAtTime(cues, currentTime);
+    }, [cues, currentTime]);
+
+    // Scroll active cue into view
+    useEffect(() => {
+        if (editingCueIndex !== null) return;
+        if (activeCueIndex === -1) return;
+
+        if (transcriptContainerRef.current) {
+            const element = document.getElementById(`cue-${activeCueIndex}`);
+            const container = transcriptContainerRef.current;
+
+            if (element) {
+                const elementTop = element.offsetTop;
+                const elementHeight = element.offsetHeight;
+                const containerHeight = container.clientHeight;
+                const targetScroll = elementTop - (containerHeight / 2) + (elementHeight / 2);
+
+                container.scrollTo({
+                    top: targetScroll,
+                    behavior: 'smooth'
+                });
+            }
+        }
+    }, [activeCueIndex, editingCueIndex, transcriptContainerRef]);
+
+    return (
+        <div
+            role="tabpanel"
+            id="panel-transcript"
+            aria-labelledby="tab-transcript"
+            className="space-y-2"
+        >
+            {transcriptSaveError && (
+                <div className="rounded-lg border border-[var(--danger)]/30 bg-[var(--danger)]/10 px-3 py-2 text-xs text-[var(--danger)]">
+                    {transcriptSaveError}
+                </div>
+            )}
+            {isSavingTranscript && (
+                <div className="flex items-center gap-2 px-1 text-xs text-[var(--muted)]">
+                    <span className="animate-spin">⏳</span>
+                    {t('transcriptSaving') || 'Saving…'}
+                </div>
+            )}
+
+            {/* Scrollable Transcript List */}
+            <div
+                ref={transcriptContainerRef}
+                className="max-h-[50vh] overflow-y-auto custom-scrollbar pr-2 space-y-1 scroll-smooth"
+                style={{ scrollBehavior: 'smooth' }}
+            >
+                <CueList
+                    cues={cues}
+                    activeCueIndex={activeCueIndex}
+                    editingCueIndex={editingCueIndex}
+                    editingCueDraft={editingCueDraft}
+                    isSaving={isSavingTranscript}
+                    onSeek={handleSeek}
+                    onEdit={beginEditingCue}
+                    onSave={saveEditingCue}
+                    onCancel={cancelEditingCue}
+                    onUpdateDraft={handleUpdateDraft}
+                />
+                {cues.length === 0 && (
+                    <div className="text-center text-[var(--muted)] py-10 opacity-50">
+                        {t('liveOutputStatusIdle') || 'Transcript will appear here...'}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+});
+TranscriptPanel.displayName = 'TranscriptPanel';
+
 export function Sidebar() {
     const { t } = useI18n();
     const {
         selectedJob,
         isProcessing,
         progress,
-        transcriptContainerRef,
         activeSidebarTab,
         setActiveSidebarTab,
-        transcriptSaveError,
-        isSavingTranscript,
         cues,
-        currentTime,
-        editingCueIndex,
-        editingCueDraft,
-        handleUpdateDraft,
-        beginEditingCue,
-        saveEditingCue,
-        cancelEditingCue,
-        playerRef,
         STYLE_PRESETS,
         activePreset,
         setActivePreset,
@@ -105,40 +191,6 @@ export function Sidebar() {
         transcribeMode,
         previewVideoUrl
     } = useProcessContext();
-
-    const handleSeek = useCallback((time: number) => {
-        playerRef.current?.seekTo(time);
-    }, [playerRef]);
-
-    const activeCueIndex = useMemo(() => {
-        if (!cues || cues.length === 0) return -1;
-        return findCueIndexAtTime(cues, currentTime);
-    }, [cues, currentTime]);
-
-    // Scroll active cue into view
-    useEffect(() => {
-        if (activeSidebarTab !== 'transcript') return;
-        if (editingCueIndex !== null) return;
-        if (activeCueIndex === -1) return;
-
-        if (transcriptContainerRef.current) {
-            const element = document.getElementById(`cue-${activeCueIndex}`);
-            const container = transcriptContainerRef.current;
-
-            if (element) {
-                const elementTop = element.offsetTop;
-                const elementHeight = element.offsetHeight;
-                const containerHeight = container.clientHeight;
-                const targetScroll = elementTop - (containerHeight / 2) + (elementHeight / 2);
-
-                container.scrollTo({
-                    top: targetScroll,
-                    behavior: 'smooth'
-                });
-            }
-        }
-    }, [activeSidebarTab, activeCueIndex, editingCueIndex, transcriptContainerRef]);
-
 
     // Stable callbacks for StylePresetTiles
     const handlePresetSelect = useCallback((preset: StylePreset) => {
@@ -254,49 +306,7 @@ export function Sidebar() {
                 {/* Tab Content */}
                 <div className="pr-1">
                     {activeSidebarTab === 'transcript' && (
-                        <div
-                            role="tabpanel"
-                            id="panel-transcript"
-                            aria-labelledby="tab-transcript"
-                            className="space-y-2"
-                        >
-                            {transcriptSaveError && (
-                                <div className="rounded-lg border border-[var(--danger)]/30 bg-[var(--danger)]/10 px-3 py-2 text-xs text-[var(--danger)]">
-                                    {transcriptSaveError}
-                                </div>
-                            )}
-                            {isSavingTranscript && (
-                                <div className="flex items-center gap-2 px-1 text-xs text-[var(--muted)]">
-                                    <span className="animate-spin">⏳</span>
-                                    {t('transcriptSaving') || 'Saving…'}
-                                </div>
-                            )}
-
-                            {/* Scrollable Transcript List */}
-                            <div
-                                ref={transcriptContainerRef}
-                                className="max-h-[50vh] overflow-y-auto custom-scrollbar pr-2 space-y-1 scroll-smooth"
-                                style={{ scrollBehavior: 'smooth' }}
-                            >
-                                <CueList
-                                    cues={cues}
-                                    activeCueIndex={activeCueIndex}
-                                    editingCueIndex={editingCueIndex}
-                                    editingCueDraft={editingCueDraft}
-                                    isSaving={isSavingTranscript}
-                                    onSeek={handleSeek}
-                                    onEdit={beginEditingCue}
-                                    onSave={saveEditingCue}
-                                    onCancel={cancelEditingCue}
-                                    onUpdateDraft={handleUpdateDraft}
-                                />
-                                {cues.length === 0 && (
-                                    <div className="text-center text-[var(--muted)] py-10 opacity-50">
-                                        {t('liveOutputStatusIdle') || 'Transcript will appear here...'}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
+                        <TranscriptPanel />
                     )}
 
                     {activeSidebarTab === 'styles' && (
