@@ -393,9 +393,9 @@ export function UploadSection() {
                                                 const isUltimateJob = jobModel === 'ultimate' || (jobModel && !jobModel.includes('turbo') && !jobModel.includes('enhanced'));
 
                                                 if (transcribeMode === 'enhanced') {
-                                                    isMatch = isEnhancedJob;
+                                                    isMatch = Boolean(isEnhancedJob);
                                                 } else if (transcribeMode === 'ultimate') {
-                                                    isMatch = isUltimateJob;
+                                                    isMatch = Boolean(isUltimateJob);
                                                 }
                                             }
 
