@@ -49,15 +49,26 @@ type TextMeasurer = {
     maxLineWidth: number;
 };
 
-function createTextMeasurer(fontSizePercent: number): TextMeasurer | null {
+let _sharedMeasurerCanvas: HTMLCanvasElement | null = null;
+let _lastFont: string | null = null;
+
+function getSharedMeasurerCanvas(): HTMLCanvasElement | null {
     /* istanbul ignore next -- exercised in browser or via canvas mocking */
     if (typeof document === 'undefined') return null;
 
     /* istanbul ignore next -- exercised in browser or via canvas mocking */
-    const canvas = document.createElement('canvas');
+    if (!_sharedMeasurerCanvas) {
+        _sharedMeasurerCanvas = document.createElement('canvas');
+    }
+    return _sharedMeasurerCanvas;
+}
+
+function createTextMeasurer(fontSizePercent: number): TextMeasurer | null {
+    const canvas = getSharedMeasurerCanvas();
+    if (!canvas) return null;
 
     /* istanbul ignore next -- exercised in browser or via canvas mocking */
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
     if (!ctx) return null;
 
     const fontSizePx = Math.max(1, Math.round(DEFAULT_SUB_FONT_SIZE * (fontSizePercent / 100)));
