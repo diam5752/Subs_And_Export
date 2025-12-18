@@ -71,7 +71,13 @@ def _parse_legacy_position(position_value: int | str | None) -> int:
     return 16  # Fallback to default
 
 
-def _build_filtergraph(ass_path: Path, *, target_width: int | None = None, target_height: int | None = None) -> str:
+def _build_filtergraph(
+    ass_path: Path,
+    *,
+    target_width: int | None = None,
+    target_height: int | None = None,
+    watermark_enabled: bool = False
+) -> str:
     ass_file = ass_path.as_posix().replace("'", r"\'")
     ass_filter = f"ass='{ass_file}'"
 
@@ -90,7 +96,20 @@ def _build_filtergraph(ass_path: Path, *, target_width: int | None = None, targe
         f"pad={width}:{height}:"
         f"({width}-iw)/2:({height}-ih)/2"
     )
-    graph = ",".join([scale, pad, "format=yuv420p", ass_filter])
+    graph = ",".join([scale, pad, "format=yuv420p"])
+
+    if watermark_enabled and config.WATERMARK_PATH.exists():
+        # Clean path for FFmpeg
+        wm_path = config.WATERMARK_PATH.as_posix().replace("'", r"\'")
+        wm_overlay = (
+            f"movie='{wm_path}',scale=180:-1,format=rgba,colorchannelmixer=aa=0.8,"
+            f"pad=iw+40:ih+20:(ow-iw)/2:(oh-ih)/2:color=black@0.6 [wm];"
+            f"[base][wm] overlay=main_w-overlay_w-40:main_h-overlay_h-40"
+        )
+        graph = f"{graph} [base]; {wm_overlay}, {ass_filter}"
+    else:
+        graph = f"{graph}, {ass_filter}"
+
     return graph
 
 
@@ -111,9 +130,15 @@ def _run_ffmpeg_with_subs(
     total_duration: float | None = None,
     output_width: int | None = None,
     output_height: int | None = None,
+    watermark_enabled: bool = False,
     check_cancelled: Callable[[], None] | None = None,
 ) -> str:
-    filtergraph = _build_filtergraph(ass_path, target_width=output_width, target_height=output_height)
+    filtergraph = _build_filtergraph(
+        ass_path,
+        target_width=output_width,
+        target_height=output_height,
+        watermark_enabled=watermark_enabled
+    )
     cmd = [
         "ffmpeg",
         "-y",
@@ -372,7 +397,7 @@ def normalize_and_stub_subtitles(
     video_crf: int | None = None,
     video_preset: str | None = None,
     audio_bitrate: str | None = None,
-
+    watermark_enabled: bool = False,
     audio_copy: bool | None = None,
     db: Database | None = None,
     job_id: str | None = None,
@@ -644,6 +669,7 @@ def normalize_and_stub_subtitles(
                         total_duration=total_duration,
                         output_width=output_width,
                         output_height=output_height,
+                        watermark_enabled=watermark_enabled,
                         check_cancelled=check_cancelled
                     )
                 except subprocess.CalledProcessError as exc:
@@ -661,6 +687,7 @@ def normalize_and_stub_subtitles(
                             total_duration=total_duration,
                             output_width=output_width,
                             output_height=output_height,
+                            watermark_enabled=watermark_enabled,
                             check_cancelled=check_cancelled
                         )
                     else:
@@ -891,6 +918,7 @@ def generate_video_variant(
     stored_crf = result_data.get("video_crf")
     video_crf = int(stored_crf) if stored_crf is not None else config.DEFAULT_VIDEO_CRF
 
+    watermark_enabled = bool(subtitle_settings.get("watermark_enabled", False)) if subtitle_settings else bool(result_data.get("watermark_enabled", False))
     _run_ffmpeg_with_subs(
         input_path,
         ass_path,
@@ -902,6 +930,7 @@ def generate_video_variant(
         use_hw_accel=config.USE_HW_ACCEL,
         output_width=width,
         output_height=height,
+        watermark_enabled=watermark_enabled,
     )
 
     return destination

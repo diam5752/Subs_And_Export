@@ -2,12 +2,15 @@
 
 from pathlib import Path
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent  # /backend/app/core -> project root
+
 DEFAULT_WIDTH = 1080
 DEFAULT_HEIGHT = 1920
 DEFAULT_FPS = 30
 MAX_RESOLUTION_DIMENSION = 4096  # Max 4K DCI width/height to prevent DoS
-MAX_VIDEO_DURATION_SECONDS = 180  # Max 3 minutes to prevent resource exhaustion
+MAX_VIDEO_DURATION_SECONDS = 210  # Max 3.5 minutes to prevent resource exhaustion
 MAX_CONCURRENT_JOBS = 2  # Max concurrent processing jobs per user
+WATERMARK_PATH = PROJECT_ROOT / "Ascentia_Logo.png"
 
 DEFAULT_SUB_FONT = "Arial Black"
 DEFAULT_SUB_FONT_SIZE = 62  # Default tuned for 1080x1920 safe area
@@ -26,7 +29,7 @@ MAX_SUB_LINE_CHARS = 28  # Safe width for Greek uppercase text without edge cuto
 
 DEFAULT_OUTPUT_SUFFIX = "_subbed"
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent  # /backend/app/core -> project root
+DEFAULT_OUTPUT_SUFFIX = "_subbed"
 
 # Whisper / STT defaults
 WHISPER_MODEL = "medium"  # Optimized for CPU usage (Docker/Mac)
@@ -50,8 +53,6 @@ WHISPERCPP_MODEL = "medium"  # Optimized for CPU usage (Docker/Mac)
 WHISPERCPP_LANGUAGE = "el"  # Greek default
 
 
-# LLM social copy defaults (OpenAI API)
-SOCIAL_LLM_MODEL = "gpt-5-mini"
 # LLM social copy defaults (OpenAI API)
 SOCIAL_LLM_MODEL = "gpt-5-mini"
 FACTCHECK_LLM_MODEL = "gpt-5-mini"

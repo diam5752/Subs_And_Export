@@ -220,6 +220,7 @@ class ProcessingSettings(BaseModel):
     highlight_style: str = "karaoke"
     subtitle_size: int = 100  # 50-150 percentage scale
     karaoke_enabled: bool = True
+    watermark_enabled: bool = False
 
 
 def _validate_upload_content_type(content_type: str) -> str:
@@ -247,6 +248,7 @@ def _build_processing_settings(
     highlight_style: str,
     subtitle_size: int,
     karaoke_enabled: bool,
+    watermark_enabled: bool,
 ) -> ProcessingSettings:
     # Security: Validate input lengths to prevent DoS
     if len(context_prompt) > 5000:
@@ -298,6 +300,7 @@ def _build_processing_settings(
         highlight_style=highlight_style,
         subtitle_size=subtitle_size,
         karaoke_enabled=karaoke_enabled,
+        watermark_enabled=watermark_enabled,
     )
 
 
@@ -444,6 +447,7 @@ def run_video_processing(
             highlight_style=settings.highlight_style,
             subtitle_size=settings.subtitle_size,
             karaoke_enabled=settings.karaoke_enabled,
+            watermark_enabled=settings.watermark_enabled,
             check_cancelled=check_cancelled,
             transcription_only=True,
             db=db,
@@ -512,6 +516,7 @@ def run_video_processing(
             "highlight_style": settings.highlight_style,
             "subtitle_size": settings.subtitle_size,
             "karaoke_enabled": settings.karaoke_enabled,
+            "watermark_enabled": settings.watermark_enabled,
         }
         if source_gcs_object_name:
             result_data["source_gcs_object"] = source_gcs_object_name
@@ -653,6 +658,7 @@ async def process_video(
     highlight_style: str = Form("karaoke"),
     subtitle_size: int = Form(100),
     karaoke_enabled: bool = Form(True),
+    watermark_enabled: bool = Form(False),
     current_user: User = Depends(get_current_user),
     job_store: JobStore = Depends(get_job_store),
     history_store: HistoryStore = Depends(get_history_store),
@@ -675,6 +681,7 @@ async def process_video(
         highlight_style=highlight_style,
         subtitle_size=subtitle_size,
         karaoke_enabled=karaoke_enabled,
+        watermark_enabled=watermark_enabled,
     )
 
     # Rate Limiting: Check concurrent jobs
@@ -1301,6 +1308,7 @@ class ReprocessRequest(BaseModel):
     highlight_style: str = Field("karaoke", max_length=20)
     subtitle_size: int = 100
     karaoke_enabled: bool = True
+    watermark_enabled: bool = False
 
 
 @router.post("/jobs/{job_id}/reprocess", response_model=JobResponse, dependencies=[Depends(limiter_processing)])
@@ -1342,6 +1350,7 @@ def reprocess_job(
         highlight_style=request.highlight_style,
         subtitle_size=request.subtitle_size,
         karaoke_enabled=request.karaoke_enabled,
+        watermark_enabled=request.watermark_enabled,
     )
 
     data_dir, uploads_dir, artifacts_root = _data_roots()
@@ -1709,8 +1718,9 @@ class ExportRequest(BaseModel):
     subtitle_color: str | None = Field(None, max_length=20)
     shadow_strength: int | None = None
     highlight_style: str | None = Field(None, max_length=20)
-    subtitle_size: int | None = None
-    karaoke_enabled: bool | None = None
+    subtitle_size: int | None = None,
+    karaoke_enabled: bool | None = None,
+    watermark_enabled: bool | None = None,
 
     @field_validator('subtitle_color')
     @classmethod

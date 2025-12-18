@@ -24,6 +24,8 @@ export interface SubtitlePositionSelectorProps {
     previewVideoUrl?: string; // New: Live video blob
     cues?: Cue[]; // New: Transcription data
     hidePreview?: boolean; // New: Option to hide the phone mockup
+    watermarkEnabled?: boolean;
+    onChangeWatermark?: (enabled: boolean) => void;
 }
 
 export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps>(({
@@ -46,12 +48,15 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
     previewVideoUrl,
     cues = [],
     hidePreview,
+    watermarkEnabled = false,
+    onChangeWatermark,
 }) => {
     const { t } = useI18n();
     const colorLabelId = useId();
     const sizeLabelId = useId();
     const positionLabelId = useId();
     const karaokeLabelId = useId();
+    const watermarkLabelId = useId();
     const linesLabelId = useId();
 
     const containerRef = useRef<HTMLDivElement>(null);
@@ -407,123 +412,123 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
                         </div>
                     </div>
 
-                    {/* Bottom Row: Style & Karaoke */}
-                    <div className="flex flex-col sm:flex-row gap-4">
-
-                        {colors && onChangeColor && (
-                            <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-3">
-                                    <label id={colorLabelId} className="block text-sm font-medium text-[var(--muted)]">
-                                        {t('colorLabel')}
-                                    </label>
-                                    <InfoTooltip ariaLabel={`${t('infoPrefix')} ${t('colorLabel')}`}>
-                                        <div className="space-y-2">
-                                            <div className="font-semibold text-[11px]">{t('colorLabel')}</div>
-                                            <p className="text-[var(--muted)] leading-snug">{t('tooltipColorDesc')}</p>
-                                            <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/20 p-2">
-                                                <span aria-hidden="true" className="h-3.5 w-3.5 rounded-full bg-[#FFFF00] border border-white/10" />
-                                                <span aria-hidden="true" className="h-3.5 w-3.5 rounded-full bg-white border border-white/10" />
-                                                <span aria-hidden="true" className="h-3.5 w-3.5 rounded-full bg-[#00FFFF] border border-white/10" />
-                                            </div>
+                    {/* Middle Row: Colors */}
+                    {colors && onChangeColor && (
+                        <div className="w-full">
+                            <div className="flex items-center gap-2 mb-3">
+                                <label id={colorLabelId} className="block text-sm font-medium text-[var(--muted)]">
+                                    {t('colorLabel')}
+                                </label>
+                                <InfoTooltip ariaLabel={`${t('infoPrefix')} ${t('colorLabel')}`}>
+                                    <div className="space-y-2">
+                                        <div className="font-semibold text-[11px]">{t('colorLabel')}</div>
+                                        <p className="text-[var(--muted)] leading-snug">{t('tooltipColorDesc')}</p>
+                                        <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/20 p-2">
+                                            <span aria-hidden="true" className="h-3.5 w-3.5 rounded-full bg-[#FFFF00] border border-white/10" />
+                                            <span aria-hidden="true" className="h-3.5 w-3.5 rounded-full bg-white border border-white/10" />
+                                            <span aria-hidden="true" className="h-3.5 w-3.5 rounded-full bg-[#00FFFF] border border-white/10" />
                                         </div>
-                                    </InfoTooltip>
-                                </div>
-                                <div
-                                    className="flex items-center gap-3 p-4 rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)] min-h-[88px]"
-                                    role="radiogroup"
-                                    aria-labelledby={colorLabelId}
-                                >
-                                    {/* Color Swatches */}
-                                    <div className="flex flex-nowrap gap-4 justify-center w-full items-center relative" ref={gridRef}>
-                                        {/* First 3 Presets */}
-                                        {colors.slice(0, 3).map((c) => (
-                                            <button
-                                                key={c.value}
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    onChangeColor(c.value);
-                                                    setShowColorGrid(false);
-                                                }}
-                                                className="group relative p-1 transition-transform active:scale-95"
-                                                title={c.label}
-                                                role="radio"
-                                                aria-checked={subtitleColor === c.value}
-                                                aria-label={c.label}
+                                    </div>
+                                </InfoTooltip>
+                            </div>
+                            <div
+                                className="flex items-center gap-3 p-4 rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)] min-h-[88px]"
+                                role="radiogroup"
+                                aria-labelledby={colorLabelId}
+                            >
+                                {/* Color Swatches */}
+                                <div className="flex flex-nowrap gap-4 justify-center w-full items-center relative" ref={gridRef}>
+                                    {/* First 3 Presets */}
+                                    {colors.slice(0, 3).map((c) => (
+                                        <button
+                                            key={c.value}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onChangeColor(c.value);
+                                                setShowColorGrid(false);
+                                            }}
+                                            className="group relative p-1 transition-transform active:scale-95"
+                                            title={c.label}
+                                            role="radio"
+                                            aria-checked={subtitleColor === c.value}
+                                            aria-label={c.label}
+                                        >
+                                            <div
+                                                className={`w-10 h-10 rounded-full border-2 shadow-sm transition-all duration-300 ease-out ${subtitleColor === c.value
+                                                    ? 'border-white scale-110 ring-2 ring-white/20'
+                                                    : 'border-transparent hover:scale-110 hover:border-white/30 opacity-80 hover:opacity-100'
+                                                    }`}
+                                                style={{ backgroundColor: c.value }}
+                                            />
+                                        </button>
+                                    ))}
+
+                                    {/* More Colors Button (Toggle Popover) */}
+                                    <div className="relative">
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setShowColorGrid(!showColorGrid);
+                                            }}
+                                            className="group relative p-1 transition-transform active:scale-95"
+                                            title={t('moreColors') || "More Colors"}
+                                            aria-expanded={showColorGrid}
+                                            aria-haspopup="true"
+                                        >
+                                            <div
+                                                className={`w-10 h-10 rounded-full border-2 shadow-md transition-all duration-300 ease-out flex items-center justify-center overflow-hidden bg-[var(--surface)] ${showColorGrid || !colors.slice(0, 3).some(c => c.value === subtitleColor)
+                                                    ? 'border-white ring-2 ring-white/20'
+                                                    : 'border-[var(--border)] hover:scale-110 hover:border-white/30'
+                                                    }`}
                                             >
+                                                {/* Conic Gradient Icon */}
                                                 <div
-                                                    className={`w-10 h-10 rounded-full border-2 shadow-sm transition-all duration-300 ease-out ${subtitleColor === c.value
-                                                        ? 'border-white scale-110 ring-2 ring-white/20'
-                                                        : 'border-transparent hover:scale-110 hover:border-white/30 opacity-80 hover:opacity-100'
-                                                        }`}
-                                                    style={{ backgroundColor: c.value }}
+                                                    className="w-full h-full opacity-80 group-hover:opacity-100 transition-opacity"
+                                                    style={{
+                                                        background: 'conic-gradient(from 180deg at 50% 50%, #FF0000 0deg, #00FF00 120deg, #0000FF 240deg, #FF0000 360deg)'
+                                                    }}
                                                 />
-                                            </button>
-                                        ))}
 
-                                        {/* More Colors Button (Toggle Popover) */}
-                                        <div className="relative">
-                                            <button
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setShowColorGrid(!showColorGrid);
-                                                }}
-                                                className="group relative p-1 transition-transform active:scale-95"
-                                                title={t('moreColors') || "More Colors"}
-                                                aria-expanded={showColorGrid}
-                                                aria-haspopup="true"
-                                            >
-                                                <div
-                                                    className={`w-10 h-10 rounded-full border-2 shadow-md transition-all duration-300 ease-out flex items-center justify-center overflow-hidden bg-[var(--surface)] ${showColorGrid || !colors.slice(0, 3).some(c => c.value === subtitleColor)
-                                                        ? 'border-white ring-2 ring-white/20'
-                                                        : 'border-[var(--border)] hover:scale-110 hover:border-white/30'
-                                                        }`}
-                                                >
-                                                    {/* Conic Gradient Icon */}
-                                                    <div
-                                                        className="w-full h-full opacity-80 group-hover:opacity-100 transition-opacity"
-                                                        style={{
-                                                            background: 'conic-gradient(from 180deg at 50% 50%, #FF0000 0deg, #00FF00 120deg, #0000FF 240deg, #FF0000 360deg)'
-                                                        }}
-                                                    />
-
-                                                    {/* Plus Icon Overlay */}
-                                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                                        <svg className="w-5 h-5 text-white drop-shadow-md" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                                                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                                                        </svg>
-                                                    </div>
+                                                {/* Plus Icon Overlay */}
+                                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                                                    <svg className="w-5 h-5 text-white drop-shadow-md" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                                                    </svg>
                                                 </div>
-                                            </button>
+                                            </div>
+                                        </button>
 
-                                            {/* Color Grid Popover */}
-                                            {showColorGrid && (
-                                                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-3 p-3 bg-[var(--surface-elevated)] border border-[var(--border)] rounded-xl shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-200 min-w-[180px]">
-                                                    <div className="grid grid-cols-4 gap-2">
-                                                        {MORE_COLORS.map((color) => (
-                                                            <button
-                                                                key={color}
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    onChangeColor(color);
-                                                                    setShowColorGrid(false);
-                                                                }}
-                                                                className="w-8 h-8 rounded-full border border-white/10 hover:border-white hover:scale-110 transition-all shadow-sm"
-                                                                style={{ backgroundColor: color }}
-                                                                title={color}
-                                                            />
-                                                        ))}
-                                                    </div>
-                                                    {/* Triangle Pointer */}
-                                                    <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-[var(--surface-elevated)] border-t border-l border-[var(--border)] rotate-45" />
+                                        {/* Color Grid Popover */}
+                                        {showColorGrid && (
+                                            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-3 p-3 bg-[var(--surface-elevated)] border border-[var(--border)] rounded-xl shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-200 min-w-[180px]">
+                                                <div className="grid grid-cols-4 gap-2">
+                                                    {MORE_COLORS.map((color) => (
+                                                        <button
+                                                            key={color}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                onChangeColor(color);
+                                                                setShowColorGrid(false);
+                                                            }}
+                                                            className="w-8 h-8 rounded-full border border-white/10 hover:border-white hover:scale-110 transition-all shadow-sm"
+                                                            style={{ backgroundColor: color }}
+                                                            title={color}
+                                                        />
+                                                    ))}
                                                 </div>
-                                            )}
-                                        </div>
+                                                {/* Triangle Pointer */}
+                                                <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-[var(--surface-elevated)] border-t border-l border-[var(--border)] rotate-45" />
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>
-                        )}
+                        </div>
+                    )}
 
-                        {/* Karaoke Toggle (separate column, next to colors) */}
+                    {/* Bottom Row: Toggles (Karaoke & Watermark) */}
+                    <div className="flex flex-col sm:flex-row gap-4">
+                        {/* Karaoke Toggle */}
                         {onChangeKaraoke && karaokeSupported && (
                             <div className="flex-1 min-w-[200px]">
                                 <div className="flex items-center gap-2 mb-3">
@@ -582,6 +587,57 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
                                     <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 ${karaokeEnabled ? 'bg-orange-500 text-white rotate-6 scale-110 shadow-lg shadow-orange-500/30' : 'bg-[var(--surface-elevated)] text-[var(--muted)] group-hover:scale-105'}`}>
                                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                                        </svg>
+                                    </div>
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Watermark Toggle */}
+                        {onChangeWatermark && (
+                            <div className="flex-1 min-w-[200px]">
+                                <div className="flex items-center gap-2 mb-3">
+                                    <label id={watermarkLabelId} className="block text-sm font-medium text-[var(--muted)]">
+                                        Watermark
+                                    </label>
+                                    <InfoTooltip ariaLabel="Watermark">
+                                        <div className="space-y-2">
+                                            <div className="font-semibold text-[11px]">Burn Watermark</div>
+                                            <p className="text-[var(--muted)] leading-snug">Place the Ascentia logo at the top right of the video.</p>
+                                        </div>
+                                    </InfoTooltip>
+                                </div>
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onChangeWatermark(!watermarkEnabled);
+                                    }}
+                                    role="switch"
+                                    aria-checked={watermarkEnabled}
+                                    aria-labelledby={watermarkLabelId}
+                                    className={`w-full p-4 rounded-xl border text-left transition-all duration-300 flex items-center justify-between group min-h-[88px] relative overflow-hidden ${watermarkEnabled
+                                        ? 'border-[var(--accent)]/50 bg-gradient-to-r from-[var(--accent)]/10 to-transparent shadow-[0_0_20px_rgba(var(--accent-rgb),0.1)]'
+                                        : 'border-[var(--border)] hover:border-[var(--accent)]/50 hover:bg-[var(--surface-elevated)]'
+                                        }`}
+                                >
+                                    {/* Active Indicator Line */}
+                                    {watermarkEnabled && (
+                                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-[var(--accent)] shadow-[0_0_10px_rgba(var(--accent-rgb),0.5)]" />
+                                    )}
+
+                                    <div className="flex flex-col gap-1 pl-2">
+                                        <div className={`font-semibold text-base transition-colors ${watermarkEnabled ? 'text-[var(--accent)]' : 'text-[var(--foreground)]'}`}>
+                                            Burn Logo
+                                        </div>
+                                        <div className={`text-xs ${watermarkEnabled ? 'text-[var(--muted)]' : 'text-[var(--muted)]/70'}`}>
+                                            {watermarkEnabled ? 'Ascentia logo visible' : 'No watermark'}
+                                        </div>
+                                    </div>
+
+                                    {/* Animated Icon */}
+                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 ${watermarkEnabled ? 'bg-[var(--accent)] text-[#031018] rotate-3 scale-110 shadow-lg shadow-[var(--accent)]/30' : 'bg-[var(--surface-elevated)] text-[var(--muted)] group-hover:scale-105'}`}>
+                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                         </svg>
                                     </div>
                                 </button>

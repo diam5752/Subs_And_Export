@@ -22,6 +22,7 @@ export interface ProcessingOptions {
     highlight_style: string;
     subtitle_size: number;
     karaoke_enabled: boolean;
+    watermark_enabled: boolean;
 }
 
 interface LastUsedSettings {
@@ -30,6 +31,7 @@ interface LastUsedSettings {
     lines: number;
     color: string;
     karaoke: boolean;
+    watermark: boolean;
     timestamp: number;
 }
 
@@ -69,6 +71,8 @@ interface ProcessContextType {
     setSubtitleSize: (v: number) => void;
     karaokeEnabled: boolean;
     setKaraokeEnabled: (v: boolean) => void;
+    watermarkEnabled: boolean;
+    setWatermarkEnabled: (v: boolean) => void;
     shadowStrength: number;
     activeSidebarTab: 'transcript' | 'styles' | 'intelligence';
     setActiveSidebarTab: (v: 'transcript' | 'styles' | 'intelligence') => void;
@@ -192,7 +196,7 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
                     if (key === 'lines') {
                         return (clampNumber(rawValue, 0, 4) ?? defaultValue) as T;
                     }
-                    if (key === 'karaoke') {
+                    if (key === 'karaoke' || key === 'watermark') {
                         return (parseBoolean(rawValue) ?? defaultValue) as T;
                     }
                     if (key === 'color') {
@@ -222,6 +226,7 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
     const [subtitleColor, setSubtitleColor] = useState<string>(() => getInitialValue('color', '#FFFF00'));
     const [subtitleSize, setSubtitleSize] = useState<number>(() => getInitialValue('size', 85));
     const [karaokeEnabled, setKaraokeEnabled] = useState(() => getInitialValue('karaoke', true));
+    const [watermarkEnabled, setWatermarkEnabled] = useState(() => getInitialValue('watermark', false));
 
     const [shadowStrength] = useState<number>(4);
 
@@ -310,6 +315,7 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
             lines: maxSubtitleLines,
             color: subtitleColor,
             karaoke: karaokeEnabled,
+            watermark: watermarkEnabled,
             timestamp: Date.now(),
         };
         try {
@@ -341,6 +347,7 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
                 lines: 0,
                 color: '#FFFF00',
                 karaoke: true,
+                watermark: false,
             },
             colorClass: 'from-pink-500 to-orange-500',
         },
@@ -355,6 +362,7 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
                 lines: 2,
                 color: '#FFFFFF',
                 karaoke: false,
+                watermark: false,
             },
             colorClass: 'from-slate-500 to-zinc-600',
         },
@@ -369,6 +377,7 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
                 lines: 3,
                 color: '#00FFFF',
                 karaoke: false,
+                watermark: false,
             },
             colorClass: 'from-cyan-500 to-teal-500',
         },
@@ -478,6 +487,7 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
                     highlight_style: 'active-graphics',
                     subtitle_size: subtitleSize,
                     karaoke_enabled: karaokeEnabled,
+                    watermark_enabled: watermarkEnabled,
                 });
                 return;
             }
@@ -504,6 +514,7 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
             highlight_style: 'active-graphics',
             subtitle_size: subtitleSize,
             karaoke_enabled: karaokeEnabled,
+            watermark_enabled: watermarkEnabled,
         });
     }, [
         SUBTITLE_COLORS,
@@ -535,6 +546,7 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
                 highlight_style: 'active-graphics',
                 subtitle_size: subtitleSize,
                 karaoke_enabled: karaokeEnabled,
+                watermark_enabled: watermarkEnabled,
             });
             props.onJobSelect(updatedJob);
 
@@ -788,6 +800,7 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
         subtitleColor, setSubtitleColor,
         subtitleSize, setSubtitleSize,
         karaokeEnabled, setKaraokeEnabled,
+        watermarkEnabled, setWatermarkEnabled,
         shadowStrength,
         activeSidebarTab, setActiveSidebarTab,
         activePreset, setActivePreset,

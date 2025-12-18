@@ -236,6 +236,7 @@ class ApiClient {
         }
         formData.append('subtitle_size', String(settings.subtitle_size ?? 100));
         formData.append('karaoke_enabled', String(settings.karaoke_enabled ?? true));
+        formData.append('watermark_enabled', String(settings.watermark_enabled ?? false));
 
         return this.request<JobResponse>('/videos/process', {
             method: 'POST',
@@ -318,6 +319,7 @@ class ApiClient {
                 highlight_style: settings.highlight_style || 'karaoke',
                 subtitle_size: settings.subtitle_size ?? 100,
                 karaoke_enabled: settings.karaoke_enabled ?? true,
+                watermark_enabled: settings.watermark_enabled ?? false,
             }),
         });
     }
@@ -434,6 +436,7 @@ class ApiClient {
         highlight_style?: string;
         subtitle_size?: number;
         karaoke_enabled?: boolean;
+        watermark_enabled?: boolean;
     }): Promise<JobResponse> {
         return this.request<JobResponse>(`/videos/jobs/${jobId}/export`, {
             method: 'POST',
@@ -474,6 +477,7 @@ class ApiClient {
                 highlight_style: settings.highlight_style || 'karaoke',
                 subtitle_size: settings.subtitle_size ?? 100,
                 karaoke_enabled: settings.karaoke_enabled ?? true,
+                watermark_enabled: settings.watermark_enabled ?? false,
             }),
         });
     }

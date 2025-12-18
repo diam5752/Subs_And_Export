@@ -580,8 +580,9 @@ def _normalize_cues_for_ass(cues: Sequence[Cue]) -> List[Cue]:
     - Sort by start time
     - Clamp overlaps so only one subtitle block is visible at a time
     """
-    if not cues:
-        return []
+    logger.info("Entering _normalize_cues_for_ass with %d cues", len(cues))
+    if cues:
+        logger.info("First cue: %s - %s, Last cue: %s - %s", cues[0].start, cues[0].end, cues[-1].start, cues[-1].end)
 
     cloned: List[Cue] = []
     for cue in cues:
@@ -605,16 +606,38 @@ def _normalize_cues_for_ass(cues: Sequence[Cue]) -> List[Cue]:
         next_cue = cloned[idx + 1]
 
         if current.end <= current.start:
+            logger.warning("Dropping invalid cue before overlap check: %s - %s", current.start, current.end)
             continue
 
         # If overlapping, clamp current to (next.start - gap) when possible.
+        # Rationale: We prefer to show the next subtitle accurately as it's often 
+        # a fresh sentence or thought.
         desired_end = next_cue.start - min_gap_s
-        if desired_end <= current.start:
-            desired_end = next_cue.start
+        
+        # If segments strictly overlap (current.end > next.start)
+        if current.end > next_cue.start:
+            logger.info("Overlap detected: Current(%s-%s) meets Next(%s-%s). Desired End: %s", 
+                        current.start, current.end, next_cue.start, next_cue.end, desired_end)
 
-        if current.end > desired_end:
-            current.end = max(current.start, desired_end)
+            # Check if clamping would destroy the segment
+            if desired_end <= current.start:
+                # DANGER: next cue starts before or at the same time as current.
+                # If they start at the same time, we'll keep both but they might overprint.
+                # If 'current' is already very short, don't clamp further.
+                if next_cue.start <= current.start:
+                    # Keep current end, let them overlap (better than losing text)
+                    if next_cue.start < current.start:
+                         logger.warning("Weird overlap: Next starts BEFORE current? Current:%s Next:%s", current.start, next_cue.start)
+                    continue
+                else:
+                    # Clamp to next.start exactly if gap is too large
+                    current.end = next_cue.start
+                    logger.info("Clamped current end to next start: %s", current.end)
+            else:
+                current.end = desired_end
+                logger.info("Clamped current end to desired end: %s", current.end)
 
+            # Update words text if they were clipped
             if current.words:
                 trimmed_words: List[WordTiming] = []
                 for w in current.words:
@@ -622,6 +645,7 @@ def _normalize_cues_for_ass(cues: Sequence[Cue]) -> List[Cue]:
                         continue
                     w_end = min(w.end, current.end)
                     if w_end <= w.start:
+                        # If word is entirely after the new end, skip it
                         continue
                     trimmed_words.append(WordTiming(start=w.start, end=w_end, text=w.text))
 
@@ -629,10 +653,21 @@ def _normalize_cues_for_ass(cues: Sequence[Cue]) -> List[Cue]:
                     current.words = trimmed_words
                     current.text = " ".join(w.text for w in trimmed_words)
                 else:
+                    # If all words were clipped, text becomes empty and it will be dropped below
                     current.words = None
+                    current.text = ""
+                    logger.warning("All words clipped for cue at %s due to overlap", current.start)
 
     # Drop empty/zero-length cues (libass can behave oddly on them).
-    return [c for c in cloned if c.end > c.start and c.text.strip()]
+    final_cues = []
+    for c in cloned:
+        if c.end > c.start and c.text.strip():
+            final_cues.append(c)
+        else:
+            logger.warning("Dropping cue from ASS normalization (zero duration or empty text): start=%s end=%s text=%r", c.start, c.end, c.text)
+
+    logger.info("Exiting _normalize_cues_for_ass with %d cues", len(final_cues))
+    return final_cues
 
 
 def _effective_max_chars(*, max_chars: int, font_size: int, play_res_x: int) -> int:

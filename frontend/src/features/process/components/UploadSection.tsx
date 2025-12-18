@@ -9,7 +9,7 @@ import { TokenIcon } from '@/components/icons';
 import { formatPoints, processVideoCostForSelection } from '@/lib/points';
 
 const MAX_UPLOAD_BYTES = 1024 * 1024 * 1024; // 1GiB
-const MAX_VIDEO_DURATION_SECONDS = 3 * 60;
+const MAX_VIDEO_DURATION_SECONDS = 3 * 60 + 30;
 const ALLOWED_VIDEO_EXT = /\.(mp4|mov|mkv)$/i;
 
 export function UploadSection() {

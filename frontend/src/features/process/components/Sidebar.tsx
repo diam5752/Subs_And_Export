@@ -186,6 +186,8 @@ export function Sidebar() {
         SUBTITLE_COLORS,
         subtitleSize,
         karaokeEnabled,
+        watermarkEnabled,
+        setWatermarkEnabled,
         AVAILABLE_MODELS,
         transcribeProvider,
         transcribeMode,
@@ -217,7 +219,15 @@ export function Sidebar() {
     const handleLinesChange = useCallback((v: number) => { setMaxSubtitleLines(v); setActivePreset(null); }, [setMaxSubtitleLines, setActivePreset]);
     const handleColorChange = useCallback((v: string) => { setSubtitleColor(v); setActivePreset(null); }, [setSubtitleColor, setActivePreset]);
     const handleSizeChange = useCallback((v: number) => { setSubtitleSize(v); setActivePreset(null); }, [setSubtitleSize, setActivePreset]);
-    const handleKaraokeChange = useCallback((v: boolean) => { setKaraokeEnabled(v); setActivePreset(null); }, [setKaraokeEnabled, setActivePreset]);
+    const handleKaraokeChange = useCallback((enabled: boolean) => {
+        setKaraokeEnabled(enabled);
+        setActivePreset(null);
+    }, [setKaraokeEnabled, setActivePreset]);
+
+    const handleWatermarkChange = useCallback((enabled: boolean) => {
+        setWatermarkEnabled(enabled);
+        setActivePreset(null);
+    }, [setWatermarkEnabled, setActivePreset]);
 
     if (!selectedJob) return null;
 
@@ -340,6 +350,8 @@ export function Sidebar() {
                                 onChangeSize={handleSizeChange}
                                 karaokeEnabled={karaokeEnabled}
                                 onChangeKaraoke={handleKaraokeChange}
+                                watermarkEnabled={watermarkEnabled}
+                                onChangeWatermark={handleWatermarkChange}
                                 karaokeSupported={AVAILABLE_MODELS.find(m => m.provider === transcribeProvider && m.mode === transcribeMode)?.stats.karaoke || false}
                                 previewVideoUrl={previewVideoUrl || undefined}
                                 cues={cues}
