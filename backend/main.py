@@ -1,5 +1,13 @@
 import logging
 import os
+import sys
+
+# Configure logging to stdout for visibility
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    handlers=[logging.StreamHandler(sys.stdout)]
+)
 
 from fastapi import FastAPI, HTTPException
 from fastapi.exception_handlers import request_validation_exception_handler

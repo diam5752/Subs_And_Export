@@ -140,3 +140,41 @@ class DbPointTransaction(Base):
         CheckConstraint("delta != 0", name="chk_point_transactions_delta_nonzero"),
         Index("idx_point_transactions_user_created_at", "user_id", "created_at"),
     )
+
+
+class DbAIModel(Base):
+    """
+    Stores pricing information for AI models to allow dynamic updates.
+    Prices are stored per 1 million tokens.
+    """
+    __tablename__ = "ai_models"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)  # e.g. "gpt-4o-mini"
+    input_price_per_1m: Mapped[float] = mapped_column(default=0.0)
+    output_price_per_1m: Mapped[float] = mapped_column(default=0.0)
+    currency: Mapped[str] = mapped_column(String(3), default="USD")
+    active: Mapped[bool] = mapped_column(default=True)
+    updated_at: Mapped[int] = mapped_column(Integer)  # Unix timestamp
+
+
+class DbTokenUsage(Base):
+    """
+    Audit log for every AI model interaction, tracking exact cost.
+    """
+    __tablename__ = "token_usage"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    job_id: Mapped[str | None] = mapped_column(ForeignKey("jobs.id", ondelete="SET NULL"), nullable=True, index=True)
+    model_id: Mapped[str] = mapped_column(ForeignKey("ai_models.id"), index=True)
+    
+    prompt_tokens: Mapped[int] = mapped_column(Integer)
+    completion_tokens: Mapped[int] = mapped_column(Integer)
+    total_tokens: Mapped[int] = mapped_column(Integer)
+    
+    cost: Mapped[float] = mapped_column(default=0.0)  # Calculated cost in currency
+    timestamp: Mapped[int] = mapped_column(Integer, index=True)
+
+    __table_args__ = (
+        Index("idx_token_usage_job_id", "job_id"),
+        Index("idx_token_usage_timestamp", "timestamp"),
+    )

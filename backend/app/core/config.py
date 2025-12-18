@@ -52,7 +52,23 @@ WHISPERCPP_LANGUAGE = "el"  # Greek default
 
 # LLM social copy defaults (OpenAI API)
 SOCIAL_LLM_MODEL = "gpt-5-mini"
+# LLM social copy defaults (OpenAI API)
+SOCIAL_LLM_MODEL = "gpt-5-mini"
 FACTCHECK_LLM_MODEL = "gpt-5-mini"
+EXTRACTION_LLM_MODEL = "gpt-4o-mini" # Cheaper model for initial extraction
+
+# Cost Optimization & Safety Limits
+MAX_LLM_INPUT_CHARS = 15000  # Approx 3-4k tokens. Truncate very long transcripts to save cost.
+MAX_LLM_OUTPUT_TOKENS_SOCIAL = 3000  # Increased to prevent 'length' finish reason on reasoning models
+MAX_LLM_OUTPUT_TOKENS_FACTCHECK = 6000  # Increased for detailed reports + reasoning overhead
+
+# Estimated Pricing per 1M tokens (USD)
+# Updates as of late 2025
+MODEL_PRICING = {
+    "gpt-4o-mini": {"input": 0.15, "output": 0.60},
+    "gpt-5-mini": {"input": 0.15, "output": 0.60}, # Assuming similar to mini class, adjustable
+    "default": {"input": 2.50, "output": 10.00} # Fallback to standard GPT-4 class
+}
 
 # Audio extraction settings
 AUDIO_SAMPLE_RATE = 16000

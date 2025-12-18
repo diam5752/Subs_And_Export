@@ -16,7 +16,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Iterable, List, Optional, Sequence, Tuple
 
+from sqlalchemy.orm import Session
 from backend.app.core import config
+from backend.app.services.cost import CostService
 
 logger = logging.getLogger(__name__)
 
@@ -1469,12 +1471,17 @@ def _extract_chat_completion_text(response: Any) -> tuple[str | None, str | None
     return None, refusal
 
 
+
+
+
 def build_social_copy_llm(
     transcript_text: str,
     *,
     api_key: str | None = None,
     model: str | None = None,
     temperature: float = 1,
+    session: Session | None = None,
+    job_id: str | None = None,
 ) -> SocialCopy:
     """
     Generate professional social copy using OpenAI's GPT models.
@@ -1496,17 +1503,17 @@ def build_social_copy_llm(
         RuntimeError: If no API key is found in any source
         ValueError: If LLM response is invalid
     """
-    # Try to get API key from multiple sources
+    # Try to get API key from multiple sources (env, secrets.toml)
     if not api_key:
-        # Try environment variable
-        api_key = os.getenv("OPENAI_API_KEY")
+        api_key = _resolve_openai_api_key()
 
     # Validate API key is present
     if not api_key:
         raise RuntimeError(
             "OpenAI API key is required for AI enrichment. Please set it via:\n"
             "  1. Environment variable: export OPENAI_API_KEY='your-key'\n"
-            "  2. Pass explicitly via api_key parameter"
+            "  2. Secrets file: config/secrets.toml\n"
+            "  3. Pass explicitly via api_key parameter"
         )
 
     model_name = model or config.SOCIAL_LLM_MODEL
@@ -1544,7 +1551,7 @@ def build_social_copy_llm(
 
     messages = [
         {"role": "system", "content": system_prompt},
-        {"role": "user", "content": transcript_text.strip()},
+        {"role": "user", "content": transcript_text.strip()[:config.MAX_LLM_INPUT_CHARS]},
     ]
 
     # Retry mechanism
@@ -1558,10 +1565,29 @@ def build_social_copy_llm(
                 model=model_name,
                 messages=messages,
                 temperature=temperature,
-                max_completion_tokens=1200,
+                max_completion_tokens=config.MAX_LLM_OUTPUT_TOKENS_SOCIAL,
                 response_format={"type": "json_object"},
                 timeout=60.0,
             )
+            
+            # Log usage for Social Copy
+            if hasattr(response, "usage"):
+                if session:
+                    cost = CostService.track_usage(
+                        session, 
+                        model_name, 
+                        response.usage.prompt_tokens, 
+                        response.usage.completion_tokens, 
+                        job_id
+                    )
+                    logger.info(
+                        f"Social Copy Token Usage: Input={response.usage.prompt_tokens}, Output={response.usage.completion_tokens}, Total={response.usage.total_tokens} | Cost: ${cost:.6f}"
+                    )
+                else:
+                    # Fallback logging if no session
+                    logger.warning("No DB session provided for build_social_copy_llm. Cost not tracked in DB.")
+                    logger.info(f"Social Copy Token Usage: Input={response.usage.prompt_tokens}, Output={response.usage.completion_tokens}")
+            
             content, refusal = _extract_chat_completion_text(response)
             if refusal:
                 raise ValueError(f"LLM refusal: {refusal}")
@@ -1613,12 +1639,58 @@ class FactCheckResult:
     items: List[FactCheckItem]
 
 
+def _screen_for_errors(client: Any, model_name: str, text: str) -> bool:
+    """
+    Step 1 of Two-Pass Fact Check:
+    Ask a simple Yes/No question to determine if detailed analysis is needed.
+    Returns: True if errors are suspected, False if clean.
+    """
+    try:
+        # Ultra-concise prompt for minimal token usage
+        prompt = (
+            "Analyze text for OBJECTIVE FACTUAL ERRORS (dates, numbers, history, science).\n"
+            "Ignore opinions, grammar, or slight exaggerations.\n"
+            "Reply 'YES' if there are clear factual mistakes.\n"
+            "Reply 'NO' if it looks factually safe.\n\n"
+            "TEXT:\n"
+            f"{text[:10000]}" # Truncate for screening just in case
+        )
+
+        logger.info(f"Running Fact Check Screening on {len(text)} chars (truncated to 10k)")
+
+        response = client.chat.completions.create(
+            model=model_name,
+            messages=[{"role": "user", "content": prompt}],
+            max_completion_tokens=10, # We only need one word
+            temperature=1, # Model requires 1
+        )
+        content = response.choices[0].message.content.strip().upper()
+        
+        # Log token usage for screening
+        if hasattr(response, "usage"):
+            logger.info(f"Fact Check Screening Token Usage: Input={response.usage.prompt_tokens}, Output={response.usage.completion_tokens}, Total={response.usage.total_tokens}")
+
+        # If unsure, lean towards YES to avoid false negatives (100% score on bad text)
+        if "YES" in content:
+            return True
+        if "NO" in content:
+            return False
+        
+        # If response is ambiguous, default to safe "YES"
+        return True
+    except Exception as e:
+        logger.warning(f"Fact Check Screening failed: {e}. Defaulting to full check.")
+        return True # Fail open (check safety if screener fails)
+
+
 def generate_fact_check(
     transcript_text: str,
     *,
     api_key: str | None = None,
     model: str | None = None,
     temperature: float = 1,
+    session: Session | None = None,
+    job_id: str | None = None,
 ) -> FactCheckResult:
     """
     Analyze transcript for historical, logical, or factual errors using an LLM.
@@ -1632,12 +1704,66 @@ def generate_fact_check(
     model_name = model or config.FACTCHECK_LLM_MODEL
     client = _load_openai_client(api_key)
 
+    # Cost Optimization: Hybrid Strategy
+    # Stage 1: Extraction (Cheap Model) - Get potential claims
+    # Stage 2: Verification (Smart Model) - Verify extracted claims
+
+    # 1. Extraction
+    extraction_prompt = (
+        "Identify potental FACTUAL ERRORS in the text.\n"
+        "Return a JSON list of doubtful claims. If none, return empty list.\n"
+        "Format: { \"claims\": [\"claim 1\", \"claim 2\"] }\n"
+        "Ignore opinions. Focus on objective facts (dates, numbers, events)."
+    )
+    
+    try:
+        extract_response = client.chat.completions.create(
+            model=config.EXTRACTION_LLM_MODEL, # Cheap model
+            messages=[
+                {"role": "system", "content": extraction_prompt},
+                {"role": "user", "content": transcript_text.strip()[:config.MAX_LLM_INPUT_CHARS]}
+            ],
+            temperature=0.3,
+            response_format={"type": "json_object"},
+            timeout=30.0
+        )
+        if hasattr(extract_response, "usage"):
+             if session:
+                 extract_cost = CostService.track_usage(
+                     session,
+                     config.EXTRACTION_LLM_MODEL,
+                     extract_response.usage.prompt_tokens,
+                     extract_response.usage.completion_tokens,
+                     job_id
+                 )
+                 logger.info(f"Fact Check Extraction Token Usage: Input={extract_response.usage.prompt_tokens}, Output={extract_response.usage.completion_tokens} | Cost: ${extract_cost:.6f}")
+             else:
+                 logger.info(f"Fact Check Extraction Token Usage: Input={extract_response.usage.prompt_tokens}, Output={extract_response.usage.completion_tokens}")
+
+        extract_content = _extract_chat_completion_text(extract_response)[0]
+        extracted_data = json.loads(_clean_json_response(extract_content or "{}"))
+        claims = extracted_data.get("claims", [])
+        
+        if not claims:
+            logger.info("Fact Check: No doubtful claims found by extractor.")
+            return FactCheckResult(truth_score=100, supported_claims_pct=100, claims_checked=0, items=[])
+            
+    except Exception as e:
+        logger.warning(f"Fact Check Extraction failed: {e}. Fallback to full check.")
+        # Fallback to original full check if extraction fails
+        claims = ["Full Text Analysis"] 
+
+    # 2. Verification (Smart Model)
+    # We send the specific claims + context to the smart model
+    logger.info(f"Fact Check: Verifying {len(claims)} claims with smart model.")
+
     system_prompt = (
         "### ROLE\n"
-        "Expert Fact Checker for Greek transcripts.\n\n"
+        "Expert Fact Checker. Verify the following specific claims against the provided text.\n\n"
         "### TASK\n"
-        "1) Identify up to 6 key factual claims (skip opinions).\n"
-        "2) Output items ONLY for incorrect/misleading claims.\n\n"
+        "1) Analyze the claims.\n"
+        "2) Output items ONLY for incorrect/misleading claims (Max 3).\n\n"
+        f"CLAIMS TO CHECK: {json.dumps(claims)}\n\n"
         "### FOR EACH ERROR:\n"
         "- MISTAKE: Quote the error.\n"
         "- CORRECTION: Correct facts.\n"
@@ -1649,12 +1775,12 @@ def generate_fact_check(
         "### SCORES\n"
         "- truth_score (0-100)\n"
         "- supported_claims_pct (0-100)\n"
-        "- claims_checked (0-6)\n\n"
+        "- claims_checked (int)\n\n"
         "### OUTPUT JSON\n"
         "{\n"
         '  "truth_score": 0-100,\n'
         '  "supported_claims_pct": 0-100,\n'
-        '  "claims_checked": 0-6,\n'
+        '  "claims_checked": int,\n'
         '  "items": [\n'
         '    {\n'
         '      "mistake": "str",\n'
@@ -1673,8 +1799,9 @@ def generate_fact_check(
 
     messages = [
         {"role": "system", "content": system_prompt},
-        {"role": "user", "content": transcript_text.strip()},
+        {"role": "user", "content": transcript_text.strip()[:config.MAX_LLM_INPUT_CHARS]},
     ]
+
 
     max_retries = 2
     last_exc = None
@@ -1686,7 +1813,26 @@ def generate_fact_check(
                 model=model_name,
                 messages=messages,
                 timeout=120.0,
+                max_completion_tokens=config.MAX_LLM_OUTPUT_TOKENS_FACTCHECK,
+                response_format={"type": "json_object"},
             )
+            
+            # Log usage for Detailed Check
+            if hasattr(response, "usage"):
+                if session:
+                    detail_cost = CostService.track_usage(
+                        session,
+                        model_name,
+                        response.usage.prompt_tokens,
+                        response.usage.completion_tokens,
+                        job_id
+                    )
+                    logger.info(
+                        f"Fact Check Detail Token Usage: Input={response.usage.prompt_tokens}, Output={response.usage.completion_tokens} | Cost: ${detail_cost:.6f}"
+                    )
+                else:
+                    logger.info(f"Fact Check Detail Token Usage: Input={response.usage.prompt_tokens}, Output={response.usage.completion_tokens}")
+            
             content, refusal = _extract_chat_completion_text(response)
             if refusal:
                 raise ValueError(f"LLM refusal: {refusal}")

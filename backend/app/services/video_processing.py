@@ -25,7 +25,9 @@ from backend.app.services.styles import SubtitleStyle
 from backend.app.services.transcription.groq_cloud import GroqTranscriber
 from backend.app.services.transcription.local_whisper import LocalWhisperTranscriber
 from backend.app.services.transcription.openai_cloud import OpenAITranscriber
+from backend.app.services.transcription.openai_cloud import OpenAITranscriber
 from backend.app.services.transcription.standard_whisper import StandardTranscriber
+from backend.app.core.database import Database
 
 logger = logging.getLogger(__name__)
 
@@ -370,7 +372,10 @@ def normalize_and_stub_subtitles(
     video_crf: int | None = None,
     video_preset: str | None = None,
     audio_bitrate: str | None = None,
+
     audio_copy: bool | None = None,
+    db: Database | None = None,
+    job_id: str | None = None,
 ) -> Path | tuple[Path, subtitles.SocialCopy]:
 
     if not input_path.exists():
@@ -605,7 +610,18 @@ def normalize_and_stub_subtitles(
                 if generate_social_copy:
                     if progress_callback: progress_callback("Social Copy...", 70.0)
                     if use_llm_social_copy:
-                        future_social = executor.submit(subtitles.build_social_copy_llm, transcript_text, llm_model, llm_temperature, llm_api_key)
+                        def _run_social_with_session(text, model, temp, api_key):
+                            if db:
+                                with db.session() as session:
+                                    return subtitles.build_social_copy_llm(
+                                        text, model=model, temperature=temp, api_key=api_key, session=session, job_id=job_id
+                                    )
+                            else:
+                                 return subtitles.build_social_copy_llm(
+                                    text, model=model, temperature=temp, api_key=api_key
+                                 )
+
+                        future_social = executor.submit(_run_social_with_session, transcript_text, llm_model, llm_temperature, llm_api_key)
                     else:
                         social_copy = subtitles.build_social_copy(transcript_text)
 

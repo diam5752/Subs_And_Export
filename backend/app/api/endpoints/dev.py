@@ -96,6 +96,7 @@ def _resolve_sample_source(
         # User requested specific model alignment. If we fallback, it breaks expectation.
         # But we can fallback to *any* if we fail? strict=False?
         # Let's try strict.
+        # If we found matches, use them.
         if filtered_candidates:
             candidates = filtered_candidates
             # Put preferred first if it's in the filtered list
@@ -103,16 +104,23 @@ def _resolve_sample_source(
                 candidates.remove(preferred)
                 candidates.insert(0, preferred)
         else:
-             # If explicit filter was requested but nothing found, we should probably fail check logic below
-             # But for now let's set candidates empty to trigger 404
-             candidates = []
+             # Fallback to ALL candidates if strict match fails
+             # This allows dev tools to work even if we haven't run this specific model yet
+             candidates = list(all_candidates)
+             if candidates:
+                 logger.warning(f"No exact match for {req}. Falling back to available samples: {candidates[:3]}")
 
-    else:
-        # No filter, use preferred or all
-        if preferred:
-            candidates = [preferred]
-        else:
-            candidates = all_candidates
+    if not candidates:
+        # If absolutely no samples exist (fresh install), we can't do anything
+        hint = (
+            f"No sample video found matching provider={req.provider}, model={req.model_size}. "
+            "Run a job with these settings first to create a sample."
+        )
+        raise HTTPException(status_code=404, detail=hint)
+    
+    # Use the first available candidate
+    # Logic below iterates, but effectively picks the first valid one
+    pass
 
     for job_id in candidates:
         artifact_dir = artifacts_root / job_id
@@ -189,9 +197,10 @@ def create_sample_job(
         "artifact_url": f"/static/{artifacts_rel}",
         "transcription_url": f"/static/{artifacts_rel}/transcription.json",
         "original_filename": os.getenv("GSP_DEV_SAMPLE_FILENAME") or "DEV_SAMPLE.mp4",
-        # Keep original model info if present, else fallback
-        "model_size": result_data.get("model_size", "dev-sample"),
-        "transcribe_provider": result_data.get("transcribe_provider", "dev-sample"),
+        # Keep original model info if present, else fallback.
+        # BUT if request specified a model, use that to simulate a fresh job for the frontend.
+        "model_size": request.model_size or result_data.get("model_size", "dev-sample"),
+        "transcribe_provider": request.provider or result_data.get("transcribe_provider", "dev-sample"),
         "dev_sample_source_job_id": source_job_id,
     })
 

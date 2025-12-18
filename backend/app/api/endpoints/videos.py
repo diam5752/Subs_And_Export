@@ -12,6 +12,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPExcepti
 from pydantic import BaseModel, Field, field_validator
 
 from ...core import config
+from ...core.database import Database
 from ...core.auth import User
 from ...core.gcs import delete_object, download_object, generate_signed_upload_url, get_gcs_settings, upload_object
 from ...core.gcs_uploads import GcsUploadStore
@@ -29,7 +30,14 @@ from ...services.history import HistoryStore
 from ...services.jobs import JobStore
 from ...services.points import FACT_CHECK_COST, PointsStore, make_idempotency_id, process_video_cost
 from ...services.video_processing import normalize_and_stub_subtitles, probe_media
-from ..deps import get_current_user, get_gcs_upload_store, get_history_store, get_job_store, get_points_store
+from ..deps import (
+    get_current_user,
+    get_db,
+    get_gcs_upload_store,
+    get_history_store,
+    get_job_store,
+    get_points_store,
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -364,6 +372,7 @@ def run_video_processing(
     *,
     points_store: PointsStore | None = None,
     charge: _ChargeContext | None = None,
+    db: Database | None = None,
 ):
     """Background task to run the heavy video processing."""
     try:
@@ -437,6 +446,8 @@ def run_video_processing(
             karaoke_enabled=settings.karaoke_enabled,
             check_cancelled=check_cancelled,
             transcription_only=True,
+            db=db,
+            job_id=job_id,
         )
 
         # Result unpacking
@@ -646,6 +657,7 @@ async def process_video(
     job_store: JobStore = Depends(get_job_store),
     history_store: HistoryStore = Depends(get_history_store),
     points_store: PointsStore = Depends(get_points_store),
+    db: Database = Depends(get_db),
 ):
     """Upload a video and start processing."""
     settings = _build_processing_settings(
@@ -783,6 +795,7 @@ async def process_video(
             file.filename,
             points_store=points_store,
             charge=charge,
+            db=db,
             **processing_kwargs,
         )
 
@@ -1549,6 +1562,7 @@ def fact_check_video(
     current_user: User = Depends(get_current_user),
     job_store: JobStore = Depends(get_job_store),
     points_store: PointsStore = Depends(get_points_store),
+    db: Database = Depends(get_db),
 ):
     """Analyze transcript for historical or factual correctness."""
     job = job_store.get_job(job_id)
@@ -1583,7 +1597,8 @@ def fact_check_video(
         )
 
         try:
-            result = generate_fact_check(transcript_text)
+            with db.session() as session:
+                result = generate_fact_check(transcript_text, session=session, job_id=job_id)
         except Exception as exc:
             _refund_charge_best_effort(points_store, charge, status="failed", error=str(exc))
             raise
@@ -1619,6 +1634,7 @@ def generate_social_copy_video(
     current_user: User = Depends(get_current_user),
     job_store: JobStore = Depends(get_job_store),
     points_store: PointsStore = Depends(get_points_store),
+    db: Database = Depends(get_db),
 ):
     """Generate viral social media copy (title, description, tags) for a video."""
     job = job_store.get_job(job_id)
@@ -1655,7 +1671,8 @@ def generate_social_copy_video(
 
         try:
             # Generate the copy
-            social_copy = build_social_copy_llm(transcript_text)
+            with db.session() as session:
+                social_copy = build_social_copy_llm(transcript_text, session=session, job_id=job_id)
             
             # Persist it
             social_path = artifact_dir / "social.json"
