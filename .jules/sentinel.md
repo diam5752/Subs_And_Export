@@ -107,3 +107,8 @@
 **Vulnerability:** The `BatchDeleteRequest` Pydantic model lacked a `max_length` constraint on the `job_ids` list field. While the endpoint manually checked `len > 50`, Pydantic would still parse and validate arbitrarily large lists (e.g., 1 million items), exposing the service to Denial of Service via memory exhaustion before the application logic could reject it.
 **Learning:** `List[Annotated[T, ...]]` only validates individual items `T`. The container `List` itself requires its own validation via `Annotated[List[...], Field(max_length=...)]` or `List[...] = Field(max_length=...)`. Manual checks in endpoint functions are "too late" for memory DoS protection.
 **Prevention:** Audit all `List` fields in Pydantic models. Always apply `Field(max_length=...)` to the list container itself, not just the inner types.
+
+## 2025-07-05 - [High] ASS Injection via Newlines
+**Vulnerability:** The `_sanitize_ass_text` function failed to strip newline characters (`\n`, `\r`), allowing attackers to inject arbitrary ASS events (e.g. `Dialogue: ...`) into the generated subtitle file by breaking out of the intended line structure.
+**Learning:** Text-based formats (ASS, SRT, CSV) rely on newlines as structural delimiters. Sanitizing field-specific delimiters (like `{`, `}`, `,`) is insufficient if the record delimiter itself is not sanitized.
+**Prevention:** Always strip or replace control characters (newlines, carriage returns) from user inputs before embedding them into line-based file formats.
