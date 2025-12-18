@@ -12,8 +12,9 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPExcepti
 from pydantic import BaseModel, Field, field_validator
 
 from ...core import config
-from ...core.database import Database
 from ...core.auth import User
+from ...core.database import Database
+from ...core.errors import sanitize_error
 from ...core.gcs import delete_object, download_object, generate_signed_upload_url, get_gcs_settings, upload_object
 from ...core.gcs_uploads import GcsUploadStore
 from ...core.ratelimit import limiter_content, limiter_processing
@@ -539,19 +540,20 @@ def run_video_processing(
             user,
             "process_cancelled",
             f"Processing cancelled for {original_name or input_path.name}",
-            {"job_id": job_id, "error": str(exc)},
+            {"job_id": job_id, "error": sanitize_error(exc)},
         )
-        _refund_charge_best_effort(points_store, charge, status="cancelled", error=str(exc))
+        _refund_charge_best_effort(points_store, charge, status="cancelled", error=sanitize_error(exc))
     except Exception as exc:
-        job_store.update_job(job_id, status="failed", message=str(exc))
+        safe_msg = sanitize_error(exc)
+        job_store.update_job(job_id, status="failed", message=safe_msg)
         _record_event_safe(
             history_store,
             user,
             "process_failed",
             f"Processing failed for {original_name or input_path.name}",
-            {"job_id": job_id, "error": str(exc)},
+            {"job_id": job_id, "error": safe_msg},
         )
-        _refund_charge_best_effort(points_store, charge, status="failed", error=str(exc))
+        _refund_charge_best_effort(points_store, charge, status="failed", error=safe_msg)
 
 
 def run_gcs_video_processing(
@@ -623,15 +625,16 @@ def run_gcs_video_processing(
                     pass
     except Exception as exc:
         input_path.unlink(missing_ok=True)
-        job_store.update_job(job_id, status="failed", message=str(exc))
+        safe_msg = sanitize_error(exc)
+        job_store.update_job(job_id, status="failed", message=safe_msg)
         _record_event_safe(
             history_store,
             user,
             "process_failed",
             f"Processing failed for {original_name or gcs_object_name}",
-            {"job_id": job_id, "error": str(exc)},
+            {"job_id": job_id, "error": safe_msg},
         )
-        _refund_charge_best_effort(points_store, charge, status="failed", error=str(exc))
+        _refund_charge_best_effort(points_store, charge, status="failed", error=safe_msg)
 
 
 @router.post("/process", response_model=JobResponse, dependencies=[Depends(limiter_processing)])
@@ -817,7 +820,7 @@ async def process_video(
             24,  # 24 hours retention
         )
     except Exception as exc:
-        _refund_charge_best_effort(points_store, charge, status="failed", error=str(exc))
+        _refund_charge_best_effort(points_store, charge, status="failed", error=sanitize_error(exc))
         input_path.unlink(missing_ok=True)
         raise
 
@@ -1029,7 +1032,7 @@ def process_video_from_gcs(
             24,
         )
     except Exception as exc:
-        _refund_charge_best_effort(points_store, charge, status="failed", error=str(exc))
+        _refund_charge_best_effort(points_store, charge, status="failed", error=sanitize_error(exc))
         raise
 
     return {**job.__dict__, "balance": new_balance}
@@ -1423,7 +1426,7 @@ def reprocess_job(
                 24,
             )
         except Exception as exc:
-            _refund_charge_best_effort(points_store, charge, status="failed", error=str(exc))
+            _refund_charge_best_effort(points_store, charge, status="failed", error=sanitize_error(exc))
             raise
 
         return {**job.__dict__, "balance": new_balance}
@@ -1546,7 +1549,7 @@ def reprocess_job(
             24,
         )
     except Exception as exc:
-        _refund_charge_best_effort(points_store, charge, status="failed", error=str(exc))
+        _refund_charge_best_effort(points_store, charge, status="failed", error=sanitize_error(exc))
         input_path.unlink(missing_ok=True)
         raise
 
@@ -1600,7 +1603,7 @@ def fact_check_video(
             with db.session() as session:
                 result = generate_fact_check(transcript_text, session=session, job_id=job_id)
         except Exception as exc:
-            _refund_charge_best_effort(points_store, charge, status="failed", error=str(exc))
+            _refund_charge_best_effort(points_store, charge, status="failed", error=sanitize_error(exc))
             raise
 
         return FactCheckResponse(
@@ -1625,7 +1628,7 @@ def fact_check_video(
         raise
     except Exception as e:
         logger.exception("Error in fact_check_video")
-        raise HTTPException(500, f"Failed to fact check: {str(e)}")
+        raise HTTPException(500, f"Failed to fact check: {sanitize_error(e)}")
 
 
 @router.post("/jobs/{job_id}/social-copy", response_model=SocialCopyResponse, dependencies=[Depends(limiter_content)])
@@ -1651,8 +1654,8 @@ def generate_social_copy_video(
     if not transcript_path.exists():
         raise HTTPException(404, "Transcript not found for this job")
 
-    from ...services.subtitles import build_social_copy_llm
     from ...services.points import SOCIAL_COPY_COST
+    from ...services.subtitles import build_social_copy_llm
 
     try:
         transcript_text = transcript_path.read_text(encoding="utf-8")
@@ -1673,7 +1676,7 @@ def generate_social_copy_video(
             # Generate the copy
             with db.session() as session:
                 social_copy = build_social_copy_llm(transcript_text, session=session, job_id=job_id)
-            
+
             # Persist it
             social_path = artifact_dir / "social.json"
             social_data = {
@@ -1685,7 +1688,7 @@ def generate_social_copy_video(
             social_path.write_text(json.dumps(social_data, ensure_ascii=False, indent=2), encoding="utf-8")
 
         except Exception as exc:
-            _refund_charge_best_effort(points_store, charge, status="failed", error=str(exc))
+            _refund_charge_best_effort(points_store, charge, status="failed", error=sanitize_error(exc))
             raise
 
         return SocialCopyResponse(
@@ -1699,7 +1702,7 @@ def generate_social_copy_video(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(500, f"Failed to generate social copy: {str(e)}")
+        raise HTTPException(500, f"Failed to generate social copy: {sanitize_error(e)}")
 
 
 class ExportRequest(BaseModel):
@@ -1755,32 +1758,32 @@ def export_video(
         # SRT Export: Fast path, direct generation
         try:
             from ...services.subtitles import _write_srt_from_segments
-            
+
             # 1. Load transcription
             transcription_json = artifact_dir / "transcription.json"
             if not transcription_json.exists():
                 raise HTTPException(404, "Transcript not found (cannot export SRT)")
-            
+
             import json
             cues_data = json.loads(transcription_json.read_text(encoding="utf-8"))
-            
+
             # 2. Convert to TimeRange tuples for the helper
             segments = []
             for cue in cues_data:
                 # _write_srt_from_segments expects (start, end, text)
                 segments.append((cue["start"], cue["end"], cue["text"]))
-                
+
             # 3. Write SRT
             srt_path = artifact_dir / "processed.srt"
             _write_srt_from_segments(segments, srt_path)
-            
+
             # 4. register variant
             result_data = job.result_data.copy() if job.result_data else {}
             variants = result_data.get("variants", {})
             public_path = _relpath_safe(srt_path, data_dir).as_posix()
             variants["srt"] = f"/static/{public_path}"
             result_data["variants"] = variants
-            
+
             # 5. GCS Upload if configured
             gcs_settings = get_gcs_settings()
             if gcs_settings:
@@ -1797,10 +1800,10 @@ def export_video(
             job_store.update_job(job_id, result_data=result_data, status="completed")
             updated_job = job_store.get_job(job_id)
             return _ensure_job_size(updated_job)
-            
+
         except Exception as e:
             logger.exception("SRT Export failed")
-            raise HTTPException(500, f"SRT Export failed: {str(e)}")
+            raise HTTPException(500, f"SRT Export failed: {sanitize_error(e)}")
 
     # Locate original input
     input_video = None
@@ -1912,7 +1915,7 @@ def export_video(
         return _ensure_job_size(updated_job)
 
     except Exception as e:
-        raise HTTPException(500, f"Export failed: {str(e)}")
+        raise HTTPException(500, f"Export failed: {sanitize_error(e)}")
 
 
 @router.post("/jobs/cleanup")
