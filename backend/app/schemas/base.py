@@ -22,7 +22,7 @@ class PaginatedJobsResponse(BaseModel):
     total_pages: int
 
 class BatchDeleteRequest(BaseModel):
-    job_ids: List[Annotated[str, Field(max_length=64)]]
+    job_ids: Annotated[List[Annotated[str, Field(max_length=64)]], Field(max_length=50)]
 
 class BatchDeleteResponse(BaseModel):
     status: str

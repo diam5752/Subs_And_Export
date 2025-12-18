@@ -6,6 +6,7 @@ from backend.app.api.endpoints.videos import (
     TranscriptionWordRequest,
     UpdateTranscriptionRequest,
 )
+from backend.app.schemas.base import BatchDeleteRequest
 
 
 def test_transcription_request_cues_limit():
@@ -67,3 +68,23 @@ def test_transcription_cue_words_limit():
         )
 
     assert "at most 100 items" in str(excinfo.value) or "max_length" in str(excinfo.value)
+
+
+def test_batch_delete_request_limit():
+    """
+    Verify that BatchDeleteRequest enforces a limit on the number of job IDs.
+    """
+    limit = 50
+
+    # 1. Valid request
+    valid_ids = [f"job_{i}" for i in range(limit)]
+    req = BatchDeleteRequest(job_ids=valid_ids)
+    assert len(req.job_ids) == limit
+
+    # 2. Invalid request
+    invalid_ids = [f"job_{i}" for i in range(limit + 1)]
+
+    with pytest.raises(ValidationError) as excinfo:
+        BatchDeleteRequest(job_ids=invalid_ids)
+
+    assert "at most 50 items" in str(excinfo.value) or "max_length" in str(excinfo.value)
