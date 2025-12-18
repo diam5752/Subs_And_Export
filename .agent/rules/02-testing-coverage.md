@@ -2,7 +2,8 @@
 
 ## Zero-Gap Policy
 > [!IMPORTANT]
-> **A task is incomplete until tests pass.**
+> **A task is incomplete until tests pass.** 
+> Failure to provide tests is a violation of project governance.
 
 1.  **Mandatory Coverage:** Every line of new or modified code MUST have a corresponding test.
     *   **Frontend:** Unit tests (Jest) + E2E (Playwright).
@@ -28,15 +29,6 @@
    - When fixing a bug, FIRST write a test that reproduces the bug
    - The test should FAIL before the fix and PASS after
    - Label regression tests with `# REGRESSION:` comment explaining the original bug
-   - Example:
-     ```python
-     def test_max_lines_strictly_enforced():
-         """
-         REGRESSION: max_lines must be strictly enforced.
-         Bug: User selected 3 lines but got 4 lines displayed.
-         """
-         # Test that would have caught this bug
-     ```
 
 3. **Pre-Commit Checklist:**
    - [ ] Did I add tests for ALL code changes?
@@ -44,7 +36,17 @@
    - [ ] Do all tests pass (`make test-backend`, `make test-frontend`)?
    - [ ] Is code coverage maintained or improved?
 
-4. **Why This Matters:**
-   - Bugs that slip through without tests WILL recur
-   - Tests document expected behavior
-   - Future refactors are safer with comprehensive tests
+## Mandatory Compliance Checklist
+Add this to the end of every `walkthrough.md`:
+
+```markdown
+## ⚖️ Rules Compliance Checklist
+- [ ] Added unit tests for all new/modified code
+- [ ] Verified tests pass locally (`pytest`/`npm test`)
+- [ ] No regression or logic gaps left uncovered
+```
+
+## Why This Matters
+- Bugs that slip through without tests WILL recur
+- Tests document expected behavior
+- Future refactors are safer with comprehensive tests
