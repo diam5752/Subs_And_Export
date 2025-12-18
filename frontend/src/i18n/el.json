@@ -335,5 +335,16 @@
   "factCheck": "Έλεγχος Γεγονότων",
   "checkingFacts": "Έλεγχος γεγονότων...",
   "factCheckTooltip": "Επαληθεύστε την εγκυρότητα των ισχυρισμών στο βίντεό σας για μέγιστη αξιοπιστία.",
-  "factCheckResults": "Αποτελέσματα Ελέγχου"
+  "factCheckResults": "Αποτελέσματα Ελέγχου",
+  "creditsLabel": "Πόντοι",
+  "creditsRefresh": "Ανανέωση πόντων",
+  "creditsPricingTitle": "Τιμολόγηση πόντων",
+  "creditsError": "Μη διαθέσιμο",
+  "creditsCostLabel": "Κόστος",
+  "creditsCostProcess": "Επεξεργασία βίντεο (βασικό)",
+  "creditsCostUltimate": "Μοντέλο Ultimate",
+  "creditsCostFactCheck": "Έλεγχος γεγονότων",
+  "creditsHint": "Η χρέωση γίνεται ανά ενέργεια και μπλοκάρεται αν δεν υπάρχουν αρκετοί πόντοι.",
+  "creditsFree": "Δωρεάν",
+  "creditsCostInline": "{cost} πόντοι"
 }

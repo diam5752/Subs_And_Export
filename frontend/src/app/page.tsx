@@ -5,12 +5,14 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { useAppEnv } from '@/context/AppEnvContext';
+import { usePoints } from '@/context/PointsContext';
 import { api, JobResponse } from '@/lib/api';
 import { formatDate, buildStaticUrl } from '@/lib/utils';
 import { useI18n } from '@/context/I18nContext';
 import { LanguageToggle } from '@/components/LanguageToggle';
 import { ProcessView, ProcessingOptions } from '@/components/ProcessView';
 import { AccountView } from '@/components/AccountView';
+import { CreditsBadge } from '@/components/CreditsBadge';
 import { useJobs } from '@/hooks/useJobs';
 import { useJobPolling, JobPollingCallbacks } from '@/hooks/useJobPolling';
 
@@ -23,6 +25,7 @@ const statusStyles: Record<string, string> = {
 
 export default function DashboardPage() {
   const { user, isLoading, logout, refreshUser } = useAuth();
+  const { setBalance: setPointsBalance, refreshBalance } = usePoints();
   const router = useRouter();
   const { t } = useI18n();
   const { appEnv } = useAppEnv();
@@ -224,11 +227,16 @@ export default function DashboardPage() {
         })()
         : await api.processVideo(selectedFile, settings);
       setJobId(result.id);
+      if (typeof result.balance === 'number') {
+        setPointsBalance(result.balance);
+      } else {
+        void refreshBalance();
+      }
     } catch (err) {
       setProcessError(err instanceof Error ? err.message : t('startProcessingError'));
       setIsProcessing(false);
     }
-  }, [appEnv, selectedFile, t, setSelectedJob]);
+  }, [appEnv, refreshBalance, selectedFile, setPointsBalance, t, setSelectedJob]);
 
   const handleReprocessJob = useCallback(async (sourceJobId: string, options: ProcessingOptions) => {
     setIsProcessing(true);
@@ -264,11 +272,16 @@ export default function DashboardPage() {
 
       const result = await api.reprocessJob(sourceJobId, settings);
       setJobId(result.id);
+      if (typeof result.balance === 'number') {
+        setPointsBalance(result.balance);
+      } else {
+        void refreshBalance();
+      }
     } catch (err) {
       setProcessError(err instanceof Error ? err.message : t('startProcessingError'));
       setIsProcessing(false);
     }
-  }, [t]);
+  }, [refreshBalance, setPointsBalance, t]);
 
   const handleProfileSave = useCallback(async (name: string, password?: string, confirmPassword?: string) => {
     if (!user) return;
@@ -371,7 +384,8 @@ export default function DashboardPage() {
           </button>
 
           {/* Right: Profile Icon Only */}
-          <div className="flex-1 flex justify-end">
+          <div className="flex-1 flex items-center justify-end gap-3">
+            <CreditsBadge />
             <button
               onClick={() => {
                 setActiveAccountTab('profile');

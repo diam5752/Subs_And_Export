@@ -9,11 +9,13 @@ from ...core.oauth_state import OAuthStateStore
 from ...core.ratelimit import limiter_login, limiter_register
 from ...services.history import HistoryStore
 from ...services.jobs import JobStore
+from ...services.points import PointsStore
 from ..deps import (
     get_current_user,
     get_history_store,
     get_job_store,
     get_oauth_state_store,
+    get_points_store,
     get_session_store,
     get_user_store,
 )
@@ -81,6 +83,19 @@ def read_users_me(
 ) -> Any:
     """Get current user profile."""
     return current_user
+
+
+class PointsBalanceResponse(BaseModel):
+    balance: int
+
+
+@router.get("/points", response_model=PointsBalanceResponse)
+def read_my_points(
+    current_user: User = Depends(get_current_user),
+    points_store: PointsStore = Depends(get_points_store),
+) -> Any:
+    """Get current user's points balance."""
+    return {"balance": points_store.get_balance(current_user.id)}
 
 class UserUpdateName(BaseModel):
     name: str = Field(..., max_length=100)

@@ -1,0 +1,57 @@
+services:
+  backend:
+    build:
+      context: .
+      # In dev, we can restart typical dev dependencies if needed, 
+      # but volume mounting code is the key.
+    volumes:
+      # Mount the local repo into the container for hot reloading
+      - ./:/app
+      # Keep data/logs persistent locally
+      - ./backend/logs:/app/logs
+      - ./data:/data
+      - ./data:/app/data
+    environment:
+      - APP_ENV=dev
+      # Ensure hot reload is enabled
+      - RELOAD=true
+    working_dir: /app/backend
+    # Override the production command with the --reload flag
+    command: >
+      sh -c "python -m alembic upgrade head &&
+             uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080} --reload"
+
+  frontend:
+    build:
+      # We must fix the context here or in the main file. 
+      # Since main file is reverted to '.', we override context? 
+      # Actually, build context usually needs to be consistent. 
+      # But for dev mode, we really just want the volume.
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: deps
+    volumes:
+      # Mount the local frontend code
+      - ./frontend:/app
+      # Important: Don't overwrite node_modules with the local (potentially empty/wrong) folder
+      # This tells Docker "use the container's inner node_modules"
+      - /app/node_modules
+      - /app/.next
+    environment:
+      - NODE_ENV=development
+      - APP_ENV=dev
+    # Use the dev server for hot reloading
+    # Use the dev server for hot reloading
+    command: npm run dev
+
+  # Database Viewer (Web Interface)
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - 8081:8080
+    depends_on:
+      - db
+    environment:
+      # Optional: default design
+      - ADMINER_DESIGN=hydra

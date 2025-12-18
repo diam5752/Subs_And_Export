@@ -18,6 +18,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 
 from ..db.models import DbSession, DbUser
+from ..services.points import PointsStore
 from . import config
 from .database import Database
 
@@ -87,10 +88,13 @@ class UserStore:
                 )
         except IntegrityError as exc:
             raise ValueError("User already exists") from exc
+
+        PointsStore(db=self.db).ensure_account(user.id)
         return user
 
     def upsert_google_user(self, email: str, name: str, sub: str) -> User:
         email = email.strip().lower()
+        created = False
         with self.db.session() as session:
             existing = session.scalar(select(DbUser).where(DbUser.email == email).limit(1))
             if existing:
@@ -99,30 +103,32 @@ class UserStore:
                 existing.provider = "google"
                 existing.password_hash = None
                 session.flush()
-                return _user_from_db(existing)
-
-            user = User(
-                id=secrets.token_hex(8),
-                email=email,
-                name=name.strip() or email.split("@")[0],
-                provider="google",
-                google_sub=sub,
-                created_at=_utc_iso(),
-            )
-            session.add(
-                DbUser(
-                    id=user.id,
-                    email=user.email,
-                    name=user.name,
-                    provider=user.provider,
-                    password_hash=None,
-                    google_sub=user.google_sub,
-                    created_at=user.created_at,
+                user = _user_from_db(existing)
+            else:
+                user = User(
+                    id=secrets.token_hex(8),
+                    email=email,
+                    name=name.strip() or email.split("@")[0],
+                    provider="google",
+                    google_sub=sub,
+                    created_at=_utc_iso(),
                 )
-            )
-            return user
+                session.add(
+                    DbUser(
+                        id=user.id,
+                        email=user.email,
+                        name=user.name,
+                        provider=user.provider,
+                        password_hash=None,
+                        google_sub=user.google_sub,
+                        created_at=user.created_at,
+                    )
+                )
+                created = True
 
-
+        if created:
+            PointsStore(db=self.db).ensure_account(user.id)
+        return user
 
     def update_name(self, user_id: str, new_name: str) -> None:
         with self.db.session() as session:

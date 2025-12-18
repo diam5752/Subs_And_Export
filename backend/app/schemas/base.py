@@ -13,6 +13,7 @@ class JobResponse(BaseModel):
     created_at: int
     updated_at: int
     result_data: Optional[Dict]
+    balance: int | None = None
 
 class PaginatedJobsResponse(BaseModel):
     items: List[JobResponse]
@@ -45,3 +46,4 @@ class FactCheckItemSchema(BaseModel):
 
 class FactCheckResponse(BaseModel):
     items: List[FactCheckItemSchema]
+    balance: int | None = None

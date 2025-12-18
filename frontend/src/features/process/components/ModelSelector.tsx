@@ -1,6 +1,7 @@
 import React, { useMemo, useCallback } from 'react';
 import { useI18n } from '@/context/I18nContext';
 import { useProcessContext, TranscribeProvider, TranscribeMode } from '../ProcessContext';
+import { formatPoints, processVideoCostForSelection } from '@/lib/points';
 
 export function ModelSelector() {
     const { t } = useI18n();
@@ -32,6 +33,7 @@ export function ModelSelector() {
         >
             {AVAILABLE_MODELS.map((model) => {
                 const isSelected = transcribeProvider === model.provider && transcribeMode === model.mode;
+                const cost = processVideoCostForSelection(model.provider as string, model.mode as string);
 
                 const renderStat = (value: number, label: string, max: number = 5) => (
                     <div className="flex gap-0.5" role="meter" aria-label={`${label}: ${value} out of ${max}`} aria-valuenow={value} aria-valuemin={0} aria-valuemax={max}>
@@ -90,6 +92,20 @@ export function ModelSelector() {
                         </div>
                         <div className="font-semibold text-base mb-1">{model.name}</div>
                         <div className="text-sm text-[var(--muted)] mb-4">{model.description}</div>
+
+                        <div className="mb-4">
+                            <span
+                                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold tracking-wide backdrop-blur-md ${isSelected
+                                    ? 'border-[var(--accent)]/40 bg-[var(--accent)]/10 text-[var(--foreground)]'
+                                    : 'border-white/10 bg-white/5 text-white/70'
+                                    }`}
+                                aria-label={`${t('creditsCostLabel') || 'Cost'}: ${formatPoints(cost)}`}
+                            >
+                                <span className="text-white/50">{t('creditsCostLabel') || 'Cost'}</span>
+                                <span className="font-mono text-white/90">{formatPoints(cost)}</span>
+                                <span className="text-white/50">{t('creditsLabel') || 'Credits'}</span>
+                            </span>
+                        </div>
 
                         <div className="mt-auto space-y-2 mb-3">
                             <div className="grid grid-cols-[60px,1fr] items-center gap-2">

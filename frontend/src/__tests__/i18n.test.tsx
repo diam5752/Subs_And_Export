@@ -28,6 +28,16 @@ jest.mock('@/context/AuthContext', () => {
     };
 });
 
+jest.mock('@/context/PointsContext', () => ({
+    usePoints: () => ({
+        balance: 1000,
+        isLoading: false,
+        error: null,
+        refreshBalance: jest.fn(),
+        setBalance: jest.fn(),
+    }),
+}));
+
 jest.mock('next/navigation', () => ({
     useRouter: () => ({ push: jest.fn() }),
     useSearchParams: () => ({

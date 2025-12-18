@@ -26,9 +26,10 @@ from ...schemas.base import (
 )
 from ...services.history import HistoryStore
 from ...services.jobs import JobStore
+from ...services.points import FACT_CHECK_COST, PointsStore, process_video_cost
 from ...services.subtitles import generate_viral_metadata
 from ...services.video_processing import normalize_and_stub_subtitles, probe_media
-from ..deps import get_current_user, get_gcs_upload_store, get_history_store, get_job_store
+from ..deps import get_current_user, get_gcs_upload_store, get_history_store, get_job_store, get_points_store
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -562,7 +563,8 @@ async def process_video(
     karaoke_enabled: bool = Form(True),
     current_user: User = Depends(get_current_user),
     job_store: JobStore = Depends(get_job_store),
-    history_store: HistoryStore = Depends(get_history_store)
+    history_store: HistoryStore = Depends(get_history_store),
+    points_store: PointsStore = Depends(get_points_store),
 ):
     """Upload a video and start processing."""
     settings = _build_processing_settings(
@@ -630,6 +632,18 @@ async def process_video(
             status_code=400,
             detail=f"Video too long (max {config.MAX_VIDEO_DURATION_SECONDS/60:.1f} minutes)",
         )
+
+    cost = process_video_cost(settings.transcribe_model)
+    try:
+        new_balance = points_store.spend(
+            current_user.id,
+            cost,
+            reason="process_video",
+            meta={"job_id": job_id, "model": settings.transcribe_model},
+        )
+    except Exception:
+        input_path.unlink(missing_ok=True)
+        raise
 
     # Prepare Output
     output_path = artifacts_root / job_id / "processed.mp4"
@@ -699,7 +713,7 @@ async def process_video(
         24,  # 24 hours retention
     )
 
-    return job
+    return {**job.__dict__, "balance": new_balance}
 
 
 class GcsUploadUrlRequest(BaseModel):
@@ -806,6 +820,7 @@ def process_video_from_gcs(
     job_store: JobStore = Depends(get_job_store),
     history_store: HistoryStore = Depends(get_history_store),
     gcs_upload_store: GcsUploadStore = Depends(get_gcs_upload_store),
+    points_store: PointsStore = Depends(get_points_store),
 ) -> Any:
     """Start processing for an already-uploaded GCS object (via upload_id)."""
     gcs_settings = get_gcs_settings()
@@ -852,6 +867,14 @@ def process_video_from_gcs(
     output_path = artifacts_root / job_id / "processed.mp4"
     artifact_path = artifacts_root / job_id
 
+    cost = process_video_cost(settings.transcribe_model)
+    new_balance = points_store.spend(
+        current_user.id,
+        cost,
+        reason="process_video",
+        meta={"job_id": job_id, "model": settings.transcribe_model, "source": "gcs"},
+    )
+
     job = job_store.create_job(job_id, current_user.id)
     _record_event_safe(
         history_store,
@@ -888,7 +911,7 @@ def process_video_from_gcs(
         24,
     )
 
-    return job
+    return {**job.__dict__, "balance": new_balance}
 
 
 def _ensure_job_size(job):
@@ -1167,6 +1190,7 @@ def reprocess_job(
     current_user: User = Depends(get_current_user),
     job_store: JobStore = Depends(get_job_store),
     history_store: HistoryStore = Depends(get_history_store),
+    points_store: PointsStore = Depends(get_points_store),
 ):
     source_job = job_store.get_job(job_id)
     if not source_job or source_job.user_id != current_user.id:
@@ -1217,6 +1241,20 @@ def reprocess_job(
         output_path = artifacts_root / new_job_id / "processed.mp4"
         artifact_path = artifacts_root / new_job_id
 
+        cost = process_video_cost(settings.transcribe_model)
+        new_balance = points_store.spend(
+            current_user.id,
+            cost,
+            reason="process_video",
+            meta={
+                "job_id": new_job_id,
+                "model": settings.transcribe_model,
+                "action": "reprocess",
+                "source_job_id": job_id,
+                "source": "gcs",
+            },
+        )
+
         job = job_store.create_job(new_job_id, current_user.id)
         _record_event_safe(
             history_store,
@@ -1253,7 +1291,7 @@ def reprocess_job(
             24,
         )
 
-        return job
+        return {**job.__dict__, "balance": new_balance}
 
     source_input: Path | None = None
     for ext in sorted(ALLOWED_VIDEO_EXTENSIONS):
@@ -1309,6 +1347,24 @@ def reprocess_job(
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Source video not found; upload again to reprocess")
 
+    cost = process_video_cost(settings.transcribe_model)
+    try:
+        new_balance = points_store.spend(
+            current_user.id,
+            cost,
+            reason="process_video",
+            meta={
+                "job_id": new_job_id,
+                "model": settings.transcribe_model,
+                "action": "reprocess",
+                "source_job_id": job_id,
+                "source": "local",
+            },
+        )
+    except Exception:
+        input_path.unlink(missing_ok=True)
+        raise
+
     job = job_store.create_job(new_job_id, current_user.id)
     _record_event_safe(
         history_store,
@@ -1344,7 +1400,7 @@ def reprocess_job(
         24,
     )
 
-    return job
+    return {**job.__dict__, "balance": new_balance}
 
 
 @router.post("/jobs/{job_id}/viral-metadata", response_model=ViralMetadataResponse, dependencies=[Depends(limiter_content)])
@@ -1388,6 +1444,7 @@ def fact_check_video(
     job_id: str,
     current_user: User = Depends(get_current_user),
     job_store: JobStore = Depends(get_job_store),
+    points_store: PointsStore = Depends(get_points_store),
 ):
     """Analyze transcript for historical or factual correctness."""
     job = job_store.get_job(job_id)
@@ -1408,14 +1465,23 @@ def fact_check_video(
 
     try:
         transcript_text = transcript_path.read_text(encoding="utf-8")
+        new_balance = points_store.spend(
+            current_user.id,
+            FACT_CHECK_COST,
+            reason="fact_check",
+            meta={"job_id": job_id},
+        )
         result = generate_fact_check(transcript_text)
 
         return FactCheckResponse(
             items=[
                 {"mistake": item.mistake, "correction": item.correction, "explanation": item.explanation}
                 for item in result.items
-            ]
+            ],
+            balance=new_balance,
         )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(500, f"Failed to fact check: {str(e)}")
 

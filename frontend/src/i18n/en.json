@@ -335,5 +335,16 @@
   "factCheck": "Fact Check",
   "checkingFacts": "Checking facts...",
   "factCheckTooltip": "Verify the accuracy of claims in your video to ensure maximum credibility.",
-  "factCheckResults": "Fact Check Results"
+  "factCheckResults": "Fact Check Results",
+  "creditsLabel": "Credits",
+  "creditsRefresh": "Refresh credits",
+  "creditsPricingTitle": "Points pricing",
+  "creditsError": "Unavailable",
+  "creditsCostLabel": "Cost",
+  "creditsCostProcess": "Video processing (default)",
+  "creditsCostUltimate": "Ultimate model",
+  "creditsCostFactCheck": "Fact check",
+  "creditsHint": "Charges apply per action and are blocked if balance is insufficient.",
+  "creditsFree": "Free",
+  "creditsCostInline": "{cost} credits"
 }

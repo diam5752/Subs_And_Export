@@ -5,6 +5,7 @@ import { useAppEnv } from '@/context/AppEnvContext';
 import { useProcessContext } from '../ProcessContext';
 import { api } from '@/lib/api';
 import { validateVideoAspectRatio } from '@/lib/video';
+import { formatPoints, processVideoCostForSelection } from '@/lib/points';
 
 const MAX_UPLOAD_BYTES = 1024 * 1024 * 1024; // 1GiB
 const MAX_VIDEO_DURATION_SECONDS = 3 * 60;
@@ -274,6 +275,10 @@ export function UploadSection() {
     }, [setOverrideStep]);
 
     return useMemo(() => {
+        const selectedCost = selectedModel
+            ? processVideoCostForSelection(selectedModel.provider as string, selectedModel.mode as string)
+            : processVideoCostForSelection(transcribeProvider, transcribeMode);
+
         // Show compact view if we have a file OR a completed job (restored state)
         // Check if we have consistent job data to display if file is missing
         const hasJobData = selectedJob?.status === 'completed' && selectedJob.result_data;
@@ -436,7 +441,7 @@ export function UploadSection() {
                                                             : 'bg-[var(--accent)] text-[var(--background)] hover:brightness-110 shadow-lg shadow-[var(--accent)]/20'
                                                     }`}
                                                 >
-                                                    {t('startProcessing')}
+                                                    {t('startProcessing')} · {formatPoints(selectedCost)}
                                                 </button>
                                             );
                                         }
@@ -632,6 +637,7 @@ export function UploadSection() {
         selectedFile, t, currentStep, videoInfo, isProcessing, error, hasChosenModel,
         selectedJob, handleStart, onFileSelect, setHasChosenModel, handleKeyDown,
         handleStepClick, activeTheme, isDragOver, selectedModel, showDevTools,
+        transcribeProvider, transcribeMode,
         handleUploadCardClick, handleDragEnter, handleDragLeave, handleDragOver,
         handleDrop, fileInputRef, handleLoadDevSample, devSampleLoading,
         devSampleError, handleFileChange, fileValidationError, videoUrl, progress, statusMessage, onCancelProcessing

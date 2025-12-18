@@ -51,7 +51,7 @@ ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
 
 # Create symlink so 'backend.app' imports work (codebase uses mixed import styles)
-RUN ln -s /app /app/backend
+RUN rm -rf /app/backend && ln -s /app /app/backend
 
 # Drop root privileges for runtime.
 # Cloud Run runs containers as root by default; use a dedicated unprivileged user instead.
@@ -70,4 +70,3 @@ EXPOSE 8080
 
 # Run migrations on startup, then launch the app
 CMD ["sh", "-c", "alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port ${PORT:-8080}"]
-

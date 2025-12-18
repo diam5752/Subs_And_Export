@@ -1,15 +1,18 @@
-# Build stage
-FROM node:20-alpine AS builder
+# Base stage (Dependencies)
+FROM node:20-alpine AS deps
 WORKDIR /app
 
 # Install dependencies
 COPY package.json package-lock.json ./
 RUN npm ci
 
-# Copy source and build
+# Builder stage
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Build-time env vars (baked into the bundle)
+# Build-time env vars
 ARG NEXT_PUBLIC_API_URL=http://localhost:8080
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
 

@@ -14,6 +14,10 @@ jest.mock('@/lib/api', () => ({
         getHistory: jest.fn(),
         getJobStatus: jest.fn(),
         processVideo: jest.fn(),
+        createGcsUploadUrl: jest.fn(),
+        uploadToSignedUrl: jest.fn(),
+        processVideoFromGcs: jest.fn(),
+        reprocessJob: jest.fn(),
         updateProfile: jest.fn(),
         updatePassword: jest.fn(),
     },
@@ -21,6 +25,22 @@ jest.mock('@/lib/api', () => ({
 
 jest.mock('@/context/AuthContext', () => ({
     useAuth: jest.fn(),
+}));
+
+jest.mock('@/context/PointsContext', () => ({
+    __esModule: true,
+    ...(() => {
+        const setBalanceMock = jest.fn();
+        const refreshBalanceMock = jest.fn();
+        return {
+            usePoints: () => ({
+                setBalance: setBalanceMock,
+                refreshBalance: refreshBalanceMock,
+            }),
+            __setBalanceMock: setBalanceMock,
+            __refreshBalanceMock: refreshBalanceMock,
+        };
+    })(),
 }));
 
 jest.mock('@/context/I18nContext', () => ({
@@ -47,7 +67,7 @@ jest.mock('next/navigation', () => ({
 let capturedOnReset: (() => void) | null = null;
 
 jest.mock('@/components/ProcessView', () => ({
-    ProcessView: ({ onStartProcessing, onFileSelect, onReset }: { onStartProcessing: (options: unknown) => void; onFileSelect: (file: File) => void; onReset: () => void; onReprocessJob: (jobId: string, options: unknown) => void; }) => {
+    ProcessView: ({ onStartProcessing, onFileSelect, onReset, onReprocessJob }: { onStartProcessing: (options: unknown) => void; onFileSelect: (file: File) => void; onReset: () => void; onReprocessJob: (jobId: string, options: unknown) => void; }) => {
         capturedOnReset = onReset;
         return (
             <div data-testid="process-view">
@@ -63,6 +83,17 @@ jest.mock('@/components/ProcessView', () => ({
                     subtitle_position: 'bottom',
                     max_subtitle_lines: 2
                 })}>Start Process</button>
+                <button onClick={() => onReprocessJob('job1', {
+                    transcribeMode: 'fast',
+                    transcribeProvider: 'local',
+                    outputQuality: 'balanced',
+                    outputResolution: '1080x1920',
+                    width: 1920,
+                    height: 1080,
+                    duration: 10,
+                    subtitle_position: 'bottom',
+                    max_subtitle_lines: 2
+                })}>Reprocess</button>
                 <button onClick={onReset}>Reset</button>
             </div>
         );
@@ -86,6 +117,10 @@ describe('DashboardPage', () => {
     const mockPush = jest.fn();
     const mockRefreshUser = jest.fn();
     const mockSetSelectedJob = jest.fn();
+    const { __setBalanceMock, __refreshBalanceMock } = jest.requireMock('@/context/PointsContext') as {
+        __setBalanceMock: jest.Mock;
+        __refreshBalanceMock: jest.Mock;
+    };
 
     beforeEach(() => {
         jest.clearAllMocks();
@@ -173,6 +208,19 @@ describe('DashboardPage', () => {
     });
 
     it('handles start processing success', async () => {
+        (api.processVideo as jest.Mock).mockResolvedValue({ id: 'job123', status: 'pending', balance: 800 });
+        render(<DashboardPage />);
+
+        fireEvent.click(screen.getByText('Select File'));
+        fireEvent.click(screen.getByText('Start Process'));
+
+        await waitFor(() => {
+            expect(api.processVideo).toHaveBeenCalled();
+        });
+        expect(__setBalanceMock).toHaveBeenCalledWith(800);
+    });
+
+    it('refreshes balance when process response has no balance', async () => {
         (api.processVideo as jest.Mock).mockResolvedValue({ id: 'job123', status: 'pending' });
         render(<DashboardPage />);
 
@@ -182,6 +230,7 @@ describe('DashboardPage', () => {
         await waitFor(() => {
             expect(api.processVideo).toHaveBeenCalled();
         });
+        expect(__refreshBalanceMock).toHaveBeenCalled();
     });
 
     it('handles start processing error', async () => {
@@ -194,6 +243,18 @@ describe('DashboardPage', () => {
         await waitFor(() => {
             expect(api.processVideo).toHaveBeenCalled();
         });
+    });
+
+    it('updates balance on reprocess success', async () => {
+        (api.reprocessJob as jest.Mock).mockResolvedValue({ id: 'job234', status: 'pending', balance: 700 });
+        render(<DashboardPage />);
+
+        fireEvent.click(screen.getByText('Reprocess'));
+
+        await waitFor(() => {
+            expect(api.reprocessJob).toHaveBeenCalledWith('job1', expect.any(Object));
+        });
+        expect(__setBalanceMock).toHaveBeenCalledWith(700);
     });
 
     it('handles profile save with name change', async () => {

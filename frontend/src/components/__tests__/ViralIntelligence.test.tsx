@@ -18,6 +18,17 @@ jest.mock('@/lib/api', () => ({
     },
 }));
 
+jest.mock('@/context/PointsContext', () => ({
+    __esModule: true,
+    ...(() => {
+        const setBalanceMock = jest.fn();
+        return {
+            usePoints: () => ({ setBalance: setBalanceMock }),
+            __setBalanceMock: setBalanceMock,
+        };
+    })(),
+}));
+
 import { api } from '@/lib/api';
 
 // Mock Clipboard API
@@ -30,6 +41,9 @@ Object.assign(navigator, {
 
 describe('ViralIntelligence', () => {
     const mockJobId = 'job-123';
+    const { __setBalanceMock } = jest.requireMock('@/context/PointsContext') as {
+        __setBalanceMock: jest.Mock;
+    };
 
     beforeEach(() => {
         jest.clearAllMocks();
@@ -116,13 +130,14 @@ describe('ViralIntelligence', () => {
     });
 
     it('calls fact check endpoint and renders report', async () => {
-        (api.factCheck as jest.Mock).mockResolvedValue({ items: [] });
+        (api.factCheck as jest.Mock).mockResolvedValue({ items: [], balance: 900 });
 
         render(<ViralIntelligence jobId={mockJobId} />);
 
         fireEvent.click(screen.getByText(/fact check/i));
 
         await waitFor(() => expect(api.factCheck).toHaveBeenCalledWith(mockJobId));
+        expect(__setBalanceMock).toHaveBeenCalledWith(900);
         expect(await screen.findByText('Report')).toBeInTheDocument();
     });
 

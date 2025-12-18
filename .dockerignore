@@ -1,0 +1,32 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+.env
+.env.local
+.env.docker
+
+# Node
+node_modules/
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+npm-debug.log
+yarn-error.log
+pnpm-debug.log
+
+# Media
+data/
+backend/data/
+*.mp4
+*.mp3
+*.wav
+
+# System
+.DS_Store

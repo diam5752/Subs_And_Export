@@ -7,6 +7,7 @@ import CookieConsent from "@/components/CookieConsent"
 import { AppEnvProvider } from "@/context/AppEnvContext";
 import { normalizeAppEnv } from "@/lib/appEnv";
 import { AppEnvBadge } from "@/components/AppEnvBadge";
+import { PointsProvider } from "@/context/PointsContext";
 
 
 const inter = Inter({ subsets: ["latin"] });
@@ -37,9 +38,11 @@ export default function RootLayout({
         <I18nProvider>
           <AppEnvProvider appEnv={appEnv}>
             <AuthProvider>
-              <AppEnvBadge />
-              {children}
-              <CookieConsent />
+              <PointsProvider>
+                <AppEnvBadge />
+                {children}
+                <CookieConsent />
+              </PointsProvider>
             </AuthProvider>
           </AppEnvProvider>
         </I18nProvider>

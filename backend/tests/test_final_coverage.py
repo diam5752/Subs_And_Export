@@ -148,9 +148,14 @@ def test_process_video_content_length_invalid(client: TestClient, user_auth_head
         def count_active_jobs_for_user(self, user_id):
             return 0
 
+    class MockPointsStore:
+        def spend(self, *_args, **_kwargs):
+            return 999
+
     app_overrides = {
         deps.get_current_user: mock_user,
-        deps.get_job_store: lambda: MockStore()
+        deps.get_job_store: lambda: MockStore(),
+        deps.get_points_store: lambda: MockPointsStore(),
     }
 
     # Mock save to avoid disk I/O

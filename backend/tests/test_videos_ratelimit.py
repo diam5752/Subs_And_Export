@@ -6,6 +6,16 @@ from backend.app.api.endpoints import videos
 
 def test_process_rate_limit(client, user_auth_headers):
     """Verify rate limiting prevents flooding the process endpoint."""
+    # Top up points so the rate limiter triggers before points exhaustion.
+    me = client.get("/auth/me", headers=user_auth_headers)
+    assert me.status_code == 200
+    user_id = me.json()["id"]
+    from backend.app.core.database import Database
+    from backend.app.services.points import PointsStore
+
+    db_path = os.environ.get("GSP_DATABASE_PATH")
+    assert db_path is not None
+    PointsStore(db=Database(db_path)).credit(user_id, 5000, reason="test_topup")
 
     # Create a dummy file content
     file_content = b"dummy content"

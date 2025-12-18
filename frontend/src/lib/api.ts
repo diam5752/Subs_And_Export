@@ -32,6 +32,7 @@ export interface JobResponse {
     created_at: number;
     updated_at: number;
     result_data: JobResultData | null;
+    balance?: number | null;
 }
 
 export interface GcsUploadUrlResponse {
@@ -56,6 +57,10 @@ export interface UserResponse {
     email: string;
     name: string;
     provider: string;
+}
+
+export interface PointsBalanceResponse {
+    balance: number;
 }
 
 export interface ExportDataResponse {
@@ -193,6 +198,10 @@ class ApiClient {
 
     async getCurrentUser(): Promise<UserResponse> {
         return this.request<UserResponse>('/auth/me');
+    }
+
+    async getPointsBalance(): Promise<PointsBalanceResponse> {
+        return this.request<PointsBalanceResponse>('/auth/points');
     }
 
     async processVideo(file: File, settings: {
@@ -503,6 +512,7 @@ export interface FactCheckItem {
 
 export interface FactCheckResponse {
     items: FactCheckItem[];
+    balance?: number | null;
 }
 
 export const api = new ApiClient();

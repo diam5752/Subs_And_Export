@@ -47,8 +47,8 @@ services:
 
   frontend:
     build:
-      context: .
-      dockerfile: frontend/Dockerfile
+      context: ./frontend
+      dockerfile: Dockerfile
       args:
         # API URL used during build (for static generation)
         NEXT_PUBLIC_API_URL: http://localhost:8080

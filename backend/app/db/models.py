@@ -108,3 +108,35 @@ class DbGcsUploadSession(Base):
     __table_args__ = (
         Index("idx_gcs_uploads_user_created_at", "user_id", "created_at"),
     )
+
+
+class DbUserPoints(Base):
+    __tablename__ = "user_points"
+
+    user_id: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    balance: Mapped[int] = mapped_column(Integer, default=1000, server_default="1000")
+    updated_at: Mapped[int] = mapped_column(Integer)
+
+    __table_args__ = (
+        CheckConstraint("balance >= 0", name="chk_user_points_balance_nonnegative"),
+    )
+
+
+class DbPointTransaction(Base):
+    __tablename__ = "point_transactions"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    delta: Mapped[int] = mapped_column(Integer)
+    reason: Mapped[str] = mapped_column(String(64))
+    meta: Mapped[dict[str, Any] | None] = mapped_column(JSON_VALUE, nullable=True)
+    created_at: Mapped[int] = mapped_column(Integer)
+
+    __table_args__ = (
+        CheckConstraint("delta != 0", name="chk_point_transactions_delta_nonzero"),
+        Index("idx_point_transactions_user_created_at", "user_id", "created_at"),
+    )

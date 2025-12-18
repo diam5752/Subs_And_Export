@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useI18n } from '@/context/I18nContext';
 import { api, ViralMetadataResponse, FactCheckResponse } from '@/lib/api';
 import { InfoTooltip } from '@/components/InfoTooltip';
+import { usePoints } from '@/context/PointsContext';
+import { FACT_CHECK_COST, formatPoints } from '@/lib/points';
 
 interface ViralIntelligenceProps {
     jobId: string;
@@ -9,6 +11,7 @@ interface ViralIntelligenceProps {
 
 export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
     const { t } = useI18n();
+    const { setBalance } = usePoints();
     const activeJobIdRef = useRef(jobId);
     const [loading, setLoading] = useState(false);
     const [checkingFacts, setCheckingFacts] = useState(false);
@@ -55,6 +58,9 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
             const result = await api.factCheck(requestJobId);
             if (activeJobIdRef.current !== requestJobId) return;
             setFactCheckResult(result);
+            if (typeof result.balance === 'number') {
+                setBalance(result.balance);
+            }
         } catch (err: unknown) {
             if (activeJobIdRef.current !== requestJobId) return;
             const message = err instanceof Error ? err.message : 'Failed to fact check';
@@ -99,7 +105,7 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
                             </div>
                             <div className="text-center">
                                 <span className="block text-sm font-medium text-white/90 group-hover:text-white">{t('viralGenerate') || 'Generate Metadata'}</span>
-                                <span className="block text-xs text-white/40 mt-1">AI-Powered Tags & Caption</span>
+                                <span className="block text-xs text-white/40 mt-1">{t('creditsFree') || 'Free'}</span>
                             </div>
                         </button>
                         <div className="absolute top-3 right-3">
@@ -129,7 +135,9 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
                             </div>
                             <div className="text-center">
                                 <span className="block text-sm font-medium text-white/90 group-hover:text-white">{t('factCheck') || 'Verify Facts'}</span>
-                                <span className="block text-xs text-white/40 mt-1">Check Accuracy & Trust</span>
+                                <span className="block text-xs text-white/40 mt-1">
+                                    {(t('creditsCostInline') || '{cost} credits').replace('{cost}', formatPoints(FACT_CHECK_COST))}
+                                </span>
                             </div>
                         </button>
                         <div className="absolute top-3 right-3">
