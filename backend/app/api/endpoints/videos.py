@@ -368,6 +368,10 @@ def run_video_processing(
 ):
     """Background task to run the heavy video processing."""
     try:
+        current = job_store.get_job(job_id)
+        if current and current.status == "cancelled":
+            raise InterruptedError("Job cancelled by user")
+
         job_store.update_job(job_id, status="processing", progress=0, message="Starting processing...")
 
         last_update_time = 0.0
@@ -562,6 +566,11 @@ def run_gcs_video_processing(
         return
 
     try:
+        current = job_store.get_job(job_id)
+        if current and current.status == "cancelled":
+            _refund_charge_best_effort(points_store, charge, status="cancelled", error="Job cancelled by user")
+            return
+
         job_store.update_job(job_id, status="processing", progress=0, message="Downloading upload…")
         download_object(
             settings=gcs_settings,

@@ -32,7 +32,8 @@ def test_groq_transcriber_delegates(tmp_path):
             language="fr",
             prompt=None,
             response_format="verbose_json",
-            timestamp_granularities=["word", "segment"]
+            timestamp_granularities=["word", "segment"],
+            timeout=300.0,
         )
 
 def test_groq_transcriber_missing_api_key(tmp_path):
@@ -92,10 +93,10 @@ def test_openai_transcriber_delegates(tmp_path):
             language="de",
             prompt=None,
             response_format="verbose_json",
-            timestamp_granularities=["word"]
+            timestamp_granularities=["word"],
+            timeout=300.0,
         )
 
 class match_any_file_handle:
     def __eq__(self, other):
         return hasattr(other, "read")
-

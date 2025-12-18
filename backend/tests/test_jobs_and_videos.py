@@ -9,6 +9,7 @@ from backend.app.api.endpoints import videos
 from backend.app.core import auth as backend_auth
 from backend.app.core.database import Database
 from backend.app.services import jobs
+from backend.app.services.points import PointsStore, STARTING_POINTS_BALANCE
 
 
 def _auth_header(client: TestClient, email: str = "video@example.com") -> dict[str, str]:
@@ -136,6 +137,103 @@ def test_run_video_processing_handles_path_only(monkeypatch, tmp_path: Path):
 
     finished = store.get_job(job.id)
     assert finished and finished.status == "completed"
+
+
+def test_run_video_processing_does_not_restart_cancelled_job_and_refunds(monkeypatch, tmp_path: Path):
+    # REGRESSION: a cancelled job must never flip back to processing, and charges must be refunded.
+    monkeypatch.setattr(videos.config, "PROJECT_ROOT", tmp_path)
+
+    db = Database(tmp_path / "vid_cancel.db")
+    job_store = jobs.JobStore(db)
+    points_store = PointsStore(db=db)
+
+    user_id = backend_auth.UserStore(db=db).register_local_user(
+        "cancelled@example.com", "testpassword123", "Runner"
+    ).id
+    job = job_store.create_job("job-cancelled", user_id)
+
+    cost = 200
+    meta = {"charge_id": job.id, "job_id": job.id, "model": "turbo"}
+    points_store.spend(user_id, cost, reason="process_video", meta=meta)
+    assert points_store.get_balance(user_id) == STARTING_POINTS_BALANCE - cost
+
+    job_store.update_job(job.id, status="cancelled", message="Cancelled by user")
+
+    input_path = tmp_path / "input_cancel.mp4"
+    input_path.write_bytes(b"data")
+    output_path = tmp_path / "artifacts_cancel" / "out.mp4"
+
+    monkeypatch.setattr(
+        videos,
+        "normalize_and_stub_subtitles",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("should not process cancelled jobs")),
+    )
+
+    settings = videos.ProcessingSettings()
+    charge = videos._ChargeContext(user_id=user_id, cost=cost, reason="process_video", meta=meta)
+    videos.run_video_processing(
+        job.id,
+        input_path,
+        output_path,
+        output_path.parent,
+        settings,
+        job_store,
+        points_store=points_store,
+        charge=charge,
+    )
+
+    assert points_store.get_balance(user_id) == STARTING_POINTS_BALANCE
+    cancelled = job_store.get_job(job.id)
+    assert cancelled and cancelled.status == "cancelled"
+
+
+def test_run_gcs_video_processing_does_not_restart_cancelled_job_and_refunds(monkeypatch, tmp_path: Path):
+    # REGRESSION: cancelled jobs must not download/process GCS uploads, and charges must be refunded.
+    monkeypatch.setattr(videos.config, "PROJECT_ROOT", tmp_path)
+
+    import types
+
+    monkeypatch.setattr(videos, "get_gcs_settings", lambda: types.SimpleNamespace(keep_uploads=True))
+    monkeypatch.setattr(
+        videos,
+        "download_object",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("should not download cancelled jobs")),
+    )
+
+    db = Database(tmp_path / "vid_cancel_gcs.db")
+    job_store = jobs.JobStore(db)
+    points_store = PointsStore(db=db)
+
+    user_id = backend_auth.UserStore(db=db).register_local_user(
+        "cancelled_gcs@example.com", "testpassword123", "Runner"
+    ).id
+    job = job_store.create_job("job-cancelled-gcs", user_id)
+
+    cost = 200
+    meta = {"charge_id": job.id, "job_id": job.id, "model": "turbo"}
+    points_store.spend(user_id, cost, reason="process_video", meta=meta)
+    assert points_store.get_balance(user_id) == STARTING_POINTS_BALANCE - cost
+
+    job_store.update_job(job.id, status="cancelled", message="Cancelled by user")
+
+    settings = videos.ProcessingSettings()
+    charge = videos._ChargeContext(user_id=user_id, cost=cost, reason="process_video", meta=meta)
+
+    videos.run_gcs_video_processing(
+        job_id=job.id,
+        gcs_object_name="uploads/test.mp4",
+        input_path=tmp_path / "in.mp4",
+        output_path=tmp_path / "out.mp4",
+        artifact_dir=tmp_path / "artifacts",
+        settings=settings,
+        job_store=job_store,
+        points_store=points_store,
+        charge=charge,
+    )
+
+    assert points_store.get_balance(user_id) == STARTING_POINTS_BALANCE
+    cancelled = job_store.get_job(job.id)
+    assert cancelled and cancelled.status == "cancelled"
 
 
 def test_process_video_rejects_invalid_extension(client: TestClient):

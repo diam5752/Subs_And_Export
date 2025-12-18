@@ -5,6 +5,7 @@ import { useAppEnv } from '@/context/AppEnvContext';
 import { useProcessContext } from '../ProcessContext';
 import { api } from '@/lib/api';
 import { validateVideoAspectRatio } from '@/lib/video';
+import { TokenIcon } from '@/components/icons';
 import { formatPoints, processVideoCostForSelection } from '@/lib/points';
 
 const MAX_UPLOAD_BYTES = 1024 * 1024 * 1024; // 1GiB
@@ -425,26 +426,29 @@ export function UploadSection() {
                                                 // MISMATCH or NO JOB: Show "Start Processing"
                                                 // Only show if we selected a file (or have a file selected)
                                                 // If we have a job but it's mismatch, we re-process.
-                                        if (!isProcessing && (selectedFile || selectedJob)) {
-                                            // If selectedJob is present but mismatch, we allow re-processing
-                                            return (
-                                                <button
-                                                    disabled={Boolean(fileValidationError)}
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        if (fileValidationError) return;
-                                                        handleStart();
-                                                    }}
-                                                    className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all active:scale-95 ${
-                                                        fileValidationError
-                                                            ? 'bg-[var(--border)] text-[var(--muted)] cursor-not-allowed'
-                                                            : 'bg-[var(--accent)] text-[var(--background)] hover:brightness-110 shadow-lg shadow-[var(--accent)]/20'
-                                                    }`}
-                                                >
-                                                    {t('startProcessing')} · {formatPoints(selectedCost)}
-                                                </button>
-                                            );
-                                        }
+                                                if (!isProcessing && (selectedFile || selectedJob)) {
+                                                    // If selectedJob is present but mismatch, we allow re-processing
+                                                    return (
+                                                        <button
+                                                            disabled={Boolean(fileValidationError)}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                if (fileValidationError) return;
+                                                                handleStart();
+                                                            }}
+                                                            className={`group px-5 py-2 text-xs font-bold rounded-lg transition-all active:scale-95 flex items-center gap-2 ${fileValidationError
+                                                                ? 'bg-[var(--border)] text-[var(--muted)] cursor-not-allowed'
+                                                                : 'bg-[var(--accent)] text-[var(--background)] hover:brightness-110 shadow-lg shadow-[var(--accent)]/20'
+                                                                }`}
+                                                        >
+                                                            <span>{t('startProcessing')}</span>
+                                                            <div className="flex items-center gap-1.5 opacity-80 border-l border-current/20 pl-2 ml-0.5">
+                                                                <TokenIcon className="w-3.5 h-3.5" />
+                                                                <span className="font-mono">{formatPoints(selectedCost)}</span>
+                                                            </div>
+                                                        </button>
+                                                    );
+                                                }
                                             }
                                         })()}
                                     </>

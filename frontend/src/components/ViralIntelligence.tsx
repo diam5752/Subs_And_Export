@@ -3,6 +3,7 @@ import { useI18n } from '@/context/I18nContext';
 import { api, ViralMetadataResponse, FactCheckResponse } from '@/lib/api';
 import { InfoTooltip } from '@/components/InfoTooltip';
 import { usePoints } from '@/context/PointsContext';
+import { TokenIcon } from '@/components/icons';
 import { FACT_CHECK_COST, formatPoints } from '@/lib/points';
 
 interface ViralIntelligenceProps {
@@ -135,9 +136,12 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
                             </div>
                             <div className="text-center">
                                 <span className="block text-sm font-medium text-white/90 group-hover:text-white">{t('factCheck') || 'Verify Facts'}</span>
-                                <span className="block text-xs text-white/40 mt-1">
-                                    {(t('creditsCostInline') || '{cost} credits').replace('{cost}', formatPoints(FACT_CHECK_COST))}
-                                </span>
+                                <div className="flex items-center justify-center gap-1.5 opacity-80 mt-1">
+                                    <TokenIcon className="w-3.5 h-3.5" />
+                                    <span className="text-xs font-semibold text-white/70">
+                                        {formatPoints(FACT_CHECK_COST)}
+                                    </span>
+                                </div>
                             </div>
                         </button>
                         <div className="absolute top-3 right-3">

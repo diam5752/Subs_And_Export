@@ -1,6 +1,7 @@
 import React, { useMemo, useCallback } from 'react';
 import { useI18n } from '@/context/I18nContext';
 import { useProcessContext, TranscribeProvider, TranscribeMode } from '../ProcessContext';
+import { TokenIcon } from '@/components/icons';
 import { formatPoints, processVideoCostForSelection } from '@/lib/points';
 
 export function ModelSelector() {
@@ -95,15 +96,14 @@ export function ModelSelector() {
 
                         <div className="mb-4">
                             <span
-                                className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold tracking-wide backdrop-blur-md ${isSelected
-                                    ? 'border-[var(--accent)]/40 bg-[var(--accent)]/10 text-[var(--foreground)]'
+                                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold tracking-wide backdrop-blur-md ${isSelected
+                                    ? 'border-indigo-500/30 bg-indigo-500/10 text-indigo-200'
                                     : 'border-white/10 bg-white/5 text-white/70'
                                     }`}
                                 aria-label={`${t('creditsCostLabel') || 'Cost'}: ${formatPoints(cost)}`}
                             >
-                                <span className="text-white/50">{t('creditsCostLabel') || 'Cost'}</span>
-                                <span className="font-mono text-white/90">{formatPoints(cost)}</span>
-                                <span className="text-white/50">{t('creditsLabel') || 'Credits'}</span>
+                                <TokenIcon className="w-3.5 h-3.5" />
+                                <span className="font-mono">{formatPoints(cost)}</span>
                             </span>
                         </div>
 

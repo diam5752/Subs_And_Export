@@ -183,7 +183,7 @@ class PointsStore:
                 if dialect_name == "postgresql"
                 else sqlite_insert(DbPointTransaction)
             )
-            insert_result = session.execute(
+            insert_base = (
                 insert_stmt
                 .values(
                     id=transaction_id,
@@ -193,9 +193,19 @@ class PointsStore:
                     meta=meta,
                     created_at=now,
                 )
-                .on_conflict_do_nothing(index_elements=["id"])
+                .on_conflict_do_nothing(index_elements=[DbPointTransaction.id])
             )
-            inserted = int(insert_result.rowcount or 0) == 1
+
+            # psycopg (Postgres) may report rowcount=0 even when the row was inserted,
+            # so use RETURNING to reliably detect insertion.
+            if dialect_name == "postgresql":
+                inserted = (
+                    session.execute(insert_base.returning(DbPointTransaction.id)).scalar_one_or_none()
+                    is not None
+                )
+            else:
+                insert_result = session.execute(insert_base)
+                inserted = int(insert_result.rowcount or 0) == 1
             if inserted:
                 session.execute(
                     update(DbUserPoints)
@@ -218,16 +228,23 @@ class PointsStore:
             if dialect_name == "postgresql"
             else sqlite_insert(DbUserPoints)
         )
-        result = session.execute(
+        insert_base = (
             insert_stmt
             .values(
                 user_id=user_id,
                 balance=STARTING_POINTS_BALANCE,
                 updated_at=now,
             )
-            .on_conflict_do_nothing(index_elements=["user_id"])
+            .on_conflict_do_nothing(index_elements=[DbUserPoints.user_id])
         )
-        created = int(result.rowcount or 0) == 1
+        if dialect_name == "postgresql":
+            created = (
+                session.execute(insert_base.returning(DbUserPoints.user_id)).scalar_one_or_none()
+                is not None
+            )
+        else:
+            result = session.execute(insert_base)
+            created = int(result.rowcount or 0) == 1
         if created:
             session.add(
                 DbPointTransaction(

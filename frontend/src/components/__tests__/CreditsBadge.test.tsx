@@ -40,7 +40,6 @@ describe('CreditsBadge', () => {
     it('renders balance, refreshes on click, and shows pricing tooltip', () => {
         render(<CreditsBadge />);
 
-        expect(screen.getByText('Credits')).toBeInTheDocument();
         expect(screen.getByText('1,234')).toBeInTheDocument();
 
         fireEvent.click(screen.getByRole('button', { name: 'Refresh credits' }));

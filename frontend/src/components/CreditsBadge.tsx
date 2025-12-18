@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { useI18n } from '@/context/I18nContext';
 import { usePoints } from '@/context/PointsContext';
 import { InfoTooltip } from '@/components/InfoTooltip';
+import { TokenIcon, RefreshIcon } from '@/components/icons';
 import {
     FACT_CHECK_COST,
     PROCESS_VIDEO_DEFAULT_COST,
@@ -23,32 +24,33 @@ export function CreditsBadge() {
             <button
                 type="button"
                 onClick={() => void refreshBalance()}
-                className="group inline-flex items-center gap-3 rounded-full border border-[var(--border)] bg-white/5 px-4 py-2 text-sm text-[var(--foreground)] shadow-sm backdrop-blur-xl transition-all hover:bg-white/10 hover:border-[var(--accent)]/40 active:scale-[0.99]"
+                className="group inline-flex items-center gap-2.5 rounded-full border border-white/10 bg-white/5 px-3.5 py-1.5 text-sm text-[var(--foreground)] shadow-sm backdrop-blur-xl transition-all hover:bg-white/10 hover:border-[var(--accent)]/30 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/20"
                 aria-label={t('creditsRefresh') || 'Refresh credits'}
             >
-                <span className="text-[10px] font-semibold uppercase tracking-[0.26em] text-[var(--muted)] group-hover:text-[var(--foreground)]/80 transition-colors">
-                    {t('creditsLabel') || 'Credits'}
-                </span>
-                <span className="font-mono text-base font-semibold tracking-tight">
-                    {formatted}
-                </span>
+                <div className="flex items-center gap-1.5 group-hover:opacity-80 transition-opacity">
+                    <TokenIcon className="w-4 h-4" />
+                    <span className="font-mono text-base font-bold tracking-tight text-[var(--foreground)]">
+                        {formatted}
+                    </span>
+                </div>
+
                 {isLoading ? (
-                    <span className="text-[var(--muted)]" aria-hidden="true">
-                        <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                            <circle className="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
+                    <div className="text-[var(--muted)]" aria-hidden="true">
+                        <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                            <circle className="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
                             <path
                                 className="opacity-80"
                                 d="M22 12a10 10 0 00-10-10"
                                 stroke="currentColor"
-                                strokeWidth="2"
+                                strokeWidth="3"
                                 strokeLinecap="round"
                             />
                         </svg>
-                    </span>
+                    </div>
                 ) : (
-                    <span className="text-[var(--muted)] group-hover:text-[var(--foreground)]/70 transition-colors" aria-hidden="true">
-                        ↻
-                    </span>
+                    <div className="text-[var(--muted)] group-hover:text-[var(--foreground)]/50 transition-colors" aria-hidden="true">
+                        <RefreshIcon className="w-3.5 h-3.5" />
+                    </div>
                 )}
             </button>
 
