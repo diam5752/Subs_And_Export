@@ -183,7 +183,19 @@ export const RecentJobsList = memo(function RecentJobsList({
             )}
 
             {jobs.length === 0 && (
-                <p className="text-[var(--muted)] text-sm">{t('noRunsYet')}</p>
+                <div className="flex flex-col items-center justify-center py-12 px-4 rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface-elevated)]/30 text-center animate-fade-in">
+                    <div className="mb-3 p-3 rounded-full bg-[var(--surface-elevated)] border border-[var(--border)] text-[var(--muted)] opacity-70">
+                        <svg aria-hidden="true" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </div>
+                    <h4 className="text-sm font-semibold text-[var(--foreground)] mb-1">
+                        {t('noHistory') || 'No history yet.'}
+                    </h4>
+                    <p className="text-xs text-[var(--muted)] max-w-[200px]">
+                        {t('noRunsYet') || 'Your processed videos will appear here.'}
+                    </p>
+                </div>
             )}
             <div className="space-y-2">
                 {jobs.map((job) => {
