@@ -23,12 +23,10 @@ from ...schemas.base import (
     FactCheckResponse,
     JobResponse,
     PaginatedJobsResponse,
-    ViralMetadataResponse,
 )
 from ...services.history import HistoryStore
 from ...services.jobs import JobStore
 from ...services.points import FACT_CHECK_COST, PointsStore, make_idempotency_id, process_video_cost
-from ...services.subtitles import generate_viral_metadata
 from ...services.video_processing import normalize_and_stub_subtitles, probe_media
 from ..deps import get_current_user, get_gcs_upload_store, get_history_store, get_job_store, get_points_store
 
@@ -1541,40 +1539,7 @@ def reprocess_job(
     return {**job.__dict__, "balance": new_balance}
 
 
-@router.post("/jobs/{job_id}/viral-metadata", response_model=ViralMetadataResponse, dependencies=[Depends(limiter_content)])
-def create_viral_metadata(
-    job_id: str,
-    current_user: User = Depends(get_current_user),
-    job_store: JobStore = Depends(get_job_store),
-):
-    """Generate viral metadata for a completed job."""
-    job = job_store.get_job(job_id)
-    if not job or job.user_id != current_user.id:
-        raise HTTPException(404, "Job not found")
 
-    if job.status != "completed":
-        raise HTTPException(400, "Job must be completed to generate metadata")
-
-    _, _, artifacts_root = _data_roots()
-    artifact_dir = artifacts_root / job_id
-    transcript_path = artifact_dir / "transcript.txt"
-
-    if not transcript_path.exists():
-        raise HTTPException(404, "Transcript not found for this job")
-
-    try:
-        transcript_text = transcript_path.read_text(encoding="utf-8")
-        metadata = generate_viral_metadata(transcript_text)
-
-        return ViralMetadataResponse(
-            hooks=metadata.hooks,
-            caption_hook=metadata.caption_hook,
-            caption_body=metadata.caption_body,
-            cta=metadata.cta,
-            hashtags=metadata.hashtags,
-        )
-    except Exception as e:
-        raise HTTPException(500, f"Failed to generate metadata: {str(e)}")
 
 
 @router.post("/jobs/{job_id}/fact-check", response_model=FactCheckResponse, dependencies=[Depends(limiter_content)])

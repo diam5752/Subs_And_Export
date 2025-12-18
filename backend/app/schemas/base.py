@@ -30,12 +30,7 @@ class BatchDeleteResponse(BaseModel):
     deleted_count: int
     job_ids: List[str]
 
-class ViralMetadataResponse(BaseModel):
-    hooks: List[str]
-    caption_hook: str
-    caption_body: str
-    cta: str
-    hashtags: List[str]
+
 
 
 class FactCheckItemSchema(BaseModel):

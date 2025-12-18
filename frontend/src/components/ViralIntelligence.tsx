@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useI18n } from '@/context/I18nContext';
-import { api, ViralMetadataResponse, FactCheckResponse } from '@/lib/api';
+import { api, FactCheckResponse } from '@/lib/api';
 import { InfoTooltip } from '@/components/InfoTooltip';
 import { usePoints } from '@/context/PointsContext';
 import { TokenIcon } from '@/components/icons';
@@ -16,40 +16,16 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
     const activeJobIdRef = useRef(jobId);
     const [loading, setLoading] = useState(false);
     const [checkingFacts, setCheckingFacts] = useState(false);
-    const [metadata, setMetadata] = useState<ViralMetadataResponse | null>(null);
     const [factCheckResult, setFactCheckResult] = useState<FactCheckResponse | null>(null);
     const [error, setError] = useState<string | null>(null);
-    const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
-    const [copiedFull, setCopiedFull] = useState(false);
 
     useEffect(() => {
         activeJobIdRef.current = jobId;
         setLoading(false);
         setCheckingFacts(false);
-        setMetadata(null);
         setFactCheckResult(null);
         setError(null);
-        setCopiedIndex(null);
-        setCopiedFull(false);
     }, [jobId]);
-
-    const handleGenerate = async () => {
-        const requestJobId = jobId;
-        setLoading(true);
-        setError(null);
-        try {
-            const result = await api.generateViralMetadata(requestJobId);
-            if (activeJobIdRef.current !== requestJobId) return;
-            setMetadata(result);
-        } catch (err: unknown) {
-            if (activeJobIdRef.current !== requestJobId) return;
-            const message = err instanceof Error ? err.message : 'Failed to generate metadata';
-            setError(message);
-        } finally {
-            if (activeJobIdRef.current !== requestJobId) return;
-            setLoading(false);
-        }
-    };
 
     const handleFactCheck = async () => {
         const requestJobId = jobId;
@@ -72,53 +48,12 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
         }
     };
 
-    const copyToClipboard = async (text: string, index?: number, isFull?: boolean) => {
-        try {
-            await navigator.clipboard.writeText(text);
-            if (isFull) {
-                setCopiedFull(true);
-                setTimeout(() => setCopiedFull(false), 2000);
-            } else if (index !== undefined) {
-                setCopiedIndex(index);
-                setTimeout(() => setCopiedIndex(null), 2000);
-            }
-        } catch (err) {
-            console.error('Failed to copy', err);
-        }
-    };
+
 
     return (
         <div className="space-y-6">
             <div className="grid grid-cols-2 gap-4">
-                {!metadata && !loading && (
-                    <div className="relative group/btn">
-                        <button
-                            onClick={handleGenerate}
-                            disabled={loading || checkingFacts}
-                            className="w-full group relative flex flex-col items-center justify-center gap-3 py-6 px-4 rounded-[2rem] bg-white/5 hover:bg-white/10 backdrop-blur-2xl border border-white/10 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-xl hover:shadow-purple-500/10"
-                        >
-                            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-indigo-400/20 to-purple-400/20 flex items-center justify-center text-indigo-300 shadow-inner mb-1 group-hover:scale-110 group-hover:bg-gradient-to-br group-hover:from-indigo-400 group-hover:to-purple-400 group-hover:text-white transition-all duration-300">
-                                {/* Magic Spark Icon */}
-                                <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-                                    <path d="M12 2v0" />
-                                </svg>
-                            </div>
-                            <div className="text-center">
-                                <span className="block text-sm font-medium text-white/90 group-hover:text-white">{t('viralGenerate') || 'Generate Metadata'}</span>
-                                <span className="block text-xs text-white/40 mt-1">{t('creditsFree') || 'Free'}</span>
-                            </div>
-                        </button>
-                        <div className="absolute top-3 right-3">
-                            <InfoTooltip ariaLabel={t('viralGenerateTooltip')}>
-                                <div className="space-y-1">
-                                    <div className="font-semibold text-[11px]">{t('viralGenerate') || 'Generate Metadata'}</div>
-                                    <p className="text-[var(--muted)] leading-snug">{t('viralGenerateTooltip')}</p>
-                                </div>
-                            </InfoTooltip>
-                        </div>
-                    </div>
-                )}
+
 
                 {!factCheckResult && !checkingFacts && (
                     <div className="relative group/btn">
@@ -225,78 +160,7 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
                 </div>
             )}
 
-            {/* Viral Metadata Results - VisionOS Stack */}
-            {metadata && (
-                <div className="space-y-6 animate-fade-in">
-                    <div className="flex items-center justify-between px-2">
-                        <h4 className="text-xs font-semibold text-white/40 uppercase tracking-widest pl-2 flex items-center gap-2">
-                            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" /></svg>
-                            Generated Output
-                        </h4>
-                        <button onClick={() => setMetadata(null)} className="px-3 py-1 rounded-full bg-white/5 hover:bg-white/10 text-xs text-white/60 hover:text-white transition-colors backdrop-blur-md">Close</button>
-                    </div>
 
-                    {/* Hooks - Glass List */}
-                    <div className="space-y-2">
-                        {metadata.hooks.map((hook, i) => (
-                            <button
-                                key={i}
-                                type="button"
-                                onClick={() => copyToClipboard(hook, i)}
-                                className="group w-full text-left p-5 rounded-[1.5rem] border border-white/5 hover:border-white/20 bg-white/5 hover:bg-white/10 cursor-pointer transition-all flex justify-between items-center backdrop-blur-md active:scale-[0.99] shadow-sm hover:shadow-md"
-                            >
-                                <span className="font-medium text-[15px] text-white/90 pr-8 leading-snug">{hook}</span>
-                                <div className={`w-8 h-8 shrink-0 rounded-full flex items-center justify-center transition-all ${copiedIndex === i
-                                    ? 'bg-emerald-500 text-white scale-100'
-                                    : 'bg-white/10 text-white/40 scale-75 group-hover:scale-100 group-hover:bg-white/20'
-                                    }`}>
-                                    {copiedIndex === i ? (
-                                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 13l4 4L19 7" /></svg>
-                                    ) : (
-                                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
-                                    )}
-                                </div>
-                            </button>
-                        ))}
-                    </div>
-
-                    {/* Caption - Glass Card */}
-                    <div className="p-6 rounded-[2.5rem] bg-white/5 border border-white/10 backdrop-blur-xl shadow-2xl relative overflow-hidden group hover:bg-white/[0.07] transition-colors">
-                        <div className="absolute top-0 left-0 w-full h-[1px] bg-gradient-to-r from-transparent via-white/10 to-transparent" />
-
-                        <div className="flex justify-between items-center mb-6">
-                            <span className="text-xs font-bold text-white/30 uppercase tracking-widest">Caption & Tags</span>
-                            <button
-                                onClick={() => copyToClipboard(`${metadata.caption_hook}\n\n${metadata.caption_body}\n\n${metadata.cta}\n\n${metadata.hashtags.join(' ')}`, undefined, true)}
-                                className={`text-xs px-3 py-1.5 rounded-full transition-all font-medium flex items-center gap-2 ${copiedFull ? 'bg-emerald-500/20 text-emerald-300' : 'bg-white/10 text-white/60 hover:bg-white/20 hover:text-white'}`}
-                            >
-                                {copiedFull ? (
-                                    <>
-                                        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 13l4 4L19 7" /></svg>
-                                        Copied
-                                    </>
-                                ) : (
-                                    <>
-                                        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" /></svg>
-                                        Copy All
-                                    </>
-                                )}
-                            </button>
-                        </div>
-
-                        <div className="space-y-4 text-white/80 text-[15px] leading-relaxed font-light">
-                            <p className="font-semibold text-white text-lg">{metadata.caption_hook}</p>
-                            <p className="whitespace-pre-wrap opacity-90">{metadata.caption_body}</p>
-                            <p className="font-medium text-white">{metadata.cta}</p>
-                            <div className="flex flex-wrap gap-2 pt-4">
-                                {metadata.hashtags.map(tag => (
-                                    <span key={tag} className="text-indigo-300 text-xs px-2.5 py-1 rounded-md bg-indigo-500/10 border border-indigo-500/10">{tag}</span>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }

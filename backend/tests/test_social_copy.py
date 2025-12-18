@@ -26,9 +26,9 @@ def _fake_openai_client(calls: dict | None = None):
         def create(self, **kwargs):
             calls["kwargs"] = kwargs
             payload = {
-                "tiktok": {"title": "TT", "description": "DESC TT"},
-                "youtube_shorts": {"title": "YT", "description": "DESC YT"},
-                "instagram": {"title": "IG", "description": "DESC IG"},
+                "title": "Generic Title",
+                "description": "Generic Description",
+                "hashtags": ["#generic", "#test"],
             }
             return FakeResponse(json.dumps(payload))
 
@@ -43,16 +43,17 @@ def _fake_openai_client(calls: dict | None = None):
     return FakeClient()
 
 
-def test_build_social_copy_returns_platform_specific_strings() -> None:
+def test_build_social_copy_returns_generic_strings() -> None:
     transcript = "Coding tips coding flow python python testing coffee rituals for focus."
 
     social = subtitles.build_social_copy(transcript)
 
-    assert social.tiktok.title.startswith("Coding & Python")
-    assert "Follow for daily Greek clips." in social.tiktok.description
-    assert "#coding" in social.youtube_shorts.description
-    assert social.instagram.title.endswith("Instagram Reels")
-    assert "#reels" in social.instagram.description
+    assert social.generic.title.startswith("Coding & Python")
+    assert "#coding" in social.generic.hashtags
+    assert "#python" in social.generic.hashtags
+    assert "#trending" in social.generic.hashtags
+    assert "Coding tips" in social.generic.description
+    assert "#viral" in social.generic.description
 
 
 def test_build_social_copy_llm_uses_client(monkeypatch) -> None:
@@ -66,8 +67,9 @@ def test_build_social_copy_llm_uses_client(monkeypatch) -> None:
 
     assert calls["kwargs"]["model"] == "gpt-test"
     assert calls["kwargs"]["temperature"] == 0.7
-    assert social.tiktok.title == "TT"
-    assert social.instagram.description == "DESC IG"
+    assert social.generic.title == "Generic Title"
+    assert social.generic.description == "Generic Description"
+    assert "#generic" in social.generic.hashtags
 
 
 def test_build_social_copy_llm_prefers_explicit_key(monkeypatch) -> None:
@@ -95,7 +97,7 @@ def test_build_social_copy_llm_requires_key(monkeypatch) -> None:
 
 def test_clean_json_response_strips_markdown() -> None:
     """Verify that markdown code fences are removed from JSON response."""
-    raw = "```json\n{\"tiktok\": {\"title\": \"T\", \"description\": \"D\"}, \"youtube_shorts\": {\"title\": \"Y\", \"description\": \"D\"}, \"instagram\": {\"title\": \"I\", \"description\": \"D\"}}\n```"
+    raw = "```json\n{\"title\": \"T\", \"description\": \"D\", \"hashtags\": [\"#t\"]}\n```"
     cleaned = subtitles._clean_json_response(raw)
     assert cleaned.startswith("{")
     assert cleaned.endswith("}")
@@ -116,9 +118,9 @@ def test_build_social_copy_llm_retries_on_failure(monkeypatch) -> None:
                 return type("Response", (), {"choices": [type("Choice", (), {"message": type("Message", (), {"content": "Not JSON"})})]})()
             # Second attempt returns valid JSON
             payload = {
-                "tiktok": {"title": "TT", "description": "DESC"},
-                "youtube_shorts": {"title": "YT", "description": "DESC"},
-                "instagram": {"title": "IG", "description": "DESC"},
+                "title": "Retried Title",
+                "description": "Retried Description",
+                "hashtags": ["#retry"],
             }
             return type("Response", (), {"choices": [type("Choice", (), {"message": type("Message", (), {"content": json.dumps(payload)})})]})()
 
@@ -133,4 +135,4 @@ def test_build_social_copy_llm_retries_on_failure(monkeypatch) -> None:
     social = subtitles.build_social_copy_llm("transcript")
 
     assert client.chat.completions.attempts == 2
-    assert social.tiktok.title == "TT"
+    assert social.generic.title == "Retried Title"

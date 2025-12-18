@@ -294,31 +294,16 @@ def _persist_artifacts(
 
     if social_copy:
         social_txt = (
-            "TikTok\n"
-            f"Title: {social_copy.tiktok.title}\n"
-            f"Description: {social_copy.tiktok.description}\n\n"
-            "YouTube Shorts\n"
-            f"Title: {social_copy.youtube_shorts.title}\n"
-            f"Description: {social_copy.youtube_shorts.description}\n\n"
-            "Instagram Reels\n"
-            f"Title: {social_copy.instagram.title}\n"
-            f"Description: {social_copy.instagram.description}\n"
+            f"Title: {social_copy.generic.title}\n"
+            f"Description: {social_copy.generic.description}\n"
+            f"Hashtags: {' '.join(social_copy.generic.hashtags)}\n"
         )
         (artifact_dir / "social_copy.txt").write_text(social_txt, encoding="utf-8")
 
         social_json = {
-            "tiktok": {
-                "title": social_copy.tiktok.title,
-                "description": social_copy.tiktok.description,
-            },
-            "youtube_shorts": {
-                "title": social_copy.youtube_shorts.title,
-                "description": social_copy.youtube_shorts.description,
-            },
-            "instagram": {
-                "title": social_copy.instagram.title,
-                "description": social_copy.instagram.description,
-            },
+            "title": social_copy.generic.title,
+            "description": social_copy.generic.description,
+            "hashtags": social_copy.generic.hashtags,
         }
         (artifact_dir / "social_copy.json").write_text(
             json.dumps(social_json, ensure_ascii=False, indent=2), encoding="utf-8"

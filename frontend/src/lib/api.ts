@@ -69,13 +69,7 @@ export interface ExportDataResponse {
     history: HistoryEvent[];
 }
 
-export interface ViralMetadataResponse {
-    hooks: string[];
-    caption_hook: string;
-    caption_body: string;
-    cta: string;
-    hashtags: string[];
-}
+
 
 export interface PaginatedJobsResponse {
     items: JobResponse[];
@@ -491,11 +485,7 @@ class ApiClient {
         });
     }
 
-    async generateViralMetadata(jobId: string): Promise<ViralMetadataResponse> {
-        return this.request<ViralMetadataResponse>(`/videos/jobs/${jobId}/viral-metadata`, {
-            method: 'POST',
-        });
-    }
+
 
     async factCheck(jobId: string): Promise<FactCheckResponse> {
         return this.request<FactCheckResponse>(`/videos/jobs/${jobId}/fact-check`, {

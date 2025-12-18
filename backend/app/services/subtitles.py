@@ -39,16 +39,15 @@ class Cue:
 
 
 @dataclass(frozen=True)
-class PlatformCopy:
+class SocialContent:
     title: str
     description: str
+    hashtags: List[str]
 
 
 @dataclass(frozen=True)
 class SocialCopy:
-    tiktok: PlatformCopy
-    youtube_shorts: PlatformCopy
-    instagram: PlatformCopy
+    generic: SocialContent
 
 
 @dataclass
@@ -1290,20 +1289,21 @@ def _platform_copy(
     summary: str,
     hashtags: Sequence[str],
     *,
-    title_suffix: str,
-    call_to_action: str,
     extra_tags: Sequence[str],
-) -> PlatformCopy:
-    platform_title = f"{base_title} | {title_suffix}"
-    all_tags = list(dict.fromkeys([*hashtags, *extra_tags]))
-    formatted_tags = " ".join(f"#{tag.lstrip('#')}" for tag in all_tags)
-    description = f"{summary}\n{call_to_action}\n{formatted_tags}".strip()
-    return PlatformCopy(title=platform_title.strip(), description=description)
+) -> SocialContent:
+    all_tags_raw = [*hashtags, *extra_tags]
+    # Normalize to ensure all have # prefix
+    all_tags = list(dict.fromkeys(
+        [f"#{tag.lstrip('#')}" for tag in all_tags_raw]
+    ))
+    formatted_tags = " ".join(all_tags)
+    description = f"{summary}\n{formatted_tags}".strip()
+    return SocialContent(title=base_title.strip(), description=description, hashtags=all_tags)
 
 
 def build_social_copy(transcript_text: str) -> SocialCopy:
     """
-    Create platform-optimized titles and descriptions from transcript text.
+    Create generic social copy from transcript text.
 
     The output stays deterministic and avoids external API calls so it can be
     used in CI environments.
@@ -1315,36 +1315,14 @@ def build_social_copy(transcript_text: str) -> SocialCopy:
     summary = _summarize_text(clean_text)
     shared_tags = _build_hashtags(keywords, ["greek", "subtitles", "verticalvideo"])
 
-    tiktok_copy = _platform_copy(
+    generic_copy = _platform_copy(
         base_title,
         summary,
         shared_tags,
-        title_suffix="TikTok",
-        call_to_action="Follow for daily Greek clips.",
-        extra_tags=["tiktok", "fyp", "viral"],
+        extra_tags=["trending", "viral", "fyp"],
     )
 
-    shorts_copy = _platform_copy(
-        base_title,
-        summary,
-        shared_tags,
-        title_suffix="YouTube Shorts",
-        call_to_action="Subscribe for more Shorts-ready stories.",
-        extra_tags=["shorts", "ytshorts", "greektalk"],
-    )
-
-    instagram_copy = _platform_copy(
-        base_title,
-        summary,
-        shared_tags,
-        title_suffix="Instagram Reels",
-        call_to_action="Save & share if this inspired you!",
-        extra_tags=["reels", "instagood", "greeklife"],
-    )
-
-    return SocialCopy(
-        tiktok=tiktok_copy, youtube_shorts=shorts_copy, instagram=instagram_copy
-    )
+    return SocialCopy(generic=generic_copy)
 
 
 def _load_openai_client(api_key: str):
@@ -1442,13 +1420,10 @@ def build_social_copy_llm(
         {
             "role": "system",
             "content": (
-                "You are a concise, creative copywriter for TikTok, YouTube Shorts, "
-                "and Instagram Reels. Given a transcript, produce engaging titles "
-                "and descriptions. Keep titles punchy, include up to 8 hashtags in "
-                "descriptions, and respond ONLY with JSON matching this schema:\n"
-                '{ "tiktok": {"title": "...", "description": "..."}, '
-                '"youtube_shorts": {"title": "...", "description": "..."}, '
-                '"instagram": {"title": "...", "description": "..."} }'
+                "You are a concise, creative copywriter for social media video content. "
+                "Given a transcript, produce an engaging title, description, and hashtags. "
+                "Respond ONLY with JSON matching this schema:\n"
+                '{ "title": "...", "description": "...", "hashtags": ["#tag1", "#tag2"] }'
             ),
         },
         {"role": "user", "content": transcript_text.strip()},
@@ -1474,17 +1449,11 @@ def build_social_copy_llm(
             parsed = json.loads(cleaned_content)
 
             return SocialCopy(
-                tiktok=PlatformCopy(
-                    title=parsed["tiktok"]["title"], description=parsed["tiktok"]["description"]
-                ),
-                youtube_shorts=PlatformCopy(
-                    title=parsed["youtube_shorts"]["title"],
-                    description=parsed["youtube_shorts"]["description"],
-                ),
-                instagram=PlatformCopy(
-                    title=parsed["instagram"]["title"],
-                    description=parsed["instagram"]["description"],
-                ),
+                generic=SocialContent(
+                    title=parsed["title"],
+                    description=parsed["description"],
+                    hashtags=parsed.get("hashtags", []),
+                )
             )
         except (json.JSONDecodeError, KeyError, ValueError) as exc:
             last_exc = exc
@@ -1494,86 +1463,7 @@ def build_social_copy_llm(
     raise ValueError("Failed to generate valid social copy after retries") from last_exc  # pragma: no cover
 
 
-def generate_viral_metadata(
-    transcript_text: str,
-    *,
-    api_key: str | None = None,
-    model: str | None = None,
-    temperature: float = 0.7,
-) -> ViralMetadata:
-    """
-    Generate viral TikTok metadata (hooks, caption, hashtags) using a specific Greek persona.
-    """
 
-    if not api_key:
-        api_key = _resolve_openai_api_key()
-
-    if not api_key:
-        raise RuntimeError("OpenAI API key is required for Viral Intelligence.")
-
-    model_name = model or config.SOCIAL_LLM_MODEL
-    client = _load_openai_client(api_key)
-
-    system_prompt = (
-        "### ROLE\n"
-        "You are an expert Greek Social Media Manager and Content Creator specialized in TikTok growth. "
-        "You understand the Greek digital landscape, current slang, and the TikTok algorithm's preference for high-retention \"hooks.\"\n\n"
-        "### INPUT\n"
-        "You will receive a raw text transcription (from OpenAI Whisper) of a video in Greek.\n"
-        "Note: The text may lack punctuation, contain run-on sentences, or have minor transcription errors.\n\n"
-        "### TASK\n"
-        "Your goal is to analyze the transcript and generate the perfect TikTok metadata to maximize views and engagement.\n\n"
-        "### OUTPUT FORMAT\n"
-        "You must respond ONLY with a VALID JSON object using the following structure:\n"
-        "{\n"
-        '  "hooks": ["Option 1", "Option 2", "Option 3"],\n'
-        '  "caption_hook": "Strong hook expanding on title",\n'
-        '  "caption_body": "Brief summary with emojis",\n'
-        '  "cta": "Call to action question",\n'
-        '  "hashtags": ["#tag1", "#tag2", ...]\n'
-        "}\n\n"
-        "### TONE GUIDELINES\n"
-        "* Language: Modern Greek (Demotic).\n"
-        "* Style: Casual, energetic, and authentic to TikTok. Avoid formal/robotic Greek.\n"
-        "* Formatting: Use line breaks in the body if needed (encoded as \\n)."
-    )
-
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": transcript_text.strip()},
-    ]
-
-    max_retries = 1
-    last_exc = None
-
-    for attempt in range(max_retries + 1):
-        try:
-            response = client.chat.completions.create(
-                model=model_name,
-                messages=messages,
-                temperature=temperature,
-                response_format={"type": "json_object"},
-                timeout=60.0,
-            )
-            content = response.choices[0].message.content
-            if not content:
-                raise ValueError("Empty response from LLM")
-
-            parsed = json.loads(content)
-
-            return ViralMetadata(
-                hooks=parsed["hooks"],
-                caption_hook=parsed["caption_hook"],
-                caption_body=parsed["caption_body"],
-                cta=parsed["cta"],
-                hashtags=parsed["hashtags"],
-            )
-        except (json.JSONDecodeError, KeyError, ValueError) as exc:
-            last_exc = exc
-            if attempt < max_retries:
-                continue
-
-    raise ValueError("Failed to generate viral metadata after retries") from last_exc
 
 
 @dataclass
