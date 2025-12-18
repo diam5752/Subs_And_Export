@@ -1521,13 +1521,13 @@ def build_social_copy_llm(
         "- Hook the viewer IMMEDIATELY. Use curiosity, controversy, or a bold claim.\n"
         "- Examples: 'Αυτό δεν στο λένε ποτέ...', 'Γιατί όλοι κάνουν λάθος σε αυτό', 'Η αλήθεια που κανείς δεν θέλει να ακούσεις'\n"
         "- NO boring summaries. Make them NEED to watch.\n\n"
-        "### DESCRIPTION (100–400 chars)\n"
+        "### DESCRIPTION (100–250 chars)\n"
         "- Start with a punchy hook or provocative statement that continues the title's energy.\n"
         "- Use short, punchy sentences. Add emotion, relatability, or controversy.\n"
         "- End with an engaging question or call-to-action that sparks comments.\n"
         "- Examples of good CTAs: 'Συμφωνείς;', 'Tag κάποιον που πρέπει να το δει', 'Πες μου τη γνώμη σου 👇'\n"
         "- Use 1-2 emojis strategically (🔥💡🤯👇) but don't overdo it.\n\n"
-        "### HASHTAGS (8–14 items)\n"
+        "### HASHTAGS (5–10 items)\n"
         "- Mix trending Greek tags + niche topic tags + 2-3 English discovery tags\n"
         "- Include at least ONE emotion/vibe tag (#mindset, #αλήθειες, #facts)\n"
         "- NO generic spam (#fyp #viral) unless content is meta about TikTok\n\n"
@@ -1558,7 +1558,7 @@ def build_social_copy_llm(
                 model=model_name,
                 messages=messages,
                 temperature=temperature,
-                max_completion_tokens=1200,
+                max_completion_tokens=500,
                 response_format={"type": "json_object"},
                 timeout=60.0,
             )
@@ -1636,14 +1636,14 @@ def generate_fact_check(
         "### ROLE\n"
         "Expert Fact Checker for Greek transcripts.\n\n"
         "### TASK\n"
-        "1) Identify up to 6 key factual claims (skip opinions).\n"
+        "1) Identify up to 3 key factual claims (skip opinions).\n"
         "2) Output items ONLY for incorrect/misleading claims.\n\n"
         "### FOR EACH ERROR:\n"
         "- MISTAKE: Quote the error.\n"
         "- CORRECTION: Correct facts.\n"
         "- EXPLANATION: Brief reason.\n"
-        "- REAL_LIFE_EXAMPLE: Concrete scenario showing why it's wrong (1 sentence).\n"
-        "- SCIENTIFIC_EVIDENCE: Citation/proof (1 sentence).\n"
+        "- REAL_LIFE_EXAMPLE: Optional. Concrete scenario (max 1 short sentence).\n"
+        "- SCIENTIFIC_EVIDENCE: Optional. Citation/proof (max 1 short sentence).\n"
         "- SEVERITY: minor/medium/major.\n"
         "- CONFIDENCE: 0-100.\n\n"
         "### SCORES\n"
@@ -1686,6 +1686,7 @@ def generate_fact_check(
                 model=model_name,
                 messages=messages,
                 timeout=120.0,
+                max_completion_tokens=800,
             )
             content, refusal = _extract_chat_completion_text(response)
             if refusal:
