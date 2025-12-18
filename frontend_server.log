@@ -1,0 +1,15 @@
+
+> frontend@0.1.0 dev /app/frontend
+> next dev
+
+   ▲ Next.js 16.0.10 (Turbopack)
+   - Local:         http://localhost:3000
+   - Network:       http://192.168.0.2:3000
+
+ ✓ Starting...
+ ✓ Ready in 1089ms
+ ○ Compiling /test-palette ...
+ GET /test-palette 200 in 3.6s (compile: 3.3s, render: 335ms)
+ GET /test-palette 200 in 73ms (compile: 6ms, render: 68ms)
+ ELIFECYCLE  Command failed.
+[?25h
