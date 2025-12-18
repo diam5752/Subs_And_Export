@@ -28,8 +28,23 @@ def test_auth_points_endpoint_returns_starting_balance(
 
 
 def test_process_video_charges_points_and_returns_balance(
-    client: TestClient, user_auth_headers: dict[str, str]
+    client: TestClient, user_auth_headers: dict[str, str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    def _fake_run_video_processing(job_id: str, *_args, **_kwargs) -> None:
+        job_store = _args[4]
+        job_store.update_job(
+            job_id,
+            status="completed",
+            progress=100,
+            message="Done!",
+            result_data={"video_path": "artifacts/out.mp4"},
+        )
+
+    monkeypatch.setattr(
+        videos_endpoints,
+        "run_video_processing",
+        _fake_run_video_processing,
+    )
     before = client.get("/auth/points", headers=user_auth_headers).json()["balance"]
     resp = client.post(
         "/videos/process",
@@ -43,6 +58,43 @@ def test_process_video_charges_points_and_returns_balance(
 
     after = client.get("/auth/points", headers=user_auth_headers).json()["balance"]
     assert after == body["balance"]
+
+def test_process_video_refunds_points_when_processing_fails(
+    client: TestClient,
+    user_auth_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    data_dir = tmp_path / "data"
+    uploads_dir = data_dir / "uploads"
+    artifacts_dir = data_dir / "artifacts"
+    uploads_dir.mkdir(parents=True)
+    artifacts_dir.mkdir(parents=True)
+    monkeypatch.setattr(videos_endpoints, "_data_roots", lambda: (data_dir, uploads_dir, artifacts_dir))
+
+    monkeypatch.setattr(
+        videos_endpoints,
+        "normalize_and_stub_subtitles",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+
+    before = client.get("/auth/points", headers=user_auth_headers).json()["balance"]
+    resp = client.post(
+        "/videos/process",
+        headers=user_auth_headers,
+        files={"file": ("clip.mp4", b"123", "video/mp4")},
+        data={"transcribe_model": "large"},
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["balance"] == before - 500
+
+    after = client.get("/auth/points", headers=user_auth_headers).json()["balance"]
+    assert after == before
+
+    job = client.get(f"/videos/jobs/{body['id']}", headers=user_auth_headers)
+    assert job.status_code == 200
+    assert job.json()["status"] == "failed"
 
 
 def test_process_video_rejects_on_insufficient_points(
@@ -116,3 +168,38 @@ def test_fact_check_charges_points_and_rejects_on_insufficient_balance(
     assert insufficient.status_code == 402
     assert insufficient.json()["detail"] == "Insufficient points"
 
+
+def test_fact_check_refunds_points_when_generation_fails(
+    client: TestClient,
+    user_auth_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    data_dir = tmp_path / "data"
+    uploads_dir = data_dir / "uploads"
+    artifacts_dir = data_dir / "artifacts"
+    uploads_dir.mkdir(parents=True)
+    artifacts_dir.mkdir(parents=True)
+    monkeypatch.setattr(videos_endpoints, "_data_roots", lambda: (data_dir, uploads_dir, artifacts_dir))
+
+    monkeypatch.setattr(
+        "backend.app.services.subtitles.generate_fact_check",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+
+    me = client.get("/auth/me", headers=user_auth_headers)
+    assert me.status_code == 200
+    user_id = me.json()["id"]
+
+    db = _db_from_env()
+    job_id = "job_fact_refund"
+    JobStore(db=db).create_job(job_id, user_id)
+    JobStore(db=db).update_job(job_id, status="completed", progress=100)
+    job_dir = artifacts_dir / job_id
+    job_dir.mkdir(parents=True, exist_ok=True)
+    (job_dir / "transcript.txt").write_text("hello", encoding="utf-8")
+
+    before = client.get("/auth/points", headers=user_auth_headers).json()["balance"]
+    resp = client.post(f"/videos/jobs/{job_id}/fact-check", headers=user_auth_headers)
+    assert resp.status_code == 500
+    assert client.get("/auth/points", headers=user_auth_headers).json()["balance"] == before

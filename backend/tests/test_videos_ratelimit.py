@@ -67,7 +67,7 @@ def test_viral_metadata_rate_limit(client, user_auth_headers, monkeypatch, tmp_p
 
     # 1. Create a dummy job
     # Mock run_video_processing to avoid background task errors/delays
-    monkeypatch.setattr(videos, "run_video_processing", lambda *args: None)
+    monkeypatch.setattr(videos, "run_video_processing", lambda *args, **kwargs: None)
 
     res = client.post(
         "/videos/process",

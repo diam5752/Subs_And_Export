@@ -50,7 +50,6 @@ type TextMeasurer = {
 };
 
 let _sharedMeasurerCanvas: HTMLCanvasElement | null = null;
-let _lastFont: string | null = null;
 
 function getSharedMeasurerCanvas(): HTMLCanvasElement | null {
     /* istanbul ignore next -- exercised in browser or via canvas mocking */
@@ -157,23 +156,6 @@ function interpolateWordsFromCueText(cue: Cue): TranscriptionWordTiming[] {
     }
 
     return timings;
-}
-
-function getAllWords(cues: Cue[]): TranscriptionWordTiming[] {
-    const words: TranscriptionWordTiming[] = [];
-
-    cues.forEach((cue) => {
-        if (cue.words && cue.words.length > 0) {
-            cue.words.forEach((word) => {
-                words.push(...expandPhraseTiming(word));
-            });
-            return;
-        }
-
-        words.push(...interpolateWordsFromCueText(cue));
-    });
-
-    return words.sort((a, b) => a.start - b.start);
 }
 
 function chunkTimedWords(

@@ -112,3 +112,7 @@
 **Vulnerability:** Calls to OpenAI and Groq APIs (via `openai` Python client) lacked explicit timeouts, allowing requests to hang indefinitely during upstream outages, potentially leading to thread starvation and Denial of Service.
 **Learning:** Most API client libraries (like `openai`, `requests`) default to no timeout or excessively long timeouts. Availability protection requires manual intervention.
 **Prevention:** Enforce explicit `timeout=...` arguments on every external network call. Use linting rules or wrappers to forbid default blocking behavior where possible.
+## 2025-07-05 - [High] ASS Injection via Newlines
+**Vulnerability:** The `_sanitize_ass_text` function failed to strip newline characters (`\n`, `\r`), allowing attackers to inject arbitrary ASS events (e.g. `Dialogue: ...`) into the generated subtitle file by breaking out of the intended line structure.
+**Learning:** Text-based formats (ASS, SRT, CSV) rely on newlines as structural delimiters. Sanitizing field-specific delimiters (like `{`, `}`, `,`) is insufficient if the record delimiter itself is not sanitized.
+**Prevention:** Always strip or replace control characters (newlines, carriage returns) from user inputs before embedding them into line-based file formats.
