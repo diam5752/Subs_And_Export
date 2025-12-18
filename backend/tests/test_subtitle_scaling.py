@@ -1,8 +1,8 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from app.core import config
-from app.services import video_processing
+from backend.app.core import config
+from backend.app.services import video_processing
 
 # Mock config to ensure stable defaults
 config.DEFAULT_WIDTH = 1080
@@ -13,11 +13,11 @@ def test_ass_generation_forces_1080p_playres():
     Verify that ASS generation uses 1080x1920 PlayRes
     even if the output resolution is different (e.g. 720p).
     """
-    with patch("app.services.video_processing.subtitles.create_styled_subtitle_file") as mock_create_ass, \
-         patch("app.services.video_processing.Path.exists", return_value=True), \
-         patch("app.services.video_processing.probe_media") as mock_probe, \
-         patch("app.services.video_processing.subtitles.extract_audio") as mock_extract, \
-         patch("app.services.video_processing._run_ffmpeg_with_subs"):
+    with patch("backend.app.services.video_processing.subtitles.create_styled_subtitle_file") as mock_create_ass, \
+         patch("backend.app.services.video_processing.Path.exists", return_value=True), \
+         patch("backend.app.services.video_processing.probe_media") as mock_probe, \
+         patch("backend.app.services.video_processing.subtitles.extract_audio") as mock_extract, \
+         patch("backend.app.services.video_processing._run_ffmpeg_with_subs"):
 
         # Setup mocks
         mock_probe.return_value = MagicMock(duration_s=10, audio_codec="aac")
@@ -47,10 +47,10 @@ def test_ass_generation_forces_1080p_playres():
 
 def test_generate_video_variant_forces_1080p_playres():
     """Verify export logic also forces 1080p reference."""
-    with patch("app.services.video_processing.subtitles.create_styled_subtitle_file") as mock_create_ass, \
-         patch("app.services.video_processing.Path.exists", return_value=True), \
-         patch("app.services.video_processing.probe_media"), \
-         patch("app.services.video_processing._run_ffmpeg_with_subs"):
+    with patch("backend.app.services.video_processing.subtitles.create_styled_subtitle_file") as mock_create_ass, \
+         patch("backend.app.services.video_processing.Path.exists", return_value=True), \
+         patch("backend.app.services.video_processing.probe_media"), \
+         patch("backend.app.services.video_processing._run_ffmpeg_with_subs"):
 
         job_id = "test_job"
         user_id = "user123"

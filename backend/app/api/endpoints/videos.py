@@ -1590,14 +1590,26 @@ def fact_check_video(
 
         return FactCheckResponse(
             items=[
-                {"mistake": item.mistake, "correction": item.correction, "explanation": item.explanation}
+                {
+                    "mistake": item.mistake,
+                    "correction": item.correction,
+                    "explanation": item.explanation,
+                    "severity": item.severity,
+                    "confidence": item.confidence,
+                    "real_life_example": item.real_life_example,
+                    "scientific_evidence": item.scientific_evidence,
+                }
                 for item in result.items
             ],
+            truth_score=result.truth_score,
+            supported_claims_pct=result.supported_claims_pct,
+            claims_checked=result.claims_checked,
             balance=new_balance,
         )
     except HTTPException:
         raise
     except Exception as e:
+        logger.exception("Error in fact_check_video")
         raise HTTPException(500, f"Failed to fact check: {str(e)}")
 
 
@@ -1643,7 +1655,7 @@ def generate_social_copy_video(
 
         try:
             # Generate the copy
-            social_copy = build_social_copy_llm(transcript_text, temperature=0.7)
+            social_copy = build_social_copy_llm(transcript_text)
             
             # Persist it
             social_path = artifact_dir / "social.json"

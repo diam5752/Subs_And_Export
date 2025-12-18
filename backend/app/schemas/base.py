@@ -37,10 +37,17 @@ class FactCheckItemSchema(BaseModel):
     mistake: str
     correction: str
     explanation: str
+    severity: str  # minor | medium | major
+    confidence: int  # 0-100
+    real_life_example: str  # Concrete example disproving the claim
+    scientific_evidence: str  # Scientific explanation/citation
 
 
 class FactCheckResponse(BaseModel):
     items: List[FactCheckItemSchema]
+    truth_score: int  # 0-100 overall accuracy
+    supported_claims_pct: int  # 0-100 percent supported
+    claims_checked: int  # Total claims analyzed
     balance: int | None = None
 
 

@@ -51,7 +51,13 @@ describe('ViralIntelligence', () => {
     });
 
     it('calls fact check endpoint and renders report', async () => {
-        (api.factCheck as jest.Mock).mockResolvedValue({ items: [], balance: 900 });
+        (api.factCheck as jest.Mock).mockResolvedValue({
+            items: [],
+            truth_score: 95,
+            supported_claims_pct: 100,
+            claims_checked: 5,
+            balance: 900
+        });
 
         render(<ViralIntelligence jobId={mockJobId} />);
 
@@ -74,7 +80,7 @@ describe('ViralIntelligence', () => {
 
         render(<ViralIntelligence jobId={mockJobId} />);
 
-        fireEvent.click(screen.getByText(/social copy/i));
+        fireEvent.click(screen.getByText(/generate metadata/i));
 
         await waitFor(() => expect(api.socialCopy).toHaveBeenCalledWith(mockJobId));
         expect(__setBalanceMock).toHaveBeenCalledWith(850);

@@ -184,7 +184,8 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
 
             {/* Fact Check Results */}
             {factCheckResult && (
-                <div className="space-y-4 animate-fade-in">
+                <div className="space-y-5 animate-fade-in">
+                    {/* Header */}
                     <div className="flex items-center justify-between px-2">
                         <h4 className="text-xs font-semibold text-white/40 uppercase tracking-widest pl-2 flex items-center gap-2">
                             <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -193,35 +194,116 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
                         <button onClick={() => setFactCheckResult(null)} className="px-3 py-1 rounded-full bg-white/5 hover:bg-white/10 text-xs text-white/60 hover:text-white transition-colors backdrop-blur-md">Close</button>
                     </div>
 
+                    {/* Truth Score Card */}
+                    <div className="p-6 rounded-[2rem] bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 backdrop-blur-2xl shadow-2xl">
+                        <div className="flex items-center justify-between gap-6">
+                            {/* Score Circle */}
+                            <div className="relative">
+                                <svg className="w-24 h-24 -rotate-90" viewBox="0 0 100 100">
+                                    <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="8" />
+                                    <circle
+                                        cx="50" cy="50" r="42" fill="none"
+                                        stroke={factCheckResult.truth_score >= 80 ? '#34d399' : factCheckResult.truth_score >= 50 ? '#fbbf24' : '#f87171'}
+                                        strokeWidth="8"
+                                        strokeLinecap="round"
+                                        strokeDasharray={`${factCheckResult.truth_score * 2.64} 264`}
+                                        className="transition-all duration-1000"
+                                    />
+                                </svg>
+                                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                    <span className="text-2xl font-bold text-white">{factCheckResult.truth_score}</span>
+                                    <span className="text-[10px] text-white/50 uppercase tracking-wide">Score</span>
+                                </div>
+                            </div>
+
+                            {/* Stats */}
+                            <div className="flex-1 grid grid-cols-2 gap-4">
+                                <div className="p-4 rounded-2xl bg-white/5 border border-white/5">
+                                    <div className="text-2xl font-bold text-white">{factCheckResult.claims_checked}</div>
+                                    <div className="text-[10px] text-white/40 uppercase tracking-wide mt-1">Claims Checked</div>
+                                </div>
+                                <div className="p-4 rounded-2xl bg-white/5 border border-white/5">
+                                    <div className="text-2xl font-bold text-emerald-400">{factCheckResult.supported_claims_pct}%</div>
+                                    <div className="text-[10px] text-white/40 uppercase tracking-wide mt-1">Supported</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     {factCheckResult.items.length === 0 ? (
                         <div className="p-6 rounded-[2rem] bg-emerald-500/5 border border-emerald-500/10 backdrop-blur-xl text-emerald-200/90 text-sm text-center font-medium shadow-lg flex flex-col items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400">
-                                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 6L9 17l-5-5" /></svg>
+                            <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400">
+                                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 6L9 17l-5-5" /></svg>
                             </div>
-                            <span>No factual errors detected by the system.</span>
+                            <span className="text-base">All claims verified — no factual errors detected!</span>
                         </div>
                     ) : (
-                        <div className="space-y-3">
+                        <div className="space-y-4">
                             {factCheckResult.items.map((item, i) => (
-                                <div key={i} className="p-5 rounded-[2rem] bg-white/5 border border-white/10 backdrop-blur-md hover:bg-white/10 transition-colors">
-                                    <div className="space-y-4">
+                                <div key={i} className="rounded-[2rem] bg-white/5 border border-white/10 backdrop-blur-md overflow-hidden transition-all duration-300 hover:bg-white/[0.07]">
+                                    {/* Item Header */}
+                                    <div className="p-5 space-y-4">
+                                        {/* Severity & Confidence Row */}
+                                        <div className="flex items-center gap-3">
+                                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide ${item.severity === 'major' ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
+                                                    item.severity === 'medium' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
+                                                        'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                                }`}>
+                                                {item.severity}
+                                            </span>
+                                            <div className="flex items-center gap-1.5 text-white/40">
+                                                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83" /></svg>
+                                                <span className="text-[10px] font-medium">{item.confidence}% confident</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Mistake */}
                                         <div className="flex gap-4">
                                             <div className="shrink-0 w-8 h-8 rounded-full bg-red-500/10 flex items-center justify-center text-red-400">
                                                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                                             </div>
-                                            <div>
-                                                <div className="text-xs font-medium text-red-400 mb-1 opacity-80 uppercase tracking-wide">Inaccuracy Detected</div>
+                                            <div className="flex-1">
+                                                <div className="text-[10px] font-medium text-red-400 mb-1 uppercase tracking-wide">Inaccuracy</div>
                                                 <p className="text-white/80 text-[15px] leading-relaxed">&quot;{item.mistake}&quot;</p>
                                             </div>
                                         </div>
+
+                                        {/* Correction */}
                                         <div className="pl-12">
                                             <div className="p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/10">
-                                                <div className="text-xs font-medium text-emerald-400 mb-1 opacity-80 uppercase tracking-wide">Correction</div>
+                                                <div className="text-[10px] font-medium text-emerald-400 mb-1 uppercase tracking-wide">Correction</div>
                                                 <p className="text-white/90 text-[15px] font-medium leading-relaxed">{item.correction}</p>
                                                 <p className="text-xs text-white/40 mt-3 pt-3 border-t border-white/5 leading-relaxed">{item.explanation}</p>
                                             </div>
                                         </div>
                                     </div>
+
+                                    {/* Evidence Section */}
+                                    {(item.real_life_example || item.scientific_evidence) && (
+                                        <div className="px-5 pb-5 pt-0 space-y-3">
+                                            {/* Real-life Example */}
+                                            {item.real_life_example && (
+                                                <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/10">
+                                                    <div className="flex items-center gap-2 mb-2">
+                                                        <span className="text-lg">💡</span>
+                                                        <span className="text-[10px] font-medium text-amber-400 uppercase tracking-wide">Real-world Example</span>
+                                                    </div>
+                                                    <p className="text-white/70 text-sm leading-relaxed">{item.real_life_example}</p>
+                                                </div>
+                                            )}
+
+                                            {/* Scientific Evidence */}
+                                            {item.scientific_evidence && (
+                                                <div className="p-4 rounded-xl bg-blue-500/5 border border-blue-500/10">
+                                                    <div className="flex items-center gap-2 mb-2">
+                                                        <span className="text-lg">🔬</span>
+                                                        <span className="text-[10px] font-medium text-blue-400 uppercase tracking-wide">Scientific Evidence</span>
+                                                    </div>
+                                                    <p className="text-white/70 text-sm leading-relaxed">{item.scientific_evidence}</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             ))}
                         </div>

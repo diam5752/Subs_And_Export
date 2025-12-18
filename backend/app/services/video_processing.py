@@ -24,7 +24,7 @@ from backend.app.services import subtitles
 from backend.app.services.styles import SubtitleStyle
 from backend.app.services.transcription.groq_cloud import GroqTranscriber
 from backend.app.services.transcription.local_whisper import LocalWhisperTranscriber
-
+from backend.app.services.transcription.openai_cloud import OpenAITranscriber
 from backend.app.services.transcription.standard_whisper import StandardTranscriber
 
 logger = logging.getLogger(__name__)
@@ -413,8 +413,10 @@ def normalize_and_stub_subtitles(
 
     # Determine Provider Strategy if not set
     if not provider_name:
-        if "groq" in selected_model.lower():
-             provider_name = "groq"
+        if subtitles.should_use_openai(selected_model):
+            provider_name = "openai"
+        elif "groq" in selected_model.lower():
+            provider_name = "groq"
         else:
             # Default to local (stable-ts / faster-whisper) for local-first workflows.
             provider_name = "local"
@@ -437,7 +439,8 @@ def normalize_and_stub_subtitles(
     transcriber = None
     if provider_name == "groq":
         transcriber = GroqTranscriber()
-
+    elif provider_name == "openai":
+        transcriber = OpenAITranscriber(api_key=openai_api_key)
     elif provider_name == "local":
         transcriber = LocalWhisperTranscriber(
             device=device,

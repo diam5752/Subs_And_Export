@@ -7,9 +7,14 @@ from pathlib import Path
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
-from backend.app.core import config as app_config
-from backend.app.db import models as _models  # noqa: F401  # ensure models are registered
-from backend.app.db.base import Base
+try:
+    from backend.app.core import config as app_config
+    from backend.app.db import models as _models  # noqa: F401  # ensure models are registered
+    from backend.app.db.base import Base
+except ModuleNotFoundError:  # pragma: no cover
+    from app.core import config as app_config
+    from app.db import models as _models  # noqa: F401  # ensure models are registered
+    from app.db.base import Base
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -73,4 +78,3 @@ if context.is_offline_mode():
     run_migrations_offline()
 else:
     run_migrations_online()
-

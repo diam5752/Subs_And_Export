@@ -66,8 +66,8 @@ def test_build_social_copy_llm_uses_client(monkeypatch) -> None:
     social = subtitles.build_social_copy_llm("hello world", model="gpt-test", temperature=0.7)
 
     assert calls["kwargs"]["model"] == "gpt-test"
-    assert calls["kwargs"]["temperature"] == 0
-    assert calls["kwargs"]["max_tokens"] == 350
+    assert calls["kwargs"]["temperature"] == 0.7
+    assert calls["kwargs"]["max_completion_tokens"] == 1200
     assert social.generic.title == "Generic Title"
     assert social.generic.description == "Generic Description"
     assert "#generic" in social.generic.hashtags

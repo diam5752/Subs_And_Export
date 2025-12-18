@@ -30,9 +30,20 @@ class Database:
         env_url = os.getenv("GSP_DATABASE_URL")
         env_path = os.getenv("GSP_DATABASE_PATH")
 
-        resolved_url = url or env_url
-        if not resolved_url:
-            candidate_path = Path(path or env_path or (config.PROJECT_ROOT / "logs" / "app.db"))
+        if url:
+            resolved_url = url
+        elif path is not None:
+            candidate_path = Path(path)
+            candidate_path.parent.mkdir(parents=True, exist_ok=True)
+            resolved_url = f"sqlite+pysqlite:///{candidate_path}"
+        elif env_path:
+            candidate_path = Path(env_path)
+            candidate_path.parent.mkdir(parents=True, exist_ok=True)
+            resolved_url = f"sqlite+pysqlite:///{candidate_path}"
+        elif env_url:
+            resolved_url = env_url
+        else:
+            candidate_path = Path(config.PROJECT_ROOT / "logs" / "app.db")
             candidate_path.parent.mkdir(parents=True, exist_ok=True)
             resolved_url = f"sqlite+pysqlite:///{candidate_path}"
 

@@ -147,10 +147,10 @@ def extract_audio(
                 if reads:
                     line = process.stderr.readline()
                     if not line:
-                        break # EOF
-                    
+                        break  # EOF
+
                     if progress_callback and total_duration and total_duration > 0:
-                         if "time=" in line:
+                        if "time=" in line:
                             match = TIME_PATTERN.search(line)
                             if match:
                                 h, m, s = match.groups()
@@ -246,7 +246,14 @@ def _get_whisper_model(
     return model
 
 
-    return False
+def should_use_openai(model_name: str | None) -> bool:
+    """Check if the model name implies using OpenAI's API."""
+    return model_name is not None and "openai" in model_name.lower()
+
+
+def _model_uses_openai(model_name: str | None) -> bool:
+    """Helper for internal use (alias of should_use_openai)."""
+    return should_use_openai(model_name)
 
 
 
@@ -362,15 +369,27 @@ def generate_subtitles_from_audio(
     """
     from backend.app.services.transcription.groq_cloud import GroqTranscriber
     from backend.app.services.transcription.local_whisper import LocalWhisperTranscriber
-
+    from backend.app.services.transcription.openai_cloud import OpenAITranscriber
     from backend.app.services.transcription.standard_whisper import StandardTranscriber
 
     if not language or language.lower() == "auto":
         language = config.WHISPER_LANGUAGE
 
-
+    wants_openai = provider == "openai" or _model_uses_openai(model_size)
     output_dir = output_dir or Path(tempfile.mkdtemp())
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    if wants_openai:
+        transcriber = OpenAITranscriber(api_key=openai_api_key)
+        return transcriber.transcribe(
+            audio_path,
+            output_dir,
+            language=language,
+            model=model_size or config.OPENAI_TRANSCRIBE_MODEL,
+            initial_prompt=initial_prompt,
+            progress_callback=progress_callback,
+        )
+
     if provider == "groq":
         transcriber = GroqTranscriber(api_key=openai_api_key)
         return transcriber.transcribe(
@@ -1396,12 +1415,66 @@ def _clean_json_response(content: str) -> str:  # pragma: no cover - simple stri
     return content.strip()
 
 
+def _chat_completion_debug(response: Any | None) -> str:
+    if response is None:
+        return "<no response>"
+    try:
+        choice = response.choices[0]
+    except Exception:
+        return "<unrecognized response>"
+
+    message = getattr(choice, "message", None)
+    content = getattr(message, "content", None) if message is not None else None
+    refusal = getattr(message, "refusal", None) if message is not None else None
+    finish_reason = getattr(choice, "finish_reason", None)
+    return f"finish_reason={finish_reason!r} refusal={refusal!r} content={content!r}"
+
+
+def _extract_chat_completion_text(response: Any) -> tuple[str | None, str | None]:
+    """
+    Extract text content from an OpenAI Chat Completions response.
+
+    Returns:
+        (content, refusal)
+    """
+    try:
+        choice = response.choices[0]
+        message = choice.message
+    except Exception:
+        return None, None
+
+    refusal = getattr(message, "refusal", None)
+    content = getattr(message, "content", None)
+
+    if isinstance(content, str):
+        stripped = content.strip()
+        return (stripped or None), refusal
+
+    if isinstance(content, list):
+        text_parts: list[str] = []
+        for part in content:
+            if isinstance(part, dict) and isinstance(part.get("text"), str):
+                text_parts.append(part["text"])
+        joined = "".join(text_parts).strip()
+        return (joined or None), refusal
+
+    tool_calls = getattr(message, "tool_calls", None)
+    if tool_calls:
+        for call in tool_calls:
+            function_obj = getattr(call, "function", None)
+            arguments = getattr(function_obj, "arguments", None) if function_obj is not None else None
+            if isinstance(arguments, str) and arguments.strip():
+                return arguments.strip(), refusal
+
+    return None, refusal
+
+
 def build_social_copy_llm(
     transcript_text: str,
     *,
     api_key: str | None = None,
     model: str | None = None,
-    temperature: float = 0.6,
+    temperature: float = 1,
 ) -> SocialCopy:
     """
     Generate professional social copy using OpenAI's GPT models.
@@ -1440,23 +1513,33 @@ def build_social_copy_llm(
     client = _load_openai_client(api_key)
 
     system_prompt = (
-        "You are a concise Greek-first social copywriter for short-form videos.\n"
-        "Input is a transcript derived from subtitles (may contain timestamps, line breaks, filler words).\n"
-        "Ignore timestamps and subtitle formatting. Do not invent facts not present in the transcript.\n\n"
+        "You are a viral Greek TikTok/Reels copywriter. Your job is to make viewers STOP scrolling.\n"
+        "Input: a transcript from a short video (may have timestamps, filler words—ignore those).\n\n"
         "Return ONLY valid JSON matching EXACTLY this schema:\n"
         '{ "title": "...", "description": "...", "hashtags": ["#tag1", "#tag2"] }\n\n'
-        "Rules:\n"
-        "- No extra keys. No markdown. No explanations.\n"
-        "- Write in Greek unless the transcript is clearly not Greek.\n"
-        "- title: 35–90 characters, high-signal, no clickbait lies.\n"
-        "- description: 1–3 sentences, 160–600 characters. Summarize + add ONE soft CTA question at the end.\n"
-        '- hashtags: 8–14 items, unique, lowercase, each starts with "#", no spaces, no punctuation.\n'
-        "  Mix: mostly Greek + a few English keywords when relevant.\n"
-        "- Avoid generic spam tags (#fyp #viral) unless transcript is explicitly about TikTok.\n\n"
-        "Fallback (if transcript is empty/garbage):\n"
-        'title="Σύντομο απόσπασμα"\n'
-        'description="Σύντομο απόσπασμα από βίντεο. Τι σου έκανε εντύπωση;"\n'
-        'hashtags=["#ελλαδα","#mindset","#shortvideo"]'
+        "### TITLE (35–80 chars)\n"
+        "- Hook the viewer IMMEDIATELY. Use curiosity, controversy, or a bold claim.\n"
+        "- Examples: 'Αυτό δεν στο λένε ποτέ...', 'Γιατί όλοι κάνουν λάθος σε αυτό', 'Η αλήθεια που κανείς δεν θέλει να ακούσεις'\n"
+        "- NO boring summaries. Make them NEED to watch.\n\n"
+        "### DESCRIPTION (100–400 chars)\n"
+        "- Start with a punchy hook or provocative statement that continues the title's energy.\n"
+        "- Use short, punchy sentences. Add emotion, relatability, or controversy.\n"
+        "- End with an engaging question or call-to-action that sparks comments.\n"
+        "- Examples of good CTAs: 'Συμφωνείς;', 'Tag κάποιον που πρέπει να το δει', 'Πες μου τη γνώμη σου 👇'\n"
+        "- Use 1-2 emojis strategically (🔥💡🤯👇) but don't overdo it.\n\n"
+        "### HASHTAGS (8–14 items)\n"
+        "- Mix trending Greek tags + niche topic tags + 2-3 English discovery tags\n"
+        "- Include at least ONE emotion/vibe tag (#mindset, #αλήθειες, #facts)\n"
+        "- NO generic spam (#fyp #viral) unless content is meta about TikTok\n\n"
+        "### RULES\n"
+        "- Write in Greek (unless transcript is clearly another language)\n"
+        "- Stay true to the content—don't invent claims\n"
+        "- Sound like a creator posting their own video, NOT a news anchor\n"
+        "- No markdown, no extra keys, ONLY the JSON\n\n"
+        "Fallback (empty/garbage transcript):\n"
+        'title="Αυτό πρέπει να το δεις..."\n'
+        'description="Κάτι που θα σε βάλει σε σκέψεις 🤔 Πες μου τη γνώμη σου 👇"\n'
+        'hashtags=["#ελλαδα","#mindset","#greektiktok","#viral"]'
     )
 
     messages = [
@@ -1464,20 +1547,24 @@ def build_social_copy_llm(
         {"role": "user", "content": transcript_text.strip()},
     ]
 
-    # Simple retry mechanism (1 retry)
-    max_retries = 1
+    # Retry mechanism
+    max_retries = 3
     last_exc = None
 
     for attempt in range(max_retries + 1):
+        response: Any | None = None
         try:
             response = client.chat.completions.create(
                 model=model_name,
                 messages=messages,
-                temperature=0,
-                max_tokens=350,
+                temperature=temperature,
+                max_completion_tokens=1200,
+                response_format={"type": "json_object"},
                 timeout=60.0,
             )
-            content = response.choices[0].message.content
+            content, refusal = _extract_chat_completion_text(response)
+            if refusal:
+                raise ValueError(f"LLM refusal: {refusal}")
             if not content:
                 raise ValueError("Empty response from LLM")
 
@@ -1492,10 +1579,13 @@ def build_social_copy_llm(
                 )
             )
         except (json.JSONDecodeError, KeyError, ValueError) as exc:
+            logger.exception(f"Social Copy JSON Error (Attempt {attempt+1}/{max_retries+1})")
+            logger.error(f"Raw content: {_chat_completion_debug(response)}")
+
             last_exc = exc
             if attempt < max_retries:
-                # Retry prompt
-                messages.append({"role": "user", "content": "FIX_JSON_ONLY: return ONLY valid JSON matching the schema."})
+                # Retry prompt with stronger instruction
+                messages.append({"role": "user", "content": "ERROR: The last response was not valid JSON. Return ONLY the JSON object. No other text."})
                 continue
 
     raise ValueError("Failed to generate valid social copy after retries") from last_exc  # pragma: no cover
@@ -1511,6 +1601,8 @@ class FactCheckItem:
     explanation: str
     severity: str
     confidence: int
+    real_life_example: str
+    scientific_evidence: str
 
 
 @dataclass
@@ -1526,7 +1618,7 @@ def generate_fact_check(
     *,
     api_key: str | None = None,
     model: str | None = None,
-    temperature: float = 0,
+    temperature: float = 1,
 ) -> FactCheckResult:
     """
     Analyze transcript for historical, logical, or factual errors using an LLM.
@@ -1542,42 +1634,41 @@ def generate_fact_check(
 
     system_prompt = (
         "### ROLE\n"
-        "You are an expert Fact Checker and Editor for Greek transcripts.\n\n"
-        "### INPUT NOTE\n"
-        "The text comes from subtitle transcription. Ignore formatting artifacts.\n"
-        "Do not flag grammar/spelling unless it changes meaning.\n\n"
+        "Expert Fact Checker for Greek transcripts.\n\n"
         "### TASK\n"
-        "1) Identify up to 12 atomic claims stated as facts (skip obvious opinions).\n"
-        "2) For each claim, internally classify: supported / incorrect / misleading / unverifiable / opinion.\n"
-        "3) Output items ONLY for incorrect, misleading, or strong internal contradictions.\n\n"
-        "### TRUTH SCORES\n"
-        "Return:\n"
-        "- truth_score (0–100): overall \"truth-proof\" score.\n"
-        "- supported_claims_pct (0–100): supported / claims_checked.\n"
-        "- claims_checked (0–12)\n\n"
-        "Scoring rubric:\n"
-        "- Start truth_score at 100.\n"
-        "- Subtract: major 25, medium 15, minor 8.\n"
-        "- If many unverifiable claims are presented as facts, subtract 5–15 total.\n"
-        "Clamp 0–100.\n\n"
-        "### OUTPUT\n"
-        "Return ONLY valid JSON with EXACTLY this schema:\n"
+        "1) Identify up to 6 key factual claims (skip opinions).\n"
+        "2) Output items ONLY for incorrect/misleading claims.\n\n"
+        "### FOR EACH ERROR:\n"
+        "- MISTAKE: Quote the error.\n"
+        "- CORRECTION: Correct facts.\n"
+        "- EXPLANATION: Brief reason.\n"
+        "- REAL_LIFE_EXAMPLE: Concrete scenario showing why it's wrong (1 sentence).\n"
+        "- SCIENTIFIC_EVIDENCE: Citation/proof (1 sentence).\n"
+        "- SEVERITY: minor/medium/major.\n"
+        "- CONFIDENCE: 0-100.\n\n"
+        "### SCORES\n"
+        "- truth_score (0-100)\n"
+        "- supported_claims_pct (0-100)\n"
+        "- claims_checked (0-6)\n\n"
+        "### OUTPUT JSON\n"
         "{\n"
         '  "truth_score": 0-100,\n'
         '  "supported_claims_pct": 0-100,\n'
-        '  "claims_checked": 0-12,\n'
+        '  "claims_checked": 0-6,\n'
         '  "items": [\n'
         '    {\n'
-        '      "mistake": "quote containing the error (<=160 chars)",\n'
-        '      "correction": "correct statement (<=180 chars)",\n'
-        '      "explanation": "brief reason (<=220 chars)",\n'
-        '      "severity": "minor|medium|major",\n'
-        '      "confidence": 0-100\n'
+        '      "mistake": "str",\n'
+        '      "correction": "str",\n'
+        '      "explanation": "str",\n'
+        '      "severity": "str",\n'
+        '      "confidence": int,\n'
+        '      "real_life_example": "str",\n'
+        '      "scientific_evidence": "str"\n'
         '    }\n'
         '  ]\n'
-        "}\n\n"
-        "If no significant errors: items=[]\n"
-        "No extra keys. No markdown. No explanations."
+        "}\n"
+        "If no errors: items=[]\n"
+        "JSON ONLY. No markdown."
     )
 
     messages = [
@@ -1585,24 +1676,25 @@ def generate_fact_check(
         {"role": "user", "content": transcript_text.strip()},
     ]
 
-    max_retries = 1
+    max_retries = 2
     last_exc = None
 
     for attempt in range(max_retries + 1):
+        response: Any | None = None
         try:
             response = client.chat.completions.create(
                 model=model_name,
                 messages=messages,
-                temperature=temperature,
-                max_tokens=900,
-                response_format={"type": "json_object"},
-                timeout=60.0,
+                timeout=120.0,
             )
-            content = response.choices[0].message.content
+            content, refusal = _extract_chat_completion_text(response)
+            if refusal:
+                raise ValueError(f"LLM refusal: {refusal}")
             if not content:
                 raise ValueError("Empty response from LLM")
 
-            parsed = json.loads(content)
+            cleaned_content = _clean_json_response(content)
+            parsed = json.loads(cleaned_content)
             items_data = parsed.get("items", [])
 
             items = [
@@ -1612,6 +1704,8 @@ def generate_fact_check(
                     explanation=item["explanation"],
                     severity=item["severity"],
                     confidence=item["confidence"],
+                    real_life_example=item.get("real_life_example", ""),
+                    scientific_evidence=item.get("scientific_evidence", ""),
                 )
                 for item in items_data
             ]
@@ -1624,6 +1718,8 @@ def generate_fact_check(
             )
 
         except (json.JSONDecodeError, KeyError, ValueError) as exc:
+            logger.exception(f"Fact Check JSON Error (Attempt {attempt+1}/{max_retries+1})")
+            logger.error(f"Raw content: {_chat_completion_debug(response)}")
             last_exc = exc
             if attempt < max_retries:
                 messages.append({"role": "user", "content": "FIX_JSON_ONLY: return ONLY valid JSON matching the schema."})

@@ -3,7 +3,7 @@ import pytest
 from pathlib import Path
 
 from backend.app.services.transcription.groq_cloud import GroqTranscriber
-
+from backend.app.services.transcription.openai_cloud import OpenAITranscriber
 
 
 def test_groq_transcriber_delegates(tmp_path):
@@ -76,3 +76,29 @@ def test_groq_transcriber_progress(tmp_path):
 class match_any_file_handle:
     def __eq__(self, other):
         return hasattr(other, "read")
+
+
+def test_openai_transcriber_delegates(tmp_path):
+    (tmp_path / "in.wav").touch()
+    mock_transcript = MagicMock()
+    mock_transcript.segments = []
+
+    with patch("backend.app.services.transcription.openai_cloud._load_openai_client") as mock_load:
+        mock_client = MagicMock()
+        mock_load.return_value = mock_client
+        mock_client.audio.transcriptions.create.return_value = mock_transcript
+
+        t = OpenAITranscriber(api_key="k")
+        t.transcribe(tmp_path / "in.wav", tmp_path, language="de")
+
+        mock_load.assert_called_with("k")
+
+        mock_client.audio.transcriptions.create.assert_called_with(
+            model="whisper-1",
+            file=match_any_file_handle(),
+            language="de",
+            prompt=None,
+            response_format="verbose_json",
+            timestamp_granularities=["word"],
+            timeout=300.0,
+        )

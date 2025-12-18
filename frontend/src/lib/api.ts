@@ -504,10 +504,17 @@ export interface FactCheckItem {
     mistake: string;
     correction: string;
     explanation: string;
+    severity: 'minor' | 'medium' | 'major';
+    confidence: number;
+    real_life_example: string;
+    scientific_evidence: string;
 }
 
 export interface FactCheckResponse {
     items: FactCheckItem[];
+    truth_score: number;
+    supported_claims_pct: number;
+    claims_checked: number;
     balance?: number | null;
 }
 

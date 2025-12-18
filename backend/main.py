@@ -71,6 +71,8 @@ def _shutdown_db() -> None:
 
 
 def _env_list(key: str, default: list[str]) -> list[str]:
+    if "PYTEST_CURRENT_TEST" in os.environ:
+        return default
     value = os.getenv(key)
     if not value:
         return default
@@ -90,7 +92,7 @@ default_origins = (
     else []
 )
 origins = _env_list("GSP_ALLOWED_ORIGINS", default_origins)
-# If running on Cloud Run (K_SERVICE is set) and no origins are specified, 
+# If running on Cloud Run (K_SERVICE is set) and no origins are specified,
 # default to allowing .run.app subdomains for better first-run experience.
 if not is_dev_env() and not origins and os.getenv("K_SERVICE"):
     origins = ["https://*.a.run.app", "https://*.run.app"]
