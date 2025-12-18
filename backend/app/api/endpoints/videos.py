@@ -1751,6 +1751,57 @@ def export_video(
     data_dir, uploads_dir, artifacts_root = _data_roots()
     artifact_dir = artifacts_root / job_id
 
+    if request.resolution == "srt":
+        # SRT Export: Fast path, direct generation
+        try:
+            from ...services.subtitles import _write_srt_from_segments
+            
+            # 1. Load transcription
+            transcription_json = artifact_dir / "transcription.json"
+            if not transcription_json.exists():
+                raise HTTPException(404, "Transcript not found (cannot export SRT)")
+            
+            import json
+            cues_data = json.loads(transcription_json.read_text(encoding="utf-8"))
+            
+            # 2. Convert to TimeRange tuples for the helper
+            segments = []
+            for cue in cues_data:
+                # _write_srt_from_segments expects (start, end, text)
+                segments.append((cue["start"], cue["end"], cue["text"]))
+                
+            # 3. Write SRT
+            srt_path = artifact_dir / "processed.srt"
+            _write_srt_from_segments(segments, srt_path)
+            
+            # 4. register variant
+            result_data = job.result_data.copy() if job.result_data else {}
+            variants = result_data.get("variants", {})
+            public_path = _relpath_safe(srt_path, data_dir).as_posix()
+            variants["srt"] = f"/static/{public_path}"
+            result_data["variants"] = variants
+            
+            # 5. GCS Upload if configured
+            gcs_settings = get_gcs_settings()
+            if gcs_settings:
+                try:
+                    upload_object(
+                        settings=gcs_settings,
+                        object_name=f"{gcs_settings.static_prefix}/{public_path}",
+                        source=srt_path,
+                        content_type="text/plain", # or application/x-subrip
+                    )
+                except Exception as exc:
+                    logger.warning("Failed to upload SRT export to GCS (%s): %s", job_id, exc)
+
+            job_store.update_job(job_id, result_data=result_data, status="completed")
+            updated_job = job_store.get_job(job_id)
+            return _ensure_job_size(updated_job)
+            
+        except Exception as e:
+            logger.exception("SRT Export failed")
+            raise HTTPException(500, f"SRT Export failed: {str(e)}")
+
     # Locate original input
     input_video = None
     for ext in [".mp4", ".mov", ".mkv"]:

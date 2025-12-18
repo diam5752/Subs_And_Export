@@ -549,7 +549,8 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
                         const blobUrl = URL.createObjectURL(blob);
                         const link = document.createElement('a');
                         link.href = blobUrl;
-                        link.download = `processed_${resolution}.mp4`;
+                        const extension = resolution === 'srt' ? 'srt' : 'mp4';
+                        link.download = `processed_${resolution}.${extension}`;
                         document.body.appendChild(link);
                         link.click();
                         document.body.removeChild(link);
