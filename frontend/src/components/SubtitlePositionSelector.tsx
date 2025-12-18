@@ -84,7 +84,7 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
     ];
 
     // Sync play/pause
-    const togglePlay = useCallback((e?: React.MouseEvent) => {
+    const togglePlay = useCallback((e?: React.SyntheticEvent) => {
         e?.stopPropagation();
         if (!videoRef.current) return;
         if (videoRef.current.paused) {
@@ -630,7 +630,13 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
                             {/* Phone Content (Video or Thumbnail) */}
                             <div
                                 className="absolute inset-0 bg-gray-900 cursor-pointer group"
-                                onClick={() => togglePlay()}
+                                onClick={togglePlay}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                        e.preventDefault();
+                                        togglePlay(e);
+                                    }
+                                }}
                                 role="button"
                                 tabIndex={0}
                                 aria-label={t('previewVideoToggle') || 'Preview video, tap to toggle play'}
