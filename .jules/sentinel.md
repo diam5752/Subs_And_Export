@@ -107,3 +107,8 @@
 **Vulnerability:** The `BatchDeleteRequest` Pydantic model lacked a `max_length` constraint on the `job_ids` list field. While the endpoint manually checked `len > 50`, Pydantic would still parse and validate arbitrarily large lists (e.g., 1 million items), exposing the service to Denial of Service via memory exhaustion before the application logic could reject it.
 **Learning:** `List[Annotated[T, ...]]` only validates individual items `T`. The container `List` itself requires its own validation via `Annotated[List[...], Field(max_length=...)]` or `List[...] = Field(max_length=...)`. Manual checks in endpoint functions are "too late" for memory DoS protection.
 **Prevention:** Audit all `List` fields in Pydantic models. Always apply `Field(max_length=...)` to the list container itself, not just the inner types.
+
+## 2025-07-15 - [Medium] Missing Timeouts on External API Calls
+**Vulnerability:** Calls to OpenAI and Groq APIs (via `openai` Python client) lacked explicit timeouts, allowing requests to hang indefinitely during upstream outages, potentially leading to thread starvation and Denial of Service.
+**Learning:** Most API client libraries (like `openai`, `requests`) default to no timeout or excessively long timeouts. Availability protection requires manual intervention.
+**Prevention:** Enforce explicit `timeout=...` arguments on every external network call. Use linting rules or wrappers to forbid default blocking behavior where possible.

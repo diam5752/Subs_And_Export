@@ -56,7 +56,8 @@ class GroqTranscriber(Transcriber):
                     language=language or "el",
                     prompt=prompt,
                     response_format="verbose_json",
-                    timestamp_granularities=["word", "segment"]
+                    timestamp_granularities=["word", "segment"],
+                    timeout=300.0,
                 )
         except Exception as exc:
             raise RuntimeError(f"Groq transcription failed: {exc}") from exc

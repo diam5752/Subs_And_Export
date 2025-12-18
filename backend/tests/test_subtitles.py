@@ -350,7 +350,7 @@ def test_build_social_copy_llm_retries_and_raises(monkeypatch):
         class chat:
             class completions:
                 @staticmethod
-                def create(model, messages, temperature):
+                def create(model, messages, temperature, **kwargs):
                     return DummyCompletions("not-json")
 
     monkeypatch.setenv("OPENAI_API_KEY", "k")
@@ -400,7 +400,7 @@ def test_build_social_copy_llm_empty_response(monkeypatch):
         class chat:
             class completions:
                 @staticmethod
-                def create(model, messages, temperature):
+                def create(model, messages, temperature, **kwargs):
                     return DummyCompletions("")
 
     monkeypatch.setenv("OPENAI_API_KEY", "k")

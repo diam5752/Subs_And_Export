@@ -50,7 +50,8 @@ class OpenAITranscriber(Transcriber):
                     language=language or "el",
                     prompt=prompt,
                     response_format="verbose_json",
-                    timestamp_granularities=["word"] # Get word-level timestamps
+                    timestamp_granularities=["word"], # Get word-level timestamps
+                    timeout=300.0,
                 )
         except Exception as exc:
             raise RuntimeError(f"OpenAI transcription failed: {exc}") from exc
