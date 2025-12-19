@@ -289,6 +289,7 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
                                                 item.severity === 'medium' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
                                                     'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                                                 }`}>
+                                                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
                                                 {t(item.severity as any)}
                                             </span>
                                             <div className="flex items-center gap-1.5 text-white/40">
