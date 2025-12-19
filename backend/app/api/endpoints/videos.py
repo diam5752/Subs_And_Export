@@ -886,6 +886,7 @@ def create_gcs_upload_url(
             settings=gcs_settings,
             object_name=object_name,
             content_type=content_type,
+            content_length=payload.size_bytes,
         )
     except Exception as exc:
         logger.warning("Failed to generate GCS signed upload URL: %s", exc)
@@ -908,7 +909,10 @@ def create_gcs_upload_url(
         "object_name": object_name,
         "upload_url": upload_url,
         "expires_at": session.expires_at,
-        "required_headers": {"Content-Type": content_type},
+        "required_headers": {
+            "Content-Type": content_type,
+            "Content-Length": str(payload.size_bytes),
+        },
     }
 
 
@@ -928,6 +932,7 @@ class GcsProcessRequest(BaseModel):
     highlight_style: str = Field("karaoke", max_length=20)
     subtitle_size: int = 100
     karaoke_enabled: bool = True
+    watermark_enabled: bool = False
 
 
 @router.post("/gcs/process", response_model=JobResponse, dependencies=[Depends(limiter_processing)])
@@ -972,6 +977,7 @@ def process_video_from_gcs(
         highlight_style=payload.highlight_style,
         subtitle_size=payload.subtitle_size,
         karaoke_enabled=payload.karaoke_enabled,
+        watermark_enabled=payload.watermark_enabled,
     )
 
     job_id = str(uuid.uuid4())
@@ -1721,9 +1727,9 @@ class ExportRequest(BaseModel):
     subtitle_color: str | None = Field(None, max_length=20)
     shadow_strength: int | None = None
     highlight_style: str | None = Field(None, max_length=20)
-    subtitle_size: int | None = None,
-    karaoke_enabled: bool | None = None,
-    watermark_enabled: bool | None = None,
+    subtitle_size: int | None = None
+    karaoke_enabled: bool | None = None
+    watermark_enabled: bool | None = None
 
     @field_validator('subtitle_color')
     @classmethod

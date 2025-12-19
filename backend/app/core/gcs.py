@@ -119,6 +119,7 @@ def generate_signed_upload_url(
     object_name: str,
     content_type: str,
     ttl_seconds: int | None = None,
+    content_length: int | None = None,
 ) -> str:
     """
     Generate a V4 signed URL for a direct browser upload (PUT) to GCS.
@@ -137,6 +138,10 @@ def generate_signed_upload_url(
     ttl = ttl_seconds if ttl_seconds is not None else settings.upload_url_ttl_seconds
     ttl = _clamp_ttl_seconds(ttl, settings.upload_url_ttl_seconds)
 
+    headers = {}
+    if content_length is not None:
+        headers["Content-Length"] = str(content_length)
+
     return blob.generate_signed_url(
         version="v4",
         expiration=dt.timedelta(seconds=ttl),
@@ -145,6 +150,7 @@ def generate_signed_upload_url(
         service_account_email=signer_email,
         access_token=access_token,
         scheme="https",
+        headers=headers if headers else None,
     )
 
 
