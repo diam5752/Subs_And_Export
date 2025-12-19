@@ -19,3 +19,7 @@
 ## 2024-05-23 - Consistent Loading States
 **Learning:** Using consistent spinner components instead of just text changes for loading states significantly improves perceived performance and visual polish.
 **Action:** Use the shared `<Spinner />` component for all async button states to ensure consistency and accessibility (aria-busy).
+
+## 2025-03-01 - Accessible Progress Indicators
+**Learning:** Visual progress bars implemented as nested `div`s are invisible to screen readers, leaving users unaware of task status.
+**Action:** Always wrap progress indicators with `role="progressbar"`, providing `aria-valuenow`, `aria-valuemin`, `aria-valuemax`, and a descriptive `aria-label` to communicate status changes.

@@ -1,7 +1,6 @@
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import Image from 'next/image';
 import { useI18n } from '@/context/I18nContext';
-import { useAppEnv } from '@/context/AppEnvContext';
 import { useProcessContext } from '../ProcessContext';
 import { api } from '@/lib/api';
 import { validateVideoAspectRatio } from '@/lib/video';
@@ -14,7 +13,6 @@ const ALLOWED_VIDEO_EXT = /\.(mp4|mov|mkv)$/i;
 
 export function UploadSection() {
     const { t } = useI18n();
-    const { appEnv } = useAppEnv();
     const showDevTools = true; // Always enable for user request
 
     const {
@@ -491,7 +489,14 @@ export function UploadSection() {
                                 <span className="font-medium">{statusMessage || t('progressLabel')}</span>
                                 <span className="text-[var(--accent)] font-semibold">{progress}%</span>
                             </div>
-                            <div className="w-full bg-[var(--surface)] rounded-full h-2 overflow-hidden">
+                            <div
+                                className="w-full bg-[var(--surface)] rounded-full h-2 overflow-hidden"
+                                role="progressbar"
+                                aria-valuenow={progress}
+                                aria-valuemin={0}
+                                aria-valuemax={100}
+                                aria-label={statusMessage || t('progressLabel')}
+                            >
                                 <div
                                     className="progress-bar bg-gradient-to-r from-[var(--accent)] to-[var(--accent-secondary)] h-2 rounded-full"
                                     style={{ width: `${progress}%` }}
@@ -644,6 +649,7 @@ export function UploadSection() {
         transcribeProvider, transcribeMode,
         handleUploadCardClick, handleDragEnter, handleDragLeave, handleDragOver,
         handleDrop, fileInputRef, handleLoadDevSample, devSampleLoading,
-        devSampleError, handleFileChange, fileValidationError, videoUrl, progress, statusMessage, onCancelProcessing
+        devSampleError, handleFileChange, fileValidationError, videoUrl, progress, statusMessage, onCancelProcessing,
+        onJobSelect, setOverrideStep
     ]);
 }
