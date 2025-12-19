@@ -89,4 +89,30 @@ describe('ViralIntelligence', () => {
         expect(screen.getByText('Test Description')).toBeInTheDocument();
         expect(screen.getByText('#test')).toBeInTheDocument();
     });
+
+    it('allows copying metadata', async () => {
+        (api.socialCopy as jest.Mock).mockResolvedValue({
+            social_copy: {
+                title: 'Copy Title',
+                description: 'Copy Description',
+                hashtags: ['#copy']
+            },
+            balance: 850
+        });
+
+        render(<ViralIntelligence jobId={mockJobId} />);
+
+        fireEvent.click(screen.getByText(/generate metadata/i));
+
+        await waitFor(() => expect(screen.getByText('Copy Title')).toBeInTheDocument());
+
+        // Find and click the copy button for title
+        const titleCopyBtn = screen.getByLabelText('Copy Title');
+        fireEvent.click(titleCopyBtn);
+
+        expect(mockWriteText).toHaveBeenCalledWith('Copy Title');
+
+        // Check for visual feedback
+        await waitFor(() => expect(screen.getByLabelText('Copied')).toBeInTheDocument());
+    });
 });

@@ -213,6 +213,7 @@ class ApiClient {
         highlight_style?: string;
         subtitle_size?: number;
         karaoke_enabled?: boolean;
+        watermark_enabled?: boolean;
     }): Promise<JobResponse> {
         const formData = new FormData();
         formData.append('file', file);
@@ -300,6 +301,7 @@ class ApiClient {
         highlight_style?: string;
         subtitle_size?: number;
         karaoke_enabled?: boolean;
+        watermark_enabled?: boolean;
     }): Promise<JobResponse> {
         return this.request<JobResponse>('/videos/gcs/process', {
             method: 'POST',
@@ -459,6 +461,7 @@ class ApiClient {
         highlight_style?: string;
         subtitle_size?: number;
         karaoke_enabled?: boolean;
+        watermark_enabled?: boolean;
     }): Promise<JobResponse> {
         return this.request<JobResponse>(`/videos/jobs/${jobId}/reprocess`, {
             method: 'POST',

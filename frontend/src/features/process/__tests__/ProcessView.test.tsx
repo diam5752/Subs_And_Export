@@ -123,6 +123,7 @@ jest.mock('../ProcessContext', () => ({
 window.HTMLElement.prototype.scrollIntoView = jest.fn();
 window.HTMLElement.prototype.scrollTo = jest.fn();
 window.URL.createObjectURL = jest.fn();
+window.URL.revokeObjectURL = jest.fn();
 
 describe('ProcessView', () => {
     beforeEach(() => {
@@ -239,5 +240,28 @@ describe('ProcessView', () => {
         await waitFor(() => {
              expect(screen.getAllByText(/TikTok Pro/i).length).toBeGreaterThan(0);
         });
+    });
+
+    it('renders accessible progress bar during processing', () => {
+        (useProcessContext as jest.Mock).mockReturnValue({
+            ...mockContextValue,
+            currentStep: 2,
+            isProcessing: true,
+            progress: 45,
+            statusMessage: 'Processing...',
+            selectedFile: new File([''], 'video.mp4', { type: 'video/mp4' })
+        });
+
+        render(
+            <I18nProvider initialLocale="en">
+                <ProcessViewContent />
+            </I18nProvider>
+        );
+
+        const progressBar = screen.getByRole('progressbar', { name: /Processing.../i });
+        expect(progressBar).toBeInTheDocument();
+        expect(progressBar).toHaveAttribute('aria-valuenow', '45');
+        expect(progressBar).toHaveAttribute('aria-valuemin', '0');
+        expect(progressBar).toHaveAttribute('aria-valuemax', '100');
     });
 });

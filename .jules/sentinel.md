@@ -121,3 +121,7 @@
 **Vulnerability:** The signed URL generation for GCS PUT uploads (`generate_signed_upload_url`) did not enforce the `Content-Length` header in the signature. This allowed a client to declare a small size (passing API checks) but upload a much larger file to GCS, potentially leading to excessive storage costs or Denial of Service.
 **Learning:** V4 signed URLs for PUT requests do not inherently limit body size unless sensitive headers like `Content-Length` are explicitly included in the signature.
 **Prevention:** Always sign the `Content-Length` header when generating pre-signed URLs for PUT uploads if the expected size is known.
+## 2025-12-18 - [Medium] Missing Timeouts in Google OAuth
+**Vulnerability:** The `exchange_google_code` function performed external network calls (token exchange and ID token verification) without timeouts, creating a risk of thread starvation if Google servers were unreachable.
+**Learning:** `google.oauth2.id_token.verify_oauth2_token` uses a default `Request` object that lacks a timeout. It does not accept a simple `timeout` argument.
+**Prevention:** Subclass `google.auth.transport.requests.Request` to override `__call__` and inject a default timeout, then pass this custom request object to verification functions.

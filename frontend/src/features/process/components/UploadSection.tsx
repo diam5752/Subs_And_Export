@@ -486,12 +486,19 @@ export function UploadSection() {
 
                     {/* PROCESSING STATE: Progress Bar */}
                     {isProcessing && (
-                        <div className="rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3 space-y-3 animate-fade-in mt-4">
+                        <div
+                            role="progressbar"
+                            aria-valuenow={progress}
+                            aria-valuemin={0}
+                            aria-valuemax={100}
+                            aria-labelledby="progress-label"
+                            className="rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3 space-y-3 animate-fade-in mt-4"
+                        >
                             <div className="flex items-center justify-between text-sm">
-                                <span className="font-medium">{statusMessage || t('progressLabel')}</span>
+                                <span id="progress-label" className="font-medium">{statusMessage || t('progressLabel')}</span>
                                 <span className="text-[var(--accent)] font-semibold">{progress}%</span>
                             </div>
-                            <div className="w-full bg-[var(--surface)] rounded-full h-2 overflow-hidden">
+                            <div className="w-full bg-[var(--surface)] rounded-full h-2 overflow-hidden" aria-hidden="true">
                                 <div
                                     className="progress-bar bg-gradient-to-r from-[var(--accent)] to-[var(--accent-secondary)] h-2 rounded-full"
                                     style={{ width: `${progress}%` }}
