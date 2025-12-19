@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from ...core.auth import User
 from ...core.database import Database
-from ...core.errors import sanitize_message
+from ...core.errors import sanitize_error
 from ...core.ratelimit import limiter_content
 from ...schemas.base import FactCheckResponse, SocialCopyResponse
 from ...services.jobs import JobStore
@@ -63,7 +63,7 @@ def fact_check_video(
             with db.session() as session:
                 result = generate_fact_check(transcript_text, session=session, job_id=job_id)
         except Exception as exc:
-            refund_charge_best_effort(points_store, charge, status="failed", error=sanitize_message(str(exc)))
+            refund_charge_best_effort(points_store, charge, status="failed", error=sanitize_error(exc))
             raise
 
         return FactCheckResponse(
@@ -88,7 +88,7 @@ def fact_check_video(
         raise
     except Exception as e:
         logger.exception("Error in fact_check_video")
-        raise HTTPException(500, f"Failed to fact check: {sanitize_message(str(e))}")
+        raise HTTPException(500, f"Failed to fact check: {sanitize_error(e)}")
 
 
 @router.post("/jobs/{job_id}/social-copy", response_model=SocialCopyResponse, dependencies=[Depends(limiter_content)])
@@ -140,7 +140,7 @@ def generate_social_copy_video(
             social_path.write_text(json.dumps(social_data, ensure_ascii=False, indent=2), encoding="utf-8")
 
         except Exception as exc:
-            refund_charge_best_effort(points_store, charge, status="failed", error=sanitize_message(str(exc)))
+            refund_charge_best_effort(points_store, charge, status="failed", error=sanitize_error(exc))
             raise
 
         return SocialCopyResponse(
@@ -154,4 +154,4 @@ def generate_social_copy_video(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(500, f"Failed to generate social copy: {sanitize_message(str(e))}")
+        raise HTTPException(500, f"Failed to generate social copy: {sanitize_error(e)}")

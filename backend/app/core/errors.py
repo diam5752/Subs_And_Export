@@ -23,6 +23,12 @@ def sanitize_message(msg: str) -> str:
         return _PATH_PATTERN.sub("[INTERNAL_PATH]", msg)
     return msg
 
+def sanitize_error(exc: Union[Exception, str]) -> str:
+    """
+    Convenience wrapper to sanitize an exception or a string.
+    """
+    return sanitize_message(str(exc))
+
 def create_error_response(status_code: int, message: str, error_code: str = None) -> JSONResponse:
     content = {"detail": message}
     if error_code:
