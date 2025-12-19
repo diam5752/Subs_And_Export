@@ -13,3 +13,7 @@
 ## 2025-02-27 - [Canvas Reuse & State Pollution]
 **Learning:** Reusing a singleton `HTMLCanvasElement` for text measurement optimizes performance (avoids DOM creation), but `CanvasRenderingContext2D` state (like `ctx.font`) persists. If consumers rely on closure-captured configuration without resetting the shared state, they read incorrect values (state pollution).
 **Action:** When optimizing with singletons, assume dirty state. Explicitly reset context properties (like `ctx.font`) inside the active closure immediately before use, or implement a lightweight state tracker (`_lastFont`) to minimize redundant assignments.
+
+## 2025-10-17 - [Sidebar Re-render Optimization]
+**Learning:** `Sidebar` consumes `ProcessContext` which updates at 60fps (due to `currentTime`). Even though `Sidebar` renders memoized children (`StylePresetTiles`), the `Sidebar` function itself runs and re-creates the VDOM wrappers (`div`, `h4`) on every frame, causing unnecessary overhead.
+**Action:** Wrapped the static panel content (Styles, Intelligence) in `useMemo` inside `Sidebar`. This prevents VDOM generation for these panels unless their specific dependencies change, isolating them from high-frequency Context updates.
