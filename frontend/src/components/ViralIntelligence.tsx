@@ -10,6 +10,46 @@ interface ViralIntelligenceProps {
     jobId: string;
 }
 
+function CopyButton({ text, label }: { text: string; label: string }) {
+    const [copied, setCopied] = useState(false);
+
+    const handleCopy = async (e: React.MouseEvent) => {
+        e.stopPropagation();
+        try {
+            await navigator.clipboard.writeText(text);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        } catch (err) {
+            console.error('Failed to copy', err);
+        }
+    };
+
+    return (
+        <button
+            type="button"
+            onClick={handleCopy}
+            className="flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-medium bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all text-white/50 hover:text-white"
+            aria-label={copied ? "Copied" : `Copy ${label}`}
+        >
+            {copied ? (
+                <>
+                    <svg className="w-3 h-3 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span className="text-emerald-400">Copied</span>
+                </>
+            ) : (
+                <>
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                    <span>Copy</span>
+                </>
+            )}
+        </button>
+    );
+}
+
 export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
     const { t } = useI18n();
     const { setBalance } = usePoints();
@@ -324,19 +364,28 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
 
                     <div className="p-5 rounded-[2rem] bg-white/5 border border-white/10 backdrop-blur-md hover:bg-white/10 transition-colors space-y-4">
                         <div className="space-y-2">
-                            <label className="text-xs font-medium text-purple-400 uppercase tracking-wide">Title</label>
+                            <div className="flex items-center justify-between">
+                                <label className="text-xs font-medium text-purple-400 uppercase tracking-wide">Title</label>
+                                <CopyButton text={socialCopyResult.social_copy.title} label="Title" />
+                            </div>
                             <div className="p-3 rounded-xl bg-black/20 border border-white/5 text-white/90 text-sm font-medium">
                                 {socialCopyResult.social_copy.title}
                             </div>
                         </div>
                         <div className="space-y-2">
-                            <label className="text-xs font-medium text-purple-400 uppercase tracking-wide">Description</label>
+                            <div className="flex items-center justify-between">
+                                <label className="text-xs font-medium text-purple-400 uppercase tracking-wide">Description</label>
+                                <CopyButton text={socialCopyResult.social_copy.description} label="Description" />
+                            </div>
                             <div className="p-3 rounded-xl bg-black/20 border border-white/5 text-white/80 text-sm leading-relaxed whitespace-pre-wrap">
                                 {socialCopyResult.social_copy.description}
                             </div>
                         </div>
                         <div className="space-y-2">
-                            <label className="text-xs font-medium text-purple-400 uppercase tracking-wide">Hashtags</label>
+                            <div className="flex items-center justify-between">
+                                <label className="text-xs font-medium text-purple-400 uppercase tracking-wide">Hashtags</label>
+                                <CopyButton text={socialCopyResult.social_copy.hashtags.join(' ')} label="Hashtags" />
+                            </div>
                             <div className="flex flex-wrap gap-2">
                                 {socialCopyResult.social_copy.hashtags.map((tag, i) => (
                                     <span key={i} className="px-2 py-1 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-300 text-xs">
