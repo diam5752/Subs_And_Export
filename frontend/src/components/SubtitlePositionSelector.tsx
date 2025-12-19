@@ -593,7 +593,7 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
                             </div>
                         )}
 
-                        {/* Watermark Toggle */}
+                        {/* Watermark Toggle - Nano Banana Sleek */}
                         {onChangeWatermark && (
                             <div className="flex-1 min-w-[200px]">
                                 <div className="flex items-center gap-2 mb-3">
@@ -602,8 +602,8 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
                                     </label>
                                     <InfoTooltip ariaLabel="Watermark">
                                         <div className="space-y-2">
-                                            <div className="font-semibold text-[11px]">Burn Watermark</div>
-                                            <p className="text-[var(--muted)] leading-snug">Place the Ascentia logo at the top right of the video.</p>
+                                            <div className="font-semibold text-[11px]">Brand Watermark</div>
+                                            <p className="text-[var(--muted)] leading-snug">Burn the Ascentia branding into the final video export.</p>
                                         </div>
                                     </InfoTooltip>
                                 </div>
@@ -615,31 +615,49 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
                                     role="switch"
                                     aria-checked={watermarkEnabled}
                                     aria-labelledby={watermarkLabelId}
-                                    className={`w-full p-4 rounded-xl border text-left transition-all duration-300 flex items-center justify-between group min-h-[88px] relative overflow-hidden ${watermarkEnabled
-                                        ? 'border-[var(--accent)]/50 bg-gradient-to-r from-[var(--accent)]/10 to-transparent shadow-[0_0_20px_rgba(var(--accent-rgb),0.1)]'
-                                        : 'border-[var(--border)] hover:border-[var(--accent)]/50 hover:bg-[var(--surface-elevated)]'
+                                    className={`w-full h-[88px] rounded-xl border text-left transition-all duration-300 flex items-center justify-between px-6 group relative overflow-hidden ${watermarkEnabled
+                                        ? 'border-[var(--accent)]/30 bg-[var(--accent)]/[0.03]'
+                                        : 'border-[var(--border)] hover:border-[var(--foreground)]/20 hover:bg-white/[0.02]'
                                         }`}
                                 >
-                                    {/* Active Indicator Line */}
+                                    {/* Content */}
+                                    <div className="flex flex-col gap-0.5 z-10">
+                                        <div className={`font-semibold text-base tracking-tight transition-colors ${watermarkEnabled ? 'text-[var(--foreground)]' : 'text-[var(--foreground)]/80'}`}>
+                                            Affiliate Badge
+                                        </div>
+                                        <div className="flex items-center gap-1.5">
+                                            <span className={`text-[10px] uppercase tracking-wider font-mono ${watermarkEnabled ? 'text-[var(--accent)]' : 'text-[var(--muted)]'}`}>
+                                                {watermarkEnabled ? 'ACTIVE' : 'DISABLED'}
+                                            </span>
+                                            {watermarkEnabled && (
+                                                <span className="w-1 h-1 rounded-full bg-[var(--accent)] shadow-[0_0_5px_var(--accent)]" />
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Sleek Toggle Switch */}
+                                    <div className="relative w-12 h-6 rounded-full bg-black/40 border border-white/10 shadow-inner overflow-hidden">
+                                        {/* Track Fill */}
+                                        <div
+                                            className={`absolute inset-0 bg-[var(--accent)]/20 transition-transform duration-300 origin-left ${watermarkEnabled ? 'scale-x-100' : 'scale-x-0'}`}
+                                        />
+
+                                        {/* Thumb */}
+                                        <div
+                                            className={`absolute top-[2px] w-5 h-5 rounded-full shadow-md border transition-all duration-300 ease-out flex items-center justify-center ${watermarkEnabled
+                                                ? 'left-[calc(100%-22px)] bg-[var(--accent)] border-[var(--accent)] shadow-[0_0_10px_rgba(var(--accent-rgb),0.3)]'
+                                                : 'left-[2px] bg-[#222] border-white/10'}`}
+                                        >
+                                            {watermarkEnabled && (
+                                                <div className="w-1.5 h-1.5 rounded-full bg-[#031018]" />
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Subtle Ambient Glow when active */}
                                     {watermarkEnabled && (
-                                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-[var(--accent)] shadow-[0_0_10px_rgba(var(--accent-rgb),0.5)]" />
+                                        <div className="absolute top-1/2 right-6 -translate-y-1/2 w-20 h-20 bg-[var(--accent)]/10 blur-2xl -z-0 pointer-events-none" />
                                     )}
-
-                                    <div className="flex flex-col gap-1 pl-2">
-                                        <div className={`font-semibold text-base transition-colors ${watermarkEnabled ? 'text-[var(--accent)]' : 'text-[var(--foreground)]'}`}>
-                                            Burn Logo
-                                        </div>
-                                        <div className={`text-xs ${watermarkEnabled ? 'text-[var(--muted)]' : 'text-[var(--muted)]/70'}`}>
-                                            {watermarkEnabled ? 'Ascentia logo visible' : 'No watermark'}
-                                        </div>
-                                    </div>
-
-                                    {/* Animated Icon */}
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 ${watermarkEnabled ? 'bg-[var(--accent)] text-[#031018] rotate-3 scale-110 shadow-lg shadow-[var(--accent)]/30' : 'bg-[var(--surface-elevated)] text-[var(--muted)] group-hover:scale-105'}`}>
-                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                        </svg>
-                                    </div>
                                 </button>
                             </div>
                         )}
@@ -727,6 +745,20 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
                                             }}
                                             videoWidth={180}
                                         />
+
+                                        {/* Phone Preview Watermark */}
+                                        {watermarkEnabled && (
+                                            <div
+                                                className="absolute bottom-6 right-4 z-20 animate-in fade-in duration-300 pointer-events-none"
+                                                style={{ width: '25%' }}
+                                            >
+                                                <img
+                                                    src="/ascentia-logo.png"
+                                                    alt="Watermark"
+                                                    className="w-full h-auto opacity-90"
+                                                />
+                                            </div>
+                                        )}
 
                                         {/* Play/Pause Button Overlay - Only show when paused */}
                                         {!isPlaying && (

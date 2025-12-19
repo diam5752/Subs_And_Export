@@ -112,10 +112,11 @@ def build_filtergraph(
     if watermark_enabled and config.WATERMARK_PATH.exists():
         # Clean path for FFmpeg
         wm_path = config.WATERMARK_PATH.as_posix().replace("'", r"\'")
+        # Dynamic watermark sizing (15% of video width)
+        wm_w = int(width * 0.15)
         wm_overlay = (
-            f"movie='{wm_path}',scale=180:-1,format=rgba,colorchannelmixer=aa=0.8,"
-            f"pad=iw+40:ih+20:(ow-iw)/2:(oh-ih)/2:color=black@0.6 [wm];"
-            f"[base][wm] overlay=main_w-overlay_w-40:main_h-overlay_h-40"
+            f"movie='{wm_path}',scale={wm_w}:-1:flags=lanczos,format=rgba[wm];"
+            f"[base][wm]overlay=main_w-overlay_w-40:main_h-overlay_h-40"
         )
         graph = f"{graph} [base]; {wm_overlay}, {ass_filter}"
     else:

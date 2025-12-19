@@ -21,6 +21,7 @@ export function PreviewSection() {
         karaokeEnabled,
         maxSubtitleLines,
         shadowStrength,
+        watermarkEnabled,
         setCurrentTime,
         playerRef,
         resultsRef,
@@ -41,8 +42,9 @@ export function PreviewSection() {
         fontSize: subtitleSize,
         karaoke: karaokeEnabled,
         maxLines: maxSubtitleLines,
-        shadowStrength: shadowStrength
-    }), [subtitlePosition, subtitleColor, subtitleSize, karaokeEnabled, maxSubtitleLines, shadowStrength]);
+        shadowStrength: shadowStrength,
+        watermarkEnabled: watermarkEnabled
+    }), [subtitlePosition, subtitleColor, subtitleSize, karaokeEnabled, maxSubtitleLines, shadowStrength, watermarkEnabled]);
 
     const handlePlayerTimeUpdate = useCallback((t: number) => {
         setCurrentTime(t);
@@ -183,79 +185,73 @@ export function PreviewSection() {
                                                     </PhoneFrame>
                                                 </div>
 
-                                                {/* Export Actions */}
+                                                {/* Export Actions - Linear/Minimal Style */}
                                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-8 w-full max-w-[800px] mx-auto z-10 relative">
-                                                    {/* SRT Button - Minimalist Data Style */}
+                                                    {/* SRT Button */}
                                                     <button
-                                                        className="group relative h-[88px] rounded-xl bg-white/[0.02] border border-white/10 hover:bg-white/[0.04] hover:border-white/20 transition-all duration-500 overflow-hidden"
+                                                        className="group relative h-[88px] rounded-lg bg-black/40 border border-white/10 hover:border-white/20 hover:bg-white/5 transition-all duration-200 overflow-hidden flex flex-col items-center justify-center gap-1"
                                                         onClick={() => handleExport('srt')}
                                                         disabled={exportingResolutions['srt']}
                                                     >
                                                         {exportingResolutions['srt'] ? (
-                                                            <div className="relative z-10 h-full flex items-center justify-center gap-2">
-                                                                <span className="animate-spin text-white/30 text-xs">✦</span>
-                                                                <span className="font-mono text-[10px] text-white/30 tracking-widest uppercase">Saving</span>
+                                                            <div className="flex flex-col items-center gap-2">
+                                                                <span className="animate-spin text-white/40 text-xs">✦</span>
+                                                                <span className="text-[10px] font-mono text-white/40 tracking-widest uppercase">Saving</span>
                                                             </div>
                                                         ) : (
-                                                            <div className="relative z-10 h-full px-5 flex flex-col items-center justify-center gap-2">
-                                                                <div className="w-8 h-8 flex items-center justify-center rounded-lg bg-white/5 border border-white/5 group-hover:bg-white/10 text-white/40 group-hover:text-white transition-all duration-500">
-                                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <>
+                                                                <div className="flex items-center gap-2 text-white/90 group-hover:text-white transition-colors">
+                                                                    <svg className="w-4 h-4 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                                                     </svg>
+                                                                    <span className="text-lg font-medium tracking-tight">SRT</span>
                                                                 </div>
-                                                                <span className="text-xs font-medium text-white/60 group-hover:text-white transition-colors">SRT File</span>
-                                                            </div>
+                                                                <span className="text-[11px] text-white/40 font-medium">Subtitles Only</span>
+                                                            </>
                                                         )}
                                                     </button>
 
-                                                    {/* Full HD Button - Blended Clean */}
+                                                    {/* 1080p Button */}
                                                     <button
-                                                        className="group relative h-[88px] rounded-xl bg-white/[0.02] border border-white/10 hover:bg-white/[0.04] hover:border-white/20 transition-all duration-500 overflow-hidden"
+                                                        className="group relative h-[88px] rounded-lg bg-black/40 border border-white/10 hover:border-white/20 hover:bg-white/5 transition-all duration-200 overflow-hidden flex flex-col items-center justify-center gap-1"
                                                         onClick={() => handleExport('1080x1920')}
                                                         disabled={exportingResolutions['1080x1920']}
                                                     >
                                                         {exportingResolutions['1080x1920'] ? (
-                                                            <div className="relative z-10 h-full flex items-center justify-center gap-3">
-                                                                <span className="animate-spin text-white/50">✦</span>
-                                                                <span className="font-mono text-xs text-white/50 tracking-widest uppercase">Processing</span>
+                                                            <div className="flex flex-col items-center gap-2">
+                                                                <span className="animate-spin text-emerald-400 text-xs">✦</span>
+                                                                <span className="text-[10px] font-mono text-white/40 tracking-widest uppercase">Rendering</span>
                                                             </div>
                                                         ) : (
-                                                            <div className="relative z-10 h-full px-5 flex items-center justify-between">
-                                                                <span className="text-[15px] font-medium text-white tracking-wide group-hover:text-white transition-colors">Export 1080p</span>
-                                                                <div className="w-8 h-8 flex items-center justify-center rounded-full bg-white/5 border border-white/5 group-hover:bg-white text-white/40 group-hover:text-black transition-all duration-500">
-                                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                                                                    </svg>
-                                                                </div>
-                                                            </div>
+                                                            <>
+                                                                <span className="text-lg font-medium text-white/90 group-hover:text-white transition-colors tracking-tight">1080p</span>
+                                                                <span className="text-[11px] text-white/40 font-medium">High Definition</span>
+                                                            </>
                                                         )}
                                                     </button>
 
-                                                    {/* 4K Button - Luminous Void Clean */}
+                                                    {/* 4K Button */}
                                                     <button
-                                                        className="group relative h-[88px] rounded-xl bg-white/[0.02] border border-white/10 hover:border-[var(--accent)] hover:bg-white/[0.05] transition-all duration-500 overflow-hidden"
+                                                        className="group relative h-[88px] rounded-lg bg-black/40 border border-white/10 hover:border-[var(--accent)]/30 hover:bg-[var(--accent)]/[0.03] transition-all duration-300 overflow-hidden flex flex-col items-center justify-center gap-1"
                                                         onClick={() => handleExport('2160x3840')}
                                                         disabled={exportingResolutions['2160x3840']}
                                                     >
-                                                        {/* Luminous background gradient */}
-                                                        <div className="absolute inset-0 bg-gradient-to-br from-[var(--accent)]/10 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
-
                                                         {exportingResolutions['2160x3840'] ? (
-                                                            <div className="relative z-10 h-full flex items-center justify-center gap-3">
-                                                                <span className="animate-spin text-[var(--accent)]">✦</span>
-                                                                <span className="font-mono text-xs text-white/50 tracking-widest uppercase">Mastering</span>
+                                                            <div className="flex flex-col items-center gap-2">
+                                                                <span className="animate-spin text-[var(--accent)] text-xs">✦</span>
+                                                                <span className="text-[10px] font-mono text-[var(--accent)] tracking-widest uppercase">Mastering</span>
                                                             </div>
                                                         ) : (
-                                                            <div className="relative z-10 h-full px-5 flex items-center justify-between">
-                                                                <span className="text-[15px] font-medium text-white tracking-wide group-hover:text-white transition-colors">Export 4K</span>
-
-                                                                {/* Download Icon (matching 1080p style but with accent hover) */}
-                                                                <div className="w-8 h-8 flex items-center justify-center rounded-full bg-white/5 border border-white/5 group-hover:bg-[var(--accent)] text-white/40 group-hover:text-white group-hover:shadow-[0_0_15px_var(--accent)] transition-all duration-500">
-                                                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                                                                    </svg>
+                                                            <>
+                                                                <div className="flex items-center gap-1.5">
+                                                                    {/* Gradient Text for 4K */}
+                                                                    <span className="text-lg font-bold bg-gradient-to-br from-white via-white to-white/70 bg-clip-text text-transparent group-hover:from-[var(--accent)] group-hover:to-[var(--accent-secondary)] transition-all duration-300 tracking-tight">4K</span>
+                                                                    <span className="px-1.5 py-0.5 rounded-[4px] bg-[var(--accent)]/10 border border-[var(--accent)]/20 text-[var(--accent)] text-[9px] font-bold uppercase tracking-wider">
+                                                                        Ultra
+                                                                    </span>
                                                                 </div>
-                                                            </div>
+                                                                <span className="text-[11px] text-white/40 font-medium group-hover:text-[var(--accent)]/70 transition-colors">Cinema Grade</span>
+                                                            </>
                                                         )}
                                                     </button>
                                                 </div>

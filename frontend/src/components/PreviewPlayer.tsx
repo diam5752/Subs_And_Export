@@ -16,6 +16,7 @@ interface PreviewPlayerProps {
         karaoke: boolean;
         maxLines: number;
         shadowStrength: number;
+        watermarkEnabled?: boolean;
     };
     onTimeUpdate?: (time: number) => void;
     initialTime?: number;
@@ -265,6 +266,21 @@ export const PreviewPlayer = memo(forwardRef<PreviewPlayerHandle, PreviewPlayerP
                     pointerEvents: 'none'
                 }}
             >
+                {/* Watermark Overlay */}
+                {/* Watermark Overlay */}
+                {settings.watermarkEnabled && (
+                    <div
+                        className="absolute bottom-[40px] right-[40px] z-20 animate-in fade-in duration-500"
+                        style={{ width: '15%' }} // Approximate 180px on 1080p
+                    >
+                        <img
+                            src="/ascentia-logo.png"
+                            alt="Watermark"
+                            className="w-full h-auto opacity-90"
+                        />
+                    </div>
+                )}
+
                 {settings && (
                     <SubtitleOverlay
                         currentTime={currentTime}
