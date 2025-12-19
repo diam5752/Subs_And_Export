@@ -1,13 +1,8 @@
 from pathlib import Path
 from typing import List, Optional
 
-from backend.app.services.subtitles import (
-    Cue,
-    TimeRange,
-    WordTiming,
-    _load_openai_client,
-    _resolve_openai_api_key,
-)
+from backend.app.services.subtitle_types import Cue, TimeRange, WordTiming
+from backend.app.services.llm_utils import load_openai_client, resolve_openai_api_key
 from backend.app.services.transcription.base import Transcriber
 from backend.app.services.transcription.utils import normalize_text, write_srt_from_segments
 
@@ -40,11 +35,11 @@ class OpenAITranscriber(Transcriber):
             check_cancelled()
 
         # Resolve API Key
-        api_key = self.api_key or _resolve_openai_api_key()
+        api_key = self.api_key or resolve_openai_api_key()
         if not api_key:
             raise RuntimeError("OpenAI API key is required for transcription with 'openai' provider or models.")
 
-        client = _load_openai_client(api_key)
+        client = load_openai_client(api_key)
 
         if progress_callback:
             progress_callback(10.0)

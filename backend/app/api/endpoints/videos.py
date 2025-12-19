@@ -33,7 +33,8 @@ from ...schemas.base import JobResponse
 from ...services.history import HistoryStore
 from ...services.jobs import JobStore
 from ...services.points import PointsStore, process_video_cost
-from ...services.video_processing import generate_video_variant, normalize_and_stub_subtitles, probe_media
+from ...services.ffmpeg_utils import probe_media
+from ...services.video_processing import generate_video_variant, normalize_and_stub_subtitles
 from ..deps import (
     get_current_user,
     get_db,

@@ -21,7 +21,7 @@ from ...schemas.base import JobResponse
 from ...services.history import HistoryStore
 from ...services.jobs import JobStore
 from ...services.points import PointsStore, process_video_cost
-from ...services.video_processing import probe_media
+from ...services.ffmpeg_utils import probe_media
 from ..deps import get_current_user, get_history_store, get_job_store, get_points_store
 from .file_utils import MAX_UPLOAD_BYTES, data_roots, link_or_copy_file
 from .processing_tasks import ChargeContext, record_event_safe, refund_charge_best_effort, run_gcs_video_processing, run_video_processing

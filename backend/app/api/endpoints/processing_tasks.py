@@ -16,7 +16,8 @@ from ...core.gcs import delete_object, download_object, get_gcs_settings, upload
 from ...services.history import HistoryStore
 from ...services.jobs import JobStore
 from ...services.points import PointsStore, make_idempotency_id
-from ...services.video_processing import normalize_and_stub_subtitles, probe_media
+from ...services.ffmpeg_utils import probe_media
+from ...services.video_processing import normalize_and_stub_subtitles
 from .file_utils import MAX_UPLOAD_BYTES, data_roots, relpath_safe
 from .settings import ProcessingSettings
 
