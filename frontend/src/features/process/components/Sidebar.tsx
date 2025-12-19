@@ -315,107 +315,120 @@ export function Sidebar() {
         </div>
     ), [jobId]);
 
-    if (!selectedJob) return null;
+    // Optimized: Memoize the layout to prevent VDOM re-creation during high-frequency ProcessContext updates
+    // (e.g. currentTime updating 60fps). Only re-render when relevant state changes.
+    return useMemo(() => {
+        if (!selectedJob) return null;
 
-    return (
-        <div className="w-full md:w-[500px] lg:w-[600px] flex flex-col bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-xl overflow-hidden transition-all duration-500">
-            {/* Status Header */}
-            <div
-                className="p-4 border-b border-[var(--border)] flex items-center justify-between bg-[var(--surface-elevated)]"
-                role="status"
-            >
-                <div className="flex items-center gap-3 overflow-hidden">
-                    <div
-                        className={`w-2.5 h-2.5 rounded-full shrink-0 animate-pulse ${isProcessing ? 'bg-amber-400' : 'bg-emerald-400'}`}
-                        aria-label={isProcessing ? (t('statusProcessing') || "Processing") : (t('statusReady') || "Ready")}
-                    />
-                    <h3 className="font-semibold text-[var(--foreground)] truncate" title={selectedJob.result_data?.original_filename || undefined}>
-                        {selectedJob.result_data?.original_filename || t('processedVideoFallback')}
-                    </h3>
-                </div>
-                {isProcessing && (
-                    <span className="text-xs font-mono text-amber-400" aria-label={`${progress}% complete`}>{progress}%</span>
-                )}
-            </div>
-
-            <div className="p-4 sm:p-6 flex-1 flex flex-col min-h-0 custom-scrollbar relative lg:overflow-y-auto">
-
+        return (
+            <div className="w-full md:w-[500px] lg:w-[600px] flex flex-col bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-xl overflow-hidden transition-all duration-500">
+                {/* Status Header */}
                 <div
-                    role="tablist"
-                    className="flex items-center gap-1 p-1 bg-[var(--surface-elevated)] rounded-lg border border-[var(--border)] mb-4"
+                    className="p-4 border-b border-[var(--border)] flex items-center justify-between bg-[var(--surface-elevated)]"
+                    role="status"
                 >
-                    <button
-                        role="tab"
-                        id="tab-transcript"
-                        aria-selected={activeSidebarTab === 'transcript'}
-                        aria-controls="panel-transcript"
-                        onClick={() => setActiveSidebarTab('transcript')}
-                        className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-xs font-medium transition-all ${activeSidebarTab === 'transcript'
-                            ? 'bg-[var(--accent)] text-[#031018] shadow-sm'
-                            : 'text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-white/5'
-                            }`}
-                    >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        {t('tabTranscript') || 'Transcript'}
-                    </button>
-                    <button
-                        role="tab"
-                        id="tab-styles"
-                        aria-selected={activeSidebarTab === 'styles'}
-                        aria-controls="panel-styles"
-                        onClick={() => setActiveSidebarTab('styles')}
-                        className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-xs font-medium transition-all ${activeSidebarTab === 'styles'
-                            ? 'bg-[var(--accent)] text-[#031018] shadow-sm'
-                            : 'text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-white/5'
-                            }`}
-                    >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
-                        </svg>
-                        {t('tabStyles') || 'Styles'}
-                    </button>
-                    <button
-                        role="tab"
-                        id="tab-intelligence"
-                        aria-selected={activeSidebarTab === 'intelligence'}
-                        aria-controls="panel-intelligence"
-                        onClick={() => setActiveSidebarTab('intelligence')}
-                        className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-xs font-medium transition-all ${activeSidebarTab === 'intelligence'
-                            ? 'bg-[var(--accent)] text-[#031018] shadow-sm'
-                            : 'text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-white/5'
-                            }`}
-                    >
-                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M9.5 2A5.5 5.5 0 0 0 4 7.5c0 1.63.71 3.1 1.84 4.1A4.5 4.5 0 0 0 5 16.5 4.5 4.5 0 0 0 9.5 21h5a4.5 4.5 0 0 0 4.5-4.5 4.5 4.5 0 0 0-.84-2.6A5.5 5.5 0 0 0 20 7.5a5.5 5.5 0 0 0-5.5-5.5h-5z" />
-                            <path d="M12 2v19" />
-                            <path d="M8 7c0 .5-.5 1-1 1s-1-.5-1-1 1-2 2-2 2 1.5 2 2" />
-                            <path d="M16 7c0 .5.5 1 1 1s1-.5 1-1-1-2-2-2-2 1.5-2 2" />
-                            <path d="M9 14c0 .5-.5 1-1 1s-1-.5-1-1 1-2 2-2" />
-                            <path d="M15 14c0 .5.5 1 1 1s1-.5 1-1-1-2-2-2" />
-                        </svg>
-                        {t('tabIntelligence') || 'Intelligence'}
-                    </button>
-                </div>
-
-                {/* Tab Content */}
-                <div className="pr-1">
-                    {activeSidebarTab === 'transcript' && (
-                        <TranscriptPanel />
+                    <div className="flex items-center gap-3 overflow-hidden">
+                        <div
+                            className={`w-2.5 h-2.5 rounded-full shrink-0 animate-pulse ${isProcessing ? 'bg-amber-400' : 'bg-emerald-400'}`}
+                            aria-label={isProcessing ? (t('statusProcessing') || "Processing") : (t('statusReady') || "Ready")}
+                        />
+                        <h3 className="font-semibold text-[var(--foreground)] truncate" title={selectedJob.result_data?.original_filename || undefined}>
+                            {selectedJob.result_data?.original_filename || t('processedVideoFallback')}
+                        </h3>
+                    </div>
+                    {isProcessing && (
+                        <span className="text-xs font-mono text-amber-400" aria-label={`${progress}% complete`}>{progress}%</span>
                     )}
-
-                    {activeSidebarTab === 'styles' && stylesPanel}
-
-                    {activeSidebarTab === 'intelligence' && intelligencePanel}
                 </div>
 
-                <div className="pt-4 mt-4 border-t border-[var(--border)]/60 space-y-4">
-                    <div className="flex flex-wrap gap-3">
-                        {/* Export buttons moved to PreviewSection */}
+                <div className="p-4 sm:p-6 flex-1 flex flex-col min-h-0 custom-scrollbar relative lg:overflow-y-auto">
+
+                    <div
+                        role="tablist"
+                        className="flex items-center gap-1 p-1 bg-[var(--surface-elevated)] rounded-lg border border-[var(--border)] mb-4"
+                    >
+                        <button
+                            role="tab"
+                            id="tab-transcript"
+                            aria-selected={activeSidebarTab === 'transcript'}
+                            aria-controls="panel-transcript"
+                            onClick={() => setActiveSidebarTab('transcript')}
+                            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-xs font-medium transition-all ${activeSidebarTab === 'transcript'
+                                ? 'bg-[var(--accent)] text-[#031018] shadow-sm'
+                                : 'text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-white/5'
+                                }`}
+                        >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            {t('tabTranscript') || 'Transcript'}
+                        </button>
+                        <button
+                            role="tab"
+                            id="tab-styles"
+                            aria-selected={activeSidebarTab === 'styles'}
+                            aria-controls="panel-styles"
+                            onClick={() => setActiveSidebarTab('styles')}
+                            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-xs font-medium transition-all ${activeSidebarTab === 'styles'
+                                ? 'bg-[var(--accent)] text-[#031018] shadow-sm'
+                                : 'text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-white/5'
+                                }`}
+                        >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+                            </svg>
+                            {t('tabStyles') || 'Styles'}
+                        </button>
+                        <button
+                            role="tab"
+                            id="tab-intelligence"
+                            aria-selected={activeSidebarTab === 'intelligence'}
+                            aria-controls="panel-intelligence"
+                            onClick={() => setActiveSidebarTab('intelligence')}
+                            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-xs font-medium transition-all ${activeSidebarTab === 'intelligence'
+                                ? 'bg-[var(--accent)] text-[#031018] shadow-sm'
+                                : 'text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-white/5'
+                                }`}
+                        >
+                            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M9.5 2A5.5 5.5 0 0 0 4 7.5c0 1.63.71 3.1 1.84 4.1A4.5 4.5 0 0 0 5 16.5 4.5 4.5 0 0 0 9.5 21h5a4.5 4.5 0 0 0 4.5-4.5 4.5 4.5 0 0 0-.84-2.6A5.5 5.5 0 0 0 20 7.5a5.5 5.5 0 0 0-5.5-5.5h-5z" />
+                                <path d="M12 2v19" />
+                                <path d="M8 7c0 .5-.5 1-1 1s-1-.5-1-1 1-2 2-2 2 1.5 2 2" />
+                                <path d="M16 7c0 .5.5 1 1 1s1-.5 1-1-1-2-2-2-2 1.5-2 2" />
+                                <path d="M9 14c0 .5-.5 1-1 1s-1-.5-1-1 1-2 2-2" />
+                                <path d="M15 14c0 .5.5 1 1 1s1-.5 1-1-1-2-2-2" />
+                            </svg>
+                            {t('tabIntelligence') || 'Intelligence'}
+                        </button>
+                    </div>
+
+                    {/* Tab Content */}
+                    <div className="pr-1">
+                        {activeSidebarTab === 'transcript' && (
+                            <TranscriptPanel />
+                        )}
+
+                        {activeSidebarTab === 'styles' && stylesPanel}
+
+                        {activeSidebarTab === 'intelligence' && intelligencePanel}
+                    </div>
+
+                    <div className="pt-4 mt-4 border-t border-[var(--border)]/60 space-y-4">
+                        <div className="flex flex-wrap gap-3">
+                            {/* Export buttons moved to PreviewSection */}
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
-    );
+        );
+    }, [
+        selectedJob,
+        isProcessing,
+        progress,
+        activeSidebarTab,
+        setActiveSidebarTab,
+        t,
+        stylesPanel,
+        intelligencePanel
+    ]);
 }
