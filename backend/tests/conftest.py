@@ -23,7 +23,7 @@ def client(tmp_path, monkeypatch) -> TestClient:
 
     from backend.app.api.endpoints import videos as videos_endpoints
     from backend.app.core import ratelimit
-    from backend.app.services.video_processing import MediaProbe
+    from backend.app.services.ffmpeg_utils import MediaProbe
     from backend.main import app
 
     ratelimit.limiter_login.reset()

@@ -11,7 +11,7 @@ from typing import Any
 from ...core import config
 from ...core.auth import User
 from ...core.database import Database
-from ...core.errors import sanitize_error
+from ...core.errors import sanitize_message
 from ...core.gcs import delete_object, download_object, get_gcs_settings, upload_object
 from ...services.history import HistoryStore
 from ...services.jobs import JobStore
@@ -271,11 +271,11 @@ def run_video_processing(
             user,
             "process_cancelled",
             f"Processing cancelled for {original_name or input_path.name}",
-            {"job_id": job_id, "error": sanitize_error(exc)},
+            {"job_id": job_id, "error": sanitize_message(str(exc))},
         )
-        refund_charge_best_effort(points_store, charge, status="cancelled", error=sanitize_error(exc))
+        refund_charge_best_effort(points_store, charge, status="cancelled", error=sanitize_message(str(exc)))
     except Exception as exc:
-        safe_msg = sanitize_error(exc)
+        safe_msg = sanitize_message(str(exc))
         job_store.update_job(job_id, status="failed", message=safe_msg)
         record_event_safe(
             history_store,
@@ -357,7 +357,7 @@ def run_gcs_video_processing(
                     pass
     except Exception as exc:
         input_path.unlink(missing_ok=True)
-        safe_msg = sanitize_error(exc)
+        safe_msg = sanitize_message(str(exc))
         job_store.update_job(job_id, status="failed", message=safe_msg)
         record_event_safe(
             history_store,

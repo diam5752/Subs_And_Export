@@ -2,7 +2,7 @@ import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from backend.app.services.video_processing import _run_ffmpeg_with_subs
+from backend.app.services.ffmpeg_utils import run_ffmpeg_with_subs
 
 
 def test_run_ffmpeg_deadlock_prevention():
@@ -28,7 +28,7 @@ def test_run_ffmpeg_deadlock_prevention():
 
         # Call the function
         try:
-            _run_ffmpeg_with_subs(
+            run_ffmpeg_with_subs(
                 input_path, ass_path, output_path,
                 video_crf=20, video_preset="fast", audio_bitrate="128k", audio_copy=False
             )

@@ -1,58 +1,80 @@
-import subprocess
+import pytest
+from fastapi import FastAPI, HTTPException, status
+from fastapi.testclient import TestClient
+from pydantic import BaseModel, Field
+from sqlalchemy.exc import SQLAlchemyError
 
-from backend.app.core.errors import sanitize_error
+from backend.app.core.errors import (
+    sanitize_message,
+    register_exception_handlers
+)
 
+# Setup a dummy app for testing handlers
+dummy_app = FastAPI()
+register_exception_handlers(dummy_app)
 
-def test_sanitize_error_strips_internal_paths():
+class MockModel(BaseModel):
+    name: str = Field(..., max_length=5)
+
+@dummy_app.get("/error/http")
+async def trigger_http_error():
+    raise HTTPException(status_code=403, detail="Access to /app/secret denied")
+
+@dummy_app.post("/error/validation")
+async def trigger_validation_error(model: MockModel):
+    return model
+
+@dummy_app.get("/error/db")
+async def trigger_db_error():
+    raise SQLAlchemyError("Duplicate entry for /home/db/data")
+
+@dummy_app.get("/error/unhandled")
+async def trigger_unhandled_error():
+    raise Exception("Something went wrong at /var/log/crash")
+
+client = TestClient(dummy_app, raise_server_exceptions=False)
+
+def test_sanitize_message_strips_internal_paths():
     """Test that internal paths are replaced with [INTERNAL_PATH]."""
-    # Test typical Unix paths
-    error_msg = "Error opening file /app/backend/data/uploads/123.mp4"
-    sanitized = sanitize_error(ValueError(error_msg))
+    msg = "Error opening file /app/backend/data/uploads/123.mp4"
+    sanitized = sanitize_message(msg)
     assert "[INTERNAL_PATH]" in sanitized
     assert "/app/backend/data" not in sanitized
 
-    # Test nested paths
-    error_msg = "Permission denied: /home/user/project/file.txt"
-    sanitized = sanitize_error(ValueError(error_msg))
-    assert "[INTERNAL_PATH]" in sanitized
-    assert "/home/user" not in sanitized
+    msg2 = "Permission denied: /home/user/project/file.txt"
+    sanitized2 = sanitize_message(msg2)
+    assert "[INTERNAL_PATH]" in sanitized2
+    assert "/home/user" not in sanitized2
 
-def test_sanitize_error_subprocess():
-    """Test that subprocess.CalledProcessError hides command args."""
-    cmd = ["ffmpeg", "-i", "/app/data/input.mp4", "/app/data/output.mp4"]
-    error = subprocess.CalledProcessError(
-        returncode=1,
-        cmd=cmd,
-        output="Conversion failed!"
-    )
+def test_http_exception_handler_sanitizes():
+    """Test that explicit HTTP exceptions are sanitized."""
+    response = client.get("/error/http")
+    assert response.status_code == 403
+    assert "[INTERNAL_PATH]" in response.json()["detail"]
+    assert "/app/secret" not in response.json()["detail"]
 
-    sanitized = sanitize_error(error)
-    assert "Processing command failed with exit code 1" in sanitized
-    assert "ffmpeg" not in sanitized
-    assert "/app/data/input.mp4" not in sanitized
-    assert "Conversion failed!" not in sanitized
+def test_validation_exception_handler():
+    """Test that validation errors are returned in a clean format."""
+    response = client.post("/error/validation", json={"name": "too_long_name"})
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert "Validation Error" in detail
+    assert "body.name" in detail
 
-def test_sanitize_error_safe_exceptions():
-    """Test that safe exceptions (ValueError) are passed through (but sanitized)."""
-    error = ValueError("Invalid resolution 100x100")
-    sanitized = sanitize_error(error)
-    assert "Invalid resolution 100x100" == sanitized
+def test_database_exception_handler():
+    """Test that database errors return generic messages and error codes."""
+    response = client.get("/error/db")
+    assert response.status_code == 500
+    data = response.json()
+    assert data["code"] == "DB_ERROR"
+    assert "Please try again later" in data["detail"]
+    assert "/home/db/data" not in data["detail"]
 
-    # Even safe exceptions should have paths stripped
-    error_path = ValueError("File /tmp/bad not found")
-    sanitized_path = sanitize_error(error_path)
-    assert "[INTERNAL_PATH]" in sanitized_path
-    assert "/tmp/bad" not in sanitized_path
-
-def test_sanitize_error_unknown_exception():
-    """Test that unknown exceptions are masked."""
-    error = KeyError("Missing config key")
-    sanitized = sanitize_error(error)
-    assert "An internal error occurred" == sanitized
-    assert "Missing config key" not in sanitized
-
-def test_sanitize_error_string_input():
-    """Test that string inputs are sanitized directly."""
-    msg = "Failed at /var/log/syslog"
-    sanitized = sanitize_error(msg)
-    assert "Failed at [INTERNAL_PATH]" == sanitized
+def test_global_exception_handler():
+    """Test that unhandled exceptions return generic messages and error codes."""
+    response = client.get("/error/unhandled")
+    assert response.status_code == 500
+    data = response.json()
+    assert data["code"] == "INTERNAL_ERROR"
+    assert "An internal server error occurred" in data["detail"]
+    assert "/var/log/crash" not in data["detail"]

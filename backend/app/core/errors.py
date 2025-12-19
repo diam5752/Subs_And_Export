@@ -2,47 +2,94 @@
 
 import logging
 import re
-import subprocess
-from typing import Union
+from typing import Union, Any
+
+from fastapi import FastAPI, Request, status
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from sqlalchemy.exc import SQLAlchemyError
 
 logger = logging.getLogger(__name__)
 
 # Regex to detect internal paths (Unix/Linux focus for container env)
-# Matches paths starting with /app, /home, /var, /tmp, /usr, /etc
 _PATH_PATTERN = re.compile(r"(\/(?:app|home|var|tmp|usr|etc|opt)\/[\w\-\.\/]+)")
 
-
-def sanitize_error(exc: Union[Exception, str]) -> str:
+def sanitize_message(msg: str) -> str:
     """
-    Sanitize exception messages to prevent leaking internal details.
-
-    - Strips internal file paths.
-    - Masks subprocess commands.
-    - Allows safe exceptions (ValueError, PermissionError) to pass through with sanitized messages.
-    - Hides unexpected internal errors with a generic message.
+    Sanitize string messages to prevent leaking internal details.
     """
-    if isinstance(exc, str):
-        msg = exc
-        # Sanitize paths in string
-        if _PATH_PATTERN.search(msg):
-            msg = _PATH_PATTERN.sub("[INTERNAL_PATH]", msg)
-        return msg
-
-    # Handle subprocess errors specifically (they leak command args)
-    if isinstance(exc, subprocess.CalledProcessError):
-        logger.error(f"Subprocess failed: {exc}")
-        return f"Processing command failed with exit code {exc.returncode}"
-
-    msg = str(exc)
-
-    # Sanitize paths
     if _PATH_PATTERN.search(msg):
-        msg = _PATH_PATTERN.sub("[INTERNAL_PATH]", msg)
+        return _PATH_PATTERN.sub("[INTERNAL_PATH]", msg)
+    return msg
 
-    # Filter by type
-    if isinstance(exc, (ValueError, PermissionError, InterruptedError)):
-        return msg
+def create_error_response(status_code: int, message: str, error_code: str = None) -> JSONResponse:
+    content = {"detail": message}
+    if error_code:
+        content["code"] = error_code
+    return JSONResponse(status_code=status_code, content=content)
 
-    # Default generic error for unknown types
-    logger.exception("Internal error caught: %s", exc)
-    return "An internal error occurred"
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    """
+    Handle explicit HTTP exceptions (e.g. 404, 403).
+    """
+    return create_error_response(exc.status_code, sanitize_message(str(exc.detail)))
+
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """
+    Handle Pydantic validation errors.
+    """
+    errors = exc.errors()
+    
+    # Specific logic ported from main.py for batch delete limit
+    if request.url.path.endswith("/videos/jobs/batch-delete"):
+         for error in errors:
+            loc = error.get("loc", ())
+            ctx = error.get("ctx", {})
+            if (
+                error.get("type") == "too_long"
+                and isinstance(loc, tuple)
+                and loc[-1] == "job_ids"
+                and ctx.get("max_length") == 50
+            ):
+                return create_error_response(status.HTTP_400_BAD_REQUEST, "Cannot delete more than 50 jobs at once")
+
+    sanitized_errors = []
+    for err in errors:
+        loc = ".".join([str(x) for x in err.get("loc", [])])
+        msg = err.get("msg", "Invalid input")
+        sanitized_errors.append(f"{loc}: {msg}")
+    
+    error_msg = "; ".join(sanitized_errors)
+    return create_error_response(status.HTTP_422_UNPROCESSABLE_ENTITY, f"Validation Error: {sanitize_message(error_msg)}")
+
+async def database_exception_handler(request: Request, exc: SQLAlchemyError):
+    """
+    Handle database errors. Log the full error, return generic message.
+    """
+    logger.exception("Database error occurred", extra={"path": request.url.path})
+    return create_error_response(
+        status.HTTP_500_INTERNAL_SERVER_ERROR, 
+        "A database error occurred. Please try again later.",
+        "DB_ERROR"
+    )
+
+async def global_exception_handler(request: Request, exc: Exception):
+    """
+    Catch-all for unhandled exceptions.
+    """
+    logger.exception("Unhandled exception", extra={"path": request.url.path})
+    return create_error_response(
+        status.HTTP_500_INTERNAL_SERVER_ERROR,
+        "An internal server error occurred.",
+        "INTERNAL_ERROR"
+    )
+
+def register_exception_handlers(app: FastAPI):
+    """
+    Registrar for all exception handlers.
+    """
+    app.add_exception_handler(StarletteHTTPException, http_exception_handler)
+    app.add_exception_handler(RequestValidationError, validation_exception_handler)
+    app.add_exception_handler(SQLAlchemyError, database_exception_handler)
+    app.add_exception_handler(Exception, global_exception_handler)

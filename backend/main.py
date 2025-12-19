@@ -1,21 +1,18 @@
-import logging
+
+from backend.app.core.logging import setup_logging
+from backend.app.core.errors import register_exception_handlers
+
+# Configure logging (JSON structured)
+logger = setup_logging()
+
 import os
 import sys
 
-# Configure logging to stdout for visibility
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    handlers=[logging.StreamHandler(sys.stdout)]
-)
-
 from fastapi import FastAPI, HTTPException
-from fastapi.exception_handlers import request_validation_exception_handler
-from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from secure import (
     ContentSecurityPolicy,
     ReferrerPolicy,
@@ -35,8 +32,6 @@ from backend.app.core.database import Database
 from backend.app.core.env import get_app_env, is_dev_env
 from backend.app.core.gcs import generate_signed_download_url, get_gcs_settings
 
-logger = logging.getLogger(__name__)
-
 app = FastAPI(
     title="Greek Sub Publisher API",
     description="Backend API for Greek Sub Publisher Video Processing",
@@ -46,24 +41,8 @@ app = FastAPI(
     openapi_url="/openapi.json" if is_dev_env() else None,
 )
 
-
-@app.exception_handler(RequestValidationError)
-async def _validation_exception_handler(request: Request, exc: RequestValidationError):
-    # FastAPI returns 422 for validation errors by default; for this endpoint we treat an oversized delete
-    # request as a regular 400 "bad request" to align with other API-level limits.
-    if request.url.path == "/videos/jobs/batch-delete":
-        for error in exc.errors():
-            loc = error.get("loc", ())
-            ctx = error.get("ctx", {})
-            if (
-                error.get("type") == "too_long"
-                and isinstance(loc, tuple)
-                and loc[-1] == "job_ids"
-                and ctx.get("max_length") == 50
-            ):
-                return JSONResponse(status_code=400, content={"detail": "Cannot delete more than 50 jobs at once"})
-
-    return await request_validation_exception_handler(request, exc)
+# Register Global Exception Handlers
+register_exception_handlers(app)
 
 
 @app.on_event("startup")

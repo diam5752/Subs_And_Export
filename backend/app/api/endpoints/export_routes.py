@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from ...core import config
 from ...core.auth import User
-from ...core.errors import sanitize_error
+from ...core.errors import sanitize_message
 from ...core.gcs import download_object, get_gcs_settings, upload_object
 from ...core.ratelimit import limiter_content
 from ...schemas.base import JobResponse
@@ -133,7 +133,7 @@ def export_video(
 
         except Exception as e:
             logger.exception("SRT Export failed")
-            raise HTTPException(500, f"SRT Export failed: {sanitize_error(e)}")
+            raise HTTPException(500, f"SRT Export failed: {sanitize_message(str(e))}")
 
     # Video export
     input_video = None
@@ -222,4 +222,4 @@ def export_video(
         return _ensure_job_size(updated_job)
 
     except Exception as e:
-        raise HTTPException(500, f"Export failed: {sanitize_error(e)}")
+        raise HTTPException(500, f"Export failed: {sanitize_message(str(e))}")

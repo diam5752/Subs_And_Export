@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 
 from ...core import config
 from ...core.auth import User
-from ...core.errors import sanitize_error
+from ...core.errors import sanitize_message
 from ...core.gcs import get_gcs_settings
 from ...core.ratelimit import limiter_processing
 from ...core.settings import load_app_settings
@@ -149,7 +149,7 @@ def reprocess_job(
             from ...common.cleanup import cleanup_old_uploads
             background_tasks.add_task(cleanup_old_uploads, uploads_dir, 24)
         except Exception as exc:
-            refund_charge_best_effort(points_store, charge, status="failed", error=sanitize_error(exc))
+            refund_charge_best_effort(points_store, charge, status="failed", error=sanitize_message(str(exc)))
             raise
 
         return {**job.__dict__, "balance": new_balance}
@@ -235,7 +235,7 @@ def reprocess_job(
         from ...common.cleanup import cleanup_old_uploads
         background_tasks.add_task(cleanup_old_uploads, uploads_dir, 24)
     except Exception as exc:
-        refund_charge_best_effort(points_store, charge, status="failed", error=sanitize_error(exc))
+        refund_charge_best_effort(points_store, charge, status="failed", error=sanitize_message(str(exc)))
         input_path.unlink(missing_ok=True)
         raise
 

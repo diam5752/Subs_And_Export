@@ -160,6 +160,10 @@ class ApiClient {
                 errorMessage = typeof errorData.detail === 'string'
                     ? errorData.detail
                     : JSON.stringify(errorData.detail);
+
+                if (errorData.code) {
+                    errorMessage += ` [${errorData.code}]`;
+                }
             } else if (errorData.message) {
                 errorMessage = errorData.message;
             }

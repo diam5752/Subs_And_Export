@@ -2,7 +2,7 @@ from unittest.mock import MagicMock
 
 from backend.app.core import config
 from backend.app.services.jobs import JobStore
-from backend.app.services.video_processing import MediaProbe
+from backend.app.services.ffmpeg_utils import MediaProbe
 
 
 def test_concurrent_jobs_limit_process(client, user_auth_headers, monkeypatch):
