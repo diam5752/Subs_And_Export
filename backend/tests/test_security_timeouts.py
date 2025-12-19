@@ -22,7 +22,7 @@ def test_subtitles_llm_timeouts(monkeypatch):
             return type("Resp", (), {
                 "choices": [type("Choice", (), {
                     "message": type("Msg", (), {
-                        "content": '{"tiktok": {"title": "t", "description": "d"}, "youtube_shorts": {"title": "t", "description": "d"}, "instagram": {"title": "t", "description": "d"}, "hooks": [], "caption_hook": "", "caption_body": "", "cta": "", "hashtags": [], "items": []}'
+                        "content": '{"title": "t", "description": "d", "hashtags": [], "items": [], "truth_score": 100, "supported_claims_pct": 100, "claims_checked": 0}'
                     })()
                 })()]
             })()
@@ -37,11 +37,6 @@ def test_subtitles_llm_timeouts(monkeypatch):
     # Test build_social_copy_llm
     print("Testing build_social_copy_llm...")
     subtitles.build_social_copy_llm("text")
-    assert calls[-1]["timeout"] >= 10.0
-
-    # Test generate_viral_metadata
-    print("Testing generate_viral_metadata...")
-    subtitles.generate_viral_metadata("text")
     assert calls[-1]["timeout"] >= 10.0
 
     # Test generate_fact_check

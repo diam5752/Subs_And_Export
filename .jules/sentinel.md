@@ -116,3 +116,8 @@
 **Vulnerability:** The `_sanitize_ass_text` function failed to strip newline characters (`\n`, `\r`), allowing attackers to inject arbitrary ASS events (e.g. `Dialogue: ...`) into the generated subtitle file by breaking out of the intended line structure.
 **Learning:** Text-based formats (ASS, SRT, CSV) rely on newlines as structural delimiters. Sanitizing field-specific delimiters (like `{`, `}`, `,`) is insufficient if the record delimiter itself is not sanitized.
 **Prevention:** Always strip or replace control characters (newlines, carriage returns) from user inputs before embedding them into line-based file formats.
+
+## 2025-12-18 - [Medium] Missing Timeouts in Google OAuth
+**Vulnerability:** The `exchange_google_code` function performed external network calls (token exchange and ID token verification) without timeouts, creating a risk of thread starvation if Google servers were unreachable.
+**Learning:** `google.oauth2.id_token.verify_oauth2_token` uses a default `Request` object that lacks a timeout. It does not accept a simple `timeout` argument.
+**Prevention:** Subclass `google.auth.transport.requests.Request` to override `__call__` and inject a default timeout, then pass this custom request object to verification functions.

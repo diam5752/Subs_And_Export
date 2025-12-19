@@ -416,13 +416,20 @@ def exchange_google_code(cfg: dict[str, str], code: str) -> dict:
     from google.auth.transport.requests import Request
     from google.oauth2 import id_token
 
+    # Enforce timeout on cert verification requests (default is infinite)
+    class TimeoutRequest(Request):
+        def __call__(self, *args, **kwargs):
+            kwargs.setdefault("timeout", 30)
+            return super().__call__(*args, **kwargs)
+
     flow = build_google_flow(cfg)
-    flow.fetch_token(code=code)
+    # Enforce timeout on token exchange
+    flow.fetch_token(code=code, timeout=30)
     creds = flow.credentials
     if not creds or not creds.id_token:
         raise ValueError("Missing Google ID token")
     idinfo = id_token.verify_oauth2_token(
-        creds.id_token, Request(), cfg["client_id"]
+        creds.id_token, TimeoutRequest(), cfg["client_id"]
     )
     return {
         "email": idinfo.get("email"),
