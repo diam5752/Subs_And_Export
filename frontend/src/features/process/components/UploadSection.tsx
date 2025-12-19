@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 import { validateVideoAspectRatio } from '@/lib/video';
 import { TokenIcon } from '@/components/icons';
 import { formatPoints, processVideoCostForSelection } from '@/lib/points';
+import { Spinner } from '@/components/Spinner';
 
 const MAX_UPLOAD_BYTES = 1024 * 1024 * 1024; // 1GiB
 const MAX_VIDEO_DURATION_SECONDS = 3 * 60 + 30;
@@ -630,11 +631,18 @@ export function UploadSection() {
                             </div>
                             <button
                                 type="button"
-                                className="btn-primary w-full"
+                                className="btn-primary w-full flex items-center justify-center gap-2"
                                 onClick={handleLoadDevSample}
                                 disabled={isProcessing || devSampleLoading}
                             >
-                                {devSampleLoading ? 'Loading sample…' : 'Load sample video'}
+                                {devSampleLoading ? (
+                                    <>
+                                        <Spinner className="w-4 h-4 text-white" />
+                                        <span>Loading sample…</span>
+                                    </>
+                                ) : (
+                                    'Load sample video'
+                                )}
                             </button>
                             {devSampleError && (
                                 <p className="text-xs text-[var(--danger)]">{devSampleError}</p>

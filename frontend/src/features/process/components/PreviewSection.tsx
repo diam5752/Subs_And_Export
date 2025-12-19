@@ -5,7 +5,7 @@ import { PhoneFrame } from '@/components/PhoneFrame';
 import { PreviewPlayer } from '@/components/PreviewPlayer';
 import { Sidebar } from './Sidebar';
 import { VideoModal } from '@/components/VideoModal';
-import { TokenIcon } from '@/components/icons';
+import { Spinner } from '@/components/Spinner';
 
 export function PreviewSection() {
     const { t } = useI18n();
@@ -193,7 +193,7 @@ export function PreviewSection() {
                                                     >
                                                         {exportingResolutions['srt'] ? (
                                                             <div className="relative z-10 h-full flex items-center justify-center gap-2">
-                                                                <span className="animate-spin text-white/30 text-xs">✦</span>
+                                                                <Spinner className="w-3 h-3 text-white/30" />
                                                                 <span className="font-mono text-[10px] text-white/30 tracking-widest uppercase">Saving</span>
                                                             </div>
                                                         ) : (
@@ -216,7 +216,7 @@ export function PreviewSection() {
                                                     >
                                                         {exportingResolutions['1080x1920'] ? (
                                                             <div className="relative z-10 h-full flex items-center justify-center gap-3">
-                                                                <span className="animate-spin text-white/50">✦</span>
+                                                                <Spinner className="w-4 h-4 text-white/50" />
                                                                 <span className="font-mono text-xs text-white/50 tracking-widest uppercase">Processing</span>
                                                             </div>
                                                         ) : (
@@ -242,7 +242,7 @@ export function PreviewSection() {
 
                                                         {exportingResolutions['2160x3840'] ? (
                                                             <div className="relative z-10 h-full flex items-center justify-center gap-3">
-                                                                <span className="animate-spin text-[var(--accent)]">✦</span>
+                                                                <Spinner className="w-4 h-4 text-[var(--accent)]" />
                                                                 <span className="font-mono text-xs text-white/50 tracking-widest uppercase">Mastering</span>
                                                             </div>
                                                         ) : (
