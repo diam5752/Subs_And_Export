@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -5,6 +6,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, Field
 
 from ...core.auth import SessionStore, User, UserStore
+from ...core.errors import sanitize_error
 from ...core.oauth_state import OAuthStateStore
 from ...core.ratelimit import limiter_login, limiter_register
 from ...services.history import HistoryStore
@@ -21,6 +23,7 @@ from ..deps import (
 )
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 class UserCreate(BaseModel):
     email: str = Field(..., max_length=255)
@@ -213,9 +216,11 @@ def delete_account(
 
         return {"status": "deleted", "message": "Account and all data have been permanently deleted"}
     except Exception as e:
+        safe_msg = sanitize_error(e)
+        logger.error(f"Account deletion failed: {safe_msg}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete account: {str(e)}"
+            detail=f"Failed to delete account: {safe_msg}"
         )
 
 
@@ -291,4 +296,7 @@ def google_oauth_callback(
             "name": user.name
         }
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Google auth failed: {str(e)}")
+        # Sanitize error to avoid leaking internal details (e.g. from Google API response)
+        safe_msg = sanitize_error(e)
+        logger.error(f"Google auth failed: {safe_msg}")
+        raise HTTPException(status_code=400, detail=f"Google auth failed: {safe_msg}")
