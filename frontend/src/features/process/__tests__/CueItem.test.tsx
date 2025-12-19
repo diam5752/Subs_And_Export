@@ -5,7 +5,11 @@ import { CueItem } from '../CueItem';
 // Mock useI18n
 jest.mock('@/context/I18nContext', () => ({
     useI18n: () => ({
-        t: (key: string) => key,
+        t: (key: string) => {
+            if (key === 'jumpToTime') return 'Jump to {time}';
+            if (key === 'jumpToCue') return 'Jump to cue: {text}';
+            return key;
+        },
     }),
 }));
 
@@ -31,10 +35,14 @@ describe('CueItem', () => {
         onUpdateDraft: jest.fn(),
     };
 
-    it('renders correctly in view mode', () => {
+    it('renders correctly in view mode with accessible labels', () => {
         render(<CueItem {...defaultProps} />);
         expect(screen.getByText('Hello World')).toBeInTheDocument();
         expect(screen.getByText('transcriptEdit')).toBeInTheDocument();
+
+        // Check ARIA labels
+        expect(screen.getByLabelText('Jump to 0:00')).toBeInTheDocument();
+        expect(screen.getByLabelText('Jump to cue: Hello World')).toBeInTheDocument();
     });
 
     it('renders correctly in edit mode', () => {

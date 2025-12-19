@@ -19,3 +19,7 @@
 ## 2024-05-23 - Consistent Loading States
 **Learning:** Using consistent spinner components instead of just text changes for loading states significantly improves perceived performance and visual polish.
 **Action:** Use the shared `<Spinner />` component for all async button states to ensure consistency and accessibility (aria-busy).
+
+## 2025-03-01 - Accessible List Item Controls
+**Learning:** In list items (like transcript cues), text content often doubles as a control (e.g., "Click to seek"). Without `aria-label`, screen readers just announce the text, leaving the interactive nature ambiguous.
+**Action:** Always add descriptive `aria-label`s to list item controls (e.g., "Jump to time 0:12" instead of just "0:12") to clarify the action.

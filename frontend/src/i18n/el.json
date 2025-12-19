@@ -5,6 +5,8 @@
   "transcriptCancel": "Ακύρωση",
   "transcriptSaving": "Αποθήκευση…",
   "transcriptSaveError": "Αποτυχία αποθήκευσης αλλαγών",
+  "jumpToTime": "Μετάβαση στο {time}",
+  "jumpToCue": "Μετάβαση στο: {text}",
   "modelSelectTitle": "Επιλέξτε μοντέλο",
   "modelSelectSubtitle": "Διαλέξτε μηχανή πριν ανεβάσετε βίντεο",
   "tabStyles": "Στυλ",

@@ -32,6 +32,7 @@ export const CueItem = memo(({
     onUpdateDraft
 }: CueItemProps) => {
     const { t } = useI18n();
+    const formattedTime = `${Math.floor(cue.start / 60)}:${(cue.start % 60).toFixed(0).padStart(2, '0')}`;
 
     return (
         <div
@@ -46,8 +47,9 @@ export const CueItem = memo(({
                     type="button"
                     onClick={() => onSeek(cue.start)}
                     className="font-mono text-xs opacity-60 pt-0.5 min-w-[42px] text-left hover:opacity-90 transition-opacity"
+                    aria-label={t('jumpToTime')?.replace('{time}', formattedTime) || `Jump to ${formattedTime}`}
                 >
-                    {Math.floor(cue.start / 60)}:{(cue.start % 60).toFixed(0).padStart(2, '0')}
+                    {formattedTime}
                 </button>
                 <div className="flex-1 min-w-0">
                     {isEditing ? (
@@ -65,6 +67,7 @@ export const CueItem = memo(({
                                 ? 'text-[var(--foreground)] font-medium'
                                 : 'text-[var(--muted)] hover:text-[var(--foreground)]'
                                 }`}
+                            aria-label={t('jumpToCue')?.replace('{text}', cue.text) || `Jump to cue: ${cue.text}`}
                         >
                             {cue.text}
                         </button>
