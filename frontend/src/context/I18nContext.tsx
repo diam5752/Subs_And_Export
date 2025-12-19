@@ -8,7 +8,7 @@ type MessageKey = keyof Messages;
 interface I18nContextType {
   locale: Locale;
   setLocale: (nextLocale: Locale) => void;
-  t: (key: MessageKey) => string;
+  t: (key: MessageKey, params?: Record<string, string | number>) => string;
   availableLocales: Locale[];
 }
 
@@ -59,8 +59,14 @@ export function I18nProvider({ children, initialLocale }: { children: React.Reac
   }, []);
 
   const t = useCallback(
-    (key: MessageKey) => {
-      return messages[locale][key] ?? messages[defaultLocale][key] ?? key;
+    (key: MessageKey, params?: Record<string, string | number>) => {
+      let message = (messages[locale][key] ?? messages[defaultLocale][key] ?? key) as string;
+      if (params) {
+        Object.entries(params).forEach(([k, v]) => {
+          message = message.replace(`{${k}}`, String(v));
+        });
+      }
+      return message;
     },
     [locale],
   );

@@ -19,8 +19,10 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class SocialContent:
-    title: str
-    description: str
+    title_el: str
+    title_en: str
+    description_el: str
+    description_en: str
     hashtags: List[str]
 
 
@@ -94,8 +96,10 @@ def _build_hashtags(keywords: Sequence[str], extra: Sequence[str]) -> List[str]:
 
 
 def _platform_copy(
-    base_title: str,
-    summary: str,
+    base_title_el: str,
+    base_title_en: str,
+    summary_el: str,
+    summary_en: str,
     hashtags: Sequence[str],
     *,
     extra_tags: Sequence[str],
@@ -106,8 +110,15 @@ def _platform_copy(
         [f"#{tag.lstrip('#')}" for tag in all_tags_raw]
     ))
     formatted_tags = " ".join(all_tags)
-    description = f"{summary}\n{formatted_tags}".strip()
-    return SocialContent(title=base_title.strip(), description=description, hashtags=all_tags)
+    desc_el = f"{summary_el}\n{formatted_tags}".strip()
+    desc_en = f"{summary_en}\n{formatted_tags}".strip()
+    return SocialContent(
+        title_el=base_title_el.strip(), 
+        title_en=base_title_en.strip(),
+        description_el=desc_el, 
+        description_en=desc_en,
+        hashtags=all_tags
+    )
 
 
 def build_social_copy(transcript_text: str) -> SocialCopy:
@@ -126,7 +137,9 @@ def build_social_copy(transcript_text: str) -> SocialCopy:
 
     generic_copy = _platform_copy(
         base_title,
+        base_title, # Fallback title for EN
         summary,
+        summary, # Fallback summary for EN
         shared_tags,
         extra_tags=["trending", "viral", "fyp"],
     )
@@ -180,33 +193,30 @@ def build_social_copy_llm(
     client = llm_utils.load_openai_client(api_key)
 
     system_prompt = (
-        "You are a viral Greek TikTok/Reels copywriter. Your job is to make viewers STOP scrolling.\n"
-        "Input: a transcript from a short video (may have timestamps, filler words—ignore those).\n\n"
+        "You are a viral bilingual (Greek/English) copywriter. Your job is to make viewers STOP scrolling.\n"
+        "Input: a transcript from a short video.\n\n"
         "Return ONLY valid JSON matching EXACTLY this schema:\n"
-        '{ "title": "...", "description": "...", "hashtags": ["#tag1", "#tag2"] }\n\n'
-        "### TITLE (35–80 chars)\n"
-        "- Hook the viewer IMMEDIATELY. Use curiosity, controversy, or a bold claim.\n"
-        "- Examples: 'Αυτό δεν στο λένε ποτέ...', 'Γιατί όλοι κάνουν λάθος σε αυτό', 'Η αλήθεια που κανείς δεν θέλει να ακούσεις'\n"
-        "- NO boring summaries. Make them NEED to watch.\n\n"
-        "### DESCRIPTION (100–400 chars)\n"
-        "- Start with a punchy hook or provocative statement that continues the title's energy.\n"
-        "- Use short, punchy sentences. Add emotion, relatability, or controversy.\n"
-        "- End with an engaging question or call-to-action that sparks comments.\n"
-        "- Examples of good CTAs: 'Συμφωνείς;', 'Tag κάποιον που πρέπει να το δει', 'Πες μου τη γνώμη σου 👇'\n"
-        "- Use 1-2 emojis strategically (🔥💡🤯👇) but don't overdo it.\n\n"
+        '{\n'
+        '  "title_el": "...", "title_en": "...",\n'
+        '  "description_el": "...", "description_en": "...",\n'
+        '  "hashtags": ["#tag1", "#tag2"]\n'
+        '}\n\n'
+        "### TITLES (35–80 chars)\n"
+        "- Hook the viewer IMMEDIATELY. CURIOUS/BOLD labels.\n"
+        "- TITLE_EL: Viral Greek title.\n"
+        "- TITLE_EN: Viral English version of the SAME hook.\n\n"
+        "### DESCRIPTIONS (100–400 chars)\n"
+        "- Punchy hooks, emotions/controversy.\n"
+        "- End with a CTA (e.g., 'Συμφωνείς;' / 'Agree?').\n"
+        "- DESCRIPTION_EL: Greek description.\n"
+        "- DESCRIPTION_EN: English description.\n"
+        "- Use 1-2 emojis strategically.\n\n"
         "### HASHTAGS (8–14 items)\n"
-        "- Mix trending Greek tags + niche topic tags + 2-3 English discovery tags\n"
-        "- Include at least ONE emotion/vibe tag (#mindset, #αλήθειες, #facts)\n"
-        "- NO generic spam (#fyp #viral) unless content is meta about TikTok\n\n"
+        "- Mix of EL and EN tags.\n\n"
         "### RULES\n"
-        "- Write in Greek (unless transcript is clearly another language)\n"
-        "- Stay true to the content—don't invent claims\n"
-        "- Sound like a creator posting their own video, NOT a news anchor\n"
-        "- No markdown, no extra keys, ONLY the JSON\n\n"
-        "Fallback (empty/garbage transcript):\n"
-        'title="Αυτό πρέπει να το δεις..."\n'
-        'description="Κάτι που θα σε βάλει σε σκέψεις 🤔 Πες μου τη γνώμη σου 👇"\n'
-        'hashtags=["#ελλαδα","#mindset","#greektiktok","#viral"]'
+        "- Stay true to content.\n"
+        "- Sound like a creator.\n"
+        "- JSON ONLY."
     )
 
     messages = [
@@ -259,8 +269,10 @@ def build_social_copy_llm(
 
             return SocialCopy(
                 generic=SocialContent(
-                    title=parsed["title"],
-                    description=parsed["description"],
+                    title_el=parsed["title_el"],
+                    title_en=parsed["title_en"],
+                    description_el=parsed["description_el"],
+                    description_en=parsed["description_en"],
                     hashtags=parsed.get("hashtags", []),
                 )
             )

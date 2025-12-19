@@ -18,13 +18,18 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class FactCheckItem:
-    mistake: str
-    correction: str
-    explanation: str
+    mistake_el: str
+    mistake_en: str
+    correction_el: str
+    correction_en: str
+    explanation_el: str
+    explanation_en: str
     severity: str
     confidence: int
-    real_life_example: str
-    scientific_evidence: str
+    real_life_example_el: str
+    real_life_example_en: str
+    scientific_evidence_el: str
+    scientific_evidence_en: str
 
 
 @dataclass
@@ -155,17 +160,18 @@ def generate_fact_check(
 
     system_prompt = (
         "### ROLE\n"
-        "Expert Fact Checker. Verify the following specific claims against the provided text.\n\n"
+        "Expert Fact Checker. Analyze the transcript for factual errors (dates, numbers, history, science).\n\n"
         "### TASK\n"
-        "1) Analyze the claims.\n"
-        "2) Output items ONLY for incorrect/misleading claims (Max 3).\n\n"
+        "1) Analyze the transcript.\n"
+        "2) Output items ONLY for incorrect/misleading claims (Max 3).\n"
+        "3) FOR EACH ITEM, provide content in BOTH Greek (EL) and English (EN).\n\n"
         f"CLAIMS TO CHECK: {json.dumps(claims)}\n\n"
         "### FOR EACH ERROR:\n"
-        "- MISTAKE: Quote the error.\n"
-        "- CORRECTION: Correct facts.\n"
-        "- EXPLANATION: Brief reason.\n"
-        "- REAL_LIFE_EXAMPLE: Concrete scenario showing why it's wrong (1 sentence).\n"
-        "- SCIENTIFIC_EVIDENCE: Citation/proof (1 sentence).\n"
+        "- MISTAKE_EL / MISTAKE_EN: Quote the error in both languages.\n"
+        "- CORRECTION_EL / CORRECTION_EN: Correct facts in both languages.\n"
+        "- EXPLANATION_EL / EXPLANATION_EN: Brief reason in both languages.\n"
+        "- REAL_LIFE_EXAMPLE_EL / REAL_LIFE_EXAMPLE_EN: Concrete scenario (1 sentence) in both languages.\n"
+        "- SCIENTIFIC_EVIDENCE_EL / SCIENTIFIC_EVIDENCE_EN: Citation/proof (1 sentence) in both languages.\n"
         "- SEVERITY: minor/medium/major.\n"
         "- CONFIDENCE: 0-100.\n\n"
         "### SCORES\n"
@@ -179,13 +185,18 @@ def generate_fact_check(
         '  "claims_checked": int,\n'
         '  "items": [\n'
         '    {\n'
-        '      "mistake": "str",\n'
-        '      "correction": "str",\n'
-        '      "explanation": "str",\n'
+        '      "mistake_el": "str",\n'
+        '      "mistake_en": "str",\n'
+        '      "correction_el": "str",\n'
+        '      "correction_en": "str",\n'
+        '      "explanation_el": "str",\n'
+        '      "explanation_en": "str",\n'
         '      "severity": "str",\n'
         '      "confidence": int,\n'
-        '      "real_life_example": "str",\n'
-        '      "scientific_evidence": "str"\n'
+        '      "real_life_example_el": "str",\n'
+        '      "real_life_example_en": "str",\n'
+        '      "scientific_evidence_el": "str",\n'
+        '      "scientific_evidence_en": "str"\n'
         '    }\n'
         '  ]\n'
         "}\n"
@@ -242,13 +253,18 @@ def generate_fact_check(
 
             items = [
                 FactCheckItem(
-                    mistake=item["mistake"],
-                    correction=item["correction"],
-                    explanation=item["explanation"],
+                    mistake_el=item["mistake_el"],
+                    mistake_en=item["mistake_en"],
+                    correction_el=item["correction_el"],
+                    correction_en=item["correction_en"],
+                    explanation_el=item["explanation_el"],
+                    explanation_en=item["explanation_en"],
                     severity=item["severity"],
                     confidence=item["confidence"],
-                    real_life_example=item.get("real_life_example", ""),
-                    scientific_evidence=item.get("scientific_evidence", ""),
+                    real_life_example_el=item.get("real_life_example_el", ""),
+                    real_life_example_en=item.get("real_life_example_en", ""),
+                    scientific_evidence_el=item.get("scientific_evidence_el", ""),
+                    scientific_evidence_en=item.get("scientific_evidence_en", ""),
                 )
                 for item in items_data
             ]

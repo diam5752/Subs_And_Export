@@ -34,13 +34,18 @@ class BatchDeleteResponse(BaseModel):
 
 
 class FactCheckItemSchema(BaseModel):
-    mistake: str
-    correction: str
-    explanation: str
+    mistake_el: str
+    mistake_en: str
+    correction_el: str
+    correction_en: str
+    explanation_el: str
+    explanation_en: str
     severity: str  # minor | medium | major
     confidence: int  # 0-100
-    real_life_example: str  # Concrete example disproving the claim
-    scientific_evidence: str  # Scientific explanation/citation
+    real_life_example_el: str  # Concrete example disproving the claim
+    real_life_example_en: str
+    scientific_evidence_el: str  # Scientific explanation/citation
+    scientific_evidence_en: str
 
 
 class FactCheckResponse(BaseModel):
@@ -52,8 +57,10 @@ class FactCheckResponse(BaseModel):
 
 
 class SocialCopySchema(BaseModel):
-    title: str
-    description: str
+    title_el: str
+    title_en: str
+    description_el: str
+    description_en: str
     hashtags: List[str]
 
 

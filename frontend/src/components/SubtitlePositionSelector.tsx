@@ -598,12 +598,12 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
                             <div className="flex-1 min-w-[200px]">
                                 <div className="flex items-center gap-2 mb-3">
                                     <label id={watermarkLabelId} className="block text-sm font-medium text-[var(--muted)]">
-                                        Watermark
+                                        {t('watermarkLabel')}
                                     </label>
-                                    <InfoTooltip ariaLabel="Watermark">
+                                    <InfoTooltip ariaLabel={t('watermarkLabel')}>
                                         <div className="space-y-2">
-                                            <div className="font-semibold text-[11px]">Brand Watermark</div>
-                                            <p className="text-[var(--muted)] leading-snug">Burn the Ascentia branding into the final video export.</p>
+                                            <div className="font-semibold text-[11px]">{t('watermarkBrand')}</div>
+                                            <p className="text-[var(--muted)] leading-snug">{t('watermarkDesc')}</p>
                                         </div>
                                     </InfoTooltip>
                                 </div>
@@ -623,11 +623,11 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
                                     {/* Content */}
                                     <div className="flex flex-col gap-0.5 z-10">
                                         <div className={`font-semibold text-base tracking-tight transition-colors ${watermarkEnabled ? 'text-[var(--foreground)]' : 'text-[var(--foreground)]/80'}`}>
-                                            Affiliate Badge
+                                            {t('watermarkAffiliate')}
                                         </div>
                                         <div className="flex items-center gap-1.5">
                                             <span className={`text-[10px] uppercase tracking-wider font-mono ${watermarkEnabled ? 'text-[var(--accent)]' : 'text-[var(--muted)]'}`}>
-                                                {watermarkEnabled ? 'ACTIVE' : 'DISABLED'}
+                                                {watermarkEnabled ? t('statusActive') : t('statusDisabled')}
                                             </span>
                                             {watermarkEnabled && (
                                                 <span className="w-1 h-1 rounded-full bg-[var(--accent)] shadow-[0_0_5px_var(--accent)]" />

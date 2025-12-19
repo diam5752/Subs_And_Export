@@ -51,7 +51,7 @@ function CopyButton({ text, label }: { text: string; label: string }) {
 }
 
 export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
-    const { t } = useI18n();
+    const { t, locale } = useI18n();
     const { setBalance } = usePoints();
     const activeJobIdRef = useRef(jobId);
 
@@ -136,7 +136,7 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
                                 </svg>
                             </div>
                             <div className="text-center">
-                                <span className="block text-sm font-medium text-white/90 group-hover:text-white">{t('factCheck') || 'Verify Facts'}</span>
+                                <span className="block text-sm font-medium text-white/90 group-hover:text-white">{t('viralVerifyFacts')}</span>
                                 <div className="flex items-center justify-center gap-1.5 opacity-80 mt-1">
                                     <TokenIcon className="w-3.5 h-3.5" />
                                     <span className="text-xs font-semibold text-white/70">
@@ -148,7 +148,7 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
                         <div className="absolute top-3 right-3">
                             <InfoTooltip ariaLabel={t('factCheckTooltip')}>
                                 <div className="space-y-1">
-                                    <div className="font-semibold text-[11px]">{t('factCheck') || 'Verify Facts'}</div>
+                                    <div className="font-semibold text-[11px]">{t('viralVerifyFacts')}</div>
                                     <p className="text-[var(--muted)] leading-snug">{t('factCheckTooltip')}</p>
                                 </div>
                             </InfoTooltip>
@@ -179,7 +179,7 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
                                 </svg>
                             </div>
                             <div className="text-center">
-                                <span className="block text-sm font-medium text-white/90 group-hover:text-white">Generate Metadata</span>
+                                <span className="block text-sm font-medium text-white/90 group-hover:text-white">{t('viralGenerateMetadata')}</span>
                                 <div className="flex items-center justify-center gap-1.5 opacity-80 mt-1">
                                     <TokenIcon className="w-3.5 h-3.5" />
                                     <span className="text-xs font-semibold text-white/70">
@@ -189,10 +189,10 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
                             </div>
                         </button>
                         <div className="absolute top-3 right-3">
-                            <InfoTooltip ariaLabel="Generate title, description and tags">
+                            <InfoTooltip ariaLabel={t('viralGenerateTooltipData')}>
                                 <div className="space-y-1">
-                                    <div className="font-semibold text-[11px]">Generate Metadata</div>
-                                    <p className="text-[var(--muted)] leading-snug">Generate optimized title, description, and hashtags.</p>
+                                    <div className="font-semibold text-[11px]">{t('viralGenerateMetadata')}</div>
+                                    <p className="text-[var(--muted)] leading-snug">{t('viralGenerateDesc')}</p>
                                 </div>
                             </InfoTooltip>
                         </div>
@@ -217,7 +217,7 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
                         </div>
                     </div>
                     <p className="text-white/60 font-medium tracking-wide text-sm animate-pulse">
-                        {checkingFacts ? 'Verifying Accuracy...' : 'Generating Metadata...'}
+                        {checkingFacts ? t('checkingFacts') : t('viralAnalyzing')}
                     </p>
                 </div>
             )}
@@ -229,9 +229,9 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
                     <div className="flex items-center justify-between px-2">
                         <h4 className="text-xs font-semibold text-white/40 uppercase tracking-widest pl-2 flex items-center gap-2">
                             <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                            Fact Report
+                            {t('factReport')}
                         </h4>
-                        <button onClick={() => setFactCheckResult(null)} className="px-3 py-1 rounded-full bg-white/5 hover:bg-white/10 text-xs text-white/60 hover:text-white transition-colors backdrop-blur-md">Close</button>
+                        <button onClick={() => setFactCheckResult(null)} className="px-3 py-1 rounded-full bg-white/5 hover:bg-white/10 text-xs text-white/60 hover:text-white transition-colors backdrop-blur-md">{t('closeLabel')}</button>
                     </div>
 
                     {/* Truth Score Card */}
@@ -252,7 +252,7 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
                                 </svg>
                                 <div className="absolute inset-0 flex flex-col items-center justify-center">
                                     <span className="text-2xl font-bold text-white">{factCheckResult.truth_score}</span>
-                                    <span className="text-[10px] text-white/50 uppercase tracking-wide">Score</span>
+                                    <span className="text-[10px] text-white/50 uppercase tracking-wide">{t('scoreLabel')}</span>
                                 </div>
                             </div>
 
@@ -260,11 +260,11 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
                             <div className="flex-1 grid grid-cols-2 gap-4">
                                 <div className="p-4 rounded-2xl bg-white/5 border border-white/5">
                                     <div className="text-2xl font-bold text-white">{factCheckResult.claims_checked}</div>
-                                    <div className="text-[10px] text-white/40 uppercase tracking-wide mt-1">Claims Checked</div>
+                                    <div className="text-[10px] text-white/40 uppercase tracking-wide mt-1">{t('claimsCheckedLabel')}</div>
                                 </div>
                                 <div className="p-4 rounded-2xl bg-white/5 border border-white/5">
                                     <div className="text-2xl font-bold text-emerald-400">{factCheckResult.supported_claims_pct}%</div>
-                                    <div className="text-[10px] text-white/40 uppercase tracking-wide mt-1">Supported</div>
+                                    <div className="text-[10px] text-white/40 uppercase tracking-wide mt-1">{t('supportedLabel')}</div>
                                 </div>
                             </div>
                         </div>
@@ -275,7 +275,7 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
                             <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400">
                                 <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 6L9 17l-5-5" /></svg>
                             </div>
-                            <span className="text-base">All claims verified — no factual errors detected!</span>
+                            <span className="text-base">{t('allVerified')}</span>
                         </div>
                     ) : (
                         <div className="space-y-4">
@@ -286,14 +286,14 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
                                         {/* Severity & Confidence Row */}
                                         <div className="flex items-center gap-3">
                                             <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wide ${item.severity === 'major' ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
-                                                    item.severity === 'medium' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
-                                                        'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                                item.severity === 'medium' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
+                                                    'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                                                 }`}>
-                                                {item.severity}
+                                                {t(item.severity as any)}
                                             </span>
                                             <div className="flex items-center gap-1.5 text-white/40">
                                                 <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83" /></svg>
-                                                <span className="text-[10px] font-medium">{item.confidence}% confident</span>
+                                                <span className="text-[10px] font-medium">{t('confidenceLabel', { percent: item.confidence })}</span>
                                             </div>
                                         </div>
 
@@ -303,43 +303,43 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
                                                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                                             </div>
                                             <div className="flex-1">
-                                                <div className="text-[10px] font-medium text-red-400 mb-1 uppercase tracking-wide">Inaccuracy</div>
-                                                <p className="text-white/80 text-[15px] leading-relaxed">&quot;{item.mistake}&quot;</p>
+                                                <div className="text-[10px] font-medium text-red-400 mb-1 uppercase tracking-wide">{t('inaccuracyLabel')}</div>
+                                                <p className="text-white/80 text-[15px] leading-relaxed">&quot;{locale === 'el' ? item.mistake_el : item.mistake_en}&quot;</p>
                                             </div>
                                         </div>
 
                                         {/* Correction */}
                                         <div className="pl-12">
                                             <div className="p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/10">
-                                                <div className="text-[10px] font-medium text-emerald-400 mb-1 uppercase tracking-wide">Correction</div>
-                                                <p className="text-white/90 text-[15px] font-medium leading-relaxed">{item.correction}</p>
-                                                <p className="text-xs text-white/40 mt-3 pt-3 border-t border-white/5 leading-relaxed">{item.explanation}</p>
+                                                <div className="text-[10px] font-medium text-emerald-400 mb-1 uppercase tracking-wide">{t('correctionLabel')}</div>
+                                                <p className="text-white/90 text-[15px] font-medium leading-relaxed">{locale === 'el' ? item.correction_el : item.correction_en}</p>
+                                                <p className="text-xs text-white/40 mt-3 pt-3 border-t border-white/5 leading-relaxed">{locale === 'el' ? item.explanation_el : item.explanation_en}</p>
                                             </div>
                                         </div>
                                     </div>
 
                                     {/* Evidence Section */}
-                                    {(item.real_life_example || item.scientific_evidence) && (
+                                    {(item.real_life_example_el || item.real_life_example_en || item.scientific_evidence_el || item.scientific_evidence_en) && (
                                         <div className="px-5 pb-5 pt-0 space-y-3">
                                             {/* Real-life Example */}
-                                            {item.real_life_example && (
+                                            {(locale === 'el' ? item.real_life_example_el : item.real_life_example_en) && (
                                                 <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/10">
                                                     <div className="flex items-center gap-2 mb-2">
                                                         <span className="text-lg">💡</span>
-                                                        <span className="text-[10px] font-medium text-amber-400 uppercase tracking-wide">Real-world Example</span>
+                                                        <span className="text-[10px] font-medium text-amber-400 uppercase tracking-wide">{t('realWorldExampleLabel')}</span>
                                                     </div>
-                                                    <p className="text-white/70 text-sm leading-relaxed">{item.real_life_example}</p>
+                                                    <p className="text-white/70 text-sm leading-relaxed">{locale === 'el' ? item.real_life_example_el : item.real_life_example_en}</p>
                                                 </div>
                                             )}
 
                                             {/* Scientific Evidence */}
-                                            {item.scientific_evidence && (
+                                            {(locale === 'el' ? item.scientific_evidence_el : item.scientific_evidence_en) && (
                                                 <div className="p-4 rounded-xl bg-blue-500/5 border border-blue-500/10">
                                                     <div className="flex items-center gap-2 mb-2">
                                                         <span className="text-lg">🔬</span>
-                                                        <span className="text-[10px] font-medium text-blue-400 uppercase tracking-wide">Scientific Evidence</span>
+                                                        <span className="text-[10px] font-medium text-blue-400 uppercase tracking-wide">{t('scientificEvidenceLabel')}</span>
                                                     </div>
-                                                    <p className="text-white/70 text-sm leading-relaxed">{item.scientific_evidence}</p>
+                                                    <p className="text-white/70 text-sm leading-relaxed">{locale === 'el' ? item.scientific_evidence_el : item.scientific_evidence_en}</p>
                                                 </div>
                                             )}
                                         </div>
@@ -357,34 +357,34 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
                     <div className="flex items-center justify-between px-2">
                         <h4 className="text-xs font-semibold text-white/40 uppercase tracking-widest pl-2 flex items-center gap-2">
                             <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 4V2" /><path d="M15 16v-2" /></svg>
-                            Metadata
+                            {t('metadataLabel')}
                         </h4>
-                        <button onClick={() => setSocialCopyResult(null)} className="px-3 py-1 rounded-full bg-white/5 hover:bg-white/10 text-xs text-white/60 hover:text-white transition-colors backdrop-blur-md">Close</button>
+                        <button onClick={() => setSocialCopyResult(null)} className="px-3 py-1 rounded-full bg-white/5 hover:bg-white/10 text-xs text-white/60 hover:text-white transition-colors backdrop-blur-md">{t('closeLabel')}</button>
                     </div>
 
                     <div className="p-5 rounded-[2rem] bg-white/5 border border-white/10 backdrop-blur-md hover:bg-white/10 transition-colors space-y-4">
                         <div className="space-y-2">
                             <div className="flex items-center justify-between">
-                                <label className="text-xs font-medium text-purple-400 uppercase tracking-wide">Title</label>
-                                <CopyButton text={socialCopyResult.social_copy.title} label="Title" />
+                                <label className="text-xs font-medium text-purple-400 uppercase tracking-wide">{t('titleLabel')}</label>
+                                <CopyButton text={locale === 'el' ? socialCopyResult.social_copy.title_el : socialCopyResult.social_copy.title_en} label={t('titleLabel')} />
                             </div>
                             <div className="p-3 rounded-xl bg-black/20 border border-white/5 text-white/90 text-sm font-medium">
-                                {socialCopyResult.social_copy.title}
+                                {locale === 'el' ? socialCopyResult.social_copy.title_el : socialCopyResult.social_copy.title_en}
                             </div>
                         </div>
                         <div className="space-y-2">
                             <div className="flex items-center justify-between">
-                                <label className="text-xs font-medium text-purple-400 uppercase tracking-wide">Description</label>
-                                <CopyButton text={socialCopyResult.social_copy.description} label="Description" />
+                                <label className="text-xs font-medium text-purple-400 uppercase tracking-wide">{t('descriptionLabel')}</label>
+                                <CopyButton text={locale === 'el' ? socialCopyResult.social_copy.description_el : socialCopyResult.social_copy.description_en} label={t('descriptionLabel')} />
                             </div>
                             <div className="p-3 rounded-xl bg-black/20 border border-white/5 text-white/80 text-sm leading-relaxed whitespace-pre-wrap">
-                                {socialCopyResult.social_copy.description}
+                                {locale === 'el' ? socialCopyResult.social_copy.description_el : socialCopyResult.social_copy.description_en}
                             </div>
                         </div>
                         <div className="space-y-2">
                             <div className="flex items-center justify-between">
-                                <label className="text-xs font-medium text-purple-400 uppercase tracking-wide">Hashtags</label>
-                                <CopyButton text={socialCopyResult.social_copy.hashtags.join(' ')} label="Hashtags" />
+                                <label className="text-xs font-medium text-purple-400 uppercase tracking-wide">{t('hashtagsLabel')}</label>
+                                <CopyButton text={socialCopyResult.social_copy.hashtags.join(' ')} label={t('hashtagsLabel')} />
                             </div>
                             <div className="flex flex-wrap gap-2">
                                 {socialCopyResult.social_copy.hashtags.map((tag, i) => (

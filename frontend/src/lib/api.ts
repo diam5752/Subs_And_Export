@@ -512,13 +512,18 @@ class ApiClient {
 }
 
 export interface FactCheckItem {
-    mistake: string;
-    correction: string;
-    explanation: string;
+    mistake_el: string;
+    mistake_en: string;
+    correction_el: string;
+    correction_en: string;
+    explanation_el: string;
+    explanation_en: string;
     severity: 'minor' | 'medium' | 'major';
     confidence: number;
-    real_life_example: string;
-    scientific_evidence: string;
+    real_life_example_el: string;
+    real_life_example_en: string;
+    scientific_evidence_el: string;
+    scientific_evidence_en: string;
 }
 
 export interface FactCheckResponse {
@@ -530,8 +535,10 @@ export interface FactCheckResponse {
 }
 
 export interface SocialCopySchema {
-    title: string;
-    description: string;
+    title_el: string;
+    title_en: string;
+    description_el: string;
+    description_en: string;
     hashtags: string[];
 }
 
