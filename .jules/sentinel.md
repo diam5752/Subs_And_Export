@@ -116,3 +116,8 @@
 **Vulnerability:** The `_sanitize_ass_text` function failed to strip newline characters (`\n`, `\r`), allowing attackers to inject arbitrary ASS events (e.g. `Dialogue: ...`) into the generated subtitle file by breaking out of the intended line structure.
 **Learning:** Text-based formats (ASS, SRT, CSV) rely on newlines as structural delimiters. Sanitizing field-specific delimiters (like `{`, `}`, `,`) is insufficient if the record delimiter itself is not sanitized.
 **Prevention:** Always strip or replace control characters (newlines, carriage returns) from user inputs before embedding them into line-based file formats.
+
+## 2025-07-20 - [Medium] Unbounded GCS Uploads
+**Vulnerability:** The signed URL generation for GCS PUT uploads (`generate_signed_upload_url`) did not enforce the `Content-Length` header in the signature. This allowed a client to declare a small size (passing API checks) but upload a much larger file to GCS, potentially leading to excessive storage costs or Denial of Service.
+**Learning:** V4 signed URLs for PUT requests do not inherently limit body size unless sensitive headers like `Content-Length` are explicitly included in the signature.
+**Prevention:** Always sign the `Content-Length` header when generating pre-signed URLs for PUT uploads if the expected size is known.
