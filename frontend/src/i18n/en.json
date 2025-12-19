@@ -5,6 +5,8 @@
   "transcriptCancel": "Cancel",
   "transcriptSaving": "Saving…",
   "transcriptSaveError": "Unable to save transcript edits",
+  "jumpToTime": "Jump to {time}",
+  "jumpToCue": "Jump to cue: {text}",
   "modelSelectTitle": "Select a model",
   "modelSelectSubtitle": "Choose the engine before uploading",
   "tabStyles": "Styles",
