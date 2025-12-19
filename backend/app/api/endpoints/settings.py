@@ -51,7 +51,7 @@ class ProcessingSettings(BaseModel):
 
 def parse_resolution(res_str: str | None) -> tuple[int | None, int | None]:
     """Parse resolution strings like '1080x1920' or '2160×3840'.
-    
+
     Returns:
         Tuple of (width, height) or (None, None) if empty/invalid
     """
@@ -93,7 +93,7 @@ def build_processing_settings(
     watermark_enabled: bool,
 ) -> ProcessingSettings:
     """Build and validate processing settings from request parameters.
-    
+
     Raises:
         HTTPException: If any validation fails
     """
@@ -110,6 +110,8 @@ def build_processing_settings(
         raise HTTPException(status_code=400, detail="OpenAI model name too long")
     if len(video_resolution) > 50:
         raise HTTPException(status_code=400, detail="Resolution string too long")
+    if len(highlight_style) > 20:
+        raise HTTPException(status_code=400, detail="Highlight style too long")
 
     provider = validate_transcribe_provider(transcribe_provider)
     model = validate_model_name(transcribe_model, allow_empty=False, field_name="transcribe_model") or "medium"

@@ -130,3 +130,8 @@
 **Vulnerability:** `update_password`, `update_user_me`, and `delete_account` endpoints lacked rate limiting, allowing authenticated users to exhaust resources (e.g. scrypt hashing) or spam modifications.
 **Learning:** Even authenticated endpoints need rate limiting, especially those triggering expensive operations (hashing) or destructive actions.
 **Prevention:** Apply `AuthenticatedRateLimiter` to all mutation endpoints.
+
+## 2025-12-26 - [Medium] Missing Input Length Limit on Highlight Style
+**Vulnerability:** The `/videos/process` endpoint accepted unbounded strings for `highlight_style`. While verified against an allowlist, the length check was performed *after* string manipulation (`strip().lower()`) inside the validator, potentially allowing memory exhaustion or CPU consumption via massive inputs.
+**Learning:** Validators that perform string operations (normalization) before checking length are vulnerable to DoS. Length checks must always precede semantic validation.
+**Prevention:** Explicitly check `len(field) > MAX` before passing the field to any processing or validation functions, especially for `Form` data which bypasses Pydantic's default constraints.
