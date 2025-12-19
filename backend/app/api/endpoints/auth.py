@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 from ...core.auth import SessionStore, User, UserStore
 from ...core.oauth_state import OAuthStateStore
-from ...core.ratelimit import limiter_login, limiter_register
+from ...core.ratelimit import limiter_auth_change, limiter_login, limiter_register
 from ...services.history import HistoryStore
 from ...services.jobs import JobStore
 from ...services.points import PointsStore
@@ -100,7 +100,7 @@ def read_my_points(
 class UserUpdateName(BaseModel):
     name: str = Field(..., max_length=100)
 
-@router.put("/me", response_model=UserResponse)
+@router.put("/me", response_model=UserResponse, dependencies=[Depends(limiter_auth_change)])
 def update_user_me(
     user_in: UserUpdateName,
     current_user: User = Depends(get_current_user),
@@ -115,7 +115,7 @@ class UserUpdatePassword(BaseModel):
     password: str = Field(..., min_length=12, max_length=128)
     confirm_password: str = Field(..., max_length=128)
 
-@router.put("/password", response_model=Any)
+@router.put("/password", response_model=Any, dependencies=[Depends(limiter_auth_change)])
 def update_password(
     user_in: UserUpdatePassword,
     current_user: User = Depends(get_current_user),
@@ -170,7 +170,7 @@ def export_my_data(
         "history": history
     }
 
-@router.delete("/me", response_model=Any)
+@router.delete("/me", response_model=Any, dependencies=[Depends(limiter_auth_change)])
 def delete_account(
     current_user: User = Depends(get_current_user),
     user_store: UserStore = Depends(get_user_store),

@@ -107,3 +107,6 @@ limiter_processing = AuthenticatedRateLimiter(limit=10, window=60)
 # 10 content generation attempts per minute per USER
 # Changed to AuthenticatedRateLimiter to prevent shared IP blocking on Cloud Run
 limiter_content = AuthenticatedRateLimiter(limit=10, window=60)
+
+# 5 account modifications per minute per USER (password, name, delete)
+limiter_auth_change = AuthenticatedRateLimiter(limit=5, window=60)

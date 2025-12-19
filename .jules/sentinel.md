@@ -125,3 +125,8 @@
 **Vulnerability:** The `exchange_google_code` function performed external network calls (token exchange and ID token verification) without timeouts, creating a risk of thread starvation if Google servers were unreachable.
 **Learning:** `google.oauth2.id_token.verify_oauth2_token` uses a default `Request` object that lacks a timeout. It does not accept a simple `timeout` argument.
 **Prevention:** Subclass `google.auth.transport.requests.Request` to override `__call__` and inject a default timeout, then pass this custom request object to verification functions.
+
+## 2025-12-25 - [Medium] Unthrottled Sensitive Account Mutations
+**Vulnerability:** `update_password`, `update_user_me`, and `delete_account` endpoints lacked rate limiting, allowing authenticated users to exhaust resources (e.g. scrypt hashing) or spam modifications.
+**Learning:** Even authenticated endpoints need rate limiting, especially those triggering expensive operations (hashing) or destructive actions.
+**Prevention:** Apply `AuthenticatedRateLimiter` to all mutation endpoints.
