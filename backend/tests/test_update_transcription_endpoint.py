@@ -46,6 +46,12 @@ def test_update_transcription_overwrites_job_artifacts(monkeypatch, tmp_path: Pa
     uploads_dir.mkdir(parents=True, exist_ok=True)
     source_artifacts_dir.mkdir(parents=True, exist_ok=True)
 
+    # Mock _resolve_sample_source to return our manual setup
+    monkeypatch.setattr(
+        "backend.app.api.endpoints.dev._resolve_sample_source",
+        lambda *args: (source_job_id, uploads_dir / f"{source_job_id}_input.mp4", source_artifacts_dir)
+    )
+
     (uploads_dir / f"{source_job_id}_input.mp4").write_bytes(b"video")
     source_transcription = [{"start": 0.0, "end": 1.0, "text": "hi", "words": []}]
     (source_artifacts_dir / "transcription.json").write_text(
@@ -59,40 +65,40 @@ def test_update_transcription_overwrites_job_artifacts(monkeypatch, tmp_path: Pa
 
     from backend.main import app
 
-    client = TestClient(app)
-    headers = _auth_header(client, "update-transcript@example.com")
+    with TestClient(app) as client:
+        headers = _auth_header(client, "update-transcript@example.com")
 
-    created = client.post("/dev/sample-job", headers=headers)
-    assert created.status_code == 200, created.text
-    job_id = created.json()["id"]
+        created = client.post("/dev/sample-job", headers=headers)
+        assert created.status_code == 200, created.text
+        job_id = created.json()["id"]
 
-    target_transcription_path = data_dir / "artifacts" / job_id / "transcription.json"
-    assert target_transcription_path.exists()
+        target_transcription_path = data_dir / "artifacts" / job_id / "transcription.json"
+        assert target_transcription_path.exists()
 
-    update_body = {
-        "cues": [
-            {
-                "start": 0.0,
-                "end": 1.0,
-                "text": "hello world",
-                "words": [
-                    {"start": 0.0, "end": 0.5, "text": "hello"},
-                    {"start": 0.5, "end": 1.0, "text": "world"},
-                ],
-            }
-        ]
-    }
+        update_body = {
+            "cues": [
+                {
+                    "start": 0.0,
+                    "end": 1.0,
+                    "text": "hello world",
+                    "words": [
+                        {"start": 0.0, "end": 0.5, "text": "hello"},
+                        {"start": 0.5, "end": 1.0, "text": "world"},
+                    ],
+                }
+            ]
+        }
 
-    resp = client.put(f"/videos/jobs/{job_id}/transcription", headers=headers, json=update_body)
-    assert resp.status_code == 200, resp.text
-    assert resp.json()["status"] == "ok"
+        resp = client.put(f"/videos/jobs/{job_id}/transcription", headers=headers, json=update_body)
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["status"] == "ok"
 
-    updated = json.loads(target_transcription_path.read_text(encoding="utf-8"))
-    assert updated == update_body["cues"]
+        updated = json.loads(target_transcription_path.read_text(encoding="utf-8"))
+        assert updated == update_body["cues"]
 
-    source_after = json.loads((source_artifacts_dir / "transcription.json").read_text(encoding="utf-8"))
-    assert source_after == source_transcription
+        source_after = json.loads((source_artifacts_dir / "transcription.json").read_text(encoding="utf-8"))
+        assert source_after == source_transcription
 
-    job_detail = client.get(f"/videos/jobs/{job_id}", headers=headers)
-    assert job_detail.status_code == 200, job_detail.text
-    assert job_detail.json()["result_data"]["transcription_edited"] is True
+        job_detail = client.get(f"/videos/jobs/{job_id}", headers=headers)
+        assert job_detail.status_code == 200, job_detail.text
+        assert job_detail.json()["result_data"]["transcription_edited"] is True

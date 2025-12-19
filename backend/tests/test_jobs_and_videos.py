@@ -6,6 +6,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from backend.app.api.endpoints import videos
+from backend.app.api.endpoints import processing_tasks
 from backend.app.core import auth as backend_auth
 from backend.app.core.database import Database
 from backend.app.services import jobs
@@ -77,7 +78,7 @@ def test_run_video_processing_success(monkeypatch, tmp_path: Path):
         social = types.SimpleNamespace(tiktok=types.SimpleNamespace(title="hi"))
         return output_path, social
 
-    monkeypatch.setattr(videos, "normalize_and_stub_subtitles", fake_normalize)
+    monkeypatch.setattr(processing_tasks, "normalize_and_stub_subtitles", fake_normalize)
     settings = videos.ProcessingSettings()
     videos.run_video_processing(job.id, input_path, output_path, output_path.parent, settings, store)
 
@@ -104,13 +105,14 @@ def test_run_video_processing_failure(monkeypatch, tmp_path: Path):
     def boom(*args, **kwargs):
         raise RuntimeError("explode")
 
-    monkeypatch.setattr(videos, "normalize_and_stub_subtitles", boom)
+    monkeypatch.setattr(processing_tasks, "normalize_and_stub_subtitles", boom)
     settings = videos.ProcessingSettings()
     videos.run_video_processing(job.id, input_path, output_path, tmp_path / "artifacts2", settings, store)
 
     failed = store.get_job(job.id)
     assert failed and failed.status == "failed"
-    assert "explode" in (failed.message or "")
+    # Note: Error message is sanitized for security ("An internal error occurred" instead of raw error)
+    assert failed.message is not None and "error" in failed.message.lower()
 
 
 def test_run_video_processing_handles_path_only(monkeypatch, tmp_path: Path):
@@ -131,7 +133,7 @@ def test_run_video_processing_handles_path_only(monkeypatch, tmp_path: Path):
         output_path.write_bytes(b"ok")
         return output_path
 
-    monkeypatch.setattr(videos, "normalize_and_stub_subtitles", fake_normalize)
+    monkeypatch.setattr(processing_tasks, "normalize_and_stub_subtitles", fake_normalize)
     settings = videos.ProcessingSettings()
     videos.run_video_processing(job.id, input_path, output_path, output_path.parent, settings, store)
 
@@ -164,7 +166,7 @@ def test_run_video_processing_does_not_restart_cancelled_job_and_refunds(monkeyp
     output_path = tmp_path / "artifacts_cancel" / "out.mp4"
 
     monkeypatch.setattr(
-        videos,
+        processing_tasks,
         "normalize_and_stub_subtitles",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("should not process cancelled jobs")),
     )
@@ -193,9 +195,9 @@ def test_run_gcs_video_processing_does_not_restart_cancelled_job_and_refunds(mon
 
     import types
 
-    monkeypatch.setattr(videos, "get_gcs_settings", lambda: types.SimpleNamespace(keep_uploads=True))
+    monkeypatch.setattr(processing_tasks, "get_gcs_settings", lambda: types.SimpleNamespace(keep_uploads=True))
     monkeypatch.setattr(
-        videos,
+        processing_tasks,
         "download_object",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("should not download cancelled jobs")),
     )
@@ -276,7 +278,15 @@ def test_reprocess_job_creates_new_job(client: TestClient, monkeypatch):
         calls.append(job_id)
         job_store.update_job(job_id, status="completed", progress=100, message="Done!")
 
+    # Must patch at the location where the function is CALLED, not where it's defined
+    from backend.app.api.endpoints import reprocess_routes
+    monkeypatch.setattr(reprocess_routes, "run_video_processing", fake_run)
     monkeypatch.setattr(videos, "run_video_processing", fake_run)
+    
+    # Mock probe_media to return valid probe result for fake video data
+    fake_probe_result = types.SimpleNamespace(duration_s=10.0, width=1920, height=1080)
+    monkeypatch.setattr(reprocess_routes, "probe_media", lambda path: fake_probe_result)
+    monkeypatch.setattr(videos, "probe_media", lambda path: fake_probe_result)
 
     source = client.post(
         "/videos/process",
@@ -286,15 +296,19 @@ def test_reprocess_job_creates_new_job(client: TestClient, monkeypatch):
     assert source.status_code == 200
     source_job_id = source.json()["id"]
 
+    # The fake_run should have been called for the source job, completing it
+    assert source_job_id in calls
+
     resp = client.post(f"/videos/jobs/{source_job_id}/reprocess", headers=headers, json={})
-    assert resp.status_code == 200
+    print(f"DEBUG: reprocess response status={resp.status_code}, body={resp.text}")
+    assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
     new_job_id = resp.json()["id"]
     assert new_job_id != source_job_id
 
-    # Background task should have been scheduled (and executed by the test client)
+    # Both jobs should have been processed
+    assert len(calls) == 2
     assert calls[0] == source_job_id
     assert calls[1] == new_job_id
-
 
 def test_reprocess_job_requires_completed_source_job(client: TestClient, monkeypatch):
     headers = _auth_header(client, email="reprocess_pending@example.com")

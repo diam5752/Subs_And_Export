@@ -30,7 +30,9 @@ def test_ensure_job_size_exception():
              videos._ensure_job_size(mock_job)
 
 def test_create_viral_metadata_generic_exception(client: TestClient, user_auth_headers: dict, monkeypatch):
-    """Cover generic exception in create_viral_metadata (lines 427-428)."""
+    """Cover generic exception in create_viral_metadata - SKIPPED: viral_metadata feature removed."""
+    import pytest
+    pytest.skip("viral_metadata feature removed")
     from backend.app.api import deps
     from backend.app.core.auth import User
     from backend.app.services.jobs import Job
@@ -178,7 +180,9 @@ def test_process_video_content_length_invalid(client: TestClient, user_auth_head
             app.dependency_overrides = {}
 
 def test_create_viral_metadata_job_not_found(client: TestClient, user_auth_headers: dict):
-    """Cover Job not found (line 404)."""
+    """Cover Job not found - SKIPPED: viral_metadata feature removed."""
+    import pytest
+    pytest.skip("viral_metadata feature removed")
     from backend.app.api import deps
     from backend.app.core.auth import User
 
@@ -275,7 +279,7 @@ def test_save_upload_limit_boundary(monkeypatch):
     from backend.app.api.endpoints import videos
 
     # Mock settings
-    monkeypatch.setattr(videos, "MAX_UPLOAD_BYTES", 10) # 10 bytes limit
+    monkeypatch.setattr("backend.app.api.endpoints.file_utils.MAX_UPLOAD_BYTES", 10) # 10 bytes limit
 
     # Create valid UploadFile
     # UploadFile takes a 'file' argument which is a SpooledTemporaryFile usually
@@ -339,7 +343,9 @@ def test_load_openai_client_no_key(monkeypatch):
         assert "OpenAI API key is required" in str(e)
 
 def test_generate_viral_metadata_no_key(monkeypatch):
-    """Cover generate_viral_metadata missing key (line 1004)."""
+    """Cover generate_viral_metadata missing key - SKIPPED: feature removed."""
+    import pytest
+    pytest.skip("generate_viral_metadata feature removed")
     from backend.app.services import subtitles
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.setattr(subtitles, "_resolve_openai_api_key", lambda *a: None)
@@ -351,7 +357,9 @@ def test_generate_viral_metadata_no_key(monkeypatch):
         assert "OpenAI API key is required" in str(e)
 
 def test_generate_viral_metadata_empty_response(monkeypatch):
-    """Cover empty LLM response (line 1051)."""
+    """Cover empty LLM response - SKIPPED: feature removed."""
+    import pytest
+    pytest.skip("generate_viral_metadata feature removed")
     from backend.app.services import subtitles
 
     monkeypatch.setenv("OPENAI_API_KEY", "key")

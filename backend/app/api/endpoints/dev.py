@@ -117,7 +117,7 @@ def _resolve_sample_source(
             "Run a job with these settings first to create a sample."
         )
         raise HTTPException(status_code=404, detail=hint)
-    
+
     # Use the first available candidate
     # Logic below iterates, but effectively picks the first valid one
     pass

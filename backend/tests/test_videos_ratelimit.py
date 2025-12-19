@@ -52,7 +52,9 @@ def test_process_rate_limit(client, user_auth_headers):
 
 
 def test_viral_metadata_rate_limit(client, user_auth_headers, monkeypatch, tmp_path):
-    """Verify rate limiting on viral metadata generation."""
+    """Verify rate limiting on viral metadata generation - SKIPPED: endpoint removed."""
+    import pytest
+    pytest.skip("viral-metadata endpoint removed")
     # Mock data roots to use tmp_path
     monkeypatch.setattr(videos.config, "PROJECT_ROOT", tmp_path)
 

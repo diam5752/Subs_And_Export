@@ -54,7 +54,7 @@ def test_process_video_charges_points_and_returns_balance(
     )
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["balance"] == before - 500
+    assert body["balance"] == before - 200  # Updated cost from 500 to 200
 
     after = client.get("/auth/points", headers=user_auth_headers).json()["balance"]
     assert after == body["balance"]
@@ -87,7 +87,7 @@ def test_process_video_refunds_points_when_processing_fails(
     )
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["balance"] == before - 500
+    assert body["balance"] == before - 200  # Updated cost from 500 to 200
 
     after = client.get("/auth/points", headers=user_auth_headers).json()["balance"]
     assert after == before
@@ -129,6 +129,7 @@ def test_fact_check_charges_points_and_rejects_on_insufficient_balance(
     artifacts_dir = data_dir / "artifacts"
     uploads_dir.mkdir(parents=True)
     artifacts_dir.mkdir(parents=True)
+    monkeypatch.setattr("backend.app.api.endpoints.intelligence_routes.data_roots", lambda: (data_dir, uploads_dir, artifacts_dir))
     monkeypatch.setattr(videos_endpoints, "_data_roots", lambda: (data_dir, uploads_dir, artifacts_dir))
     monkeypatch.setattr(videos_endpoints, "run_video_processing", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
@@ -182,6 +183,7 @@ def test_fact_check_refunds_points_when_generation_fails(
     artifacts_dir = data_dir / "artifacts"
     uploads_dir.mkdir(parents=True)
     artifacts_dir.mkdir(parents=True)
+    monkeypatch.setattr("backend.app.api.endpoints.intelligence_routes.data_roots", lambda: (data_dir, uploads_dir, artifacts_dir))
     monkeypatch.setattr(videos_endpoints, "_data_roots", lambda: (data_dir, uploads_dir, artifacts_dir))
 
     monkeypatch.setattr(

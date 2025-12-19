@@ -2,6 +2,7 @@
 from fastapi.testclient import TestClient
 
 from backend.main import app
+from backend.app.api.endpoints import export_routes
 
 
 def test_cancel_job_success(client: TestClient, user_auth_headers: dict, monkeypatch):
@@ -29,7 +30,12 @@ def test_cancel_job_success(client: TestClient, user_auth_headers: dict, monkeyp
             def count_active_jobs_for_user(self, user_id):
                 return 0
 
+        class MockHistoryStore:
+            def add_event(self, *args, **kwargs):
+                pass
+
         app.dependency_overrides[deps.get_job_store] = lambda: MockJobStore()
+        app.dependency_overrides[deps.get_history_store] = lambda: MockHistoryStore()
 
         # Test cancellation
         response = client.post("/videos/jobs/job1/cancel", headers=user_auth_headers)
@@ -107,6 +113,7 @@ def test_export_video_failure(client: TestClient, user_auth_headers: dict, monke
             (uploads / "job1_input.mp4").touch()
 
             monkeypatch.setattr("backend.app.api.endpoints.videos._data_roots", lambda: (tpath, uploads, tpath / "artifacts"))
+            monkeypatch.setattr(export_routes, "data_roots", lambda: (tpath, uploads, tpath / "artifacts"))
 
             # Mock generate_video_variant to raise exception
             def mock_gen(*args, **kwargs):

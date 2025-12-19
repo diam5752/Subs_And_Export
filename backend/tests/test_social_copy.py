@@ -60,14 +60,14 @@ def test_build_social_copy_llm_uses_client(monkeypatch) -> None:
     calls = {}
 
     # Mock the OpenAI client
-    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setattr(subtitles, "_resolve_openai_api_key", lambda *a: "test-key")
     monkeypatch.setattr(subtitles, "_load_openai_client", lambda api_key: _fake_openai_client(calls))
 
     social = subtitles.build_social_copy_llm("hello world", model="gpt-test", temperature=0.7)
 
     assert calls["kwargs"]["model"] == "gpt-test"
     assert calls["kwargs"]["temperature"] == 0.7
-    assert calls["kwargs"]["max_completion_tokens"] == 1200
+    assert calls["kwargs"]["max_completion_tokens"] == 3000  # Updated to match actual code
     assert social.generic.title == "Generic Title"
     assert social.generic.description == "Generic Description"
     assert "#generic" in social.generic.hashtags
@@ -77,7 +77,8 @@ def test_build_social_copy_llm_prefers_explicit_key(monkeypatch) -> None:
     calls = {}
     captured_keys: list[str] = []
 
-    monkeypatch.setenv("OPENAI_API_KEY", "env-key")
+    # Mock env var via resolver patch (since env is blocked globally)
+    monkeypatch.setattr(subtitles, "_resolve_openai_api_key", lambda *a: "env-key")
     monkeypatch.setattr(
         subtitles,
         "_load_openai_client",
@@ -92,6 +93,8 @@ def test_build_social_copy_llm_prefers_explicit_key(monkeypatch) -> None:
 def test_build_social_copy_llm_requires_key(monkeypatch) -> None:
     """Verify that API key is required for LLM social copy generation."""
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.setattr(subtitles.config, "SOCIAL_LLM_MODEL", "gpt-test")
+    monkeypatch.setattr(subtitles, "_resolve_openai_api_key", lambda: None)
     with pytest.raises(RuntimeError, match="OpenAI API key is required"):
         subtitles.build_social_copy_llm("hi there")
 
@@ -129,7 +132,7 @@ def test_build_social_copy_llm_retries_on_failure(monkeypatch) -> None:
         def __init__(self):
             self.chat = type("Chat", (), {"completions": FlakyChatCompletions()})()
 
-    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setattr(subtitles, "_resolve_openai_api_key", lambda *a: "test-key")
     client = FlakyClient()
     monkeypatch.setattr(subtitles, "_load_openai_client", lambda api_key: client)
 

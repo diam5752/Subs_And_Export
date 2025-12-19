@@ -3,6 +3,7 @@ import uuid
 from pathlib import Path
 from fastapi.testclient import TestClient
 from backend.app.api.endpoints import videos
+from backend.app.api.endpoints import export_routes
 from backend.app.core import auth as backend_auth
 from backend.app.core.database import Database
 from backend.app.services import jobs
@@ -19,6 +20,7 @@ def test_srt_export_success(client: TestClient, monkeypatch, tmp_path: Path):
     # Setup environment
     monkeypatch.setattr(videos.config, "PROJECT_ROOT", tmp_path)
     monkeypatch.setattr(videos, "_data_roots", lambda: (tmp_path, tmp_path / "uploads", tmp_path / "artifacts"))
+    monkeypatch.setattr(export_routes, "data_roots", lambda: (tmp_path, tmp_path / "uploads", tmp_path / "artifacts"))
     
     # Setup DB
     db = Database(tmp_path / "srt_test.db")

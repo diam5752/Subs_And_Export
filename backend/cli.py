@@ -136,15 +136,11 @@ def process(
 
     if isinstance(result, tuple):
         social = result[1]
-        typer.echo("\nSuggested platform copy:")
-        typer.echo(f"TikTok title: {social.tiktok.title}")
-        typer.echo(f"TikTok description:\n{social.tiktok.description}\n")
-        typer.echo(f"YouTube Shorts title: {social.youtube_shorts.title}")
-        typer.echo(
-            f"YouTube Shorts description:\n{social.youtube_shorts.description}\n"
-        )
-        typer.echo(f"Instagram title: {social.instagram.title}")
-        typer.echo(f"Instagram description:\n{social.instagram.description}\n")
+        typer.echo("\nGenerated Social Copy:")
+        typer.echo(f"Title: {social.generic.title}")
+        typer.echo(f"Description:\n{social.generic.description}")
+        if social.generic.hashtags:
+            typer.echo(f"Hashtags: {' '.join(social.generic.hashtags)}")
 
 
 def main() -> None:

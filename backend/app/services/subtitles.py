@@ -1848,6 +1848,7 @@ def generate_fact_check(
                 model=model_name,
                 messages=messages,
                 timeout=120.0,
+                temperature=temperature,
                 max_completion_tokens=config.MAX_LLM_OUTPUT_TOKENS_FACTCHECK,
                 response_format={"type": "json_object"},
             )

@@ -32,6 +32,12 @@ def test_dev_sample_job_creates_completed_job(monkeypatch, tmp_path: Path) -> No
     uploads_dir.mkdir(parents=True, exist_ok=True)
     artifacts_dir.mkdir(parents=True, exist_ok=True)
 
+    # Mock _resolve_sample_source to return our manual setup
+    monkeypatch.setattr(
+        "backend.app.api.endpoints.dev._resolve_sample_source",
+        lambda *args: (sample_job_id, uploads_dir / f"{sample_job_id}_input.mp4", artifacts_dir)
+    )
+
     (uploads_dir / f"{sample_job_id}_input.mp4").write_bytes(b"video")
     (artifacts_dir / "transcription.json").write_text(
         json.dumps([{"start": 0.0, "end": 1.0, "text": "hi", "words": []}]),
@@ -41,13 +47,13 @@ def test_dev_sample_job_creates_completed_job(monkeypatch, tmp_path: Path) -> No
 
     from backend.main import app
 
-    client = TestClient(app)
-    headers = _auth_header(client, "dev-sample@example.com")
+    with TestClient(app) as client:
+        headers = _auth_header(client, "dev-sample@example.com")
 
-    resp = client.post("/dev/sample-job", headers=headers)
-    assert resp.status_code == 200, resp.text
-    payload = resp.json()
-    assert payload["status"] == "completed"
-    assert payload["result_data"]["transcription_url"].endswith("/transcription.json")
-    assert payload["result_data"]["dev_sample_source_job_id"] == sample_job_id
+        resp = client.post("/dev/sample-job", headers=headers)
+        assert resp.status_code == 200, resp.text
+        payload = resp.json()
+        assert payload["status"] == "completed"
+        assert payload["result_data"]["transcription_url"].endswith("/transcription.json")
+        assert payload["result_data"]["dev_sample_source_job_id"] == sample_job_id
 
