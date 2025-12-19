@@ -229,6 +229,92 @@ export function Sidebar() {
         setActivePreset(null);
     }, [setWatermarkEnabled, setActivePreset]);
 
+    // Optimized: Calculate derived values outside render loop
+    const karaokeSupported = useMemo(() => {
+        return AVAILABLE_MODELS.find(m => m.provider === transcribeProvider && m.mode === transcribeMode)?.stats.karaoke || false;
+    }, [AVAILABLE_MODELS, transcribeProvider, transcribeMode]);
+
+    const jobId = selectedJob?.id;
+    const thumbnailUrl = videoInfo?.thumbnailUrl;
+
+    // Optimized: Memoize Styles Panel to prevent VDOM re-creation on high-frequency Context updates (like currentTime)
+    const stylesPanel = useMemo(() => (
+        <div
+            role="tabpanel"
+            id="panel-styles"
+            aria-labelledby="tab-styles"
+            className="animate-fade-in pr-2"
+        >
+            {/* Style Presets Grid */}
+            <StylePresetTiles
+                presets={STYLE_PRESETS}
+                activePreset={activePreset}
+                lastUsedSettings={lastUsedSettings}
+                onSelectPreset={handlePresetSelect}
+                onSelectLastUsed={handleLastUsedSelect}
+            />
+
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-3">Custom Settings</h4>
+            <SubtitlePositionSelector
+                value={subtitlePosition}
+                onChange={handlePositionChange}
+                lines={maxSubtitleLines}
+                onChangeLines={handleLinesChange}
+                thumbnailUrl={thumbnailUrl}
+                subtitleColor={subtitleColor}
+                onChangeColor={handleColorChange}
+                colors={SUBTITLE_COLORS}
+                disableMaxLines={transcribeProvider === 'whispercpp'}
+                subtitleSize={subtitleSize}
+                onChangeSize={handleSizeChange}
+                karaokeEnabled={karaokeEnabled}
+                onChangeKaraoke={handleKaraokeChange}
+                watermarkEnabled={watermarkEnabled}
+                onChangeWatermark={handleWatermarkChange}
+                karaokeSupported={karaokeSupported}
+                previewVideoUrl={previewVideoUrl || undefined}
+                cues={cues}
+                hidePreview={true}
+            />
+        </div>
+    ), [
+        activePreset,
+        lastUsedSettings,
+        STYLE_PRESETS,
+        subtitlePosition,
+        maxSubtitleLines,
+        subtitleColor,
+        SUBTITLE_COLORS,
+        subtitleSize,
+        karaokeEnabled,
+        watermarkEnabled,
+        karaokeSupported,
+        transcribeProvider,
+        thumbnailUrl,
+        previewVideoUrl,
+        cues,
+        handlePresetSelect,
+        handleLastUsedSelect,
+        handlePositionChange,
+        handleLinesChange,
+        handleColorChange,
+        handleSizeChange,
+        handleKaraokeChange,
+        handleWatermarkChange
+    ]);
+
+    // Optimized: Memoize Intelligence Panel
+    const intelligencePanel = useMemo(() => (
+        <div
+            role="tabpanel"
+            id="panel-intelligence"
+            aria-labelledby="tab-intelligence"
+            className="animate-fade-in pr-2"
+        >
+            {jobId && <ViralIntelligence jobId={jobId} />}
+        </div>
+    ), [jobId]);
+
     if (!selectedJob) return null;
 
     return (
@@ -319,57 +405,9 @@ export function Sidebar() {
                         <TranscriptPanel />
                     )}
 
-                    {activeSidebarTab === 'styles' && (
-                        <div
-                            role="tabpanel"
-                            id="panel-styles"
-                            aria-labelledby="tab-styles"
-                            className="animate-fade-in pr-2"
-                        >
-                            {/* Style Presets Grid */}
-                            <StylePresetTiles
-                                presets={STYLE_PRESETS}
-                                activePreset={activePreset}
-                                lastUsedSettings={lastUsedSettings}
-                                onSelectPreset={handlePresetSelect}
-                                onSelectLastUsed={handleLastUsedSelect}
-                            />
+                    {activeSidebarTab === 'styles' && stylesPanel}
 
-                            <h4 className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-3">Custom Settings</h4>
-                            <SubtitlePositionSelector
-                                value={subtitlePosition}
-                                onChange={handlePositionChange}
-                                lines={maxSubtitleLines}
-                                onChangeLines={handleLinesChange}
-                                thumbnailUrl={videoInfo?.thumbnailUrl}
-                                subtitleColor={subtitleColor}
-                                onChangeColor={handleColorChange}
-                                colors={SUBTITLE_COLORS}
-                                disableMaxLines={transcribeProvider === 'whispercpp'}
-                                subtitleSize={subtitleSize}
-                                onChangeSize={handleSizeChange}
-                                karaokeEnabled={karaokeEnabled}
-                                onChangeKaraoke={handleKaraokeChange}
-                                watermarkEnabled={watermarkEnabled}
-                                onChangeWatermark={handleWatermarkChange}
-                                karaokeSupported={AVAILABLE_MODELS.find(m => m.provider === transcribeProvider && m.mode === transcribeMode)?.stats.karaoke || false}
-                                previewVideoUrl={previewVideoUrl || undefined}
-                                cues={cues}
-                                hidePreview={true}
-                            />
-                        </div>
-                    )}
-
-                    {activeSidebarTab === 'intelligence' && (
-                        <div
-                            role="tabpanel"
-                            id="panel-intelligence"
-                            aria-labelledby="tab-intelligence"
-                            className="animate-fade-in pr-2"
-                        >
-                            <ViralIntelligence jobId={selectedJob.id} />
-                        </div>
-                    )}
+                    {activeSidebarTab === 'intelligence' && intelligencePanel}
                 </div>
 
                 <div className="pt-4 mt-4 border-t border-[var(--border)]/60 space-y-4">
