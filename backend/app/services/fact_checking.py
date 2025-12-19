@@ -40,50 +40,6 @@ class FactCheckResult:
     items: List[FactCheckItem]
 
 
-def screen_for_errors(client: Any, model_name: str, text: str) -> bool:
-    """
-    Step 1 of Two-Pass Fact Check:
-    Ask a simple Yes/No question to determine if detailed analysis is needed.
-    Returns: True if errors are suspected, False if clean.
-    """
-    try:
-        # Ultra-concise prompt for minimal token usage
-        prompt = (
-            "Analyze text for OBJECTIVE FACTUAL ERRORS (dates, numbers, history, science).\n"
-            "Ignore opinions, grammar, or slight exaggerations.\n"
-            "Reply 'YES' if there are clear factual mistakes.\n"
-            "Reply 'NO' if it looks factually safe.\n\n"
-            "TEXT:\n"
-            f"{text[:10000]}" # Truncate for screening just in case
-        )
-
-        logger.info(f"Running Fact Check Screening on {len(text)} chars (truncated to 10k)")
-
-        response = client.chat.completions.create(
-            model=model_name,
-            messages=[{"role": "user", "content": prompt}],
-            max_completion_tokens=10, # We only need one word
-            temperature=1, # Model requires 1
-        )
-        content = response.choices[0].message.content.strip().upper()
-        
-        # Log token usage for screening
-        if hasattr(response, "usage"):
-            logger.info(f"Fact Check Screening Token Usage: Input={response.usage.prompt_tokens}, Output={response.usage.completion_tokens}, Total={response.usage.total_tokens}")
-
-        # If unsure, lean towards YES to avoid false negatives (100% score on bad text)
-        if "YES" in content:
-            return True
-        if "NO" in content:
-            return False
-        
-        # If response is ambiguous, default to safe "YES"
-        return True
-    except Exception as e:
-        logger.warning(f"Fact Check Screening failed: {e}. Defaulting to full check.")
-        return True # Fail open (check safety if screener fails)
-
-
 def generate_fact_check(
     transcript_text: str,
     *,

@@ -234,35 +234,6 @@ def test_generate_subtitles_from_audio_passes_decoding_params(monkeypatch, tmp_p
 
 # --- Testing New Service Logic (Refactored) ---
 
-def test_screen_for_errors_empty():
-    mock_client = MagicMock()
-    mock_response = MagicMock()
-    mock_response.choices[0].message.content = "NO"
-    mock_client.chat.completions.create.return_value = mock_response
-    assert fact_checking.screen_for_errors(mock_client, "gpt-4", "") is False
-
-
-def test_screen_for_errors_basic_pass():
-    mock_client = MagicMock()
-    mock_response = MagicMock()
-    mock_response.choices[0].message.content = "NO"
-    mock_client.chat.completions.create.return_value = mock_response
-
-    # screen_for_errors now takes (client, model_name, text)
-    text = "Hello world This is fine"
-    assert fact_checking.screen_for_errors(mock_client, "gpt-4", text) is False
-
-
-def test_screen_for_errors_catches_keywords():
-    mock_client = MagicMock()
-    mock_response = MagicMock()
-    mock_response.choices[0].message.content = "YES" # Simulate LLM catching error
-    mock_client.chat.completions.create.return_value = mock_response
-    
-    text = "Before 2000 years something historical"
-    assert fact_checking.screen_for_errors(mock_client, "gpt-4", text) is True
-
-
 def test_clean_json_response_strips_fences():
     raw = "```json\n{\"foo\": \"bar\"}\n```"
     cleaned = llm_utils.clean_json_response(raw)
