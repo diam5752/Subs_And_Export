@@ -1,11 +1,9 @@
+import subprocess
 import sys
-import types
 from pathlib import Path
 from unittest.mock import MagicMock, patch
-import subprocess
 
 import pytest
-import tomllib  # For mocking
 
 from backend.app.core import config
 from backend.app.services import (
@@ -15,12 +13,11 @@ from backend.app.services import (
     subtitle_renderer,
     subtitles,
 )
-from backend.app.services.subtitle_types import Cue, WordTiming, TimeRange
-from backend.app.services.transcription.base import Transcriber
+from backend.app.services import social_intelligence as social_lib
+from backend.app.services.subtitle_types import Cue, WordTiming
 
 # Import modules to patch them directly
 from backend.app.services.transcription import openai_cloud
-from backend.app.services import social_intelligence as social_lib
 
 
 def test_extract_audio_invokes_ffmpeg(monkeypatch, tmp_path: Path):
@@ -52,7 +49,7 @@ def test_extract_audio_invokes_ffmpeg(monkeypatch, tmp_path: Path):
 
     # We must patch subprocess.Popen specifically
     monkeypatch.setattr(subprocess, "Popen", MockPopen)
-    
+
     audio_path = subtitles.extract_audio(input_video, output_dir=output_dir)
     assert audio_path.exists()
     assert audio_path.name == "video.wav"
@@ -71,7 +68,7 @@ def test_generate_subtitles_from_audio_writes_srt(monkeypatch, tmp_path: Path):
     # We mock LocalWhisperTranscriber to avoid loading real model
     with patch("backend.app.services.transcription.local_whisper.LocalWhisperTranscriber") as MockTranscriber:
         mock_instance = MockTranscriber.return_value
-        
+
         # Setup mock return
         srt_path = tmp_path / "test.srt"
         srt_path.touch()
@@ -225,7 +222,7 @@ def test_generate_subtitles_from_audio_passes_decoding_params(monkeypatch, tmp_p
         assert init_kwargs["beam_size"] == 10
 
         _, call_kwargs = mock_instance.transcribe.call_args
-        
+
         assert call_kwargs["best_of"] == 3
         assert call_kwargs["temperature"] == 0.2
         assert call_kwargs["condition_on_previous_text"] is True
@@ -271,10 +268,16 @@ def test_clean_json_response_strips_fences():
 
 def test_build_social_copy_llm_retries_and_raises(monkeypatch):
     monkeypatch.setattr(llm_utils, "resolve_openai_api_key", lambda k: "sk-fake")
-    
+
     # Mock fallback to ensure it is returned
     fallback = subtitles.SocialCopy(
-        subtitles.SocialContent("Fallback", "Fallback", ["#fallback"])
+        subtitles.SocialContent(
+            title_el="Fallback",
+            title_en="Fallback",
+            description_el="DescEL",
+            description_en="DescEN",
+            hashtags=["#fallback"],
+        )
     )
     monkeypatch.setattr(social_lib, "build_social_copy", lambda text: fallback)
     # Also patch subtitles.build_social_copy because wrapper uses it
@@ -283,21 +286,21 @@ def test_build_social_copy_llm_retries_and_raises(monkeypatch):
     mock_client = MagicMock()
     # Mock create to raise exception
     mock_client.chat.completions.create.side_effect = Exception("API Error")
-    
+
     # Patch where it is used! (In llm_utils because social_lib calls it from there)
     monkeypatch.setattr(llm_utils, "load_openai_client", lambda k: mock_client)
 
     # Call the WRAPPER which handles fallback
     res = subtitles.build_social_copy_llm("some text", api_key="sk-fake")
     assert res is not None
-    assert res.generic.title == "Fallback"
+    assert res.generic.title_en == "Fallback"
 
 
 def test_compose_title_branches():
     # Test short text - MUST PASS LIST of keywords
     t1 = social_intelligence._compose_title(["Short"])
     assert "Short" in t1
-    
+
     # Test long text - MUST PASS LIST
     kw = ["Word"] * 20
     t2 = social_intelligence._compose_title(kw)
@@ -307,27 +310,48 @@ def test_compose_title_branches():
 
 
 def test_load_openai_client_success(monkeypatch):
-    monkeypatch.setitem(sys.modules, "openai", MagicMock())
+    mock_module = MagicMock()
+    monkeypatch.setitem(sys.modules, "openai", mock_module)
+
     client = llm_utils.load_openai_client("sk-test")
     assert client is not None
+
+    # Verify default timeout is passed
+    mock_module.OpenAI.assert_called_with(api_key="sk-test", timeout=60.0)
+
+def test_load_openai_client_custom_timeout(monkeypatch):
+    mock_module = MagicMock()
+    monkeypatch.setitem(sys.modules, "openai", mock_module)
+
+    client = llm_utils.load_openai_client("sk-test", timeout=120.0)
+    assert client is not None
+
+    # Verify custom timeout is passed
+    mock_module.OpenAI.assert_called_with(api_key="sk-test", timeout=120.0)
 
 
 def test_build_social_copy_llm_empty_response(monkeypatch):
     monkeypatch.setattr(llm_utils, "resolve_openai_api_key", lambda k: "sk-fake")
     mock_client = MagicMock()
-    
+
     # Return empty content
     mock_response = MagicMock()
     mock_response.choices[0].message.content = ""
     mock_response.choices[0].message.refusal = None
     mock_client.chat.completions.create.return_value = mock_response
-    
+
     # Patch in llm_utils
     monkeypatch.setattr(llm_utils, "load_openai_client", lambda k: mock_client)
-    
+
     # Pass fallback
     fallback = subtitles.SocialCopy(
-        subtitles.SocialContent("Fallback", "Fallback", ["#fallback"])
+        subtitles.SocialContent(
+            title_el="Fallback",
+            title_en="Fallback",
+            description_el="DescEL",
+            description_en="DescEN",
+            hashtags=["#fallback"],
+        )
     )
     monkeypatch.setattr(subtitles, "build_social_copy", lambda text: fallback)
     monkeypatch.setattr(social_lib, "build_social_copy", lambda text: fallback)
@@ -338,16 +362,16 @@ def test_build_social_copy_llm_empty_response(monkeypatch):
     # Wait, wrapper fallback logic: "Failed to generate valid social copy..." raised by build_social_copy_llm
     # Then caught by wrapper.
     # The wrapper should catch ValueError and return fallback.
-    assert res.generic.title == "Fallback"
+    assert res.generic.title_en == "Fallback"
 
 
 def test_transcribe_openai_error(monkeypatch, tmp_path):
     """Test OpeanAI transcriber handling API errors."""
-    
+
     # Mock where it is used in openai_cloud!
     monkeypatch.setattr(openai_cloud, "resolve_openai_api_key", lambda: "sk-fake")
     monkeypatch.setitem(sys.modules, "openai", MagicMock())
-    
+
     # Mock client to raise
     mock_client = MagicMock()
     mock_client.audio = MagicMock()
@@ -372,7 +396,7 @@ def test_resolve_openai_api_key(monkeypatch):
     monkeypatch.setattr("builtins.open", MagicMock())
 
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    
+
     assert llm_utils.resolve_openai_api_key() is None
     assert llm_utils.resolve_openai_api_key("sk-test") == "sk-test"
     monkeypatch.setenv("OPENAI_API_KEY", "sk-env")
@@ -387,7 +411,7 @@ def test_split_long_cues_logic():
     # Long cue that needs splitting
     long_text = "This is a very long text that definitely needs to be split into smaller pieces"
     cues = [Cue(0.0, 10.0, long_text)]
-    
+
     # Mock max chars to force split
     split_cues = subtitle_renderer.split_long_cues(cues, max_chars=20)
     assert len(split_cues) > 1
@@ -398,25 +422,25 @@ def test_split_long_cues_logic():
 def test_transcribe_with_openai_success(monkeypatch, tmp_path):
     monkeypatch.setattr(openai_cloud, "resolve_openai_api_key", lambda: "sk-fake")
     monkeypatch.setitem(sys.modules, "openai", MagicMock())
-    
+
     mock_client = MagicMock()
     mock_resp = MagicMock()
     mock_resp.text = "Hello world"
     mock_resp.start = 0.0
     mock_resp.end = 1.0
     mock_resp.words = []
-    
+
     # Mock return attributes
     mock_transcript = MagicMock()
     mock_transcript.segments = [mock_resp]
-    
+
     mock_client.audio.transcriptions.create.return_value = mock_transcript
     monkeypatch.setattr(openai_cloud, "load_openai_client", lambda k: mock_client)
-    
+
     transcriber = openai_cloud.OpenAITranscriber(api_key="sk-fake")
     audio = tmp_path / "a.wav"
     audio.touch()
-    
+
     path, result_cues = transcriber.transcribe(audio, tmp_path)
     assert len(result_cues) == 1
     assert result_cues[0].text == "HELLO WORLD"
@@ -441,7 +465,7 @@ def test_greek_text_fits_within_config_width():
 
 def test_format_karaoke_text_preserves_all_words():
     # Just a helper check
-    pass 
+    pass
 
 
 def test_short_text_stays_on_single_line():
@@ -471,7 +495,7 @@ def test_resolve_groq_api_key_not_found(monkeypatch):
     monkeypatch.setattr(llm_utils.tomllib, "load", lambda f: {})
     monkeypatch.setattr(Path, "exists", lambda self: True)
     monkeypatch.setattr("builtins.open", MagicMock())
-    
+
     monkeypatch.delenv("GROQ_API_KEY", raising=False)
     assert llm_utils.resolve_groq_api_key() is None
 
@@ -497,7 +521,7 @@ def test_per_word_karaoke():
 def test_create_styled_subtitle_file_clamps_overlapping_cues(tmp_path):
     srt = tmp_path / "test.srt"
     srt.write_text("1\n00:00:00,000 --> 00:00:05,000\nCollision\n\n2\n00:00:04,000 --> 00:00:08,000\nOverlap\n")
-    
+
     # This invokes normalize_cues_for_ass which clamps
     ass_path = subtitle_renderer.create_styled_subtitle_file(
         srt, output_dir=tmp_path

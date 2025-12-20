@@ -64,6 +64,7 @@ def screen_for_errors(client: Any, model_name: str, text: str) -> bool:
             messages=[{"role": "user", "content": prompt}],
             max_completion_tokens=10, # We only need one word
             temperature=1, # Model requires 1
+            timeout=30.0,
         )
         content = response.choices[0].message.content.strip().upper()
         
@@ -116,7 +117,7 @@ def generate_fact_check(
         "Format: { \"claims\": [\"claim 1\", \"claim 2\"] }\n"
         "Ignore opinions. Focus on objective facts (dates, numbers, events)."
     )
-    
+
     try:
         extract_response = client.chat.completions.create(
             model=config.EXTRACTION_LLM_MODEL, # Cheap model
@@ -144,15 +145,15 @@ def generate_fact_check(
         extract_content = llm_utils.extract_chat_completion_text(extract_response)[0]
         extracted_data = json.loads(llm_utils.clean_json_response(extract_content or "{}"))
         claims = extracted_data.get("claims", [])
-        
+
         if not claims:
             logger.info("Fact Check: No doubtful claims found by extractor.")
             return FactCheckResult(truth_score=100, supported_claims_pct=100, claims_checked=0, items=[])
-            
+
     except Exception as e:
         logger.warning(f"Fact Check Extraction failed: {e}. Fallback to full check.")
         # Fallback to original full check if extraction fails
-        claims = ["Full Text Analysis"] 
+        claims = ["Full Text Analysis"]
 
     # 2. Verification (Smart Model)
     # We send the specific claims + context to the smart model
@@ -224,7 +225,7 @@ def generate_fact_check(
                 max_completion_tokens=config.MAX_LLM_OUTPUT_TOKENS_FACTCHECK,
                 response_format={"type": "json_object"},
             )
-            
+
             # Log usage for Detailed Check
             if hasattr(response, "usage"):
                 if session:
@@ -240,7 +241,7 @@ def generate_fact_check(
                     )
                 else:
                     logger.info(f"Fact Check Detail Token Usage: Input={response.usage.prompt_tokens}, Output={response.usage.completion_tokens}")
-            
+
             content, refusal = llm_utils.extract_chat_completion_text(response)
             if refusal:
                 raise ValueError(f"LLM refusal: {refusal}")

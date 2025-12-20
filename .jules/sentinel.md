@@ -130,3 +130,8 @@
 **Vulnerability:** `update_password`, `update_user_me`, and `delete_account` endpoints lacked rate limiting, allowing authenticated users to exhaust resources (e.g. scrypt hashing) or spam modifications.
 **Learning:** Even authenticated endpoints need rate limiting, especially those triggering expensive operations (hashing) or destructive actions.
 **Prevention:** Apply `AuthenticatedRateLimiter` to all mutation endpoints.
+
+## 2025-07-28 - [Medium] Default Timeouts in Client Factories
+**Vulnerability:** The `load_openai_client` factory returned an `OpenAI` client without a default timeout, leading to potential indefinite hangs (DoS) if consumers forgot to specify `timeout` in `create()` calls (as seen in `screen_for_errors`).
+**Learning:** Relying on developers to remember per-request timeouts (e.g., in `chat.completions.create`) is error-prone. Centralized client factories are the perfect place to enforce "Secure by Default" configurations.
+**Prevention:** Update all client factories (`load_openai_client`, `requests.Session` builders) to accept and enforce a default `timeout` (e.g. 60s) on the client instance itself, providing a safety net for all downstream usage.
