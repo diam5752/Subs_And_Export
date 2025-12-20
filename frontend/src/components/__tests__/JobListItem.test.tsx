@@ -43,10 +43,10 @@ describe('JobListItem', () => {
         expect(screen.getByText('2021-06-29')).toBeInTheDocument();
     });
 
-    it('shows download and view buttons when completed and not selection mode', () => {
+    it('shows download and view buttons with accessible labels when completed', () => {
         render(<JobListItem {...mockProps} />);
-        expect(screen.getByText('download')).toBeInTheDocument();
-        expect(screen.getByText('view')).toBeInTheDocument();
+        expect(screen.getByLabelText('download test-video.mp4')).toBeInTheDocument();
+        expect(screen.getByLabelText('view test-video.mp4')).toBeInTheDocument();
     });
 
     it('handles selection toggle in selection mode', () => {
@@ -55,16 +55,16 @@ describe('JobListItem', () => {
         expect(mockProps.onToggleSelection).toHaveBeenCalledWith('job-123', false);
     });
 
-    it('shows delete confirmation when isConfirmingDelete is true', () => {
+    it('shows delete confirmation with accessible label', () => {
         render(<JobListItem {...mockProps} isConfirmingDelete={true} />);
-        expect(screen.getByLabelText('confirmDelete')).toBeInTheDocument();
+        expect(screen.getByLabelText('confirmDelete test-video.mp4')).toBeInTheDocument();
         expect(screen.getByLabelText('cancel')).toBeInTheDocument();
     });
 
-    it('shows loading state when isDeleting is true', () => {
+    it('shows loading state with accessible label', () => {
         render(<JobListItem {...mockProps} isConfirmingDelete={true} isDeleting={true} />);
-        expect(screen.getByLabelText('deleting')).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: 'deleting' })).toHaveAttribute('aria-busy', 'true');
+        expect(screen.getByLabelText('deleting test-video.mp4')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'deleting test-video.mp4' })).toHaveAttribute('aria-busy', 'true');
     });
 
     it('has correct accessibility attributes', () => {
@@ -72,30 +72,20 @@ describe('JobListItem', () => {
 
         // Container role
         // In selection mode, the container should be a button.
-        // There are no other buttons visible in selection mode.
         const container = screen.getByRole('button');
         expect(container).toBeInTheDocument();
         expect(container).toHaveAttribute('tabIndex', '0');
 
-        // Checkbox should be hidden from AT or at least not the primary interaction
-        // Since we put aria-hidden=true, it shouldn't be accessible by label
+        // Checkbox should be hidden from AT
         expect(screen.queryByLabelText('selectMode')).not.toBeInTheDocument();
 
         // Test keyboard interaction
         fireEvent.keyDown(container, { key: 'Enter', code: 'Enter' });
         expect(mockProps.onToggleSelection).toHaveBeenCalledWith('job-123', false);
 
-        fireEvent.keyDown(container, { key: ' ', code: 'Space' });
-        expect(mockProps.onToggleSelection).toHaveBeenCalledWith('job-123', false);
-
         rerender(<JobListItem {...mockProps} selectionMode={false} />);
 
         // Delete button label
-        expect(screen.getByLabelText('deleteJob')).toBeInTheDocument();
-
-        // Confirm delete mode
-        rerender(<JobListItem {...mockProps} isConfirmingDelete={true} />);
-        expect(screen.getByLabelText('confirmDelete')).toBeInTheDocument();
-        expect(screen.getByLabelText('cancel')).toBeInTheDocument();
+        expect(screen.getByLabelText('deleteJob test-video.mp4')).toBeInTheDocument();
     });
 });

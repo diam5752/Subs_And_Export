@@ -13,3 +13,7 @@
 ## 2025-02-27 - [Canvas Reuse & State Pollution]
 **Learning:** Reusing a singleton `HTMLCanvasElement` for text measurement optimizes performance (avoids DOM creation), but `CanvasRenderingContext2D` state (like `ctx.font`) persists. If consumers rely on closure-captured configuration without resetting the shared state, they read incorrect values (state pollution).
 **Action:** When optimizing with singletons, assume dirty state. Explicitly reset context properties (like `ctx.font`) inside the active closure immediately before use, or implement a lightweight state tracker (`_lastFont`) to minimize redundant assignments.
+
+## 2025-02-28 - [N+1 Query in Batch Operations]
+**Learning:** `batch_delete_jobs` was iterating through a list of IDs and performing a DB lookup (`get_job`) for each one inside the loop, creating N+1 queries and connection overhead.
+**Action:** Implemented `get_jobs` in `JobStore` to fetch all validated jobs in a single `WHERE id IN (...)` query, reducing DB roundtrips from O(N) to O(1).

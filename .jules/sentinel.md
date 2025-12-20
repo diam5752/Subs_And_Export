@@ -135,3 +135,7 @@
 **Vulnerability:** The `/auth/google/url` and `/tiktok/url` endpoints generated database-backed OAuth state tokens without rate limiting. An attacker (unauthenticated for Google, authenticated for TikTok) could flood the `DbOAuthState` table and trigger expensive expiration scans on every request.
 **Learning:** "Pre-flight" endpoints like OAuth URL generation are often overlooked for rate limiting because they don't perform the "main" action (login/upload), but they still consume resources (DB writes/crypto).
 **Prevention:** Apply rate limiters (e.g., `limiter_login`) to *all* endpoints that trigger database writes or cryptographic operations, even if they are just "setup" steps.
+## 2025-12-26 - [Medium] Missing Input Length Limit on Highlight Style
+**Vulnerability:** The `/videos/process` endpoint accepted unbounded strings for `highlight_style`. While verified against an allowlist, the length check was performed *after* string manipulation (`strip().lower()`) inside the validator, potentially allowing memory exhaustion or CPU consumption via massive inputs.
+**Learning:** Validators that perform string operations (normalization) before checking length are vulnerable to DoS. Length checks must always precede semantic validation.
+**Prevention:** Explicitly check `len(field) > MAX` before passing the field to any processing or validation functions, especially for `Form` data which bypasses Pydantic's default constraints.

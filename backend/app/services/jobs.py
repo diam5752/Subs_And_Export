@@ -114,6 +114,27 @@ class JobStore:
             for row in rows
         ]
 
+    def get_jobs(self, job_ids: List[str], user_id: str) -> List[Job]:
+        """Get multiple jobs by ID for a specific user."""
+        if not job_ids:
+            return []
+        with self.db.session() as session:
+            stmt = select(DbJob).where(DbJob.id.in_(job_ids), DbJob.user_id == user_id)
+            rows = list(session.scalars(stmt).all())
+        return [
+            Job(
+                id=row.id,
+                user_id=row.user_id,
+                status=row.status,
+                progress=row.progress,
+                message=row.message,
+                created_at=row.created_at,
+                updated_at=row.updated_at,
+                result_data=row.result_data,
+            )
+            for row in rows
+        ]
+
     def delete_job(self, job_id: str) -> None:
         """Delete a job from the database."""
         with self.db.session() as session:
