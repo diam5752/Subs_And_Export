@@ -301,6 +301,8 @@ def _validate_password_strength(password: str) -> None:
     """Enforce a minimum password policy for interactive accounts."""
     if len(password) < 12:
         raise ValueError("Password must be at least 12 characters long")
+    if len(password) > 128:
+        raise ValueError("Password must be at most 128 characters long")
     has_letter = any(ch.isalpha() for ch in password)
     has_digit = any(ch.isdigit() for ch in password)
     if not (has_letter and has_digit):
@@ -309,6 +311,8 @@ def _validate_password_strength(password: str) -> None:
 
 def _validate_email(email: str) -> None:
     """Validate email format using regex."""
+    if len(email) > 255:
+        raise ValueError("Email must be at most 255 characters long")
     # Basic regex to catch obvious non-emails.
     # We avoid complex RFC compliance regexes to keep it simple and safe.
     pattern = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
