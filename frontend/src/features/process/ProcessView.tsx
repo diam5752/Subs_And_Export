@@ -23,23 +23,33 @@ interface ProcessViewProps {
     onJobSelect: (job: JobResponse | null) => void;
     statusStyles: Record<string, string>;
     buildStaticUrl: (path?: string | null) => string | null;
+    totalJobs: number;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const ProcessViewLayout = React.memo(({ currentStep, steps }: { currentStep: number; steps: any[]; activeSidebarTab: string }) => (
-    <div className="space-y-6">
-        <StepIndicator currentStep={currentStep} steps={steps} />
+const ProcessViewLayout = React.memo(({ currentStep, steps, hasChosenModel, selectedJob }: { currentStep: number; steps: any[]; activeSidebarTab: string; hasVideos: boolean; hasChosenModel: boolean; isProcessing: boolean; selectedJob: JobResponse | null }) => {
+    // Step 2: Only show when user has selected a model (Step 1 done)
+    const showUploadSection = hasChosenModel;
 
-        <ModelSelector />
-        <UploadSection />
-        <PreviewSection />
-    </div>
-));
+    // Step 3: Only show when job is completed (Step 2 done), not during processing
+    const showPreviewSection = selectedJob?.status === 'completed';
+
+    return (
+        <div className="space-y-6">
+            {/* Always show all 3 steps - they appear greyed out when inactive */}
+            <StepIndicator currentStep={currentStep} steps={steps} />
+
+            <ModelSelector />
+            {showUploadSection && <UploadSection />}
+            {showPreviewSection && <PreviewSection />}
+        </div>
+    );
+});
 ProcessViewLayout.displayName = 'ProcessViewLayout';
 
 export function ProcessViewContent() {
     const { t } = useI18n();
-    const { currentStep, activeSidebarTab } = useProcessContext();
+    const { currentStep, activeSidebarTab, hasVideos, hasChosenModel, isProcessing, selectedJob } = useProcessContext();
 
     const STEPS = React.useMemo(() => [
         {
@@ -71,7 +81,7 @@ export function ProcessViewContent() {
         }
     ], [t]);
 
-    return <ProcessViewLayout currentStep={currentStep} steps={STEPS} activeSidebarTab={activeSidebarTab} />;
+    return <ProcessViewLayout currentStep={currentStep} steps={STEPS} activeSidebarTab={activeSidebarTab} hasVideos={hasVideos} hasChosenModel={hasChosenModel} isProcessing={isProcessing} selectedJob={selectedJob} />;
 }
 
 export function ProcessView(props: ProcessViewProps) {

@@ -33,6 +33,13 @@ lsof -ti:3000 | xargs kill -9 2>/dev/null || true
 
 # Start Backend
 echo "⚙️  Starting Backend (Port 8080)..."
+# Load environment variables from .env
+if [ -f ".env" ]; then
+    echo "📄 Loading environment from .env..."
+    set -a
+    source .env
+    set +a
+fi
 # Run as module from root so relative imports in main.py work
 # Explicitly set APP_ENV=dev to enable dev routes
 export APP_ENV=dev

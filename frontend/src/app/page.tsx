@@ -423,16 +423,17 @@ export default function DashboardPage() {
           onFileSelect={handleFileSelect}
           isProcessing={isProcessing}
           progress={progress}
-	          statusMessage={statusMessage}
-	          error={processError}
-	          onStartProcessing={handleStartProcessing}
-	          onReprocessJob={handleReprocessJob}
-	          onReset={resetProcessing}
-	          onCancelProcessing={handleCancelProcessing}
-	          selectedJob={selectedJob}
+          statusMessage={statusMessage}
+          error={processError}
+          onStartProcessing={handleStartProcessing}
+          onReprocessJob={handleReprocessJob}
+          onReset={resetProcessing}
+          onCancelProcessing={handleCancelProcessing}
+          selectedJob={selectedJob}
           onJobSelect={setSelectedJob}
           statusStyles={statusStyles}
           buildStaticUrl={buildStaticUrl}
+          totalJobs={totalJobs}
         />
       </main>
 

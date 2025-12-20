@@ -10,7 +10,6 @@ from typing import Any
 from fastapi import HTTPException
 from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
 from ..core.database import Database
@@ -176,35 +175,21 @@ class PointsStore:
         with self.db.session() as session:
             self._ensure_account_in_session(session, user_id=user_id, now=now)
 
-            dialect_name = session.get_bind().dialect.name
-            insert_stmt = (
-                pg_insert(DbPointTransaction)
-                if dialect_name == "postgresql"
-                else sqlite_insert(DbPointTransaction)
-            )
-            insert_base = (
-                insert_stmt
-                .values(
-                    id=transaction_id,
-                    user_id=user_id,
-                    delta=amount,
-                    reason=refund_reason(original_reason),
-                    meta=meta,
-                    created_at=now,
-                )
-                .on_conflict_do_nothing(index_elements=[DbPointTransaction.id])
+            insert_stmt = pg_insert(DbPointTransaction).values(
+                id=transaction_id,
+                user_id=user_id,
+                delta=amount,
+                reason=refund_reason(original_reason),
+                meta=meta,
+                created_at=now,
+            ).on_conflict_do_nothing(index_elements=[DbPointTransaction.id])
+
+            # Use RETURNING to reliably detect insertion
+            inserted = (
+                session.execute(insert_stmt.returning(DbPointTransaction.id)).scalar_one_or_none()
+                is not None
             )
 
-            # psycopg (Postgres) may report rowcount=0 even when the row was inserted,
-            # so use RETURNING to reliably detect insertion.
-            if dialect_name == "postgresql":
-                inserted = (
-                    session.execute(insert_base.returning(DbPointTransaction.id)).scalar_one_or_none()
-                    is not None
-                )
-            else:
-                insert_result = session.execute(insert_base)
-                inserted = int(insert_result.rowcount or 0) == 1
             if inserted:
                 session.execute(
                     update(DbUserPoints)
@@ -221,29 +206,18 @@ class PointsStore:
             return int(new_balance or 0)
 
     def _ensure_account_in_session(self, session: Session, *, user_id: str, now: int) -> bool:
-        dialect_name = session.get_bind().dialect.name
-        insert_stmt = (
-            pg_insert(DbUserPoints)
-            if dialect_name == "postgresql"
-            else sqlite_insert(DbUserPoints)
+        insert_stmt = pg_insert(DbUserPoints).values(
+            user_id=user_id,
+            balance=STARTING_POINTS_BALANCE,
+            updated_at=now,
+        ).on_conflict_do_nothing(index_elements=[DbUserPoints.user_id])
+
+        # Use RETURNING to reliably detect insertion
+        created = (
+            session.execute(insert_stmt.returning(DbUserPoints.user_id)).scalar_one_or_none()
+            is not None
         )
-        insert_base = (
-            insert_stmt
-            .values(
-                user_id=user_id,
-                balance=STARTING_POINTS_BALANCE,
-                updated_at=now,
-            )
-            .on_conflict_do_nothing(index_elements=[DbUserPoints.user_id])
-        )
-        if dialect_name == "postgresql":
-            created = (
-                session.execute(insert_base.returning(DbUserPoints.user_id)).scalar_one_or_none()
-                is not None
-            )
-        else:
-            result = session.execute(insert_base)
-            created = int(result.rowcount or 0) == 1
+
         if created:
             session.add(
                 DbPointTransaction(

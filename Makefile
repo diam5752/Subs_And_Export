@@ -50,6 +50,23 @@ docker-up:
 docker-down:
 	docker-compose down
 
+# Database management
+db-up:
+	docker compose up -d db
+
+db-down:
+	docker compose stop db
+
+db-create-test:
+	@echo "Creating test database..."
+	docker exec -it subs_and_export_project-db-1 psql -U gsp -d postgres -c "CREATE DATABASE gsp_test;" || true
+
+migrate:
+	cd backend && alembic upgrade head
+
+migrate-test:
+	cd backend && GSP_DATABASE_URL=postgresql+psycopg://gsp:gsp@localhost:5432/gsp_test alembic upgrade head
+
 clean:
 	find . -type d -name "__pycache__" -exec rm -rf {} +
 	find . -type d -name ".pytest_cache" -exec rm -rf {} +

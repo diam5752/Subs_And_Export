@@ -48,10 +48,10 @@ class User:
 
 
 class UserStore:
-    """SQLite-backed user store suitable for multi-user deployments."""
+    """PostgreSQL-backed user store suitable for multi-user deployments."""
 
-    def __init__(self, path: str | os.PathLike | None = None, db: Database | None = None) -> None:
-        self.db = db or Database(path)
+    def __init__(self, db: Database) -> None:
+        self.db = db
 
     # Public API
     def register_local_user(self, email: str, password: str, name: str) -> User:

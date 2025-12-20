@@ -30,19 +30,35 @@ router = APIRouter()
 
 
 def ensure_job_size(job):
-    """Helper to backfill output_size for legacy jobs."""
+    """Helper to backfill output_size for legacy jobs and check file existence."""
     if job.status == "completed" and job.result_data:
-        if not job.result_data.get("output_size"):
-            video_path = job.result_data.get("video_path")
-            if video_path:
-                try:
-                    full_path = DATA_DIR / video_path
-                    if not full_path.exists():
-                        full_path = config.PROJECT_ROOT.parent / video_path
-                    if full_path.exists():
-                        job.result_data["output_size"] = full_path.stat().st_size
-                except Exception as e:
-                    logger.warning(f"Failed to ensure job size: {e}")
+        video_path = job.result_data.get("video_path") or job.result_data.get("public_url")
+        if video_path:
+            try:
+                # Clean up the path - handle various formats like "/static/artifacts/..." or "data/artifacts/..."
+                cleaned_path = video_path.lstrip("/")
+                if cleaned_path.startswith("static/"):
+                    cleaned_path = cleaned_path[7:]  # Remove "static/" prefix
+                if cleaned_path.startswith("data/"):
+                    cleaned_path = cleaned_path[5:]  # Remove "data/" prefix
+                
+                full_path = DATA_DIR / cleaned_path
+                
+                # Also try the artifacts path directly
+                artifacts_path = DATA_DIR / "artifacts" / job.id / "processed.mp4"
+                
+                file_exists = full_path.exists() or artifacts_path.exists()
+                
+                if not file_exists:
+                    # Mark job as having missing files
+                    job.result_data = {**job.result_data, "files_missing": True}
+                else:
+                    # Backfill output_size if missing
+                    if not job.result_data.get("output_size"):
+                        existing_path = full_path if full_path.exists() else artifacts_path
+                        job.result_data["output_size"] = existing_path.stat().st_size
+            except Exception as e:
+                logger.warning(f"Failed to check job file integrity: {e}")
     return job
 
 

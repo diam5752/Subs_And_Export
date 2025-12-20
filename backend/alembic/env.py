@@ -2,17 +2,14 @@ from __future__ import annotations
 
 import os
 from logging.config import fileConfig
-from pathlib import Path
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 try:
-    from backend.app.core import config as app_config
     from backend.app.db import models as _models  # noqa: F401  # ensure models are registered
     from backend.app.db.base import Base
 except ModuleNotFoundError:  # pragma: no cover
-    from app.core import config as app_config
     from app.db import models as _models  # noqa: F401  # ensure models are registered
     from app.db.base import Base
 
@@ -29,14 +26,18 @@ target_metadata = Base.metadata
 
 def _resolve_database_url() -> str:
     env_url = os.getenv("GSP_DATABASE_URL")
-    if env_url:
-        return env_url
-
-    env_path = os.getenv("GSP_DATABASE_PATH")
-    if env_path:
-        return f"sqlite+pysqlite:///{Path(env_path)}"
-
-    return f"sqlite+pysqlite:///{app_config.PROJECT_ROOT / 'logs' / 'app.db'}"
+    if not env_url:
+        raise RuntimeError(
+            "GSP_DATABASE_URL environment variable is required for migrations. "
+            "Set it to your PostgreSQL connection string, e.g.: "
+            "postgresql+psycopg://user:pass@localhost:5432/dbname"
+        )
+    if not env_url.startswith("postgresql"):
+        raise RuntimeError(
+            f"Only PostgreSQL is supported. Got: {env_url.split('://')[0]}. "
+            "Please set GSP_DATABASE_URL to a PostgreSQL connection string."
+        )
+    return env_url
 
 
 def run_migrations_offline() -> None:

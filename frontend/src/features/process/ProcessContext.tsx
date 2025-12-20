@@ -53,6 +53,8 @@ interface ProcessContextType {
     onJobSelect: (job: JobResponse | null) => void;
     statusStyles: Record<string, string>;
     buildStaticUrl: (path?: string | null) => string | null;
+    hasVideos: boolean;
+    hasActiveJob: boolean;
 
     // Local state
     hasChosenModel: boolean;
@@ -156,6 +158,7 @@ interface ProcessProviderProps {
     onJobSelect: (job: JobResponse | null) => void;
     statusStyles: Record<string, string>;
     buildStaticUrl: (path?: string | null) => string | null;
+    totalJobs: number;
 }
 
 export function ProcessProvider({
@@ -174,8 +177,17 @@ export function ProcessProvider({
     onJobSelect,
     statusStyles,
     buildStaticUrl,
+    totalJobs,
 }: ProcessProviderProps) {
     const { t } = useI18n();
+
+    // Derived: user has videos if they have at least one completed job in their history
+    // For new users (totalJobs === 0), only show Step 1 until they choose a model
+    const hasVideos = totalJobs > 0;
+
+    // hasActiveJob is true when there's a job being processed or a completed job selected
+    // This controls when Step 3 (PreviewSection) should be shown
+    const hasActiveJob = isProcessing || Boolean(selectedJob);
 
     const clampNumber = (value: unknown, min: number, max: number): number | null => {
         const num = typeof value === 'number' ? value : Number(value);
@@ -310,6 +322,10 @@ export function ProcessProvider({
     const currentStep = overrideStep ?? calculatedStep;
 
     const videoUrl = useMemo(() => {
+        // Don't return a URL if files are marked as missing on the server
+        if (selectedJob?.result_data?.files_missing) {
+            return null;
+        }
         return buildStaticUrl(selectedJob?.result_data?.public_url || selectedJob?.result_data?.video_path);
     }, [buildStaticUrl, selectedJob]);
 
@@ -838,6 +854,8 @@ export function ProcessProvider({
         onJobSelect,
         statusStyles,
         buildStaticUrl,
+        hasVideos,
+        hasActiveJob,
         hasChosenModel, setHasChosenModel,
         transcribeMode, setTranscribeMode,
         transcribeProvider, setTranscribeProvider,

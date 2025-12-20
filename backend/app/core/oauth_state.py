@@ -26,7 +26,7 @@ class OAuthState:
 
 
 class OAuthStateStore:
-    """SQLite-backed store for short-lived OAuth state tokens."""
+    """PostgreSQL-backed store for short-lived OAuth state tokens."""
 
     def __init__(self, db: Database) -> None:
         self.db = db

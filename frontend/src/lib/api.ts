@@ -22,6 +22,7 @@ export interface JobResultData {
     output_size?: number;
     resolution?: string;
     variants?: Record<string, string>;
+    files_missing?: boolean;
 }
 
 export interface JobResponse {

@@ -130,12 +130,10 @@ a {
 
 /* Button Styles */
 .btn-primary {
-  background: linear-gradient(
-    125deg,
-    var(--accent) 0%,
-    var(--accent-gradient-mid) 60%,
-    var(--accent-gradient-end) 100%
-  );
+  background: linear-gradient(125deg,
+      var(--accent) 0%,
+      var(--accent-gradient-mid) 60%,
+      var(--accent-gradient-end) 100%);
   color: #031018;
   font-weight: 600;
   padding: 12px 24px;

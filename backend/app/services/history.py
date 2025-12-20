@@ -7,7 +7,6 @@ from typing import Dict, List
 
 from sqlalchemy import select
 
-from ..core import config
 from ..core.auth import User
 from ..core.database import Database
 from ..db.models import DbHistoryEvent, DbUser
@@ -26,10 +25,10 @@ class HistoryEvent:
 
 
 class HistoryStore:
-    """SQLite-backed append-only store for user activity."""
+    """PostgreSQL-backed append-only store for user activity."""
 
-    def __init__(self, path: str | None = None, db: Database | None = None) -> None:
-        self.db = db or Database(path or (config.PROJECT_ROOT / "logs" / "app.db"))
+    def __init__(self, db: Database) -> None:
+        self.db = db
 
     def record_event(
         self,

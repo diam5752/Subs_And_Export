@@ -281,7 +281,10 @@ export function UploadSection() {
 
         // Show compact view if we have a file OR a completed job (restored state)
         // Check if we have consistent job data to display if file is missing
-        const hasJobData = selectedJob?.status === 'completed' && selectedJob.result_data;
+        // Don't show compact view if the job's files are marked as missing on the server
+        const hasJobData = selectedJob?.status === 'completed' &&
+            selectedJob.result_data &&
+            !selectedJob.result_data.files_missing;
 
         if (selectedFile || hasJobData) {
             const fileName = selectedFile?.name || selectedJob?.result_data?.original_filename || 'Processed Video';

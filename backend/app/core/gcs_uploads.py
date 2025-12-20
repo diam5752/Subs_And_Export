@@ -27,7 +27,7 @@ class GcsUploadSession:
 
 
 class GcsUploadStore:
-    """SQLite-backed store for short-lived GCS upload sessions."""
+    """PostgreSQL-backed store for short-lived GCS upload sessions."""
 
     def __init__(self, db: Database) -> None:
         self.db = db
