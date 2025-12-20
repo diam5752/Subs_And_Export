@@ -25,9 +25,21 @@ interface ProcessViewProps {
     buildStaticUrl: (path?: string | null) => string | null;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const ProcessViewLayout = React.memo(({ currentStep, steps }: { currentStep: number; steps: any[]; activeSidebarTab: string }) => (
+    <div className="space-y-6">
+        <StepIndicator currentStep={currentStep} steps={steps} />
+
+        <ModelSelector />
+        <UploadSection />
+        <PreviewSection />
+    </div>
+));
+ProcessViewLayout.displayName = 'ProcessViewLayout';
+
 export function ProcessViewContent() {
     const { t } = useI18n();
-    const { currentStep } = useProcessContext();
+    const { currentStep, activeSidebarTab } = useProcessContext();
 
     const STEPS = React.useMemo(() => [
         {
@@ -59,15 +71,7 @@ export function ProcessViewContent() {
         }
     ], [t]);
 
-    return (
-        <div className="space-y-6">
-            <StepIndicator currentStep={currentStep} steps={STEPS} />
-
-            <ModelSelector />
-            <UploadSection />
-            <PreviewSection />
-        </div>
-    );
+    return <ProcessViewLayout currentStep={currentStep} steps={STEPS} activeSidebarTab={activeSidebarTab} />;
 }
 
 export function ProcessView(props: ProcessViewProps) {
