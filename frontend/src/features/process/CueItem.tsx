@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import React, { memo, useRef, useEffect } from 'react';
 import { Cue } from '@/components/SubtitleOverlay';
 import { useI18n } from '@/context/I18nContext';
 
@@ -34,6 +34,42 @@ export const CueItem = memo(({
     const { t } = useI18n();
     const formattedTime = `${Math.floor(cue.start / 60)}:${(cue.start % 60).toFixed(0).padStart(2, '0')}`;
 
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const editBtnRef = useRef<HTMLButtonElement>(null);
+    const prevIsEditingRef = useRef(isEditing);
+    const shouldRestoreFocusRef = useRef(false);
+
+    useEffect(() => {
+        // Entering edit mode
+        if (isEditing && !prevIsEditingRef.current) {
+            requestAnimationFrame(() => {
+                textareaRef.current?.focus();
+            });
+        }
+
+        // Exiting edit mode
+        if (!isEditing && prevIsEditingRef.current) {
+            if (shouldRestoreFocusRef.current) {
+                requestAnimationFrame(() => {
+                    editBtnRef.current?.focus();
+                });
+                shouldRestoreFocusRef.current = false;
+            }
+        }
+
+        prevIsEditingRef.current = isEditing;
+    }, [isEditing]);
+
+    const handleSave = () => {
+        shouldRestoreFocusRef.current = true;
+        onSave();
+    };
+
+    const handleCancel = () => {
+        shouldRestoreFocusRef.current = true;
+        onCancel();
+    };
+
     return (
         <div
             id={`cue-${index}`}
@@ -54,10 +90,12 @@ export const CueItem = memo(({
                 <div className="flex-1 min-w-0">
                     {isEditing ? (
                         <textarea
+                            ref={textareaRef}
                             value={draftText}
                             onChange={(e) => onUpdateDraft(e.target.value)}
                             className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)]/70 px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/30 min-h-[72px] resize-y"
                             disabled={isSaving}
+                            aria-label={t('transcriptEdit') || 'Edit'}
                         />
                     ) : (
                         <button
@@ -78,7 +116,7 @@ export const CueItem = memo(({
                         <>
                             <button
                                 type="button"
-                                onClick={onSave}
+                                onClick={handleSave}
                                 disabled={isSaving}
                                 className="px-2 py-1 rounded-md text-xs font-semibold bg-emerald-500/15 text-emerald-200 border border-emerald-500/25 hover:bg-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
@@ -86,7 +124,7 @@ export const CueItem = memo(({
                             </button>
                             <button
                                 type="button"
-                                onClick={onCancel}
+                                onClick={handleCancel}
                                 disabled={isSaving}
                                 className="px-2 py-1 rounded-md text-xs font-medium bg-white/5 text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-white/10 border border-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
@@ -95,6 +133,7 @@ export const CueItem = memo(({
                         </>
                     ) : (
                         <button
+                            ref={editBtnRef}
                             type="button"
                             onClick={() => onEdit(index)}
                             disabled={!canEdit}
