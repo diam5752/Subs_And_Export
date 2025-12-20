@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 import tomllib
@@ -69,12 +68,13 @@ def resolve_groq_api_key(explicit_key: str | None = None) -> str | None:
     return None
 
 
-def load_openai_client(api_key: str) -> Any:
+def load_openai_client(api_key: str, timeout: float = 60.0) -> Any:
     """
     Load OpenAI client with secure API key.
 
     Args:
         api_key: OpenAI API key for authentication
+        timeout: Default timeout in seconds for API requests (default: 60.0)
 
     Returns:
         Configured OpenAI client instance
@@ -89,7 +89,7 @@ def load_openai_client(api_key: str) -> Any:
             "OpenAI package is not installed. Please run 'pip install openai'."
         ) from exc
 
-    return OpenAI(api_key=api_key)
+    return OpenAI(api_key=api_key, timeout=timeout)
 
 
 def clean_json_response(content: str) -> str:
@@ -110,7 +110,7 @@ def extract_chat_completion_text(response: Any) -> Tuple[str | None, str | None]
     try:
         choice = response.choices[0]
         message = choice.message
-        
+
         # Check for refusal first (new API feature)
         refusal = getattr(message, "refusal", None)
         if refusal:
