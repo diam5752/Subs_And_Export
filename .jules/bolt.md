@@ -17,3 +17,7 @@
 ## 2025-02-28 - [N+1 Query in Batch Operations]
 **Learning:** `batch_delete_jobs` was iterating through a list of IDs and performing a DB lookup (`get_job`) for each one inside the loop, creating N+1 queries and connection overhead.
 **Action:** Implemented `get_jobs` in `JobStore` to fetch all validated jobs in a single `WHERE id IN (...)` query, reducing DB roundtrips from O(N) to O(1).
+
+## 2025-05-22 - [High-Frequency React Reconciliation]
+**Learning:** Components receiving high-frequency updates (e.g. video playback `currentTime` at 60Hz) re-render and generate new React Elements every frame, triggering expensive reconciliation even if the visual output is identical (e.g. staying within the same active word).
+**Action:** Use `useMemo` to derive a stable "index" (e.g. active word index) and then `useMemo` the returned JSX structure dependent on that index. This skips Element creation and Reconciliation entirely for frames where the index hasn't changed.
