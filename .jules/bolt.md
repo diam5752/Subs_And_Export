@@ -21,3 +21,7 @@
 ## 2025-05-22 - [High-Frequency React Reconciliation]
 **Learning:** Components receiving high-frequency updates (e.g. video playback `currentTime` at 60Hz) re-render and generate new React Elements every frame, triggering expensive reconciliation even if the visual output is identical (e.g. staying within the same active word).
 **Action:** Use `useMemo` to derive a stable "index" (e.g. active word index) and then `useMemo` the returned JSX structure dependent on that index. This skips Element creation and Reconciliation entirely for frames where the index hasn't changed.
+
+## 2025-12-20 - [Redundant Computation in Child Components]
+**Learning:** `PreviewPlayer` was re-running `resegmentCues` (expensive text measurement/wrapping) on every render, even though the parent (`ProcessContext`) had already performed this work and passed the result via props. This wasted CPU cycles on every frame update or settings change.
+**Action:** Removed the redundant calculation in the child component. Ensure expensive derived state is computed once at the highest necessary level and passed down, rather than re-computed in every consumer.
