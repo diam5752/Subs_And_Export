@@ -49,8 +49,8 @@ describe('CreditsBadge', () => {
         fireEvent.mouseEnter(pricingButton);
 
         expect(screen.getAllByText('Points pricing').length).toBeGreaterThan(0);
-        expect(screen.getByText('Video processing (default)')).toBeInTheDocument();
-        expect(screen.getByText('Ultimate model')).toBeInTheDocument();
+        expect(screen.getByText('Video processing (Standard)')).toBeInTheDocument();
+        expect(screen.getByText('Video processing (Pro)')).toBeInTheDocument();
         expect(screen.getByText('Fact check')).toBeInTheDocument();
     });
 });

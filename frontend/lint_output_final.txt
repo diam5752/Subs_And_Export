@@ -1,0 +1,10 @@
+
+> frontend@0.1.0 lint
+> eslint
+
+
+/Users/aggelosdiamantopoulos/Development/Subs_And_Export_Project/frontend/src/features/process/ProcessContext.tsx
+  811:15  warning  'previous' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+✖ 1 problem (0 errors, 1 warning)
+

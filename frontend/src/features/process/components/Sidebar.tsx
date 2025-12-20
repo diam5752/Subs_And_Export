@@ -289,7 +289,6 @@ export function Sidebar() {
         karaokeEnabled,
         watermarkEnabled,
         karaokeSupported,
-        transcribeProvider,
         thumbnailUrl,
         previewVideoUrl,
         cues,

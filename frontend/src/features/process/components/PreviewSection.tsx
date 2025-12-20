@@ -59,7 +59,7 @@ const PreviewSectionLayout = memo(({
                         ? 'bg-[var(--surface-elevated)] border-[var(--accent)] text-[var(--accent)] shadow-[0_0_10px_-5px_var(--accent)]'
                         : 'bg-[var(--surface-elevated)] border-[var(--border)] text-[var(--muted)] group-hover/step:border-[var(--accent)]/50 group-hover/step:text-[var(--accent)]'
                     }`}>STEP 3</span>
-                <h3 className="text-xl font-semibold">Preview & Export</h3>
+                <h3 className="text-xl font-semibold">{t('previewWindowLabel') || 'Preview & Export'}</h3>
             </div>
 
             <div className="card space-y-4 min-h-[200px]">
@@ -74,7 +74,7 @@ const PreviewSectionLayout = memo(({
                         <div className="flex flex-wrap items-start justify-between gap-3">
                             <div className="min-w-0 flex-1">
                                 <h3 className="text-2xl font-semibold break-words [overflow-wrap:anywhere]">
-                                    Live Preview
+                                    {t('subtitlesReady') || 'Live Preview'}
                                 </h3>
                                 <p className="text-sm text-[var(--muted)]">{t('liveOutputSubtitle')}</p>
                             </div>
@@ -140,6 +140,7 @@ const PreviewSectionLayout = memo(({
                                                         className="group relative h-[88px] rounded-lg bg-black/40 border border-white/10 hover:border-white/20 hover:bg-white/5 transition-all duration-200 overflow-hidden flex flex-col items-center justify-center gap-1"
                                                         onClick={() => handleExport('srt')}
                                                         disabled={exportingResolutions['srt']}
+                                                        data-testid="srt-btn"
                                                     >
                                                         {exportingResolutions['srt'] ? (
                                                             <div className="flex flex-col items-center gap-2">
@@ -164,6 +165,7 @@ const PreviewSectionLayout = memo(({
                                                         className="group relative h-[88px] rounded-lg bg-black/40 border border-white/10 hover:border-white/20 hover:bg-white/5 transition-all duration-200 overflow-hidden flex flex-col items-center justify-center gap-1"
                                                         onClick={() => handleExport('1080x1920')}
                                                         disabled={exportingResolutions['1080x1920']}
+                                                        data-testid="download-1080p-btn"
                                                     >
                                                         {exportingResolutions['1080x1920'] ? (
                                                             <div className="flex flex-col items-center gap-2">

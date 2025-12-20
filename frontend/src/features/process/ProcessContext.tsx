@@ -316,7 +316,7 @@ export function ProcessProvider({
         }
         if (hasChosenModel) return 2;
         return 1;
-    }, [hasChosenModel, selectedJob, transcribeProvider, transcribeMode]);
+    }, [hasChosenModel, selectedJob, transcribeMode]);
 
     const currentStep = overrideStep ?? calculatedStep;
 
@@ -571,17 +571,15 @@ export function ProcessProvider({
                 const url = buildStaticUrl(updatedJob.result_data.variants[resolution]);
                 if (url) {
                     try {
-                        const response = await fetch(url);
-                        const blob = await response.blob();
-                        const blobUrl = URL.createObjectURL(blob);
+                        // Direct download link method - avoids loading entire file into memory (blob)
                         const link = document.createElement('a');
-                        link.href = blobUrl;
+                        link.href = url;
                         const extension = resolution === 'srt' ? 'srt' : 'mp4';
                         link.download = `processed_${resolution}.${extension}`;
+                        link.target = "_blank";
                         document.body.appendChild(link);
                         link.click();
                         document.body.removeChild(link);
-                        URL.revokeObjectURL(blobUrl);
                     } catch (err) {
                         console.error('Download failed:', err);
                         window.open(url, '_blank');
@@ -810,7 +808,6 @@ export function ProcessProvider({
 
     const previousCalculatedStep = useRef(calculatedStep);
     useEffect(() => {
-        const previous = previousCalculatedStep.current;
         previousCalculatedStep.current = calculatedStep;
 
         // Only clear override if we naturally land on the EXACT step we overrode.

@@ -1,5 +1,5 @@
-
 import React from 'react';
+import { useI18n } from '@/context/I18nContext';
 
 interface StepIndicatorProps {
     currentStep: number; // 1, 2, or 3
@@ -13,6 +13,7 @@ interface StepIndicatorProps {
 }
 
 export const StepIndicator = React.memo(function StepIndicator({ currentStep, steps, onStepClick, maxStep }: StepIndicatorProps) {
+    const { t } = useI18n();
     // Default maxStep to currentStep if not provided (backward compatibility)
     const effectiveMaxStep = maxStep ?? currentStep;
 
@@ -33,7 +34,7 @@ export const StepIndicator = React.memo(function StepIndicator({ currentStep, st
 
                 {steps.map((step) => {
                     const isActive = currentStep === step.id; // Strictly active (currently viewing)
-                    const isCompleted = currentStep > step.id; // Strictly situated before current step
+
                     const isUnlocked = step.id <= effectiveMaxStep; // Accessible (unlocked)
 
                     // Determine visual state:
@@ -75,12 +76,13 @@ export const StepIndicator = React.memo(function StepIndicator({ currentStep, st
                             </div>
 
                             {/* Label */}
-                            <div className={`absolute top-full mt-3 text-center transition-all duration-500 whitespace-nowrap ${isActive
-                                ? 'opacity-100 transform translate-y-0'
-                                : 'opacity-50 transform -translate-y-1'
+                            <div className={`absolute top-full mt-3 text-center transition-all duration-500 w-24 ${step.id === 1 ? 'left-0' : step.id === steps.length ? 'right-0' : 'left-1/2 -translate-x-1/2'
+                                } ${isActive
+                                    ? 'opacity-100 transform translate-y-0'
+                                    : 'opacity-50 transform -translate-y-1'
                                 }`}>
                                 <span className={`text-xs font-bold tracking-wider uppercase block mb-0.5 ${isActive ? 'text-[var(--accent)] scale-110' : shouldShowAccent ? 'text-[var(--accent)] opacity-80' : 'text-[var(--muted)]'}`}>
-                                    Step {step.id}
+                                    {t('stepLabel', { n: step.id }) || `Step ${step.id}`}
                                 </span>
                                 <span className={`text-sm font-semibold ${isActive ? 'text-[var(--foreground)]' : 'text-[var(--muted)]'}`}>
                                     {step.label}

@@ -1,0 +1,238 @@
+
+> frontend@0.1.0 e2e
+> playwright test
+
+
+Running 18 tests using 3 workers
+
+  -   1 [chromium] › tests/e2e/process_flow.spec.ts:7:10 › Video Processing Flow › complete flow: upload -> processing -> completed -> download
+  ✓   3 [chromium] › tests/e2e/ui.spec.ts:24:9 › desktop layouts › login page layout stays contained (1.2s)
+  ✓   4 [chromium] › tests/e2e/ui.spec.ts:33:9 › desktop layouts › register page layout stays contained (1.0s)
+  ✘   2 [chromium] › tests/e2e/polling.spec.ts:13:9 › Job Polling E2E › dashboard can display processing jobs from history (6.7s)
+  ✘   6 [chromium] › tests/e2e/polling.spec.ts:28:9 › Job Polling E2E › dashboard handles authenticated state correctly (6.3s)
+  ✓   7 [chromium] › tests/e2e/polling.spec.ts:41:9 › Job Polling E2E › unauthenticated state redirects to login (959ms)
+  ✓   8 [chromium] › tests/e2e/polling.spec.ts:48:9 › Job Polling E2E › job list displays different job statuses (1.5s)
+  ✘   5 [chromium] › tests/e2e/ui.spec.ts:42:9 › desktop layouts › workspace renders upload area without overflow (30.7s)
+  ✘   9 [chromium] › tests/e2e/ui.spec.ts:55:9 › desktop layouts › completed preview stays contained without overflow (31.3s)
+  ✓  10 [chromium] › tests/e2e/ui.spec.ts:71:9 › desktop layouts › history section shows event cards neatly (1.3s)
+  ✓  11 [chromium] › tests/e2e/ui.spec.ts:87:9 › desktop layouts › account settings modal keeps controls readable (1.3s)
+  ✓  12 [chromium] › tests/e2e/ui.spec.ts:24:9 › mobile layouts › login page layout stays contained (893ms)
+  ✓  13 [chromium] › tests/e2e/ui.spec.ts:33:9 › mobile layouts › register page layout stays contained (914ms)
+  ✘  14 [chromium] › tests/e2e/ui.spec.ts:42:9 › mobile layouts › workspace renders upload area without overflow (30.6s)
+  ✘  15 [chromium] › tests/e2e/ui.spec.ts:55:9 › mobile layouts › completed preview stays contained without overflow (30.7s)
+  ✓  16 [chromium] › tests/e2e/ui.spec.ts:71:9 › mobile layouts › history section shows event cards neatly (1.3s)
+  ✓  17 [chromium] › tests/e2e/ui.spec.ts:87:9 › mobile layouts › account settings modal keeps controls readable (1.2s)
+  ✓  18 [chromium] › tests/e2e/ui.spec.ts:104:5 › unauthenticated users are redirected to login (835ms)
+
+
+  1) [chromium] › tests/e2e/polling.spec.ts:13:9 › Job Polling E2E › dashboard can display processing jobs from history 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByText('Ρίξτε το κάθετο κλιπ σας')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for getByText('Ρίξτε το κάθετο κλιπ σας')[22m
+
+
+      18 |
+      19 |         // Dashboard should render with the upload area
+    > 20 |         await expect(page.getByText(el.uploadDropTitle)).toBeVisible();
+         |                                                          ^
+      21 |
+      22 |         // History lives under the account modal
+      23 |         await page.getByRole('button', { name: el.accountSettingsTitle }).click();
+        at /Users/aggelosdiamantopoulos/Development/Subs_And_Export_Project/frontend/tests/e2e/polling.spec.ts:20:58
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/polling-Job-Polling-E2E-da-a0b47-rocessing-jobs-from-history-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/polling-Job-Polling-E2E-da-a0b47-rocessing-jobs-from-history-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/polling-Job-Polling-E2E-da-a0b47-rocessing-jobs-from-history-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/polling-Job-Polling-E2E-da-a0b47-rocessing-jobs-from-history-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [chromium] › tests/e2e/polling.spec.ts:28:9 › Job Polling E2E › dashboard handles authenticated state correctly 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByText('Ρίξτε το κάθετο κλιπ σας')
+    Expected: visible
+    Timeout: 5000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 5000ms[22m
+    [2m  - waiting for getByText('Ρίξτε το κάθετο κλιπ σας')[22m
+
+
+      33 |
+      34 |         // Verify dashboard loaded
+    > 35 |         await expect(page.getByText(el.uploadDropTitle)).toBeVisible();
+         |                                                          ^
+      36 |
+      37 |         // Account settings button should be available
+      38 |         await expect(page.getByRole('button', { name: el.accountSettingsTitle })).toBeVisible();
+        at /Users/aggelosdiamantopoulos/Development/Subs_And_Export_Project/frontend/tests/e2e/polling.spec.ts:35:58
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/polling-Job-Polling-E2E-da-bd4eb-thenticated-state-correctly-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/polling-Job-Polling-E2E-da-bd4eb-thenticated-state-correctly-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/polling-Job-Polling-E2E-da-bd4eb-thenticated-state-correctly-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/polling-Job-Polling-E2E-da-bd4eb-thenticated-state-correctly-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [chromium] › tests/e2e/ui.spec.ts:42:9 › desktop layouts › workspace renders upload area without overflow 
+
+    [31mTest timeout of 30000ms exceeded.[39m
+
+    Error: locator.waitFor: Test timeout of 30000ms exceeded.
+    Call log:
+    [2m  - waiting for getByText('Ρίξτε το κάθετο κλιπ σας') to be visible[22m
+
+
+      43 |       await mockApi(page);
+      44 |       await page.goto('/');
+    > 45 |       await page.getByText(el.uploadDropTitle).waitFor();
+         |                                                ^
+      46 |
+      47 |       // Check that the upload area is visible
+      48 |       await expect(page.getByText(el.uploadDropTitle)).toBeVisible();
+        at /Users/aggelosdiamantopoulos/Development/Subs_And_Export_Project/frontend/tests/e2e/ui.spec.ts:45:48
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/ui-desktop-layouts-workspa-332b8-pload-area-without-overflow-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/ui-desktop-layouts-workspa-332b8-pload-area-without-overflow-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/ui-desktop-layouts-workspa-332b8-pload-area-without-overflow-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/ui-desktop-layouts-workspa-332b8-pload-area-without-overflow-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) [chromium] › tests/e2e/ui.spec.ts:55:9 › desktop layouts › completed preview stays contained without overflow 
+
+    [31mTest timeout of 30000ms exceeded.[39m
+
+    Error: locator.waitFor: Test timeout of 30000ms exceeded.
+    Call log:
+    [2m  - waiting for getByText('Υπότιτλοι Έτοιμοι') to be visible[22m
+
+
+      60 |       await page.goto('/');
+      61 |
+    > 62 |       await page.getByText(el.subtitlesReady).waitFor();
+         |                                               ^
+      63 |       await stabilizeUi(page);
+      64 |       await expectNoHorizontalOverflow(page);
+      65 |       await expectNoHorizontalOverflow(page, 'main');
+        at /Users/aggelosdiamantopoulos/Development/Subs_And_Export_Project/frontend/tests/e2e/ui.spec.ts:62:47
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/ui-desktop-layouts-complet-b3004--contained-without-overflow-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/ui-desktop-layouts-complet-b3004--contained-without-overflow-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/ui-desktop-layouts-complet-b3004--contained-without-overflow-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/ui-desktop-layouts-complet-b3004--contained-without-overflow-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5) [chromium] › tests/e2e/ui.spec.ts:42:9 › mobile layouts › workspace renders upload area without overflow 
+
+    [31mTest timeout of 30000ms exceeded.[39m
+
+    Error: locator.waitFor: Test timeout of 30000ms exceeded.
+    Call log:
+    [2m  - waiting for getByText('Ρίξτε το κάθετο κλιπ σας') to be visible[22m
+
+
+      43 |       await mockApi(page);
+      44 |       await page.goto('/');
+    > 45 |       await page.getByText(el.uploadDropTitle).waitFor();
+         |                                                ^
+      46 |
+      47 |       // Check that the upload area is visible
+      48 |       await expect(page.getByText(el.uploadDropTitle)).toBeVisible();
+        at /Users/aggelosdiamantopoulos/Development/Subs_And_Export_Project/frontend/tests/e2e/ui.spec.ts:45:48
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/ui-mobile-layouts-workspac-3a0bf-pload-area-without-overflow-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/ui-mobile-layouts-workspac-3a0bf-pload-area-without-overflow-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/ui-mobile-layouts-workspac-3a0bf-pload-area-without-overflow-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/ui-mobile-layouts-workspac-3a0bf-pload-area-without-overflow-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  6) [chromium] › tests/e2e/ui.spec.ts:55:9 › mobile layouts › completed preview stays contained without overflow 
+
+    [31mTest timeout of 30000ms exceeded.[39m
+
+    Error: locator.waitFor: Test timeout of 30000ms exceeded.
+    Call log:
+    [2m  - waiting for getByText('Υπότιτλοι Έτοιμοι') to be visible[22m
+
+
+      60 |       await page.goto('/');
+      61 |
+    > 62 |       await page.getByText(el.subtitlesReady).waitFor();
+         |                                               ^
+      63 |       await stabilizeUi(page);
+      64 |       await expectNoHorizontalOverflow(page);
+      65 |       await expectNoHorizontalOverflow(page, 'main');
+        at /Users/aggelosdiamantopoulos/Development/Subs_And_Export_Project/frontend/tests/e2e/ui.spec.ts:62:47
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/ui-mobile-layouts-complete-0ccf5--contained-without-overflow-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/ui-mobile-layouts-complete-0ccf5--contained-without-overflow-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/ui-mobile-layouts-complete-0ccf5--contained-without-overflow-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/ui-mobile-layouts-complete-0ccf5--contained-without-overflow-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  6 failed
+    [chromium] › tests/e2e/polling.spec.ts:13:9 › Job Polling E2E › dashboard can display processing jobs from history 
+    [chromium] › tests/e2e/polling.spec.ts:28:9 › Job Polling E2E › dashboard handles authenticated state correctly 
+    [chromium] › tests/e2e/ui.spec.ts:42:9 › desktop layouts › workspace renders upload area without overflow 
+    [chromium] › tests/e2e/ui.spec.ts:55:9 › desktop layouts › completed preview stays contained without overflow 
+    [chromium] › tests/e2e/ui.spec.ts:42:9 › mobile layouts › workspace renders upload area without overflow 
+    [chromium] › tests/e2e/ui.spec.ts:55:9 › mobile layouts › completed preview stays contained without overflow 
+  1 skipped
+  11 passed (2.3m)

@@ -42,6 +42,7 @@ for (const [label, viewport] of Object.entries(viewports)) {
     test('workspace renders upload area without overflow', async ({ page }) => {
       await mockApi(page);
       await page.goto('/');
+      await page.getByTestId('model-standard').click({ force: true });
       await page.getByText(el.uploadDropTitle).waitFor();
 
       // Check that the upload area is visible

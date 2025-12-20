@@ -61,7 +61,7 @@ describe('ViralIntelligence', () => {
 
         render(<ViralIntelligence jobId={mockJobId} />);
 
-        fireEvent.click(screen.getByText(/fact check/i));
+        fireEvent.click(screen.getByText(/Verify Facts/i));
 
         await waitFor(() => expect(api.factCheck).toHaveBeenCalledWith(mockJobId));
         expect(__setBalanceMock).toHaveBeenCalledWith(900);
@@ -71,8 +71,10 @@ describe('ViralIntelligence', () => {
     it('calls social copy endpoint and renders result', async () => {
         (api.socialCopy as jest.Mock).mockResolvedValue({
             social_copy: {
-                title: 'Test Title',
-                description: 'Test Description',
+                title_en: 'Test Title',
+                title_el: 'Test Title El',
+                description_en: 'Test Description',
+                description_el: 'Test Description El',
                 hashtags: ['#test']
             },
             balance: 850
@@ -80,7 +82,7 @@ describe('ViralIntelligence', () => {
 
         render(<ViralIntelligence jobId={mockJobId} />);
 
-        fireEvent.click(screen.getByText(/generate metadata/i));
+        fireEvent.click(screen.getByText(/Generate Metadata/i));
 
         await waitFor(() => expect(api.socialCopy).toHaveBeenCalledWith(mockJobId));
         expect(__setBalanceMock).toHaveBeenCalledWith(850);
@@ -93,8 +95,10 @@ describe('ViralIntelligence', () => {
     it('allows copying metadata', async () => {
         (api.socialCopy as jest.Mock).mockResolvedValue({
             social_copy: {
-                title: 'Copy Title',
-                description: 'Copy Description',
+                title_en: 'Copy Title',
+                title_el: 'Copy Title El',
+                description_en: 'Copy Description',
+                description_el: 'Copy Description El',
                 hashtags: ['#copy']
             },
             balance: 850

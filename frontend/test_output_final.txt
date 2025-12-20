@@ -1,0 +1,163 @@
+
+> frontend@0.1.0 test
+> jest --watchAll=false --no-cache
+
+jest-haste-map: Haste module naming collision: frontend
+  The following files share their name; please adjust your hasteImpl:
+    * <rootDir>/package.json
+    * <rootDir>/.next/standalone/package.json
+
+PASS src/lib/__tests__/subtitleUtils.test.ts
+PASS src/lib/__tests__/video.test.ts
+PASS src/__tests__/api.test.ts
+PASS src/hooks/__tests__/useJobPolling.test.ts
+PASS src/features/process/__tests__/ProcessProvider.test.tsx
+PASS src/__tests__/useJobs.test.ts
+PASS src/hooks/__tests__/useJobs.test.ts
+PASS src/components/__tests__/ViralIntelligence.test.tsx
+PASS src/components/__tests__/AccountView.test.tsx
+  ● Console
+
+    console.error
+      Error: Not implemented: navigation (except hash changes)
+          at ignore-listed frames {
+        type: 'not implemented'
+      }
+
+      at VirtualConsole.<anonymous> (node_modules/@jest/environment-jsdom-abstract/build/index.js:87:23)
+      at module.exports (node_modules/jsdom/lib/jsdom/browser/not-implemented.js:12:26)
+      at navigateFetch (node_modules/jsdom/lib/jsdom/living/window/navigation.js:77:3)
+      at exports.navigate (node_modules/jsdom/lib/jsdom/living/window/navigation.js:55:3)
+      at Timeout._onTimeout (node_modules/jsdom/lib/jsdom/living/nodes/HTMLHyperlinkElementUtils-impl.js:80:7)
+
+PASS src/__tests__/login.test.tsx
+PASS src/components/__tests__/PreviewPlayer.test.tsx
+PASS src/components/__tests__/SubtitlePositionSelector.test.tsx
+PASS src/components/__tests__/JobListItem.test.tsx
+PASS src/components/__tests__/VideoModal.test.tsx
+PASS src/lib/__tests__/utils.test.ts
+PASS src/features/process/__tests__/SidebarTabs.test.tsx
+PASS src/__tests__/dashboard.test.tsx
+PASS src/__tests__/i18n.test.tsx
+PASS src/features/process/__tests__/ProcessView.test.tsx
+  ● Console
+
+    console.error
+      Error: Not implemented: HTMLMediaElement.prototype.load
+          at load (src/lib/video.ts:115:19)
+          at new Promise (<anonymous>)
+          at validateVideoAspectRatio (src/lib/video.ts:35:12)
+          at <unknown> (src/features/process/components/UploadSection.tsx:243:33) {
+        type: 'not implemented'
+      }
+
+      113 |         video.src = objectUrl;
+      114 |         try {
+    > 115 |             video.load();
+          |                   ^
+      116 |         } catch (e) {
+      117 |             console.warn('Video load error ignored:', e);
+      118 |         }
+
+      at VirtualConsole.<anonymous> (node_modules/@jest/environment-jsdom-abstract/build/index.js:87:23)
+      at module.exports (node_modules/jsdom/lib/jsdom/browser/not-implemented.js:12:26)
+      at HTMLVideoElementImpl.load (node_modules/jsdom/lib/jsdom/living/nodes/HTMLMediaElement-impl.js:112:5)
+      at HTMLVideoElement.load (node_modules/jsdom/lib/jsdom/living/generated/HTMLMediaElement.js:109:34)
+      at load (src/lib/video.ts:115:19)
+      at validateVideoAspectRatio (src/lib/video.ts:35:12)
+      at src/features/process/components/UploadSection.tsx:243:33
+      at Object.react_stack_bottom_frame (node_modules/react-dom/cjs/react-dom-client.development.js:25989:20)
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at commitHookEffectListMount (node_modules/react-dom/cjs/react-dom-client.development.js:13249:29)
+      at commitHookPassiveMountEffects (node_modules/react-dom/cjs/react-dom-client.development.js:13336:11)
+      at commitPassiveMountOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:15484:13)
+      at recursivelyTraversePassiveMountEffects (node_modules/react-dom/cjs/react-dom-client.development.js:15439:11)
+      at commitPassiveMountOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:15718:11)
+      at recursivelyTraversePassiveMountEffects (node_modules/react-dom/cjs/react-dom-client.development.js:15439:11)
+      at commitPassiveMountOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:15718:11)
+      at recursivelyTraversePassiveMountEffects (node_modules/react-dom/cjs/react-dom-client.development.js:15439:11)
+      at commitPassiveMountOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:15476:11)
+      at recursivelyTraversePassiveMountEffects (node_modules/react-dom/cjs/react-dom-client.development.js:15439:11)
+      at commitPassiveMountOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:15476:11)
+      at recursivelyTraversePassiveMountEffects (node_modules/react-dom/cjs/react-dom-client.development.js:15439:11)
+      at commitPassiveMountOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:15718:11)
+      at recursivelyTraversePassiveMountEffects (node_modules/react-dom/cjs/react-dom-client.development.js:15439:11)
+      at commitPassiveMountOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:15476:11)
+      at recursivelyTraversePassiveMountEffects (node_modules/react-dom/cjs/react-dom-client.development.js:15439:11)
+      at commitPassiveMountOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:15519:11)
+      at flushPassiveEffects (node_modules/react-dom/cjs/react-dom-client.development.js:18432:9)
+      at node_modules/react-dom/cjs/react-dom-client.development.js:17923:15
+      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
+      at process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
+      at node_modules/@testing-library/react/dist/act-compat.js:47:25
+      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
+      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
+      at Object.<anonymous> (src/features/process/__tests__/ProcessView.test.tsx:256:15)
+
+    console.error
+      Error: Not implemented: HTMLMediaElement.prototype.load
+          at load (src/lib/video.ts:115:19)
+          at new Promise (<anonymous>)
+          at validateVideoAspectRatio (src/lib/video.ts:35:12)
+          at <unknown> (src/features/process/components/UploadSection.tsx:243:33) {
+        type: 'not implemented'
+      }
+
+      113 |         video.src = objectUrl;
+      114 |         try {
+    > 115 |             video.load();
+          |                   ^
+      116 |         } catch (e) {
+      117 |             console.warn('Video load error ignored:', e);
+      118 |         }
+
+      at VirtualConsole.<anonymous> (node_modules/@jest/environment-jsdom-abstract/build/index.js:87:23)
+      at module.exports (node_modules/jsdom/lib/jsdom/browser/not-implemented.js:12:26)
+      at HTMLVideoElementImpl.load (node_modules/jsdom/lib/jsdom/living/nodes/HTMLMediaElement-impl.js:112:5)
+      at HTMLVideoElement.load (node_modules/jsdom/lib/jsdom/living/generated/HTMLMediaElement.js:109:34)
+      at load (src/lib/video.ts:115:19)
+      at validateVideoAspectRatio (src/lib/video.ts:35:12)
+      at src/features/process/components/UploadSection.tsx:243:33
+      at Object.react_stack_bottom_frame (node_modules/react-dom/cjs/react-dom-client.development.js:25989:20)
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at commitHookEffectListMount (node_modules/react-dom/cjs/react-dom-client.development.js:13249:29)
+      at commitHookPassiveMountEffects (node_modules/react-dom/cjs/react-dom-client.development.js:13336:11)
+      at commitPassiveMountOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:15484:13)
+      at recursivelyTraversePassiveMountEffects (node_modules/react-dom/cjs/react-dom-client.development.js:15439:11)
+      at commitPassiveMountOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:15718:11)
+      at recursivelyTraversePassiveMountEffects (node_modules/react-dom/cjs/react-dom-client.development.js:15439:11)
+      at commitPassiveMountOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:15718:11)
+      at recursivelyTraversePassiveMountEffects (node_modules/react-dom/cjs/react-dom-client.development.js:15439:11)
+      at commitPassiveMountOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:15476:11)
+      at recursivelyTraversePassiveMountEffects (node_modules/react-dom/cjs/react-dom-client.development.js:15439:11)
+      at commitPassiveMountOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:15476:11)
+      at recursivelyTraversePassiveMountEffects (node_modules/react-dom/cjs/react-dom-client.development.js:15439:11)
+      at commitPassiveMountOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:15718:11)
+      at recursivelyTraversePassiveMountEffects (node_modules/react-dom/cjs/react-dom-client.development.js:15439:11)
+      at commitPassiveMountOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:15476:11)
+      at recursivelyTraversePassiveMountEffects (node_modules/react-dom/cjs/react-dom-client.development.js:15439:11)
+      at commitPassiveMountOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:15519:11)
+      at flushPassiveEffects (node_modules/react-dom/cjs/react-dom-client.development.js:18432:9)
+      at node_modules/react-dom/cjs/react-dom-client.development.js:17923:15
+      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
+      at process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
+      at node_modules/@testing-library/react/dist/act-compat.js:47:25
+      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
+      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
+      at Object.<anonymous> (src/features/process/__tests__/ProcessView.test.tsx:297:15)
+
+PASS src/lib/__tests__/points.test.ts
+PASS src/lib/__tests__/appEnv.test.ts
+PASS src/components/__tests__/SubtitleOverlay.test.tsx
+PASS src/features/process/__tests__/CueItem.test.tsx
+PASS src/__tests__/nextConfig.test.ts
+PASS src/components/__tests__/AppEnvBadge.test.tsx
+PASS src/components/__tests__/CreditsBadge.test.tsx
+PASS src/components/__tests__/InfoTooltip.test.tsx
+PASS src/components/__tests__/CookieConsent.test.tsx
+
+Test Suites: 28 passed, 28 total
+Tests:       4 skipped, 212 passed, 216 total
+Snapshots:   0 total
+Time:        2.422 s
+Ran all test suites.

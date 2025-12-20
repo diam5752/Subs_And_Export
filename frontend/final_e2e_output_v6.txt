@@ -1,0 +1,27 @@
+
+> frontend@0.1.0 e2e
+> playwright test
+
+
+Running 18 tests using 3 workers
+
+  ✓   2 [chromium] › tests/e2e/ui.spec.ts:24:9 › desktop layouts › login page layout stays contained (2.3s)
+  ✓   3 [chromium] › tests/e2e/process_flow.spec.ts:7:9 › Video Processing Flow › complete flow: upload -> processing -> completed -> download (2.9s)
+  ✓   1 [chromium] › tests/e2e/polling.spec.ts:13:9 › Job Polling E2E › dashboard can display processing jobs from history (4.1s)
+  ✓   4 [chromium] › tests/e2e/ui.spec.ts:33:9 › desktop layouts › register page layout stays contained (2.4s)
+  ✓   5 [chromium] › tests/e2e/polling.spec.ts:31:9 › Job Polling E2E › dashboard handles authenticated state correctly (1.8s)
+  ✓   6 [chromium] › tests/e2e/ui.spec.ts:42:9 › desktop layouts › workspace renders upload area without overflow (1.9s)
+  ✓   7 [chromium] › tests/e2e/polling.spec.ts:46:9 › Job Polling E2E › unauthenticated state redirects to login (1.3s)
+  ✓   8 [chromium] › tests/e2e/ui.spec.ts:56:9 › desktop layouts › completed preview stays contained without overflow (2.2s)
+  ✓   9 [chromium] › tests/e2e/polling.spec.ts:53:9 › Job Polling E2E › job list displays different job statuses (2.4s)
+  ✓  10 [chromium] › tests/e2e/ui.spec.ts:72:9 › desktop layouts › history section shows event cards neatly (1.7s)
+  ✓  11 [chromium] › tests/e2e/ui.spec.ts:88:9 › desktop layouts › account settings modal keeps controls readable (1.4s)
+  ✓  12 [chromium] › tests/e2e/ui.spec.ts:24:9 › mobile layouts › login page layout stays contained (1.0s)
+  ✓  13 [chromium] › tests/e2e/ui.spec.ts:33:9 › mobile layouts › register page layout stays contained (1.1s)
+  ✓  14 [chromium] › tests/e2e/ui.spec.ts:42:9 › mobile layouts › workspace renders upload area without overflow (1.3s)
+  ✓  15 [chromium] › tests/e2e/ui.spec.ts:56:9 › mobile layouts › completed preview stays contained without overflow (1.3s)
+  ✓  16 [chromium] › tests/e2e/ui.spec.ts:72:9 › mobile layouts › history section shows event cards neatly (1.2s)
+  ✓  17 [chromium] › tests/e2e/ui.spec.ts:88:9 › mobile layouts › account settings modal keeps controls readable (1.2s)
+  ✓  18 [chromium] › tests/e2e/ui.spec.ts:105:5 › unauthenticated users are redirected to login (783ms)
+
+  18 passed (21.5s)

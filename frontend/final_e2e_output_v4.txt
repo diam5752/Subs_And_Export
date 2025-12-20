@@ -1,0 +1,100 @@
+
+> frontend@0.1.0 e2e
+> playwright test
+
+
+Running 18 tests using 3 workers
+
+  ✓   2 [chromium] › tests/e2e/ui.spec.ts:24:9 › desktop layouts › login page layout stays contained (2.7s)
+  ✓   4 [chromium] › tests/e2e/ui.spec.ts:33:9 › desktop layouts › register page layout stays contained (2.2s)
+  ✓   5 [chromium] › tests/e2e/ui.spec.ts:42:9 › desktop layouts › workspace renders upload area without overflow (2.6s)
+  ✓   6 [chromium] › tests/e2e/ui.spec.ts:56:9 › desktop layouts › completed preview stays contained without overflow (2.6s)
+  ✓   7 [chromium] › tests/e2e/ui.spec.ts:72:9 › desktop layouts › history section shows event cards neatly (5.6s)
+  ✓   8 [chromium] › tests/e2e/ui.spec.ts:88:9 › desktop layouts › account settings modal keeps controls readable (3.2s)
+  ✓   9 [chromium] › tests/e2e/ui.spec.ts:24:9 › mobile layouts › login page layout stays contained (2.3s)
+  ✓  10 [chromium] › tests/e2e/ui.spec.ts:33:9 › mobile layouts › register page layout stays contained (2.1s)
+  ✘   3 [chromium] › tests/e2e/process_flow.spec.ts:7:9 › Video Processing Flow › complete flow: upload -> processing -> completed -> download (23.8s)
+  ✓  11 [chromium] › tests/e2e/ui.spec.ts:42:9 › mobile layouts › workspace renders upload area without overflow (2.9s)
+  ✓  12 [chromium] › tests/e2e/ui.spec.ts:56:9 › mobile layouts › completed preview stays contained without overflow (1.9s)
+  ✓  13 [chromium] › tests/e2e/ui.spec.ts:72:9 › mobile layouts › history section shows event cards neatly (1.9s)
+  ✓  14 [chromium] › tests/e2e/ui.spec.ts:88:9 › mobile layouts › account settings modal keeps controls readable (1.8s)
+  ✘   1 [chromium] › tests/e2e/polling.spec.ts:13:9 › Job Polling E2E › dashboard can display processing jobs from history (32.2s)
+  ✓  15 [chromium] › tests/e2e/ui.spec.ts:105:5 › unauthenticated users are redirected to login (1.2s)
+  ✓  16 [chromium] › tests/e2e/polling.spec.ts:31:9 › Job Polling E2E › dashboard handles authenticated state correctly (2.0s)
+  ✓  17 [chromium] › tests/e2e/polling.spec.ts:46:9 › Job Polling E2E › unauthenticated state redirects to login (1.1s)
+  ✓  18 [chromium] › tests/e2e/polling.spec.ts:53:9 › Job Polling E2E › job list displays different job statuses (1.9s)
+
+
+  1) [chromium] › tests/e2e/polling.spec.ts:13:9 › Job Polling E2E › dashboard can display processing jobs from history 
+
+    [31mTest timeout of 30000ms exceeded.[39m
+
+    Error: locator.waitFor: Test timeout of 30000ms exceeded.
+    Call log:
+    [2m  - waiting for getByText('Ρίξτε το κάθετο κλιπ σας') to be visible[22m
+
+
+      20 |         // Dashboard should render with the upload area
+      21 |         const uploadTitle = page.getByText(el.uploadDropTitle);
+    > 22 |         await uploadTitle.waitFor({ state: 'visible' });
+         |                           ^
+      23 |         await expect(uploadTitle).toBeVisible();
+      24 |
+      25 |         // History lives under the account modal
+        at /Users/aggelosdiamantopoulos/Development/Subs_And_Export_Project/frontend/tests/e2e/polling.spec.ts:22:27
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/polling-Job-Polling-E2E-da-a0b47-rocessing-jobs-from-history-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/polling-Job-Polling-E2E-da-a0b47-rocessing-jobs-from-history-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/polling-Job-Polling-E2E-da-a0b47-rocessing-jobs-from-history-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/polling-Job-Polling-E2E-da-a0b47-rocessing-jobs-from-history-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [chromium] › tests/e2e/process_flow.spec.ts:7:9 › Video Processing Flow › complete flow: upload -> processing -> completed -> download 
+
+    Error: [2mexpect([22m[31mlocator[39m[2m).[22mtoBeVisible[2m([22m[2m)[22m failed
+
+    Locator: getByText('SRT')
+    Expected: visible
+    Timeout: 20000ms
+    Error: element(s) not found
+
+    Call log:
+    [2m  - Expect "toBeVisible" with timeout 20000ms[22m
+    [2m  - waiting for getByText('SRT')[22m
+
+
+      106 |         // Poll mock should switch to completed eventually.
+      107 |         // Once completed, the SRT export button should appear in PreviewSection
+    > 108 |         await expect(page.getByText('SRT')).toBeVisible({ timeout: 20000 });
+          |                                             ^
+      109 |
+      110 |         // 7. Check Download Options
+      111 |         await expect(page.getByRole('button', { name: '1080p' })).toBeVisible();
+        at /Users/aggelosdiamantopoulos/Development/Subs_And_Export_Project/frontend/tests/e2e/process_flow.spec.ts:108:45
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results/process_flow-Video-Process-dcdb0-sing---completed---download-chromium/test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results/process_flow-Video-Process-dcdb0-sing---completed---download-chromium/error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results/process_flow-Video-Process-dcdb0-sing---completed---download-chromium/trace.zip
+    Usage:
+
+        npx playwright show-trace test-results/process_flow-Video-Process-dcdb0-sing---completed---download-chromium/trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2 failed
+    [chromium] › tests/e2e/polling.spec.ts:13:9 › Job Polling E2E › dashboard can display processing jobs from history 
+    [chromium] › tests/e2e/process_flow.spec.ts:7:9 › Video Processing Flow › complete flow: upload -> processing -> completed -> download 
+  16 passed (41.6s)

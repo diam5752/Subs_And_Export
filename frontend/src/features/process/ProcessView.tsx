@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback } from 'react';
+import React, { useCallback } from 'react';
 import { StepIndicator } from './StepIndicator';
 import { ProcessProvider, useProcessContext, ProcessingOptions } from './ProcessContext';
 export type { ProcessingOptions } from './ProcessContext';
@@ -28,8 +28,8 @@ interface ProcessViewProps {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const ProcessViewLayout = React.memo(({ currentStep, steps, hasChosenModel, selectedJob, setOverrideStep }: { currentStep: number; steps: any[]; activeSidebarTab: string; hasVideos: boolean; hasChosenModel: boolean; isProcessing: boolean; selectedJob: JobResponse | null; setOverrideStep: (s: number | null) => void }) => {
-    // Step 2: Only show when user has selected a model (Step 1 done)
-    const showUploadSection = hasChosenModel;
+    // Step 2: Show if model chosen OR if we are already on Step 2+ (e.g. session restored)
+    const showUploadSection = hasChosenModel || currentStep >= 2;
 
     // Step 3: Only show when job is completed (Step 2 done)
     const showPreviewSection = selectedJob?.status === 'completed';
@@ -96,7 +96,7 @@ export function ProcessViewContent() {
         },
         {
             id: 2,
-            label: 'Upload',
+            label: t('stepUpload') || 'Upload',
             icon: (
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
@@ -105,7 +105,7 @@ export function ProcessViewContent() {
         },
         {
             id: 3,
-            label: 'Preview',
+            label: t('stepPreview') || 'Preview',
             icon: (
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.818v6.364a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -118,12 +118,13 @@ export function ProcessViewContent() {
 }
 
 export function ProcessView(props: ProcessViewProps) {
+    const { onFileSelect, onJobSelect } = props;
     const onFileSelectInternal = useCallback((file: File | null) => {
-        props.onFileSelect(file);
+        onFileSelect(file);
         if (file) {
-            props.onJobSelect?.(null);
+            onJobSelect?.(null);
         }
-    }, [props.onFileSelect, props.onJobSelect]);
+    }, [onFileSelect, onJobSelect]);
 
     return (
         <ProcessProvider {...props} onFileSelect={onFileSelectInternal}>

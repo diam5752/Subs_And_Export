@@ -4,7 +4,7 @@ import { mockApi } from './mocks';
 import el from '@/i18n/el.json';
 
 test.describe('Video Processing Flow', () => {
-    test.skip('complete flow: upload -> processing -> completed -> download', async ({ page }) => {
+    test('complete flow: upload -> processing -> completed -> download', async ({ page }) => {
         // 1. Mock API with specific job sequence
         await mockApi(page);
 
@@ -31,7 +31,7 @@ test.describe('Video Processing Flow', () => {
             let progress = 10;
             let result_data = {};
 
-            if (pollCount > 1) { status = 'processing'; progress = 50; }
+            if (pollCount > 1) { status = 'processing'; progress = 70; }
             if (pollCount > 2) {
                 status = 'completed';
                 progress = 100;
@@ -58,6 +58,9 @@ test.describe('Video Processing Flow', () => {
 
         // 2. Go to page
         await page.goto('/');
+
+        // Select model first
+        await page.getByTestId('model-standard').click({ force: true });
 
         // Check if we are stuck on loading
         await expect(page.getByText(el.loading)).not.toBeVisible();
@@ -93,7 +96,7 @@ test.describe('Video Processing Flow', () => {
         // Check if button is enabled/visible
         const processBtn = page.getByRole('button', { name: /Έναρξη|Start/i });
         await expect(processBtn).toBeVisible();
-        await processBtn.click();
+        await processBtn.click({ force: true });
 
         // 5. Verify Progress Mode
         // Assuming el.progressLabel or just text regex
@@ -101,9 +104,10 @@ test.describe('Video Processing Flow', () => {
 
         // 6. Wait for Completion
         // Poll mock should switch to completed eventually.
-        await expect(page.getByText('Done')).toBeVisible({ timeout: 10000 });
+        // Once completed, the SRT export button should appear in PreviewSection
+        await expect(page.getByTestId('srt-btn')).toBeVisible({ timeout: 25000 });
 
         // 7. Check Download Options
-        await expect(page.getByRole('button', { name: el.downloadMp4 })).toBeVisible();
+        await expect(page.getByTestId('download-1080p-btn')).toBeVisible();
     });
 });

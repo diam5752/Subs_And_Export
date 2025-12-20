@@ -86,7 +86,7 @@ export function UploadSection() {
             iconColor: 'text-emerald-400',
             glowColor: 'shadow-[0_0_30px_-5px_rgba(52,211,153,0.3)]',
         };
-    }, [transcribeProvider, transcribeMode]);
+    }, [transcribeMode]);
 
     const selectedModel = useMemo(() =>
         AVAILABLE_MODELS.find(m => m.provider === transcribeProvider && m.mode === transcribeMode),
@@ -303,7 +303,7 @@ export function UploadSection() {
                         className="hidden"
                         disabled={isProcessing}
                     />
-                    <div id="upload-section-compact" className="card space-y-4 scroll-mt-32 animate-fade-in-up-scale">
+                    <div id="upload-section-compact" data-testid="upload-section" className="card space-y-4 scroll-mt-32 animate-fade-in-up-scale">
                         <div className="flex flex-wrap items-center justify-between gap-3">
                             <div
                                 role="button"
@@ -562,7 +562,7 @@ export function UploadSection() {
         }
 
         return (
-            <div id="upload-section" className={`card space-y-4 animate-fade-in-up-scale transition-opacity duration-300 ${!hasChosenModel ? 'opacity-40 pointer-events-none' : ''}`}>
+            <div id="upload-section" data-testid="upload-section" className={`card space-y-4 animate-fade-in-up-scale transition-opacity duration-300 ${!hasChosenModel ? 'opacity-40 pointer-events-none' : ''}`}>
                 <div
                     role="button"
                     tabIndex={0}
@@ -576,7 +576,7 @@ export function UploadSection() {
                             ? 'bg-[var(--surface-elevated)] border-[var(--accent)] text-[var(--accent)] shadow-[0_0_10px_-5px_var(--accent)]'
                             : 'bg-[var(--surface-elevated)] border-[var(--border)] text-[var(--muted)] group-hover/step:border-[var(--accent)]/50 group-hover/step:text-[var(--accent)]'
                         }`}>STEP 2</span>
-                    <h3 className="text-xl font-semibold">Upload Video</h3>
+                    <h3 className="text-xl font-semibold">{t('stepUpload') || 'Upload Video'}</h3>
                     {/* Chevron indicator for expand/collapse */}
                     <svg
                         className={`w-5 h-5 text-[var(--muted)] transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}

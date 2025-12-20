@@ -2,6 +2,10 @@ import { render, screen } from '@testing-library/react';
 import { AppEnvProvider } from '@/context/AppEnvContext';
 import { AppEnvBadge } from '@/components/AppEnvBadge';
 
+jest.mock('@/context/I18nContext', () => ({
+  useI18n: () => ({ t: (key: string) => key === 'envDev' ? 'DEV' : (key === 'envProd' ? 'PROD' : key) }),
+}));
+
 describe('AppEnvBadge', () => {
   it('renders DEV when appEnv is dev', () => {
     render(

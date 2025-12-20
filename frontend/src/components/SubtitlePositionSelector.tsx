@@ -777,9 +777,12 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
                                                 className="absolute bottom-6 right-4 z-20 animate-in fade-in duration-300 pointer-events-none"
                                                 style={{ width: '25%' }}
                                             >
-                                                <img
+                                                <Image
                                                     src="/ascentia-logo.png"
                                                     alt="Watermark"
+                                                    width={0}
+                                                    height={0}
+                                                    sizes="20vw"
                                                     className="w-full h-auto opacity-90"
                                                 />
                                             </div>

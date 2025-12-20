@@ -107,7 +107,7 @@ describe('i18n provider defaults and persistence', () => {
         expect(document.documentElement.lang).toBe('el');
 
         // Updated: LanguageToggle now shows flag with "Switch to" aria-label
-        const toggle = screen.getByRole('button', { name: /Switch to English/i });
+        const toggle = screen.getByRole('button', { name: /Αλλαγή σε Αγγλικά/i });
         fireEvent.click(toggle);
 
         await waitFor(() => {

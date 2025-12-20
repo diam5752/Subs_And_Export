@@ -1,0 +1,52 @@
+
+> frontend@0.1.0 test
+> jest --watchAll=false
+
+PASS src/hooks/__tests__/useJobPolling.test.ts
+PASS src/features/process/__tests__/ProcessProvider.test.tsx
+PASS src/hooks/__tests__/useJobs.test.ts
+PASS src/__tests__/api.test.ts
+PASS src/lib/__tests__/subtitleUtils.test.ts
+PASS src/lib/__tests__/video.test.ts
+PASS src/components/__tests__/AccountView.test.tsx
+  ● Console
+
+    console.error
+      Error: Not implemented: navigation (except hash changes)
+          at ignore-listed frames {
+        type: 'not implemented'
+      }
+
+      at VirtualConsole.<anonymous> (node_modules/@jest/environment-jsdom-abstract/build/index.js:87:23)
+      at module.exports (node_modules/jsdom/lib/jsdom/browser/not-implemented.js:12:26)
+      at navigateFetch (node_modules/jsdom/lib/jsdom/living/window/navigation.js:77:3)
+      at exports.navigate (node_modules/jsdom/lib/jsdom/living/window/navigation.js:55:3)
+      at Timeout._onTimeout (node_modules/jsdom/lib/jsdom/living/nodes/HTMLHyperlinkElementUtils-impl.js:80:7)
+
+PASS src/__tests__/login.test.tsx
+PASS src/__tests__/useJobs.test.ts
+PASS src/components/__tests__/CookieConsent.test.tsx
+PASS src/components/__tests__/JobListItem.test.tsx
+PASS src/__tests__/i18n.test.tsx
+PASS src/components/__tests__/ViralIntelligence.test.tsx
+PASS src/features/process/__tests__/SidebarTabs.test.tsx
+PASS src/__tests__/dashboard.test.tsx
+PASS src/components/__tests__/CreditsBadge.test.tsx
+PASS src/components/__tests__/PreviewPlayer.test.tsx
+PASS src/features/process/__tests__/CueItem.test.tsx
+PASS src/components/__tests__/VideoModal.test.tsx
+PASS src/features/process/__tests__/ProcessView.test.tsx
+PASS src/lib/__tests__/utils.test.ts
+PASS src/components/__tests__/SubtitleOverlay.test.tsx
+PASS src/lib/__tests__/appEnv.test.ts
+PASS src/lib/__tests__/points.test.ts
+PASS src/__tests__/nextConfig.test.ts
+PASS src/components/__tests__/AppEnvBadge.test.tsx
+PASS src/components/__tests__/SubtitlePositionSelector.test.tsx
+PASS src/components/__tests__/InfoTooltip.test.tsx
+
+Test Suites: 28 passed, 28 total
+Tests:       4 skipped, 212 passed, 216 total
+Snapshots:   0 total
+Time:        5.185 s
+Ran all test suites.

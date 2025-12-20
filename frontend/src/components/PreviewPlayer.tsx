@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useImperativeHandle, useRef, useState, forwardRef, memo, useMemo } from 'react';
+import Image from 'next/image';
 import { SubtitleOverlay, Cue } from './SubtitleOverlay';
 import { resegmentCues } from '../lib/subtitleUtils';
 
@@ -273,9 +274,12 @@ export const PreviewPlayer = memo(forwardRef<PreviewPlayerHandle, PreviewPlayerP
                         className="absolute bottom-[40px] right-[40px] z-20 animate-in fade-in duration-500"
                         style={{ width: '15%' }} // Approximate 180px on 1080p
                     >
-                        <img
+                        <Image
                             src="/ascentia-logo.png"
                             alt="Watermark"
+                            width={0}
+                            height={0}
+                            sizes="20vw"
                             className="w-full h-auto opacity-90"
                         />
                     </div>

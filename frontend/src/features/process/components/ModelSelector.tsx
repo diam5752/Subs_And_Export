@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback, useState, useEffect } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { useI18n } from '@/context/I18nContext';
 import { useProcessContext, TranscribeProvider, TranscribeMode } from '../ProcessContext';
 import { TokenIcon } from '@/components/icons';
@@ -14,22 +14,13 @@ export function ModelSelector() {
         setTranscribeMode,
         setHasChosenModel,
         setOverrideStep,
-        onJobSelect,
         hasChosenModel,
         currentStep,
         selectedJob,
     } = useProcessContext();
 
-    // Collapsed state - expands automatically when on Step 1, otherwise respects user toggle
-    const [isManuallyExpanded, setIsManuallyExpanded] = useState(false);
-    const isExpanded = currentStep === 1 || isManuallyExpanded;
-
-    // Reset manual expansion when step changes
-    useEffect(() => {
-        if (currentStep === 1) {
-            setIsManuallyExpanded(false);
-        }
-    }, [currentStep]);
+    // Collapsed state - expands automatically when on Step 1
+    const isExpanded = currentStep === 1;
 
     // Get selected model for compact display
     const selectedModel = useMemo(() => {
@@ -175,7 +166,7 @@ export function ModelSelector() {
                 );
             })}
         </div>
-    ), [AVAILABLE_MODELS, transcribeProvider, transcribeMode, hasChosenModel, t, setTranscribeProvider, setTranscribeMode, setHasChosenModel, setOverrideStep, onJobSelect, scrollToUploadStep]);
+    ), [AVAILABLE_MODELS, transcribeProvider, transcribeMode, hasChosenModel, t, setTranscribeProvider, setTranscribeMode, setHasChosenModel, setOverrideStep, scrollToUploadStep]);
 
     const handleStepClick = useCallback(() => {
         setOverrideStep(1);

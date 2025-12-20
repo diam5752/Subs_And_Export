@@ -1,0 +1,1861 @@
+
+> frontend@0.1.0 test
+> jest --watchAll=false --no-cache
+
+jest-haste-map: Haste module naming collision: frontend
+  The following files share their name; please adjust your hasteImpl:
+    * <rootDir>/package.json
+    * <rootDir>/.next/standalone/package.json
+
+PASS src/lib/__tests__/video.test.ts (6.379 s)
+PASS src/lib/__tests__/subtitleUtils.test.ts (6.664 s)
+FAIL src/__tests__/api.test.ts (7.474 s)
+  ● API Client › processVideoFromGcs › should start processing using an upload id
+
+    expect(jest.fn()).toHaveBeenCalledWith(...expected)
+
+    Expected: StringContaining "/videos/gcs/process", ObjectContaining {"body": "{\"upload_id\":\"upload-123\",\"transcribe_model\":\"standard\",\"transcribe_provider\":\"groq\",\"openai_model\":\"\",\"video_quality\":\"balanced\",\"video_resolution\":\"\",\"use_llm\":false,\"context_prompt\":\"\",\"subtitle_position\":16,\"max_subtitle_lines\":2,\"subtitle_color\":null,\"shadow_strength\":4,\"subtitle_size\":100,\"karaoke_enabled\":true,\"watermark_enabled\":false}", "method": "POST"}
+    Received: "http://localhost:8000/videos/gcs/process", {"body": "{\"upload_id\":\"upload-123\",\"transcribe_model\":\"standard\",\"transcribe_provider\":\"groq\",\"openai_model\":\"\",\"video_quality\":\"balanced\",\"video_resolution\":\"\",\"use_llm\":false,\"context_prompt\":\"\",\"subtitle_position\":16,\"max_subtitle_lines\":2,\"subtitle_color\":null,\"shadow_strength\":4,\"highlight_style\":\"karaoke\",\"subtitle_size\":100,\"karaoke_enabled\":true,\"watermark_enabled\":false}", "headers": {"Content-Type": "application/json"}, "method": "POST"}
+
+    Number of calls: 1
+
+      294 |             const result = await api.processVideoFromGcs('upload-123', { transcribe_provider: 'groq' });
+      295 |
+    > 296 |             expect(fetch).toHaveBeenCalledWith(
+          |                           ^
+      297 |                 expect.stringContaining('/videos/gcs/process'),
+      298 |                 expect.objectContaining({
+      299 |                     method: 'POST',
+
+      at Object.toHaveBeenCalledWith (src/__tests__/api.test.ts:296:27)
+
+PASS src/hooks/__tests__/useJobPolling.test.ts (8.922 s)
+PASS src/hooks/__tests__/useJobs.test.ts (8.809 s)
+PASS src/features/process/__tests__/ProcessProvider.test.tsx (10.645 s)
+PASS src/__tests__/useJobs.test.ts
+PASS src/components/__tests__/AccountView.test.tsx (7.255 s)
+  ● Console
+
+    console.error
+      Error: Not implemented: navigation (except hash changes)
+          at ignore-listed frames {
+        type: 'not implemented'
+      }
+
+      at VirtualConsole.<anonymous> (node_modules/@jest/environment-jsdom-abstract/build/index.js:87:23)
+      at module.exports (node_modules/jsdom/lib/jsdom/browser/not-implemented.js:12:26)
+      at navigateFetch (node_modules/jsdom/lib/jsdom/living/window/navigation.js:77:3)
+      at exports.navigate (node_modules/jsdom/lib/jsdom/living/window/navigation.js:55:3)
+      at Timeout._onTimeout (node_modules/jsdom/lib/jsdom/living/nodes/HTMLHyperlinkElementUtils-impl.js:80:7)
+
+PASS src/features/process/__tests__/SidebarTabs.test.tsx
+PASS src/components/__tests__/JobListItem.test.tsx
+PASS src/__tests__/dashboard.test.tsx (15.482 s)
+PASS src/__tests__/login.test.tsx (7.61 s)
+FAIL src/components/__tests__/ViralIntelligence.test.tsx (6.615 s)
+  ● ViralIntelligence › calls fact check endpoint and renders report
+
+    TestingLibraryElementError: Unable to find an element with the text: /fact check/i. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.
+
+    Ignored nodes: comments, script, style
+    [36m<body>[39m
+      [36m<div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"space-y-6"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"grid grid-cols-2 gap-4"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"relative group/btn"[39m
+            [36m>[39m
+              [36m<button[39m
+                [33mclass[39m=[32m"w-full group relative flex flex-col items-center justify-center gap-3 py-6 px-4 rounded-[2rem] bg-white/5 hover:bg-white/10 backdrop-blur-2xl border border-white/10 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-xl hover:shadow-emerald-500/10"[39m
+              [36m>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"w-12 h-12 rounded-full bg-gradient-to-br from-emerald-400/20 to-teal-400/20 flex items-center justify-center text-emerald-300 shadow-inner mb-1 group-hover:scale-110 group-hover:bg-gradient-to-br group-hover:from-emerald-400 group-hover:to-teal-400 group-hover:text-white transition-all duration-300"[39m
+                [36m>[39m
+                  [36m<svg[39m
+                    [33mclass[39m=[32m"w-6 h-6"[39m
+                    [33mfill[39m=[32m"none"[39m
+                    [33mstroke[39m=[32m"currentColor"[39m
+                    [33mstroke-linecap[39m=[32m"round"[39m
+                    [33mstroke-linejoin[39m=[32m"round"[39m
+                    [33mstroke-width[39m=[32m"2"[39m
+                    [33mviewBox[39m=[32m"0 0 24 24"[39m
+                  [36m>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"[39m
+                    [36m/>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M9 12l2 2 4-4"[39m
+                    [36m/>[39m
+                  [36m</svg>[39m
+                [36m</div>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"text-center"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"block text-sm font-medium text-white/90 group-hover:text-white"[39m
+                  [36m>[39m
+                    [0mVerify Facts[0m
+                  [36m</span>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"flex items-center justify-center gap-1.5 opacity-80 mt-1"[39m
+                  [36m>[39m
+                    [36m<svg[39m
+                      [33maria-hidden[39m=[32m"true"[39m
+                      [33mclass[39m=[32m"w-3.5 h-3.5"[39m
+                      [33mfill[39m=[32m"none"[39m
+                      [33mviewBox[39m=[32m"0 0 24 24"[39m
+                      [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+                    [36m>[39m
+                      [36m<defs>[39m
+                        [36m<lineargradient[39m
+                          [33mid[39m=[32m"grad-base-_r_0_"[39m
+                          [33mx1[39m=[32m"0%"[39m
+                          [33mx2[39m=[32m"100%"[39m
+                          [33my1[39m=[32m"0%"[39m
+                          [33my2[39m=[32m"100%"[39m
+                        [36m>[39m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"0%"[39m
+                            [33mstop-color[39m=[32m"#4F46E5"[39m
+                          [36m/>[39m
+                          [0m [0m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"50%"[39m
+                            [33mstop-color[39m=[32m"#9333EA"[39m
+                          [36m/>[39m
+                          [0m [0m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"100%"[39m
+                            [33mstop-color[39m=[32m"#DB2777"[39m
+                          [36m/>[39m
+                          [0m [0m
+                        [36m</lineargradient>[39m
+                        [36m<lineargradient[39m
+                          [33mid[39m=[32m"grad-shine-_r_0_"[39m
+                          [33mx1[39m=[32m"0%"[39m
+                          [33mx2[39m=[32m"100%"[39m
+                          [33my1[39m=[32m"0%"[39m
+                          [33my2[39m=[32m"0%"[39m
+                        [36m>[39m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"0%"[39m
+                            [33mstop-color[39m=[32m"white"[39m
+                            [33mstop-opacity[39m=[32m"0.1"[39m
+                          [36m/>[39m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"50%"[39m
+                            [33mstop-color[39m=[32m"white"[39m
+                            [33mstop-opacity[39m=[32m"0.5"[39m
+                          [36m/>[39m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"100%"[39m
+                            [33mstop-color[39m=[32m"white"[39m
+                            [33mstop-opacity[39m=[32m"0.1"[39m
+                          [36m/>[39m
+                        [36m</lineargradient>[39m
+                        [36m<lineargradient[39m
+                          [33mid[39m=[32m"grad-gloss-_r_0_"[39m
+                          [33mx1[39m=[32m"50%"[39m
+                          [33mx2[39m=[32m"50%"[39m
+                          [33my1[39m=[32m"0%"[39m
+                          [33my2[39m=[32m"100%"[39m
+                        [36m>[39m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"0%"[39m
+                            [33mstop-color[39m=[32m"white"[39m
+                            [33mstop-opacity[39m=[32m"0.9"[39m
+                          [36m/>[39m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"100%"[39m
+                            [33mstop-color[39m=[32m"white"[39m
+                            [33mstop-opacity[39m=[32m"0"[39m
+                          [36m/>[39m
+                        [36m</lineargradient>[39m
+                      [36m</defs>[39m
+                      [36m<path[39m
+                        [33mclass[39m=[32m"opacity-40"[39m
+                        [33md[39m=[32m"M12 2L2 12L12 22L22 12L12 2Z"[39m
+                        [33mfill[39m=[32m"url(#grad-base-_r_0_)"[39m
+                        [33mfilter[39m=[32m"blur(4px)"[39m
+                      [36m/>[39m
+                      [36m<path[39m
+                        [33mclass[39m=[32m"opacity-30"[39m
+                        [33md[39m=[32m"M12 2L2 12L12 22L22 12L12 2Z"[39m
+                        [33mfill[39m=[32m"url(#grad-base-_r_0_)"[39m
+                      [36m/>[39m
+                      [36m<path[39m
+                        [33mclass[39m=[32m"opacity-40 mix-blend-overlay"[39m
+                        [33md[39m=[32m"M12 2L2 12L12 22L22 12L12 2Z"[39m
+                        [33mfill[39m=[32m"url(#grad-shine-_r_0_)"[39m
+                      [36m/>[39m
+                      [36m<path[39m
+                        [33mclass[39m=[32m"opacity-40 mix-blend-overlay"[39m
+                        [33md[39m=[32m"M12 2V22M2 12H22M12 2L7 12L12 22M12 2L17 12L12 22"[39m
+                    ...
+
+      62 |         render(<ViralIntelligence jobId={mockJobId} />);
+      63 |
+    > 64 |         fireEvent.click(screen.getByText(/fact check/i));
+         |                                ^
+      65 |
+      66 |         await waitFor(() => expect(api.factCheck).toHaveBeenCalledWith(mockJobId));
+      67 |         expect(__setBalanceMock).toHaveBeenCalledWith(900);
+
+      at Object.getElementError (node_modules/@testing-library/dom/dist/config.js:37:19)
+      at node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+      at node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+      at node_modules/@testing-library/dom/dist/query-helpers.js:95:19
+      at Object.getByText (src/components/__tests__/ViralIntelligence.test.tsx:64:32)
+
+  ● ViralIntelligence › calls social copy endpoint and renders result
+
+    Unable to find an element with the text: Test Title. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.
+
+    Ignored nodes: comments, script, style
+    [36m<body>[39m
+      [36m<div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"space-y-6"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"grid grid-cols-2 gap-4"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"relative group/btn"[39m
+            [36m>[39m
+              [36m<button[39m
+                [33mclass[39m=[32m"w-full group relative flex flex-col items-center justify-center gap-3 py-6 px-4 rounded-[2rem] bg-white/5 hover:bg-white/10 backdrop-blur-2xl border border-white/10 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-xl hover:shadow-emerald-500/10"[39m
+              [36m>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"w-12 h-12 rounded-full bg-gradient-to-br from-emerald-400/20 to-teal-400/20 flex items-center justify-center text-emerald-300 shadow-inner mb-1 group-hover:scale-110 group-hover:bg-gradient-to-br group-hover:from-emerald-400 group-hover:to-teal-400 group-hover:text-white transition-all duration-300"[39m
+                [36m>[39m
+                  [36m<svg[39m
+                    [33mclass[39m=[32m"w-6 h-6"[39m
+                    [33mfill[39m=[32m"none"[39m
+                    [33mstroke[39m=[32m"currentColor"[39m
+                    [33mstroke-linecap[39m=[32m"round"[39m
+                    [33mstroke-linejoin[39m=[32m"round"[39m
+                    [33mstroke-width[39m=[32m"2"[39m
+                    [33mviewBox[39m=[32m"0 0 24 24"[39m
+                  [36m>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"[39m
+                    [36m/>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M9 12l2 2 4-4"[39m
+                    [36m/>[39m
+                  [36m</svg>[39m
+                [36m</div>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"text-center"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"block text-sm font-medium text-white/90 group-hover:text-white"[39m
+                  [36m>[39m
+                    [0mVerify Facts[0m
+                  [36m</span>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"flex items-center justify-center gap-1.5 opacity-80 mt-1"[39m
+                  [36m>[39m
+                    [36m<svg[39m
+                      [33maria-hidden[39m=[32m"true"[39m
+                      [33mclass[39m=[32m"w-3.5 h-3.5"[39m
+                      [33mfill[39m=[32m"none"[39m
+                      [33mviewBox[39m=[32m"0 0 24 24"[39m
+                      [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+                    [36m>[39m
+                      [36m<defs>[39m
+                        [36m<lineargradient[39m
+                          [33mid[39m=[32m"grad-base-_r_8_"[39m
+                          [33mx1[39m=[32m"0%"[39m
+                          [33mx2[39m=[32m"100%"[39m
+                          [33my1[39m=[32m"0%"[39m
+                          [33my2[39m=[32m"100%"[39m
+                        [36m>[39m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"0%"[39m
+                            [33mstop-color[39m=[32m"#4F46E5"[39m
+                          [36m/>[39m
+                          [0m [0m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"50%"[39m
+                            [33mstop-color[39m=[32m"#9333EA"[39m
+                          [36m/>[39m
+                          [0m [0m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"100%"[39m
+                            [33mstop-color[39m=[32m"#DB2777"[39m
+                          [36m/>[39m
+                          [0m [0m
+                        [36m</lineargradient>[39m
+                        [36m<lineargradient[39m
+                          [33mid[39m=[32m"grad-shine-_r_8_"[39m
+                          [33mx1[39m=[32m"0%"[39m
+                          [33mx2[39m=[32m"100%"[39m
+                          [33my1[39m=[32m"0%"[39m
+                          [33my2[39m=[32m"0%"[39m
+                        [36m>[39m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"0%"[39m
+                            [33mstop-color[39m=[32m"white"[39m
+                            [33mstop-opacity[39m=[32m"0.1"[39m
+                          [36m/>[39m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"50%"[39m
+                            [33mstop-color[39m=[32m"white"[39m
+                            [33mstop-opacity[39m=[32m"0.5"[39m
+                          [36m/>[39m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"100%"[39m
+                            [33mstop-color[39m=[32m"white"[39m
+                            [33mstop-opacity[39m=[32m"0.1"[39m
+                          [36m/>[39m
+                        [36m</lineargradient>[39m
+                        [36m<lineargradient[39m
+                          [33mid[39m=[32m"grad-gloss-_r_8_"[39m
+                          [33mx1[39m=[32m"50%"[39m
+                          [33mx2[39m=[32m"50%"[39m
+                          [33my1[39m=[32m"0%"[39m
+                          [33my2[39m=[32m"100%"[39m
+                        [36m>[39m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"0%"[39m
+                            [33mstop-color[39m=[32m"white"[39m
+                            [33mstop-opacity[39m=[32m"0.9"[39m
+                          [36m/>[39m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"100%"[39m
+                            [33mstop-color[39m=[32m"white"[39m
+                            [33mstop-opacity[39m=[32m"0"[39m
+                          [36m/>[39m
+                        [36m</lineargradient>[39m
+                      [36m</defs>[39m
+                      [36m<path[39m
+                        [33mclass[39m=[32m"opacity-40"[39m
+                        [33md[39m=[32m"M12 2L2 12L12 22L22 12L12 2Z"[39m
+                        [33mfill[39m=[32m"url(#grad-base-_r_8_)"[39m
+                        [33mfilter[39m=[32m"blur(4px)"[39m
+                      [36m/>[39m
+                      [36m<path[39m
+                        [33mclass[39m=[32m"opacity-30"[39m
+                        [33md[39m=[32m"M12 2L2 12L12 22L22 12L12 2Z"[39m
+                        [33mfill[39m=[32m"url(#grad-base-_r_8_)"[39m
+                      [36m/>[39m
+                      [36m<path[39m
+                        [33mclass[39m=[32m"opacity-40 mix-blend-overlay"[39m
+                        [33md[39m=[32m"M12 2L2 12L12 22L22 12L12 2Z"[39m
+                        [33mfill[39m=[32m"url(#grad-shine-_r_8_)"[39m
+                      [36m/>[39m
+                      [36m<path[39m
+                        [33mclass[39m=[32m"opacity-40 mix-blend-overlay"[39m
+                        [33md[39m=[32m"M12 2V22M2 12H22M12 2L7 12L12 22M12 2L17 12L12 22"[39m
+                    ...
+
+      86 |         expect(__setBalanceMock).toHaveBeenCalledWith(850);
+      87 |
+    > 88 |         expect(await screen.findByText('Test Title')).toBeInTheDocument();
+         |                             ^
+      89 |         expect(screen.getByText('Test Description')).toBeInTheDocument();
+      90 |         expect(screen.getByText('#test')).toBeInTheDocument();
+      91 |     });
+
+      at waitForWrapper (node_modules/@testing-library/dom/dist/wait-for.js:163:27)
+      at node_modules/@testing-library/dom/dist/query-helpers.js:86:33
+      at Object.findByText (src/components/__tests__/ViralIntelligence.test.tsx:88:29)
+
+  ● ViralIntelligence › allows copying metadata
+
+    Unable to find an element with the text: Copy Title. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.
+
+    Ignored nodes: comments, script, style
+    [36m<body>[39m
+      [36m<div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"space-y-6"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"grid grid-cols-2 gap-4"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"relative group/btn"[39m
+            [36m>[39m
+              [36m<button[39m
+                [33mclass[39m=[32m"w-full group relative flex flex-col items-center justify-center gap-3 py-6 px-4 rounded-[2rem] bg-white/5 hover:bg-white/10 backdrop-blur-2xl border border-white/10 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-xl hover:shadow-emerald-500/10"[39m
+              [36m>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"w-12 h-12 rounded-full bg-gradient-to-br from-emerald-400/20 to-teal-400/20 flex items-center justify-center text-emerald-300 shadow-inner mb-1 group-hover:scale-110 group-hover:bg-gradient-to-br group-hover:from-emerald-400 group-hover:to-teal-400 group-hover:text-white transition-all duration-300"[39m
+                [36m>[39m
+                  [36m<svg[39m
+                    [33mclass[39m=[32m"w-6 h-6"[39m
+                    [33mfill[39m=[32m"none"[39m
+                    [33mstroke[39m=[32m"currentColor"[39m
+                    [33mstroke-linecap[39m=[32m"round"[39m
+                    [33mstroke-linejoin[39m=[32m"round"[39m
+                    [33mstroke-width[39m=[32m"2"[39m
+                    [33mviewBox[39m=[32m"0 0 24 24"[39m
+                  [36m>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"[39m
+                    [36m/>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M9 12l2 2 4-4"[39m
+                    [36m/>[39m
+                  [36m</svg>[39m
+                [36m</div>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"text-center"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"block text-sm font-medium text-white/90 group-hover:text-white"[39m
+                  [36m>[39m
+                    [0mVerify Facts[0m
+                  [36m</span>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"flex items-center justify-center gap-1.5 opacity-80 mt-1"[39m
+                  [36m>[39m
+                    [36m<svg[39m
+                      [33maria-hidden[39m=[32m"true"[39m
+                      [33mclass[39m=[32m"w-3.5 h-3.5"[39m
+                      [33mfill[39m=[32m"none"[39m
+                      [33mviewBox[39m=[32m"0 0 24 24"[39m
+                      [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+                    [36m>[39m
+                      [36m<defs>[39m
+                        [36m<lineargradient[39m
+                          [33mid[39m=[32m"grad-base-_r_e_"[39m
+                          [33mx1[39m=[32m"0%"[39m
+                          [33mx2[39m=[32m"100%"[39m
+                          [33my1[39m=[32m"0%"[39m
+                          [33my2[39m=[32m"100%"[39m
+                        [36m>[39m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"0%"[39m
+                            [33mstop-color[39m=[32m"#4F46E5"[39m
+                          [36m/>[39m
+                          [0m [0m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"50%"[39m
+                            [33mstop-color[39m=[32m"#9333EA"[39m
+                          [36m/>[39m
+                          [0m [0m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"100%"[39m
+                            [33mstop-color[39m=[32m"#DB2777"[39m
+                          [36m/>[39m
+                          [0m [0m
+                        [36m</lineargradient>[39m
+                        [36m<lineargradient[39m
+                          [33mid[39m=[32m"grad-shine-_r_e_"[39m
+                          [33mx1[39m=[32m"0%"[39m
+                          [33mx2[39m=[32m"100%"[39m
+                          [33my1[39m=[32m"0%"[39m
+                          [33my2[39m=[32m"0%"[39m
+                        [36m>[39m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"0%"[39m
+                            [33mstop-color[39m=[32m"white"[39m
+                            [33mstop-opacity[39m=[32m"0.1"[39m
+                          [36m/>[39m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"50%"[39m
+                            [33mstop-color[39m=[32m"white"[39m
+                            [33mstop-opacity[39m=[32m"0.5"[39m
+                          [36m/>[39m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"100%"[39m
+                            [33mstop-color[39m=[32m"white"[39m
+                            [33mstop-opacity[39m=[32m"0.1"[39m
+                          [36m/>[39m
+                        [36m</lineargradient>[39m
+                        [36m<lineargradient[39m
+                          [33mid[39m=[32m"grad-gloss-_r_e_"[39m
+                          [33mx1[39m=[32m"50%"[39m
+                          [33mx2[39m=[32m"50%"[39m
+                          [33my1[39m=[32m"0%"[39m
+                          [33my2[39m=[32m"100%"[39m
+                        [36m>[39m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"0%"[39m
+                            [33mstop-color[39m=[32m"white"[39m
+                            [33mstop-opacity[39m=[32m"0.9"[39m
+                          [36m/>[39m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"100%"[39m
+                            [33mstop-color[39m=[32m"white"[39m
+                            [33mstop-opacity[39m=[32m"0"[39m
+                          [36m/>[39m
+                        [36m</lineargradient>[39m
+                      [36m</defs>[39m
+                      [36m<path[39m
+                        [33mclass[39m=[32m"opacity-40"[39m
+                        [33md[39m=[32m"M12 2L2 12L12 22L22 12L12 2Z"[39m
+                        [33mfill[39m=[32m"url(#grad-base-_r_e_)"[39m
+                        [33mfilter[39m=[32m"blur(4px)"[39m
+                      [36m/>[39m
+                      [36m<path[39m
+                        [33mclass[39m=[32m"opacity-30"[39m
+                        [33md[39m=[32m"M12 2L2 12L12 22L22 12L12 2Z"[39m
+                        [33mfill[39m=[32m"url(#grad-base-_r_e_)"[39m
+                      [36m/>[39m
+                      [36m<path[39m
+                        [33mclass[39m=[32m"opacity-40 mix-blend-overlay"[39m
+                        [33md[39m=[32m"M12 2L2 12L12 22L22 12L12 2Z"[39m
+                        [33mfill[39m=[32m"url(#grad-shine-_r_e_)"[39m
+                      [36m/>[39m
+                      [36m<path[39m
+                        [33mclass[39m=[32m"opacity-40 mix-blend-overlay"[39m
+                        [33md[39m=[32m"M12 2V22M2 12H22M12 2L7 12L12 22M12 2L17 12L12 22"[39m
+                    ...
+
+      105 |         fireEvent.click(screen.getByText(/generate metadata/i));
+      106 |
+    > 107 |         await waitFor(() => expect(screen.getByText('Copy Title')).toBeInTheDocument());
+          |                      ^
+      108 |
+      109 |         // Find and click the copy button for title
+      110 |         const titleCopyBtn = screen.getByLabelText('Copy Title');
+
+      at waitForWrapper (node_modules/@testing-library/dom/dist/wait-for.js:163:27)
+      at Object.<anonymous> (src/components/__tests__/ViralIntelligence.test.tsx:107:22)
+
+PASS src/lib/__tests__/utils.test.ts
+PASS src/components/__tests__/PreviewPlayer.test.tsx
+PASS src/features/process/__tests__/ProcessView.test.tsx (17.944 s)
+  ● Console
+
+    console.error
+      Error: Not implemented: HTMLMediaElement.prototype.load
+          at load (src/lib/video.ts:115:19)
+          at new Promise (<anonymous>)
+          at validateVideoAspectRatio (src/lib/video.ts:35:12)
+          at <unknown> (src/features/process/components/UploadSection.tsx:243:33) {
+        type: 'not implemented'
+      }
+
+      113 |         video.src = objectUrl;
+      114 |         try {
+    > 115 |             video.load();
+          |                   ^
+      116 |         } catch (e) {
+      117 |             console.warn('Video load error ignored:', e);
+      118 |         }
+
+      at VirtualConsole.<anonymous> (node_modules/@jest/environment-jsdom-abstract/build/index.js:87:23)
+      at module.exports (node_modules/jsdom/lib/jsdom/browser/not-implemented.js:12:26)
+      at HTMLVideoElementImpl.load (node_modules/jsdom/lib/jsdom/living/nodes/HTMLMediaElement-impl.js:112:5)
+      at HTMLVideoElement.load (node_modules/jsdom/lib/jsdom/living/generated/HTMLMediaElement.js:109:34)
+      at load (src/lib/video.ts:115:19)
+      at validateVideoAspectRatio (src/lib/video.ts:35:12)
+      at src/features/process/components/UploadSection.tsx:243:33
+      at Object.react_stack_bottom_frame (node_modules/react-dom/cjs/react-dom-client.development.js:25989:20)
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at commitHookEffectListMount (node_modules/react-dom/cjs/react-dom-client.development.js:13249:29)
+      at commitHookPassiveMountEffects (node_modules/react-dom/cjs/react-dom-client.development.js:13336:11)
+      at commitPassiveMountOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:15484:13)
+      at recursivelyTraversePassiveMountEffects (node_modules/react-dom/cjs/react-dom-client.development.js:15439:11)
+      at commitPassiveMountOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:15718:11)
+      at recursivelyTraversePassiveMountEffects (node_modules/react-dom/cjs/react-dom-client.development.js:15439:11)
+      at commitPassiveMountOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:15718:11)
+      at recursivelyTraversePassiveMountEffects (node_modules/react-dom/cjs/react-dom-client.development.js:15439:11)
+      at commitPassiveMountOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:15476:11)
+      at recursivelyTraversePassiveMountEffects (node_modules/react-dom/cjs/react-dom-client.development.js:15439:11)
+      at commitPassiveMountOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:15476:11)
+      at recursivelyTraversePassiveMountEffects (node_modules/react-dom/cjs/react-dom-client.development.js:15439:11)
+      at commitPassiveMountOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:15718:11)
+      at recursivelyTraversePassiveMountEffects (node_modules/react-dom/cjs/react-dom-client.development.js:15439:11)
+      at commitPassiveMountOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:15476:11)
+      at recursivelyTraversePassiveMountEffects (node_modules/react-dom/cjs/react-dom-client.development.js:15439:11)
+      at commitPassiveMountOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:15519:11)
+      at flushPassiveEffects (node_modules/react-dom/cjs/react-dom-client.development.js:18432:9)
+      at node_modules/react-dom/cjs/react-dom-client.development.js:17923:15
+      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
+      at process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
+      at node_modules/@testing-library/react/dist/act-compat.js:47:25
+      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
+      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
+      at Object.<anonymous> (src/features/process/__tests__/ProcessView.test.tsx:256:15)
+
+    console.error
+      Error: Not implemented: HTMLMediaElement.prototype.load
+          at load (src/lib/video.ts:115:19)
+          at new Promise (<anonymous>)
+          at validateVideoAspectRatio (src/lib/video.ts:35:12)
+          at <unknown> (src/features/process/components/UploadSection.tsx:243:33) {
+        type: 'not implemented'
+      }
+
+      113 |         video.src = objectUrl;
+      114 |         try {
+    > 115 |             video.load();
+          |                   ^
+      116 |         } catch (e) {
+      117 |             console.warn('Video load error ignored:', e);
+      118 |         }
+
+      at VirtualConsole.<anonymous> (node_modules/@jest/environment-jsdom-abstract/build/index.js:87:23)
+      at module.exports (node_modules/jsdom/lib/jsdom/browser/not-implemented.js:12:26)
+      at HTMLVideoElementImpl.load (node_modules/jsdom/lib/jsdom/living/nodes/HTMLMediaElement-impl.js:112:5)
+      at HTMLVideoElement.load (node_modules/jsdom/lib/jsdom/living/generated/HTMLMediaElement.js:109:34)
+      at load (src/lib/video.ts:115:19)
+      at validateVideoAspectRatio (src/lib/video.ts:35:12)
+      at src/features/process/components/UploadSection.tsx:243:33
+      at Object.react_stack_bottom_frame (node_modules/react-dom/cjs/react-dom-client.development.js:25989:20)
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at commitHookEffectListMount (node_modules/react-dom/cjs/react-dom-client.development.js:13249:29)
+      at commitHookPassiveMountEffects (node_modules/react-dom/cjs/react-dom-client.development.js:13336:11)
+      at commitPassiveMountOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:15484:13)
+      at recursivelyTraversePassiveMountEffects (node_modules/react-dom/cjs/react-dom-client.development.js:15439:11)
+      at commitPassiveMountOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:15718:11)
+      at recursivelyTraversePassiveMountEffects (node_modules/react-dom/cjs/react-dom-client.development.js:15439:11)
+      at commitPassiveMountOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:15718:11)
+      at recursivelyTraversePassiveMountEffects (node_modules/react-dom/cjs/react-dom-client.development.js:15439:11)
+      at commitPassiveMountOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:15476:11)
+      at recursivelyTraversePassiveMountEffects (node_modules/react-dom/cjs/react-dom-client.development.js:15439:11)
+      at commitPassiveMountOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:15476:11)
+      at recursivelyTraversePassiveMountEffects (node_modules/react-dom/cjs/react-dom-client.development.js:15439:11)
+      at commitPassiveMountOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:15718:11)
+      at recursivelyTraversePassiveMountEffects (node_modules/react-dom/cjs/react-dom-client.development.js:15439:11)
+      at commitPassiveMountOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:15476:11)
+      at recursivelyTraversePassiveMountEffects (node_modules/react-dom/cjs/react-dom-client.development.js:15439:11)
+      at commitPassiveMountOnFiber (node_modules/react-dom/cjs/react-dom-client.development.js:15519:11)
+      at flushPassiveEffects (node_modules/react-dom/cjs/react-dom-client.development.js:18432:9)
+      at node_modules/react-dom/cjs/react-dom-client.development.js:17923:15
+      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
+      at process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
+      at node_modules/@testing-library/react/dist/act-compat.js:47:25
+      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
+      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
+      at Object.<anonymous> (src/features/process/__tests__/ProcessView.test.tsx:297:15)
+
+PASS src/components/__tests__/VideoModal.test.tsx
+PASS src/components/__tests__/SubtitlePositionSelector.test.tsx (19.408 s)
+PASS src/__tests__/i18n.test.tsx (12.475 s)
+PASS src/features/process/__tests__/CueItem.test.tsx
+PASS src/lib/__tests__/appEnv.test.ts
+PASS src/lib/__tests__/points.test.ts
+PASS src/components/__tests__/SubtitleOverlay.test.tsx
+FAIL src/components/__tests__/CreditsBadge.test.tsx
+  ● CreditsBadge › renders balance, refreshes on click, and shows pricing tooltip
+
+    TestingLibraryElementError: Unable to find an element with the text: Video processing (default). This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.
+
+    Ignored nodes: comments, script, style
+    [36m<body>[39m
+      [36m<div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"flex items-center gap-2"[39m
+        [36m>[39m
+          [36m<button[39m
+            [33maria-label[39m=[32m"Refresh credits"[39m
+            [33mclass[39m=[32m"group inline-flex items-center gap-2.5 rounded-full border border-white/10 bg-white/5 px-3.5 py-1.5 text-sm text-[var(--foreground)] shadow-sm backdrop-blur-xl transition-all hover:bg-white/10 hover:border-[var(--accent)]/30 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/20"[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"flex items-center gap-1.5 group-hover:opacity-80 transition-opacity"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33maria-hidden[39m=[32m"true"[39m
+                [33mclass[39m=[32m"w-4 h-4"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+              [36m>[39m
+                [36m<defs>[39m
+                  [36m<lineargradient[39m
+                    [33mid[39m=[32m"grad-base-_r_0_"[39m
+                    [33mx1[39m=[32m"0%"[39m
+                    [33mx2[39m=[32m"100%"[39m
+                    [33my1[39m=[32m"0%"[39m
+                    [33my2[39m=[32m"100%"[39m
+                  [36m>[39m
+                    [36m<stop[39m
+                      [33moffset[39m=[32m"0%"[39m
+                      [33mstop-color[39m=[32m"#4F46E5"[39m
+                    [36m/>[39m
+                    [0m [0m
+                    [36m<stop[39m
+                      [33moffset[39m=[32m"50%"[39m
+                      [33mstop-color[39m=[32m"#9333EA"[39m
+                    [36m/>[39m
+                    [0m [0m
+                    [36m<stop[39m
+                      [33moffset[39m=[32m"100%"[39m
+                      [33mstop-color[39m=[32m"#DB2777"[39m
+                    [36m/>[39m
+                    [0m [0m
+                  [36m</lineargradient>[39m
+                  [36m<lineargradient[39m
+                    [33mid[39m=[32m"grad-shine-_r_0_"[39m
+                    [33mx1[39m=[32m"0%"[39m
+                    [33mx2[39m=[32m"100%"[39m
+                    [33my1[39m=[32m"0%"[39m
+                    [33my2[39m=[32m"0%"[39m
+                  [36m>[39m
+                    [36m<stop[39m
+                      [33moffset[39m=[32m"0%"[39m
+                      [33mstop-color[39m=[32m"white"[39m
+                      [33mstop-opacity[39m=[32m"0.1"[39m
+                    [36m/>[39m
+                    [36m<stop[39m
+                      [33moffset[39m=[32m"50%"[39m
+                      [33mstop-color[39m=[32m"white"[39m
+                      [33mstop-opacity[39m=[32m"0.5"[39m
+                    [36m/>[39m
+                    [36m<stop[39m
+                      [33moffset[39m=[32m"100%"[39m
+                      [33mstop-color[39m=[32m"white"[39m
+                      [33mstop-opacity[39m=[32m"0.1"[39m
+                    [36m/>[39m
+                  [36m</lineargradient>[39m
+                  [36m<lineargradient[39m
+                    [33mid[39m=[32m"grad-gloss-_r_0_"[39m
+                    [33mx1[39m=[32m"50%"[39m
+                    [33mx2[39m=[32m"50%"[39m
+                    [33my1[39m=[32m"0%"[39m
+                    [33my2[39m=[32m"100%"[39m
+                  [36m>[39m
+                    [36m<stop[39m
+                      [33moffset[39m=[32m"0%"[39m
+                      [33mstop-color[39m=[32m"white"[39m
+                      [33mstop-opacity[39m=[32m"0.9"[39m
+                    [36m/>[39m
+                    [36m<stop[39m
+                      [33moffset[39m=[32m"100%"[39m
+                      [33mstop-color[39m=[32m"white"[39m
+                      [33mstop-opacity[39m=[32m"0"[39m
+                    [36m/>[39m
+                  [36m</lineargradient>[39m
+                [36m</defs>[39m
+                [36m<path[39m
+                  [33mclass[39m=[32m"opacity-40"[39m
+                  [33md[39m=[32m"M12 2L2 12L12 22L22 12L12 2Z"[39m
+                  [33mfill[39m=[32m"url(#grad-base-_r_0_)"[39m
+                  [33mfilter[39m=[32m"blur(4px)"[39m
+                [36m/>[39m
+                [36m<path[39m
+                  [33mclass[39m=[32m"opacity-30"[39m
+                  [33md[39m=[32m"M12 2L2 12L12 22L22 12L12 2Z"[39m
+                  [33mfill[39m=[32m"url(#grad-base-_r_0_)"[39m
+                [36m/>[39m
+                [36m<path[39m
+                  [33mclass[39m=[32m"opacity-40 mix-blend-overlay"[39m
+                  [33md[39m=[32m"M12 2L2 12L12 22L22 12L12 2Z"[39m
+                  [33mfill[39m=[32m"url(#grad-shine-_r_0_)"[39m
+                [36m/>[39m
+                [36m<path[39m
+                  [33mclass[39m=[32m"opacity-40 mix-blend-overlay"[39m
+                  [33md[39m=[32m"M12 2V22M2 12H22M12 2L7 12L12 22M12 2L17 12L12 22"[39m
+                  [33mstroke[39m=[32m"white"[39m
+                  [33mstroke-linecap[39m=[32m"round"[39m
+                  [33mstroke-linejoin[39m=[32m"round"[39m
+                  [33mstroke-width[39m=[32m"0.75"[39m
+                [36m/>[39m
+                [36m<path[39m
+                  [33mclass[39m=[32m"opacity-40"[39m
+                  [33md[39m=[32m"M12 2L5 9L12 11L19 9L12 2Z"[39m
+                  [33mfill[39m=[32m"url(#grad-gloss-_r_0_)"[39m
+                [36m/>[39m
+                [36m<path[39m
+                  [33mclass[39m=[32m"opacity-80"[39m
+                  [33md[39m=[32m"M12 2L2 12L12 22L22 12L12 2Z"[39m
+                  [33mstroke[39m=[32m"currentColor"[39m
+                  [33mstroke-linejoin[39m=[32m"round"[39m
+                  [33mstroke-width[39m=[32m"1.2"[39m
+                [36m/>[39m
+                [36m<path[39m
+                  [33mclass[39m=[32m"transform scale-75 origin-center animate-pulse-slow shadow-sm"[39m
+                  [33md[39m=[32m"M12 8L13 11L16 12L13 13L12 16L11 13L8 12L11 11L12 8Z"[39m
+                  [33mfill[39m=[32m"white"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"font-mono text-base font-bold tracking-tight text-[var(--foreground)]"[39m
+              [36m>[39m
+                [0m1,234[0m
+              [36m</span>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33maria-hidden[39m=[32m"true"[39m
+              [33mclass[39m=[32m"text-[var(--muted)] group-hover:text-[var(--foreground)]/50 transition-colors"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33mclass[39m=[32m"w-3.5 h-3.5"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M4.05 11a8 8 0 1 1 .5 4m-.5 5V15h5"[39m
+                  [33mstroke[39m=[32m"currentColor"[39m
+                  [33mstroke-linecap[39m=[32m"round"[39m
+                  [33mstroke-linejoin[39m=[32m"round"[39m
+                  [33mstroke-width[39m=[32m"2"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+            [36m</div>[39m
+          [36m</button>[39m
+          [36m<span[39m
+            [33mclass[39m=[32m"relative inline-flex shrink-0"[39m
+          [36m>[39m
+            [36m<button[39m
+              [33maria-describedby[39m=[32m"_r_1_"[39m
+              [33maria-label[39m=[32m"Points pricing"[39m
+              [33mclass[39m=[32m"inline-flex h-5 w-5 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] transition-colors hover:border-[var(--accent)]/40 hover:text-[var(--foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/40"[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33maria-hidden[39m=[32m"true"[39m
+                [33mclass[39m=[32m"h-3.5 w-3.5"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mviewBox[39m=[32m"0 0 20 20"[39m
+              [36m>[39m
+                [36m<circle[39m
+                  [33mcx[39m=[32m"10"[39m
+                  [33mcy[39m=[32m"10"[39m
+                  [33mr[39m=[32m"8"[39m
+                  [33mstroke[39m=[32m"currentColor"[39m
+                  [33mstroke-width[39m=[32m"1.5"[39m
+                [36m/>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M10 8.5v5"[39m
+                  [33mstroke[39m=[32m"currentColor"[39m
+                  [33mstroke-linecap[39m=[32m"round"[39m
+                  [33mstroke-width[39m=[32m"1.5"[39m
+                [36m/>[39m
+                [36m<circle[39m
+                  [33mcx[39m=[32m"10"[39m
+                  [33mcy[39m=[32m"6"[39m
+                  [33mfill[39m=[32m"currentColor"[39m
+                  [33mr[39m=[32m"1"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+            [36m</button>[39m
+          [36m</span>[39m
+        [36m</div>[39m
+      [36m</div>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"fixed z-[9999] w-[min(260px,calc(100vw-2rem))] -translate-x-1/2 rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)] p-3 text-[11px] text-[var(--foreground)] shadow-2xl ring-1 ring-white/5"[39m
+        [33mid[39m=[32m"_r_1_"[39m
+        [33mrole[39m=[32m"tooltip"[39m
+        [33mstyle[39m=[32m"left: 12px; top: 8px;"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33maria-hidden[39m=[32m"true"[39m
+          [33mclass[39m=[32m"absolute h-3 w-3 -translate-x-1/2 rotate-45 bg-[var(--surface-elevated)] -top-1.5 border-l border-t border-[var(--border)]"[39m
+          [33mstyle[39m=[32m"left: 14px;"[39m
+        [36m/>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"space-y-2"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"flex items-center justify-between gap-3"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"font-semibold text-[11px]"[39m
+            [36m>[39m
+              [0mPoints pricing[0m
+            [36m</div>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"space-y-1 text-[11px] text-[var(--muted)]"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"flex items-center justify-between gap-4"[39m
+            [36m>[39m
+              [36m<span>[39m
+                [0mVideo processing (Standard)[0m
+              [36m</span>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"font-mono text-[var(--foreground)]"[39m
+              [36m>[39m
+                [0m25[0m
+              [36m</span>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"flex items-center justify-between gap-4"[39m
+            [36m>[39m
+              [36m<span>[39m
+                [0mVideo processing (Pro)[0m
+              [36m</span>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"font-mono text-[var(--foreground)]"[39m
+              [36m>[39m
+                [0m50[0m
+              [36m</span>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"flex items-center justify-between gap-4"[39m
+            [36m>[39m
+              [36m<span>[39m
+                [0mSocial copy[0m
+              [36m</span>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"font-mono text-[var(--foreground)]"[39m
+              [36m>[39m
+                [0m10[0m
+              [36m</span>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"flex items-center justify-between gap-4"[39m
+            [36m>[39m
+              [36m<span>[39m
+                [0mFact check[0m
+              [36m</span>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"font-mono text-[var(--foreground)]"[39m
+              [36m>[39m
+                [0m20[0m
+              [36m</span>[39m
+            [36m</div>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"text-[10px] text-[var(--muted)]"[39m
+          [36m>[39m
+            [0mCharges scale with usage and apply minimums if balance is insufficient.[0m
+          [36m</div>[39m
+        [36m</div>[39m
+      [36m</div>[39m
+    [36m</body>[39m
+
+      50 |
+      51 |         expect(screen.getAllByText('Points pricing').length).toBeGreaterThan(0);
+    > 52 |         expect(screen.getByText('Video processing (default)')).toBeInTheDocument();
+         |                       ^
+      53 |         expect(screen.getByText('Ultimate model')).toBeInTheDocument();
+      54 |         expect(screen.getByText('Fact check')).toBeInTheDocument();
+      55 |     });
+
+      at Object.getElementError (node_modules/@testing-library/dom/dist/config.js:37:19)
+      at node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+      at node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+      at node_modules/@testing-library/dom/dist/query-helpers.js:95:19
+      at Object.getByText (src/components/__tests__/CreditsBadge.test.tsx:52:23)
+
+PASS src/components/__tests__/CookieConsent.test.tsx
+PASS src/__tests__/nextConfig.test.ts
+PASS src/components/__tests__/InfoTooltip.test.tsx
+FAIL src/components/__tests__/AppEnvBadge.test.tsx
+  ● AppEnvBadge › renders DEV when appEnv is dev
+
+    useI18n must be used within an I18nProvider
+
+      88 |   const context = useContext(I18nContext);
+      89 |   if (!context) {
+    > 90 |     throw new Error('useI18n must be used within an I18nProvider');
+         |           ^
+      91 |   }
+      92 |   return context;
+      93 | }
+
+      at useI18n (src/context/I18nContext.tsx:90:11)
+      at AppEnvBadge (src/components/AppEnvBadge.tsx:8:24)
+      at Object.react_stack_bottom_frame (node_modules/react-dom/cjs/react-dom-client.development.js:25904:20)
+      at renderWithHooks (node_modules/react-dom/cjs/react-dom-client.development.js:7662:22)
+      at updateFunctionComponent (node_modules/react-dom/cjs/react-dom-client.development.js:10166:19)
+      at beginWork (node_modules/react-dom/cjs/react-dom-client.development.js:11778:18)
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17641:22)
+      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
+      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
+      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16583:35)
+      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
+      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
+      at process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
+      at node_modules/@testing-library/react/dist/act-compat.js:47:25
+      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
+      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
+      at Object.<anonymous> (src/components/__tests__/AppEnvBadge.test.tsx:7:11)
+
+  ● AppEnvBadge › renders PROD when appEnv is production
+
+    useI18n must be used within an I18nProvider
+
+      88 |   const context = useContext(I18nContext);
+      89 |   if (!context) {
+    > 90 |     throw new Error('useI18n must be used within an I18nProvider');
+         |           ^
+      91 |   }
+      92 |   return context;
+      93 | }
+
+      at useI18n (src/context/I18nContext.tsx:90:11)
+      at AppEnvBadge (src/components/AppEnvBadge.tsx:8:24)
+      at Object.react_stack_bottom_frame (node_modules/react-dom/cjs/react-dom-client.development.js:25904:20)
+      at renderWithHooks (node_modules/react-dom/cjs/react-dom-client.development.js:7662:22)
+      at updateFunctionComponent (node_modules/react-dom/cjs/react-dom-client.development.js:10166:19)
+      at beginWork (node_modules/react-dom/cjs/react-dom-client.development.js:11778:18)
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17641:22)
+      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
+      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
+      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16583:35)
+      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
+      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
+      at process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
+      at node_modules/@testing-library/react/dist/act-compat.js:47:25
+      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
+      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
+      at Object.<anonymous> (src/components/__tests__/AppEnvBadge.test.tsx:16:11)
+
+A worker process has failed to exit gracefully and has been force exited. This is likely caused by tests leaking due to improper teardown. Try running with --detectOpenHandles to find leaks. Active timers can also cause this, ensure that .unref() was called on them.
+Summary of all failing tests
+FAIL src/__tests__/api.test.ts (7.474 s)
+  ● API Client › processVideoFromGcs › should start processing using an upload id
+
+    expect(jest.fn()).toHaveBeenCalledWith(...expected)
+
+    Expected: StringContaining "/videos/gcs/process", ObjectContaining {"body": "{\"upload_id\":\"upload-123\",\"transcribe_model\":\"standard\",\"transcribe_provider\":\"groq\",\"openai_model\":\"\",\"video_quality\":\"balanced\",\"video_resolution\":\"\",\"use_llm\":false,\"context_prompt\":\"\",\"subtitle_position\":16,\"max_subtitle_lines\":2,\"subtitle_color\":null,\"shadow_strength\":4,\"subtitle_size\":100,\"karaoke_enabled\":true,\"watermark_enabled\":false}", "method": "POST"}
+    Received: "http://localhost:8000/videos/gcs/process", {"body": "{\"upload_id\":\"upload-123\",\"transcribe_model\":\"standard\",\"transcribe_provider\":\"groq\",\"openai_model\":\"\",\"video_quality\":\"balanced\",\"video_resolution\":\"\",\"use_llm\":false,\"context_prompt\":\"\",\"subtitle_position\":16,\"max_subtitle_lines\":2,\"subtitle_color\":null,\"shadow_strength\":4,\"highlight_style\":\"karaoke\",\"subtitle_size\":100,\"karaoke_enabled\":true,\"watermark_enabled\":false}", "headers": {"Content-Type": "application/json"}, "method": "POST"}
+
+    Number of calls: 1
+
+      294 |             const result = await api.processVideoFromGcs('upload-123', { transcribe_provider: 'groq' });
+      295 |
+    > 296 |             expect(fetch).toHaveBeenCalledWith(
+          |                           ^
+      297 |                 expect.stringContaining('/videos/gcs/process'),
+      298 |                 expect.objectContaining({
+      299 |                     method: 'POST',
+
+      at Object.toHaveBeenCalledWith (src/__tests__/api.test.ts:296:27)
+
+FAIL src/components/__tests__/ViralIntelligence.test.tsx (6.615 s)
+  ● ViralIntelligence › calls fact check endpoint and renders report
+
+    TestingLibraryElementError: Unable to find an element with the text: /fact check/i. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.
+
+    Ignored nodes: comments, script, style
+    [36m<body>[39m
+      [36m<div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"space-y-6"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"grid grid-cols-2 gap-4"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"relative group/btn"[39m
+            [36m>[39m
+              [36m<button[39m
+                [33mclass[39m=[32m"w-full group relative flex flex-col items-center justify-center gap-3 py-6 px-4 rounded-[2rem] bg-white/5 hover:bg-white/10 backdrop-blur-2xl border border-white/10 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-xl hover:shadow-emerald-500/10"[39m
+              [36m>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"w-12 h-12 rounded-full bg-gradient-to-br from-emerald-400/20 to-teal-400/20 flex items-center justify-center text-emerald-300 shadow-inner mb-1 group-hover:scale-110 group-hover:bg-gradient-to-br group-hover:from-emerald-400 group-hover:to-teal-400 group-hover:text-white transition-all duration-300"[39m
+                [36m>[39m
+                  [36m<svg[39m
+                    [33mclass[39m=[32m"w-6 h-6"[39m
+                    [33mfill[39m=[32m"none"[39m
+                    [33mstroke[39m=[32m"currentColor"[39m
+                    [33mstroke-linecap[39m=[32m"round"[39m
+                    [33mstroke-linejoin[39m=[32m"round"[39m
+                    [33mstroke-width[39m=[32m"2"[39m
+                    [33mviewBox[39m=[32m"0 0 24 24"[39m
+                  [36m>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"[39m
+                    [36m/>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M9 12l2 2 4-4"[39m
+                    [36m/>[39m
+                  [36m</svg>[39m
+                [36m</div>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"text-center"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"block text-sm font-medium text-white/90 group-hover:text-white"[39m
+                  [36m>[39m
+                    [0mVerify Facts[0m
+                  [36m</span>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"flex items-center justify-center gap-1.5 opacity-80 mt-1"[39m
+                  [36m>[39m
+                    [36m<svg[39m
+                      [33maria-hidden[39m=[32m"true"[39m
+                      [33mclass[39m=[32m"w-3.5 h-3.5"[39m
+                      [33mfill[39m=[32m"none"[39m
+                      [33mviewBox[39m=[32m"0 0 24 24"[39m
+                      [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+                    [36m>[39m
+                      [36m<defs>[39m
+                        [36m<lineargradient[39m
+                          [33mid[39m=[32m"grad-base-_r_0_"[39m
+                          [33mx1[39m=[32m"0%"[39m
+                          [33mx2[39m=[32m"100%"[39m
+                          [33my1[39m=[32m"0%"[39m
+                          [33my2[39m=[32m"100%"[39m
+                        [36m>[39m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"0%"[39m
+                            [33mstop-color[39m=[32m"#4F46E5"[39m
+                          [36m/>[39m
+                          [0m [0m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"50%"[39m
+                            [33mstop-color[39m=[32m"#9333EA"[39m
+                          [36m/>[39m
+                          [0m [0m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"100%"[39m
+                            [33mstop-color[39m=[32m"#DB2777"[39m
+                          [36m/>[39m
+                          [0m [0m
+                        [36m</lineargradient>[39m
+                        [36m<lineargradient[39m
+                          [33mid[39m=[32m"grad-shine-_r_0_"[39m
+                          [33mx1[39m=[32m"0%"[39m
+                          [33mx2[39m=[32m"100%"[39m
+                          [33my1[39m=[32m"0%"[39m
+                          [33my2[39m=[32m"0%"[39m
+                        [36m>[39m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"0%"[39m
+                            [33mstop-color[39m=[32m"white"[39m
+                            [33mstop-opacity[39m=[32m"0.1"[39m
+                          [36m/>[39m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"50%"[39m
+                            [33mstop-color[39m=[32m"white"[39m
+                            [33mstop-opacity[39m=[32m"0.5"[39m
+                          [36m/>[39m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"100%"[39m
+                            [33mstop-color[39m=[32m"white"[39m
+                            [33mstop-opacity[39m=[32m"0.1"[39m
+                          [36m/>[39m
+                        [36m</lineargradient>[39m
+                        [36m<lineargradient[39m
+                          [33mid[39m=[32m"grad-gloss-_r_0_"[39m
+                          [33mx1[39m=[32m"50%"[39m
+                          [33mx2[39m=[32m"50%"[39m
+                          [33my1[39m=[32m"0%"[39m
+                          [33my2[39m=[32m"100%"[39m
+                        [36m>[39m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"0%"[39m
+                            [33mstop-color[39m=[32m"white"[39m
+                            [33mstop-opacity[39m=[32m"0.9"[39m
+                          [36m/>[39m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"100%"[39m
+                            [33mstop-color[39m=[32m"white"[39m
+                            [33mstop-opacity[39m=[32m"0"[39m
+                          [36m/>[39m
+                        [36m</lineargradient>[39m
+                      [36m</defs>[39m
+                      [36m<path[39m
+                        [33mclass[39m=[32m"opacity-40"[39m
+                        [33md[39m=[32m"M12 2L2 12L12 22L22 12L12 2Z"[39m
+                        [33mfill[39m=[32m"url(#grad-base-_r_0_)"[39m
+                        [33mfilter[39m=[32m"blur(4px)"[39m
+                      [36m/>[39m
+                      [36m<path[39m
+                        [33mclass[39m=[32m"opacity-30"[39m
+                        [33md[39m=[32m"M12 2L2 12L12 22L22 12L12 2Z"[39m
+                        [33mfill[39m=[32m"url(#grad-base-_r_0_)"[39m
+                      [36m/>[39m
+                      [36m<path[39m
+                        [33mclass[39m=[32m"opacity-40 mix-blend-overlay"[39m
+                        [33md[39m=[32m"M12 2L2 12L12 22L22 12L12 2Z"[39m
+                        [33mfill[39m=[32m"url(#grad-shine-_r_0_)"[39m
+                      [36m/>[39m
+                      [36m<path[39m
+                        [33mclass[39m=[32m"opacity-40 mix-blend-overlay"[39m
+                        [33md[39m=[32m"M12 2V22M2 12H22M12 2L7 12L12 22M12 2L17 12L12 22"[39m
+                    ...
+
+      62 |         render(<ViralIntelligence jobId={mockJobId} />);
+      63 |
+    > 64 |         fireEvent.click(screen.getByText(/fact check/i));
+         |                                ^
+      65 |
+      66 |         await waitFor(() => expect(api.factCheck).toHaveBeenCalledWith(mockJobId));
+      67 |         expect(__setBalanceMock).toHaveBeenCalledWith(900);
+
+      at Object.getElementError (node_modules/@testing-library/dom/dist/config.js:37:19)
+      at node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+      at node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+      at node_modules/@testing-library/dom/dist/query-helpers.js:95:19
+      at Object.getByText (src/components/__tests__/ViralIntelligence.test.tsx:64:32)
+
+  ● ViralIntelligence › calls social copy endpoint and renders result
+
+    Unable to find an element with the text: Test Title. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.
+
+    Ignored nodes: comments, script, style
+    [36m<body>[39m
+      [36m<div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"space-y-6"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"grid grid-cols-2 gap-4"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"relative group/btn"[39m
+            [36m>[39m
+              [36m<button[39m
+                [33mclass[39m=[32m"w-full group relative flex flex-col items-center justify-center gap-3 py-6 px-4 rounded-[2rem] bg-white/5 hover:bg-white/10 backdrop-blur-2xl border border-white/10 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-xl hover:shadow-emerald-500/10"[39m
+              [36m>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"w-12 h-12 rounded-full bg-gradient-to-br from-emerald-400/20 to-teal-400/20 flex items-center justify-center text-emerald-300 shadow-inner mb-1 group-hover:scale-110 group-hover:bg-gradient-to-br group-hover:from-emerald-400 group-hover:to-teal-400 group-hover:text-white transition-all duration-300"[39m
+                [36m>[39m
+                  [36m<svg[39m
+                    [33mclass[39m=[32m"w-6 h-6"[39m
+                    [33mfill[39m=[32m"none"[39m
+                    [33mstroke[39m=[32m"currentColor"[39m
+                    [33mstroke-linecap[39m=[32m"round"[39m
+                    [33mstroke-linejoin[39m=[32m"round"[39m
+                    [33mstroke-width[39m=[32m"2"[39m
+                    [33mviewBox[39m=[32m"0 0 24 24"[39m
+                  [36m>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"[39m
+                    [36m/>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M9 12l2 2 4-4"[39m
+                    [36m/>[39m
+                  [36m</svg>[39m
+                [36m</div>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"text-center"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"block text-sm font-medium text-white/90 group-hover:text-white"[39m
+                  [36m>[39m
+                    [0mVerify Facts[0m
+                  [36m</span>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"flex items-center justify-center gap-1.5 opacity-80 mt-1"[39m
+                  [36m>[39m
+                    [36m<svg[39m
+                      [33maria-hidden[39m=[32m"true"[39m
+                      [33mclass[39m=[32m"w-3.5 h-3.5"[39m
+                      [33mfill[39m=[32m"none"[39m
+                      [33mviewBox[39m=[32m"0 0 24 24"[39m
+                      [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+                    [36m>[39m
+                      [36m<defs>[39m
+                        [36m<lineargradient[39m
+                          [33mid[39m=[32m"grad-base-_r_8_"[39m
+                          [33mx1[39m=[32m"0%"[39m
+                          [33mx2[39m=[32m"100%"[39m
+                          [33my1[39m=[32m"0%"[39m
+                          [33my2[39m=[32m"100%"[39m
+                        [36m>[39m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"0%"[39m
+                            [33mstop-color[39m=[32m"#4F46E5"[39m
+                          [36m/>[39m
+                          [0m [0m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"50%"[39m
+                            [33mstop-color[39m=[32m"#9333EA"[39m
+                          [36m/>[39m
+                          [0m [0m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"100%"[39m
+                            [33mstop-color[39m=[32m"#DB2777"[39m
+                          [36m/>[39m
+                          [0m [0m
+                        [36m</lineargradient>[39m
+                        [36m<lineargradient[39m
+                          [33mid[39m=[32m"grad-shine-_r_8_"[39m
+                          [33mx1[39m=[32m"0%"[39m
+                          [33mx2[39m=[32m"100%"[39m
+                          [33my1[39m=[32m"0%"[39m
+                          [33my2[39m=[32m"0%"[39m
+                        [36m>[39m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"0%"[39m
+                            [33mstop-color[39m=[32m"white"[39m
+                            [33mstop-opacity[39m=[32m"0.1"[39m
+                          [36m/>[39m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"50%"[39m
+                            [33mstop-color[39m=[32m"white"[39m
+                            [33mstop-opacity[39m=[32m"0.5"[39m
+                          [36m/>[39m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"100%"[39m
+                            [33mstop-color[39m=[32m"white"[39m
+                            [33mstop-opacity[39m=[32m"0.1"[39m
+                          [36m/>[39m
+                        [36m</lineargradient>[39m
+                        [36m<lineargradient[39m
+                          [33mid[39m=[32m"grad-gloss-_r_8_"[39m
+                          [33mx1[39m=[32m"50%"[39m
+                          [33mx2[39m=[32m"50%"[39m
+                          [33my1[39m=[32m"0%"[39m
+                          [33my2[39m=[32m"100%"[39m
+                        [36m>[39m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"0%"[39m
+                            [33mstop-color[39m=[32m"white"[39m
+                            [33mstop-opacity[39m=[32m"0.9"[39m
+                          [36m/>[39m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"100%"[39m
+                            [33mstop-color[39m=[32m"white"[39m
+                            [33mstop-opacity[39m=[32m"0"[39m
+                          [36m/>[39m
+                        [36m</lineargradient>[39m
+                      [36m</defs>[39m
+                      [36m<path[39m
+                        [33mclass[39m=[32m"opacity-40"[39m
+                        [33md[39m=[32m"M12 2L2 12L12 22L22 12L12 2Z"[39m
+                        [33mfill[39m=[32m"url(#grad-base-_r_8_)"[39m
+                        [33mfilter[39m=[32m"blur(4px)"[39m
+                      [36m/>[39m
+                      [36m<path[39m
+                        [33mclass[39m=[32m"opacity-30"[39m
+                        [33md[39m=[32m"M12 2L2 12L12 22L22 12L12 2Z"[39m
+                        [33mfill[39m=[32m"url(#grad-base-_r_8_)"[39m
+                      [36m/>[39m
+                      [36m<path[39m
+                        [33mclass[39m=[32m"opacity-40 mix-blend-overlay"[39m
+                        [33md[39m=[32m"M12 2L2 12L12 22L22 12L12 2Z"[39m
+                        [33mfill[39m=[32m"url(#grad-shine-_r_8_)"[39m
+                      [36m/>[39m
+                      [36m<path[39m
+                        [33mclass[39m=[32m"opacity-40 mix-blend-overlay"[39m
+                        [33md[39m=[32m"M12 2V22M2 12H22M12 2L7 12L12 22M12 2L17 12L12 22"[39m
+                    ...
+
+      86 |         expect(__setBalanceMock).toHaveBeenCalledWith(850);
+      87 |
+    > 88 |         expect(await screen.findByText('Test Title')).toBeInTheDocument();
+         |                             ^
+      89 |         expect(screen.getByText('Test Description')).toBeInTheDocument();
+      90 |         expect(screen.getByText('#test')).toBeInTheDocument();
+      91 |     });
+
+      at waitForWrapper (node_modules/@testing-library/dom/dist/wait-for.js:163:27)
+      at node_modules/@testing-library/dom/dist/query-helpers.js:86:33
+      at Object.findByText (src/components/__tests__/ViralIntelligence.test.tsx:88:29)
+
+  ● ViralIntelligence › allows copying metadata
+
+    Unable to find an element with the text: Copy Title. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.
+
+    Ignored nodes: comments, script, style
+    [36m<body>[39m
+      [36m<div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"space-y-6"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"grid grid-cols-2 gap-4"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"relative group/btn"[39m
+            [36m>[39m
+              [36m<button[39m
+                [33mclass[39m=[32m"w-full group relative flex flex-col items-center justify-center gap-3 py-6 px-4 rounded-[2rem] bg-white/5 hover:bg-white/10 backdrop-blur-2xl border border-white/10 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-xl hover:shadow-emerald-500/10"[39m
+              [36m>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"w-12 h-12 rounded-full bg-gradient-to-br from-emerald-400/20 to-teal-400/20 flex items-center justify-center text-emerald-300 shadow-inner mb-1 group-hover:scale-110 group-hover:bg-gradient-to-br group-hover:from-emerald-400 group-hover:to-teal-400 group-hover:text-white transition-all duration-300"[39m
+                [36m>[39m
+                  [36m<svg[39m
+                    [33mclass[39m=[32m"w-6 h-6"[39m
+                    [33mfill[39m=[32m"none"[39m
+                    [33mstroke[39m=[32m"currentColor"[39m
+                    [33mstroke-linecap[39m=[32m"round"[39m
+                    [33mstroke-linejoin[39m=[32m"round"[39m
+                    [33mstroke-width[39m=[32m"2"[39m
+                    [33mviewBox[39m=[32m"0 0 24 24"[39m
+                  [36m>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"[39m
+                    [36m/>[39m
+                    [36m<path[39m
+                      [33md[39m=[32m"M9 12l2 2 4-4"[39m
+                    [36m/>[39m
+                  [36m</svg>[39m
+                [36m</div>[39m
+                [36m<div[39m
+                  [33mclass[39m=[32m"text-center"[39m
+                [36m>[39m
+                  [36m<span[39m
+                    [33mclass[39m=[32m"block text-sm font-medium text-white/90 group-hover:text-white"[39m
+                  [36m>[39m
+                    [0mVerify Facts[0m
+                  [36m</span>[39m
+                  [36m<div[39m
+                    [33mclass[39m=[32m"flex items-center justify-center gap-1.5 opacity-80 mt-1"[39m
+                  [36m>[39m
+                    [36m<svg[39m
+                      [33maria-hidden[39m=[32m"true"[39m
+                      [33mclass[39m=[32m"w-3.5 h-3.5"[39m
+                      [33mfill[39m=[32m"none"[39m
+                      [33mviewBox[39m=[32m"0 0 24 24"[39m
+                      [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+                    [36m>[39m
+                      [36m<defs>[39m
+                        [36m<lineargradient[39m
+                          [33mid[39m=[32m"grad-base-_r_e_"[39m
+                          [33mx1[39m=[32m"0%"[39m
+                          [33mx2[39m=[32m"100%"[39m
+                          [33my1[39m=[32m"0%"[39m
+                          [33my2[39m=[32m"100%"[39m
+                        [36m>[39m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"0%"[39m
+                            [33mstop-color[39m=[32m"#4F46E5"[39m
+                          [36m/>[39m
+                          [0m [0m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"50%"[39m
+                            [33mstop-color[39m=[32m"#9333EA"[39m
+                          [36m/>[39m
+                          [0m [0m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"100%"[39m
+                            [33mstop-color[39m=[32m"#DB2777"[39m
+                          [36m/>[39m
+                          [0m [0m
+                        [36m</lineargradient>[39m
+                        [36m<lineargradient[39m
+                          [33mid[39m=[32m"grad-shine-_r_e_"[39m
+                          [33mx1[39m=[32m"0%"[39m
+                          [33mx2[39m=[32m"100%"[39m
+                          [33my1[39m=[32m"0%"[39m
+                          [33my2[39m=[32m"0%"[39m
+                        [36m>[39m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"0%"[39m
+                            [33mstop-color[39m=[32m"white"[39m
+                            [33mstop-opacity[39m=[32m"0.1"[39m
+                          [36m/>[39m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"50%"[39m
+                            [33mstop-color[39m=[32m"white"[39m
+                            [33mstop-opacity[39m=[32m"0.5"[39m
+                          [36m/>[39m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"100%"[39m
+                            [33mstop-color[39m=[32m"white"[39m
+                            [33mstop-opacity[39m=[32m"0.1"[39m
+                          [36m/>[39m
+                        [36m</lineargradient>[39m
+                        [36m<lineargradient[39m
+                          [33mid[39m=[32m"grad-gloss-_r_e_"[39m
+                          [33mx1[39m=[32m"50%"[39m
+                          [33mx2[39m=[32m"50%"[39m
+                          [33my1[39m=[32m"0%"[39m
+                          [33my2[39m=[32m"100%"[39m
+                        [36m>[39m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"0%"[39m
+                            [33mstop-color[39m=[32m"white"[39m
+                            [33mstop-opacity[39m=[32m"0.9"[39m
+                          [36m/>[39m
+                          [36m<stop[39m
+                            [33moffset[39m=[32m"100%"[39m
+                            [33mstop-color[39m=[32m"white"[39m
+                            [33mstop-opacity[39m=[32m"0"[39m
+                          [36m/>[39m
+                        [36m</lineargradient>[39m
+                      [36m</defs>[39m
+                      [36m<path[39m
+                        [33mclass[39m=[32m"opacity-40"[39m
+                        [33md[39m=[32m"M12 2L2 12L12 22L22 12L12 2Z"[39m
+                        [33mfill[39m=[32m"url(#grad-base-_r_e_)"[39m
+                        [33mfilter[39m=[32m"blur(4px)"[39m
+                      [36m/>[39m
+                      [36m<path[39m
+                        [33mclass[39m=[32m"opacity-30"[39m
+                        [33md[39m=[32m"M12 2L2 12L12 22L22 12L12 2Z"[39m
+                        [33mfill[39m=[32m"url(#grad-base-_r_e_)"[39m
+                      [36m/>[39m
+                      [36m<path[39m
+                        [33mclass[39m=[32m"opacity-40 mix-blend-overlay"[39m
+                        [33md[39m=[32m"M12 2L2 12L12 22L22 12L12 2Z"[39m
+                        [33mfill[39m=[32m"url(#grad-shine-_r_e_)"[39m
+                      [36m/>[39m
+                      [36m<path[39m
+                        [33mclass[39m=[32m"opacity-40 mix-blend-overlay"[39m
+                        [33md[39m=[32m"M12 2V22M2 12H22M12 2L7 12L12 22M12 2L17 12L12 22"[39m
+                    ...
+
+      105 |         fireEvent.click(screen.getByText(/generate metadata/i));
+      106 |
+    > 107 |         await waitFor(() => expect(screen.getByText('Copy Title')).toBeInTheDocument());
+          |                      ^
+      108 |
+      109 |         // Find and click the copy button for title
+      110 |         const titleCopyBtn = screen.getByLabelText('Copy Title');
+
+      at waitForWrapper (node_modules/@testing-library/dom/dist/wait-for.js:163:27)
+      at Object.<anonymous> (src/components/__tests__/ViralIntelligence.test.tsx:107:22)
+
+FAIL src/components/__tests__/CreditsBadge.test.tsx
+  ● CreditsBadge › renders balance, refreshes on click, and shows pricing tooltip
+
+    TestingLibraryElementError: Unable to find an element with the text: Video processing (default). This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.
+
+    Ignored nodes: comments, script, style
+    [36m<body>[39m
+      [36m<div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"flex items-center gap-2"[39m
+        [36m>[39m
+          [36m<button[39m
+            [33maria-label[39m=[32m"Refresh credits"[39m
+            [33mclass[39m=[32m"group inline-flex items-center gap-2.5 rounded-full border border-white/10 bg-white/5 px-3.5 py-1.5 text-sm text-[var(--foreground)] shadow-sm backdrop-blur-xl transition-all hover:bg-white/10 hover:border-[var(--accent)]/30 active:scale-[0.98] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/20"[39m
+            [33mtype[39m=[32m"button"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"flex items-center gap-1.5 group-hover:opacity-80 transition-opacity"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33maria-hidden[39m=[32m"true"[39m
+                [33mclass[39m=[32m"w-4 h-4"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+              [36m>[39m
+                [36m<defs>[39m
+                  [36m<lineargradient[39m
+                    [33mid[39m=[32m"grad-base-_r_0_"[39m
+                    [33mx1[39m=[32m"0%"[39m
+                    [33mx2[39m=[32m"100%"[39m
+                    [33my1[39m=[32m"0%"[39m
+                    [33my2[39m=[32m"100%"[39m
+                  [36m>[39m
+                    [36m<stop[39m
+                      [33moffset[39m=[32m"0%"[39m
+                      [33mstop-color[39m=[32m"#4F46E5"[39m
+                    [36m/>[39m
+                    [0m [0m
+                    [36m<stop[39m
+                      [33moffset[39m=[32m"50%"[39m
+                      [33mstop-color[39m=[32m"#9333EA"[39m
+                    [36m/>[39m
+                    [0m [0m
+                    [36m<stop[39m
+                      [33moffset[39m=[32m"100%"[39m
+                      [33mstop-color[39m=[32m"#DB2777"[39m
+                    [36m/>[39m
+                    [0m [0m
+                  [36m</lineargradient>[39m
+                  [36m<lineargradient[39m
+                    [33mid[39m=[32m"grad-shine-_r_0_"[39m
+                    [33mx1[39m=[32m"0%"[39m
+                    [33mx2[39m=[32m"100%"[39m
+                    [33my1[39m=[32m"0%"[39m
+                    [33my2[39m=[32m"0%"[39m
+                  [36m>[39m
+                    [36m<stop[39m
+                      [33moffset[39m=[32m"0%"[39m
+                      [33mstop-color[39m=[32m"white"[39m
+                      [33mstop-opacity[39m=[32m"0.1"[39m
+                    [36m/>[39m
+                    [36m<stop[39m
+                      [33moffset[39m=[32m"50%"[39m
+                      [33mstop-color[39m=[32m"white"[39m
+                      [33mstop-opacity[39m=[32m"0.5"[39m
+                    [36m/>[39m
+                    [36m<stop[39m
+                      [33moffset[39m=[32m"100%"[39m
+                      [33mstop-color[39m=[32m"white"[39m
+                      [33mstop-opacity[39m=[32m"0.1"[39m
+                    [36m/>[39m
+                  [36m</lineargradient>[39m
+                  [36m<lineargradient[39m
+                    [33mid[39m=[32m"grad-gloss-_r_0_"[39m
+                    [33mx1[39m=[32m"50%"[39m
+                    [33mx2[39m=[32m"50%"[39m
+                    [33my1[39m=[32m"0%"[39m
+                    [33my2[39m=[32m"100%"[39m
+                  [36m>[39m
+                    [36m<stop[39m
+                      [33moffset[39m=[32m"0%"[39m
+                      [33mstop-color[39m=[32m"white"[39m
+                      [33mstop-opacity[39m=[32m"0.9"[39m
+                    [36m/>[39m
+                    [36m<stop[39m
+                      [33moffset[39m=[32m"100%"[39m
+                      [33mstop-color[39m=[32m"white"[39m
+                      [33mstop-opacity[39m=[32m"0"[39m
+                    [36m/>[39m
+                  [36m</lineargradient>[39m
+                [36m</defs>[39m
+                [36m<path[39m
+                  [33mclass[39m=[32m"opacity-40"[39m
+                  [33md[39m=[32m"M12 2L2 12L12 22L22 12L12 2Z"[39m
+                  [33mfill[39m=[32m"url(#grad-base-_r_0_)"[39m
+                  [33mfilter[39m=[32m"blur(4px)"[39m
+                [36m/>[39m
+                [36m<path[39m
+                  [33mclass[39m=[32m"opacity-30"[39m
+                  [33md[39m=[32m"M12 2L2 12L12 22L22 12L12 2Z"[39m
+                  [33mfill[39m=[32m"url(#grad-base-_r_0_)"[39m
+                [36m/>[39m
+                [36m<path[39m
+                  [33mclass[39m=[32m"opacity-40 mix-blend-overlay"[39m
+                  [33md[39m=[32m"M12 2L2 12L12 22L22 12L12 2Z"[39m
+                  [33mfill[39m=[32m"url(#grad-shine-_r_0_)"[39m
+                [36m/>[39m
+                [36m<path[39m
+                  [33mclass[39m=[32m"opacity-40 mix-blend-overlay"[39m
+                  [33md[39m=[32m"M12 2V22M2 12H22M12 2L7 12L12 22M12 2L17 12L12 22"[39m
+                  [33mstroke[39m=[32m"white"[39m
+                  [33mstroke-linecap[39m=[32m"round"[39m
+                  [33mstroke-linejoin[39m=[32m"round"[39m
+                  [33mstroke-width[39m=[32m"0.75"[39m
+                [36m/>[39m
+                [36m<path[39m
+                  [33mclass[39m=[32m"opacity-40"[39m
+                  [33md[39m=[32m"M12 2L5 9L12 11L19 9L12 2Z"[39m
+                  [33mfill[39m=[32m"url(#grad-gloss-_r_0_)"[39m
+                [36m/>[39m
+                [36m<path[39m
+                  [33mclass[39m=[32m"opacity-80"[39m
+                  [33md[39m=[32m"M12 2L2 12L12 22L22 12L12 2Z"[39m
+                  [33mstroke[39m=[32m"currentColor"[39m
+                  [33mstroke-linejoin[39m=[32m"round"[39m
+                  [33mstroke-width[39m=[32m"1.2"[39m
+                [36m/>[39m
+                [36m<path[39m
+                  [33mclass[39m=[32m"transform scale-75 origin-center animate-pulse-slow shadow-sm"[39m
+                  [33md[39m=[32m"M12 8L13 11L16 12L13 13L12 16L11 13L8 12L11 11L12 8Z"[39m
+                  [33mfill[39m=[32m"white"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"font-mono text-base font-bold tracking-tight text-[var(--foreground)]"[39m
+              [36m>[39m
+                [0m1,234[0m
+              [36m</span>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33maria-hidden[39m=[32m"true"[39m
+              [33mclass[39m=[32m"text-[var(--muted)] group-hover:text-[var(--foreground)]/50 transition-colors"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33mclass[39m=[32m"w-3.5 h-3.5"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mviewBox[39m=[32m"0 0 24 24"[39m
+                [33mxmlns[39m=[32m"http://www.w3.org/2000/svg"[39m
+              [36m>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M4.05 11a8 8 0 1 1 .5 4m-.5 5V15h5"[39m
+                  [33mstroke[39m=[32m"currentColor"[39m
+                  [33mstroke-linecap[39m=[32m"round"[39m
+                  [33mstroke-linejoin[39m=[32m"round"[39m
+                  [33mstroke-width[39m=[32m"2"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+            [36m</div>[39m
+          [36m</button>[39m
+          [36m<span[39m
+            [33mclass[39m=[32m"relative inline-flex shrink-0"[39m
+          [36m>[39m
+            [36m<button[39m
+              [33maria-describedby[39m=[32m"_r_1_"[39m
+              [33maria-label[39m=[32m"Points pricing"[39m
+              [33mclass[39m=[32m"inline-flex h-5 w-5 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--surface)] text-[var(--muted)] transition-colors hover:border-[var(--accent)]/40 hover:text-[var(--foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]/40"[39m
+              [33mtype[39m=[32m"button"[39m
+            [36m>[39m
+              [36m<svg[39m
+                [33maria-hidden[39m=[32m"true"[39m
+                [33mclass[39m=[32m"h-3.5 w-3.5"[39m
+                [33mfill[39m=[32m"none"[39m
+                [33mviewBox[39m=[32m"0 0 20 20"[39m
+              [36m>[39m
+                [36m<circle[39m
+                  [33mcx[39m=[32m"10"[39m
+                  [33mcy[39m=[32m"10"[39m
+                  [33mr[39m=[32m"8"[39m
+                  [33mstroke[39m=[32m"currentColor"[39m
+                  [33mstroke-width[39m=[32m"1.5"[39m
+                [36m/>[39m
+                [36m<path[39m
+                  [33md[39m=[32m"M10 8.5v5"[39m
+                  [33mstroke[39m=[32m"currentColor"[39m
+                  [33mstroke-linecap[39m=[32m"round"[39m
+                  [33mstroke-width[39m=[32m"1.5"[39m
+                [36m/>[39m
+                [36m<circle[39m
+                  [33mcx[39m=[32m"10"[39m
+                  [33mcy[39m=[32m"6"[39m
+                  [33mfill[39m=[32m"currentColor"[39m
+                  [33mr[39m=[32m"1"[39m
+                [36m/>[39m
+              [36m</svg>[39m
+            [36m</button>[39m
+          [36m</span>[39m
+        [36m</div>[39m
+      [36m</div>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"fixed z-[9999] w-[min(260px,calc(100vw-2rem))] -translate-x-1/2 rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)] p-3 text-[11px] text-[var(--foreground)] shadow-2xl ring-1 ring-white/5"[39m
+        [33mid[39m=[32m"_r_1_"[39m
+        [33mrole[39m=[32m"tooltip"[39m
+        [33mstyle[39m=[32m"left: 12px; top: 8px;"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33maria-hidden[39m=[32m"true"[39m
+          [33mclass[39m=[32m"absolute h-3 w-3 -translate-x-1/2 rotate-45 bg-[var(--surface-elevated)] -top-1.5 border-l border-t border-[var(--border)]"[39m
+          [33mstyle[39m=[32m"left: 14px;"[39m
+        [36m/>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"space-y-2"[39m
+        [36m>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"flex items-center justify-between gap-3"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"font-semibold text-[11px]"[39m
+            [36m>[39m
+              [0mPoints pricing[0m
+            [36m</div>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"space-y-1 text-[11px] text-[var(--muted)]"[39m
+          [36m>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"flex items-center justify-between gap-4"[39m
+            [36m>[39m
+              [36m<span>[39m
+                [0mVideo processing (Standard)[0m
+              [36m</span>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"font-mono text-[var(--foreground)]"[39m
+              [36m>[39m
+                [0m25[0m
+              [36m</span>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"flex items-center justify-between gap-4"[39m
+            [36m>[39m
+              [36m<span>[39m
+                [0mVideo processing (Pro)[0m
+              [36m</span>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"font-mono text-[var(--foreground)]"[39m
+              [36m>[39m
+                [0m50[0m
+              [36m</span>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"flex items-center justify-between gap-4"[39m
+            [36m>[39m
+              [36m<span>[39m
+                [0mSocial copy[0m
+              [36m</span>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"font-mono text-[var(--foreground)]"[39m
+              [36m>[39m
+                [0m10[0m
+              [36m</span>[39m
+            [36m</div>[39m
+            [36m<div[39m
+              [33mclass[39m=[32m"flex items-center justify-between gap-4"[39m
+            [36m>[39m
+              [36m<span>[39m
+                [0mFact check[0m
+              [36m</span>[39m
+              [36m<span[39m
+                [33mclass[39m=[32m"font-mono text-[var(--foreground)]"[39m
+              [36m>[39m
+                [0m20[0m
+              [36m</span>[39m
+            [36m</div>[39m
+          [36m</div>[39m
+          [36m<div[39m
+            [33mclass[39m=[32m"text-[10px] text-[var(--muted)]"[39m
+          [36m>[39m
+            [0mCharges scale with usage and apply minimums if balance is insufficient.[0m
+          [36m</div>[39m
+        [36m</div>[39m
+      [36m</div>[39m
+    [36m</body>[39m
+
+      50 |
+      51 |         expect(screen.getAllByText('Points pricing').length).toBeGreaterThan(0);
+    > 52 |         expect(screen.getByText('Video processing (default)')).toBeInTheDocument();
+         |                       ^
+      53 |         expect(screen.getByText('Ultimate model')).toBeInTheDocument();
+      54 |         expect(screen.getByText('Fact check')).toBeInTheDocument();
+      55 |     });
+
+      at Object.getElementError (node_modules/@testing-library/dom/dist/config.js:37:19)
+      at node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+      at node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+      at node_modules/@testing-library/dom/dist/query-helpers.js:95:19
+      at Object.getByText (src/components/__tests__/CreditsBadge.test.tsx:52:23)
+
+FAIL src/components/__tests__/AppEnvBadge.test.tsx
+  ● AppEnvBadge › renders DEV when appEnv is dev
+
+    useI18n must be used within an I18nProvider
+
+      88 |   const context = useContext(I18nContext);
+      89 |   if (!context) {
+    > 90 |     throw new Error('useI18n must be used within an I18nProvider');
+         |           ^
+      91 |   }
+      92 |   return context;
+      93 | }
+
+      at useI18n (src/context/I18nContext.tsx:90:11)
+      at AppEnvBadge (src/components/AppEnvBadge.tsx:8:24)
+      at Object.react_stack_bottom_frame (node_modules/react-dom/cjs/react-dom-client.development.js:25904:20)
+      at renderWithHooks (node_modules/react-dom/cjs/react-dom-client.development.js:7662:22)
+      at updateFunctionComponent (node_modules/react-dom/cjs/react-dom-client.development.js:10166:19)
+      at beginWork (node_modules/react-dom/cjs/react-dom-client.development.js:11778:18)
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17641:22)
+      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
+      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
+      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16583:35)
+      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
+      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
+      at process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
+      at node_modules/@testing-library/react/dist/act-compat.js:47:25
+      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
+      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
+      at Object.<anonymous> (src/components/__tests__/AppEnvBadge.test.tsx:7:11)
+
+  ● AppEnvBadge › renders PROD when appEnv is production
+
+    useI18n must be used within an I18nProvider
+
+      88 |   const context = useContext(I18nContext);
+      89 |   if (!context) {
+    > 90 |     throw new Error('useI18n must be used within an I18nProvider');
+         |           ^
+      91 |   }
+      92 |   return context;
+      93 | }
+
+      at useI18n (src/context/I18nContext.tsx:90:11)
+      at AppEnvBadge (src/components/AppEnvBadge.tsx:8:24)
+      at Object.react_stack_bottom_frame (node_modules/react-dom/cjs/react-dom-client.development.js:25904:20)
+      at renderWithHooks (node_modules/react-dom/cjs/react-dom-client.development.js:7662:22)
+      at updateFunctionComponent (node_modules/react-dom/cjs/react-dom-client.development.js:10166:19)
+      at beginWork (node_modules/react-dom/cjs/react-dom-client.development.js:11778:18)
+      at runWithFiberInDEV (node_modules/react-dom/cjs/react-dom-client.development.js:874:13)
+      at performUnitOfWork (node_modules/react-dom/cjs/react-dom-client.development.js:17641:22)
+      at workLoopSync (node_modules/react-dom/cjs/react-dom-client.development.js:17469:41)
+      at renderRootSync (node_modules/react-dom/cjs/react-dom-client.development.js:17450:11)
+      at performWorkOnRoot (node_modules/react-dom/cjs/react-dom-client.development.js:16583:35)
+      at performWorkOnRootViaSchedulerTask (node_modules/react-dom/cjs/react-dom-client.development.js:18957:7)
+      at flushActQueue (node_modules/react/cjs/react.development.js:590:34)
+      at process.env.NODE_ENV.exports.act (node_modules/react/cjs/react.development.js:884:10)
+      at node_modules/@testing-library/react/dist/act-compat.js:47:25
+      at renderRoot (node_modules/@testing-library/react/dist/pure.js:190:26)
+      at render (node_modules/@testing-library/react/dist/pure.js:292:10)
+      at Object.<anonymous> (src/components/__tests__/AppEnvBadge.test.tsx:16:11)
+
+
+Test Suites: 4 failed, 24 passed, 28 total
+Tests:       7 failed, 4 skipped, 205 passed, 216 total
+Snapshots:   0 total
+Time:        39.967 s
+Ran all test suites.

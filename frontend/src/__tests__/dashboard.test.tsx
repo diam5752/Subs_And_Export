@@ -66,7 +66,7 @@ jest.mock('next/navigation', () => ({
 
 let capturedOnReset: (() => void) | null = null;
 
-jest.mock('@/components/ProcessView', () => ({
+jest.mock('@/features/process/ProcessView', () => ({
     ProcessView: ({ onStartProcessing, onFileSelect, onReset, onReprocessJob }: { onStartProcessing: (options: unknown) => void; onFileSelect: (file: File) => void; onReset: () => void; onReprocessJob: (jobId: string, options: unknown) => void; }) => {
         capturedOnReset = onReset;
         return (

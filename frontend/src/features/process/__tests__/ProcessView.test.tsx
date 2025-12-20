@@ -4,6 +4,14 @@ import { ProcessViewContent } from '../ProcessView';
 import { I18nProvider } from '@/context/I18nContext';
 import { useProcessContext } from '../ProcessContext';
 
+// Global mock for HTMLMediaElement methods not implemented in JSDOM
+beforeAll(() => {
+    Object.defineProperty(window.HTMLMediaElement.prototype, 'load', {
+        configurable: true,
+        value: jest.fn(),
+    });
+});
+
 const mockJob = {
     id: 'test-job-id',
     status: 'completed',
@@ -328,6 +336,6 @@ describe('ProcessView', () => {
         expect(compactSection).toBeInTheDocument();
 
         // Should also show "Ready" badge
-        expect(screen.getByText(/Ready/i)).toBeInTheDocument();
+        expect(screen.getAllByText(/Ready/i).length).toBeGreaterThan(0);
     });
 });

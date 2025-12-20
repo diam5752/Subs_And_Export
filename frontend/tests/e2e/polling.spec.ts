@@ -15,9 +15,12 @@ test.describe('Job Polling E2E', () => {
         await mockApi(page);
         await page.goto('/');
         await page.waitForLoadState('networkidle');
+        await page.getByTestId('model-standard').click({ force: true });
 
         // Dashboard should render with the upload area
-        await expect(page.getByText(el.uploadDropTitle)).toBeVisible();
+        const uploadSection = page.getByTestId('upload-section');
+        await uploadSection.waitFor({ state: 'visible' });
+        await expect(uploadSection).toBeVisible();
 
         // History lives under the account modal
         await page.getByRole('button', { name: el.accountSettingsTitle }).click();
@@ -29,10 +32,12 @@ test.describe('Job Polling E2E', () => {
         await mockApi(page, { authenticated: true });
         await page.goto('/');
         await page.waitForLoadState('networkidle');
-        await stabilizeUi(page);
+        await page.getByTestId('model-standard').click({ force: true });
 
         // Verify dashboard loaded
-        await expect(page.getByText(el.uploadDropTitle)).toBeVisible();
+        const uploadSection = page.getByTestId('upload-section');
+        await uploadSection.waitFor({ state: 'visible' });
+        await expect(uploadSection).toBeVisible();
 
         // Account settings button should be available
         await expect(page.getByRole('button', { name: el.accountSettingsTitle })).toBeVisible();

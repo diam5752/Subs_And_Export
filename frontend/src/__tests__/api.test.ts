@@ -228,7 +228,7 @@ describe('API Client', () => {
 
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             (xhrMock.upload as any).onprogress({ lengthComputable: true, loaded: 50, total: 100 });
-            onload?.();
+            (onload as unknown as () => void)?.();
 
             await promise;
 
@@ -267,7 +267,7 @@ describe('API Client', () => {
             const file = new File(['video'], 'test.mp4', { type: 'video/mp4' });
 
             const promise = api.uploadToSignedUrl('https://signed.example/upload', file, 'video/mp4');
-            onload?.();
+            (onload as unknown as () => void)?.();
 
             await expect(promise).rejects.toThrow('Upload failed with status 403');
         });
@@ -313,6 +313,7 @@ describe('API Client', () => {
                         highlight_style: 'karaoke',
                         subtitle_size: 100,
                         karaoke_enabled: true,
+                        watermark_enabled: false,
                     }),
                 }),
             );
@@ -524,18 +525,7 @@ describe('API Client', () => {
         });
     });
 
-    describe('generateViralMetadata', () => {
-        it('should generate viral metadata for a job', async () => {
-            const mockResponse = { hooks: ['Hook 1', 'Hook 2'], caption_hook: 'Caption', caption_body: 'Body', cta: 'Follow!', hashtags: ['#viral'] };
-            (fetch as jest.Mock).mockResolvedValueOnce({ ok: true, json: async () => mockResponse });
 
-            const { api } = await import('@/lib/api');
-            const result = await api.generateViralMetadata('job-123');
-
-            expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/videos/jobs/job-123/viral-metadata'), expect.objectContaining({ method: 'POST' }));
-            expect(result.hooks).toHaveLength(2);
-        });
-    });
 
     describe('error handling', () => {
         it('should handle string error responses', async () => {

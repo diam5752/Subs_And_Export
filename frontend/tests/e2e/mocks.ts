@@ -162,6 +162,12 @@ function withCors(body: unknown, status = 200) {
 
 export async function mockApi(page: Page, options: MockApiOptions = {}): Promise<void> {
   const { authenticated = true } = options;
+
+  // Pre-set consent and locale to avoid banners/flicker
+  await page.addInitScript(() => {
+    localStorage.setItem('cookie-consent', 'accepted');
+    localStorage.setItem('preferredLocale', 'el');
+  });
   const shortCircuitOptions = async (route: Route) => {
     if (route.request().method() === 'OPTIONS') {
       await route.fulfill({ status: 200, headers: corsHeaders });
