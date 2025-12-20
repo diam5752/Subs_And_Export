@@ -5,6 +5,7 @@ import { PhoneFrame } from '@/components/PhoneFrame';
 import { PreviewPlayer } from '@/components/PreviewPlayer';
 import { Sidebar } from './Sidebar';
 import { VideoModal } from '@/components/VideoModal';
+import { NewVideoConfirmModal } from './NewVideoConfirmModal';
 
 const PreviewSectionLayout = memo(({
     resultsRef,
@@ -25,9 +26,12 @@ const PreviewSectionLayout = memo(({
     exportingResolutions,
     showPreview,
     setShowPreview,
+    showNewVideoModal,
+    setShowNewVideoModal,
+    onNewVideoConfirm,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     activeSidebarTab
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
 }: any) => {
     return (
         <div id="preview-section" className={`space-y-4 scroll-mt-32 transition-all duration-500 ${!selectedJob && !isProcessing ? 'opacity-50 grayscale' : ''}`} ref={resultsRef}>
@@ -191,6 +195,21 @@ const PreviewSectionLayout = memo(({
                                                         )}
                                                     </button>
                                                 </div>
+
+                                                {/* Process New Video Button */}
+                                                <div className="mt-6 pt-6 border-t border-white/5 w-full max-w-[800px] mx-auto z-10 relative">
+                                                    <button
+                                                        onClick={() => setShowNewVideoModal(true)}
+                                                        className="w-full group relative h-[56px] rounded-lg bg-transparent border border-dashed border-white/20 hover:border-[var(--accent)]/40 hover:bg-[var(--accent)]/5 transition-all duration-300 flex items-center justify-center gap-2"
+                                                    >
+                                                        <svg className="w-4 h-4 text-white/40 group-hover:text-[var(--accent)] transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                                        </svg>
+                                                        <span className="text-sm font-medium text-white/40 group-hover:text-[var(--accent)] transition-colors">
+                                                            {t('newVideoButton') || 'Process New Video'}
+                                                        </span>
+                                                    </button>
+                                                </div>
                                             </div>
                                         </div>
 
@@ -202,6 +221,11 @@ const PreviewSectionLayout = memo(({
                         ) : null}
                     </>
                 )}
+                <NewVideoConfirmModal
+                    isOpen={showNewVideoModal}
+                    onClose={() => setShowNewVideoModal(false)}
+                    onConfirm={onNewVideoConfirm}
+                />
                 <VideoModal
                     isOpen={showPreview}
                     onClose={() => setShowPreview(false)}
@@ -239,10 +263,23 @@ export function PreviewSection() {
         handleExport,
         exportingResolutions,
         activeSidebarTab,
+        onReset,
+        setHasChosenModel,
+        onJobSelect,
     } = useProcessContext();
 
     // Local state for VideoModal
     const [showPreview, setShowPreview] = React.useState(false);
+    // Local state for NewVideoConfirmModal
+    const [showNewVideoModal, setShowNewVideoModal] = React.useState(false);
+
+    // Handler to start a new video workflow
+    const handleNewVideoConfirm = useCallback(() => {
+        onReset();
+        setHasChosenModel(false);
+        onJobSelect(null);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, [onReset, setHasChosenModel, onJobSelect]);
 
     const playerSettings = useMemo(() => ({
         position: subtitlePosition,
@@ -321,6 +358,9 @@ export function PreviewSection() {
             exportingResolutions={exportingResolutions}
             showPreview={showPreview}
             setShowPreview={setShowPreview}
+            showNewVideoModal={showNewVideoModal}
+            setShowNewVideoModal={setShowNewVideoModal}
+            onNewVideoConfirm={handleNewVideoConfirm}
             activeSidebarTab={activeSidebarTab}
         />
     );

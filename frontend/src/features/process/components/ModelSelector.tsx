@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback } from 'react';
+import React, { useMemo, useCallback, useState, useEffect } from 'react';
 import { useI18n } from '@/context/I18nContext';
 import { useProcessContext, TranscribeProvider, TranscribeMode } from '../ProcessContext';
 import { TokenIcon } from '@/components/icons';
@@ -18,6 +18,22 @@ export function ModelSelector() {
         hasChosenModel,
         currentStep,
     } = useProcessContext();
+
+    // Collapsed state - expands automatically when on Step 1, otherwise respects user toggle
+    const [isManuallyExpanded, setIsManuallyExpanded] = useState(false);
+    const isExpanded = currentStep === 1 || isManuallyExpanded;
+
+    // Reset manual expansion when step changes
+    useEffect(() => {
+        if (currentStep === 1) {
+            setIsManuallyExpanded(false);
+        }
+    }, [currentStep]);
+
+    // Get selected model for compact display
+    const selectedModel = useMemo(() => {
+        return AVAILABLE_MODELS.find(m => m.provider === transcribeProvider && m.mode === transcribeMode);
+    }, [AVAILABLE_MODELS, transcribeProvider, transcribeMode]);
 
     const scrollToUploadStep = useCallback(() => {
         const target =
@@ -142,9 +158,14 @@ export function ModelSelector() {
     ), [AVAILABLE_MODELS, transcribeProvider, transcribeMode, hasChosenModel, t, setTranscribeProvider, setTranscribeMode, setHasChosenModel, setOverrideStep, onJobSelect, scrollToUploadStep]);
 
     const handleStepClick = useCallback(() => {
-        setOverrideStep(1);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    }, [setOverrideStep]);
+        if (currentStep !== 1) {
+            // Toggle expand/collapse when not on step 1
+            setIsManuallyExpanded(prev => !prev);
+        } else {
+            setOverrideStep(1);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    }, [currentStep, setOverrideStep]);
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -160,7 +181,7 @@ export function ModelSelector() {
                     role="button"
                     tabIndex={0}
                     onKeyDown={handleKeyDown}
-                    className={`flex items-center gap-4 transition-all duration-300 cursor-pointer group/step ${currentStep !== 1 ? 'opacity-40 grayscale blur-[1px] hover:opacity-80 hover:grayscale-0 hover:blur-0' : 'opacity-100 scale-[1.01]'}`}
+                    className={`flex items-center gap-4 transition-all duration-300 cursor-pointer group/step ${currentStep !== 1 ? 'opacity-60 hover:opacity-100' : 'opacity-100 scale-[1.01]'}`}
                     onClick={handleStepClick}
                 >
                     <span className={`flex items-center justify-center px-4 py-1.5 rounded-full border font-mono text-sm font-bold tracking-widest shadow-sm transition-all duration-500 ${currentStep === 1
@@ -173,21 +194,44 @@ export function ModelSelector() {
                             <p className="text-sm text-[var(--muted)] mt-1 ml-0.5">{t('modelSelectSubtitle')}</p>
                         )}
                     </div>
+                    {/* Chevron indicator for expand/collapse */}
+                    {currentStep !== 1 && (
+                        <svg
+                            className={`w-5 h-5 text-[var(--muted)] transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                        >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                    )}
                 </div>
-                {hasChosenModel ? (
-                    <span className="inline-flex items-center gap-2 text-xs font-semibold px-3 py-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-300">
-                        <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                        {t('statusSynced') || 'Selected'}
-                    </span>
-                ) : (
-                    <span className="inline-flex items-center gap-2 text-xs font-semibold px-3 py-1 rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-200">
-                        <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
-                        {t('statusIdle') || 'Select to continue'}
-                    </span>
-                )}
+                <div className="flex items-center gap-3">
+                    {/* Compact selected model indicator when collapsed */}
+                    {!isExpanded && selectedModel && (
+                        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--surface-elevated)] border border-[var(--border)]">
+                            <span className="text-sm">{selectedModel.icon(true)}</span>
+                            <span className="text-sm font-medium text-[var(--foreground)]">{selectedModel.name}</span>
+                        </div>
+                    )}
+                    {hasChosenModel ? (
+                        <span className="inline-flex items-center gap-2 text-xs font-semibold px-3 py-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-300">
+                            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                            {t('statusSynced') || 'Selected'}
+                        </span>
+                    ) : (
+                        <span className="inline-flex items-center gap-2 text-xs font-semibold px-3 py-1 rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-200">
+                            <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+                            {t('statusIdle') || 'Select to continue'}
+                        </span>
+                    )}
+                </div>
             </div>
 
-            {modelGrid}
+            {/* Collapsible model grid with smooth animation */}
+            <div className={`transition-all duration-300 ease-in-out overflow-hidden ${isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                {modelGrid}
+            </div>
         </div>
-    ), [t, currentStep, hasChosenModel, modelGrid, handleStepClick, handleKeyDown]);
+    ), [t, currentStep, hasChosenModel, modelGrid, handleStepClick, handleKeyDown, isExpanded, selectedModel]);
 }

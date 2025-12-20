@@ -48,7 +48,18 @@ export function UploadSection() {
     const [devSampleError, setDevSampleError] = useState<string | null>(null);
     const [fileValidationError, setFileValidationError] = useState<string | null>(null);
     const [pendingAutoStart, setPendingAutoStart] = useState(false);
+    const [isManuallyExpanded, setIsManuallyExpanded] = useState(false);
     const validationRequestId = React.useRef(0);
+
+    // Collapsed state - expands automatically when on Step 2, otherwise respects user toggle
+    const isExpanded = currentStep === 2 || isManuallyExpanded;
+
+    // Reset manual expansion when step changes
+    useEffect(() => {
+        if (currentStep === 2) {
+            setIsManuallyExpanded(false);
+        }
+    }, [currentStep]);
 
     const activeTheme = useMemo(() => {
         if (transcribeProvider === 'groq') {
@@ -270,9 +281,14 @@ export function UploadSection() {
     }, [pendingAutoStart, selectedFile, videoInfo, fileValidationError, isProcessing, selectedJob, hasChosenModel, handleStart]);
 
     const handleStepClick = useCallback((id: string) => {
-        setOverrideStep(2);
-        document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, [setOverrideStep]);
+        if (currentStep !== 2) {
+            // Toggle expand/collapse when not on step 2
+            setIsManuallyExpanded(prev => !prev);
+        } else {
+            setOverrideStep(2);
+            document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }, [currentStep, setOverrideStep]);
 
     return useMemo(() => {
         const selectedCost = selectedModel
@@ -302,225 +318,279 @@ export function UploadSection() {
                         className="hidden"
                         disabled={isProcessing}
                     />
-                    <div id="upload-section-compact" className="space-y-4 scroll-mt-32 animate-fade-in-up-scale">
-                        <div
-                            role="button"
-                            tabIndex={0}
-                            onKeyDown={(e) => handleKeyDown(e, () => handleStepClick('upload-section-compact'))}
-                            className={`mb-2 flex items-center gap-4 transition-all duration-300 cursor-pointer group/step ${currentStep !== 2 ? 'opacity-40 grayscale blur-[1px] hover:opacity-80 hover:grayscale-0 hover:blur-0' : 'opacity-100 scale-[1.01]'}`}
-                            onClick={() => handleStepClick('upload-section-compact')}
-                        >
-                            <span className={`flex items-center justify-center px-4 py-1.5 rounded-full border font-mono text-sm font-bold tracking-widest shadow-sm transition-all duration-500 ${currentStep === 2
-                                ? 'bg-[var(--accent)] border-[var(--accent)] text-white shadow-[0_0_20px_2px_var(--accent)] scale-105 ring-2 ring-[var(--accent)]/30'
-                                : 'bg-[var(--surface-elevated)] border-[var(--border)] text-[var(--muted)] group-hover/step:border-[var(--accent)]/50 group-hover/step:text-[var(--accent)]'
-                                }`}>STEP 2</span>
-                            <h3 className="text-xl font-semibold">Upload Video</h3>
-                        </div>
-                        <div className="card flex items-center gap-4 py-3 px-4 animate-fade-in border-emerald-500/20 bg-emerald-500/5 transition-all hover:bg-emerald-500/10">
-                            {/* Thumbnail with Tick Overlay */}
-                            <div className="relative h-16 w-16 shrink-0 rounded-lg overflow-hidden bg-black/20 border border-emerald-500/20 group">
-                                {videoInfo?.thumbnailUrl ? (
-                                    <Image
-                                        src={videoInfo.thumbnailUrl}
-                                        alt="Thumbnail"
-                                        fill
-                                        unoptimized
-                                        className="object-cover opacity-80 transition-opacity group-hover:opacity-100"
-                                        sizes="64px"
-                                    />
-                                ) : videoUrl ? (
-                                    <video
-                                        src={videoUrl}
-                                        className="w-full h-full object-cover opacity-80 transition-opacity group-hover:opacity-100"
-                                        muted
-                                        playsInline
-                                        loop
-                                        onMouseOver={e => e.currentTarget.play().catch(() => { })}
-                                        onMouseOut={e => e.currentTarget.pause()}
-                                    />
-                                ) : (
-                                    <div className="h-full w-full flex items-center justify-center bg-emerald-900/20">
-                                        <svg className="w-8 h-8 text-emerald-500/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M15 10l4.553-2.276A1 1 0 0121 8.818v6.364a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                        </svg>
+                    <div id="upload-section-compact" className="card space-y-4 scroll-mt-32 animate-fade-in-up-scale">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div
+                                role="button"
+                                tabIndex={0}
+                                onKeyDown={(e) => handleKeyDown(e, () => handleStepClick('upload-section-compact'))}
+                                className={`flex items-center gap-4 transition-all duration-300 cursor-pointer group/step ${currentStep !== 2 ? 'opacity-60 hover:opacity-100' : 'opacity-100 scale-[1.01]'}`}
+                                onClick={() => handleStepClick('upload-section-compact')}
+                            >
+                                <span className={`flex items-center justify-center px-4 py-1.5 rounded-full border font-mono text-sm font-bold tracking-widest shadow-sm transition-all duration-500 ${currentStep === 2
+                                    ? 'bg-[var(--accent)] border-[var(--accent)] text-white shadow-[0_0_20px_2px_var(--accent)] scale-105 ring-2 ring-[var(--accent)]/30'
+                                    : 'bg-[var(--surface-elevated)] border-[var(--border)] text-[var(--muted)] group-hover/step:border-[var(--accent)]/50 group-hover/step:text-[var(--accent)]'
+                                    }`}>STEP 2</span>
+                                <h3 className="text-xl font-semibold">Upload Video</h3>
+                                {/* Chevron indicator for expand/collapse */}
+                                {currentStep !== 2 && (
+                                    <svg
+                                        className={`w-5 h-5 text-[var(--muted)] transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        stroke="currentColor"
+                                    >
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                )}
+                            </div>
+                            {/* Right side: file indicator and status badges */}
+                            <div className="flex items-center gap-3">
+                                {/* Compact file indicator when collapsed */}
+                                {/* Compact file indicator when collapsed */}
+                                {!isExpanded && selectedFile && (
+                                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--surface-elevated)] border border-[var(--border)] overflow-hidden">
+                                        {videoInfo?.thumbnailUrl ? (
+                                            <div className="relative w-5 h-5 rounded-full overflow-hidden flex-shrink-0">
+                                                <Image
+                                                    src={videoInfo.thumbnailUrl}
+                                                    alt="Thumbnail"
+                                                    fill
+                                                    unoptimized
+                                                    className="object-cover"
+                                                    sizes="20px"
+                                                />
+                                            </div>
+                                        ) : (
+                                            <svg className="w-4 h-4 text-emerald-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                            </svg>
+                                        )}
+                                        <span className="text-sm font-medium text-[var(--foreground)] truncate max-w-[120px]">{fileName}</span>
                                     </div>
                                 )}
-
-                                {/* Centered Green Tick Overlay - Only show when completed */}
-                                {selectedJob?.status === 'completed' && (
-                                    <div className="absolute inset-0 flex items-center justify-center">
-                                        <div className="w-8 h-8 rounded-full bg-emerald-500/80 shadow-lg shadow-emerald-500/40 flex items-center justify-center text-white transform scale-100 group-hover:scale-110 transition-transform backdrop-blur-[1px]">
-                                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                {/* Status badge matching Step 1 */}
+                                {selectedFile || hasJobData ? (
+                                    <span className="inline-flex items-center gap-2 text-xs font-semibold px-3 py-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-300">
+                                        <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                                        Ready
+                                    </span>
+                                ) : (
+                                    <span className="inline-flex items-center gap-2 text-xs font-semibold px-3 py-1 rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-200">
+                                        <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+                                        Upload to continue
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                        {/* Collapsible content with smooth animation */}
+                        <div className={`transition-all duration-300 ease-in-out overflow-hidden ${isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                            <div className="card flex items-center gap-4 py-3 px-4 animate-fade-in border-emerald-500/20 bg-emerald-500/5 transition-all hover:bg-emerald-500/10">
+                                {/* Thumbnail with Tick Overlay */}
+                                <div className="relative h-16 w-16 shrink-0 rounded-lg overflow-hidden bg-black/20 border border-emerald-500/20 group">
+                                    {videoInfo?.thumbnailUrl ? (
+                                        <Image
+                                            src={videoInfo.thumbnailUrl}
+                                            alt="Thumbnail"
+                                            fill
+                                            unoptimized
+                                            className="object-cover opacity-80 transition-opacity group-hover:opacity-100"
+                                            sizes="64px"
+                                        />
+                                    ) : videoUrl ? (
+                                        <video
+                                            src={videoUrl}
+                                            className="w-full h-full object-cover opacity-80 transition-opacity group-hover:opacity-100"
+                                            muted
+                                            playsInline
+                                            loop
+                                            onMouseOver={e => e.currentTarget.play().catch(() => { })}
+                                            onMouseOut={e => e.currentTarget.pause()}
+                                        />
+                                    ) : (
+                                        <div className="h-full w-full flex items-center justify-center bg-emerald-900/20">
+                                            <svg className="w-8 h-8 text-emerald-500/40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M15 10l4.553-2.276A1 1 0 0121 8.818v6.364a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                                             </svg>
                                         </div>
-                                    </div>
-                                )}
-                            </div>
+                                    )}
 
-                            {/* File Info */}
-                            <div className="flex-1 min-w-0">
-                                <h4 className="text-sm font-semibold text-[var(--foreground)] truncate" title={fileName}>
-                                    {fileName}
-                                </h4>
-                                <div className="flex items-center gap-3 text-xs mt-0.5">
-                                    <p className="text-[var(--muted)] flex items-center gap-1.5">
-                                        <span>{fileSize} MB</span>
-                                        <span className="w-1 h-1 rounded-full bg-[var(--border)]" />
-                                        {isProcessing ? (
-                                            <span className="text-amber-400 font-medium animate-pulse">Processing...</span>
-                                        ) : (
-                                            <span className="text-emerald-500 font-medium">Ready</span>
-                                        )}
-                                    </p>
-
-                                    {!isProcessing && (
-                                        <span className="hidden sm:inline-block text-[var(--muted)] opacity-60 text-[10px] uppercase tracking-wider">
-                                            {t('dragToReplace')}
-                                        </span>
+                                    {/* Centered Green Tick Overlay - Only show when completed */}
+                                    {selectedJob?.status === 'completed' && (
+                                        <div className="absolute inset-0 flex items-center justify-center">
+                                            <div className="w-8 h-8 rounded-full bg-emerald-500/80 shadow-lg shadow-emerald-500/40 flex items-center justify-center text-white transform scale-100 group-hover:scale-110 transition-transform backdrop-blur-[1px]">
+                                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                                </svg>
+                                            </div>
+                                        </div>
                                     )}
                                 </div>
-                            </div>
 
-                            {/* Actions Group */}
-                            <div className="flex items-center gap-2">
-                                {/* Action Button Logic */}
-                                {!isProcessing && (
-                                    <>
-                                        {(() => {
-                                            // Check if we have a completed job that matches current provider
-                                            const jobCompleted = selectedJob?.status === 'completed';
-                                            const jobProvider = selectedJob?.result_data?.transcribe_provider;
-                                            const jobModel = selectedJob?.result_data?.model_size;
+                                {/* File Info */}
+                                <div className="flex-1 min-w-0">
+                                    <h4 className="text-sm font-semibold text-[var(--foreground)] truncate" title={fileName}>
+                                        {fileName}
+                                    </h4>
+                                    <div className="flex items-center gap-3 text-xs mt-0.5">
+                                        <p className="text-[var(--muted)] flex items-center gap-1.5">
+                                            <span>{fileSize} MB</span>
+                                            <span className="w-1 h-1 rounded-full bg-[var(--border)]" />
+                                            {isProcessing ? (
+                                                <span className="text-amber-400 font-medium animate-pulse">Processing...</span>
+                                            ) : (
+                                                <span className="text-emerald-500 font-medium">Ready</span>
+                                            )}
+                                        </p>
 
-                                            let isMatch = jobCompleted && jobProvider === transcribeProvider;
+                                        {!isProcessing && (
+                                            <span className="hidden sm:inline-block text-[var(--muted)] opacity-60 text-[10px] uppercase tracking-wider">
+                                                {t('dragToReplace')}
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
 
-                                            // Strict check for Groq models
-                                            if (isMatch && jobProvider === 'groq') {
-                                                const isEnhancedJob = jobModel === 'enhanced' || (jobModel && jobModel.includes('turbo'));
-                                                const isUltimateJob = jobModel === 'ultimate' || (jobModel && !jobModel.includes('turbo') && !jobModel.includes('enhanced'));
+                                {/* Actions Group */}
+                                <div className="flex items-center gap-2">
+                                    {/* Action Button Logic */}
+                                    {!isProcessing && (
+                                        <>
+                                            {(() => {
+                                                // Check if we have a completed job that matches current provider
+                                                const jobCompleted = selectedJob?.status === 'completed';
+                                                const jobProvider = selectedJob?.result_data?.transcribe_provider;
+                                                const jobModel = selectedJob?.result_data?.model_size;
 
-                                                if (transcribeMode === 'enhanced') {
-                                                    isMatch = Boolean(isEnhancedJob);
-                                                } else if (transcribeMode === 'ultimate') {
-                                                    isMatch = Boolean(isUltimateJob);
+                                                let isMatch = jobCompleted && jobProvider === transcribeProvider;
+
+                                                // Strict check for Groq models
+                                                if (isMatch && jobProvider === 'groq') {
+                                                    const isEnhancedJob = jobModel === 'enhanced' || (jobModel && jobModel.includes('turbo'));
+                                                    const isUltimateJob = jobModel === 'ultimate' || (jobModel && !jobModel.includes('turbo') && !jobModel.includes('enhanced'));
+
+                                                    if (transcribeMode === 'enhanced') {
+                                                        isMatch = Boolean(isEnhancedJob);
+                                                    } else if (transcribeMode === 'ultimate') {
+                                                        isMatch = Boolean(isUltimateJob);
+                                                    }
                                                 }
-                                            }
 
-                                            if (isMatch) {
-                                                // MATCH: Show "View Results"
-                                                return (
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setOverrideStep(3);
-                                                            document.getElementById('preview-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                                                        }}
-                                                        className="px-4 py-1.5 text-xs font-bold rounded-lg bg-emerald-500 text-white hover:brightness-110 shadow-lg shadow-emerald-500/20 transition-all active:scale-95 flex items-center gap-2"
-                                                    >
-                                                        <span>View Results</span>
-                                                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                                        </svg>
-                                                    </button>
-                                                );
-                                            } else {
-                                                // MISMATCH or NO JOB: Show "Start Processing"
-                                                // Only show if we selected a file (or have a file selected)
-                                                // If we have a job but it's mismatch, we re-process.
-                                                if (!isProcessing && (selectedFile || selectedJob)) {
-                                                    // If selectedJob is present but mismatch, we allow re-processing
+                                                if (isMatch) {
+                                                    // MATCH: Show "View Results"
                                                     return (
                                                         <button
-                                                            disabled={Boolean(fileValidationError)}
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
-                                                                if (fileValidationError) return;
-                                                                handleStart();
+                                                                setOverrideStep(3);
+                                                                document.getElementById('preview-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                                                             }}
-                                                            className={`group px-5 py-2 text-xs font-bold rounded-lg transition-all active:scale-95 flex items-center gap-2 ${fileValidationError
-                                                                ? 'bg-[var(--border)] text-[var(--muted)] cursor-not-allowed'
-                                                                : 'bg-[var(--accent)] text-[var(--background)] hover:brightness-110 shadow-lg shadow-[var(--accent)]/20'
-                                                                }`}
+                                                            className="px-4 py-1.5 text-xs font-bold rounded-lg bg-emerald-500 text-white hover:brightness-110 shadow-lg shadow-emerald-500/20 transition-all active:scale-95 flex items-center gap-2"
                                                         >
-                                                            <span>{t('startProcessing')}</span>
-                                                            <div className="flex items-center gap-1.5 opacity-80 border-l border-current/20 pl-2 ml-0.5">
-                                                                <TokenIcon className="w-3.5 h-3.5" />
-                                                                <span className="font-mono">{formatPoints(selectedCost)}</span>
-                                                            </div>
+                                                            <span>View Results</span>
+                                                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                            </svg>
                                                         </button>
                                                     );
+                                                } else {
+                                                    // MISMATCH or NO JOB: Show "Start Processing"
+                                                    // Only show if we selected a file (or have a file selected)
+                                                    // If we have a job but it's mismatch, we re-process.
+                                                    if (!isProcessing && (selectedFile || selectedJob)) {
+                                                        // If selectedJob is present but mismatch, we allow re-processing
+                                                        return (
+                                                            <button
+                                                                disabled={Boolean(fileValidationError)}
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    if (fileValidationError) return;
+                                                                    handleStart();
+                                                                }}
+                                                                className={`group px-5 py-2 text-xs font-bold rounded-lg transition-all active:scale-95 flex items-center gap-2 ${fileValidationError
+                                                                    ? 'bg-[var(--border)] text-[var(--muted)] cursor-not-allowed'
+                                                                    : 'bg-[var(--accent)] text-[var(--background)] hover:brightness-110 shadow-lg shadow-[var(--accent)]/20'
+                                                                    }`}
+                                                            >
+                                                                <span>{t('startProcessing')}</span>
+                                                                <div className="flex items-center gap-1.5 opacity-80 border-l border-current/20 pl-2 ml-0.5">
+                                                                    <TokenIcon className="w-3.5 h-3.5" />
+                                                                    <span className="font-mono">{formatPoints(selectedCost)}</span>
+                                                                </div>
+                                                            </button>
+                                                        );
+                                                    }
                                                 }
-                                            }
-                                        })()}
-                                    </>
-                                )}
+                                            })()}
+                                        </>
+                                    )}
 
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        onFileSelect(null);
-                                        onJobSelect(null);
-                                        setHasChosenModel(true);
-                                    }}
-                                    className="px-3 py-1.5 text-xs font-medium rounded-lg border border-dashed border-[var(--border)] hover:border-[var(--accent)]/50 hover:bg-[var(--surface-elevated)] hover:text-[var(--foreground)] text-[var(--muted)] transition-all flex items-center gap-2 group/upload"
-                                    title={t('uploadNew')}
-                                    aria-label={t('uploadNew')}
-                                >
-                                    <svg className="w-3.5 h-3.5 group-hover/upload:text-[var(--accent)] transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                                    </svg>
-                                    <span className="hidden sm:inline">{t('uploadNew')}</span>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                    {error && (
-                        <div className="rounded-xl border border-[var(--danger)]/30 bg-[var(--danger)]/10 px-4 py-3 text-sm text-[var(--danger)] animate-fade-in">
-                            {error}
-                        </div>
-                    )}
-                    {fileValidationError && (
-                        <div className="rounded-xl border border-[var(--danger)]/30 bg-[var(--danger)]/10 px-4 py-3 text-sm text-[var(--danger)] animate-fade-in">
-                            {fileValidationError}
-                        </div>
-                    )}
-
-                    {/* PROCESSING STATE: Progress Bar */}
-                    {isProcessing && (
-                        <div
-                            role="progressbar"
-                            aria-valuenow={progress}
-                            aria-valuemin={0}
-                            aria-valuemax={100}
-                            aria-labelledby="progress-label"
-                            className="rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3 space-y-3 animate-fade-in mt-4"
-                        >
-                            <div className="flex items-center justify-between text-sm">
-                                <span id="progress-label" className="font-medium">{statusMessage || t('progressLabel')}</span>
-                                <span className="text-[var(--accent)] font-semibold">{progress}%</span>
-                            </div>
-                            <div className="w-full bg-[var(--surface)] rounded-full h-2 overflow-hidden" aria-hidden="true">
-                                <div
-                                    className="progress-bar bg-gradient-to-r from-[var(--accent)] to-[var(--accent-secondary)] h-2 rounded-full"
-                                    style={{ width: `${progress}%` }}
-                                />
-                            </div>
-                            {onCancelProcessing && (
-                                <div className="flex justify-end pt-1">
                                     <button
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            onCancelProcessing();
+                                            onFileSelect(null);
+                                            onJobSelect(null);
+                                            setHasChosenModel(true);
                                         }}
-                                        className="px-4 py-1.5 rounded-lg text-sm font-medium bg-[var(--danger)]/10 text-[var(--danger)] hover:bg-[var(--danger)]/20 border border-[var(--danger)]/30 transition-colors"
+                                        className="px-3 py-1.5 text-xs font-medium rounded-lg border border-dashed border-[var(--border)] hover:border-[var(--accent)]/50 hover:bg-[var(--surface-elevated)] hover:text-[var(--foreground)] text-[var(--muted)] transition-all flex items-center gap-2 group/upload"
+                                        title={t('uploadNew')}
+                                        aria-label={t('uploadNew')}
                                     >
-                                        {t('cancelProcessing')}
+                                        <svg className="w-3.5 h-3.5 group-hover/upload:text-[var(--accent)] transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                        </svg>
+                                        <span className="hidden sm:inline">{t('uploadNew')}</span>
                                     </button>
                                 </div>
-                            )}
+                            </div>
                         </div>
-                    )}
+                        {error && (
+                            <div className="rounded-xl border border-[var(--danger)]/30 bg-[var(--danger)]/10 px-4 py-3 text-sm text-[var(--danger)] animate-fade-in">
+                                {error}
+                            </div>
+                        )}
+                        {fileValidationError && (
+                            <div className="rounded-xl border border-[var(--danger)]/30 bg-[var(--danger)]/10 px-4 py-3 text-sm text-[var(--danger)] animate-fade-in">
+                                {fileValidationError}
+                            </div>
+                        )}
+
+                        {/* PROCESSING STATE: Progress Bar */}
+                        {isProcessing && (
+                            <div
+                                role="progressbar"
+                                aria-valuenow={progress}
+                                aria-valuemin={0}
+                                aria-valuemax={100}
+                                aria-labelledby="progress-label"
+                                className="rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)] px-4 py-3 space-y-3 animate-fade-in mt-4"
+                            >
+                                <div className="flex items-center justify-between text-sm">
+                                    <span id="progress-label" className="font-medium">{statusMessage || t('progressLabel')}</span>
+                                    <span className="text-[var(--accent)] font-semibold">{progress}%</span>
+                                </div>
+                                <div className="w-full bg-[var(--surface)] rounded-full h-2 overflow-hidden" aria-hidden="true">
+                                    <div
+                                        className="progress-bar bg-gradient-to-r from-[var(--accent)] to-[var(--accent-secondary)] h-2 rounded-full"
+                                        style={{ width: `${progress}%` }}
+                                    />
+                                </div>
+                                {onCancelProcessing && (
+                                    <div className="flex justify-end pt-1">
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onCancelProcessing();
+                                            }}
+                                            className="px-4 py-1.5 rounded-lg text-sm font-medium bg-[var(--danger)]/10 text-[var(--danger)] hover:bg-[var(--danger)]/20 border border-[var(--danger)]/30 transition-colors"
+                                        >
+                                            {t('cancelProcessing')}
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div> {/* End collapsible wrapper */}
                 </>
             );
         }
@@ -658,7 +728,7 @@ export function UploadSection() {
         selectedFile, t, currentStep, videoInfo, isProcessing, error, hasChosenModel,
         selectedJob, handleStart, onFileSelect, setHasChosenModel, handleKeyDown,
         handleStepClick, activeTheme, isDragOver, selectedModel, showDevTools,
-        transcribeProvider, transcribeMode,
+        transcribeProvider, transcribeMode, isExpanded,
         handleUploadCardClick, handleDragEnter, handleDragLeave, handleDragOver,
         handleDrop, fileInputRef, handleLoadDevSample, devSampleLoading,
         devSampleError, handleFileChange, fileValidationError, videoUrl, progress, statusMessage, onCancelProcessing,

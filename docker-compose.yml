@@ -2,7 +2,7 @@ services:
   db:
     image: postgres:16-alpine
     env_file:
-      - .env.docker
+      - .env
     ports:
       - "5432:5432"
     volumes:
@@ -27,7 +27,7 @@ services:
       # Whisper model cache (avoids re-downloading)
       - whisper_models:/models
     env_file:
-      - .env.docker
+      - .env
     environment:
       - APP_ENV=${APP_ENV:-dev}
       - GSP_ALLOWED_ORIGINS=http://localhost:3000,http://frontend:3000

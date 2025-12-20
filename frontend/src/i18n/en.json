@@ -376,5 +376,10 @@
   "major": "Major",
   "medium": "Medium",
   "minor": "Minor",
-  "confidenceLabel": "{percent}% confident"
+  "confidenceLabel": "{percent}% confident",
+  "newVideoButton": "Process New Video",
+  "newVideoModalTitle": "Start a new project?",
+  "newVideoModalDesc": "Your current video and all edits will be discarded. This action cannot be undone.",
+  "newVideoCancel": "Keep Working",
+  "newVideoConfirm": "Start Fresh"
 }
