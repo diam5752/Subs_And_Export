@@ -1,98 +1,34 @@
-import React, { useMemo, useCallback } from 'react';
+import React, { useMemo, useCallback, memo } from 'react';
 import { useI18n } from '@/context/I18nContext';
 import { useProcessContext } from '../ProcessContext';
 import { PhoneFrame } from '@/components/PhoneFrame';
 import { PreviewPlayer } from '@/components/PreviewPlayer';
 import { Sidebar } from './Sidebar';
 import { VideoModal } from '@/components/VideoModal';
-import { TokenIcon } from '@/components/icons';
 
-export function PreviewSection() {
-    const { t } = useI18n();
-    const {
-        selectedJob,
-        isProcessing,
-        transcribeProvider,
-        videoUrl,
-        processedCues,
-        subtitlePosition,
-        subtitleColor,
-        subtitleSize,
-        karaokeEnabled,
-        maxSubtitleLines,
-        shadowStrength,
-        watermarkEnabled,
-        setCurrentTime,
-        playerRef,
-        resultsRef,
-        currentStep,
-        setOverrideStep,
-        AVAILABLE_MODELS,
-        transcribeMode,
-        handleExport,
-        exportingResolutions,
-    } = useProcessContext();
-
-    // Local state for VideoModal
-    const [showPreview, setShowPreview] = React.useState(false);
-
-    const playerSettings = useMemo(() => ({
-        position: subtitlePosition,
-        color: subtitleColor,
-        fontSize: subtitleSize,
-        karaoke: karaokeEnabled,
-        maxLines: maxSubtitleLines,
-        shadowStrength: shadowStrength,
-        watermarkEnabled: watermarkEnabled
-    }), [subtitlePosition, subtitleColor, subtitleSize, karaokeEnabled, maxSubtitleLines, shadowStrength, watermarkEnabled]);
-
-    const handlePlayerTimeUpdate = useCallback((t: number) => {
-        setCurrentTime(t);
-    }, [setCurrentTime]);
-
-    const handleStepClick = () => {
-        setOverrideStep(3);
-        document.getElementById('preview-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    };
-
-    const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            handleStepClick();
-        }
-    };
-
-    const displayedModel = useMemo(() => {
-        // If a job is completed, we MUST show the model that generated it, NOT the current selection
-        if (selectedJob?.status === 'completed' && selectedJob.result_data) {
-            const provider = selectedJob.result_data.transcribe_provider;
-            const model = selectedJob.result_data.model_size;
-
-            // Map job data back to AVAILABLE_MODELS entry
-            return AVAILABLE_MODELS.find(m => {
-                if (m.provider !== provider) return false;
-
-                // Specific matching logic strictly for Groq vs others
-                if (provider === 'groq') {
-                    const isEnhancedJob = model === 'enhanced' || (model && model.includes('turbo'));
-                    const isUltimateJob = model === 'ultimate' || (model && !model.includes('turbo') && !model.includes('enhanced'));
-
-                    if (m.mode === 'enhanced') return isEnhancedJob;
-                    if (m.mode === 'ultimate') return isUltimateJob;
-                    return false;
-                }
-
-                // For others (whispercpp, etc)
-                // Since we only have one model per provider for non-Groq currently (Standard = whispercpp),
-                // we should match purely on provider to persist the tag regardless of current UI selection.
-                return true;
-            });
-        }
-
-        // Default to current selection
-        return AVAILABLE_MODELS.find(m => m.provider === transcribeProvider && m.mode === transcribeMode);
-    }, [AVAILABLE_MODELS, selectedJob, transcribeProvider, transcribeMode]);
-
+const PreviewSectionLayout = memo(({
+    resultsRef,
+    currentStep,
+    handleKeyDown,
+    handleStepClick,
+    selectedJob,
+    isProcessing,
+    t,
+    transcribeProvider,
+    displayedModel,
+    processedCues,
+    playerRef,
+    videoUrl,
+    playerSettings,
+    handlePlayerTimeUpdate,
+    handleExport,
+    exportingResolutions,
+    showPreview,
+    setShowPreview,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    activeSidebarTab
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+}: any) => {
     return (
         <div id="preview-section" className={`space-y-4 scroll-mt-32 transition-all duration-500 ${!selectedJob && !isProcessing ? 'opacity-50 grayscale' : ''}`} ref={resultsRef}>
 
@@ -273,5 +209,119 @@ export function PreviewSection() {
                 />
             </div>
         </div>
+    );
+});
+
+PreviewSectionLayout.displayName = 'PreviewSectionLayout';
+
+export function PreviewSection() {
+    const { t } = useI18n();
+    const {
+        selectedJob,
+        isProcessing,
+        transcribeProvider,
+        videoUrl,
+        processedCues,
+        subtitlePosition,
+        subtitleColor,
+        subtitleSize,
+        karaokeEnabled,
+        maxSubtitleLines,
+        shadowStrength,
+        watermarkEnabled,
+        setCurrentTime,
+        playerRef,
+        resultsRef,
+        currentStep,
+        setOverrideStep,
+        AVAILABLE_MODELS,
+        transcribeMode,
+        handleExport,
+        exportingResolutions,
+        activeSidebarTab,
+    } = useProcessContext();
+
+    // Local state for VideoModal
+    const [showPreview, setShowPreview] = React.useState(false);
+
+    const playerSettings = useMemo(() => ({
+        position: subtitlePosition,
+        color: subtitleColor,
+        fontSize: subtitleSize,
+        karaoke: karaokeEnabled,
+        maxLines: maxSubtitleLines,
+        shadowStrength: shadowStrength,
+        watermarkEnabled: watermarkEnabled
+    }), [subtitlePosition, subtitleColor, subtitleSize, karaokeEnabled, maxSubtitleLines, shadowStrength, watermarkEnabled]);
+
+    const handlePlayerTimeUpdate = useCallback((t: number) => {
+        setCurrentTime(t);
+    }, [setCurrentTime]);
+
+    const handleStepClick = useCallback(() => {
+        setOverrideStep(3);
+        document.getElementById('preview-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, [setOverrideStep]);
+
+    const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            handleStepClick();
+        }
+    }, [handleStepClick]);
+
+    const displayedModel = useMemo(() => {
+        // If a job is completed, we MUST show the model that generated it, NOT the current selection
+        if (selectedJob?.status === 'completed' && selectedJob.result_data) {
+            const provider = selectedJob.result_data.transcribe_provider;
+            const model = selectedJob.result_data.model_size;
+
+            // Map job data back to AVAILABLE_MODELS entry
+            return AVAILABLE_MODELS.find(m => {
+                if (m.provider !== provider) return false;
+
+                // Specific matching logic strictly for Groq vs others
+                if (provider === 'groq') {
+                    const isEnhancedJob = model === 'enhanced' || (model && model.includes('turbo'));
+                    const isUltimateJob = model === 'ultimate' || (model && !model.includes('turbo') && !model.includes('enhanced'));
+
+                    if (m.mode === 'enhanced') return isEnhancedJob;
+                    if (m.mode === 'ultimate') return isUltimateJob;
+                    return false;
+                }
+
+                // For others (whispercpp, etc)
+                // Since we only have one model per provider for non-Groq currently (Standard = whispercpp),
+                // we should match purely on provider to persist the tag regardless of current UI selection.
+                return true;
+            });
+        }
+
+        // Default to current selection
+        return AVAILABLE_MODELS.find(m => m.provider === transcribeProvider && m.mode === transcribeMode);
+    }, [AVAILABLE_MODELS, selectedJob, transcribeProvider, transcribeMode]);
+
+    return (
+        <PreviewSectionLayout
+            resultsRef={resultsRef}
+            currentStep={currentStep}
+            handleKeyDown={handleKeyDown}
+            handleStepClick={handleStepClick}
+            selectedJob={selectedJob}
+            isProcessing={isProcessing}
+            t={t}
+            transcribeProvider={transcribeProvider}
+            displayedModel={displayedModel}
+            processedCues={processedCues}
+            playerRef={playerRef}
+            videoUrl={videoUrl}
+            playerSettings={playerSettings}
+            handlePlayerTimeUpdate={handlePlayerTimeUpdate}
+            handleExport={handleExport}
+            exportingResolutions={exportingResolutions}
+            showPreview={showPreview}
+            setShowPreview={setShowPreview}
+            activeSidebarTab={activeSidebarTab}
+        />
     );
 }

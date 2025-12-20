@@ -158,7 +158,23 @@ interface ProcessProviderProps {
     buildStaticUrl: (path?: string | null) => string | null;
 }
 
-export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
+export function ProcessProvider({
+    children,
+    selectedFile,
+    onFileSelect,
+    isProcessing,
+    progress,
+    statusMessage,
+    error,
+    onStartProcessing,
+    onReprocessJob,
+    onReset,
+    onCancelProcessing,
+    selectedJob,
+    onJobSelect,
+    statusStyles,
+    buildStaticUrl,
+}: ProcessProviderProps) {
     const { t } = useI18n();
 
     const clampNumber = (value: unknown, min: number, max: number): number | null => {
@@ -211,12 +227,12 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
         return defaultValue;
     };
 
-    const [hasChosenModel, setHasChosenModel] = useState<boolean>(() => Boolean(props.selectedFile));
+    const [hasChosenModel, setHasChosenModel] = useState<boolean>(() => Boolean(selectedFile));
     const [transcribeMode, setTranscribeMode] = useState<TranscribeMode | null>(() =>
-        props.selectedFile ? 'turbo' : null
+        selectedFile ? 'turbo' : null
     );
     const [transcribeProvider, setTranscribeProvider] = useState<TranscribeProvider | null>(() =>
-        props.selectedFile ? 'whispercpp' : null
+        selectedFile ? 'whispercpp' : null
     );
 
     // Initial values with priority: LocalStorage > Defaults
@@ -258,10 +274,10 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
     }, [cues, maxSubtitleLines, subtitleSize]);
 
     const calculatedStep = useMemo(() => {
-        if (props.selectedJob?.status === 'completed') {
+        if (selectedJob?.status === 'completed') {
             // Check if current settings match the job results
-            const jobProvider = props.selectedJob.result_data?.transcribe_provider;
-            const jobModel = props.selectedJob.result_data?.model_size; // 'medium', 'enhanced', 'ultimate', 'turbo'
+            const jobProvider = selectedJob.result_data?.transcribe_provider;
+            const jobModel = selectedJob.result_data?.model_size; // 'medium', 'enhanced', 'ultimate', 'turbo'
 
             // loose match logic
             const providerMatch = !transcribeProvider || jobProvider === transcribeProvider;
@@ -289,13 +305,13 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
         }
         if (hasChosenModel) return 2;
         return 1;
-    }, [hasChosenModel, props.selectedJob, transcribeProvider, transcribeMode]);
+    }, [hasChosenModel, selectedJob, transcribeProvider, transcribeMode]);
 
     const currentStep = overrideStep ?? calculatedStep;
 
     const videoUrl = useMemo(() => {
-        return props.buildStaticUrl(props.selectedJob?.result_data?.public_url || props.selectedJob?.result_data?.video_path);
-    }, [props]);
+        return buildStaticUrl(selectedJob?.result_data?.public_url || selectedJob?.result_data?.video_path);
+    }, [buildStaticUrl, selectedJob]);
 
     // Last Used Settings State (synced with above, mainly for context access if needed directly)
     const [lastUsedSettings, setLastUsedSettings] = useState<LastUsedSettings | null>(() => {
@@ -324,7 +340,7 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
         } catch {
             // Ignore localStorage errors
         }
-    }, [subtitlePosition, subtitleSize, maxSubtitleLines, subtitleColor, karaokeEnabled]);
+    }, [subtitlePosition, subtitleSize, maxSubtitleLines, subtitleColor, karaokeEnabled, watermarkEnabled]);
 
     // Constants
     const SUBTITLE_COLORS = useMemo(() => [
@@ -448,7 +464,7 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
 
     // Scroll to results when job completes
     useEffect(() => {
-        if (props.selectedJob?.status === 'completed') {
+        if (selectedJob?.status === 'completed') {
             // Small timeout to ensure DOM is ready/expanded
             setTimeout(() => {
                 resultsRef.current?.scrollIntoView({
@@ -457,7 +473,7 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
                 });
             }, 100);
         }
-    }, [props.selectedJob?.status]);
+    }, [selectedJob?.status]);
 
     const handleStart = useCallback(() => {
         if (!transcribeMode || !transcribeProvider) {
@@ -471,9 +487,9 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
 
         const colorObj = SUBTITLE_COLORS.find(c => c.value === subtitleColor) || SUBTITLE_COLORS[0];
 
-        if (!props.selectedFile) {
-            if (props.selectedJob?.status === 'completed') {
-                void props.onReprocessJob(props.selectedJob.id, {
+        if (!selectedFile) {
+            if (selectedJob?.status === 'completed') {
+                void onReprocessJob(selectedJob.id, {
                     transcribeMode,
                     transcribeProvider,
                     outputQuality: 'high quality',
@@ -500,7 +516,7 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
         // Note: Removed immediate scroll to resultsRef here because we want to stay on Step 2 (Upload)
         // to show the progress bar. The scroll to Step 3 now happens automatically upon completion via the effect above.
 
-        props.onStartProcessing({
+        onStartProcessing({
             transcribeMode,
             transcribeProvider,
             outputQuality: 'high quality',
@@ -520,7 +536,10 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
         SUBTITLE_COLORS,
         karaokeEnabled,
         maxSubtitleLines,
-        props,
+        selectedFile,
+        selectedJob,
+        onReprocessJob,
+        onStartProcessing,
         fileInputRef,
         setOverrideStep,
         shadowStrength,
@@ -529,16 +548,17 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
         subtitleSize,
         transcribeMode,
         transcribeProvider,
+        watermarkEnabled,
     ]);
 
-    const handleExport = async (resolution: string) => {
-        if (!props.selectedJob) return;
+    const handleExport = useCallback(async (resolution: string) => {
+        if (!selectedJob) return;
 
         setExportingResolutions(prev => ({ ...prev, [resolution]: true }));
         try {
             const colorObj = SUBTITLE_COLORS.find(c => c.value === subtitleColor) || SUBTITLE_COLORS[0];
 
-            const updatedJob = await api.exportVideo(props.selectedJob.id, resolution, {
+            const updatedJob = await api.exportVideo(selectedJob.id, resolution, {
                 subtitle_position: subtitlePosition,
                 max_subtitle_lines: maxSubtitleLines,
                 subtitle_color: colorObj.ass,
@@ -548,12 +568,12 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
                 karaoke_enabled: karaokeEnabled,
                 watermark_enabled: watermarkEnabled,
             });
-            props.onJobSelect(updatedJob);
+            onJobSelect(updatedJob);
 
             saveLastUsedSettings();
 
             if (updatedJob.result_data?.variants?.[resolution]) {
-                const url = props.buildStaticUrl(updatedJob.result_data.variants[resolution]);
+                const url = buildStaticUrl(updatedJob.result_data.variants[resolution]);
                 if (url) {
                     try {
                         const response = await fetch(url);
@@ -578,7 +598,20 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
         } finally {
             setExportingResolutions(prev => ({ ...prev, [resolution]: false }));
         }
-    };
+    }, [
+        selectedJob,
+        onJobSelect,
+        buildStaticUrl,
+        SUBTITLE_COLORS,
+        subtitleColor,
+        subtitlePosition,
+        maxSubtitleLines,
+        shadowStrength,
+        subtitleSize,
+        karaokeEnabled,
+        watermarkEnabled,
+        saveLastUsedSettings,
+    ]);
 
     // Transcript Editing Helpers
     const updateCueText = useCallback((cue: Cue, nextText: string): Cue => {
@@ -685,10 +718,10 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
         setEditingCueIndex(null);
         setEditingCueDraft('');
 
-        if (!props.selectedJob?.id) return;
+        if (!selectedJob?.id) return;
         setIsSavingTranscript(true);
         try {
-            await api.updateJobTranscription(props.selectedJob.id, updatedCues);
+            await api.updateJobTranscription(selectedJob.id, updatedCues);
         } catch (err) {
             setTranscriptSaveError(
                 err instanceof Error ? err.message : (t('transcriptSaveError') || 'Unable to save transcript')
@@ -696,7 +729,7 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
         } finally {
             setIsSavingTranscript(false);
         }
-    }, [props.selectedJob?.id, t, updateCueText]);
+    }, [selectedJob?.id, t, updateCueText]);
 
     const handleUpdateDraft = useCallback((text: string) => {
         setEditingCueDraft(text);
@@ -704,23 +737,23 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
 
     // Effects
     useEffect(() => {
-        if (props.selectedFile) {
+        if (selectedFile) {
             setHasChosenModel(true);
         }
-    }, [props.selectedFile]);
+    }, [selectedFile]);
 
     // Dev: Auto-load most recent job if no file selected
     const autoLoadAttempted = useRef(false);
 
     // Mark as attempted if we have a job or file
     useEffect(() => {
-        if (props.selectedFile || props.selectedJob) {
+        if (selectedFile || selectedJob) {
             autoLoadAttempted.current = true;
         }
-    }, [props.selectedFile, props.selectedJob]);
+    }, [selectedFile, selectedJob]);
 
     useEffect(() => {
-        if (process.env.NODE_ENV === 'development' && !props.selectedFile && !props.selectedJob && !autoLoadAttempted.current) {
+        if (process.env.NODE_ENV === 'development' && !selectedFile && !selectedJob && !autoLoadAttempted.current) {
             // Wait a bit for auth/init
             const timer = setTimeout(() => {
                 if (autoLoadAttempted.current) return; // Double check inside timeout
@@ -730,7 +763,7 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
                         const latestJob = res.items[0];
                         // Only load if it has a video path
                         if (latestJob.result_data?.video_path) {
-                            props.onJobSelect(latestJob);
+                            onJobSelect(latestJob);
                             setHasChosenModel(true);
                             autoLoadAttempted.current = true;
                         }
@@ -739,18 +772,18 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
             }, 1000);
             return () => clearTimeout(timer);
         }
-    }, [props.selectedFile, props.selectedJob]);
+    }, [selectedFile, selectedJob, onJobSelect]);
 
     useEffect(() => {
         setTranscriptSaveError(null);
         setIsSavingTranscript(false);
         setEditingCueIndex(null);
         setEditingCueDraft('');
-    }, [props.selectedJob?.id]);
+    }, [selectedJob?.id]);
 
     useEffect(() => {
         let cancelled = false;
-        const transcriptionUrl = props.selectedJob?.result_data?.transcription_url;
+        const transcriptionUrl = selectedJob?.result_data?.transcription_url;
 
         if (!transcriptionUrl) {
             setCues([]);
@@ -778,7 +811,7 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
         return () => {
             cancelled = true;
         };
-    }, [props.selectedJob?.result_data?.transcription_url]);
+    }, [selectedJob?.result_data?.transcription_url]);
 
     const previousCalculatedStep = useRef(calculatedStep);
     useEffect(() => {
@@ -791,7 +824,20 @@ export function ProcessProvider({ children, ...props }: ProcessProviderProps) {
     }, [calculatedStep, overrideStep]);
 
     const value = {
-        ...props,
+        selectedFile,
+        onFileSelect,
+        isProcessing,
+        progress,
+        statusMessage,
+        error,
+        onStartProcessing,
+        onReprocessJob,
+        onReset,
+        onCancelProcessing,
+        selectedJob,
+        onJobSelect,
+        statusStyles,
+        buildStaticUrl,
         hasChosenModel, setHasChosenModel,
         transcribeMode, setTranscribeMode,
         transcribeProvider, setTranscribeProvider,
