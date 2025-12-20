@@ -9,7 +9,6 @@ from __future__ import annotations
 import json
 import logging
 import shutil
-from pathlib import Path
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -17,14 +16,13 @@ from pydantic import BaseModel, Field
 
 from ...core import config
 from ...core.auth import User
+from ...core.ratelimit import limiter_content
 from ...schemas.base import BatchDeleteRequest, BatchDeleteResponse, JobResponse, PaginatedJobsResponse
 from ...services.history import HistoryStore
 from ...services.jobs import JobStore
-from ...core.ratelimit import limiter_content
 from ..deps import get_current_user, get_history_store, get_job_store
-from .file_utils import data_roots, DATA_DIR
+from .file_utils import DATA_DIR, data_roots
 from .processing_tasks import record_event_safe
-
 
 logger = logging.getLogger(__name__)
 
@@ -100,19 +98,21 @@ def batch_delete_jobs(
     data_dir, uploads_dir, artifacts_root = data_roots()
     deleted_ids = []
 
-    for job_id in request.job_ids:
-        job = job_store.get_job(job_id)
-        if job and job.user_id == current_user.id:
-            artifact_dir = artifacts_root / job_id
-            if artifact_dir.exists():
-                shutil.rmtree(artifact_dir, ignore_errors=True)
+    # Optimize: Fetch all jobs in one query instead of N+1
+    jobs = job_store.get_jobs(request.job_ids, current_user.id)
 
-            for ext in [".mp4", ".mov", ".mkv"]:
-                input_file = uploads_dir / f"{job_id}_input{ext}"
-                if input_file.exists():
-                    input_file.unlink(missing_ok=True)
+    for job in jobs:
+        job_id = job.id
+        artifact_dir = artifacts_root / job_id
+        if artifact_dir.exists():
+            shutil.rmtree(artifact_dir, ignore_errors=True)
 
-            deleted_ids.append(job_id)
+        for ext in [".mp4", ".mov", ".mkv"]:
+            input_file = uploads_dir / f"{job_id}_input{ext}"
+            if input_file.exists():
+                input_file.unlink(missing_ok=True)
+
+        deleted_ids.append(job_id)
 
     deleted_count = job_store.delete_jobs(deleted_ids, current_user.id)
 
