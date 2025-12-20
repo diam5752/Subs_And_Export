@@ -71,6 +71,8 @@ export const JobListItem = memo(function JobListItem({
     const prevConfirmingRef = useRef(isConfirmingDelete);
     const wasCancelledRef = useRef(false);
 
+    const displayFilename = job.result_data?.original_filename || job.id;
+
     useEffect(() => {
         // If entering confirmation mode
         if (isConfirmingDelete && !prevConfirmingRef.current) {
@@ -131,7 +133,7 @@ export const JobListItem = memo(function JobListItem({
         >
             <div className="min-w-0 flex-1">
                 <div className="font-semibold text-sm truncate">
-                    {job.result_data?.original_filename || job.id}
+                    {displayFilename}
                 </div>
                 <div className="text-xs text-[var(--muted)]">
                     {formatDate(timestamp)}
@@ -163,6 +165,7 @@ export const JobListItem = memo(function JobListItem({
                                     href={publicUrl}
                                     download={job.result_data?.original_filename || 'processed.mp4'}
                                     onClick={(e) => e.stopPropagation()}
+                                    aria-label={`${t('download') || 'Download'} ${displayFilename}`}
                                 >
                                     {t('download') || 'Download'}
                                 </a>
@@ -173,6 +176,7 @@ export const JobListItem = memo(function JobListItem({
                                         setShowPreview(true);
                                     }}
                                     className="text-xs btn-secondary py-1.5 px-3 h-auto"
+                                    aria-label={`${t('view') || 'View'} ${displayFilename}`}
                                 >
                                     {t('view') || 'View'}
                                 </button>
@@ -190,7 +194,10 @@ export const JobListItem = memo(function JobListItem({
                                         }}
                                         disabled={isDeleting}
                                         className="text-xs px-2 py-1 rounded bg-[var(--danger)] text-white hover:bg-[var(--danger)]/80 disabled:opacity-50 min-w-[28px] flex items-center justify-center"
-                                        aria-label={isDeleting ? (t('deleting') || 'Deleting...') : (t('confirmDelete') || 'Confirm delete')}
+                                        aria-label={isDeleting
+                                            ? `${t('deleting') || 'Deleting'} ${displayFilename}`
+                                            : `${t('confirmDelete') || 'Confirm delete'} ${displayFilename}`
+                                        }
                                         aria-busy={isDeleting}
                                     >
                                         {isDeleting ? (
@@ -227,7 +234,7 @@ export const JobListItem = memo(function JobListItem({
                                     }}
                                     className="text-xs px-2 py-1 rounded border border-[var(--border)] hover:border-[var(--danger)] hover:text-[var(--danger)] transition-colors flex items-center justify-center min-w-[28px]"
                                     title={t('deleteJob')}
-                                    aria-label={t('deleteJob') || 'Delete job'}
+                                    aria-label={`${t('deleteJob') || 'Delete job'} ${displayFilename}`}
                                 >
                                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
