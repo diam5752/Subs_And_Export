@@ -8,9 +8,10 @@ interface StepIndicatorProps {
         label: string;
         icon: React.ReactNode;
     }[];
+    onStepClick?: (stepId: number) => void;
 }
 
-export const StepIndicator = React.memo(function StepIndicator({ currentStep, steps }: StepIndicatorProps) {
+export const StepIndicator = React.memo(function StepIndicator({ currentStep, steps, onStepClick }: StepIndicatorProps) {
 
     return (
         <div className="w-full max-w-4xl mx-auto mb-10 px-4">
@@ -29,26 +30,35 @@ export const StepIndicator = React.memo(function StepIndicator({ currentStep, st
                 {steps.map((step) => {
                     const isActive = currentStep === step.id; // Strictly active
                     const isCompleted = currentStep > step.id; // Strictly completed
+                    const isFuture = currentStep < step.id;
+
+                    const handleKeyDown = (e: React.KeyboardEvent) => {
+                        if (onStepClick && (e.key === 'Enter' || e.key === ' ')) {
+                            e.preventDefault();
+                            onStepClick(step.id);
+                        }
+                    };
 
                     return (
-                        <div key={step.id} className="group relative flex flex-col items-center">
+                        <div
+                            key={step.id}
+                            className={`group relative flex flex-col items-center ${onStepClick ? 'cursor-pointer' : ''}`}
+                            onClick={() => onStepClick?.(step.id)}
+                            role={onStepClick ? "button" : undefined}
+                            tabIndex={onStepClick ? 0 : undefined}
+                            onKeyDown={handleKeyDown}
+                        >
                             {/* Step Circle */}
                             <div
                                 className={`w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all duration-500 z-10 ${isActive
-                                    ? 'bg-[var(--surface)] border-[var(--accent)] shadow-[0_0_20px_-5px_var(--accent)] scale-110'
+                                    ? 'bg-[var(--surface-elevated)] border-[var(--accent)] shadow-[0_0_20px_-5px_var(--accent)] scale-110'
                                     : isCompleted
                                         ? 'bg-[var(--surface-elevated)] border-[var(--accent)] text-[var(--accent)] scale-100'
-                                        : 'bg-[var(--surface)] border-[var(--border)] text-[var(--muted)] grayscale'
-                                    }`}
+                                        : 'bg-[var(--surface-elevated)] border-[var(--border)] text-[var(--muted)]'
+                                    } ${onStepClick && !isActive ? 'hover:scale-105 hover:border-[var(--accent)] transition-all' : ''}`}
                             >
-                                <div className={`transition-all duration-500 ${isActive ? 'text-[var(--accent)]' : 'opacity-50'}`}>
-                                    {isCompleted ? (
-                                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                                        </svg>
-                                    ) : (
-                                        step.icon
-                                    )}
+                                <div className={`transition-all duration-500 ${isActive || isCompleted ? 'text-[var(--accent)]' : 'text-[var(--muted)]'}`}>
+                                    {step.icon}
                                 </div>
                             </div>
 

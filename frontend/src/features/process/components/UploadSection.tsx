@@ -302,7 +302,7 @@ export function UploadSection() {
             selectedJob.result_data &&
             !selectedJob.result_data.files_missing;
 
-        if (selectedFile || hasJobData) {
+        if (selectedFile || hasJobData || currentStep > 2) {
             const fileName = selectedFile?.name || selectedJob?.result_data?.original_filename || 'Processed Video';
             const fileSize = selectedFile?.size
                 ? (selectedFile.size / (1024 * 1024)).toFixed(1)
@@ -333,22 +333,22 @@ export function UploadSection() {
                                     }`}>STEP 2</span>
                                 <h3 className="text-xl font-semibold">Upload Video</h3>
                                 {/* Chevron indicator for expand/collapse */}
-                                {currentStep !== 2 && (
-                                    <svg
-                                        className={`w-5 h-5 text-[var(--muted)] transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}
-                                        fill="none"
-                                        viewBox="0 0 24 24"
-                                        stroke="currentColor"
-                                    >
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                    </svg>
-                                )}
+                                <svg
+                                    className={`w-5 h-5 text-[var(--muted)] transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    data-testid="step-2-chevron"
+                                >
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
                             </div>
                             {/* Right side: file indicator and status badges */}
                             <div className="flex items-center gap-3">
                                 {/* Compact file indicator when collapsed */}
                                 {/* Compact file indicator when collapsed */}
-                                {!isExpanded && selectedFile && (
+                                {/* Compact file indicator when collapsed */}
+                                {!isExpanded && (selectedFile || hasJobData || currentStep > 2) && (
                                     <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--surface-elevated)] border border-[var(--border)] overflow-hidden">
                                         {videoInfo?.thumbnailUrl ? (
                                             <div className="relative w-5 h-5 rounded-full overflow-hidden flex-shrink-0">
@@ -368,18 +368,6 @@ export function UploadSection() {
                                         )}
                                         <span className="text-sm font-medium text-[var(--foreground)] truncate max-w-[120px]">{fileName}</span>
                                     </div>
-                                )}
-                                {/* Status badge matching Step 1 */}
-                                {selectedFile || hasJobData ? (
-                                    <span className="inline-flex items-center gap-2 text-xs font-semibold px-3 py-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-300">
-                                        <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                                        Ready
-                                    </span>
-                                ) : (
-                                    <span className="inline-flex items-center gap-2 text-xs font-semibold px-3 py-1 rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-200">
-                                        <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
-                                        Upload to continue
-                                    </span>
                                 )}
                             </div>
                         </div>
@@ -483,7 +471,10 @@ export function UploadSection() {
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
                                                                 setOverrideStep(3);
-                                                                document.getElementById('preview-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                                                // Wait for UploadSection to collapse (300ms)
+                                                                setTimeout(() => {
+                                                                    document.getElementById('step-3-wrapper')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                                                }, 350);
                                                             }}
                                                             className="px-4 py-1.5 text-xs font-bold rounded-lg bg-emerald-500 text-white hover:brightness-110 shadow-lg shadow-emerald-500/20 transition-all active:scale-95 flex items-center gap-2"
                                                         >
@@ -596,7 +587,7 @@ export function UploadSection() {
         }
 
         return (
-            <div id="upload-section" className={`space-y-4 scroll-mt-32 animate-fade-in-up-scale transition-opacity duration-300 ${!hasChosenModel ? 'opacity-40 pointer-events-none' : ''}`}>
+            <div id="upload-section" className={`card space-y-4 animate-fade-in-up-scale transition-opacity duration-300 ${!hasChosenModel ? 'opacity-40 pointer-events-none' : ''}`}>
                 <div
                     role="button"
                     tabIndex={0}
@@ -609,6 +600,16 @@ export function UploadSection() {
                         : 'bg-[var(--surface-elevated)] border-[var(--border)] text-[var(--muted)] group-hover/step:border-[var(--accent)]/50 group-hover/step:text-[var(--accent)]'
                         }`}>STEP 2</span>
                     <h3 className="text-xl font-semibold">Upload Video</h3>
+                    {/* Chevron indicator for expand/collapse */}
+                    <svg
+                        className={`w-5 h-5 text-[var(--muted)] transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        data-testid="step-2-chevron"
+                    >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
                 </div>
                 {!hasChosenModel && (
                     <p className="text-xs text-[var(--muted)] mt-1 italic">Select a model above to unlock</p>

@@ -478,9 +478,9 @@ export function ProcessProvider({
         }
     ], [t]);
 
-    // Scroll to results when job completes
+    // Scroll to results when job completes, BUT only if we are not overriding navigation (e.g. user clicked Step 1/2)
     useEffect(() => {
-        if (selectedJob?.status === 'completed') {
+        if (selectedJob?.status === 'completed' && overrideStep === null) {
             // Small timeout to ensure DOM is ready/expanded
             setTimeout(() => {
                 resultsRef.current?.scrollIntoView({
@@ -489,7 +489,7 @@ export function ProcessProvider({
                 });
             }, 100);
         }
-    }, [selectedJob?.status]);
+    }, [selectedJob?.status, overrideStep]);
 
     const handleStart = useCallback(() => {
         if (!transcribeMode || !transcribeProvider) {
@@ -753,10 +753,10 @@ export function ProcessProvider({
 
     // Effects
     useEffect(() => {
-        if (selectedFile) {
+        if (selectedFile || selectedJob) {
             setHasChosenModel(true);
         }
-    }, [selectedFile]);
+    }, [selectedFile, selectedJob]);
 
     // Dev: Auto-load most recent job if no file selected
     const autoLoadAttempted = useRef(false);
@@ -834,7 +834,9 @@ export function ProcessProvider({
         const previous = previousCalculatedStep.current;
         previousCalculatedStep.current = calculatedStep;
 
-        if (overrideStep !== null && calculatedStep > previous && calculatedStep > overrideStep) {
+        // Only clear override if we naturally land on the EXACT step we overrode.
+        // Never force-push the user forward if they are looking at a previous step.
+        if (overrideStep !== null && calculatedStep === overrideStep) {
             setOverrideStep(null);
         }
     }, [calculatedStep, overrideStep]);

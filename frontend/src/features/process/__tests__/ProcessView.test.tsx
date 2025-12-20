@@ -238,7 +238,7 @@ describe('ProcessView', () => {
         );
 
         await waitFor(() => {
-             expect(screen.getAllByText(/TikTok Pro/i).length).toBeGreaterThan(0);
+            expect(screen.getAllByText(/TikTok Pro/i).length).toBeGreaterThan(0);
         });
     });
 
@@ -249,7 +249,8 @@ describe('ProcessView', () => {
             isProcessing: true,
             progress: 45,
             statusMessage: 'Processing...',
-            selectedFile: new File([''], 'video.mp4', { type: 'video/mp4' })
+            selectedFile: new File([''], 'video.mp4', { type: 'video/mp4' }),
+            hasChosenModel: true
         });
 
         render(
@@ -264,4 +265,70 @@ describe('ProcessView', () => {
         expect(progressBar).toHaveAttribute('aria-valuemin', '0');
         expect(progressBar).toHaveAttribute('aria-valuemax', '100');
     });
+
+    it('shows chevron arrow in both Step 1 and Step 2 headers', () => {
+        (useProcessContext as jest.Mock).mockReturnValue({
+            ...mockContextValue,
+            currentStep: 2,
+            hasChosenModel: true
+        });
+
+        render(
+            <I18nProvider initialLocale="en">
+                <ProcessViewContent />
+            </I18nProvider>
+        );
+
+        // Verify Step 1 chevron
+        expect(screen.getByTestId('step-1-chevron')).toBeInTheDocument();
+        // Verify Step 2 chevron
+        expect(screen.getByTestId('step-2-chevron')).toBeInTheDocument();
+    });
+
+    it('displays thumbnail preview in collapsed Step 2 header', () => {
+        (useProcessContext as jest.Mock).mockReturnValue({
+            ...mockContextValue,
+            currentStep: 3, // Step 3 active, Step 2 collapsed
+            hasChosenModel: true,
+            selectedFile: new File([''], 'test.mp4', { type: 'video/mp4' }),
+            videoInfo: { thumbnailUrl: 'http://example.com/thumb.jpg' }
+        });
+
+        render(
+            <I18nProvider initialLocale="en">
+                <ProcessViewContent />
+            </I18nProvider>
+        );
+
+        // In Step 3, Step 2 is collapsed. It should show the thumbnail image.
+        // We use getAllByAltText because it might appear in both compact and full view (even if one is hidden)
+        const thumbnails = screen.getAllByAltText('Thumbnail');
+        expect(thumbnails.length).toBeGreaterThanOrEqual(1);
+        expect(thumbnails[0]).toHaveAttribute('src', expect.stringContaining('http://example.com/thumb.jpg'));
+    });
+
+    it('renders Step 2 in compact mode on page refresh (selectedFile is null, job is active)', () => {
+        (useProcessContext as jest.Mock).mockReturnValue({
+            ...mockContextValue,
+            currentStep: 3,
+            hasChosenModel: true,
+            selectedFile: null, // Critical for refresh case
+            selectedJob: mockJob, // completed job
+            videoInfo: { thumbnailUrl: 'http://example.com/thumb.jpg' }
+        });
+
+        const { container } = render(
+            <I18nProvider initialLocale="en">
+                <ProcessViewContent />
+            </I18nProvider>
+        );
+
+        // Verify the compact section is present
+        const compactSection = container.querySelector('#upload-section-compact');
+        expect(compactSection).toBeInTheDocument();
+
+        // Should also show "Ready" badge
+        expect(screen.getByText(/Ready/i)).toBeInTheDocument();
+    });
 });
+

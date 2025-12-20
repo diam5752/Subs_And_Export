@@ -17,6 +17,7 @@ export function ModelSelector() {
         onJobSelect,
         hasChosenModel,
         currentStep,
+        selectedJob,
     } = useProcessContext();
 
     // Collapsed state - expands automatically when on Step 1, otherwise respects user toggle
@@ -32,13 +33,33 @@ export function ModelSelector() {
 
     // Get selected model for compact display
     const selectedModel = useMemo(() => {
-        return AVAILABLE_MODELS.find(m => m.provider === transcribeProvider && m.mode === transcribeMode);
-    }, [AVAILABLE_MODELS, transcribeProvider, transcribeMode]);
+        // 1. Current explicit selection
+        const selected = AVAILABLE_MODELS.find(m => m.provider === transcribeProvider && m.mode === transcribeMode);
+        if (selected) return selected;
+
+        // 2. Fallback to current job's model if no explicit selection
+        if (selectedJob?.result_data) {
+            const jobProvider = selectedJob.result_data.transcribe_provider;
+            const jobModelSize = selectedJob.result_data.model_size;
+
+            return AVAILABLE_MODELS.find(m => {
+                const isProviderMatch = m.provider === jobProvider;
+                if (!isProviderMatch) return false;
+
+                // Special handling for Groq modes
+                if (jobProvider === 'groq') {
+                    if (m.mode === 'ultimate') return jobModelSize === 'ultimate';
+                    if (m.mode === 'enhanced') return jobModelSize === 'enhanced' || jobModelSize === 'turbo';
+                }
+
+                return m.mode === jobModelSize;
+            });
+        }
+        return null;
+    }, [AVAILABLE_MODELS, transcribeProvider, transcribeMode, selectedJob]);
 
     const scrollToUploadStep = useCallback(() => {
-        const target =
-            document.getElementById('upload-section') ??
-            document.getElementById('upload-section-compact');
+        const target = document.getElementById('step-2-wrapper');
         target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, []);
 
@@ -81,7 +102,8 @@ export function ModelSelector() {
                             // Do NOT clear job here. We want to persist it until new upload or new start.
                             // onJobSelect(null);
 
-                            setTimeout(scrollToUploadStep, 100);
+                            // Wait for Step 1 to collapse (300ms) before scrolling to Step 2
+                            setTimeout(scrollToUploadStep, 350);
                         }}
                         className={`p-4 rounded-xl border text-left transition-all duration-300 relative overflow-hidden group flex flex-col h-full ${isSelected
                             ? `${model.colorClass(true)} scale-[1.02] shadow-lg ring-1`
@@ -175,7 +197,7 @@ export function ModelSelector() {
     }, [handleStepClick]);
 
     return useMemo(() => (
-        <div className="card space-y-4">
+        <div id="model-selection-step" className="card space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <div
                     role="button"
@@ -195,16 +217,15 @@ export function ModelSelector() {
                         )}
                     </div>
                     {/* Chevron indicator for expand/collapse */}
-                    {currentStep !== 1 && (
-                        <svg
-                            className={`w-5 h-5 text-[var(--muted)] transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                        >
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                    )}
+                    <svg
+                        className={`w-5 h-5 text-[var(--muted)] transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        data-testid="step-1-chevron"
+                    >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
                 </div>
                 <div className="flex items-center gap-3">
                     {/* Compact selected model indicator when collapsed */}
@@ -213,17 +234,6 @@ export function ModelSelector() {
                             <span className="text-sm">{selectedModel.icon(true)}</span>
                             <span className="text-sm font-medium text-[var(--foreground)]">{selectedModel.name}</span>
                         </div>
-                    )}
-                    {hasChosenModel ? (
-                        <span className="inline-flex items-center gap-2 text-xs font-semibold px-3 py-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-300">
-                            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                            {t('statusSynced') || 'Selected'}
-                        </span>
-                    ) : (
-                        <span className="inline-flex items-center gap-2 text-xs font-semibold px-3 py-1 rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-200">
-                            <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
-                            {t('statusIdle') || 'Select to continue'}
-                        </span>
                     )}
                 </div>
             </div>

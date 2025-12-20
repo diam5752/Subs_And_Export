@@ -34,7 +34,7 @@ const PreviewSectionLayout = memo(({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
 }: any) => {
     return (
-        <div id="preview-section" className={`space-y-4 scroll-mt-32 transition-all duration-500 ${!selectedJob && !isProcessing ? 'opacity-50 grayscale' : ''}`} ref={resultsRef}>
+        <div id="preview-section" className={`space-y-4 transition-all duration-500 ${!selectedJob && !isProcessing ? 'opacity-50 grayscale' : ''}`} ref={resultsRef}>
 
             <div
                 role="button"
@@ -67,10 +67,6 @@ const PreviewSectionLayout = memo(({
                                 <p className="text-sm text-[var(--muted)]">{t('liveOutputSubtitle')}</p>
                             </div>
                             <div className="flex items-center justify-end">
-                                <span className="inline-flex items-center gap-2 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-300">
-                                    <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                                    {t('subtitlesReady')}
-                                </span>
                             </div>
                         </div>
 
@@ -297,7 +293,10 @@ export function PreviewSection() {
 
     const handleStepClick = useCallback(() => {
         setOverrideStep(3);
-        document.getElementById('preview-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        // Wait for any panel transitions (Model selector or Upload section) to finish
+        setTimeout(() => {
+            document.getElementById('step-3-wrapper')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 350);
     }, [setOverrideStep]);
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent) => {

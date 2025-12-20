@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { StepIndicator } from './StepIndicator';
 import { ProcessProvider, useProcessContext, ProcessingOptions } from './ProcessContext';
 export type { ProcessingOptions } from './ProcessContext';
@@ -27,21 +27,47 @@ interface ProcessViewProps {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const ProcessViewLayout = React.memo(({ currentStep, steps, hasChosenModel, selectedJob }: { currentStep: number; steps: any[]; activeSidebarTab: string; hasVideos: boolean; hasChosenModel: boolean; isProcessing: boolean; selectedJob: JobResponse | null }) => {
+const ProcessViewLayout = React.memo(({ currentStep, steps, hasChosenModel, selectedJob, setOverrideStep }: { currentStep: number; steps: any[]; activeSidebarTab: string; hasVideos: boolean; hasChosenModel: boolean; isProcessing: boolean; selectedJob: JobResponse | null; setOverrideStep: (s: number | null) => void }) => {
     // Step 2: Only show when user has selected a model (Step 1 done)
     const showUploadSection = hasChosenModel;
 
-    // Step 3: Only show when job is completed (Step 2 done), not during processing
+    // Step 3: Only show when job is completed (Step 2 done)
     const showPreviewSection = selectedJob?.status === 'completed';
+
+    const handleStepClick = React.useCallback((stepId: number) => {
+        setOverrideStep(stepId);
+
+        // Wait for CSS transitions (300ms) to complete before scrolling.
+        // This ensures the target position is calculated after Step 1 has finished collapsing.
+        setTimeout(() => {
+            const sectionId = stepId === 1 ? 'step-1-wrapper' : stepId === 2 ? 'step-2-wrapper' : 'step-3-wrapper';
+            const element = document.getElementById(sectionId);
+            if (element) {
+                element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }, 350);
+    }, [setOverrideStep]);
 
     return (
         <div className="space-y-6">
             {/* Always show all 3 steps - they appear greyed out when inactive */}
-            <StepIndicator currentStep={currentStep} steps={steps} />
+            <StepIndicator currentStep={currentStep} steps={steps} onStepClick={handleStepClick} />
 
-            <ModelSelector />
-            {showUploadSection && <UploadSection />}
-            {showPreviewSection && <PreviewSection />}
+            <div id="step-1-wrapper" className="scroll-mt-32">
+                <ModelSelector />
+            </div>
+
+            {showUploadSection && (
+                <div id="step-2-wrapper" className="scroll-mt-32">
+                    <UploadSection />
+                </div>
+            )}
+
+            {showPreviewSection && (
+                <div id="step-3-wrapper" className="scroll-mt-32">
+                    <PreviewSection />
+                </div>
+            )}
         </div>
     );
 });
@@ -49,7 +75,7 @@ ProcessViewLayout.displayName = 'ProcessViewLayout';
 
 export function ProcessViewContent() {
     const { t } = useI18n();
-    const { currentStep, activeSidebarTab, hasVideos, hasChosenModel, isProcessing, selectedJob } = useProcessContext();
+    const { currentStep, activeSidebarTab, hasVideos, hasChosenModel, isProcessing, selectedJob, setOverrideStep } = useProcessContext();
 
     const STEPS = React.useMemo(() => [
         {
@@ -81,12 +107,19 @@ export function ProcessViewContent() {
         }
     ], [t]);
 
-    return <ProcessViewLayout currentStep={currentStep} steps={STEPS} activeSidebarTab={activeSidebarTab} hasVideos={hasVideos} hasChosenModel={hasChosenModel} isProcessing={isProcessing} selectedJob={selectedJob} />;
+    return <ProcessViewLayout currentStep={currentStep} steps={STEPS} activeSidebarTab={activeSidebarTab} hasVideos={hasVideos} hasChosenModel={hasChosenModel} isProcessing={isProcessing} selectedJob={selectedJob} setOverrideStep={setOverrideStep} />;
 }
 
 export function ProcessView(props: ProcessViewProps) {
+    const onFileSelectInternal = useCallback((file: File | null) => {
+        props.onFileSelect(file);
+        if (file) {
+            props.onJobSelect?.(null);
+        }
+    }, [props.onFileSelect, props.onJobSelect]);
+
     return (
-        <ProcessProvider {...props}>
+        <ProcessProvider {...props} onFileSelect={onFileSelectInternal}>
             <ProcessViewContent />
         </ProcessProvider>
     );

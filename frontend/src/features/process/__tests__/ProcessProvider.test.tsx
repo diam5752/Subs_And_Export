@@ -64,6 +64,7 @@ const baseProps = {
   onJobSelect: jest.fn(),
   statusStyles: {},
   buildStaticUrl: jest.fn(() => null),
+  totalJobs: 0,
 };
 
 describe('ProcessProvider', () => {
@@ -127,7 +128,12 @@ describe('ProcessProvider', () => {
       message: null,
       created_at: Date.now(),
       updated_at: Date.now(),
-      result_data: { transcribe_provider: 'whispercpp', model_size: 'turbo' },
+      result_data: {
+        transcribe_provider: 'whispercpp',
+        model_size: 'turbo',
+        video_path: '/videos/test.mp4',
+        artifacts_dir: '/tmp/artifacts'
+      },
     };
 
     const onReprocessJob = jest.fn(async () => { });
@@ -164,7 +170,12 @@ describe('ProcessProvider', () => {
       message: null,
       created_at: Date.now(),
       updated_at: Date.now(),
-      result_data: { transcribe_provider: 'whispercpp', model_size: 'turbo' },
+      result_data: {
+        transcribe_provider: 'whispercpp',
+        model_size: 'turbo',
+        video_path: '/videos/test.mp4',
+        artifacts_dir: '/tmp/artifacts'
+      },
     };
 
     render(
@@ -177,5 +188,37 @@ describe('ProcessProvider', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'pick-model' }));
     await waitFor(() => expect(screen.getByTestId('step')).toHaveTextContent('2'));
+  });
+
+  it('automatically sets hasChosenModel when a job is restored (refresh handling)', () => {
+    const activeJob = {
+      id: 'job-1',
+      status: 'processing',
+      progress: 50,
+      message: 'Processing...',
+      created_at: Date.now(),
+      updated_at: Date.now(),
+      result_data: {
+        transcribe_provider: 'whispercpp',
+        model_size: 'turbo',
+        video_path: '/videos/test.mp4',
+        artifacts_dir: '/tmp/artifacts'
+      },
+    };
+
+    function ModelSyncHarness() {
+      const { hasChosenModel } = useProcessContext();
+      return <div data-testid="has-model">{hasChosenModel ? 'yes' : 'no'}</div>;
+    }
+
+    render(
+      <I18nProvider initialLocale="en">
+        <ProcessProvider {...baseProps} selectedJob={activeJob}>
+          <ModelSyncHarness />
+        </ProcessProvider>
+      </I18nProvider>,
+    );
+
+    expect(screen.getByTestId('has-model')).toHaveTextContent('yes');
   });
 });
