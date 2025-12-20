@@ -180,14 +180,9 @@ export function ModelSelector() {
     ), [AVAILABLE_MODELS, transcribeProvider, transcribeMode, hasChosenModel, t, setTranscribeProvider, setTranscribeMode, setHasChosenModel, setOverrideStep, onJobSelect, scrollToUploadStep]);
 
     const handleStepClick = useCallback(() => {
-        if (currentStep !== 1) {
-            // Toggle expand/collapse when not on step 1
-            setIsManuallyExpanded(prev => !prev);
-        } else {
-            setOverrideStep(1);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-    }, [currentStep, setOverrideStep]);
+        setOverrideStep(1);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, [setOverrideStep]);
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
         if (e.key === 'Enter' || e.key === ' ') {
@@ -203,12 +198,12 @@ export function ModelSelector() {
                     role="button"
                     tabIndex={0}
                     onKeyDown={handleKeyDown}
-                    className={`flex items-center gap-4 transition-all duration-300 cursor-pointer group/step ${currentStep !== 1 ? 'opacity-60 hover:opacity-100' : 'opacity-100 scale-[1.01]'}`}
+                    className={`flex items-center gap-4 transition-all duration-300 cursor-pointer group/step ${currentStep !== 1 ? 'opacity-100 hover:scale-[1.005]' : 'opacity-100 scale-[1.01]'}`}
                     onClick={handleStepClick}
                 >
                     <span className={`flex items-center justify-center px-4 py-1.5 rounded-full border font-mono text-sm font-bold tracking-widest shadow-sm transition-all duration-500 ${currentStep === 1
                         ? 'bg-[var(--accent)] border-[var(--accent)] text-white shadow-[0_0_20px_2px_var(--accent)] scale-105 ring-2 ring-[var(--accent)]/30'
-                        : 'bg-[var(--surface-elevated)] border-[var(--border)] text-[var(--muted)] group-hover/step:border-[var(--accent)]/50 group-hover/step:text-[var(--accent)]'
+                        : 'bg-[var(--surface-elevated)] border-[var(--accent)] text-[var(--accent)] shadow-[0_0_10px_-5px_var(--accent)]'
                         }`}>STEP 1</span>
                     <div>
                         <h3 className="text-xl font-semibold">{t('modelSelectTitle') || 'Pick a Model'}</h3>

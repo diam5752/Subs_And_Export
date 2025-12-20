@@ -281,14 +281,12 @@ export function UploadSection() {
     }, [pendingAutoStart, selectedFile, videoInfo, fileValidationError, isProcessing, selectedJob, hasChosenModel, handleStart]);
 
     const handleStepClick = useCallback((id: string) => {
-        if (currentStep !== 2) {
-            // Toggle expand/collapse when not on step 2
-            setIsManuallyExpanded(prev => !prev);
-        } else {
-            setOverrideStep(2);
+        setOverrideStep(2);
+        // Wait for CSS transitions (similar to ProcessView)
+        setTimeout(() => {
             document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-    }, [currentStep, setOverrideStep]);
+        }, 350);
+    }, [setOverrideStep]);
 
     return useMemo(() => {
         const selectedCost = selectedModel
@@ -324,12 +322,12 @@ export function UploadSection() {
                                 role="button"
                                 tabIndex={0}
                                 onKeyDown={(e) => handleKeyDown(e, () => handleStepClick('upload-section-compact'))}
-                                className={`flex items-center gap-4 transition-all duration-300 cursor-pointer group/step ${currentStep !== 2 ? 'opacity-60 hover:opacity-100' : 'opacity-100 scale-[1.01]'}`}
+                                className={`flex items-center gap-4 transition-all duration-300 cursor-pointer group/step ${currentStep !== 2 ? 'opacity-100 hover:scale-[1.005]' : 'opacity-100 scale-[1.01]'}`}
                                 onClick={() => handleStepClick('upload-section-compact')}
                             >
                                 <span className={`flex items-center justify-center px-4 py-1.5 rounded-full border font-mono text-sm font-bold tracking-widest shadow-sm transition-all duration-500 ${currentStep === 2
                                     ? 'bg-[var(--accent)] border-[var(--accent)] text-white shadow-[0_0_20px_2px_var(--accent)] scale-105 ring-2 ring-[var(--accent)]/30'
-                                    : 'bg-[var(--surface-elevated)] border-[var(--border)] text-[var(--muted)] group-hover/step:border-[var(--accent)]/50 group-hover/step:text-[var(--accent)]'
+                                    : 'bg-[var(--surface-elevated)] border-[var(--accent)] text-[var(--accent)] shadow-[0_0_10px_-5px_var(--accent)]'
                                     }`}>STEP 2</span>
                                 <h3 className="text-xl font-semibold">Upload Video</h3>
                                 {/* Chevron indicator for expand/collapse */}
@@ -581,7 +579,7 @@ export function UploadSection() {
                                 )}
                             </div>
                         )}
-                    </div> {/* End collapsible wrapper */}
+                    </div > {/* End collapsible wrapper */}
                 </>
             );
         }
@@ -592,12 +590,14 @@ export function UploadSection() {
                     role="button"
                     tabIndex={0}
                     onKeyDown={(e) => handleKeyDown(e, () => handleStepClick('upload-section'))}
-                    className={`mb-2 flex items-center gap-4 transition-all duration-300 cursor-pointer group/step ${currentStep !== 2 ? 'opacity-40 grayscale blur-[1px] hover:opacity-80 hover:grayscale-0 hover:blur-0' : 'opacity-100 scale-[1.01]'}`}
+                    className={`mb-2 flex items-center gap-4 transition-all duration-300 cursor-pointer group/step ${currentStep !== 2 ? (hasChosenModel ? 'opacity-100 hover:scale-[1.005]' : 'opacity-40 grayscale blur-[1px]') : 'opacity-100 scale-[1.01]'}`}
                     onClick={() => handleStepClick('upload-section')}
                 >
                     <span className={`flex items-center justify-center px-4 py-1.5 rounded-full border font-mono text-sm font-bold tracking-widest shadow-sm transition-all duration-500 ${currentStep === 2
                         ? 'bg-[var(--accent)] border-[var(--accent)] text-white shadow-[0_0_20px_2px_var(--accent)] scale-105 ring-2 ring-[var(--accent)]/30'
-                        : 'bg-[var(--surface-elevated)] border-[var(--border)] text-[var(--muted)] group-hover/step:border-[var(--accent)]/50 group-hover/step:text-[var(--accent)]'
+                        : hasChosenModel
+                            ? 'bg-[var(--surface-elevated)] border-[var(--accent)] text-[var(--accent)] shadow-[0_0_10px_-5px_var(--accent)]'
+                            : 'bg-[var(--surface-elevated)] border-[var(--border)] text-[var(--muted)] group-hover/step:border-[var(--accent)]/50 group-hover/step:text-[var(--accent)]'
                         }`}>STEP 2</span>
                     <h3 className="text-xl font-semibold">Upload Video</h3>
                     {/* Chevron indicator for expand/collapse */}

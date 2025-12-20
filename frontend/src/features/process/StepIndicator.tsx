@@ -8,10 +8,13 @@ interface StepIndicatorProps {
         label: string;
         icon: React.ReactNode;
     }[];
+    maxStep?: number; // The furthest step the user has unlocked (1, 2, or 3)
     onStepClick?: (stepId: number) => void;
 }
 
-export const StepIndicator = React.memo(function StepIndicator({ currentStep, steps, onStepClick }: StepIndicatorProps) {
+export const StepIndicator = React.memo(function StepIndicator({ currentStep, steps, onStepClick, maxStep }: StepIndicatorProps) {
+    // Default maxStep to currentStep if not provided (backward compatibility)
+    const effectiveMaxStep = maxStep ?? currentStep;
 
     return (
         <div className="w-full max-w-4xl mx-auto mb-10 px-4">
@@ -23,41 +26,50 @@ export const StepIndicator = React.memo(function StepIndicator({ currentStep, st
                 <div
                     className="absolute left-0 top-1/2 -translate-y-1/2 h-1 bg-gradient-to-r from-[var(--accent)] to-[var(--accent-secondary)] rounded-full -z-10 transition-all duration-700 ease-out"
                     style={{
-                        width: `${((currentStep - 1) / (steps.length - 1)) * 100}%`
+                        // Width should reflect the maxStep, showing the full unlocked path
+                        width: `${((effectiveMaxStep - 1) / (steps.length - 1)) * 100}%`
                     }}
                 />
 
                 {steps.map((step) => {
-                    const isActive = currentStep === step.id; // Strictly active
-                    const isCompleted = currentStep > step.id; // Strictly completed
-                    const isFuture = currentStep < step.id;
+                    const isActive = currentStep === step.id; // Strictly active (currently viewing)
+                    const isCompleted = currentStep > step.id; // Strictly situated before current step
+                    const isUnlocked = step.id <= effectiveMaxStep; // Accessible (unlocked)
+
+                    // Determine visual state:
+                    // 1. Active: Big, Glowing, Accent color
+                    // 2. Unlocked (Future or Past): Accent color (like Completed), interactive
+                    // 3. Locked: Muted, Gray
+                    const shouldShowAccent = isActive || isUnlocked;
 
                     const handleKeyDown = (e: React.KeyboardEvent) => {
-                        if (onStepClick && (e.key === 'Enter' || e.key === ' ')) {
+                        if (onStepClick && isUnlocked && (e.key === 'Enter' || e.key === ' ')) {
                             e.preventDefault();
                             onStepClick(step.id);
                         }
                     };
 
+                    const isClickable = onStepClick && isUnlocked;
+
                     return (
                         <div
                             key={step.id}
-                            className={`group relative flex flex-col items-center ${onStepClick ? 'cursor-pointer' : ''}`}
-                            onClick={() => onStepClick?.(step.id)}
-                            role={onStepClick ? "button" : undefined}
-                            tabIndex={onStepClick ? 0 : undefined}
+                            className={`group relative flex flex-col items-center ${isClickable ? 'cursor-pointer' : 'cursor-default'}`}
+                            onClick={() => isClickable && onStepClick?.(step.id)}
+                            role={isClickable ? "button" : undefined}
+                            tabIndex={isClickable ? 0 : undefined}
                             onKeyDown={handleKeyDown}
                         >
                             {/* Step Circle */}
                             <div
                                 className={`w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all duration-500 z-10 ${isActive
-                                    ? 'bg-[var(--surface-elevated)] border-[var(--accent)] shadow-[0_0_20px_-5px_var(--accent)] scale-110'
-                                    : isCompleted
-                                        ? 'bg-[var(--surface-elevated)] border-[var(--accent)] text-[var(--accent)] scale-100'
+                                    ? 'bg-[var(--accent)] border-[var(--accent)] shadow-[0_0_20px_-5px_var(--accent)] scale-110'
+                                    : shouldShowAccent
+                                        ? 'bg-[var(--surface-elevated)] border-[var(--accent)] text-[var(--accent)] scale-100 hover:scale-105 hover:shadow-[0_0_15px_-5px_var(--accent)]'
                                         : 'bg-[var(--surface-elevated)] border-[var(--border)] text-[var(--muted)]'
-                                    } ${onStepClick && !isActive ? 'hover:scale-105 hover:border-[var(--accent)] transition-all' : ''}`}
+                                    } ${isClickable && !isActive ? 'hover:scale-105 hover:border-[var(--accent)] transition-all' : ''}`}
                             >
-                                <div className={`transition-all duration-500 ${isActive || isCompleted ? 'text-[var(--accent)]' : 'text-[var(--muted)]'}`}>
+                                <div className={`transition-all duration-500 ${isActive ? 'text-white' : shouldShowAccent ? 'text-[var(--accent)]' : 'text-[var(--muted)]'}`}>
                                     {step.icon}
                                 </div>
                             </div>
@@ -67,7 +79,7 @@ export const StepIndicator = React.memo(function StepIndicator({ currentStep, st
                                 ? 'opacity-100 transform translate-y-0'
                                 : 'opacity-50 transform -translate-y-1'
                                 }`}>
-                                <span className={`text-xs font-bold tracking-wider uppercase block mb-0.5 ${isActive ? 'text-[var(--accent)] scale-110' : isCompleted ? 'text-[var(--accent)] opacity-80' : 'text-[var(--muted)]'}`}>
+                                <span className={`text-xs font-bold tracking-wider uppercase block mb-0.5 ${isActive ? 'text-[var(--accent)] scale-110' : shouldShowAccent ? 'text-[var(--accent)] opacity-80' : 'text-[var(--muted)]'}`}>
                                     Step {step.id}
                                 </span>
                                 <span className={`text-sm font-semibold ${isActive ? 'text-[var(--foreground)]' : 'text-[var(--muted)]'}`}>

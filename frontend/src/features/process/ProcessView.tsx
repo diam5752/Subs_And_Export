@@ -48,10 +48,17 @@ const ProcessViewLayout = React.memo(({ currentStep, steps, hasChosenModel, sele
         }, 350);
     }, [setOverrideStep]);
 
+    // Calculate maxStep (furthest unlocked step)
+    const maxStep = React.useMemo(() => {
+        if (selectedJob?.status === 'completed') return 3;
+        if (hasChosenModel) return 2;
+        return 1;
+    }, [selectedJob, hasChosenModel]);
+
     return (
         <div className="space-y-6">
             {/* Always show all 3 steps - they appear greyed out when inactive */}
-            <StepIndicator currentStep={currentStep} steps={steps} onStepClick={handleStepClick} />
+            <StepIndicator currentStep={currentStep} steps={steps} onStepClick={handleStepClick} maxStep={maxStep} />
 
             <div id="step-1-wrapper" className="scroll-mt-32">
                 <ModelSelector />
