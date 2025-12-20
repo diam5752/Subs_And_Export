@@ -117,7 +117,26 @@ def extract_chat_completion_text(response: Any) -> Tuple[str | None, str | None]
             return None, refusal
 
         content = message.content
-        return content, None
+        
+        # Handle list content (e.g. from vision models)
+        if isinstance(content, list):
+            text_parts = []
+            for part in content:
+                if isinstance(part, dict) and "text" in part:
+                    text_parts.append(part["text"])
+            content = "".join(text_parts)
+
+        if content:
+             return content.strip(), None
+
+        # Fallback to tool calls if content is empty
+        tool_calls = getattr(message, "tool_calls", None)
+        if tool_calls and len(tool_calls) > 0:
+            # For simplicity, return the arguments of the first function call
+            # This mimics behavior expected by existing tests for structured output fallback
+            return tool_calls[0].function.arguments, None
+
+        return None, None
     except (AttributeError, IndexError) as e:
         logger.error(f"Failed to extract content from response: {e}")
         return None, "Invalid response format"

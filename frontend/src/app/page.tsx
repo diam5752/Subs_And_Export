@@ -10,7 +10,7 @@ import { api, JobResponse } from '@/lib/api';
 import { formatDate, buildStaticUrl } from '@/lib/utils';
 import { useI18n } from '@/context/I18nContext';
 import { LanguageToggle } from '@/components/LanguageToggle';
-import { ProcessView, ProcessingOptions } from '@/components/ProcessView';
+import { ProcessView, ProcessingOptions } from '@/features/process/ProcessView';
 import { AccountView } from '@/components/AccountView';
 import { CreditsBadge } from '@/components/CreditsBadge';
 import { useJobs } from '@/hooks/useJobs';

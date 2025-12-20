@@ -12,6 +12,11 @@ os.environ.setdefault("APP_ENV", "dev")
 # Set default test database URL (use separate test database)
 os.environ.setdefault("GSP_DATABASE_URL", "postgresql+psycopg://gsp:gsp@localhost:5432/gsp_test")
 
+# Force memory-based rate limiting for tests to avoid state persistence/429s (DbRateLimiter.reset() is no-op)
+os.environ["GSP_USE_MEMORY_RATELIMIT"] = "1"
+# COMPLETELY DISABLE rate limiting to prevent tests from blocking each other (shared IP)
+os.environ["GSP_DISABLE_RATELIMIT"] = "1"
+
 # Mock modules that require compilation/heavy install
 sys.modules["faster_whisper"] = MagicMock()
 sys.modules["stable_whisper"] = MagicMock()
@@ -77,10 +82,19 @@ def client(monkeypatch) -> TestClient:
     from backend.app.services.ffmpeg_utils import MediaProbe
     from backend.main import app
 
+    # specific methods, but checking logic is what raises 429.
+    # We MUST patch the CLASS __call__ method because special dunder methods 
+    # are looked up on the type, not the instance.
+    
+    noop = lambda *args, **kwargs: None
+    monkeypatch.setattr(ratelimit.RateLimiter, "__call__", noop)
+    monkeypatch.setattr(ratelimit.AuthenticatedRateLimiter, "__call__", noop)
+    monkeypatch.setattr(ratelimit.DbRateLimiter, "__call__", noop)
+    monkeypatch.setattr(ratelimit.DbAuthenticatedRateLimiter, "__call__", noop)
+
+    # We also keep resets just in case logic leaks, but disabling check is key.
     ratelimit.limiter_login.reset()
     ratelimit.limiter_register.reset()
-    ratelimit.limiter_processing.reset()
-    ratelimit.limiter_content.reset()
 
     monkeypatch.setattr(
         videos_endpoints,

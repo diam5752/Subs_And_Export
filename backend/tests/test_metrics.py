@@ -2,7 +2,7 @@ import json
 import os
 from pathlib import Path
 
-from backend.app.common import metrics
+from backend.app.core import metrics
 
 
 def test_env_bool_handles_unknown(monkeypatch):

@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from backend.app.services import subtitles
+from backend.app.services import subtitles, llm_utils
 
 
 def _fake_openai_client(calls: dict | None = None):
@@ -26,8 +26,10 @@ def _fake_openai_client(calls: dict | None = None):
         def create(self, **kwargs):
             calls["kwargs"] = kwargs
             payload = {
-                "title": "Generic Title",
-                "description": "Generic Description",
+                "title_el": "Generic Title EL",
+                "title_en": "Generic Title EN",
+                "description_el": "Generic Description EL",
+                "description_en": "Generic Description EN",
                 "hashtags": ["#generic", "#test"],
             }
             return FakeResponse(json.dumps(payload))
@@ -48,28 +50,29 @@ def test_build_social_copy_returns_generic_strings() -> None:
 
     social = subtitles.build_social_copy(transcript)
 
-    assert social.generic.title.startswith("Coding & Python")
+    # Updated to check new multilingual fields
+    assert social.generic.title_en.startswith("Coding & Python")
     assert "#coding" in social.generic.hashtags
     assert "#python" in social.generic.hashtags
     assert "#trending" in social.generic.hashtags
-    assert "Coding tips" in social.generic.description
-    assert "#viral" in social.generic.description
+    assert "Coding tips" in social.generic.description_en
+    assert "#viral" in social.generic.description_en
 
 
 def test_build_social_copy_llm_uses_client(monkeypatch) -> None:
     calls = {}
 
-    # Mock the OpenAI client
-    monkeypatch.setattr(subtitles, "_resolve_openai_api_key", lambda *a: "test-key")
-    monkeypatch.setattr(subtitles, "_load_openai_client", lambda api_key: _fake_openai_client(calls))
+    # Mock the OpenAI client via llm_utils
+    monkeypatch.setattr("backend.app.services.llm_utils.resolve_openai_api_key", lambda *a: "test-key")
+    monkeypatch.setattr("backend.app.services.llm_utils.load_openai_client", lambda api_key: _fake_openai_client(calls))
 
     social = subtitles.build_social_copy_llm("hello world", model="gpt-test", temperature=0.7)
 
     assert calls["kwargs"]["model"] == "gpt-test"
     assert calls["kwargs"]["temperature"] == 0.7
-    assert calls["kwargs"]["max_completion_tokens"] == 3000  # Updated to match actual code
-    assert social.generic.title == "Generic Title"
-    assert social.generic.description == "Generic Description"
+    assert calls["kwargs"]["max_completion_tokens"] == 3000
+    assert social.generic.title_en == "Generic Title EN"
+    assert social.generic.description_en == "Generic Description EN"
     assert "#generic" in social.generic.hashtags
 
 
@@ -77,11 +80,10 @@ def test_build_social_copy_llm_prefers_explicit_key(monkeypatch) -> None:
     calls = {}
     captured_keys: list[str] = []
 
-    # Mock env var via resolver patch (since env is blocked globally)
-    monkeypatch.setattr(subtitles, "_resolve_openai_api_key", lambda *a: "env-key")
+    # Mock env var via resolver patch
+    monkeypatch.setattr("backend.app.services.llm_utils.resolve_openai_api_key", lambda *a: "env-key")
     monkeypatch.setattr(
-        subtitles,
-        "_load_openai_client",
+        "backend.app.services.llm_utils.load_openai_client",
         lambda api_key: captured_keys.append(api_key) or _fake_openai_client(calls),
     )
 
@@ -94,7 +96,7 @@ def test_build_social_copy_llm_requires_key(monkeypatch) -> None:
     """Verify that API key is required for LLM social copy generation."""
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.setattr(subtitles.config, "SOCIAL_LLM_MODEL", "gpt-test")
-    monkeypatch.setattr(subtitles, "_resolve_openai_api_key", lambda: None)
+    monkeypatch.setattr("backend.app.services.llm_utils.resolve_openai_api_key", lambda: None)
     with pytest.raises(RuntimeError, match="OpenAI API key is required"):
         subtitles.build_social_copy_llm("hi there")
 
@@ -102,7 +104,7 @@ def test_build_social_copy_llm_requires_key(monkeypatch) -> None:
 def test_clean_json_response_strips_markdown() -> None:
     """Verify that markdown code fences are removed from JSON response."""
     raw = "```json\n{\"title\": \"T\", \"description\": \"D\", \"hashtags\": [\"#t\"]}\n```"
-    cleaned = subtitles._clean_json_response(raw)
+    cleaned = llm_utils.clean_json_response(raw)
     assert cleaned.startswith("{")
     assert cleaned.endswith("}")
     assert "```" not in cleaned
@@ -122,8 +124,10 @@ def test_build_social_copy_llm_retries_on_failure(monkeypatch) -> None:
                 return type("Response", (), {"choices": [type("Choice", (), {"message": type("Message", (), {"content": "Not JSON"})})]})()
             # Second attempt returns valid JSON
             payload = {
-                "title": "Retried Title",
-                "description": "Retried Description",
+                "title_el": "Retried Title EL",
+                "title_en": "Retried Title EN",
+                "description_el": "Retried Description EL",
+                "description_en": "Retried Description EN",
                 "hashtags": ["#retry"],
             }
             return type("Response", (), {"choices": [type("Choice", (), {"message": type("Message", (), {"content": json.dumps(payload)})})]})()
@@ -132,11 +136,11 @@ def test_build_social_copy_llm_retries_on_failure(monkeypatch) -> None:
         def __init__(self):
             self.chat = type("Chat", (), {"completions": FlakyChatCompletions()})()
 
-    monkeypatch.setattr(subtitles, "_resolve_openai_api_key", lambda *a: "test-key")
+    monkeypatch.setattr("backend.app.services.llm_utils.resolve_openai_api_key", lambda *a: "test-key")
     client = FlakyClient()
-    monkeypatch.setattr(subtitles, "_load_openai_client", lambda api_key: client)
+    monkeypatch.setattr("backend.app.services.llm_utils.load_openai_client", lambda api_key: client)
 
     social = subtitles.build_social_copy_llm("transcript")
 
     assert client.chat.completions.attempts == 2
-    assert social.generic.title == "Retried Title"
+    assert social.generic.title_en == "Retried Title EN"

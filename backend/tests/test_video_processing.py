@@ -247,7 +247,7 @@ def test_normalize_and_stub_subtitles_can_return_social_copy(
     monkeypatch.setattr(video_processing, "GroqTranscriber", FakeTranscriber)
 
     # Mock social copy generation
-    soc = subtitles.SocialCopy(subtitles.SocialContent("Title", "Desc", ["#tag"]))
+    soc = subtitles.SocialCopy(subtitles.SocialContent("Title EL", "Title EN", "Desc EL", "Desc EN", ["#tag"]))
     monkeypatch.setattr(subtitles, "build_social_copy", lambda text: soc)
 
     output_path = tmp_path / "out.mp4"
@@ -335,7 +335,7 @@ def test_pipeline_logs_metrics(monkeypatch, tmp_path: Path):
     input_video.touch()
     
     mock_metrics = MagicMock()
-    from backend.app.common import metrics
+    from backend.app.core import metrics
     monkeypatch.setattr(metrics, "log_pipeline_metrics", mock_metrics)
     
     # Mocks

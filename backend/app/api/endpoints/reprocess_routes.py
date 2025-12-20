@@ -128,21 +128,28 @@ def reprocess_job(
         output_path = artifacts_root / new_job_id / "processed.mp4"
         artifact_path = artifacts_root / new_job_id
 
-        llm_models = pricing.resolve_llm_models(settings.transcribe_model)
-        charge_plan, new_balance = reserve_processing_charges(
-            ledger_store=ledger_store,
-            user_id=current_user.id,
-            job_id=new_job_id,
-            tier=settings.transcribe_model,
-            duration_seconds=float(config.MAX_VIDEO_DURATION_SECONDS),
-            use_llm=settings.use_llm,
-            llm_model=llm_models.social,
-            provider=settings.transcribe_provider,
-            stt_model=pricing.resolve_transcribe_model(settings.transcribe_model),
-        )
+        job = job_store.create_job(new_job_id, current_user.id)
+        
+        try:
+            llm_models = pricing.resolve_llm_models(settings.transcribe_model)
+            charge_plan, new_balance = reserve_processing_charges(
+                ledger_store=ledger_store,
+                user_id=current_user.id,
+                job_id=new_job_id,
+                tier=settings.transcribe_model,
+                duration_seconds=float(config.MAX_VIDEO_DURATION_SECONDS),
+                use_llm=settings.use_llm,
+                llm_model=llm_models.social,
+                provider=settings.transcribe_provider,
+                stt_model=pricing.resolve_transcribe_model(settings.transcribe_model),
+            )
+        except Exception:
+            job_store.delete_job(new_job_id)
+            raise
 
         try:
-            job = job_store.create_job(new_job_id, current_user.id)
+            # Job already created above
+
             record_event_safe(
                 history_store, current_user, "process_started",
                 f"Reprocessing {source_job.result_data.get('original_filename', 'video') if source_job.result_data else 'video'}",
@@ -165,7 +172,7 @@ def reprocess_job(
                 charge_plan=charge_plan,
             )
 
-            from ...common.cleanup import cleanup_old_uploads
+            from ...core.cleanup import cleanup_old_uploads
             background_tasks.add_task(cleanup_old_uploads, uploads_dir, 24)
         except Exception as exc:
             refund_charge_best_effort(ledger_store, charge_plan, status="failed", error=sanitize_message(str(exc)))
@@ -222,6 +229,8 @@ def reprocess_job(
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Source video not found; upload again to reprocess")
 
+    job = job_store.create_job(new_job_id, current_user.id)
+
     try:
         llm_models = pricing.resolve_llm_models(settings.transcribe_model)
         charge_plan, new_balance = reserve_processing_charges(
@@ -236,11 +245,13 @@ def reprocess_job(
             stt_model=pricing.resolve_transcribe_model(settings.transcribe_model),
         )
     except Exception:
+        job_store.delete_job(new_job_id)
         input_path.unlink(missing_ok=True)
         raise
 
+
     try:
-        job = job_store.create_job(new_job_id, current_user.id)
+        # Job already created above
         record_event_safe(
             history_store, current_user, "process_started",
             f"Reprocessing {source_job.result_data.get('original_filename', 'video') if source_job.result_data else 'video'}",
@@ -256,7 +267,7 @@ def reprocess_job(
             charge_plan=charge_plan,
         )
 
-        from ...common.cleanup import cleanup_old_uploads
+        from ...core.cleanup import cleanup_old_uploads
         background_tasks.add_task(cleanup_old_uploads, uploads_dir, 24)
     except Exception as exc:
         refund_charge_best_effort(ledger_store, charge_plan, status="failed", error=sanitize_message(str(exc)))

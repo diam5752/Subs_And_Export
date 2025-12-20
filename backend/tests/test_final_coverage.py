@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 from starlette.testclient import TestClient
 
 from backend.app.api.endpoints import videos
-from backend.app.common import cleanup
+from backend.app.core import cleanup
 from backend.app.core import auth
 from backend.app.services import subtitles
 
@@ -75,7 +75,7 @@ def test_create_viral_metadata_generic_exception(client: TestClient, user_auth_h
 
 
 # ==========================================
-# Cleanup Coverage (app/common/cleanup.py)
+# Cleanup Coverage (app/core/cleanup.py)
 # ==========================================
 
 def test_cleanup_check_and_delete_not_exists():
@@ -91,7 +91,7 @@ def test_cleanup_check_and_delete_not_exists():
     # So we need mock_path.exists() to return False.
     mock_path.exists.return_value = False
 
-    with patch("backend.app.common.cleanup.Path.iterdir", return_value=[mock_path]):
+    with patch("backend.app.core.cleanup.Path.iterdir", return_value=[mock_path]):
          # We need to pass valid Path objects to the function, but we mocked iterdir on them?
          # Easier: Pass a real dir that has a file, but mock the inner check?
          # Or just unit test the inner function logic if we could import it? No it's local.

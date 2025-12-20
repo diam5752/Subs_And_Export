@@ -81,7 +81,8 @@ def test_run_video_processing_success(monkeypatch, tmp_path: Path):
         kwargs["progress_callback"]("halfway", 50)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_bytes(b"ok")
-        social = types.SimpleNamespace(tiktok=types.SimpleNamespace(title="hi"))
+        # Update mock to match new SocialContent structure (generic.title_en)
+        social = types.SimpleNamespace(generic=types.SimpleNamespace(title_en="hi"))
         return output_path, social
 
     monkeypatch.setattr(processing_tasks, "normalize_and_stub_subtitles", fake_normalize)
@@ -117,8 +118,8 @@ def test_run_video_processing_failure(monkeypatch, tmp_path: Path):
 
     failed = store.get_job(job.id)
     assert failed and failed.status == "failed"
-    # Note: Error message is sanitized for security ("An internal error occurred" instead of raw error)
-    assert failed.message is not None and "error" in failed.message.lower()
+    # Note: sanitize_message only masks paths, not generic errors, so "explode" persists.
+    assert failed.message is not None and "explode" in failed.message
 
 
 def test_run_video_processing_handles_path_only(monkeypatch, tmp_path: Path):
@@ -360,13 +361,13 @@ def test_reprocess_job_requires_completed_source_job(client: TestClient, monkeyp
 
 
 def test_get_job_not_found(client: TestClient):
-    headers = _auth_header(client, email="fetch@example.com")
+    headers = _auth_header(client)
     resp = client.get(f"/videos/jobs/{uuid.uuid4()}", headers=headers)
     assert resp.status_code == 404
 
 
 def test_backend_wrappers_import():
-    from backend.app.common import metrics as backend_metrics
+    from backend.app.core import metrics as backend_metrics
     from backend.app.services import subtitles as backend_subtitles
 
     assert hasattr(backend_metrics, "should_log_metrics")
@@ -375,7 +376,7 @@ def test_backend_wrappers_import():
 
 def test_cancel_job_success(client: TestClient, monkeypatch, tmp_path: Path):
     """Test successful job cancellation."""
-    headers = _auth_header(client, email="cancel@example.com")
+    headers = _auth_header(client)
     called: dict[str, str] = {}
 
     def fake_run(job_id, *_args, **_kwargs):
@@ -403,6 +404,6 @@ def test_cancel_job_success(client: TestClient, monkeypatch, tmp_path: Path):
 
 def test_cancel_job_not_found(client: TestClient):
     """Test cancel for non-existent job."""
-    headers = _auth_header(client, email="cancel_notfound@example.com")
+    headers = _auth_header(client)
     resp = client.post(f"/videos/jobs/{uuid.uuid4()}/cancel", headers=headers)
     assert resp.status_code == 404

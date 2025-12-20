@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Callable
 
-from backend.app.common import metrics
+from backend.app.core import metrics
 from backend.app.core import config
 from backend.app.core.database import Database
 from backend.app.services import (

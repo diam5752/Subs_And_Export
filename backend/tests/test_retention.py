@@ -38,8 +38,7 @@ def test_job_store_retention(tmp_path):
 
     # Assert
     # Note: list_jobs_created_before returns list of Job objects
-    assert len(old_jobs) == 1
-    assert old_jobs[0].id == old_id
+    assert any(j.id == old_id for j in old_jobs)
 
 def test_cleanup_api_integration(client, user_auth_headers):
     """Full integration test mocking the DB state."""

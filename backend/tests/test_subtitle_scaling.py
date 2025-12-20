@@ -15,10 +15,10 @@ def test_ass_generation_forces_1080p_playres():
     """
     with patch("backend.app.services.video_processing.subtitles.create_styled_subtitle_file") as mock_create_ass, \
          patch("backend.app.services.video_processing.Path.exists", return_value=True), \
-         patch("backend.app.services.video_processing.probe_media") as mock_probe, \
+         patch("backend.app.services.ffmpeg_utils.probe_media") as mock_probe, \
          patch("backend.app.services.video_processing.subtitles.extract_audio") as mock_extract, \
          patch("backend.app.services.video_processing.GroqTranscriber") as mock_transcriber, \
-         patch("backend.app.services.video_processing._run_ffmpeg_with_subs"):
+         patch("backend.app.services.ffmpeg_utils.run_ffmpeg_with_subs"):
 
         # Setup mocks
         mock_probe.return_value = MagicMock(duration_s=10, audio_codec="aac")
@@ -51,8 +51,8 @@ def test_generate_video_variant_forces_1080p_playres():
     """Verify export logic also forces 1080p reference."""
     with patch("backend.app.services.video_processing.subtitles.create_styled_subtitle_file") as mock_create_ass, \
          patch("backend.app.services.video_processing.Path.exists", return_value=True), \
-         patch("backend.app.services.video_processing.probe_media"), \
-         patch("backend.app.services.video_processing._run_ffmpeg_with_subs"):
+         patch("backend.app.services.ffmpeg_utils.probe_media"), \
+         patch("backend.app.services.ffmpeg_utils.run_ffmpeg_with_subs"):
 
         job_id = "test_job"
         user_id = "user123"

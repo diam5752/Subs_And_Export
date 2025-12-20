@@ -203,7 +203,7 @@ def run_video_processing(
             "public_url": f"/static/{public_path}",
             "artifact_url": f"/static/{artifact_public}",
             "transcription_url": f"/static/{artifact_public}/transcription.json",
-            "social": social.tiktok.title if social else None,
+            "social": social.generic.title_en if social else None,
             "original_filename": original_name or input_path.name,
             "video_crf": video_crf,
             "model_size": model_size,

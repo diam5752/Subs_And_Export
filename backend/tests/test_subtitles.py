@@ -245,7 +245,7 @@ def test_build_social_copy_llm_retries_and_raises(monkeypatch):
     
     # Mock fallback to ensure it is returned
     fallback = subtitles.SocialCopy(
-        subtitles.SocialContent("Fallback", "Fallback", ["#fallback"])
+        subtitles.SocialContent("Fallback EL", "Fallback EN", "Fallback EL Desc", "Fallback EN Desc", ["#fallback"])
     )
     monkeypatch.setattr(social_lib, "build_social_copy", lambda text: fallback)
     # Also patch subtitles.build_social_copy because wrapper uses it
@@ -261,7 +261,7 @@ def test_build_social_copy_llm_retries_and_raises(monkeypatch):
     # Call the WRAPPER which handles fallback
     res = subtitles.build_social_copy_llm("some text", api_key="sk-fake")
     assert res is not None
-    assert res.generic.title == "Fallback"
+    assert res.generic.title_en == "Fallback EN"
 
 
 def test_compose_title_branches():
@@ -298,7 +298,7 @@ def test_build_social_copy_llm_empty_response(monkeypatch):
     
     # Pass fallback
     fallback = subtitles.SocialCopy(
-        subtitles.SocialContent("Fallback", "Fallback", ["#fallback"])
+        subtitles.SocialContent("Fallback EL", "Fallback EN", "Fallback EL Desc", "Fallback EN Desc", ["#fallback"])
     )
     monkeypatch.setattr(subtitles, "build_social_copy", lambda text: fallback)
     monkeypatch.setattr(social_lib, "build_social_copy", lambda text: fallback)
@@ -309,7 +309,7 @@ def test_build_social_copy_llm_empty_response(monkeypatch):
     # Wait, wrapper fallback logic: "Failed to generate valid social copy..." raised by build_social_copy_llm
     # Then caught by wrapper.
     # The wrapper should catch ValueError and return fallback.
-    assert res.generic.title == "Fallback"
+    assert res.generic.title_en == "Fallback EN"
 
 
 def test_transcribe_openai_error(monkeypatch, tmp_path):

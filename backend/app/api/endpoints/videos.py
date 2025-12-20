@@ -126,17 +126,9 @@ from ...core.gcs import (
 
 # Re-export job-related functions that tests may patch
 from .job_routes import (
-    list_jobs,
-    list_jobs_paginated,
     get_job,
     delete_job,
-    cancel_job,
-    update_transcription,
-    batch_delete_jobs,
 )
-
-# Re-export export function
-from .export_routes import export_video
 
 APP_SETTINGS = load_app_settings()
 
@@ -330,7 +322,7 @@ async def process_video(
                 content_type=file.content_type or "application/octet-stream",
             )
 
-        from ...common.cleanup import cleanup_old_uploads
+        from ...core.cleanup import cleanup_old_uploads
         background_tasks.add_task(cleanup_old_uploads, uploads_dir, 24)
     except Exception as exc:
         refund_charge_best_effort(ledger_store, charge_plan, status="failed", error=sanitize_message(str(exc)))

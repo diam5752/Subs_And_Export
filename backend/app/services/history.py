@@ -19,7 +19,7 @@ class HistoryEvent:
     ts: str
     user_id: str
     email: str
-    kind: str  # e.g., "process", "tiktok_upload"
+    kind: str  # e.g., "process", "auth"
     summary: str
     data: Dict
 

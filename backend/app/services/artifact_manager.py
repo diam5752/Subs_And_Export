@@ -29,9 +29,6 @@ def persist_artifacts(
         try:
             if src.exists():
                 shutil.copy2(src, artifact_dir / src.name)
-        except getattr(FileNotFoundError, "__name__", "FileNotFoundError"): # Handle potential weirdness or standard
-             # Just use standard exception
-             continue
         except FileNotFoundError:
             continue
 

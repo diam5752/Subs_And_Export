@@ -15,7 +15,6 @@ from backend.app.services.points import (
     STARTING_POINTS_BALANCE,
     PointsStore,
     make_idempotency_id,
-    process_video_cost,
 )
 
 
@@ -352,6 +351,4 @@ def test_refund_once_credits_balance_and_is_idempotent(tmp_path: Path) -> None:
         assert txs[-1].reason == "refund_process_video"
 
 
-def test_process_video_cost_maps_legacy_models() -> None:
-    assert process_video_cost("turbo") == process_video_cost("standard")
-    assert process_video_cost("ultimate") == process_video_cost("pro")
+

@@ -59,7 +59,7 @@ def process(
     video_crf: int = typer.Option(
         None,
         "--crf",
-        help="H.264 CRF (lower = higher quality). Default tuned for Shorts/Reels.",
+        help="H.264 CRF (lower = higher quality). Default tuned for social platforms.",
     ),
     video_preset: str = typer.Option(
         None,

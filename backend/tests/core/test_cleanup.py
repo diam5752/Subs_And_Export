@@ -2,7 +2,7 @@
 import time
 from pathlib import Path
 
-from backend.app.common.cleanup import cleanup_old_jobs, cleanup_old_uploads
+from backend.app.core.cleanup import cleanup_old_jobs, cleanup_old_uploads
 
 
 def test_cleanup_removes_old_files(tmp_path):

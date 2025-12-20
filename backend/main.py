@@ -26,7 +26,7 @@ from starlette.requests import Request
 from starlette.types import ASGIApp
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
-from backend.app.api.endpoints import auth, dev, history, tiktok, videos
+from backend.app.api.endpoints import auth, dev, history, videos
 from backend.app.core import config
 from backend.app.core.database import Database
 from backend.app.core.env import get_app_env, is_dev_env
@@ -234,7 +234,6 @@ async def serve_static(request: Request, file_path: str):
 # Include Routers
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(videos.router, prefix="/videos", tags=["videos"])
-app.include_router(tiktok.router, prefix="/tiktok", tags=["tiktok"])
 app.include_router(history.router, prefix="/history", tags=["history"])
 app.include_router(dev.router, prefix="/dev", tags=["dev"])
 

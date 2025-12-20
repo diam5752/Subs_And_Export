@@ -95,6 +95,5 @@ make test
 
 ## Features
 - **Auto-Subtitles**: Generates Greek subtitles using Faster-Whisper.
-- **Vertical Crop**: Intelligently crops videos for TikTok/Reels.
-- **Social Upload**: Uploads directly to TikTok.
+- **Vertical Crop**: Intelligently crops videos for vertical formats.
 - **Viral Intelligence**: Generates viral hooks and captions/hashtags.

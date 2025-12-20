@@ -65,6 +65,9 @@ class RateLimiter:
         self.clients: dict[str, list[float]] = {}
 
     def __call__(self, request: Request):
+        if os.environ.get("GSP_DISABLE_RATELIMIT") == "1":
+            return
+
         # Basic protection against memory exhaustion
         if len(self.clients) > 10000:
             self.clients.clear()
@@ -130,6 +133,9 @@ class DbRateLimiter:
 
     def check(self, key: str) -> None:
         """Check rate limit for a key, raising 429 if exceeded."""
+        if os.environ.get("GSP_DISABLE_RATELIMIT") == "1":
+            return
+
         db = self._get_db()
         now = int(time.time())
         min_window_start = now - self.window

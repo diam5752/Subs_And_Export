@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from backend.app.services import subtitles
+from backend.app.services import subtitles, llm_utils
 
 
 def _fake_openai_client(calls: dict | None = None):
@@ -32,13 +32,18 @@ def _fake_openai_client(calls: dict | None = None):
                 "claims_checked": 10,
                 "items": [
                     {
-                        "mistake": "Wrong date",
-                        "correction": "Correct date",
-                        "explanation": "It was 1999 not 1998",
+                        "mistake_el": "Wrong date EL",
+                        "mistake_en": "Wrong date EN",
+                        "correction_el": "Correct date EL",
+                        "correction_en": "Correct date EN",
+                        "explanation_el": "Explanation EL",
+                        "explanation_en": "Explanation EN",
                         "severity": "minor",
                         "confidence": 95,
-                        "real_life_example": "If you check any newspaper from that time, you'll see it was 1999",
-                        "scientific_evidence": "Historical records and official documents confirm the date was 1999"
+                        "real_life_example_el": "Example EL",
+                        "real_life_example_en": "Example EN",
+                        "scientific_evidence_el": "Evidence EL",
+                        "scientific_evidence_en": "Evidence EN"
                     }
                 ]
             }
@@ -56,23 +61,32 @@ def _fake_openai_client(calls: dict | None = None):
 
 def test_generate_fact_check_uses_correct_model_and_params(monkeypatch) -> None:
     calls = {}
-    monkeypatch.setattr(subtitles, "_resolve_openai_api_key", lambda *a: "test-key")
-    monkeypatch.setattr(subtitles, "_load_openai_client", lambda api_key: _fake_openai_client(calls))
+    monkeypatch.setattr("backend.app.services.llm_utils.resolve_openai_api_key", lambda *a: "test-key")
+    monkeypatch.setattr("backend.app.services.llm_utils.load_openai_client", lambda api_key: _fake_openai_client(calls))
 
+    # We need to mock extraction model call too or mock generate_fact_check logic slightly?
+    # generate_fact_check calls client.chat.completions.create TWICE (extraction + verification).
+    # _fake_openai_client returns SAME response for both?
+    # If response has "claims": ["mock claim"] AND "items": [...], it works for BOTH calls?
+    # Extraction expects {claims: []}.
+    # Verification expects {items: []}.
+    # The payload in _fake_openai_client contains BOTH `claims` and `items`. 
+    # So it should pass both stages happily.
+    
     result = subtitles.generate_fact_check("some text")
 
     # Model can be either gpt-4o-mini or config.FACTCHECK_LLM_MODEL depending on config
     assert "gpt" in calls["kwargs"]["model"]  # Just verify it's a GPT model
     assert calls["kwargs"]["temperature"] == 1
-    assert calls["kwargs"]["max_completion_tokens"] == 6000  # Updated to match config.MAX_LLM_OUTPUT_TOKENS_FACTCHECK
+    assert calls["kwargs"]["max_completion_tokens"] == 6000
 
     assert result.truth_score == 85
     assert len(result.items) == 1
-    assert result.items[0].mistake == "Wrong date"
+    assert result.items[0].mistake_en == "Wrong date EN"
     assert result.items[0].severity == "minor"
     assert result.items[0].confidence == 95
-    assert result.items[0].real_life_example != ""
-    assert result.items[0].scientific_evidence != ""
+    assert result.items[0].real_life_example_en == "Example EN"
+    assert result.items[0].scientific_evidence_en == "Evidence EN"
 
 def test_generate_fact_check_retries_on_invalid_json(monkeypatch) -> None:
     class FlakyChatCompletions:
@@ -96,9 +110,9 @@ def test_generate_fact_check_retries_on_invalid_json(monkeypatch) -> None:
         def __init__(self):
             self.chat = type("Chat", (), {"completions": FlakyChatCompletions()})()
 
-    monkeypatch.setattr(subtitles, "_resolve_openai_api_key", lambda *a: "test-key")
+    monkeypatch.setattr("backend.app.services.llm_utils.resolve_openai_api_key", lambda *a: "test-key")
     client = FlakyClient()
-    monkeypatch.setattr(subtitles, "_load_openai_client", lambda api_key: client)
+    monkeypatch.setattr("backend.app.services.llm_utils.load_openai_client", lambda api_key: client)
 
     result = subtitles.generate_fact_check("transcript")
 
@@ -114,8 +128,8 @@ def test_generate_fact_check_raises_on_failure(monkeypatch) -> None:
                 def create(**kwargs):
                     raise ValueError("API Error")
 
-    monkeypatch.setattr(subtitles, "_resolve_openai_api_key", lambda *a: "test-key")
-    monkeypatch.setattr(subtitles, "_load_openai_client", lambda api_key: BrokenClient())
+    monkeypatch.setattr("backend.app.services.llm_utils.resolve_openai_api_key", lambda *a: "test-key")
+    monkeypatch.setattr("backend.app.services.llm_utils.load_openai_client", lambda api_key: BrokenClient())
 
     with pytest.raises(ValueError):
         subtitles.generate_fact_check("transcript")
@@ -181,7 +195,7 @@ def test_extract_chat_completion_text_supports_list_and_tool_calls() -> None:
             ]
         },
     )()
-    assert subtitles._extract_chat_completion_text(response_list) == ("hello", None)
+    assert llm_utils.extract_chat_completion_text(response_list) == ("hello", None)
 
     tool_call = type("ToolCall", (), {"function": type("Fn", (), {"arguments": "{\"a\":1}"})})()
     response_tool = type(
@@ -197,4 +211,4 @@ def test_extract_chat_completion_text_supports_list_and_tool_calls() -> None:
             ]
         },
     )()
-    assert subtitles._extract_chat_completion_text(response_tool) == ('{"a":1}', None)
+    assert llm_utils.extract_chat_completion_text(response_tool) == ('{"a":1}', None)

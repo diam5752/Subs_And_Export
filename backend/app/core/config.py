@@ -29,8 +29,6 @@ MAX_SUB_LINE_CHARS = 28  # Safe width for Greek uppercase text without edge cuto
 
 DEFAULT_OUTPUT_SUFFIX = "_subbed"
 
-DEFAULT_OUTPUT_SUFFIX = "_subbed"
-
 # Whisper / STT defaults
 WHISPER_MODEL = "medium"  # Optimized for CPU usage (Docker/Mac)
 
@@ -130,7 +128,7 @@ AUDIO_SAMPLE_RATE = 16000
 AUDIO_CHANNELS = 1
 AUDIO_CODEC = "pcm_s16le"
 
-# Encoding defaults for delivery to TikTok / Reels / Shorts
+# Encoding defaults for delivery to social media platforms
 DEFAULT_VIDEO_CRF = 23  # balanced quality/size - platforms re-encode anyway
 DEFAULT_VIDEO_PRESET = "veryfast"  # Fast encoding - platforms re-encode anyway
 DEFAULT_AUDIO_BITRATE = "256k"

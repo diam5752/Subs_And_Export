@@ -217,7 +217,7 @@ def process_video_from_gcs(
             charge_plan=charge_plan,
         )
 
-        from ...common.cleanup import cleanup_old_uploads
+        from ...core.cleanup import cleanup_old_uploads
         background_tasks.add_task(cleanup_old_uploads, uploads_dir, 24)
     except Exception as exc:
         refund_charge_best_effort(ledger_store, charge_plan, status="failed", error=sanitize_message(str(exc)))

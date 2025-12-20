@@ -27,20 +27,8 @@ PROCESS_VIDEO_MODEL_COSTS: dict[str, int] = {
     "pro": config.CREDITS_MIN_TRANSCRIBE["pro"],
 }
 
-FACT_CHECK_COST = config.CREDITS_MIN_FACT_CHECK["standard"]
-SOCIAL_COPY_COST = config.CREDITS_MIN_SOCIAL_COPY["standard"]
 REFUND_REASON_PREFIX = "refund_"
 
-
-def process_video_cost(transcribe_model: str) -> int:
-    normalized = transcribe_model.strip().lower()
-    if not normalized:
-        return PROCESS_VIDEO_DEFAULT_COST
-    try:
-        tier = pricing.resolve_tier_from_model(normalized)
-    except Exception:
-        tier = normalized
-    return PROCESS_VIDEO_MODEL_COSTS.get(tier, PROCESS_VIDEO_DEFAULT_COST)
 
 def refund_reason(original_reason: str) -> str:
     cleaned = original_reason.strip()

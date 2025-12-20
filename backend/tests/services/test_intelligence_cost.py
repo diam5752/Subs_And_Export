@@ -5,7 +5,7 @@ from backend.app.core import config
 
 @pytest.fixture
 def mock_client():
-    with patch("backend.app.services.subtitles._load_openai_client") as mock:
+    with patch("backend.app.services.llm_utils.load_openai_client") as mock:
         client = MagicMock()
         mock.return_value = client
         yield client
