@@ -46,3 +46,21 @@ def test_process_openai_model_length_limit(client, user_auth_headers):
 
     assert response.status_code == 400
     assert "OpenAI model name too long" in response.json()["detail"]
+
+def test_process_highlight_style_length_limit(client, user_auth_headers):
+    """
+    Sentinel: Test that excessively long highlight_style string is rejected.
+    """
+    long_string = "a" * 1000
+
+    response = client.post(
+        "/videos/process",
+        headers=user_auth_headers,
+        files={"file": ("test_video.mp4", b"fake content", "video/mp4")},
+        data={
+            "highlight_style": long_string
+        }
+    )
+
+    assert response.status_code == 400
+    assert "Highlight style too long" in response.json()["detail"]
