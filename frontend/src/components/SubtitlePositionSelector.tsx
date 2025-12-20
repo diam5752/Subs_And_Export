@@ -82,10 +82,22 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
     }, []);
 
     const MORE_COLORS = [
-        '#FF0000', '#FF7F00', '#FFFF00', '#7FFF00',
-        '#00FF00', '#00FF7F', '#00FFFF', '#007FFF',
-        '#0000FF', '#7F00FF', '#FF00FF', '#FF007F',
-        '#FFFFFF', '#C0C0C0', '#808080', '#000000'
+        { value: '#FF0000', label: 'Red' },
+        { value: '#FF7F00', label: 'Orange' },
+        { value: '#FFFF00', label: 'Yellow' },
+        { value: '#7FFF00', label: 'Chartreuse' },
+        { value: '#00FF00', label: 'Green' },
+        { value: '#00FF7F', label: 'Spring Green' },
+        { value: '#00FFFF', label: 'Cyan' },
+        { value: '#007FFF', label: 'Azure' },
+        { value: '#0000FF', label: 'Blue' },
+        { value: '#7F00FF', label: 'Violet' },
+        { value: '#FF00FF', label: 'Magenta' },
+        { value: '#FF007F', label: 'Rose' },
+        { value: '#FFFFFF', label: 'White' },
+        { value: '#C0C0C0', label: 'Silver' },
+        { value: '#808080', label: 'Gray' },
+        { value: '#000000', label: 'Black' }
     ];
 
     // Sync play/pause
@@ -500,20 +512,33 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
 
                                         {/* Color Grid Popover */}
                                         {showColorGrid && (
-                                            <div className="absolute top-full left-1/2 -translate-x-1/2 mt-3 p-3 bg-[var(--surface-elevated)] border border-[var(--border)] rounded-xl shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-200 min-w-[180px]">
+                                            <div
+                                                className="absolute top-full left-1/2 -translate-x-1/2 mt-3 p-3 bg-[var(--surface-elevated)] border border-[var(--border)] rounded-xl shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-200 min-w-[180px]"
+                                                role="radiogroup"
+                                                aria-label={t('moreColors') || 'More Colors'}
+                                            >
                                                 <div className="grid grid-cols-4 gap-2">
                                                     {MORE_COLORS.map((color) => (
                                                         <button
-                                                            key={color}
+                                                            key={color.value}
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
-                                                                onChangeColor(color);
+                                                                onChangeColor(color.value);
                                                                 setShowColorGrid(false);
                                                             }}
-                                                            className="w-8 h-8 rounded-full border border-white/10 hover:border-white hover:scale-110 transition-all shadow-sm"
-                                                            style={{ backgroundColor: color }}
-                                                            title={color}
-                                                        />
+                                                            className="w-8 h-8 rounded-full border border-white/10 hover:border-white hover:scale-110 transition-all shadow-sm relative focus-visible:ring-2 focus-visible:ring-white/50 focus-visible:outline-none"
+                                                            style={{ backgroundColor: color.value }}
+                                                            title={color.label}
+                                                            aria-label={color.label}
+                                                            role="radio"
+                                                            aria-checked={subtitleColor === color.value}
+                                                        >
+                                                            {subtitleColor === color.value && (
+                                                                <div className="absolute inset-0 flex items-center justify-center">
+                                                                    <div className="w-2 h-2 bg-black/40 rounded-full ring-1 ring-white/50" />
+                                                                </div>
+                                                            )}
+                                                        </button>
                                                     ))}
                                                 </div>
                                                 {/* Triangle Pointer */}
