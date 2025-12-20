@@ -1,15 +1,13 @@
-export const STARTING_POINTS_BALANCE = 1000;
+export const STARTING_POINTS_BALANCE = 500;
 
-export const PROCESS_VIDEO_DEFAULT_COST = 200;
+export const PROCESS_VIDEO_DEFAULT_COST = 25;
 export const PROCESS_VIDEO_MODEL_COSTS: Record<string, number> = {
-    turbo: 200,
-    enhanced: 200,
-    large: 500,
-    ultimate: 500,
+    standard: 25,
+    pro: 50,
 };
 
-export const FACT_CHECK_COST = 100;
-export const SOCIAL_COPY_COST = 50;
+export const FACT_CHECK_COST = 20;
+export const SOCIAL_COPY_COST = 10;
 
 export function processVideoCostForTranscribeModel(transcribeModel: string): number {
     const normalized = transcribeModel.trim().toLowerCase();
@@ -23,10 +21,12 @@ export function resolveTranscribeModelForSelection(
     const normalizedProvider = (provider ?? '').trim().toLowerCase();
     const normalizedMode = (mode ?? '').trim().toLowerCase();
 
-    if (normalizedProvider === 'openai') return 'openai/whisper-1';
-    if (normalizedProvider === 'groq') return normalizedMode === 'ultimate' ? 'ultimate' : 'enhanced';
-    if (normalizedProvider === 'local') return normalizedMode === 'balanced' ? 'medium' : 'turbo';
-    return 'turbo';
+    if (normalizedMode === 'pro') return 'pro';
+    if (normalizedMode === 'standard') return 'standard';
+    if (normalizedMode.includes('turbo') || normalizedMode.includes('enhanced')) return 'standard';
+    if (normalizedMode.includes('large')) return 'pro';
+    if (normalizedProvider === 'openai') return 'pro';
+    return 'standard';
 }
 
 export function processVideoCostForSelection(
@@ -40,4 +40,3 @@ export function processVideoCostForSelection(
 export function formatPoints(value: number): string {
     return value.toLocaleString();
 }
-

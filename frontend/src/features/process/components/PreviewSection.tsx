@@ -7,6 +7,16 @@ import { Sidebar } from './Sidebar';
 import { VideoModal } from '@/components/VideoModal';
 import { NewVideoConfirmModal } from './NewVideoConfirmModal';
 
+const resolveTierFromJob = (provider?: string | null, model?: string | null): 'standard' | 'pro' => {
+    const normalizedProvider = (provider ?? '').trim().toLowerCase();
+    const normalizedModel = (model ?? '').trim().toLowerCase();
+    if (normalizedModel === 'pro' || normalizedModel === 'standard') return normalizedModel as 'standard' | 'pro';
+    if (normalizedModel.includes('turbo') || normalizedModel.includes('enhanced')) return 'standard';
+    if (normalizedModel.includes('large')) return 'pro';
+    if (normalizedProvider === 'openai' || normalizedModel.includes('ultimate') || normalizedModel.includes('whisper-1')) return 'pro';
+    return 'standard';
+};
+
 const PreviewSectionLayout = memo(({
     resultsRef,
     currentStep,
@@ -314,25 +324,8 @@ export function PreviewSection() {
             const provider = selectedJob.result_data.transcribe_provider;
             const model = selectedJob.result_data.model_size;
 
-            // Map job data back to AVAILABLE_MODELS entry
-            return AVAILABLE_MODELS.find(m => {
-                if (m.provider !== provider) return false;
-
-                // Specific matching logic strictly for Groq vs others
-                if (provider === 'groq') {
-                    const isEnhancedJob = model === 'enhanced' || (model && model.includes('turbo'));
-                    const isUltimateJob = model === 'ultimate' || (model && !model.includes('turbo') && !model.includes('enhanced'));
-
-                    if (m.mode === 'enhanced') return isEnhancedJob;
-                    if (m.mode === 'ultimate') return isUltimateJob;
-                    return false;
-                }
-
-                // For others (whispercpp, etc)
-                // Since we only have one model per provider for non-Groq currently (Standard = whispercpp),
-                // we should match purely on provider to persist the tag regardless of current UI selection.
-                return true;
-            });
+            const jobTier = resolveTierFromJob(provider, model);
+            return AVAILABLE_MODELS.find(m => m.mode === jobTier);
         }
 
         // Default to current selection

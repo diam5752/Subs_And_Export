@@ -8,29 +8,35 @@ from fastapi.testclient import TestClient
 from backend.app.api.endpoints import videos
 from backend.app.api.endpoints import processing_tasks
 from backend.app.core import auth as backend_auth
+from backend.app.core import config
 from backend.app.core.database import Database
 from backend.app.services import jobs
+from backend.app.services import pricing
+from backend.app.services.charge_plans import reserve_processing_charges
 from backend.app.services.points import PointsStore, STARTING_POINTS_BALANCE
+from backend.app.services.usage_ledger import UsageLedgerStore
 
 
-def _auth_header(client: TestClient, email: str = "video@example.com") -> dict[str, str]:
-    client.post("/auth/register", json={"email": email, "password": "testpassword123", "name": "Video"})
+def _auth_header(client: TestClient, email: str | None = None) -> dict[str, str]:
+    resolved_email = email or f"video_{uuid.uuid4().hex}@example.com"
+    client.post("/auth/register", json={"email": resolved_email, "password": "testpassword123", "name": "Video"})
     token = client.post(
         "/auth/token",
-        data={"username": email, "password": "testpassword123"},
+        data={"username": resolved_email, "password": "testpassword123"},
     ).json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
 
 
 def test_job_store_lifecycle(tmp_path: Path):
-    db = Database(tmp_path / "jobs.db")
+    db = Database()
     store = jobs.JobStore(db)
 
     user_id = backend_auth.UserStore(db=db).register_local_user(
-        "job@example.com", "testpassword123", "Job"
+        f"job_{uuid.uuid4().hex}@example.com", "testpassword123", "Job"
     ).id
 
-    job = store.create_job("j1", user_id)
+    job_id = f"job-{uuid.uuid4().hex}"
+    job = store.create_job(job_id, user_id)
     store.update_job(job.id, status="processing", progress=25, message="start", result_data={"a": 1})
     updated = store.get_job(job.id)
     assert updated and updated.status == "processing"
@@ -48,11 +54,11 @@ def test_job_store_lifecycle(tmp_path: Path):
     assert store.get_job(job.id) is None
 
     # Test delete_jobs_for_user
-    j2 = store.create_job("j2", user_id)
-    j3 = store.create_job("j3", user_id)
+    j2 = store.create_job(f"job-{uuid.uuid4().hex}", user_id)
+    j3 = store.create_job(f"job-{uuid.uuid4().hex}", user_id)
     store.delete_jobs_for_user(user_id)
-    assert store.get_job("j2") is None
-    assert store.get_job("j3") is None
+    assert store.get_job(j2.id) is None
+    assert store.get_job(j3.id) is None
     assert len(store.list_jobs_for_user(user_id)) == 0
 
 
@@ -60,12 +66,12 @@ def test_run_video_processing_success(monkeypatch, tmp_path: Path):
     # Keep paths relative to tmp_path so relative_to() succeeds
     monkeypatch.setattr(videos.config, "PROJECT_ROOT", tmp_path)
 
-    db = Database(tmp_path / "vid.db")
+    db = Database()
     store = jobs.JobStore(db)
     user_id = backend_auth.UserStore(db=db).register_local_user(
-        "runner@example.com", "testpassword123", "Runner"
+        f"runner_{uuid.uuid4().hex}@example.com", "testpassword123", "Runner"
     ).id
-    job = store.create_job("job-success", user_id)
+    job = store.create_job(f"job-success-{uuid.uuid4().hex}", user_id)
 
     input_path = tmp_path / "input.mp4"
     input_path.write_bytes(b"data")
@@ -91,12 +97,12 @@ def test_run_video_processing_success(monkeypatch, tmp_path: Path):
 def test_run_video_processing_failure(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(videos.config, "PROJECT_ROOT", tmp_path)
 
-    db = Database(tmp_path / "vid_fail.db")
+    db = Database()
     store = jobs.JobStore(db)
     user_id = backend_auth.UserStore(db=db).register_local_user(
-        "runner2@example.com", "testpassword123", "Runner"
+        f"runner_{uuid.uuid4().hex}@example.com", "testpassword123", "Runner"
     ).id
-    job = store.create_job("job-fail", user_id)
+    job = store.create_job(f"job-fail-{uuid.uuid4().hex}", user_id)
 
     input_path = tmp_path / "input2.mp4"
     input_path.write_bytes(b"data")
@@ -117,12 +123,12 @@ def test_run_video_processing_failure(monkeypatch, tmp_path: Path):
 
 def test_run_video_processing_handles_path_only(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(videos.config, "PROJECT_ROOT", tmp_path)
-    db = Database(tmp_path / "vid_path.db")
+    db = Database()
     store = jobs.JobStore(db)
     user_id = backend_auth.UserStore(db=db).register_local_user(
-        "runner3@example.com", "testpassword123", "Runner"
+        f"runner_{uuid.uuid4().hex}@example.com", "testpassword123", "Runner"
     ).id
-    job = store.create_job("job-path", user_id)
+    job = store.create_job(f"job-path-{uuid.uuid4().hex}", user_id)
 
     input_path = tmp_path / "input3.mp4"
     input_path.write_bytes(b"data")
@@ -145,19 +151,34 @@ def test_run_video_processing_does_not_restart_cancelled_job_and_refunds(monkeyp
     # REGRESSION: a cancelled job must never flip back to processing, and charges must be refunded.
     monkeypatch.setattr(videos.config, "PROJECT_ROOT", tmp_path)
 
-    db = Database(tmp_path / "vid_cancel.db")
+    db = Database()
     job_store = jobs.JobStore(db)
     points_store = PointsStore(db=db)
+    ledger_store = UsageLedgerStore(db=db, points_store=points_store)
 
     user_id = backend_auth.UserStore(db=db).register_local_user(
-        "cancelled@example.com", "testpassword123", "Runner"
+        f"cancelled_{uuid.uuid4().hex}@example.com", "testpassword123", "Runner"
     ).id
-    job = job_store.create_job("job-cancelled", user_id)
+    job = job_store.create_job(f"job-cancelled-{uuid.uuid4().hex}", user_id)
 
-    cost = 200
-    meta = {"charge_id": job.id, "job_id": job.id, "model": "turbo"}
-    points_store.spend(user_id, cost, reason="process_video", meta=meta)
-    assert points_store.get_balance(user_id) == STARTING_POINTS_BALANCE - cost
+    llm_models = pricing.resolve_llm_models("standard")
+    charge_plan, _ = reserve_processing_charges(
+        ledger_store=ledger_store,
+        user_id=user_id,
+        job_id=job.id,
+        tier="standard",
+        duration_seconds=60.0,
+        use_llm=False,
+        llm_model=llm_models.social,
+        provider="groq",
+        stt_model=pricing.resolve_transcribe_model("standard"),
+    )
+    expected_charge = pricing.credits_for_minutes(
+        tier="standard",
+        duration_seconds=60.0,
+        min_credits=config.CREDITS_MIN_TRANSCRIBE["standard"],
+    )
+    assert points_store.get_balance(user_id) == STARTING_POINTS_BALANCE - expected_charge
 
     job_store.update_job(job.id, status="cancelled", message="Cancelled by user")
 
@@ -172,7 +193,6 @@ def test_run_video_processing_does_not_restart_cancelled_job_and_refunds(monkeyp
     )
 
     settings = videos.ProcessingSettings()
-    charge = videos._ChargeContext(user_id=user_id, cost=cost, reason="process_video", meta=meta)
     videos.run_video_processing(
         job.id,
         input_path,
@@ -180,8 +200,8 @@ def test_run_video_processing_does_not_restart_cancelled_job_and_refunds(monkeyp
         output_path.parent,
         settings,
         job_store,
-        points_store=points_store,
-        charge=charge,
+        ledger_store=ledger_store,
+        charge_plan=charge_plan,
     )
 
     assert points_store.get_balance(user_id) == STARTING_POINTS_BALANCE
@@ -202,25 +222,38 @@ def test_run_gcs_video_processing_does_not_restart_cancelled_job_and_refunds(mon
         lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("should not download cancelled jobs")),
     )
 
-    db = Database(tmp_path / "vid_cancel_gcs.db")
+    db = Database()
     job_store = jobs.JobStore(db)
     points_store = PointsStore(db=db)
+    ledger_store = UsageLedgerStore(db=db, points_store=points_store)
 
     user_id = backend_auth.UserStore(db=db).register_local_user(
-        "cancelled_gcs@example.com", "testpassword123", "Runner"
+        f"cancelled_gcs_{uuid.uuid4().hex}@example.com", "testpassword123", "Runner"
     ).id
-    job = job_store.create_job("job-cancelled-gcs", user_id)
+    job = job_store.create_job(f"job-cancelled-gcs-{uuid.uuid4().hex}", user_id)
 
-    cost = 200
-    meta = {"charge_id": job.id, "job_id": job.id, "model": "turbo"}
-    points_store.spend(user_id, cost, reason="process_video", meta=meta)
-    assert points_store.get_balance(user_id) == STARTING_POINTS_BALANCE - cost
+    llm_models = pricing.resolve_llm_models("standard")
+    charge_plan, _ = reserve_processing_charges(
+        ledger_store=ledger_store,
+        user_id=user_id,
+        job_id=job.id,
+        tier="standard",
+        duration_seconds=60.0,
+        use_llm=False,
+        llm_model=llm_models.social,
+        provider="groq",
+        stt_model=pricing.resolve_transcribe_model("standard"),
+    )
+    expected_charge = pricing.credits_for_minutes(
+        tier="standard",
+        duration_seconds=60.0,
+        min_credits=config.CREDITS_MIN_TRANSCRIBE["standard"],
+    )
+    assert points_store.get_balance(user_id) == STARTING_POINTS_BALANCE - expected_charge
 
     job_store.update_job(job.id, status="cancelled", message="Cancelled by user")
 
     settings = videos.ProcessingSettings()
-    charge = videos._ChargeContext(user_id=user_id, cost=cost, reason="process_video", meta=meta)
-
     videos.run_gcs_video_processing(
         job_id=job.id,
         gcs_object_name="uploads/test.mp4",
@@ -229,8 +262,8 @@ def test_run_gcs_video_processing_does_not_restart_cancelled_job_and_refunds(mon
         artifact_dir=tmp_path / "artifacts",
         settings=settings,
         job_store=job_store,
-        points_store=points_store,
-        charge=charge,
+        ledger_store=ledger_store,
+        charge_plan=charge_plan,
     )
 
     assert points_store.get_balance(user_id) == STARTING_POINTS_BALANCE

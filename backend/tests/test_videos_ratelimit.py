@@ -1,4 +1,3 @@
-import os
 from unittest.mock import MagicMock
 
 from backend.app.api.endpoints import videos
@@ -13,17 +12,15 @@ def test_process_rate_limit(client, user_auth_headers):
     from backend.app.core.database import Database
     from backend.app.services.points import PointsStore
 
-    db_path = os.environ.get("GSP_DATABASE_PATH")
-    assert db_path is not None
-    PointsStore(db=Database(db_path)).credit(user_id, 5000, reason="test_topup")
+    PointsStore(db=Database()).credit(user_id, 5000, reason="test_topup")
 
     # Create a dummy file content
     file_content = b"dummy content"
 
     # We need to send form data for required fields
     data = {
-        "transcribe_model": "tiny",
-        "video_quality": "balanced"
+        "transcribe_model": "standard",
+        "video_quality": "balanced",
     }
 
     # 1. First 10 requests should succeed (limit is 10)
@@ -83,8 +80,7 @@ def test_viral_metadata_rate_limit(client, user_auth_headers, monkeypatch, tmp_p
     from backend.app.core.database import Database
     from backend.app.services.jobs import JobStore
 
-    db_path = os.environ.get("GSP_DATABASE_PATH")
-    db = Database(db_path)
+    db = Database()
     store = JobStore(db)
 
     store.update_job(job_id, status="completed", progress=100)

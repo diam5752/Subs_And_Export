@@ -8,21 +8,21 @@ import {
 
 describe('points pricing helpers', () => {
     it('resolves transcribe model for selection', () => {
-        expect(resolveTranscribeModelForSelection('groq', 'ultimate')).toBe('ultimate');
-        expect(resolveTranscribeModelForSelection('groq', 'enhanced')).toBe('enhanced');
-        expect(resolveTranscribeModelForSelection('whispercpp', 'turbo')).toBe('turbo');
-        expect(resolveTranscribeModelForSelection('local', 'balanced')).toBe('medium');
+        expect(resolveTranscribeModelForSelection('groq', 'standard')).toBe('standard');
+        expect(resolveTranscribeModelForSelection('groq', 'pro')).toBe('pro');
+        expect(resolveTranscribeModelForSelection('groq', 'whisper-large-v3')).toBe('pro');
+        expect(resolveTranscribeModelForSelection('groq', 'whisper-large-v3-turbo')).toBe('standard');
+        expect(resolveTranscribeModelForSelection('groq', null)).toBe('standard');
     });
 
     it('computes process video costs', () => {
-        expect(processVideoCostForTranscribeModel('turbo')).toBe(PROCESS_VIDEO_DEFAULT_COST);
-        expect(processVideoCostForTranscribeModel('ultimate')).toBe(500);
-        expect(processVideoCostForSelection('groq', 'ultimate')).toBe(500);
-        expect(processVideoCostForSelection('whispercpp', 'turbo')).toBe(PROCESS_VIDEO_DEFAULT_COST);
+        expect(processVideoCostForTranscribeModel('standard')).toBe(PROCESS_VIDEO_DEFAULT_COST);
+        expect(processVideoCostForTranscribeModel('pro')).toBe(50);
+        expect(processVideoCostForSelection('groq', 'pro')).toBe(50);
+        expect(processVideoCostForSelection('groq', 'standard')).toBe(PROCESS_VIDEO_DEFAULT_COST);
     });
 
     it('exposes fact check cost constant', () => {
-        expect(FACT_CHECK_COST).toBe(100);
+        expect(FACT_CHECK_COST).toBe(20);
     });
 });
-

@@ -3,6 +3,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import MagicMock
+import uuid
 
 import pytest
 from fastapi import HTTPException
@@ -18,12 +19,14 @@ from backend.app.services.points import (
 )
 
 
-def _seed_user(db: Database, *, user_id: str, email: str) -> None:
+def _seed_user(db: Database, *, user_id: str | None = None, email: str | None = None) -> str:
+    resolved_user_id = user_id or uuid.uuid4().hex
+    resolved_email = email or f"{resolved_user_id}@example.com"
     with db.session() as session:
         session.add(
             DbUser(
-                id=user_id,
-                email=email,
+                id=resolved_user_id,
+                email=resolved_email,
                 name="Test",
                 provider="local",
                 password_hash="x",
@@ -31,12 +34,12 @@ def _seed_user(db: Database, *, user_id: str, email: str) -> None:
                 created_at="now",
             )
         )
+    return resolved_user_id
 
 
 def test_ensure_account_creates_row_and_initial_transaction(tmp_path: Path) -> None:
-    db = Database(tmp_path / "app.db")
-    user_id = "u1"
-    _seed_user(db, user_id=user_id, email="u1@example.com")
+    db = Database()
+    user_id = _seed_user(db)
 
     store = PointsStore(db=db)
     created = store.ensure_account(user_id)
@@ -58,9 +61,8 @@ def test_ensure_account_creates_row_and_initial_transaction(tmp_path: Path) -> N
 
 
 def test_spend_deducts_points_and_logs_transaction(tmp_path: Path) -> None:
-    db = Database(tmp_path / "app.db")
-    user_id = "u1"
-    _seed_user(db, user_id=user_id, email="u1@example.com")
+    db = Database()
+    user_id = _seed_user(db)
 
     store = PointsStore(db=db)
     store.ensure_account(user_id)
@@ -84,10 +86,48 @@ def test_spend_deducts_points_and_logs_transaction(tmp_path: Path) -> None:
         assert txs[-1].reason == "process_video"
 
 
+def test_spend_once_is_idempotent(tmp_path: Path) -> None:
+    # REGRESSION: spend_once must only deduct once for the same transaction id.
+    db = Database()
+    user_id = _seed_user(db)
+
+    store = PointsStore(db=db)
+    store.ensure_account(user_id)
+
+    balance, spent = store.spend_once(
+        user_id,
+        100,
+        reason="process_video",
+        transaction_id="a" * 32,
+        meta={"job_id": "j1"},
+    )
+    assert spent is True
+    assert balance == STARTING_POINTS_BALANCE - 100
+
+    balance_again, spent_again = store.spend_once(
+        user_id,
+        100,
+        reason="process_video",
+        transaction_id="a" * 32,
+        meta={"job_id": "j1"},
+    )
+    assert spent_again is False
+    assert balance_again == STARTING_POINTS_BALANCE - 100
+
+    with db.session() as session:
+        txs = list(
+            session.scalars(
+                select(DbPointTransaction)
+                .where(DbPointTransaction.user_id == user_id)
+                .order_by(DbPointTransaction.created_at.asc())
+            ).all()
+        )
+        assert [tx.delta for tx in txs] == [STARTING_POINTS_BALANCE, -100]
+
+
 def test_spend_insufficient_funds_is_atomic(tmp_path: Path) -> None:
-    db = Database(tmp_path / "app.db")
-    user_id = "u1"
-    _seed_user(db, user_id=user_id, email="u1@example.com")
+    db = Database()
+    user_id = _seed_user(db)
 
     store = PointsStore(db=db)
     store.ensure_account(user_id)
@@ -112,9 +152,8 @@ def test_spend_insufficient_funds_is_atomic(tmp_path: Path) -> None:
 
 
 def test_spend_rejects_invalid_inputs(tmp_path: Path) -> None:
-    db = Database(tmp_path / "app.db")
-    user_id = "u1"
-    _seed_user(db, user_id=user_id, email="u1@example.com")
+    db = Database()
+    user_id = _seed_user(db)
 
     store = PointsStore(db=db)
 
@@ -140,9 +179,8 @@ def test_spend_rejects_invalid_inputs(tmp_path: Path) -> None:
 
 
 def test_credit_and_refund_log_transactions(tmp_path: Path) -> None:
-    db = Database(tmp_path / "app.db")
-    user_id = "u1"
-    _seed_user(db, user_id=user_id, email="u1@example.com")
+    db = Database()
+    user_id = _seed_user(db)
 
     store = PointsStore(db=db)
     store.ensure_account(user_id)
@@ -166,9 +204,8 @@ def test_credit_and_refund_log_transactions(tmp_path: Path) -> None:
 
 
 def test_credit_rejects_invalid_inputs(tmp_path: Path) -> None:
-    db = Database(tmp_path / "app.db")
-    user_id = "u1"
-    _seed_user(db, user_id=user_id, email="u1@example.com")
+    db = Database()
+    user_id = _seed_user(db)
 
     store = PointsStore(db=db)
 
@@ -184,9 +221,8 @@ def test_credit_rejects_invalid_inputs(tmp_path: Path) -> None:
 
 
 def test_refund_once_rejects_invalid_inputs(tmp_path: Path) -> None:
-    db = Database(tmp_path / "app.db")
-    user_id = "u1"
-    _seed_user(db, user_id=user_id, email="u1@example.com")
+    db = Database()
+    user_id = _seed_user(db)
 
     store = PointsStore(db=db)
     store.ensure_account(user_id)
@@ -219,7 +255,7 @@ def test_refund_once_rejects_invalid_inputs(tmp_path: Path) -> None:
 
 
 def test_ensure_account_in_session_postgres_branch_is_covered(tmp_path: Path) -> None:
-    store = PointsStore(db=Database(tmp_path / "app.db"))
+    store = PointsStore(db=Database())
     session = MagicMock()
     session.get_bind.return_value.dialect.name = "postgresql"
 
@@ -242,7 +278,7 @@ def test_ensure_account_in_session_postgres_branch_is_covered(tmp_path: Path) ->
 
 
 def test_refund_once_postgres_branch_uses_returning(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    store = PointsStore(db=Database(tmp_path / "app.db"))
+    store = PointsStore(db=Database())
     session = MagicMock()
     session.get_bind.return_value.dialect.name = "postgresql"
     session.scalar.return_value = 900
@@ -272,9 +308,8 @@ def test_refund_once_postgres_branch_uses_returning(tmp_path: Path, monkeypatch:
 
 def test_refund_once_credits_balance_and_is_idempotent(tmp_path: Path) -> None:
     # REGRESSION: refund_once must credit the balance exactly once (even if called repeatedly).
-    db = Database(tmp_path / "app.db")
-    user_id = "u1"
-    _seed_user(db, user_id=user_id, email="u1@example.com")
+    db = Database()
+    user_id = _seed_user(db)
 
     store = PointsStore(db=db)
     store.ensure_account(user_id)
@@ -317,6 +352,6 @@ def test_refund_once_credits_balance_and_is_idempotent(tmp_path: Path) -> None:
         assert txs[-1].reason == "refund_process_video"
 
 
-def test_process_video_cost_supports_ultimate_alias() -> None:
-    assert process_video_cost("turbo") == 200
-    assert process_video_cost("ultimate") == 500
+def test_process_video_cost_maps_legacy_models() -> None:
+    assert process_video_cost("turbo") == process_video_cost("standard")
+    assert process_video_cost("ultimate") == process_video_cost("pro")

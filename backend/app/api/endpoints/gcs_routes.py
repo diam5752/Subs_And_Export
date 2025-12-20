@@ -18,12 +18,14 @@ from ...core.gcs_uploads import GcsUploadStore
 from ...core.ratelimit import limiter_processing
 from ...core.settings import load_app_settings
 from ...schemas.base import JobResponse
+from ...services import pricing
+from ...services.charge_plans import reserve_processing_charges
 from ...services.history import HistoryStore
 from ...services.jobs import JobStore
-from ...services.points import PointsStore, process_video_cost
-from ..deps import get_current_user, get_gcs_upload_store, get_history_store, get_job_store, get_points_store
+from ...services.usage_ledger import UsageLedgerStore
+from ..deps import get_current_user, get_gcs_upload_store, get_history_store, get_job_store, get_usage_ledger_store
 from .file_utils import MAX_UPLOAD_BYTES, data_roots
-from .processing_tasks import ChargeContext, record_event_safe, refund_charge_best_effort, run_gcs_video_processing
+from .processing_tasks import record_event_safe, refund_charge_best_effort, run_gcs_video_processing
 from .settings import build_processing_settings
 from .validation import ALLOWED_VIDEO_EXTENSIONS, validate_upload_content_type
 
@@ -106,8 +108,8 @@ def create_gcs_upload_url(
 
 class GcsProcessRequest(BaseModel):
     upload_id: str = Field(..., max_length=128)
-    transcribe_model: str = Field("medium", max_length=50)
-    transcribe_provider: str = Field("local", max_length=50)
+    transcribe_model: str = Field(config.DEFAULT_TRANSCRIBE_TIER, max_length=50)
+    transcribe_provider: str = Field(config.TRANSCRIBE_TIER_PROVIDER[config.DEFAULT_TRANSCRIBE_TIER], max_length=50)
     openai_model: str = Field("", max_length=50)
     video_quality: str = Field("high quality", max_length=50)
     video_resolution: str = Field("", max_length=50)
@@ -131,7 +133,7 @@ def process_video_from_gcs(
     job_store: JobStore = Depends(get_job_store),
     history_store: HistoryStore = Depends(get_history_store),
     gcs_upload_store: GcsUploadStore = Depends(get_gcs_upload_store),
-    points_store: PointsStore = Depends(get_points_store),
+    ledger_store: UsageLedgerStore = Depends(get_usage_ledger_store),
 ) -> Any:
     """Start processing for an already-uploaded GCS object."""
     gcs_settings = get_gcs_settings()
@@ -178,14 +180,18 @@ def process_video_from_gcs(
     output_path = artifacts_root / job_id / "processed.mp4"
     artifact_path = artifacts_root / job_id
 
-    cost = process_video_cost(settings.transcribe_model)
-    charge = ChargeContext(
+    llm_models = pricing.resolve_llm_models(settings.transcribe_model)
+    charge_plan, new_balance = reserve_processing_charges(
+        ledger_store=ledger_store,
         user_id=current_user.id,
-        cost=cost,
-        reason="process_video",
-        meta={"charge_id": job_id, "job_id": job_id, "model": settings.transcribe_model, "source": "gcs"},
+        job_id=job_id,
+        tier=settings.transcribe_model,
+        duration_seconds=float(config.MAX_VIDEO_DURATION_SECONDS),
+        use_llm=settings.use_llm,
+        llm_model=llm_models.social,
+        provider=settings.transcribe_provider,
+        stt_model=pricing.resolve_transcribe_model(settings.transcribe_model),
     )
-    new_balance = points_store.spend(current_user.id, cost, reason=charge.reason, meta=charge.meta)
 
     try:
         job = job_store.create_job(job_id, current_user.id)
@@ -207,14 +213,14 @@ def process_video_from_gcs(
             history_store=history_store,
             user=current_user,
             original_name=session.original_filename,
-            points_store=points_store,
-            charge=charge,
+            ledger_store=ledger_store,
+            charge_plan=charge_plan,
         )
 
         from ...common.cleanup import cleanup_old_uploads
         background_tasks.add_task(cleanup_old_uploads, uploads_dir, 24)
     except Exception as exc:
-        refund_charge_best_effort(points_store, charge, status="failed", error=sanitize_message(str(exc)))
+        refund_charge_best_effort(ledger_store, charge_plan, status="failed", error=sanitize_message(str(exc)))
         raise
 
     return {**job.__dict__, "balance": new_balance}

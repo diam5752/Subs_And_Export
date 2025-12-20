@@ -8,17 +8,14 @@ from backend.app.services import jobs
 
 def test_export_video_validation_sentinel(client: TestClient, monkeypatch, tmp_path):
     # Setup DB
-    monkeypatch.setenv("GSP_DATABASE_PATH", str(tmp_path / "app.db"))
-
     from backend.app.core.database import Database
-    db_path = tmp_path / "app.db"
-    db = Database(db_path)
+    db = Database()
     job_store = jobs.JobStore(db)
     from backend.app.core.auth import UserStore
     user_store = UserStore(db=db)
 
     # Register user
-    email = "sentinel_export@example.com"
+    email = f"sentinel_export_{uuid.uuid4().hex}@example.com"
     user = user_store.register_local_user(email, "testpassword123", "Sentinel")
 
     # Login to get token

@@ -48,7 +48,7 @@ def test_dev_sample_job_creates_completed_job(monkeypatch, tmp_path: Path) -> No
     from backend.main import app
 
     with TestClient(app) as client:
-        headers = _auth_header(client, "dev-sample@example.com")
+        headers = _auth_header(client, f"dev-sample-{uuid.uuid4().hex}@example.com")
 
         resp = client.post("/dev/sample-job", headers=headers)
         assert resp.status_code == 200, resp.text
@@ -56,4 +56,3 @@ def test_dev_sample_job_creates_completed_job(monkeypatch, tmp_path: Path) -> No
         assert payload["status"] == "completed"
         assert payload["result_data"]["transcription_url"].endswith("/transcription.json")
         assert payload["result_data"]["dev_sample_source_job_id"] == sample_job_id
-

@@ -5,8 +5,8 @@ import { Cue } from '@/components/SubtitleOverlay';
 import { resegmentCues } from '@/lib/subtitleUtils';
 import { PreviewPlayerHandle } from '@/components/PreviewPlayer';
 
-export type TranscribeMode = 'balanced' | 'turbo' | 'enhanced' | 'ultimate';
-export type TranscribeProvider = 'local' | 'openai' | 'groq' | 'whispercpp';
+export type TranscribeMode = 'standard' | 'pro';
+export type TranscribeProvider = 'groq';
 
 export interface ProcessingOptions {
     transcribeMode: TranscribeMode;
@@ -133,6 +133,22 @@ interface ProcessContextType {
 
 const ProcessContext = createContext<ProcessContextType | undefined>(undefined);
 
+const resolveTierFromJob = (
+    provider: string | null | undefined,
+    model: string | null | undefined,
+): TranscribeMode => {
+    const normalizedProvider = (provider ?? '').trim().toLowerCase();
+    const normalizedModel = (model ?? '').trim().toLowerCase();
+    if (normalizedModel === 'pro' || normalizedModel === 'standard') {
+        return normalizedModel as TranscribeMode;
+    }
+    if (normalizedModel.includes('turbo') || normalizedModel.includes('enhanced')) return 'standard';
+    if (normalizedModel.includes('large')) return 'pro';
+    if (normalizedProvider === 'openai') return 'pro';
+    if (normalizedModel.includes('ultimate') || normalizedModel.includes('whisper-1') || normalizedModel.includes('openai')) return 'pro';
+    return 'standard';
+};
+
 export function useProcessContext() {
     const context = useContext(ProcessContext);
     if (!context) {
@@ -241,10 +257,10 @@ export function ProcessProvider({
 
     const [hasChosenModel, setHasChosenModel] = useState<boolean>(() => Boolean(selectedFile));
     const [transcribeMode, setTranscribeMode] = useState<TranscribeMode | null>(() =>
-        selectedFile ? 'turbo' : null
+        selectedFile ? 'standard' : null
     );
     const [transcribeProvider, setTranscribeProvider] = useState<TranscribeProvider | null>(() =>
-        selectedFile ? 'whispercpp' : null
+        selectedFile ? 'groq' : null
     );
 
     // Initial values with priority: LocalStorage > Defaults
@@ -289,27 +305,10 @@ export function ProcessProvider({
         if (selectedJob?.status === 'completed') {
             // Check if current settings match the job results
             const jobProvider = selectedJob.result_data?.transcribe_provider;
-            const jobModel = selectedJob.result_data?.model_size; // 'medium', 'enhanced', 'ultimate', 'turbo'
+            const jobModel = selectedJob.result_data?.model_size; // 'standard' | 'pro' (or legacy values)
 
-            // loose match logic
-            const providerMatch = !transcribeProvider || jobProvider === transcribeProvider;
-
-            let modelMatch = true;
-            if (providerMatch && jobProvider === 'groq') {
-                // For Groq, we must differentiate between Enhanced (Turbo) and Ultimate (Large)
-                // Enhanced maps to 'enhanced' or 'turbo' (legacy)
-                // Ultimate maps to 'ultimate'
-                const isEnhancedJob = jobModel === 'enhanced' || (jobModel && jobModel.includes('turbo'));
-                const isUltimateJob = jobModel === 'ultimate' || (jobModel && !jobModel.includes('turbo') && !jobModel.includes('enhanced')); // default large
-
-                if (transcribeMode === 'enhanced') {
-                    modelMatch = Boolean(isEnhancedJob);
-                } else if (transcribeMode === 'ultimate') {
-                    modelMatch = Boolean(isUltimateJob);
-                }
-            }
-
-            if (providerMatch && modelMatch) {
+            const jobTier = resolveTierFromJob(jobProvider, jobModel);
+            if (!transcribeMode || jobTier === transcribeMode) {
                 return 3;
             }
             // If mismatch, we fallback to Step 2, but we keep the job for history/preview if needed
@@ -421,32 +420,12 @@ export function ProcessProvider({
             name: t('modelStandardName'),
             description: t('modelStandardDesc'),
             badge: t('modelStandardBadge'),
-            badgeColor: 'text-[var(--muted)] bg-[var(--surface)]',
-            provider: 'whispercpp',
-            mode: 'turbo',
-            stats: { speed: 4, accuracy: 3, karaoke: false, linesControl: false },
-            icon: (selected: boolean) => (
-                <div className={`p-2 rounded-lg ${selected ? 'bg-cyan-500/20 text-cyan-300' : 'bg-cyan-500/10 text-cyan-500'} `}>
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
-                    </svg>
-                </div>
-            ),
-            colorClass: (selected: boolean) => selected
-                ? 'border-cyan-500 bg-cyan-500/10 ring-1 ring-cyan-500'
-                : 'border-[var(--border)] hover:border-cyan-500/50 hover:bg-cyan-500/5'
-        },
-        {
-            id: 'enhanced',
-            name: t('modelEnhancedName'),
-            description: t('modelEnhancedDesc'),
-            badge: t('modelEnhancedBadge'),
             badgeColor: 'text-emerald-400 bg-emerald-400/10',
             provider: 'groq',
-            mode: 'enhanced',
+            mode: 'standard',
             stats: { speed: 5, accuracy: 4, karaoke: true, linesControl: true },
             icon: (selected: boolean) => (
-                <div className={`p-2 rounded-lg ${selected ? 'bg-emerald-500/20 text-emerald-300' : 'bg-emerald-500/10 text-emerald-500'} `}>
+                <div className={`p-2 rounded-lg ${selected ? 'bg-emerald-500/20 text-emerald-200' : 'bg-emerald-500/10 text-emerald-400'} `}>
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
                     </svg>
@@ -457,25 +436,25 @@ export function ProcessProvider({
                 : 'border-[var(--border)] hover:border-emerald-500/50 hover:bg-emerald-500/5'
         },
         {
-            id: 'ultimate',
-            name: t('modelUltimateName'),
-            description: t('modelUltimateDesc'),
-            badge: t('modelUltimateBadge'),
-            badgeColor: 'text-purple-400 bg-purple-500/10',
+            id: 'pro',
+            name: t('modelProName'),
+            description: t('modelProDesc'),
+            badge: t('modelProBadge'),
+            badgeColor: 'text-amber-300 bg-amber-400/10',
             provider: 'groq',
-            mode: 'ultimate',
-            stats: { speed: 5, accuracy: 5, karaoke: true, linesControl: true },
+            mode: 'pro',
+            stats: { speed: 4, accuracy: 5, karaoke: true, linesControl: true },
             icon: (selected: boolean) => (
-                <div className={`p-2 rounded-lg ${selected ? 'bg-purple-500/20 text-purple-300' : 'bg-purple-500/10 text-purple-400'} `}>
+                <div className={`p-2 rounded-lg ${selected ? 'bg-amber-400/20 text-amber-200' : 'bg-amber-400/10 text-amber-300'} `}>
                     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3l2.5 5.5L20 9l-4 4.5L17 20l-5-2.5L7 20l1-6.5L4 9l5.5-.5L12 3z" />
                     </svg>
                 </div>
             ),
             colorClass: (selected: boolean) => selected
-                ? 'border-purple-500 bg-purple-500/10 ring-1 ring-purple-500'
-                : 'border-[var(--border)] hover:border-purple-500/50 hover:bg-purple-500/5'
-        }
+                ? 'border-amber-400 bg-amber-400/10 ring-1 ring-amber-400'
+                : 'border-[var(--border)] hover:border-amber-400/50 hover:bg-amber-400/5'
+        },
     ], [t]);
 
     // Scroll to results when job completes, BUT only if we are not overriding navigation (e.g. user clicked Step 1/2)

@@ -82,14 +82,14 @@ def test_normalize_and_stub_subtitles_runs_pipeline(monkeypatch, tmp_path: Path)
     monkeypatch.setattr(ffmpeg_utils, "probe_media", lambda p: ffmpeg_utils.MediaProbe(10.0, "aac"))
     
     # Correctly patch the symbol imported in video_processing
-    monkeypatch.setattr(video_processing, "LocalWhisperTranscriber", FakeTranscriber)
+    monkeypatch.setattr(video_processing, "GroqTranscriber", FakeTranscriber)
 
     output_path = tmp_path / "final.mp4"
     
     res = video_processing.normalize_and_stub_subtitles(
         input_path=input_video,
         output_path=output_path,
-        transcribe_provider="local",
+        transcribe_provider="groq",
         model_size="tiny",
     )
     
@@ -139,14 +139,14 @@ def test_active_graphics_maps_to_ass_active(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(ffmpeg_utils, "probe_media", lambda p: ffmpeg_utils.MediaProbe(10.0, "aac"))
 
     # Patch the class where it is used
-    monkeypatch.setattr(video_processing, "LocalWhisperTranscriber", FakeTranscriber)
+    monkeypatch.setattr(video_processing, "GroqTranscriber", FakeTranscriber)
 
     output_path = tmp_path / "final.mp4"
     
     video_processing.normalize_and_stub_subtitles(
         input_path=input_video,
         output_path=output_path,
-        transcribe_provider="local",
+        transcribe_provider="groq",
         highlight_style="active-graphics",
         karaoke_enabled=True,
     )
@@ -208,12 +208,12 @@ def test_normalize_and_stub_subtitles_removes_temporary_directory(
     monkeypatch.setattr(ffmpeg_utils, "run_ffmpeg_with_subs", fake_burn)
     monkeypatch.setattr(ffmpeg_utils, "probe_media", lambda p: ffmpeg_utils.MediaProbe(10.0, "aac"))
     
-    monkeypatch.setattr(video_processing, "LocalWhisperTranscriber", FakeTranscriber)
+    monkeypatch.setattr(video_processing, "GroqTranscriber", FakeTranscriber)
 
     output_path = tmp_path / "out.mp4"
     
     video_processing.normalize_and_stub_subtitles(
-        input_video, output_path, transcribe_provider="local"
+        input_video, output_path, transcribe_provider="groq"
     )
     
     # Check scratch is gone
@@ -244,7 +244,7 @@ def test_normalize_and_stub_subtitles_can_return_social_copy(
             cues = [Cue(0, 10, "Hello world")]
             return srt, cues
 
-    monkeypatch.setattr(video_processing, "LocalWhisperTranscriber", FakeTranscriber)
+    monkeypatch.setattr(video_processing, "GroqTranscriber", FakeTranscriber)
 
     # Mock social copy generation
     soc = subtitles.SocialCopy(subtitles.SocialContent("Title", "Desc", ["#tag"]))
@@ -253,7 +253,7 @@ def test_normalize_and_stub_subtitles_can_return_social_copy(
     output_path = tmp_path / "out.mp4"
     path, copy = video_processing.normalize_and_stub_subtitles(
         input_video, output_path,
-        transcribe_provider="local",
+        transcribe_provider="groq",
         generate_social_copy=True
     )
     
@@ -285,11 +285,11 @@ def test_normalize_and_stub_subtitles_persists_artifacts(monkeypatch, tmp_path: 
             srt.touch()
             return srt, []
 
-    monkeypatch.setattr(video_processing, "LocalWhisperTranscriber", FakeTranscriber)
+    monkeypatch.setattr(video_processing, "GroqTranscriber", FakeTranscriber)
     
     video_processing.normalize_and_stub_subtitles(
         input_video, tmp_path/"out.mp4",
-        transcribe_provider="local",
+        transcribe_provider="groq",
         artifact_dir=artifact_dir
     )
     
@@ -315,14 +315,14 @@ def test_normalize_and_stub_subtitles_can_use_llm_social_copy(monkeypatch, tmp_p
             srt = output_dir / "a.srt"
             srt.touch()
             return srt, [Cue(0, 1, "test")]
-    monkeypatch.setattr(video_processing, "LocalWhisperTranscriber", FakeTranscriber)
+    monkeypatch.setattr(video_processing, "GroqTranscriber", FakeTranscriber)
 
     mock_llm = MagicMock()
     monkeypatch.setattr(subtitles, "build_social_copy_llm", mock_llm)
     
     video_processing.normalize_and_stub_subtitles(
         input_video, tmp_path/"out.mp4",
-        transcribe_provider="local",
+        transcribe_provider="groq",
         generate_social_copy=True,
         use_llm_social_copy=True,
     )
@@ -352,11 +352,11 @@ def test_pipeline_logs_metrics(monkeypatch, tmp_path: Path):
             srt = output_dir / "a.srt"
             srt.touch()
             return srt, []
-    monkeypatch.setattr(video_processing, "LocalWhisperTranscriber", FakeTranscriber)
+    monkeypatch.setattr(video_processing, "GroqTranscriber", FakeTranscriber)
 
     video_processing.normalize_and_stub_subtitles(
         input_video, tmp_path/"out.mp4",
-        transcribe_provider="local"
+        transcribe_provider="groq"
     )
     
     mock_metrics.assert_called_once()
@@ -381,12 +381,12 @@ def test_pipeline_logs_error_when_output_missing(monkeypatch, tmp_path: Path):
             srt = output_dir / "a.srt"
             srt.touch()
             return srt, []
-    monkeypatch.setattr(video_processing, "LocalWhisperTranscriber", FakeTranscriber)
+    monkeypatch.setattr(video_processing, "GroqTranscriber", FakeTranscriber)
     
     # Should raise RuntimeError because output missing
     with pytest.raises(RuntimeError):
         video_processing.normalize_and_stub_subtitles(
-            input_video, tmp_path/"out.mp4", transcribe_provider="local"
+            input_video, tmp_path/"out.mp4", transcribe_provider="groq"
         )
 
 
@@ -493,10 +493,10 @@ def test_pipeline_retries_without_hw_accel(monkeypatch, tmp_path: Path):
     class FakeTranscriber:
         def __init__(self, *args, **kwargs): pass
         def transcribe(self, audio_path, output_dir, **kwargs): return (output_dir/"a.srt", [])
-    monkeypatch.setattr(video_processing, "LocalWhisperTranscriber", FakeTranscriber)
+    monkeypatch.setattr(video_processing, "GroqTranscriber", FakeTranscriber)
 
     video_processing.normalize_and_stub_subtitles(
-        input_video, tmp_path/"out.mp4", transcribe_provider="local", use_hw_accel=True
+        input_video, tmp_path/"out.mp4", transcribe_provider="groq", use_hw_accel=True
     )
     
     assert ffmpeg_mock.call_count == 2
@@ -524,12 +524,11 @@ def test_normalize_handles_duration_failure(monkeypatch, tmp_path: Path):
     class FakeTranscriber:
         def __init__(self, *args, **kwargs): pass
         def transcribe(self, audio_path, output_dir, **kwargs): return (output_dir/"a.srt", [])
-    import backend.app.services.transcription.local_whisper as lw
-    monkeypatch.setattr(lw, "LocalWhisperTranscriber", FakeTranscriber)
+    monkeypatch.setattr(video_processing, "GroqTranscriber", FakeTranscriber)
 
     # Should not crash
     video_processing.normalize_and_stub_subtitles(
-        input_video, tmp_path/"out.mp4", transcribe_provider="local"
+        input_video, tmp_path/"out.mp4", transcribe_provider="groq"
     )
 
 def test_normalize_with_large_model_progress():

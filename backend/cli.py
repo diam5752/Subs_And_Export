@@ -84,7 +84,7 @@ def process(
     llm_model: str = typer.Option(
         None,
         "--llm-model",
-        help="OpenAI model name (defaults to gpt-4o-mini for fast, affordable inference).",
+        help="OpenAI model name (defaults to gpt-5.1-mini).",
     ),
     llm_temperature: float = typer.Option(
         0.6,

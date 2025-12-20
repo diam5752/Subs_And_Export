@@ -12,6 +12,16 @@ const MAX_UPLOAD_BYTES = 1024 * 1024 * 1024; // 1GiB
 const MAX_VIDEO_DURATION_SECONDS = 3 * 60 + 30;
 const ALLOWED_VIDEO_EXT = /\.(mp4|mov|mkv)$/i;
 
+const resolveTierFromJob = (provider?: string | null, model?: string | null): 'standard' | 'pro' => {
+    const normalizedProvider = (provider ?? '').trim().toLowerCase();
+    const normalizedModel = (model ?? '').trim().toLowerCase();
+    if (normalizedModel === 'pro' || normalizedModel === 'standard') return normalizedModel as 'standard' | 'pro';
+    if (normalizedModel.includes('turbo') || normalizedModel.includes('enhanced')) return 'standard';
+    if (normalizedModel.includes('large')) return 'pro';
+    if (normalizedProvider === 'openai' || normalizedModel.includes('ultimate') || normalizedModel.includes('whisper-1')) return 'pro';
+    return 'standard';
+};
+
 export function UploadSection() {
     const { t } = useI18n();
     const showDevTools = true; // Always enable for user request
@@ -62,34 +72,19 @@ export function UploadSection() {
     }, [currentStep]);
 
     const activeTheme = useMemo(() => {
-        if (transcribeProvider === 'groq') {
-            if (transcribeMode === 'enhanced') {
-                return {
-                    borderColor: 'border-emerald-500/50',
-                    bgGradient: 'from-emerald-500/20 via-transparent to-emerald-500/5',
-                    iconColor: 'text-emerald-400',
-                    glowColor: 'shadow-[0_0_30px_-5px_rgba(52,211,153,0.3)]'
-                };
-            }
-            // Default to Ultimate (Purple)
+        if (transcribeMode === 'pro') {
             return {
-                borderColor: 'border-purple-500/50',
-                bgGradient: 'from-purple-500/20 via-transparent to-purple-500/5',
-                iconColor: 'text-purple-400',
-                glowColor: 'shadow-[0_0_30px_-5px_rgba(168,85,247,0.3)]'
+                borderColor: 'border-amber-400/50',
+                bgGradient: 'from-amber-400/20 via-transparent to-amber-400/10',
+                iconColor: 'text-amber-300',
+                glowColor: 'shadow-[0_0_30px_-5px_rgba(251,191,36,0.35)]',
             };
         }
-        if (transcribeProvider === 'whispercpp') return {
-            borderColor: 'border-cyan-500/50',
-            bgGradient: 'from-cyan-500/20 via-transparent to-cyan-500/5',
-            iconColor: 'text-cyan-400',
-            glowColor: 'shadow-[0_0_30px_-5px_rgba(6,182,212,0.3)]'
-        };
         return {
-            borderColor: 'border-[var(--accent)]/50',
-            bgGradient: 'from-[var(--accent)]/20 via-transparent to-[var(--accent-secondary)]/10',
-            iconColor: 'text-[var(--accent)]',
-            glowColor: 'shadow-[0_0_30px_-5px_rgba(141,247,223,0.3)]'
+            borderColor: 'border-emerald-500/50',
+            bgGradient: 'from-emerald-500/20 via-transparent to-emerald-500/5',
+            iconColor: 'text-emerald-400',
+            glowColor: 'shadow-[0_0_30px_-5px_rgba(52,211,153,0.3)]',
         };
     }, [transcribeProvider, transcribeMode]);
 
@@ -193,18 +188,10 @@ export function UploadSection() {
                 // Instead just clear file and job if needed, but we are overwriting anyway.
                 onFileSelect(null);
 
-                // Map mode to model_size (logic copied from ProcessProvider)
-                const modelMap: Record<string, string> = {
-                    fast: 'tiny',
-                    balanced: 'medium',
-                    turbo: 'turbo',
-                    best: 'large-v3',
-                };
-                const safeMode = transcribeMode || 'turbo';
-                const modelSize = modelMap[safeMode] || 'turbo';
-                const safeProvider = transcribeProvider || 'local';
+                const safeMode = transcribeMode || 'standard';
+                const safeProvider = transcribeProvider || 'groq';
 
-                const job = await api.loadDevSampleJob(safeProvider, modelSize);
+                const job = await api.loadDevSampleJob(safeProvider, safeMode);
 
                 // IMPORTANT: Ensure UI enters "Model Chosen" state so Step 2/3 are visible
                 setHasChosenModel(true);
@@ -443,24 +430,14 @@ export function UploadSection() {
                                     {!isProcessing && (
                                         <>
                                             {(() => {
-                                                // Check if we have a completed job that matches current provider
+                                                // Check if we have a completed job that matches current tier
                                                 const jobCompleted = selectedJob?.status === 'completed';
                                                 const jobProvider = selectedJob?.result_data?.transcribe_provider;
                                                 const jobModel = selectedJob?.result_data?.model_size;
 
-                                                let isMatch = jobCompleted && jobProvider === transcribeProvider;
-
-                                                // Strict check for Groq models
-                                                if (isMatch && jobProvider === 'groq') {
-                                                    const isEnhancedJob = jobModel === 'enhanced' || (jobModel && jobModel.includes('turbo'));
-                                                    const isUltimateJob = jobModel === 'ultimate' || (jobModel && !jobModel.includes('turbo') && !jobModel.includes('enhanced'));
-
-                                                    if (transcribeMode === 'enhanced') {
-                                                        isMatch = Boolean(isEnhancedJob);
-                                                    } else if (transcribeMode === 'ultimate') {
-                                                        isMatch = Boolean(isUltimateJob);
-                                                    }
-                                                }
+                                                const jobTier = resolveTierFromJob(jobProvider, jobModel);
+                                                const selectedTier = transcribeMode || 'standard';
+                                                const isMatch = Boolean(jobCompleted && jobTier === selectedTier);
 
                                                 if (isMatch) {
                                                     // MATCH: Show "View Results"

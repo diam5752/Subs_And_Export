@@ -31,6 +31,7 @@ from backend.app.core import config
 from backend.app.core.database import Database
 from backend.app.core.env import get_app_env, is_dev_env
 from backend.app.core.gcs import generate_signed_download_url, get_gcs_settings
+from backend.app.core.ratelimit import get_client_ip, limiter_static
 
 app = FastAPI(
     title="Greek Sub Publisher API",
@@ -167,9 +168,40 @@ app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=proxy_trusted_hosts)
 DATA_DIR = config.PROJECT_ROOT / "data"
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
+# LRU cache for signed URLs (5 min TTL, shorter than signed URL expiry)
+from functools import lru_cache
+import time as time_module
+
+_signed_url_cache: dict[str, tuple[str, float]] = {}
+_SIGNED_URL_CACHE_TTL = 300  # 5 minutes
+
+def _get_cached_signed_url(object_name: str, gcs_settings) -> str:
+    """Get signed URL from cache or generate new one."""
+    now = time_module.time()
+    if object_name in _signed_url_cache:
+        url, expires = _signed_url_cache[object_name]
+        if now < expires:
+            return url
+    
+    # Generate new signed URL
+    url = generate_signed_download_url(settings=gcs_settings, object_name=object_name)
+    _signed_url_cache[object_name] = (url, now + _SIGNED_URL_CACHE_TTL)
+    
+    # Cleanup old entries (simple garbage collection)
+    if len(_signed_url_cache) > 1000:
+        expired = [k for k, (_, exp) in _signed_url_cache.items() if now >= exp]
+        for k in expired:
+            del _signed_url_cache[k]
+    
+    return url
+
 
 @app.get("/static/{file_path:path}")
-async def serve_static(file_path: str):
+async def serve_static(request: Request, file_path: str):
+    # Rate limit static file access to prevent egress abuse
+    ip = get_client_ip(request)
+    limiter_static.check(ip)
+    
     full_path = DATA_DIR / file_path
 
     # Security: Prevent path traversal
@@ -189,7 +221,7 @@ async def serve_static(file_path: str):
     if gcs_settings:
         object_name = f"{gcs_settings.static_prefix}/{file_path.strip('/')}"
         try:
-            signed_url = generate_signed_download_url(settings=gcs_settings, object_name=object_name)
+            signed_url = _get_cached_signed_url(object_name, gcs_settings)
             return RedirectResponse(url=signed_url, status_code=302)
         except Exception:
             pass

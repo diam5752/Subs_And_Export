@@ -10,6 +10,7 @@ from ..core.oauth_state import OAuthStateStore
 from ..services.history import HistoryStore
 from ..services.jobs import JobStore
 from ..services.points import PointsStore
+from ..services.usage_ledger import UsageLedgerStore
 
 # Simple OAuth2 scheme (Password flow) for Swagger UI
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
@@ -39,6 +40,12 @@ def get_gcs_upload_store(db: Database = Depends(get_db)) -> GcsUploadStore:
 
 def get_points_store(db: Database = Depends(get_db)) -> PointsStore:
     return PointsStore(db=db)
+
+def get_usage_ledger_store(
+    db: Database = Depends(get_db),
+    points_store: PointsStore = Depends(get_points_store),
+) -> UsageLedgerStore:
+    return UsageLedgerStore(db=db, points_store=points_store)
 
 async def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],

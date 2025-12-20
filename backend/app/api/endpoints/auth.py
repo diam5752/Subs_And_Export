@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from ...core.auth import SessionStore, User, UserStore
 from ...core.errors import sanitize_error
 from ...core.oauth_state import OAuthStateStore
-from ...core.ratelimit import limiter_auth_change, limiter_login, limiter_register
+from ...core.ratelimit import limiter_auth_change, limiter_login, limiter_register, limiter_signup_daily
 from ...services.history import HistoryStore
 from ...services.jobs import JobStore
 from ...services.points import PointsStore
@@ -42,7 +42,7 @@ class UserResponse(BaseModel):
     name: str
     provider: str
 
-@router.post("/register", response_model=UserResponse, dependencies=[Depends(limiter_register)])
+@router.post("/register", response_model=UserResponse, dependencies=[Depends(limiter_register), Depends(limiter_signup_daily)])
 def register(
     user_in: UserCreate,
     user_store: UserStore = Depends(get_user_store)

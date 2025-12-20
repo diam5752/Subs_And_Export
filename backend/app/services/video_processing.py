@@ -21,9 +21,9 @@ from backend.app.services import (
 )
 from backend.app.services.styles import SubtitleStyle
 from backend.app.services.transcription.groq_cloud import GroqTranscriber
-from backend.app.services.transcription.local_whisper import LocalWhisperTranscriber
 from backend.app.services.transcription.openai_cloud import OpenAITranscriber
-from backend.app.services.transcription.standard_whisper import StandardTranscriber
+from backend.app.services.usage_ledger import ChargePlan, UsageLedgerStore
+from backend.app.services import pricing
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +76,8 @@ def normalize_and_stub_subtitles(
     audio_copy: bool | None = None,
     db: Database | None = None,
     job_id: str | None = None,
+    ledger_store: UsageLedgerStore | None = None,
+    charge_plan: ChargePlan | None = None,
 ) -> Path | tuple[Path, subtitles.SocialCopy]:
 
     if not input_path.exists():
@@ -102,35 +104,16 @@ def normalize_and_stub_subtitles(
     )
 
     # Map abstract model names to concrete models & providers
-    selected_model = model_size or config.WHISPER_MODEL
-    provider_name = transcribe_provider
+    tier = pricing.resolve_tier_from_model(model_size)
+    provider_name = transcribe_provider.strip().lower() if transcribe_provider else None
+    if provider_name:
+        expected_provider = config.TRANSCRIBE_TIER_PROVIDER[tier]
+        if provider_name != expected_provider:
+            raise ValueError("transcribe_provider does not match selected tier")
+    else:
+        provider_name = config.TRANSCRIBE_TIER_PROVIDER[tier]
 
-    # Explicit Overrides for tiered models
-    if model_size == "enhanced":
-        selected_model = config.GROQ_MODEL_ENHANCED
-        provider_name = "groq"
-    elif model_size == "ultimate":
-        selected_model = config.GROQ_MODEL_ULTIMATE
-        provider_name = "groq"
-
-    # Determine Provider Strategy if not set
-    if not provider_name:
-        if subtitles.should_use_openai(selected_model):
-            provider_name = "openai"
-        elif "groq" in selected_model.lower():
-            provider_name = "groq"
-        else:
-            provider_name = "local"
-
-    # Sanity check: If provider is Groq, ensure model is valid Groq model.
-    if provider_name == "groq":
-        valid_groq = [config.GROQ_MODEL_ENHANCED, config.GROQ_MODEL_ULTIMATE]
-        if selected_model not in valid_groq:
-            selected_model = config.GROQ_MODEL_ENHANCED
-    elif provider_name == "local" and selected_model == "turbo":
-        selected_model = config.WHISPER_MODEL
-    elif provider_name == "whispercpp" and selected_model == "turbo":
-        selected_model = "large-v3-turbo"
+    selected_model = config.TRANSCRIBE_TIER_MODEL[tier]
 
     # Instantiate Transcriber (The Ear)
     transcriber = None
@@ -138,14 +121,6 @@ def normalize_and_stub_subtitles(
         transcriber = GroqTranscriber()
     elif provider_name == "openai":
         transcriber = OpenAITranscriber(api_key=openai_api_key)
-    elif provider_name == "local":
-        transcriber = LocalWhisperTranscriber(
-            device=device,
-            compute_type=compute_type,
-            beam_size=beam_size or 5,
-        )
-    elif provider_name == "whispercpp":
-        transcriber = StandardTranscriber()
     else:
         raise ValueError(f"Provider '{provider_name}' is not supported.")
 
@@ -219,6 +194,27 @@ def normalize_and_stub_subtitles(
                     **transcribe_kwargs
                 )
 
+            if ledger_store and charge_plan and charge_plan.transcription:
+                duration_seconds = total_duration if total_duration > 0 else 0.0
+                tier = charge_plan.transcription.tier or config.DEFAULT_TRANSCRIBE_TIER
+                credits = pricing.credits_for_minutes(
+                    tier=tier,
+                    duration_seconds=duration_seconds,
+                    min_credits=charge_plan.transcription.min_credits,
+                )
+                cost_usd = pricing.stt_cost_usd(tier=tier, duration_seconds=duration_seconds)
+                units = {
+                    "audio_seconds": duration_seconds,
+                    "model": selected_model,
+                    "provider": provider_name,
+                }
+                ledger_store.finalize(
+                    charge_plan.transcription,
+                    credits_charged=credits,
+                    cost_usd=cost_usd,
+                    units=units,
+                )
+
             if check_cancelled: check_cancelled()
 
             # Step 3: Style (ASS Generation)
@@ -251,18 +247,37 @@ def normalize_and_stub_subtitles(
                 if generate_social_copy:
                     if progress_callback: progress_callback("Social Copy...", 70.0)
                     if use_llm_social_copy:
-                        def _run_social_with_session(text, model, temp, api_key):
+                        def _run_social_with_session(text, model, temp, api_key, reservation):
                             if db:
                                 with db.session() as session:
                                     return subtitles.build_social_copy_llm(
-                                        text, model=model, temperature=temp, api_key=api_key, session=session, job_id=job_id
+                                        text,
+                                        model=model,
+                                        temperature=temp,
+                                        api_key=api_key,
+                                        session=session,
+                                        job_id=job_id,
+                                        ledger_store=ledger_store,
+                                        charge_reservation=reservation,
                                     )
                             else:
                                  return subtitles.build_social_copy_llm(
-                                    text, model=model, temperature=temp, api_key=api_key
+                                    text,
+                                    model=model,
+                                    temperature=temp,
+                                    api_key=api_key,
+                                    ledger_store=ledger_store,
+                                    charge_reservation=reservation,
                                  )
 
-                        future_social = executor.submit(_run_social_with_session, transcript_text, llm_model, llm_temperature, llm_api_key)
+                        future_social = executor.submit(
+                            _run_social_with_session,
+                            transcript_text,
+                            llm_model,
+                            llm_temperature,
+                            llm_api_key,
+                            charge_plan.social_copy if charge_plan else None,
+                        )
                     else:
                         social_copy = subtitles.build_social_copy(transcript_text)
 

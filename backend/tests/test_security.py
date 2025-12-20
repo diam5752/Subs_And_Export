@@ -41,7 +41,7 @@ def test_upload_invalid_extension(client, user_auth_headers):
         "/videos/process",
         headers=user_auth_headers,
         files=files,
-        data={"transcribe_model": "medium"}
+        data={"transcribe_model": "standard"}
     )
 
     # Expect 400 Bad Request
@@ -63,7 +63,7 @@ def test_upload_path_traversal_attempt(client, user_auth_headers):
         "/videos/process",
         headers=user_auth_headers,
         files=files,
-        data={"transcribe_model": "medium"}
+        data={"transcribe_model": "standard"}
     )
 
     # Should succeed (because suffix is .mp4 and name is ignored) -> 200 OK

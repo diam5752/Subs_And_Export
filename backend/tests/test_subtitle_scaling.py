@@ -17,11 +17,13 @@ def test_ass_generation_forces_1080p_playres():
          patch("backend.app.services.video_processing.Path.exists", return_value=True), \
          patch("backend.app.services.video_processing.probe_media") as mock_probe, \
          patch("backend.app.services.video_processing.subtitles.extract_audio") as mock_extract, \
+         patch("backend.app.services.video_processing.GroqTranscriber") as mock_transcriber, \
          patch("backend.app.services.video_processing._run_ffmpeg_with_subs"):
 
         # Setup mocks
         mock_probe.return_value = MagicMock(duration_s=10, audio_codec="aac")
         mock_extract.return_value = Path("/tmp/dummy_audio.wav")
+        mock_transcriber.return_value.transcribe.return_value = (Path("/tmp/dummy.srt"), [])
 
         # Dummy inputs
         input_path = Path("/tmp/input.mp4")
@@ -34,7 +36,7 @@ def test_ass_generation_forces_1080p_playres():
             artifact_dir=artifact_dir,
             output_width=720,
             output_height=1280,
-            transcribe_provider="local",
+            transcribe_provider="groq",
             check_cancelled=lambda: None
         )
 

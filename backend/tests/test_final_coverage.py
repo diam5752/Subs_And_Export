@@ -154,14 +154,19 @@ def test_process_video_content_length_invalid(client: TestClient, user_auth_head
         def spend(self, *_args, **_kwargs):
             return 999
 
+    class MockLedgerStore:
+        pass
+
     app_overrides = {
         deps.get_current_user: mock_user,
         deps.get_job_store: lambda: MockStore(),
         deps.get_points_store: lambda: MockPointsStore(),
+        deps.get_usage_ledger_store: lambda: MockLedgerStore(),
     }
 
     # Mock save to avoid disk I/O
     monkeypatch.setattr("backend.app.api.endpoints.videos._save_upload_with_limit", lambda *args: None)
+    monkeypatch.setattr("backend.app.api.endpoints.videos.reserve_processing_charges", lambda *args, **kwargs: (None, 999))
     # Mock background task add to avoid running processing
     monkeypatch.setattr("starlette.background.BackgroundTasks.add_task", lambda *args, **kwargs: None)
 

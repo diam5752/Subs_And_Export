@@ -73,8 +73,8 @@ jest.mock('@/components/ProcessView', () => ({
             <div data-testid="process-view">
                 <button onClick={() => onFileSelect(new File(['dummy'], 'test.mp4', { type: 'video/mp4' }))}>Select File</button>
                 <button onClick={() => onStartProcessing({
-                    transcribeMode: 'fast',
-                    transcribeProvider: 'local',
+                    transcribeMode: 'standard',
+                    transcribeProvider: 'groq',
                     outputQuality: 'balanced',
                     outputResolution: '1080x1920',
                     width: 1920,
@@ -84,8 +84,8 @@ jest.mock('@/components/ProcessView', () => ({
                     max_subtitle_lines: 2
                 })}>Start Process</button>
                 <button onClick={() => onReprocessJob('job1', {
-                    transcribeMode: 'fast',
-                    transcribeProvider: 'local',
+                    transcribeMode: 'standard',
+                    transcribeProvider: 'groq',
                     outputQuality: 'balanced',
                     outputResolution: '1080x1920',
                     width: 1920,

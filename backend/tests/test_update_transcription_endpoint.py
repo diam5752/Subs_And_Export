@@ -66,7 +66,7 @@ def test_update_transcription_overwrites_job_artifacts(monkeypatch, tmp_path: Pa
     from backend.main import app
 
     with TestClient(app) as client:
-        headers = _auth_header(client, "update-transcript@example.com")
+        headers = _auth_header(client, f"update-transcript-{uuid.uuid4().hex}@example.com")
 
         created = client.post("/dev/sample-job", headers=headers)
         assert created.status_code == 200, created.text

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -15,7 +14,7 @@ from ...core.errors import sanitize_message
 from ...core.gcs import delete_object, download_object, get_gcs_settings, upload_object
 from ...services.history import HistoryStore
 from ...services.jobs import JobStore
-from ...services.points import PointsStore, make_idempotency_id
+from ...services.usage_ledger import ChargePlan, UsageLedgerStore
 from ...services.ffmpeg_utils import probe_media
 from ...services.video_processing import normalize_and_stub_subtitles
 from .file_utils import MAX_UPLOAD_BYTES, data_roots, relpath_safe
@@ -24,59 +23,30 @@ from .settings import ProcessingSettings
 logger = logging.getLogger(__name__)
 
 
-@dataclass(frozen=True)
-class ChargeContext:
-    """Context for tracking charges that may need refunds."""
-
-    user_id: str
-    cost: int
-    reason: str
-    meta: dict[str, Any] | None
-
-
 def refund_charge_best_effort(
-    points_store: PointsStore | None,
-    charge: ChargeContext | None,
+    ledger_store: UsageLedgerStore | None,
+    charge_plan: ChargePlan | None,
     *,
     status: str,
     error: str | None = None,
 ) -> None:
-    """Best-effort refund of a charge. Never raises."""
-    if not points_store or not charge:
-        return
-    if charge.cost <= 0:
+    """Best-effort refund of reserved charges. Never raises."""
+    if not ledger_store or not charge_plan:
         return
 
-    meta: dict[str, Any] = dict(charge.meta or {})
-    meta["refunded_for_status"] = status
-    if error:
-        meta["error"] = error[:500]
-
-    try:
-        charge_id = meta.get("charge_id") or meta.get("job_id")
-        if isinstance(charge_id, str) and charge_id:
-            tx_id = make_idempotency_id("refund", charge.user_id, charge.reason, charge_id, str(charge.cost))
-            points_store.refund_once(
-                charge.user_id,
-                charge.cost,
-                original_reason=charge.reason,
-                transaction_id=tx_id,
-                meta=meta,
+    reservations = [charge_plan.transcription, charge_plan.social_copy]
+    for reservation in reservations:
+        if not reservation:
+            continue
+        try:
+            ledger_store.refund_if_reserved(reservation, status=status, error=error)
+        except Exception:
+            logger.exception(
+                "Failed to refund reserved credits (user_id=%s action=%s status=%s)",
+                reservation.user_id,
+                reservation.action,
+                status,
             )
-        else:
-            points_store.refund(
-                charge.user_id,
-                charge.cost,
-                original_reason=charge.reason,
-                meta=meta,
-            )
-    except Exception:
-        logger.exception(
-            "Failed to refund points (user_id=%s reason=%s status=%s)",
-            charge.user_id,
-            charge.reason,
-            status,
-        )
 
 
 def record_event_safe(
@@ -107,8 +77,8 @@ def run_video_processing(
     original_name: str | None = None,
     source_gcs_object_name: str | None = None,
     *,
-    points_store: PointsStore | None = None,
-    charge: ChargeContext | None = None,
+    ledger_store: UsageLedgerStore | None = None,
+    charge_plan: ChargePlan | None = None,
     db: Database | None = None,
 ) -> None:
     """Background task to run the heavy video processing."""
@@ -144,8 +114,10 @@ def run_video_processing(
         data_dir, _, _ = data_roots()
 
         # Map settings to internal params
-        model_size = settings.openai_model or settings.transcribe_model
-        provider = settings.transcribe_provider or "local"
+        model_size = settings.transcribe_model
+        provider = settings.transcribe_provider or config.TRANSCRIBE_TIER_PROVIDER.get(
+            settings.transcribe_model, config.TRANSCRIBE_TIER_PROVIDER[config.DEFAULT_TRANSCRIBE_TIER]
+        )
         crf_map = {"low size": 28, "balanced": 20, "high quality": 12}
         video_crf = crf_map.get(settings.video_quality.lower(), 12)
         target_width = settings.target_width
@@ -181,6 +153,8 @@ def run_video_processing(
             transcription_only=True,
             db=db,
             job_id=job_id,
+            ledger_store=ledger_store,
+            charge_plan=charge_plan,
         )
 
         # Result unpacking
@@ -273,7 +247,7 @@ def run_video_processing(
             f"Processing cancelled for {original_name or input_path.name}",
             {"job_id": job_id, "error": sanitize_message(str(exc))},
         )
-        refund_charge_best_effort(points_store, charge, status="cancelled", error=sanitize_message(str(exc)))
+        refund_charge_best_effort(ledger_store, charge_plan, status="cancelled", error=sanitize_message(str(exc)))
     except Exception as exc:
         safe_msg = sanitize_message(str(exc))
         job_store.update_job(job_id, status="failed", message=safe_msg)
@@ -284,7 +258,7 @@ def run_video_processing(
             f"Processing failed for {original_name or input_path.name}",
             {"job_id": job_id, "error": safe_msg},
         )
-        refund_charge_best_effort(points_store, charge, status="failed", error=safe_msg)
+        refund_charge_best_effort(ledger_store, charge_plan, status="failed", error=safe_msg)
 
 
 def run_gcs_video_processing(
@@ -299,20 +273,20 @@ def run_gcs_video_processing(
     history_store: HistoryStore | None = None,
     user: User | None = None,
     original_name: str | None = None,
-    points_store: PointsStore | None = None,
-    charge: ChargeContext | None = None,
+    ledger_store: UsageLedgerStore | None = None,
+    charge_plan: ChargePlan | None = None,
 ) -> None:
     """Background task to process a video from GCS."""
     gcs_settings = get_gcs_settings()
     if not gcs_settings:
         job_store.update_job(job_id, status="failed", message="GCS is not configured")
-        refund_charge_best_effort(points_store, charge, status="failed", error="GCS is not configured")
+        refund_charge_best_effort(ledger_store, charge_plan, status="failed", error="GCS is not configured")
         return
 
     try:
         current = job_store.get_job(job_id)
         if current and current.status == "cancelled":
-            refund_charge_best_effort(points_store, charge, status="cancelled", error="Job cancelled by user")
+            refund_charge_best_effort(ledger_store, charge_plan, status="cancelled", error="Job cancelled by user")
             return
 
         job_store.update_job(job_id, status="processing", progress=0, message="Downloading upload…")
@@ -344,8 +318,8 @@ def run_gcs_video_processing(
             user,
             original_name,
             source_gcs_object_name=gcs_object_name,
-            points_store=points_store,
-            charge=charge,
+            ledger_store=ledger_store,
+            charge_plan=charge_plan,
         )
 
         if not gcs_settings.keep_uploads:
@@ -366,4 +340,4 @@ def run_gcs_video_processing(
             f"Processing failed for {original_name or gcs_object_name}",
             {"job_id": job_id, "error": safe_msg},
         )
-        refund_charge_best_effort(points_store, charge, status="failed", error=safe_msg)
+        refund_charge_best_effort(ledger_store, charge_plan, status="failed", error=safe_msg)

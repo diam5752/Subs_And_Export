@@ -14,7 +14,8 @@ ALLOWED_VIDEO_CONTENT_TYPES = {
     "video/x-matroska",
     "application/octet-stream",
 }
-ALLOWED_TRANSCRIBE_PROVIDERS = {"local", "openai", "groq", "whispercpp"}
+ALLOWED_TRANSCRIBE_PROVIDERS = {"groq"}
+ALLOWED_TRANSCRIBE_TIERS = {"standard", "pro"}
 ALLOWED_VIDEO_QUALITIES = {"low size", "balanced", "high quality"}
 ALLOWED_HIGHLIGHT_STYLES = {"static", "karaoke", "pop", "active-graphics", "active"}
 MODEL_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/\\-]{0,63}$")
@@ -25,6 +26,14 @@ def validate_transcribe_provider(provider: str) -> str:
     normalized = provider.strip().lower()
     if normalized not in ALLOWED_TRANSCRIBE_PROVIDERS:
         raise HTTPException(status_code=400, detail="Invalid transcribe provider")
+    return normalized
+
+
+def validate_transcribe_tier(value: str) -> str:
+    """Validate transcribe tier selection."""
+    normalized = value.strip().lower()
+    if normalized not in ALLOWED_TRANSCRIBE_TIERS:
+        raise HTTPException(status_code=400, detail="Invalid transcribe tier")
     return normalized
 
 

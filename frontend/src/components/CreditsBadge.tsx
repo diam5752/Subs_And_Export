@@ -7,6 +7,7 @@ import {
     FACT_CHECK_COST,
     PROCESS_VIDEO_DEFAULT_COST,
     PROCESS_VIDEO_MODEL_COSTS,
+    SOCIAL_COPY_COST,
     formatPoints,
 } from '@/lib/points';
 
@@ -65,12 +66,16 @@ export function CreditsBadge() {
 
                     <div className="space-y-1 text-[11px] text-[var(--muted)]">
                         <div className="flex items-center justify-between gap-4">
-                            <span>{t('creditsCostProcess') || 'Video processing (default)'}</span>
+                            <span>{t('creditsCostStandard') || 'Video processing (Standard)'}</span>
                             <span className="font-mono text-[var(--foreground)]">{PROCESS_VIDEO_DEFAULT_COST}</span>
                         </div>
                         <div className="flex items-center justify-between gap-4">
-                            <span>{t('creditsCostUltimate') || 'Ultimate model'}</span>
-                            <span className="font-mono text-[var(--foreground)]">{PROCESS_VIDEO_MODEL_COSTS.ultimate}</span>
+                            <span>{t('creditsCostPro') || 'Video processing (Pro)'}</span>
+                            <span className="font-mono text-[var(--foreground)]">{PROCESS_VIDEO_MODEL_COSTS.pro}</span>
+                        </div>
+                        <div className="flex items-center justify-between gap-4">
+                            <span>{t('creditsCostSocialCopy') || 'Social copy'}</span>
+                            <span className="font-mono text-[var(--foreground)]">{SOCIAL_COPY_COST}</span>
                         </div>
                         <div className="flex items-center justify-between gap-4">
                             <span>{t('creditsCostFactCheck') || 'Fact check'}</span>
@@ -79,11 +84,10 @@ export function CreditsBadge() {
                     </div>
 
                     <div className="text-[10px] text-[var(--muted)]">
-                        {t('creditsHint') || 'Charges apply per action and are blocked if balance is insufficient.'}
+                        {t('creditsHint') || 'Charges scale with usage and apply minimums when balance is insufficient.'}
                     </div>
                 </div>
             </InfoTooltip>
         </div>
     );
 }
-

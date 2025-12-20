@@ -222,8 +222,8 @@ class ApiClient {
     }): Promise<JobResponse> {
         const formData = new FormData();
         formData.append('file', file);
-        formData.append('transcribe_model', settings.transcribe_model || 'medium');
-        formData.append('transcribe_provider', settings.transcribe_provider || 'local');
+        formData.append('transcribe_model', settings.transcribe_model || 'standard');
+        formData.append('transcribe_provider', settings.transcribe_provider || 'groq');
         formData.append('openai_model', settings.openai_model || '');
         formData.append('video_quality', settings.video_quality || 'balanced');
         formData.append('video_resolution', settings.video_resolution || '');
@@ -312,8 +312,8 @@ class ApiClient {
             method: 'POST',
             body: JSON.stringify({
                 upload_id: uploadId,
-                transcribe_model: settings.transcribe_model || 'medium',
-                transcribe_provider: settings.transcribe_provider || 'local',
+                transcribe_model: settings.transcribe_model || 'standard',
+                transcribe_provider: settings.transcribe_provider || 'groq',
                 openai_model: settings.openai_model || '',
                 video_quality: settings.video_quality || 'balanced',
                 video_resolution: settings.video_resolution || '',
@@ -471,8 +471,8 @@ class ApiClient {
         return this.request<JobResponse>(`/videos/jobs/${jobId}/reprocess`, {
             method: 'POST',
             body: JSON.stringify({
-                transcribe_model: settings.transcribe_model || 'medium',
-                transcribe_provider: settings.transcribe_provider || 'local',
+                transcribe_model: settings.transcribe_model || 'standard',
+                transcribe_provider: settings.transcribe_provider || 'groq',
                 openai_model: settings.openai_model || '',
                 video_quality: settings.video_quality || 'balanced',
                 video_resolution: settings.video_resolution || '',

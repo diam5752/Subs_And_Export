@@ -18,7 +18,7 @@ def test_concurrent_jobs_limit_process(client, user_auth_headers, monkeypatch):
         "/videos/process",
         files=files,
         headers=user_auth_headers,
-        data={"transcribe_model": "tiny"}
+        data={"transcribe_model": "standard"}
     )
 
     assert response.status_code == 429, f"Expected 429, got {response.status_code}: {response.text}"
@@ -40,7 +40,7 @@ def test_video_duration_limit(client, user_auth_headers, monkeypatch):
         "/videos/process",
         files=files,
         headers=user_auth_headers,
-        data={"transcribe_model": "tiny"}
+        data={"transcribe_model": "standard"}
     )
 
     assert response.status_code == 400, f"Expected 400, got {response.status_code}: {response.text}"
@@ -65,7 +65,7 @@ def test_allowed_video(client, user_auth_headers, monkeypatch):
         "/videos/process",
         files=files,
         headers=user_auth_headers,
-        data={"transcribe_model": "tiny"}
+        data={"transcribe_model": "standard"}
     )
 
     assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"

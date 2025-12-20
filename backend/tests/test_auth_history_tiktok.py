@@ -1,5 +1,6 @@
 
 import pytest
+import uuid
 
 from backend.app.core import auth, database
 from backend.app.db.models import DbUser
@@ -20,21 +21,22 @@ class DummyResponse:
 
 
 def test_local_register_and_auth(tmp_path):
-    db = database.Database(tmp_path / "app.db")
+    db = database.Database()
     store = auth.UserStore(db=db)
-    user = store.register_local_user("Test@Example.com", "StrongerPass123", "Tester")
-    assert user.email == "test@example.com"
-    authed = store.authenticate_local("test@example.com", "StrongerPass123")
-    assert authed and authed.email == "test@example.com"
+    email = f"Test_{uuid.uuid4().hex}@Example.com"
+    user = store.register_local_user(email, "StrongerPass123", "Tester")
+    assert user.email == email.lower()
+    authed = store.authenticate_local(email.lower(), "StrongerPass123")
+    assert authed and authed.email == email.lower()
     with pytest.raises(ValueError):
-        store.register_local_user("test@example.com", "StrongerPass123", "Tester")
+        store.register_local_user(email.lower(), "StrongerPass123", "Tester")
 
 
 def test_session_roundtrip(tmp_path):
-    db = database.Database(tmp_path / "app.db")
+    db = database.Database()
     store = auth.UserStore(db=db)
     sessions = auth.SessionStore(db=db)
-    user = store.register_local_user("persist@example.com", "Persist123456", "Persist")
+    user = store.register_local_user(f"persist_{uuid.uuid4().hex}@example.com", "Persist123456", "Persist")
     token = sessions.issue_session(user, user_agent="pytest")
     assert isinstance(token, str)
     restored = sessions.authenticate(token)
@@ -79,9 +81,9 @@ def test_google_oauth_config_prefers_frontend_hint(monkeypatch):
 
 
 def test_history_store_roundtrip(tmp_path):
-    db = database.Database(tmp_path / "app.db")
+    db = database.Database()
     store = history.HistoryStore(db=db)
-    user = auth.User(id="u1", email="a@b.com", name="A", provider="local")
+    user = auth.User(id=uuid.uuid4().hex, email=f"hist_{uuid.uuid4().hex}@b.com", name="A", provider="local")
     store.record_event(user, "process", "ran", {"ok": True})
     events = store.recent_for_user(user, limit=5)
     assert len(events) == 1
@@ -195,7 +197,7 @@ def test_upload_video_missing_file(tmp_path):
 
 
 def test_user_store_validation_and_google_update(tmp_path):
-    db = database.Database(tmp_path / "app.db")
+    db = database.Database()
     store = auth.UserStore(db=db)
 
     with pytest.raises(ValueError):
@@ -205,7 +207,7 @@ def test_user_store_validation_and_google_update(tmp_path):
 
 
 def test_password_policy_and_legacy_hash(tmp_path):
-    db = database.Database(tmp_path / "app.db")
+    db = database.Database()
     store = auth.UserStore(db=db)
 
     with pytest.raises(ValueError):
@@ -213,18 +215,20 @@ def test_password_policy_and_legacy_hash(tmp_path):
     with pytest.raises(ValueError):
         store.register_local_user("weak2@example.com", "alllettersNOdigits", "Weak")
 
-    strong = store.register_local_user("strong@example.com", "SafePass12345", "Strong")
+    strong_email = f"strong_{uuid.uuid4().hex}@example.com"
+    strong = store.register_local_user(strong_email, "SafePass12345", "Strong")
     assert strong.password_hash.startswith("scrypt$")
-    assert store.authenticate_local("strong@example.com", "SafePass12345")
+    assert store.authenticate_local(strong_email, "SafePass12345")
 
     # Legacy SHA-based hashes remain compatible for existing records
     legacy_salt = "abc123ef"
     legacy_hash = auth._hash_password_legacy("OldPassword9", legacy_salt)
+    legacy_email = f"legacy_{uuid.uuid4().hex}@example.com"
     with store.db.session() as session:
         session.add(
             DbUser(
-                id="legacy1",
-                email="legacy@example.com",
+                id=f"legacy-{uuid.uuid4().hex}",
+                email=legacy_email,
                 name="Legacy",
                 provider="local",
                 password_hash=legacy_hash,
@@ -232,24 +236,25 @@ def test_password_policy_and_legacy_hash(tmp_path):
                 created_at=None,
             )
         )
-    assert store.authenticate_local("legacy@example.com", "OldPassword9")
+    assert store.authenticate_local(legacy_email, "OldPassword9")
 
-    first = store.upsert_google_user("g@example.com", "G Name", "sub1")
-    updated = store.upsert_google_user("g@example.com", "New Name", "sub2")
+    google_email = f"g_{uuid.uuid4().hex}@example.com"
+    first = store.upsert_google_user(google_email, "G Name", "sub1")
+    updated = store.upsert_google_user(google_email, "New Name", "sub2")
     assert updated.id == first.id
     assert updated.name == "New Name"
     assert updated.google_sub == "sub2"
 
     # Google users don't have passwords, so authenticate_local should fail
-    assert store.authenticate_local("g@example.com", "anything") is None
+    assert store.authenticate_local(google_email, "anything") is None
 
 
 def test_session_store_and_password_helpers(tmp_path):
-    db = database.Database(tmp_path / "app.db")
+    db = database.Database()
     store = auth.UserStore(db=db)
     sessions = auth.SessionStore(db=db)
 
-    user = store.register_local_user("pwcheck@example.com", "StrongPW456789", "Pw")
+    user = store.register_local_user(f"pwcheck_{uuid.uuid4().hex}@example.com", "StrongPW456789", "Pw")
     token = sessions.issue_session(user)
     assert sessions.authenticate(token)
     assert sessions.authenticate("") is None

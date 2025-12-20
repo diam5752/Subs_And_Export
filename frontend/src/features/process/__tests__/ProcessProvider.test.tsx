@@ -17,8 +17,8 @@ function StartHarness() {
       <button
         type="button"
         onClick={() => {
-          setTranscribeProvider('whispercpp');
-          setTranscribeMode('turbo');
+          setTranscribeProvider('groq');
+          setTranscribeMode('standard');
           setHasChosenModel(true);
         }}
       >
@@ -37,8 +37,8 @@ function StepHarness() {
       <button
         type="button"
         onClick={() => {
-          setTranscribeProvider('whispercpp');
-          setTranscribeMode('turbo');
+          setTranscribeProvider('groq');
+          setTranscribeMode('standard');
           setHasChosenModel(true);
           setOverrideStep(2);
         }}
@@ -129,8 +129,8 @@ describe('ProcessProvider', () => {
       created_at: Date.now(),
       updated_at: Date.now(),
       result_data: {
-        transcribe_provider: 'whispercpp',
-        model_size: 'turbo',
+        transcribe_provider: 'groq',
+        model_size: 'standard',
         video_path: '/videos/test.mp4',
         artifacts_dir: '/tmp/artifacts'
       },
@@ -156,8 +156,8 @@ describe('ProcessProvider', () => {
     expect(onReprocessJob).toHaveBeenCalledWith(
       'job-1',
       expect.objectContaining({
-        transcribeProvider: 'whispercpp',
-        transcribeMode: 'turbo',
+        transcribeProvider: 'groq',
+        transcribeMode: 'standard',
       }),
     );
   });
@@ -171,8 +171,8 @@ describe('ProcessProvider', () => {
       created_at: Date.now(),
       updated_at: Date.now(),
       result_data: {
-        transcribe_provider: 'whispercpp',
-        model_size: 'turbo',
+        transcribe_provider: 'groq',
+        model_size: 'standard',
         video_path: '/videos/test.mp4',
         artifacts_dir: '/tmp/artifacts'
       },
@@ -199,8 +199,8 @@ describe('ProcessProvider', () => {
       created_at: Date.now(),
       updated_at: Date.now(),
       result_data: {
-        transcribe_provider: 'whispercpp',
-        model_size: 'turbo',
+        transcribe_provider: 'groq',
+        model_size: 'standard',
         video_path: '/videos/test.mp4',
         artifacts_dir: '/tmp/artifacts'
       },

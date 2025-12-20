@@ -1,22 +1,22 @@
 from __future__ import annotations
 
-import os
 import types
+import uuid
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
 from backend.app.api.endpoints import videos as videos_endpoints
+from backend.app.core import config
 from backend.app.core.database import Database
 from backend.app.services.jobs import JobStore
+from backend.app.services import pricing
 from backend.app.services.points import STARTING_POINTS_BALANCE, PointsStore
 
 
 def _db_from_env() -> Database:
-    db_path = os.environ.get("GSP_DATABASE_PATH")
-    assert db_path is not None
-    return Database(db_path)
+    return Database()
 
 
 def test_auth_points_endpoint_returns_starting_balance(
@@ -50,11 +50,16 @@ def test_process_video_charges_points_and_returns_balance(
         "/videos/process",
         headers=user_auth_headers,
         files={"file": ("clip.mp4", b"123", "video/mp4")},
-        data={"transcribe_model": "large"},
+        data={"transcribe_model": "standard"},
     )
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["balance"] == before - 200  # Updated cost from 500 to 200
+    expected_charge = pricing.credits_for_minutes(
+        tier="standard",
+        duration_seconds=10.0,
+        min_credits=config.CREDITS_MIN_TRANSCRIBE["standard"],
+    )
+    assert body["balance"] == before - expected_charge
 
     after = client.get("/auth/points", headers=user_auth_headers).json()["balance"]
     assert after == body["balance"]
@@ -83,11 +88,16 @@ def test_process_video_refunds_points_when_processing_fails(
         "/videos/process",
         headers=user_auth_headers,
         files={"file": ("clip.mp4", b"123", "video/mp4")},
-        data={"transcribe_model": "large"},
+        data={"transcribe_model": "standard"},
     )
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    assert body["balance"] == before - 200  # Updated cost from 500 to 200
+    expected_charge = pricing.credits_for_minutes(
+        tier="standard",
+        duration_seconds=10.0,
+        min_credits=config.CREDITS_MIN_TRANSCRIBE["standard"],
+    )
+    assert body["balance"] == before - expected_charge
 
     after = client.get("/auth/points", headers=user_auth_headers).json()["balance"]
     assert after == before
@@ -111,7 +121,7 @@ def test_process_video_rejects_on_insufficient_points(
         "/videos/process",
         headers=user_auth_headers,
         files={"file": ("clip.mp4", b"123", "video/mp4")},
-        data={"transcribe_model": "medium"},
+        data={"transcribe_model": "standard"},
     )
     assert resp.status_code == 402
     assert resp.json()["detail"] == "Insufficient points"
@@ -143,7 +153,7 @@ def test_fact_check_charges_points_and_rejects_on_insufficient_balance(
         "/videos/process",
         headers=user_auth_headers,
         files={"file": ("clip.mp4", b"123", "video/mp4")},
-        data={"transcribe_model": "medium"},
+        data={"transcribe_model": "standard"},
     )
     assert process_resp.status_code == 200, process_resp.text
     job_id = process_resp.json()["id"]
@@ -158,7 +168,13 @@ def test_fact_check_charges_points_and_rejects_on_insufficient_balance(
     before = client.get("/auth/points", headers=user_auth_headers).json()["balance"]
     fact_resp = client.post(f"/videos/jobs/{job_id}/fact-check", headers=user_auth_headers)
     assert fact_resp.status_code == 200, fact_resp.text
-    assert fact_resp.json()["balance"] == before - 100
+    expected_reserve = pricing.max_llm_credits_for_limits(
+        tier="standard",
+        max_prompt_chars=config.MAX_LLM_INPUT_CHARS,
+        max_completion_tokens=config.MAX_LLM_OUTPUT_TOKENS_FACTCHECK,
+        min_credits=config.CREDITS_MIN_FACT_CHECK["standard"],
+    )["credits"]
+    assert fact_resp.json()["balance"] == before - expected_reserve
 
     # Drain remaining points and verify 402 path.
     me = client.get("/auth/me", headers=user_auth_headers)
@@ -196,7 +212,7 @@ def test_fact_check_refunds_points_when_generation_fails(
     user_id = me.json()["id"]
 
     db = _db_from_env()
-    job_id = "job_fact_refund"
+    job_id = f"job_fact_refund_{uuid.uuid4().hex}"
     JobStore(db=db).create_job(job_id, user_id)
     JobStore(db=db).update_job(job_id, status="completed", progress=100)
     job_dir = artifacts_dir / job_id

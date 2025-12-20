@@ -13,6 +13,8 @@ from sqlalchemy.orm import Session
 from backend.app.core import config
 from backend.app.services import llm_utils
 from backend.app.services.cost import CostService
+from backend.app.services import pricing
+from backend.app.services.usage_ledger import ChargeReservation, UsageLedgerStore
 
 logger = logging.getLogger(__name__)
 
@@ -155,6 +157,8 @@ def build_social_copy_llm(
     temperature: float = 1,
     session: Session | None = None,
     job_id: str | None = None,
+    ledger_store: UsageLedgerStore | None = None,
+    charge_reservation: ChargeReservation | None = None,
 ) -> SocialCopy:
     """
     Generate professional social copy using OpenAI's GPT models.
@@ -228,6 +232,10 @@ def build_social_copy_llm(
     max_retries = 3
     last_exc = None
 
+    usage_prompt = 0
+    usage_completion = 0
+    total_cost = 0.0
+
     for attempt in range(max_retries + 1):
         response: Any | None = None
         try:
@@ -242,21 +250,27 @@ def build_social_copy_llm(
             
             # Log usage for Social Copy
             if hasattr(response, "usage"):
+                prompt_tokens = int(response.usage.prompt_tokens or 0)
+                completion_tokens = int(response.usage.completion_tokens or 0)
+                usage_prompt += prompt_tokens
+                usage_completion += completion_tokens
+
                 if session:
                     cost = CostService.track_usage(
                         session, 
                         model_name, 
-                        response.usage.prompt_tokens, 
-                        response.usage.completion_tokens, 
+                        prompt_tokens, 
+                        completion_tokens, 
                         job_id
                     )
+                    total_cost += cost
                     logger.info(
-                        f"Social Copy Token Usage: Input={response.usage.prompt_tokens}, Output={response.usage.completion_tokens}, Total={response.usage.total_tokens} | Cost: ${cost:.6f}"
+                        f"Social Copy Token Usage: Input={prompt_tokens}, Output={completion_tokens}, Total={response.usage.total_tokens} | Cost: ${cost:.6f}"
                     )
                 else:
                     # Fallback logging if no session
                     logger.warning("No DB session provided for build_social_copy_llm. Cost not tracked in DB.")
-                    logger.info(f"Social Copy Token Usage: Input={response.usage.prompt_tokens}, Output={response.usage.completion_tokens}")
+                    logger.info(f"Social Copy Token Usage: Input={prompt_tokens}, Output={completion_tokens}")
             
             content, refusal = llm_utils.extract_chat_completion_text(response)
             if refusal:
@@ -266,6 +280,34 @@ def build_social_copy_llm(
 
             cleaned_content = llm_utils.clean_json_response(content)
             parsed = json.loads(cleaned_content)
+
+            if ledger_store and charge_reservation:
+                tier = charge_reservation.tier or config.DEFAULT_TRANSCRIBE_TIER
+                credits = pricing.credits_for_tokens(
+                    tier=tier,
+                    prompt_tokens=usage_prompt,
+                    completion_tokens=usage_completion,
+                    min_credits=charge_reservation.min_credits,
+                )
+                if session and total_cost <= 0:
+                    total_cost = pricing.llm_cost_usd(
+                        session,
+                        model_name=model_name,
+                        prompt_tokens=usage_prompt,
+                        completion_tokens=usage_completion,
+                    )
+                units = {
+                    "prompt_tokens": usage_prompt,
+                    "completion_tokens": usage_completion,
+                    "total_tokens": usage_prompt + usage_completion,
+                    "model": model_name,
+                }
+                ledger_store.finalize(
+                    charge_reservation,
+                    credits_charged=credits,
+                    cost_usd=total_cost,
+                    units=units,
+                )
 
             return SocialCopy(
                 generic=SocialContent(
@@ -289,4 +331,36 @@ def build_social_copy_llm(
     # raise ValueError("Failed to generate valid social copy after retries") from last_exc
     logger.error(f"Failed to generate valid social copy after retries: {last_exc}")
     logger.warning("Falling back to deterministic social copy generation.")
+    if ledger_store and charge_reservation:
+        if usage_prompt + usage_completion > 0:
+            tier = charge_reservation.tier or config.DEFAULT_TRANSCRIBE_TIER
+            credits = pricing.credits_for_tokens(
+                tier=tier,
+                prompt_tokens=usage_prompt,
+                completion_tokens=usage_completion,
+                min_credits=charge_reservation.min_credits,
+            )
+            if session and total_cost <= 0:
+                total_cost = pricing.llm_cost_usd(
+                    session,
+                    model_name=model_name,
+                    prompt_tokens=usage_prompt,
+                    completion_tokens=usage_completion,
+                )
+            units = {
+                "prompt_tokens": usage_prompt,
+                "completion_tokens": usage_completion,
+                "total_tokens": usage_prompt + usage_completion,
+                "model": model_name,
+                "fallback": True,
+            }
+            ledger_store.finalize(
+                charge_reservation,
+                credits_charged=credits,
+                cost_usd=total_cost,
+                units=units,
+                status="failed",
+            )
+        else:
+            ledger_store.fail(charge_reservation, status="failed", error=str(last_exc))
     return build_social_copy(transcript_text)

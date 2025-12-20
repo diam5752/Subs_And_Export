@@ -9,6 +9,7 @@ from fastapi import HTTPException
 from pydantic import BaseModel
 
 from ...core import config
+from ...services import pricing
 from ...core.settings import load_app_settings
 from .validation import (
     validate_highlight_style,
@@ -18,6 +19,7 @@ from .validation import (
     validate_subtitle_position,
     validate_subtitle_size,
     validate_transcribe_provider,
+    validate_transcribe_tier,
     validate_video_quality,
 )
 
@@ -29,8 +31,8 @@ APP_SETTINGS = load_app_settings()
 class ProcessingSettings(BaseModel):
     """Settings for video processing."""
 
-    transcribe_model: str = "medium"
-    transcribe_provider: str = "local"
+    transcribe_model: str = config.DEFAULT_TRANSCRIBE_TIER
+    transcribe_provider: str = "groq"
     openai_model: str | None = None
     video_quality: str = "high quality"
     target_width: int | None = None
@@ -113,11 +115,13 @@ def build_processing_settings(
     if len(highlight_style) > 20:
         raise HTTPException(status_code=400, detail="Highlight style too long")
 
-    provider = validate_transcribe_provider(transcribe_provider)
-    model = validate_model_name(transcribe_model, allow_empty=False, field_name="transcribe_model") or "medium"
+    tier = validate_transcribe_tier(transcribe_model)
+    provider = validate_transcribe_provider(transcribe_provider) if transcribe_provider else config.TRANSCRIBE_TIER_PROVIDER[tier]
+    expected_provider = config.TRANSCRIBE_TIER_PROVIDER[tier]
+    if provider != expected_provider:
+        raise HTTPException(status_code=400, detail="transcribe_provider does not match selected tier")
+
     openai_model_value = validate_model_name(openai_model, allow_empty=True, field_name="openai_model")
-    if provider == "openai" and not openai_model_value:
-        raise HTTPException(status_code=400, detail="openai_model is required when using the openai provider")
 
     quality = validate_video_quality(video_quality)
     subtitle_position = validate_subtitle_position(subtitle_position)
@@ -133,8 +137,9 @@ def build_processing_settings(
             raise HTTPException(status_code=400, detail="Invalid subtitle color format (expected &HAABBGGRR)")
 
     target_width, target_height = parse_resolution(video_resolution)
+    llm_models = pricing.resolve_llm_models(tier)
     return ProcessingSettings(
-        transcribe_model=model,
+        transcribe_model=tier,
         transcribe_provider=provider,
         openai_model=openai_model_value,
         video_quality=quality,
@@ -150,4 +155,5 @@ def build_processing_settings(
         subtitle_size=subtitle_size,
         karaoke_enabled=karaoke_enabled,
         watermark_enabled=watermark_enabled,
+        llm_model=llm_models.social,
     )

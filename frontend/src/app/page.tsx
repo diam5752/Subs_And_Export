@@ -181,19 +181,13 @@ export default function DashboardPage() {
     setSelectedJob(null);
     setStatusMessage(t('statusUploading'));
 
-    const provider = options.transcribeProvider;
-    const selectedModel = (() => {
-      if (provider === 'openai') return 'openai/whisper-1';
-      if (provider === 'groq') return options.transcribeMode === 'ultimate' ? 'ultimate' : 'enhanced';
-      if (provider === 'local') return options.transcribeMode === 'balanced' ? 'medium' : 'turbo';
-      return 'turbo';
-    })();
+    const provider = options.transcribeProvider || 'groq';
+    const selectedModel = options.transcribeMode || 'standard';
 
     try {
       const settings = {
         transcribe_model: selectedModel,
         transcribe_provider: provider,
-        openai_model: provider === 'openai' ? selectedModel.replace('openai/', '') : undefined,
         video_quality: options.outputQuality,
         video_resolution: options.outputResolution,
         use_llm: options.useAI,
@@ -244,19 +238,13 @@ export default function DashboardPage() {
     setProgress(0);
     setStatusMessage(t('statusProcessing'));
 
-    const provider = options.transcribeProvider;
-    const selectedModel = (() => {
-      if (provider === 'openai') return 'openai/whisper-1';
-      if (provider === 'groq') return options.transcribeMode === 'ultimate' ? 'ultimate' : 'enhanced';
-      if (provider === 'local') return options.transcribeMode === 'balanced' ? 'medium' : 'turbo';
-      return 'turbo';
-    })();
+    const provider = options.transcribeProvider || 'groq';
+    const selectedModel = options.transcribeMode || 'standard';
 
     try {
       const settings = {
         transcribe_model: selectedModel,
         transcribe_provider: provider,
-        openai_model: provider === 'openai' ? selectedModel.replace('openai/', '') : undefined,
         video_quality: options.outputQuality,
         video_resolution: options.outputResolution,
         use_llm: options.useAI,

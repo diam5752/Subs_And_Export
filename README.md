@@ -90,6 +90,9 @@ Run the full backend test suite:
 make test
 ```
 
+## Docs
+- Credits and usage ledger: `docs/credits-usage.md`
+
 ## Features
 - **Auto-Subtitles**: Generates Greek subtitles using Faster-Whisper.
 - **Vertical Crop**: Intelligently crops videos for TikTok/Reels.

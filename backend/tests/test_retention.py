@@ -1,5 +1,6 @@
 
 import time
+import uuid
 
 from backend.app.db.models import DbJob, DbUser
 from backend.app.services.jobs import JobStore
@@ -9,24 +10,25 @@ def test_job_store_retention(tmp_path):
     """Unit test for JobStore filtering."""
     from backend.app.core.database import Database
 
-    # Use file DB to ensure persistence across connections
-    db_path = tmp_path / "test.db"
-    db = Database(str(db_path))
+    db = Database()
+    user_id = uuid.uuid4().hex
     with db.session() as session:
-        if not session.get(DbUser, "u1"):
-            session.add(DbUser(id="u1", email="test@test.com", name="Test User", provider="local"))
+        if not session.get(DbUser, user_id):
+            session.add(DbUser(id=user_id, email=f"{user_id}@test.com", name="Test User", provider="local"))
 
     store = JobStore(db)
 
     # Create jobs
-    store.create_job("recent", "u1")
-    store.create_job("old", "u1")
+    recent_id = f"recent-{uuid.uuid4().hex}"
+    old_id = f"old-{uuid.uuid4().hex}"
+    store.create_job(recent_id, user_id)
+    store.create_job(old_id, user_id)
 
     # Manually age "old"
     now = int(time.time())
     old_time = now - (31 * 24 * 3600)
     with db.session() as session:
-        job = session.get(DbJob, "old")
+        job = session.get(DbJob, old_id)
         assert job is not None
         job.created_at = old_time
 
@@ -37,7 +39,7 @@ def test_job_store_retention(tmp_path):
     # Assert
     # Note: list_jobs_created_before returns list of Job objects
     assert len(old_jobs) == 1
-    assert old_jobs[0].id == "old"
+    assert old_jobs[0].id == old_id
 
 def test_cleanup_api_integration(client, user_auth_headers):
     """Full integration test mocking the DB state."""
@@ -50,9 +52,12 @@ def test_cleanup_api_integration(client, user_auth_headers):
     assert resp.status_code == 200
     job_id = resp.json()["id"]
 
+    me = client.get("/auth/me", headers=user_auth_headers)
+    assert me.status_code == 200
+    admin_email = me.json()["email"]
+
     # Call cleanup with days=-1 (cutoff = NOW + 24h) to delete everything
-    # We must patch GSP_ADMIN_EMAILS to allow the test user (test@example.com)
-    with patch.dict(os.environ, {"GSP_ADMIN_EMAILS": "test@example.com"}):
+    with patch.dict(os.environ, {"GSP_ADMIN_EMAILS": admin_email}):
         cleanup_resp = client.post("/videos/jobs/cleanup?days=-1", headers=user_auth_headers)
         assert cleanup_resp.status_code == 200
         assert cleanup_resp.json()["deleted_count"] >= 1

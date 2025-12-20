@@ -30,9 +30,11 @@ from ...core.gcs import get_gcs_settings, upload_object
 from ...core.ratelimit import limiter_processing
 from ...core.settings import load_app_settings
 from ...schemas.base import JobResponse
+from ...services import pricing
 from ...services.history import HistoryStore
 from ...services.jobs import JobStore
-from ...services.points import PointsStore, process_video_cost
+from ...services.charge_plans import reserve_processing_charges
+from ...services.usage_ledger import UsageLedgerStore
 from ...services.ffmpeg_utils import probe_media
 from ...services.video_processing import generate_video_variant, normalize_and_stub_subtitles
 from ..deps import (
@@ -40,7 +42,7 @@ from ..deps import (
     get_db,
     get_history_store,
     get_job_store,
-    get_points_store,
+    get_usage_ledger_store,
 )
 from .file_utils import (
     DATA_DIR,
@@ -51,7 +53,6 @@ from .file_utils import (
     save_upload_with_limit,
 )
 from .processing_tasks import (
-    ChargeContext,
     record_event_safe,
     refund_charge_best_effort,
     run_gcs_video_processing,
@@ -86,7 +87,6 @@ _validate_shadow_strength = validate_shadow_strength
 _validate_subtitle_size = validate_subtitle_size
 _validate_highlight_style = validate_highlight_style
 _validate_upload_content_type = validate_upload_content_type
-_ChargeContext = ChargeContext
 _refund_charge_best_effort = refund_charge_best_effort
 _record_event_safe = record_event_safe
 _parse_resolution = parse_resolution
@@ -166,8 +166,8 @@ async def process_video(
     background_tasks: BackgroundTasks,
     request: Request,
     file: UploadFile = File(...),
-    transcribe_model: str = Form("medium"),
-    transcribe_provider: str = Form("local"),
+    transcribe_model: str = Form(config.DEFAULT_TRANSCRIBE_TIER),
+    transcribe_provider: str = Form(config.TRANSCRIBE_TIER_PROVIDER[config.DEFAULT_TRANSCRIBE_TIER]),
     openai_model: str = Form(""),
     video_quality: str = Form("high quality"),
     video_resolution: str = Form(""),
@@ -184,7 +184,7 @@ async def process_video(
     current_user: User = Depends(get_current_user),
     job_store: JobStore = Depends(get_job_store),
     history_store: HistoryStore = Depends(get_history_store),
-    points_store: PointsStore = Depends(get_points_store),
+    ledger_store: UsageLedgerStore = Depends(get_usage_ledger_store),
     db: Database = Depends(get_db),
 ):
     """Upload a video and start processing."""
@@ -255,21 +255,23 @@ async def process_video(
             detail=f"Video too long (max {config.MAX_VIDEO_DURATION_SECONDS/60:.1f} minutes)",
         )
 
-    cost = process_video_cost(settings.transcribe_model)
-    charge = ChargeContext(
-        user_id=current_user.id,
-        cost=cost,
-        reason="process_video",
-        meta={"charge_id": job_id, "job_id": job_id, "model": settings.transcribe_model, "source": "upload"},
-    )
+    job = job_store.create_job(job_id, current_user.id)
+
     try:
-        new_balance = points_store.spend(
-            current_user.id,
-            cost,
-            reason="process_video",
-            meta=charge.meta,
+        llm_models = pricing.resolve_llm_models(settings.transcribe_model)
+        charge_plan, new_balance = reserve_processing_charges(
+            ledger_store=ledger_store,
+            user_id=current_user.id,
+            job_id=job_id,
+            tier=settings.transcribe_model,
+            duration_seconds=float(probe.duration_s),
+            use_llm=use_llm,
+            llm_model=llm_models.social,
+            provider=settings.transcribe_provider,
+            stt_model=pricing.resolve_transcribe_model(settings.transcribe_model),
         )
     except Exception:
+        job_store.delete_job(job_id)
         input_path.unlink(missing_ok=True)
         raise
 
@@ -278,7 +280,6 @@ async def process_video(
     artifact_path = artifacts_root / job_id
 
     try:
-        job = job_store.create_job(job_id, current_user.id)
         record_event_safe(
             history_store,
             current_user,
@@ -287,7 +288,7 @@ async def process_video(
             {
                 "job_id": job_id,
                 "model_size": settings.transcribe_model,
-                "provider": settings.transcribe_provider or "local",
+                "provider": settings.transcribe_provider or config.TRANSCRIBE_TIER_PROVIDER[config.DEFAULT_TRANSCRIBE_TIER],
                 "video_quality": settings.video_quality,
                 "video_resolution": video_resolution,
                 "use_llm": use_llm,
@@ -314,8 +315,8 @@ async def process_video(
             history_store,
             current_user,
             file.filename,
-            points_store=points_store,
-            charge=charge,
+            ledger_store=ledger_store,
+            charge_plan=charge_plan,
             db=db,
             **processing_kwargs,
         )
@@ -332,7 +333,7 @@ async def process_video(
         from ...common.cleanup import cleanup_old_uploads
         background_tasks.add_task(cleanup_old_uploads, uploads_dir, 24)
     except Exception as exc:
-        refund_charge_best_effort(points_store, charge, status="failed", error=sanitize_message(str(exc)))
+        refund_charge_best_effort(ledger_store, charge_plan, status="failed", error=sanitize_message(str(exc)))
         input_path.unlink(missing_ok=True)
         raise
 

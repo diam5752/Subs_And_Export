@@ -26,13 +26,13 @@ const mockContextValue = {
     selectedJob: null,
     activeSidebarTab: 'transcript',
     setActiveSidebarTab: jest.fn(),
-    transcribeProvider: 'local',
-    transcribeMode: 'fast',
+    transcribeProvider: 'groq',
+    transcribeMode: 'standard',
     AVAILABLE_MODELS: [
         {
             id: 'standard',
-            provider: 'local',
-            mode: 'fast',
+            provider: 'groq',
+            mode: 'standard',
             name: 'Standard',
             icon: () => <span>Standard</span>,
             description: 'Standard model',
@@ -157,14 +157,14 @@ describe('ProcessView', () => {
         const radio = screen.getByRole('radio', { name: /Standard/i });
         fireEvent.click(radio);
 
-        expect(setTranscribeProvider).toHaveBeenCalledWith('local');
+        expect(setTranscribeProvider).toHaveBeenCalledWith('groq');
     });
 
     it('renders Step 2 (Upload) when file is selected', () => {
         (useProcessContext as jest.Mock).mockReturnValue({
             ...mockContextValue,
             currentStep: 2,
-            transcribeProvider: 'local'
+            transcribeProvider: 'groq'
         });
 
         render(
@@ -331,4 +331,3 @@ describe('ProcessView', () => {
         expect(screen.getByText(/Ready/i)).toBeInTheDocument();
     });
 });
-

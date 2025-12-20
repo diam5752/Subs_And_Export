@@ -136,7 +136,7 @@ describe('localized pages', () => {
         expect(await screen.findByText(/Φτιάξτε shorts έτοιμα/i)).toBeInTheDocument();
 
         // Select a model to show upload section
-        fireEvent.click(screen.getByTestId('model-whispercpp'));
+        fireEvent.click(screen.getByTestId('model-standard'));
 
         expect(screen.getByText('Ρίξτε το κάθετο κλιπ σας')).toBeInTheDocument();
     });
@@ -159,7 +159,7 @@ describe('localized pages', () => {
             expect(await screen.findByText(/Build export-ready shorts/i)).toBeInTheDocument();
 
             // Select a model to show upload section
-            fireEvent.click(screen.getByTestId('model-whispercpp'));
+            fireEvent.click(screen.getByTestId('model-standard'));
 
             expect(screen.getByText('Drop your vertical clip')).toBeInTheDocument();
             expect(screen.getByText('Sign in to your account')).toBeInTheDocument();

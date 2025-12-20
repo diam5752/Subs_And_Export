@@ -23,12 +23,13 @@ def test_srt_export_success(client: TestClient, monkeypatch, tmp_path: Path):
     monkeypatch.setattr(export_routes, "data_roots", lambda: (tmp_path, tmp_path / "uploads", tmp_path / "artifacts"))
     
     # Setup DB
-    db = Database(tmp_path / "srt_test.db")
+    db = Database()
     store = jobs.JobStore(db)
-    user_id = backend_auth.UserStore(db=db).register_local_user("srt@example.com", "testpassword123", "User").id
+    email = f"srt_{uuid.uuid4().hex}@example.com"
+    user_id = backend_auth.UserStore(db=db).register_local_user(email, "testpassword123", "User").id
     
     # Create Job
-    job = store.create_job("srt-job", user_id)
+    job = store.create_job(f"srt-job-{uuid.uuid4().hex}", user_id)
     artifact_dir = tmp_path / "artifacts" / job.id
     artifact_dir.mkdir(parents=True, exist_ok=True)
     
@@ -48,7 +49,7 @@ def test_srt_export_success(client: TestClient, monkeypatch, tmp_path: Path):
     app.dependency_overrides[get_db] = lambda: db
 
     try:
-        headers = _auth_header(client, "srt@example.com")
+        headers = _auth_header(client, email)
         
         # Trigger export
         resp = client.post(

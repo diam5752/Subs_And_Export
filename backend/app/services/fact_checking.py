@@ -12,6 +12,8 @@ from sqlalchemy.orm import Session
 from backend.app.core import config
 from backend.app.services import llm_utils
 from backend.app.services.cost import CostService
+from backend.app.services import pricing
+from backend.app.services.usage_ledger import ChargeReservation, UsageLedgerStore
 
 logger = logging.getLogger(__name__)
 
@@ -45,9 +47,12 @@ def generate_fact_check(
     *,
     api_key: str | None = None,
     model: str | None = None,
+    extraction_model: str | None = None,
     temperature: float = 1,
     session: Session | None = None,
     job_id: str | None = None,
+    ledger_store: UsageLedgerStore | None = None,
+    charge_reservation: ChargeReservation | None = None,
 ) -> FactCheckResult:
     """
     Analyze transcript for historical, logical, or factual errors using an LLM.
@@ -59,6 +64,7 @@ def generate_fact_check(
         raise RuntimeError("OpenAI API key is required for Fact Checking.")
 
     model_name = model or config.FACTCHECK_LLM_MODEL
+    extraction_model_name = extraction_model or config.EXTRACTION_LLM_MODEL
     client = llm_utils.load_openai_client(api_key)
 
     # Cost Optimization: Hybrid Strategy
@@ -73,9 +79,14 @@ def generate_fact_check(
         "Ignore opinions. Focus on objective facts (dates, numbers, events)."
     )
     
+    usage_prompt = 0
+    usage_completion = 0
+    total_cost = 0.0
+    breakdown: dict[str, Any] = {}
+
     try:
         extract_response = client.chat.completions.create(
-            model=config.EXTRACTION_LLM_MODEL, # Cheap model
+            model=extraction_model_name, # Cheap model
             messages=[
                 {"role": "system", "content": extraction_prompt},
                 {"role": "user", "content": transcript_text.strip()[:config.MAX_LLM_INPUT_CHARS]}
@@ -85,17 +96,29 @@ def generate_fact_check(
             timeout=30.0
         )
         if hasattr(extract_response, "usage"):
+             prompt_tokens = int(extract_response.usage.prompt_tokens or 0)
+             completion_tokens = int(extract_response.usage.completion_tokens or 0)
+             usage_prompt += prompt_tokens
+             usage_completion += completion_tokens
+             breakdown["extraction"] = {
+                 "prompt_tokens": prompt_tokens,
+                 "completion_tokens": completion_tokens,
+                 "total_tokens": prompt_tokens + completion_tokens,
+                 "model": extraction_model_name,
+             }
+
              if session:
                  extract_cost = CostService.track_usage(
                      session,
-                     config.EXTRACTION_LLM_MODEL,
-                     extract_response.usage.prompt_tokens,
-                     extract_response.usage.completion_tokens,
+                     extraction_model_name,
+                     prompt_tokens,
+                     completion_tokens,
                      job_id
                  )
-                 logger.info(f"Fact Check Extraction Token Usage: Input={extract_response.usage.prompt_tokens}, Output={extract_response.usage.completion_tokens} | Cost: ${extract_cost:.6f}")
+                 total_cost += extract_cost
+                 logger.info(f"Fact Check Extraction Token Usage: Input={prompt_tokens}, Output={completion_tokens} | Cost: ${extract_cost:.6f}")
              else:
-                 logger.info(f"Fact Check Extraction Token Usage: Input={extract_response.usage.prompt_tokens}, Output={extract_response.usage.completion_tokens}")
+                 logger.info(f"Fact Check Extraction Token Usage: Input={prompt_tokens}, Output={completion_tokens}")
 
         extract_content = llm_utils.extract_chat_completion_text(extract_response)[0]
         extracted_data = json.loads(llm_utils.clean_json_response(extract_content or "{}"))
@@ -103,6 +126,34 @@ def generate_fact_check(
         
         if not claims:
             logger.info("Fact Check: No doubtful claims found by extractor.")
+            if ledger_store and charge_reservation:
+                tier = charge_reservation.tier or config.DEFAULT_TRANSCRIBE_TIER
+                credits = pricing.credits_for_tokens(
+                    tier=tier,
+                    prompt_tokens=usage_prompt,
+                    completion_tokens=usage_completion,
+                    min_credits=charge_reservation.min_credits,
+                )
+                if session and total_cost <= 0:
+                    total_cost = pricing.llm_cost_usd(
+                        session,
+                        model_name=extraction_model_name,
+                        prompt_tokens=usage_prompt,
+                        completion_tokens=usage_completion,
+                    )
+                units = {
+                    "prompt_tokens": usage_prompt,
+                    "completion_tokens": usage_completion,
+                    "total_tokens": usage_prompt + usage_completion,
+                    "models": breakdown,
+                    "short_circuit": True,
+                }
+                ledger_store.finalize(
+                    charge_reservation,
+                    credits_charged=credits,
+                    cost_usd=total_cost,
+                    units=units,
+                )
             return FactCheckResult(truth_score=100, supported_claims_pct=100, claims_checked=0, items=[])
             
     except Exception as e:
@@ -183,19 +234,31 @@ def generate_fact_check(
             
             # Log usage for Detailed Check
             if hasattr(response, "usage"):
+                prompt_tokens = int(response.usage.prompt_tokens or 0)
+                completion_tokens = int(response.usage.completion_tokens or 0)
+                usage_prompt += prompt_tokens
+                usage_completion += completion_tokens
+                breakdown["verification"] = {
+                    "prompt_tokens": prompt_tokens,
+                    "completion_tokens": completion_tokens,
+                    "total_tokens": prompt_tokens + completion_tokens,
+                    "model": model_name,
+                }
+
                 if session:
                     detail_cost = CostService.track_usage(
                         session,
                         model_name,
-                        response.usage.prompt_tokens,
-                        response.usage.completion_tokens,
+                        prompt_tokens,
+                        completion_tokens,
                         job_id
                     )
+                    total_cost += detail_cost
                     logger.info(
-                        f"Fact Check Detail Token Usage: Input={response.usage.prompt_tokens}, Output={response.usage.completion_tokens} | Cost: ${detail_cost:.6f}"
+                        f"Fact Check Detail Token Usage: Input={prompt_tokens}, Output={completion_tokens} | Cost: ${detail_cost:.6f}"
                     )
                 else:
-                    logger.info(f"Fact Check Detail Token Usage: Input={response.usage.prompt_tokens}, Output={response.usage.completion_tokens}")
+                    logger.info(f"Fact Check Detail Token Usage: Input={prompt_tokens}, Output={completion_tokens}")
             
             content, refusal = llm_utils.extract_chat_completion_text(response)
             if refusal:
@@ -225,6 +288,34 @@ def generate_fact_check(
                 for item in items_data
             ]
 
+            if ledger_store and charge_reservation:
+                tier = charge_reservation.tier or config.DEFAULT_TRANSCRIBE_TIER
+                credits = pricing.credits_for_tokens(
+                    tier=tier,
+                    prompt_tokens=usage_prompt,
+                    completion_tokens=usage_completion,
+                    min_credits=charge_reservation.min_credits,
+                )
+                if session and total_cost <= 0:
+                    total_cost = pricing.llm_cost_usd(
+                        session,
+                        model_name=model_name,
+                        prompt_tokens=usage_prompt,
+                        completion_tokens=usage_completion,
+                    )
+                units = {
+                    "prompt_tokens": usage_prompt,
+                    "completion_tokens": usage_completion,
+                    "total_tokens": usage_prompt + usage_completion,
+                    "models": breakdown,
+                }
+                ledger_store.finalize(
+                    charge_reservation,
+                    credits_charged=credits,
+                    cost_usd=total_cost,
+                    units=units,
+                )
+
             return FactCheckResult(
                 truth_score=parsed["truth_score"],
                 supported_claims_pct=parsed["supported_claims_pct"],
@@ -240,4 +331,36 @@ def generate_fact_check(
                 messages.append({"role": "user", "content": "FIX_JSON_ONLY: return ONLY valid JSON matching the schema."})
                 continue
 
+    if ledger_store and charge_reservation:
+        if usage_prompt + usage_completion > 0:
+            tier = charge_reservation.tier or config.DEFAULT_TRANSCRIBE_TIER
+            credits = pricing.credits_for_tokens(
+                tier=tier,
+                prompt_tokens=usage_prompt,
+                completion_tokens=usage_completion,
+                min_credits=charge_reservation.min_credits,
+            )
+            if session and total_cost <= 0:
+                total_cost = pricing.llm_cost_usd(
+                    session,
+                    model_name=model_name,
+                    prompt_tokens=usage_prompt,
+                    completion_tokens=usage_completion,
+                )
+            units = {
+                "prompt_tokens": usage_prompt,
+                "completion_tokens": usage_completion,
+                "total_tokens": usage_prompt + usage_completion,
+                "models": breakdown,
+                "failed": True,
+            }
+            ledger_store.finalize(
+                charge_reservation,
+                credits_charged=credits,
+                cost_usd=total_cost,
+                units=units,
+                status="failed",
+            )
+        else:
+            ledger_store.fail(charge_reservation, status="failed", error=str(last_exc))
     raise ValueError("Failed to generate fact check after retries") from last_exc

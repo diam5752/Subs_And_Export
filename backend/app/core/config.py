@@ -41,12 +41,14 @@ WHISPER_CHUNK_LENGTH = 90  # seconds; testing shows 90s is faster than 30s for t
 WHISPER_BATCH_SIZE = 16  # batch size for faster-whisper processing
 
 # Hosted STT (OpenAI)
+OPENAI_TRANSCRIBE_MODEL = "whisper-1"
 
 
 # Cloud providers
 GROQ_TRANSCRIBE_MODEL = "whisper-large-v3"  # ~200x realtime for Greek
 GROQ_MODEL_ENHANCED = "whisper-large-v3-turbo"
 GROQ_MODEL_ULTIMATE = "whisper-large-v3"
+GROQ_MODEL_STANDARD = GROQ_MODEL_ENHANCED
 
 # whisper.cpp / pywhispercpp settings (Metal optimized for Apple Silicon)
 WHISPERCPP_MODEL = "medium"  # Optimized for CPU usage (Docker/Mac)
@@ -54,9 +56,29 @@ WHISPERCPP_LANGUAGE = "el"  # Greek default
 
 
 # LLM social copy defaults (OpenAI API)
-SOCIAL_LLM_MODEL = "gpt-5-mini"
-FACTCHECK_LLM_MODEL = "gpt-5-mini"
-EXTRACTION_LLM_MODEL = "gpt-4o-mini" # Cheaper model for initial extraction
+SOCIAL_LLM_MODEL = "gpt-5.1-mini"
+FACTCHECK_LLM_MODEL = "gpt-5.1-mini"
+EXTRACTION_LLM_MODEL = "gpt-5.1-mini"
+
+# Tiered LLM defaults
+SOCIAL_LLM_MODEL_STANDARD = "gpt-5.1-mini"
+SOCIAL_LLM_MODEL_PRO = "gpt-5.1-mini"
+FACTCHECK_LLM_MODEL_STANDARD = "gpt-5.1-mini"
+FACTCHECK_LLM_MODEL_PRO = "gpt-5.1-mini"
+EXTRACTION_LLM_MODEL_STANDARD = "gpt-5.1-mini"
+EXTRACTION_LLM_MODEL_PRO = "gpt-5.1-mini"
+
+# Tiered transcription defaults
+DEFAULT_TRANSCRIBE_TIER = "standard"
+TRANSCRIBE_TIERS = {"standard", "pro"}
+TRANSCRIBE_TIER_PROVIDER = {
+    "standard": "groq",
+    "pro": "groq",
+}
+TRANSCRIBE_TIER_MODEL = {
+    "standard": GROQ_MODEL_STANDARD,
+    "pro": GROQ_MODEL_ULTIMATE,
+}
 
 # Cost Optimization & Safety Limits
 MAX_LLM_INPUT_CHARS = 15000  # Approx 3-4k tokens. Truncate very long transcripts to save cost.
@@ -66,9 +88,41 @@ MAX_LLM_OUTPUT_TOKENS_FACTCHECK = 6000  # Increased for detailed reports + reaso
 # Estimated Pricing per 1M tokens (USD)
 # Updates as of late 2025
 MODEL_PRICING = {
+    "gpt-4o": {"input": 5.00, "output": 15.00},
     "gpt-4o-mini": {"input": 0.15, "output": 0.60},
-    "gpt-5-mini": {"input": 0.15, "output": 0.60}, # Assuming similar to mini class, adjustable
+    "gpt-5.1-mini": {"input": 0.25, "output": 2.00},
+    "gpt-5-mini": {"input": 0.25, "output": 2.00},
     "default": {"input": 2.50, "output": 10.00} # Fallback to standard GPT-4 class
+}
+
+# Credits pricing (1 credit == pricing unit, not USD)
+LLM_TOKEN_CHAR_RATIO = 4.0
+
+CREDITS_PER_1K_TOKENS = {
+    "standard": 2,
+    "pro": 7,
+}
+CREDITS_PER_MINUTE_TRANSCRIBE = {
+    "standard": 10,
+    "pro": 20,
+}
+CREDITS_MIN_TRANSCRIBE = {
+    "standard": 25,
+    "pro": 50,
+}
+CREDITS_MIN_SOCIAL_COPY = {
+    "standard": 10,
+    "pro": 20,
+}
+CREDITS_MIN_FACT_CHECK = {
+    "standard": 20,
+    "pro": 40,
+}
+
+# STT pricing (USD per minute). Update with current provider rates.
+STT_PRICE_PER_MINUTE_USD = {
+    "standard": 0.003,
+    "pro": 0.006,
 }
 
 # Audio extraction settings
@@ -82,3 +136,8 @@ DEFAULT_VIDEO_PRESET = "veryfast"  # Fast encoding - platforms re-encode anyway
 DEFAULT_AUDIO_BITRATE = "256k"
 DEFAULT_HIGHLIGHT_COLOR = "&H0000FFFF"  # vivid yellow for per-word fill
 USE_HW_ACCEL = True  # Use VideoToolbox on macOS by default
+
+# Rate limiting configuration
+SIGNUP_LIMIT_PER_IP_PER_DAY = 5  # Max signups per IP per 24 hours
+STATIC_RATE_LIMIT = 60  # Max static file requests per minute
+STATIC_RATE_LIMIT_WINDOW = 60  # Window in seconds

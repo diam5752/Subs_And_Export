@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import logging
+import os
 import shutil
 import time
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from ...core import config
@@ -18,13 +19,16 @@ from ...core.gcs import get_gcs_settings
 from ...core.ratelimit import limiter_processing
 from ...core.settings import load_app_settings
 from ...schemas.base import JobResponse
+from ...schemas.usage import UsageSummaryResponse, UsageSummaryRow
+from ...services import pricing
+from ...services.charge_plans import reserve_processing_charges
 from ...services.history import HistoryStore
 from ...services.jobs import JobStore
-from ...services.points import PointsStore, process_video_cost
+from ...services.usage_ledger import UsageLedgerStore
 from ...services.ffmpeg_utils import probe_media
-from ..deps import get_current_user, get_history_store, get_job_store, get_points_store
+from ..deps import get_current_user, get_history_store, get_job_store, get_usage_ledger_store
 from .file_utils import MAX_UPLOAD_BYTES, data_roots, link_or_copy_file
-from .processing_tasks import ChargeContext, record_event_safe, refund_charge_best_effort, run_gcs_video_processing, run_video_processing
+from .processing_tasks import record_event_safe, refund_charge_best_effort, run_gcs_video_processing, run_video_processing
 from .settings import build_processing_settings
 from .validation import ALLOWED_VIDEO_EXTENSIONS
 
@@ -35,9 +39,20 @@ router = APIRouter()
 APP_SETTINGS = load_app_settings()
 
 
+def _ensure_admin(current_user: User) -> None:
+    admin_emails_str = os.getenv("GSP_ADMIN_EMAILS", "")
+    admin_emails = [e.strip().lower() for e in admin_emails_str.split(",") if e.strip()]
+
+    if not admin_emails:
+        raise HTTPException(status_code=403, detail="Admin access not configured")
+
+    if current_user.email.strip().lower() not in admin_emails:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+
 class ReprocessRequest(BaseModel):
-    transcribe_model: str = Field("medium", max_length=50)
-    transcribe_provider: str = Field("local", max_length=50)
+    transcribe_model: str = Field(config.DEFAULT_TRANSCRIBE_TIER, max_length=50)
+    transcribe_provider: str = Field(config.TRANSCRIBE_TIER_PROVIDER[config.DEFAULT_TRANSCRIBE_TIER], max_length=50)
     openai_model: str = Field("", max_length=50)
     video_quality: str = Field("high quality", max_length=50)
     video_resolution: str = Field("", max_length=50)
@@ -61,7 +76,7 @@ def reprocess_job(
     current_user: User = Depends(get_current_user),
     job_store: JobStore = Depends(get_job_store),
     history_store: HistoryStore = Depends(get_history_store),
-    points_store: PointsStore = Depends(get_points_store),
+    ledger_store: UsageLedgerStore = Depends(get_usage_ledger_store),
 ):
     source_job = job_store.get_job(job_id)
     if not source_job or source_job.user_id != current_user.id:
@@ -113,14 +128,18 @@ def reprocess_job(
         output_path = artifacts_root / new_job_id / "processed.mp4"
         artifact_path = artifacts_root / new_job_id
 
-        cost = process_video_cost(settings.transcribe_model)
-        charge = ChargeContext(
+        llm_models = pricing.resolve_llm_models(settings.transcribe_model)
+        charge_plan, new_balance = reserve_processing_charges(
+            ledger_store=ledger_store,
             user_id=current_user.id,
-            cost=cost,
-            reason="process_video",
-            meta={"charge_id": new_job_id, "job_id": new_job_id, "model": settings.transcribe_model, "action": "reprocess", "source_job_id": job_id, "source": "gcs"},
+            job_id=new_job_id,
+            tier=settings.transcribe_model,
+            duration_seconds=float(config.MAX_VIDEO_DURATION_SECONDS),
+            use_llm=settings.use_llm,
+            llm_model=llm_models.social,
+            provider=settings.transcribe_provider,
+            stt_model=pricing.resolve_transcribe_model(settings.transcribe_model),
         )
-        new_balance = points_store.spend(current_user.id, cost, reason=charge.reason, meta=charge.meta)
 
         try:
             job = job_store.create_job(new_job_id, current_user.id)
@@ -142,14 +161,14 @@ def reprocess_job(
                 history_store=history_store,
                 user=current_user,
                 original_name=(source_job.result_data or {}).get("original_filename"),
-                points_store=points_store,
-                charge=charge,
+                ledger_store=ledger_store,
+                charge_plan=charge_plan,
             )
 
             from ...common.cleanup import cleanup_old_uploads
             background_tasks.add_task(cleanup_old_uploads, uploads_dir, 24)
         except Exception as exc:
-            refund_charge_best_effort(points_store, charge, status="failed", error=sanitize_message(str(exc)))
+            refund_charge_best_effort(ledger_store, charge_plan, status="failed", error=sanitize_message(str(exc)))
             raise
 
         return {**job.__dict__, "balance": new_balance}
@@ -203,15 +222,19 @@ def reprocess_job(
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="Source video not found; upload again to reprocess")
 
-    cost = process_video_cost(settings.transcribe_model)
-    charge = ChargeContext(
-        user_id=current_user.id,
-        cost=cost,
-        reason="process_video",
-        meta={"charge_id": new_job_id, "job_id": new_job_id, "model": settings.transcribe_model, "action": "reprocess", "source_job_id": job_id, "source": "local"},
-    )
     try:
-        new_balance = points_store.spend(current_user.id, cost, reason="process_video", meta=charge.meta)
+        llm_models = pricing.resolve_llm_models(settings.transcribe_model)
+        charge_plan, new_balance = reserve_processing_charges(
+            ledger_store=ledger_store,
+            user_id=current_user.id,
+            job_id=new_job_id,
+            tier=settings.transcribe_model,
+            duration_seconds=float(probe.duration_s or 0),
+            use_llm=settings.use_llm,
+            llm_model=llm_models.social,
+            provider=settings.transcribe_provider,
+            stt_model=pricing.resolve_transcribe_model(settings.transcribe_model),
+        )
     except Exception:
         input_path.unlink(missing_ok=True)
         raise
@@ -229,13 +252,14 @@ def reprocess_job(
             new_job_id, input_path, output_path, artifact_path, settings,
             job_store, history_store, current_user,
             (source_job.result_data or {}).get("original_filename"),
-            points_store=points_store, charge=charge,
+            ledger_store=ledger_store,
+            charge_plan=charge_plan,
         )
 
         from ...common.cleanup import cleanup_old_uploads
         background_tasks.add_task(cleanup_old_uploads, uploads_dir, 24)
     except Exception as exc:
-        refund_charge_best_effort(points_store, charge, status="failed", error=sanitize_message(str(exc)))
+        refund_charge_best_effort(ledger_store, charge_plan, status="failed", error=sanitize_message(str(exc)))
         input_path.unlink(missing_ok=True)
         raise
 
@@ -250,16 +274,7 @@ def run_retention_policy(
     current_user: User = Depends(get_current_user),
 ):
     """Manually trigger retention policy: Delete jobs older than {days} days."""
-    import os
-
-    admin_emails_str = os.getenv("GSP_ADMIN_EMAILS", "")
-    admin_emails = [e.strip().lower() for e in admin_emails_str.split(",") if e.strip()]
-
-    if not admin_emails:
-        raise HTTPException(status_code=403, detail="Admin access not configured")
-
-    if current_user.email.strip().lower() not in admin_emails:
-        raise HTTPException(status_code=403, detail="Not authorized")
+    _ensure_admin(current_user)
 
     cutoff = int(time.time()) - (days * 24 * 3600)
     old_jobs = job_store.list_jobs_created_before(cutoff)
@@ -286,3 +301,42 @@ def run_retention_policy(
         job_store.delete_job(jid)
 
     return {"status": "success", "deleted_count": len(deleted_ids), "message": f"Deleted {len(deleted_ids)} jobs older than {days} days"}
+
+
+@router.get("/admin/usage/summary", response_model=UsageSummaryResponse)
+def get_usage_summary(
+    group_by: str = Query("day", max_length=16),
+    start_ts: int | None = Query(None, ge=0),
+    end_ts: int | None = Query(None, ge=0),
+    current_user: User = Depends(get_current_user),
+    ledger_store: UsageLedgerStore = Depends(get_usage_ledger_store),
+):
+    """Admin usage summary by day/month/user/action."""
+    _ensure_admin(current_user)
+
+    now = int(time.time())
+    start = start_ts if start_ts is not None else now - (30 * 24 * 3600)
+    end = end_ts if end_ts is not None else now
+    if start > end:
+        raise HTTPException(status_code=400, detail="start_ts must be <= end_ts")
+
+    try:
+        items = ledger_store.summarize(start_ts=start, end_ts=end, group_by=group_by)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return UsageSummaryResponse(
+        group_by=group_by,
+        start_ts=start,
+        end_ts=end,
+        items=[
+            UsageSummaryRow(
+                bucket=item.bucket,
+                credits_reserved=item.credits_reserved,
+                credits_charged=item.credits_charged,
+                cost_usd=item.cost_usd,
+                count=item.count,
+            )
+            for item in items
+        ],
+    )

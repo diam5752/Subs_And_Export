@@ -36,6 +36,7 @@ class User:
     password_hash: str | None = None
     google_sub: str | None = None
     created_at: str | None = None
+    email_verified: bool = False
 
     def to_session(self) -> dict:
         """Compact dict safe to store in session_state."""
@@ -84,6 +85,7 @@ class UserStore:
                         password_hash=user.password_hash,
                         google_sub=user.google_sub,
                         created_at=user.created_at,
+                        email_verified=False,  # Local users need to verify email
                     )
                 )
         except IntegrityError as exc:
@@ -122,6 +124,7 @@ class UserStore:
                         password_hash=None,
                         google_sub=user.google_sub,
                         created_at=user.created_at,
+                        email_verified=True,  # Google verifies emails
                     )
                 )
                 created = True
@@ -239,6 +242,7 @@ def _user_from_db(user: DbUser) -> User:
         password_hash=user.password_hash,
         google_sub=user.google_sub,
         created_at=user.created_at,
+        email_verified=getattr(user, "email_verified", False),
     )
 
 

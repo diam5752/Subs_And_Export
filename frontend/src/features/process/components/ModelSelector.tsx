@@ -41,19 +41,19 @@ export function ModelSelector() {
         if (selectedJob?.result_data) {
             const jobProvider = selectedJob.result_data.transcribe_provider;
             const jobModelSize = selectedJob.result_data.model_size;
+            const normalizedProvider = (jobProvider || '').toLowerCase();
+            const normalizedModel = (jobModelSize || '').toLowerCase();
+            const jobTier = normalizedModel === 'pro' || normalizedModel === 'standard'
+                ? normalizedModel
+                : normalizedModel.includes('turbo') || normalizedModel.includes('enhanced')
+                    ? 'standard'
+                    : normalizedModel.includes('large')
+                        ? 'pro'
+                        : normalizedProvider === 'openai' || normalizedModel.includes('ultimate') || normalizedModel.includes('whisper-1')
+                            ? 'pro'
+                            : 'standard';
 
-            return AVAILABLE_MODELS.find(m => {
-                const isProviderMatch = m.provider === jobProvider;
-                if (!isProviderMatch) return false;
-
-                // Special handling for Groq modes
-                if (jobProvider === 'groq') {
-                    if (m.mode === 'ultimate') return jobModelSize === 'ultimate';
-                    if (m.mode === 'enhanced') return jobModelSize === 'enhanced' || jobModelSize === 'turbo';
-                }
-
-                return m.mode === jobModelSize;
-            });
+            return AVAILABLE_MODELS.find(m => m.mode === jobTier);
         }
         return null;
     }, [AVAILABLE_MODELS, transcribeProvider, transcribeMode, selectedJob]);
@@ -92,7 +92,7 @@ export function ModelSelector() {
                         key={model.id}
                         role="radio"
                         aria-checked={isSelected}
-                        data-testid={`model-${model.provider === 'local' ? 'turbo' : model.provider}`}
+                        data-testid={`model-${model.mode}`}
                         onClick={(e) => {
                             e.stopPropagation();
                             setTranscribeProvider(model.provider as TranscribeProvider);
@@ -116,11 +116,9 @@ export function ModelSelector() {
                             {model.icon(isSelected)}
                             {isSelected && (
                                 <div
-                                    className={`w-5 h-5 rounded-full flex items-center justify-center ${model.provider === 'groq'
-                                        ? 'bg-purple-500'
-                                        : model.provider === 'whispercpp'
-                                            ? 'bg-cyan-500'
-                                            : 'bg-[var(--accent)]'
+                                    className={`w-5 h-5 rounded-full flex items-center justify-center ${model.mode === 'pro'
+                                        ? 'bg-amber-400'
+                                        : 'bg-emerald-500'
                                         }`}
                                 >
                                     <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import CheckConstraint, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import Boolean, CheckConstraint, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.types import JSON
@@ -24,6 +24,7 @@ class DbUser(Base):
     password_hash: Mapped[str | None] = mapped_column(Text, nullable=True)
     google_sub: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     created_at: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    email_verified: Mapped[bool] = mapped_column(Boolean, default=False)
 
     __table_args__ = (
         CheckConstraint("provider IN ('local','google')", name="chk_users_provider"),
@@ -178,3 +179,47 @@ class DbTokenUsage(Base):
         Index("idx_token_usage_job_id", "job_id"),
         Index("idx_token_usage_timestamp", "timestamp"),
     )
+
+
+class DbUsageLedger(Base):
+    """
+    Usage ledger for external API calls, tied to credits and cost tracking.
+    """
+    __tablename__ = "usage_ledger"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    job_id: Mapped[str | None] = mapped_column(ForeignKey("jobs.id", ondelete="SET NULL"), nullable=True, index=True)
+    action: Mapped[str] = mapped_column(String(64))
+    provider: Mapped[str] = mapped_column(String(32))
+    endpoint: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    model: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    tier: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    units: Mapped[dict[str, Any] | None] = mapped_column(JSON_VALUE, nullable=True)
+    cost_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    credits_reserved: Mapped[int] = mapped_column(Integer, default=0)
+    credits_charged: Mapped[int] = mapped_column(Integer, default=0)
+    min_credits: Mapped[int] = mapped_column(Integer, default=0)
+    currency: Mapped[str] = mapped_column(String(3), default="USD")
+    status: Mapped[str] = mapped_column(String(32))
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    idempotency_key: Mapped[str | None] = mapped_column(String(64), unique=True, index=True, nullable=True)
+    created_at: Mapped[int] = mapped_column(Integer)
+    updated_at: Mapped[int] = mapped_column(Integer)
+
+    __table_args__ = (
+        Index("idx_usage_ledger_user_created", "user_id", "created_at"),
+        Index("idx_usage_ledger_action", "action"),
+        Index("idx_usage_ledger_status", "status"),
+    )
+
+
+class DbRateLimit(Base):
+    """Rate limiting state for DB-backed rate limiting (multi-instance safe)."""
+
+    __tablename__ = "rate_limits"
+
+    key: Mapped[str] = mapped_column(String(255), primary_key=True)
+    count: Mapped[int] = mapped_column(Integer, default=1)
+    window_start: Mapped[int] = mapped_column(Integer)
+    expires_at: Mapped[int] = mapped_column(Integer, index=True)

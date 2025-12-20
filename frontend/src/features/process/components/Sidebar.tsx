@@ -264,7 +264,7 @@ export function Sidebar() {
                 subtitleColor={subtitleColor}
                 onChangeColor={handleColorChange}
                 colors={SUBTITLE_COLORS}
-                disableMaxLines={transcribeProvider === 'whispercpp'}
+                disableMaxLines={false}
                 subtitleSize={subtitleSize}
                 onChangeSize={handleSizeChange}
                 karaokeEnabled={karaokeEnabled}
