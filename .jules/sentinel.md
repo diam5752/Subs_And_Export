@@ -135,3 +135,8 @@
 **Vulnerability:** The `/videos/process` endpoint accepted unbounded strings for `highlight_style`. While verified against an allowlist, the length check was performed *after* string manipulation (`strip().lower()`) inside the validator, potentially allowing memory exhaustion or CPU consumption via massive inputs.
 **Learning:** Validators that perform string operations (normalization) before checking length are vulnerable to DoS. Length checks must always precede semantic validation.
 **Prevention:** Explicitly check `len(field) > MAX` before passing the field to any processing or validation functions, especially for `Form` data which bypasses Pydantic's default constraints.
+
+## 2025-10-27 - [Medium] Missing Max Length in Service Layer
+**Vulnerability:** `UserStore` internal validation (`_validate_password_strength`, `_validate_email`) lacked `max_length` checks, relying solely on API-layer Pydantic models. This left the service vulnerable to DoS if called internally or via new unchecked endpoints.
+**Learning:** API-layer validation (Pydantic) does not protect the service layer from direct misuse. Defense in depth requires validating inputs at the lowest common denominator (the service/store).
+**Prevention:** Mirror API constraints (length, format) in service-level validation functions.
