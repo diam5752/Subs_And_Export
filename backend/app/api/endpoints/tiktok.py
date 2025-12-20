@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 from ...core import config
 from ...core.auth import User
 from ...core.oauth_state import OAuthStateStore
-from ...core.ratelimit import limiter_content, limiter_login
+from ...core.ratelimit import limiter_auth_change, limiter_content, limiter_login
 from ...services import tiktok
 from ...services.history import HistoryStore
 from ..deps import get_current_user, get_history_store, get_oauth_state_store
@@ -17,7 +17,7 @@ class TikTokAuthURL(BaseModel):
     auth_url: str
     state: str
 
-@router.get("/url", response_model=TikTokAuthURL)
+@router.get("/url", response_model=TikTokAuthURL, dependencies=[Depends(limiter_auth_change)])
 def get_tiktok_auth_url(
     request: Request,
     current_user: User = Depends(get_current_user),

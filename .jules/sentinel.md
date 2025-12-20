@@ -130,3 +130,8 @@
 **Vulnerability:** `update_password`, `update_user_me`, and `delete_account` endpoints lacked rate limiting, allowing authenticated users to exhaust resources (e.g. scrypt hashing) or spam modifications.
 **Learning:** Even authenticated endpoints need rate limiting, especially those triggering expensive operations (hashing) or destructive actions.
 **Prevention:** Apply `AuthenticatedRateLimiter` to all mutation endpoints.
+
+## 2025-12-28 - [Medium] Unthrottled OAuth State Generation
+**Vulnerability:** The `/auth/google/url` and `/tiktok/url` endpoints generated database-backed OAuth state tokens without rate limiting. An attacker (unauthenticated for Google, authenticated for TikTok) could flood the `DbOAuthState` table and trigger expensive expiration scans on every request.
+**Learning:** "Pre-flight" endpoints like OAuth URL generation are often overlooked for rate limiting because they don't perform the "main" action (login/upload), but they still consume resources (DB writes/crypto).
+**Prevention:** Apply rate limiters (e.g., `limiter_login`) to *all* endpoints that trigger database writes or cryptographic operations, even if they are just "setup" steps.

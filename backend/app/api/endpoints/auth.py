@@ -232,7 +232,7 @@ class GoogleAuthURL(BaseModel):
     auth_url: str
     state: str
 
-@router.get("/google/url", response_model=GoogleAuthURL)
+@router.get("/google/url", response_model=GoogleAuthURL, dependencies=[Depends(limiter_login)])
 def get_google_auth_url(
     request: Request,
     oauth_state_store: OAuthStateStore = Depends(get_oauth_state_store),
