@@ -31,7 +31,8 @@ def test_subtitles_llm_timeouts(monkeypatch):
         class chat:
             completions = MockCompletions()
 
-    monkeypatch.setattr(subtitles, "_load_openai_client", lambda k: MockClient())
+    # Patch the utility function used by services
+    monkeypatch.setattr("backend.app.services.llm_utils.load_openai_client", lambda k: MockClient())
     monkeypatch.setenv("OPENAI_API_KEY", "test")
 
     # Test build_social_copy_llm
@@ -59,8 +60,8 @@ def test_openai_transcribe_timeout(monkeypatch, tmp_path):
         class audio:
             transcriptions = MockTranscriptions()
 
-    # Patch the function where it's used
-    monkeypatch.setattr("backend.app.services.transcription.openai_cloud._load_openai_client", lambda k: MockClient())
+    # Patch the function where it's used (public name now)
+    monkeypatch.setattr("backend.app.services.transcription.openai_cloud.load_openai_client", lambda k: MockClient())
 
     from backend.app.services.transcription.openai_cloud import OpenAITranscriber
 
