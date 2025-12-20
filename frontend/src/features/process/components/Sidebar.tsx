@@ -317,7 +317,9 @@ export function Sidebar() {
 
     if (!selectedJob) return null;
 
-    return (
+    // Optimized: Memoize the entire Sidebar layout to prevent VDOM re-creation when ProcessContext
+    // updates due to high-frequency changes (like currentTime) that this component doesn't use directly.
+    return useMemo(() => (
         <div className="w-full md:w-[500px] lg:w-[600px] flex flex-col bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-xl overflow-hidden transition-all duration-500">
             {/* Status Header */}
             <div
@@ -417,5 +419,14 @@ export function Sidebar() {
                 </div>
             </div>
         </div>
-    );
+    ), [
+        t,
+        selectedJob,
+        isProcessing,
+        progress,
+        activeSidebarTab,
+        setActiveSidebarTab,
+        stylesPanel,
+        intelligencePanel
+    ]);
 }
