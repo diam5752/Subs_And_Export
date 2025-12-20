@@ -1,5 +1,6 @@
 
 from backend.app.core.logging import setup_logging
+from contextlib import asynccontextmanager
 from backend.app.core.errors import register_exception_handlers
 
 # Configure logging (JSON structured)
@@ -33,6 +34,16 @@ from backend.app.core.env import get_app_env, is_dev_env
 from backend.app.core.gcs import generate_signed_download_url, get_gcs_settings
 from backend.app.core.ratelimit import get_client_ip, limiter_static
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    app.state.db = Database()
+    yield
+    # Shutdown
+    db: Database | None = getattr(app.state, "db", None)
+    if db is not None:
+        db.dispose()
+
 app = FastAPI(
     title="Greek Sub Publisher API",
     description="Backend API for Greek Sub Publisher Video Processing",
@@ -40,22 +51,15 @@ app = FastAPI(
     docs_url="/docs" if is_dev_env() else None,
     redoc_url="/redoc" if is_dev_env() else None,
     openapi_url="/openapi.json" if is_dev_env() else None,
+    lifespan=lifespan,
 )
 
 # Register Global Exception Handlers
 register_exception_handlers(app)
 
 
-@app.on_event("startup")
-def _startup_db() -> None:
-    app.state.db = Database()
 
 
-@app.on_event("shutdown")
-def _shutdown_db() -> None:
-    db: Database | None = getattr(app.state, "db", None)
-    if db is not None:
-        db.dispose()
 
 
 def _env_list(key: str, default: list[str]) -> list[str]:

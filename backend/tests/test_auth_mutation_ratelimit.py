@@ -9,8 +9,9 @@ def reset_limiter():
     limiter_auth_change.reset()
     yield
 
-def test_auth_mutation_ratelimit(client):
+def test_auth_mutation_ratelimit(client, monkeypatch):
     """Verify authenticated rate limiting on sensitive mutation endpoints."""
+    monkeypatch.delenv("GSP_DISABLE_RATELIMIT", raising=False)
     # 1. Access DB from client app state (setup by startup event/conftest)
     db = client.app.state.db
 
@@ -18,7 +19,8 @@ def test_auth_mutation_ratelimit(client):
     user_store = UserStore(db=db)
     session_store = SessionStore(db=db)
 
-    email = "limit@ex.com"
+    import uuid
+    email = f"limit_{uuid.uuid4().hex}@ex.com"
     pwd = "StrongPassword123!"
     user = user_store.register_local_user(email, pwd, "Limit")
     token = session_store.issue_session(user)

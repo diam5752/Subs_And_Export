@@ -322,6 +322,14 @@ def test_reprocess_job_creates_new_job(client: TestClient, monkeypatch):
     monkeypatch.setattr(reprocess_routes, "probe_media", lambda path: fake_probe_result)
     monkeypatch.setattr(videos, "probe_media", lambda path: fake_probe_result)
 
+    # Top up points to avoid 402
+    from backend.app.core.database import Database
+    from backend.app.services.points import PointsStore
+    user_resp = client.get("/auth/me", headers=headers)
+    assert user_resp.status_code == 200
+    user_id = user_resp.json()["id"]
+    PointsStore(db=Database()).credit(user_id, 1000, "test_topup")
+
     source = client.post(
         "/videos/process",
         headers=headers,

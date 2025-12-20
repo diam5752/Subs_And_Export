@@ -93,11 +93,12 @@ def test_spend_once_is_idempotent(tmp_path: Path) -> None:
     store = PointsStore(db=db)
     store.ensure_account(user_id)
 
+    tx_id = uuid.uuid4().hex
     balance, spent = store.spend_once(
         user_id,
         100,
         reason="process_video",
-        transaction_id="a" * 32,
+        transaction_id=tx_id,
         meta={"job_id": "j1"},
     )
     assert spent is True
@@ -107,7 +108,7 @@ def test_spend_once_is_idempotent(tmp_path: Path) -> None:
         user_id,
         100,
         reason="process_video",
-        transaction_id="a" * 32,
+        transaction_id=tx_id,
         meta={"job_id": "j1"},
     )
     assert spent_again is False

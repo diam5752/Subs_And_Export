@@ -148,8 +148,10 @@ def test_static_path_traversal(client):
     response = client.get("/static/%2e%2e/main.py")
     assert response.status_code in [404, 400, 403]
 
-def test_rate_limiting(client):
+def test_rate_limiting(client, monkeypatch):
     """Ensure login endpoint is rate limited."""
+    # Enable rate limiting
+    monkeypatch.delenv("GSP_DISABLE_RATELIMIT", raising=False)
     # Reset limiter
     limiter_login.reset()
 

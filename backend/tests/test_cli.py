@@ -13,7 +13,13 @@ def test_process_command_invokes_pipeline(monkeypatch, tmp_path: Path) -> None:
 
     output_file = tmp_path / "output.mp4"
     sample_social = subtitles.SocialCopy(
-        generic=subtitles.SocialContent(title="Test Title", description="Test desc", hashtags=["#test"]),
+        generic=subtitles.SocialContent(
+            title_el="Test Title Greek",
+            title_en="Test Title English",
+            description_el="Test desc Greek",
+            description_en="Test desc English",
+            hashtags=["#test"]
+        ),
     )
 
     def fake_process(input_video, output_video, **kwargs):
@@ -29,7 +35,7 @@ def test_process_command_invokes_pipeline(monkeypatch, tmp_path: Path) -> None:
     assert output_file.exists()
     assert "Processed video saved to" in result.stdout
     # Updated assertion to match new SocialCopy structure  
-    assert "Test Title" in result.stdout or "Generic title:" in result.stdout or "Title:" in result.stdout
+    assert "Test Title English" in result.stdout or "Generic title:" in result.stdout or "Title:" in result.stdout
 
 
 def test_process_command_passes_llm_flag(monkeypatch, tmp_path: Path) -> None:

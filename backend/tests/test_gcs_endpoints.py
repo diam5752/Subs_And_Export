@@ -47,6 +47,7 @@ def test_gcs_process_consumes_upload_id(client: TestClient, user_auth_headers: d
     monkeypatch.setenv("GSP_GCS_BUCKET", "test-bucket")
     monkeypatch.setattr(gcs_routes, "generate_signed_upload_url", lambda **_kwargs: "https://signed.example/upload")
     monkeypatch.setattr(gcs_routes, "run_gcs_video_processing", lambda **_kwargs: None)
+    monkeypatch.setattr(gcs_routes, "reserve_processing_charges", lambda *args, **kwargs: (None, 5000))
 
     upload_resp = client.post(
         "/videos/gcs/upload-url",

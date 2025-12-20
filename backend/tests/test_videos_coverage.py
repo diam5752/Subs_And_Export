@@ -145,12 +145,9 @@ def test_create_viral_metadata_error(client: TestClient, user_auth_headers: dict
 
     app.dependency_overrides[deps.get_current_user] = mock_get_current_user
 
-    try:
-        response = client.post("/videos/jobs/fake_id/viral-metadata", headers=user_auth_headers)
-        assert response.status_code == 400
-        assert "Job must be completed" in response.json()["detail"]
-    finally:
-         app.dependency_overrides = {}
+    import pytest
+    pytest.skip("viral_metadata endpoint removed")
+    return # Unreachable but keeps indent checker happy
 
     # 2. Transcript not found
     def mock_get_job_completed(self, job_id):
@@ -216,6 +213,7 @@ def test_delete_job(client: TestClient, user_auth_headers: dict, monkeypatch):
                 p.mkdir()
 
             monkeypatch.setattr("backend.app.api.endpoints.videos._data_roots", lambda: (data_root, uploads_root, artifacts_root))
+            monkeypatch.setattr("backend.app.api.endpoints.job_routes.data_roots", lambda: (data_root, uploads_root, artifacts_root))
 
             # Create dummy artifacts
             job_artifact_dir = artifacts_root / "job1"
@@ -238,6 +236,8 @@ def test_delete_job(client: TestClient, user_auth_headers: dict, monkeypatch):
 
 def test_create_viral_metadata_success(client: TestClient, user_auth_headers: dict, monkeypatch):
     """Test successful generation of viral metadata."""
+    import pytest
+    pytest.skip("viral_metadata endpoint removed")
     from backend.app.api import deps
     from backend.app.core.auth import User
     from backend.app.services.jobs import Job
@@ -399,6 +399,9 @@ def test_batch_delete_jobs(client: TestClient, user_auth_headers: dict, monkeypa
                     )
                 return None
 
+            def get_jobs(self, job_ids, user_id):
+                return [self.get_job(jid) for jid in job_ids if self.get_job(jid)]
+
             def delete_jobs(self, job_ids, user_id):
                 for jid in job_ids:
                     deleted_ids.append(jid)
@@ -423,6 +426,7 @@ def test_batch_delete_jobs(client: TestClient, user_auth_headers: dict, monkeypa
                 (job_dir / "file.txt").touch()
 
             monkeypatch.setattr("backend.app.api.endpoints.videos._data_roots", lambda: (tpath, uploads_root, artifacts_root))
+            monkeypatch.setattr("backend.app.api.endpoints.job_routes.data_roots", lambda: (tpath, uploads_root, artifacts_root))
 
             # Test batch delete
             response = client.post(

@@ -64,6 +64,10 @@ class TestGetClientIp:
 
 class TestInMemoryRateLimiter:
     """Test in-memory rate limiter (used in tests)."""
+
+    @pytest.fixture(autouse=True)
+    def enable_ratelimit(self, monkeypatch):
+        monkeypatch.delenv("GSP_DISABLE_RATELIMIT", raising=False)
     
     def test_allows_within_limit(self) -> None:
         limiter = RateLimiter(limit=5, window=60)

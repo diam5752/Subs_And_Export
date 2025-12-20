@@ -25,9 +25,11 @@ def test_cleanup_endpoint_security(client, user_auth_headers):
         assert resp.json()["detail"] == "Not authorized"
 
     # 3. Authenticated AND Admin -> 200 OK
-    # We need to make the user email match the admin email.
-    # The default user is test@example.com (from conftest.py).
-    with patch.dict(os.environ, {"GSP_ADMIN_EMAILS": "test@example.com"}):
+    # Get current user email
+    me_resp = client.get("/auth/me", headers=user_auth_headers)
+    email = me_resp.json()["email"]
+    
+    with patch.dict(os.environ, {"GSP_ADMIN_EMAILS": email}):
         resp = client.post("/videos/jobs/cleanup?days=30", headers=user_auth_headers)
         assert resp.status_code == 200
         assert "deleted_count" in resp.json()

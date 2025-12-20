@@ -3,6 +3,13 @@ from unittest.mock import MagicMock
 from backend.app.api.endpoints import videos
 
 
+import pytest
+
+@pytest.fixture(autouse=True)
+def enable_ratelimit(monkeypatch):
+    monkeypatch.delenv("GSP_DISABLE_RATELIMIT", raising=False)
+
+
 def test_process_rate_limit(client, user_auth_headers):
     """Verify rate limiting prevents flooding the process endpoint."""
     # Top up points so the rate limiter triggers before points exhaustion.

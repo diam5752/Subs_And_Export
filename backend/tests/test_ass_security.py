@@ -4,7 +4,7 @@ from backend.app.services import subtitles
 def test_sanitize_ass_text_removes_newlines():
     """Verify that newlines are removed to prevent ASS injection."""
     malicious = "Hello\nDialogue: 0,0:00:00.00,0:00:05.00,Default,,0,0,0,,Injected!"
-    sanitized = subtitles._sanitize_ass_text(malicious)
+    sanitized = subtitles.subtitle_renderer.sanitize_ass_text(malicious)
 
     assert "\n" not in sanitized
     assert "\r" not in sanitized
@@ -50,7 +50,7 @@ def test_create_styled_subtitle_file_resists_injection(tmp_path):
 def test_sanitize_ass_text_removes_tags():
     """Verify that ASS override tags are neutralized."""
     malicious = "Hello {\\c&H0000FF&}World"
-    sanitized = subtitles._sanitize_ass_text(malicious)
+    sanitized = subtitles.subtitle_renderer.sanitize_ass_text(malicious)
 
     assert "{" not in sanitized
     assert "}" not in sanitized

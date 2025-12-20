@@ -67,7 +67,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         sanitized_errors.append(f"{loc}: {msg}")
     
     error_msg = "; ".join(sanitized_errors)
-    return create_error_response(status.HTTP_422_UNPROCESSABLE_ENTITY, f"Validation Error: {sanitize_message(error_msg)}")
+    return create_error_response(status.HTTP_422_UNPROCESSABLE_CONTENT, f"Validation Error: {sanitize_message(error_msg)}")
 
 async def database_exception_handler(request: Request, exc: SQLAlchemyError):
     """

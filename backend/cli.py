@@ -137,8 +137,10 @@ def process(
     if isinstance(result, tuple):
         social = result[1]
         typer.echo("\nGenerated Social Copy:")
-        typer.echo(f"Title: {social.generic.title}")
-        typer.echo(f"Description:\n{social.generic.description}")
+        typer.echo(f"Title [EL]: {social.generic.title_el}")
+        typer.echo(f"Title [EN]: {social.generic.title_en}")
+        typer.echo(f"Description [EL]:\n{social.generic.description_el}")
+        typer.echo(f"Description [EN]:\n{social.generic.description_en}")
         if social.generic.hashtags:
             typer.echo(f"Hashtags: {' '.join(social.generic.hashtags)}")
 

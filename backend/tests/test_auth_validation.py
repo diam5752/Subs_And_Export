@@ -33,10 +33,16 @@ class TestEmailValidation:
             "123user@sub.domain.org"
         ]
 
-        for email in valid_emails:
+        import uuid
+
+        for base_email in valid_emails:
             limiter_register.reset()
+            # Deconstruct email to insert random part
+            local, domain = base_email.split("@")
+            unique_email = f"{local}_{uuid.uuid4().hex}@{domain}"
+            
             response = client.post("/auth/register", json={
-                "email": email,
+                "email": unique_email,
                 "password": "ValidPassword123",
                 "name": "Test User"
             })

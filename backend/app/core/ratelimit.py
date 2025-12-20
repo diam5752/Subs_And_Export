@@ -64,7 +64,7 @@ class RateLimiter:
         self.window = window
         self.clients: dict[str, list[float]] = {}
 
-    def __call__(self, request: Request):
+    def check(self, key: str) -> None:
         if os.environ.get("GSP_DISABLE_RATELIMIT") == "1":
             return
 
@@ -72,10 +72,9 @@ class RateLimiter:
         if len(self.clients) > 10000:
             self.clients.clear()
 
-        ip = get_client_ip(request)
         now = time.time()
         # Filter out old timestamps
-        history = [t for t in self.clients.get(ip, []) if now - t < self.window]
+        history = [t for t in self.clients.get(key, []) if now - t < self.window]
 
         if len(history) >= self.limit:
             raise HTTPException(
@@ -84,7 +83,11 @@ class RateLimiter:
             )
 
         history.append(now)
-        self.clients[ip] = history
+        self.clients[key] = history
+
+    def __call__(self, request: Request):
+        ip = get_client_ip(request)
+        self.check(ip)
 
     def reset(self):
         self.clients.clear()

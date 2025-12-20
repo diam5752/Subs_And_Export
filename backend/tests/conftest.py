@@ -86,11 +86,13 @@ def client(monkeypatch) -> TestClient:
     # We MUST patch the CLASS __call__ method because special dunder methods 
     # are looked up on the type, not the instance.
     
-    noop = lambda *args, **kwargs: None
-    monkeypatch.setattr(ratelimit.RateLimiter, "__call__", noop)
-    monkeypatch.setattr(ratelimit.AuthenticatedRateLimiter, "__call__", noop)
-    monkeypatch.setattr(ratelimit.DbRateLimiter, "__call__", noop)
-    monkeypatch.setattr(ratelimit.DbAuthenticatedRateLimiter, "__call__", noop)
+    # We rely on GSP_DISABLE_RATELIMIT=1 in env to disable it by default.
+    # This allows individual tests to enable it by deleting the env var.
+    # noop = lambda *args, **kwargs: None
+    # monkeypatch.setattr(ratelimit.RateLimiter, "__call__", noop)
+    # monkeypatch.setattr(ratelimit.AuthenticatedRateLimiter, "__call__", noop)
+    # monkeypatch.setattr(ratelimit.DbRateLimiter, "__call__", noop)
+    # monkeypatch.setattr(ratelimit.DbAuthenticatedRateLimiter, "__call__", noop)
 
     # We also keep resets just in case logic leaks, but disabling check is key.
     ratelimit.limiter_login.reset()

@@ -38,7 +38,7 @@ def test_groq_transcriber_delegates(tmp_path):
 
 def test_groq_transcriber_missing_api_key(tmp_path):
     (tmp_path / "in.wav").touch()
-    with patch("backend.app.services.transcription.groq_cloud._resolve_groq_api_key", return_value=None):
+    with patch("backend.app.services.transcription.groq_cloud.resolve_groq_api_key", return_value=None):
         t = GroqTranscriber(api_key=None)
         with pytest.raises(RuntimeError, match="Groq API key is required"):
             t.transcribe(tmp_path / "in.wav", tmp_path)
@@ -83,7 +83,7 @@ def test_openai_transcriber_delegates(tmp_path):
     mock_transcript = MagicMock()
     mock_transcript.segments = []
 
-    with patch("backend.app.services.transcription.openai_cloud._load_openai_client") as mock_load:
+    with patch("backend.app.services.transcription.openai_cloud.load_openai_client") as mock_load:
         mock_client = MagicMock()
         mock_load.return_value = mock_client
         mock_client.audio.transcriptions.create.return_value = mock_transcript
