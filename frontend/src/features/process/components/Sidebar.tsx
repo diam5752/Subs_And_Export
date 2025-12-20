@@ -113,7 +113,9 @@ const TranscriptPanel = memo(() => {
         }
     }, [activeCueIndex, editingCueIndex, transcriptContainerRef]);
 
-    return (
+    // Optimized: Memoize content to prevent VDOM re-creation during high-frequency currentTime updates
+    // if activeCueIndex hasn't changed.
+    return useMemo(() => (
         <div
             role="tabpanel"
             id="panel-transcript"
@@ -157,7 +159,21 @@ const TranscriptPanel = memo(() => {
                 )}
             </div>
         </div>
-    );
+    ), [
+        cues,
+        activeCueIndex,
+        editingCueIndex,
+        editingCueDraft,
+        isSavingTranscript,
+        transcriptSaveError,
+        transcriptContainerRef,
+        handleSeek,
+        beginEditingCue,
+        saveEditingCue,
+        cancelEditingCue,
+        handleUpdateDraft,
+        t
+    ]);
 });
 TranscriptPanel.displayName = 'TranscriptPanel';
 
@@ -289,7 +305,7 @@ export function Sidebar() {
         karaokeEnabled,
         watermarkEnabled,
         karaokeSupported,
-        transcribeProvider,
+        // transcribeProvider, // Removed: Not used directly, karaokeSupported depends on it
         thumbnailUrl,
         previewVideoUrl,
         cues,

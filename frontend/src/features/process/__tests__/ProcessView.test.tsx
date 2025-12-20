@@ -327,7 +327,7 @@ describe('ProcessView', () => {
         const compactSection = container.querySelector('#upload-section-compact');
         expect(compactSection).toBeInTheDocument();
 
-        // Should also show "Ready" badge
-        expect(screen.getByText(/Ready/i)).toBeInTheDocument();
+        // Should also show "Ready" badge (using exact match to avoid matching description text)
+        expect(screen.getAllByText(/^Ready$/i).length).toBeGreaterThan(0);
     });
 });
