@@ -1,10 +1,10 @@
-
 import React, { useState, memo, useId } from 'react';
 import { useI18n } from '@/context/I18nContext';
 import { User } from '@/context/AuthContext';
 import { api, JobResponse } from '@/lib/api';
 import { useRouter } from 'next/navigation';
 import { RecentJobsList } from './RecentJobsList';
+import { Spinner } from '@/components/Spinner';
 
 interface AccountViewProps {
     user: User;
@@ -212,8 +212,10 @@ export const AccountView = memo(function AccountView({
                         <button
                             type="submit"
                             disabled={accountSaving}
-                            className="btn-primary w-full sm:w-auto"
+                            className="btn-primary w-full sm:w-auto flex items-center justify-center gap-2"
+                            aria-busy={accountSaving}
                         >
+                            {accountSaving && <Spinner className="w-4 h-4 text-current" />}
                             {accountSaving ? t('saving') : t('saveChanges')}
                         </button>
                     </div>
@@ -235,8 +237,10 @@ export const AccountView = memo(function AccountView({
                 <button
                     onClick={handleExport}
                     disabled={exporting}
-                    className="px-4 py-2 rounded-lg border border-[var(--border)] text-[var(--foreground)] hover:bg-white/5 transition-colors disabled:opacity-50"
+                    className="px-4 py-2 rounded-lg border border-[var(--border)] text-[var(--foreground)] hover:bg-white/5 transition-colors disabled:opacity-50 flex items-center gap-2"
+                    aria-busy={exporting}
                 >
+                    {exporting && <Spinner className="w-4 h-4 text-current" />}
                     {exporting ? (t('exporting') || 'Exporting...') : (t('exportData') || 'Export Data')}
                 </button>
             </div>
@@ -277,8 +281,10 @@ export const AccountView = memo(function AccountView({
                             <button
                                 onClick={handleDeleteAccount}
                                 disabled={deleting}
-                                className="px-4 py-2 rounded-lg bg-[var(--danger)] text-white font-medium hover:bg-[var(--danger)]/90 transition-colors disabled:opacity-50"
+                                className="px-4 py-2 rounded-lg bg-[var(--danger)] text-white font-medium hover:bg-[var(--danger)]/90 transition-colors disabled:opacity-50 flex items-center gap-2"
+                                aria-busy={deleting}
                             >
+                                {deleting && <Spinner className="w-4 h-4 text-white" />}
                                 {deleting ? t('deleting') : t('confirm')}
                             </button>
                             <button
