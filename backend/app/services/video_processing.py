@@ -3,19 +3,19 @@
 from __future__ import annotations
 
 import logging
+import subprocess
 import tempfile
 import time
-import subprocess
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Callable
 
-from backend.app.core import metrics
-from backend.app.core import config
+from backend.app.core import config, metrics
 from backend.app.core.database import Database
 from backend.app.services import (
     artifact_manager,
     ffmpeg_utils,
+    pricing,
     settings_utils,
     subtitles,
 )
@@ -23,7 +23,6 @@ from backend.app.services.styles import SubtitleStyle
 from backend.app.services.transcription.groq_cloud import GroqTranscriber
 from backend.app.services.transcription.openai_cloud import OpenAITranscriber
 from backend.app.services.usage_ledger import ChargePlan, UsageLedgerStore
-from backend.app.services import pricing
 
 logger = logging.getLogger(__name__)
 
@@ -158,8 +157,8 @@ def normalize_and_stub_subtitles(
             if check_cancelled: check_cancelled()
             with metrics.measure_time(pipeline_timings, "extract_audio_s"):
                 audio_path = subtitles.extract_audio(
-                    input_path, 
-                    output_dir=scratch, 
+                    input_path,
+                    output_dir=scratch,
                     check_cancelled=check_cancelled,
                     progress_callback=_extract_cb if total_duration else None,
                     total_duration=total_duration
@@ -301,7 +300,8 @@ def normalize_and_stub_subtitles(
                         output_width=output_width,
                         output_height=output_height,
                         watermark_enabled=watermark_enabled,
-                        check_cancelled=check_cancelled
+                        check_cancelled=check_cancelled,
+                        timeout=3600.0,
                     )
                 except subprocess.CalledProcessError as exc:
                     if use_hw_accel:
@@ -319,7 +319,8 @@ def normalize_and_stub_subtitles(
                             output_width=output_width,
                             output_height=output_height,
                             watermark_enabled=watermark_enabled,
-                            check_cancelled=check_cancelled
+                            check_cancelled=check_cancelled,
+                            timeout=3600.0,
                         )
                     else:
                         raise
@@ -509,7 +510,7 @@ def generate_video_variant(
     video_crf = int(stored_crf) if stored_crf is not None else config.DEFAULT_VIDEO_CRF
 
     watermark_enabled = bool(subtitle_settings.get("watermark_enabled", False)) if subtitle_settings else bool(result_data.get("watermark_enabled", False))
-    
+
     ffmpeg_utils.run_ffmpeg_with_subs(
         input_path,
         ass_path,
@@ -522,6 +523,7 @@ def generate_video_variant(
         output_width=width,
         output_height=height,
         watermark_enabled=watermark_enabled,
+        timeout=3600.0,
     )
 
     return destination

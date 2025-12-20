@@ -141,6 +141,7 @@ def run_ffmpeg_with_subs(
     output_height: int | None = None,
     watermark_enabled: bool = False,
     check_cancelled: Callable[[], None] | None = None,
+    timeout: float | None = None,
 ) -> str:
     filtergraph = build_filtergraph(
         ass_path,
@@ -204,11 +205,18 @@ def run_ffmpeg_with_subs(
     try:
         if process.stderr:
             last_cancel_check = 0.0
+            start_time = time.monotonic()
             while True:
+                now = time.monotonic()
+
+                # Timeout check
+                if timeout is not None and (now - start_time) > timeout:
+                    process.kill()
+                    raise TimeoutError(f"FFmpeg process timed out after {timeout}s")
+
                 # Periodic cancellation check
                 # Optimization: Throttle check to ~2Hz to avoid excessive function call overhead
                 if check_cancelled:
-                    now = time.monotonic()
                     if now - last_cancel_check > 0.5:
                         try:
                             check_cancelled()
