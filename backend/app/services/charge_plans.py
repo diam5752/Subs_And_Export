@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from backend.app.core import config
+from backend.app.core.config import settings
 from backend.app.services import pricing
 from backend.app.services.points import make_idempotency_id
 from backend.app.services.usage_ledger import ChargePlan, ChargeReservation, UsageLedgerStore
@@ -20,7 +20,7 @@ def reserve_transcription_charge(
     provider: str,
     model: str,
 ) -> tuple[ChargeReservation, int]:
-    min_credits = config.CREDITS_MIN_TRANSCRIBE[tier]
+    min_credits = settings.credits_min_transcribe[tier]
     credits = pricing.credits_for_minutes(
         tier=tier,
         duration_seconds=duration_seconds,
@@ -122,9 +122,9 @@ def reserve_processing_charges(
             tier=tier,
             action="social_copy",
             model=llm_model,
-            max_prompt_chars=config.MAX_LLM_INPUT_CHARS,
-            max_completion_tokens=config.MAX_LLM_OUTPUT_TOKENS_SOCIAL,
-            min_credits=config.CREDITS_MIN_SOCIAL_COPY[tier],
+            max_prompt_chars=settings.max_llm_input_chars,
+            max_completion_tokens=settings.max_llm_output_tokens_social,
+            min_credits=settings.credits_min_social_copy[tier],
         )
 
     return ChargePlan(

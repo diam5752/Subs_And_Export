@@ -10,7 +10,7 @@ import unicodedata
 from pathlib import Path
 from typing import Any, Callable, List, Optional, Sequence, Tuple
 
-from backend.app.core import config
+from backend.app.core.config import settings
 from backend.app.services.subtitle_types import Cue, TimeRange, WordTiming
 
 logger = logging.getLogger(__name__)
@@ -102,8 +102,8 @@ def ass_header(
     margin_l: int,
     margin_r: int,
     shadow_strength: int = 4,
-    play_res_x: int = config.DEFAULT_WIDTH,
-    play_res_y: int = config.DEFAULT_HEIGHT,
+    play_res_x: int = settings.default_width,
+    play_res_y: int = settings.default_height,
 ) -> str:
     # Security: Validate inputs to prevent ASS format injection
     # Colors and font names must not contain commas or newlines which are delimiters in ASS
@@ -307,8 +307,8 @@ def effective_max_chars(*, max_chars: int, font_size: int, play_res_x: int) -> i
     if font_size <= 0:
         return max_chars
 
-    base_font = config.DEFAULT_SUB_FONT_SIZE
-    base_width = config.DEFAULT_WIDTH
+    base_font = settings.default_sub_font_size
+    base_width = settings.default_width
     width_scale = (play_res_x / base_width) if base_width > 0 else 1.0
     font_scale = (base_font / font_size) if base_font > 0 else 1.0
 
@@ -318,7 +318,7 @@ def effective_max_chars(*, max_chars: int, font_size: int, play_res_x: int) -> i
 
 def wrap_lines(
     words: List[str],
-    max_chars: int = config.MAX_SUB_LINE_CHARS,
+    max_chars: int = settings.max_sub_line_chars,
     max_lines: int = 2,
 ) -> List[List[str]]:
     """
@@ -386,7 +386,7 @@ def wrap_lines(
 
 def wrap_word_timings(
     words: List[WordTiming],
-    max_chars: int = config.MAX_SUB_LINE_CHARS,
+    max_chars: int = settings.max_sub_line_chars,
     max_lines: int = 2,
 ) -> List[List[WordTiming]]:
     """
@@ -436,7 +436,7 @@ def wrap_word_timings(
 
 
 def format_karaoke_text(
-    cue: Cue, max_lines: int = 2, max_chars: int = config.MAX_SUB_LINE_CHARS
+    cue: Cue, max_lines: int = 2, max_chars: int = settings.max_sub_line_chars
 ) -> str:
     """
     Format text for ASS subtitles with karaoke tags (\\k).
@@ -486,7 +486,7 @@ def format_karaoke_text(
 
 
 def format_active_word_text(
-    cue: Cue, max_lines: int, max_chars: int = config.MAX_SUB_LINE_CHARS
+    cue: Cue, max_lines: int, max_chars: int = settings.max_sub_line_chars
 ) -> str:
     """
     Wrap cue text for active-word rendering while preserving word/token alignment.
@@ -579,7 +579,7 @@ def chunk_items(
 
 def split_long_cues(
     cues: Sequence[Cue],
-    max_chars: int = config.MAX_SUB_LINE_CHARS,
+    max_chars: int = settings.max_sub_line_chars,
     max_lines: int = 2
 ) -> List[Cue]:
     """
@@ -692,24 +692,24 @@ def split_long_cues(
 
 
 def create_styled_subtitle_file(
-    transcript_path: Path,
-    cues: Optional[Sequence[Cue]] = None,
-    font: str = config.DEFAULT_SUB_FONT,
-    font_size: int = config.DEFAULT_SUB_FONT_SIZE,
-    primary_color: str = config.DEFAULT_SUB_COLOR,
-    secondary_color: str = config.DEFAULT_SUB_SECONDARY_COLOR,
-    outline_color: str = config.DEFAULT_SUB_OUTLINE_COLOR,
-    back_color: str = config.DEFAULT_SUB_BACK_COLOR,
-    outline: int = config.DEFAULT_SUB_STROKE_WIDTH,
-    alignment: int = config.DEFAULT_SUB_ALIGNMENT,
-    margin_v: int = config.DEFAULT_SUB_MARGIN_V,
-    margin_l: int = config.DEFAULT_SUB_MARGIN_L,
-    margin_r: int = config.DEFAULT_SUB_MARGIN_R,
+    transcript_path: Path | None = None,
+    cues: List[Cue] | None = None,
+    font: str = settings.default_sub_font,
+    font_size: int = settings.default_sub_font_size,
+    primary_color: str = settings.default_sub_color,
+    secondary_color: str = settings.default_sub_secondary_color,
+    outline_color: str = settings.default_sub_outline_color,
+    back_color: str = settings.default_sub_back_color,
+    outline: int = settings.default_sub_stroke_width,
+    alignment: int = settings.default_sub_alignment,
+    margin_v: int = settings.default_sub_margin_v,
+    margin_l: int = settings.default_sub_margin_l,
+    margin_r: int = settings.default_sub_margin_r,
     subtitle_position: int = 16,  # 5-35 (percentage from bottom)
     max_lines: int = 2,
     shadow_strength: int = 4,
-    play_res_x: int = config.DEFAULT_WIDTH,
-    play_res_y: int = config.DEFAULT_HEIGHT,
+    play_res_x: int = settings.default_width,
+    play_res_y: int = settings.default_height,
     output_dir: Path | None = None,
     highlight_style: str = "karaoke", # "karaoke" (fill) or "active" (pop)
 ) -> Path:
@@ -726,7 +726,7 @@ def create_styled_subtitle_file(
         ]
 
     effective_chars = effective_max_chars(
-        max_chars=config.MAX_SUB_LINE_CHARS,
+        max_chars=settings.max_sub_line_chars,
         font_size=font_size,
         play_res_x=play_res_x,
     )

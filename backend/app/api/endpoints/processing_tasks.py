@@ -7,7 +7,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from ...core import config
+from ...core.config import settings
 from ...core.auth import User
 from ...core.database import Database
 from ...core.errors import sanitize_message
@@ -115,8 +115,8 @@ def run_video_processing(
 
         # Map settings to internal params
         model_size = settings.transcribe_model
-        provider = settings.transcribe_provider or config.TRANSCRIBE_TIER_PROVIDER.get(
-            settings.transcribe_model, config.TRANSCRIBE_TIER_PROVIDER[config.DEFAULT_TRANSCRIBE_TIER]
+        provider = settings.transcribe_provider or settings.transcribe_tier_provider.get(
+            settings.transcribe_model, settings.transcribe_tier_provider[settings.default_transcribe_tier]
         )
         crf_map = {"low size": 28, "balanced": 20, "high quality": 12}
         video_crf = crf_map.get(settings.video_quality.lower(), 12)
@@ -304,8 +304,8 @@ def run_gcs_video_processing(
 
         if probe.duration_s is None or probe.duration_s <= 0:
             raise ValueError("Could not determine video duration")
-        if probe.duration_s > config.MAX_VIDEO_DURATION_SECONDS:
-            raise ValueError(f"Video too long (max {config.MAX_VIDEO_DURATION_SECONDS/60:.1f} minutes)")
+        if probe.duration_s > settings.max_video_duration_seconds:
+            raise ValueError(f"Video too long (max {settings.max_video_duration_seconds/60:.1f} minutes)")
 
         run_video_processing(
             job_id,

@@ -6,7 +6,7 @@ import json
 import logging
 from fastapi import APIRouter, Depends, HTTPException
 
-from ...core import config
+from ...core.config import settings
 from ...core.auth import User
 from ...core.database import Database
 from ...core.errors import sanitize_error
@@ -60,9 +60,9 @@ def fact_check_video(
             tier=tier,
             action="fact_check",
             model=llm_models.fact_check,
-            max_prompt_chars=config.MAX_LLM_INPUT_CHARS,
-            max_completion_tokens=config.MAX_LLM_OUTPUT_TOKENS_FACTCHECK,
-            min_credits=config.CREDITS_MIN_FACT_CHECK[tier],
+            max_prompt_chars=settings.max_llm_input_chars,
+            max_completion_tokens=settings.max_llm_output_tokens_factcheck,
+            min_credits=settings.credits_min_fact_check[tier],
         )
 
         try:
@@ -146,9 +146,9 @@ def generate_social_copy_video(
             tier=tier,
             action="social_copy",
             model=llm_models.social,
-            max_prompt_chars=config.MAX_LLM_INPUT_CHARS,
-            max_completion_tokens=config.MAX_LLM_OUTPUT_TOKENS_SOCIAL,
-            min_credits=config.CREDITS_MIN_SOCIAL_COPY[tier],
+            max_prompt_chars=settings.max_llm_input_chars,
+            max_completion_tokens=settings.max_llm_output_tokens_social,
+            min_credits=settings.credits_min_social_copy[tier],
         )
 
         try:

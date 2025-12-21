@@ -7,9 +7,9 @@ from typing import Dict, List
 
 from sqlalchemy import select
 
-from ..core.auth import User
-from ..core.database import Database
-from ..db.models import DbHistoryEvent, DbUser
+from backend.app.core.auth import User
+from backend.app.core.database import Database
+from backend.app.db.models import DbHistoryEvent, DbUser
 
 
 @dataclass

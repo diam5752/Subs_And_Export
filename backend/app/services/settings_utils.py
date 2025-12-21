@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Union
 
-from backend.app.core import config
+from backend.app.core.config import settings
 
 
 def font_size_from_subtitle_size(subtitle_size: int | None) -> int:
@@ -19,7 +19,7 @@ def font_size_from_subtitle_size(subtitle_size: int | None) -> int:
     size = subtitle_size if subtitle_size is not None else 100
     # Clamp to valid range
     size = max(50, min(150, size))
-    base = config.DEFAULT_SUB_FONT_SIZE
+    base = settings.default_sub_font_size
     return int(round(base * size / 100))
 
 

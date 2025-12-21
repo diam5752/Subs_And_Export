@@ -12,12 +12,12 @@ from pathlib import Path
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from ...core import config
+from ...core.config import settings
 from ...core.auth import User
 from ...core.errors import sanitize_message
 from ...core.gcs import get_gcs_settings
 from ...core.ratelimit import limiter_processing
-from ...core.settings import load_app_settings
+
 from ...schemas.base import JobResponse
 from ...schemas.usage import UsageSummaryResponse, UsageSummaryRow
 from ...services import pricing
@@ -36,7 +36,7 @@ from .validation import ALLOWED_VIDEO_EXTENSIONS
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-APP_SETTINGS = load_app_settings()
+
 
 
 def _ensure_admin(current_user: User) -> None:
@@ -51,12 +51,12 @@ def _ensure_admin(current_user: User) -> None:
 
 
 class ReprocessRequest(BaseModel):
-    transcribe_model: str = Field(config.DEFAULT_TRANSCRIBE_TIER, max_length=50)
-    transcribe_provider: str = Field(config.TRANSCRIBE_TIER_PROVIDER[config.DEFAULT_TRANSCRIBE_TIER], max_length=50)
+    transcribe_model: str = Field(settings.default_transcribe_tier, max_length=50)
+    transcribe_provider: str = Field(settings.transcribe_tier_provider[settings.default_transcribe_tier], max_length=50)
     openai_model: str = Field("", max_length=50)
     video_quality: str = Field("high quality", max_length=50)
     video_resolution: str = Field("", max_length=50)
-    use_llm: bool = APP_SETTINGS.use_llm_by_default
+    use_llm: bool = settings.use_llm_by_default
     context_prompt: str = Field("", max_length=5000)
     subtitle_position: int = 16
     max_subtitle_lines: int = 2
@@ -86,10 +86,10 @@ def reprocess_job(
         raise HTTPException(status_code=400, detail="Job must be completed to reprocess")
 
     active_jobs = job_store.count_active_jobs_for_user(current_user.id)
-    if active_jobs >= config.MAX_CONCURRENT_JOBS:
+    if active_jobs >= settings.max_concurrent_jobs:
         raise HTTPException(
             status_code=429,
-            detail=f"Too many active jobs. Please wait for your current jobs to finish (max {config.MAX_CONCURRENT_JOBS}).",
+            detail=f"Too many active jobs. Please wait for your current jobs to finish (max {settings.max_concurrent_jobs}).",
         )
 
     settings = build_processing_settings(
@@ -137,7 +137,7 @@ def reprocess_job(
                 user_id=current_user.id,
                 job_id=new_job_id,
                 tier=settings.transcribe_model,
-                duration_seconds=float(config.MAX_VIDEO_DURATION_SECONDS),
+                duration_seconds=float(settings.max_video_duration_seconds),
                 use_llm=settings.use_llm,
                 llm_model=llm_models.social,
                 provider=settings.transcribe_provider,
@@ -206,8 +206,8 @@ def reprocess_job(
     size_bytes = source_input.stat().st_size
     if size_bytes <= 0:
         raise HTTPException(status_code=400, detail="Empty source video")
-    if size_bytes > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=413, detail=f"File too large; limit is {APP_SETTINGS.max_upload_mb}MB")
+    if size_bytes > (settings.max_upload_mb * 1024 * 1024):
+        raise HTTPException(status_code=413, detail=f"File too large; limit is {settings.max_upload_mb}MB")
 
     try:
         probe = probe_media(source_input)
@@ -216,8 +216,8 @@ def reprocess_job(
 
     if probe.duration_s is None or probe.duration_s <= 0:
         raise HTTPException(status_code=400, detail="Could not determine video duration")
-    if probe.duration_s > config.MAX_VIDEO_DURATION_SECONDS:
-        raise HTTPException(status_code=400, detail=f"Video too long (max {config.MAX_VIDEO_DURATION_SECONDS/60:.1f} minutes)")
+    if probe.duration_s > settings.max_video_duration_seconds:
+        raise HTTPException(status_code=400, detail=f"Video too long (max {settings.max_video_duration_seconds/60:.1f} minutes)")
 
     new_job_id = str(uuid.uuid4())
     input_path = uploads_dir / f"{new_job_id}_input{file_ext}"

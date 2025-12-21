@@ -10,7 +10,7 @@ from typing import Any, List, Sequence
 
 from sqlalchemy.orm import Session
 
-from backend.app.core import config
+from backend.app.core.config import settings
 from backend.app.services import llm_utils
 from backend.app.services.cost import CostService
 from backend.app.services import pricing
@@ -193,7 +193,7 @@ def build_social_copy_llm(
             "  3. Pass explicitly via api_key parameter"
         )
 
-    model_name = model or config.SOCIAL_LLM_MODEL
+    model_name = model or settings.social_llm_model
     client = llm_utils.load_openai_client(api_key)
 
     system_prompt = (
@@ -225,7 +225,7 @@ def build_social_copy_llm(
 
     messages = [
         {"role": "system", "content": system_prompt},
-        {"role": "user", "content": transcript_text.strip()[:config.MAX_LLM_INPUT_CHARS]},
+        {"role": "user", "content": transcript_text.strip()[:settings.max_llm_input_chars]},
     ]
 
     # Retry mechanism
@@ -243,7 +243,7 @@ def build_social_copy_llm(
                 model=model_name,
                 messages=messages,
                 temperature=temperature,
-                max_completion_tokens=config.MAX_LLM_OUTPUT_TOKENS_SOCIAL,
+                max_completion_tokens=settings.max_llm_output_tokens_social,
                 response_format={"type": "json_object"},
                 timeout=60.0,
             )
@@ -282,7 +282,7 @@ def build_social_copy_llm(
             parsed = json.loads(cleaned_content)
 
             if ledger_store and charge_reservation:
-                tier = charge_reservation.tier or config.DEFAULT_TRANSCRIBE_TIER
+                tier = charge_reservation.tier or settings.default_transcribe_tier
                 credits = pricing.credits_for_tokens(
                     tier=tier,
                     prompt_tokens=usage_prompt,
@@ -333,7 +333,7 @@ def build_social_copy_llm(
     logger.warning("Falling back to deterministic social copy generation.")
     if ledger_store and charge_reservation:
         if usage_prompt + usage_completion > 0:
-            tier = charge_reservation.tier or config.DEFAULT_TRANSCRIBE_TIER
+            tier = charge_reservation.tier or settings.default_transcribe_tier
             credits = pricing.credits_for_tokens(
                 tier=tier,
                 prompt_tokens=usage_prompt,

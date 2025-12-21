@@ -9,7 +9,7 @@ from typing import Any, List
 
 from sqlalchemy.orm import Session
 
-from backend.app.core import config
+from backend.app.core.config import settings
 from backend.app.services import llm_utils
 from backend.app.services.cost import CostService
 from backend.app.services import pricing
@@ -63,8 +63,8 @@ def generate_fact_check(
     if not api_key:
         raise RuntimeError("OpenAI API key is required for Fact Checking.")
 
-    model_name = model or config.FACTCHECK_LLM_MODEL
-    extraction_model_name = extraction_model or config.EXTRACTION_LLM_MODEL
+    model_name = model or settings.factcheck_llm_model
+    extraction_model_name = extraction_model or settings.extraction_llm_model
     client = llm_utils.load_openai_client(api_key)
 
     # Cost Optimization: Hybrid Strategy
@@ -89,7 +89,7 @@ def generate_fact_check(
             model=extraction_model_name, # Cheap model
             messages=[
                 {"role": "system", "content": extraction_prompt},
-                {"role": "user", "content": transcript_text.strip()[:config.MAX_LLM_INPUT_CHARS]}
+                {"role": "user", "content": transcript_text.strip()[:settings.max_llm_input_chars]}
             ],
             temperature=0.3,
             response_format={"type": "json_object"},
@@ -127,7 +127,7 @@ def generate_fact_check(
         if not claims:
             logger.info("Fact Check: No doubtful claims found by extractor.")
             if ledger_store and charge_reservation:
-                tier = charge_reservation.tier or config.DEFAULT_TRANSCRIBE_TIER
+                tier = charge_reservation.tier or settings.default_transcribe_tier
                 credits = pricing.credits_for_tokens(
                     tier=tier,
                     prompt_tokens=usage_prompt,
@@ -213,7 +213,7 @@ def generate_fact_check(
 
     messages = [
         {"role": "system", "content": system_prompt},
-        {"role": "user", "content": transcript_text.strip()[:config.MAX_LLM_INPUT_CHARS]},
+        {"role": "user", "content": transcript_text.strip()[:settings.max_llm_input_chars]},
     ]
 
 
@@ -228,7 +228,7 @@ def generate_fact_check(
                 messages=messages,
                 timeout=120.0,
                 temperature=temperature,
-                max_completion_tokens=config.MAX_LLM_OUTPUT_TOKENS_FACTCHECK,
+                max_completion_tokens=settings.max_llm_output_tokens_factcheck,
                 response_format={"type": "json_object"},
             )
             
@@ -289,7 +289,7 @@ def generate_fact_check(
             ]
 
             if ledger_store and charge_reservation:
-                tier = charge_reservation.tier or config.DEFAULT_TRANSCRIBE_TIER
+                tier = charge_reservation.tier or settings.default_transcribe_tier
                 credits = pricing.credits_for_tokens(
                     tier=tier,
                     prompt_tokens=usage_prompt,
@@ -333,7 +333,7 @@ def generate_fact_check(
 
     if ledger_store and charge_reservation:
         if usage_prompt + usage_completion > 0:
-            tier = charge_reservation.tier or config.DEFAULT_TRANSCRIBE_TIER
+            tier = charge_reservation.tier or settings.default_transcribe_tier
             credits = pricing.credits_for_tokens(
                 tier=tier,
                 prompt_tokens=usage_prompt,

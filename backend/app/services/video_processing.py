@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from backend.app.core import metrics
-from backend.app.core import config
+from backend.app.core.config import settings
 from backend.app.core.database import Database
 from backend.app.services import (
     artifact_manager,
@@ -54,7 +54,7 @@ def normalize_and_stub_subtitles(
     llm_temperature: float = 0.6,
     llm_api_key: str | None = None,
     artifact_dir: Path | None = None,
-    use_hw_accel: bool = config.USE_HW_ACCEL,
+    use_hw_accel: bool = settings.use_hw_accel,
     progress_callback: Callable[[str, float], None] | None = None,
     check_cancelled: Callable[[], None] | None = None,
     transcription_only: bool = False,
@@ -97,7 +97,7 @@ def normalize_and_stub_subtitles(
     style = SubtitleStyle(
         position=subtitle_position if subtitle_position is not None else 16,
         max_lines=max_subtitle_lines,
-        primary_color=subtitle_color or config.DEFAULT_SUB_COLOR,
+        primary_color=subtitle_color or settings.default_sub_color,
         shadow_strength=shadow_strength,
         highlight_style=effective_highlight_style,
         font_size=font_size
@@ -107,13 +107,13 @@ def normalize_and_stub_subtitles(
     tier = pricing.resolve_tier_from_model(model_size)
     provider_name = transcribe_provider.strip().lower() if transcribe_provider else None
     if provider_name:
-        expected_provider = config.TRANSCRIBE_TIER_PROVIDER[tier]
+        expected_provider = settings.transcribe_tier_provider[tier]
         if provider_name != expected_provider:
             raise ValueError("transcribe_provider does not match selected tier")
     else:
-        provider_name = config.TRANSCRIBE_TIER_PROVIDER[tier]
+        provider_name = settings.transcribe_tier_provider[tier]
 
-    selected_model = config.TRANSCRIBE_TIER_MODEL[tier]
+    selected_model = settings.transcribe_tier_model[tier]
 
     # Instantiate Transcriber (The Ear)
     transcriber = None
@@ -189,14 +189,14 @@ def normalize_and_stub_subtitles(
                 srt_path, cues = transcriber.transcribe(
                     audio_path,
                     output_dir=scratch,
-                    language=language or config.WHISPER_LANGUAGE,
+                    language=language or settings.whisper_language,
                     model=selected_model,
                     **transcribe_kwargs
                 )
 
             if ledger_store and charge_plan and charge_plan.transcription:
                 duration_seconds = total_duration if total_duration > 0 else 0.0
-                tier = charge_plan.transcription.tier or config.DEFAULT_TRANSCRIBE_TIER
+                tier = charge_plan.transcription.tier or settings.default_transcribe_tier
                 credits = pricing.credits_for_minutes(
                     tier=tier,
                     duration_seconds=duration_seconds,
@@ -234,8 +234,8 @@ def normalize_and_stub_subtitles(
                     primary_color=style.primary_color,
                     highlight_style=ass_highlight_style,
                     font_size=style.font_size,
-                    play_res_x=config.DEFAULT_WIDTH,
-                    play_res_y=config.DEFAULT_HEIGHT,
+                    play_res_x=settings.default_width,
+                    play_res_y=settings.default_height,
                 )
 
             # Step 4: Social Copy & Rendering
@@ -291,9 +291,9 @@ def normalize_and_stub_subtitles(
 
                     ffmpeg_utils.run_ffmpeg_with_subs(
                         input_path, ass_path, destination,
-                        video_crf=video_crf or config.DEFAULT_VIDEO_CRF,
-                        video_preset=video_preset or config.DEFAULT_VIDEO_PRESET,
-                        audio_bitrate=audio_bitrate or config.DEFAULT_AUDIO_BITRATE,
+                        video_crf=video_crf or settings.default_video_crf,
+                        video_preset=video_preset or settings.default_video_preset,
+                        audio_bitrate=audio_bitrate or settings.default_audio_bitrate,
                         audio_copy=resolved_audio_copy,
                         use_hw_accel=use_hw_accel,
                         progress_callback=_enc_cb if total_duration > 0 else None,
@@ -309,9 +309,9 @@ def normalize_and_stub_subtitles(
                         # Retry without hardware acceleration
                         ffmpeg_utils.run_ffmpeg_with_subs(
                             input_path, ass_path, destination,
-                            video_crf=video_crf or config.DEFAULT_VIDEO_CRF,
-                            video_preset=video_preset or config.DEFAULT_VIDEO_PRESET,
-                            audio_bitrate=audio_bitrate or config.DEFAULT_AUDIO_BITRATE,
+                            video_crf=video_crf or settings.default_video_crf,
+                            video_preset=video_preset or settings.default_video_preset,
+                            audio_bitrate=audio_bitrate or settings.default_audio_bitrate,
                             audio_copy=resolved_audio_copy,
                             use_hw_accel=False, # Force False
                             progress_callback=_enc_cb if total_duration > 0 else None,
@@ -348,13 +348,13 @@ def normalize_and_stub_subtitles(
                 "status": "error" if pipeline_error else "success",
                 "error": pipeline_error,
                 "model_size": selected_model,
-                "device": device or config.WHISPER_DEVICE,
-                "compute_type": compute_type or config.WHISPER_COMPUTE_TYPE,
+                "device": device or settings.whisper_device,
+                "compute_type": compute_type or settings.whisper_compute_type,
                 "transcribe_provider": provider_name,
                 "use_hw_accel": use_hw_accel,
-                "language": language or config.WHISPER_LANGUAGE,
-                "video_preset": video_preset or config.DEFAULT_VIDEO_PRESET,
-                "video_crf": video_crf or config.DEFAULT_VIDEO_CRF,
+                "language": language or settings.whisper_language,
+                "video_preset": video_preset or settings.default_video_preset,
+                "video_crf": video_crf or settings.default_video_crf,
                 "timings": pipeline_timings,
             }
         )
@@ -384,12 +384,12 @@ def generate_video_variant(
     if not input_path.exists():
         raise FileNotFoundError("Original input video not found")
 
-    width, height = config.DEFAULT_WIDTH, config.DEFAULT_HEIGHT
+    width, height = settings.default_width, settings.default_height
     try:
         w_str, h_str = resolution.lower().replace("×", "x").split("x")
         width, height = int(w_str), int(h_str)
-        if width > config.MAX_RESOLUTION_DIMENSION or height > config.MAX_RESOLUTION_DIMENSION:
-            raise ValueError(f"Resolution exceeds max {config.MAX_RESOLUTION_DIMENSION}")
+        if width > settings.max_resolution_dimension or height > settings.max_resolution_dimension:
+            raise ValueError(f"Resolution exceeds max {settings.max_resolution_dimension}")
     except Exception as e:
         logger.warning(f"Failed to parse resolution in variant gen: {e}")
         if "exceeds max" in str(e):
@@ -440,14 +440,14 @@ def generate_video_variant(
         highlight_style = "static" if not karaoke_enabled else requested_highlight_style
 
         # FIX: Always use reference resolution (1080x1920) for ASS generation.
-        base_width, base_height = config.DEFAULT_WIDTH, config.DEFAULT_HEIGHT
+        base_width, base_height = settings.default_width, settings.default_height
 
         ass_path = subtitles.create_styled_subtitle_file(
             transcript_path,
             cues=cues,
             subtitle_position=settings_utils.parse_legacy_position(subtitle_settings.get("subtitle_position")),
             max_lines=_resolve_param(subtitle_settings.get("max_subtitle_lines"), 2),
-            primary_color=str(subtitle_settings.get("subtitle_color") or config.DEFAULT_SUB_COLOR),
+            primary_color=str(subtitle_settings.get("subtitle_color") or settings.default_sub_color),
             shadow_strength=_resolve_param(subtitle_settings.get("shadow_strength"), 4),
             font_size=font_size,
             highlight_style=highlight_style,
@@ -486,14 +486,14 @@ def generate_video_variant(
             except Exception as e:
                 logger.warning(f"Failed to load transcription.json: {e}")
 
-        base_width, base_height = config.DEFAULT_WIDTH, config.DEFAULT_HEIGHT
+        base_width, base_height = settings.default_width, settings.default_height
 
         ass_path = subtitles.create_styled_subtitle_file(
             transcript_path,
             cues=cues,
             subtitle_position=settings_utils.parse_legacy_position(result_data.get("subtitle_position")),
             max_lines=_resolve_param(result_data.get("max_subtitle_lines"), 2),
-            primary_color=str(result_data.get("subtitle_color") or config.DEFAULT_SUB_COLOR),
+            primary_color=str(result_data.get("subtitle_color") or settings.default_sub_color),
             shadow_strength=_resolve_param(result_data.get("shadow_strength"), 4),
             font_size=font_size,
             highlight_style=highlight_style,
@@ -506,7 +506,7 @@ def generate_video_variant(
     destination = artifact_dir / output_filename
 
     stored_crf = result_data.get("video_crf")
-    video_crf = int(stored_crf) if stored_crf is not None else config.DEFAULT_VIDEO_CRF
+    video_crf = int(stored_crf) if stored_crf is not None else settings.default_video_crf
 
     watermark_enabled = bool(subtitle_settings.get("watermark_enabled", False)) if subtitle_settings else bool(result_data.get("watermark_enabled", False))
     
@@ -515,10 +515,10 @@ def generate_video_variant(
         ass_path,
         destination,
         video_crf=video_crf,
-        video_preset=config.DEFAULT_VIDEO_PRESET,
-        audio_bitrate=config.DEFAULT_AUDIO_BITRATE,
+        video_preset=settings.default_video_preset,
+        audio_bitrate=settings.default_audio_bitrate,
         audio_copy=True,
-        use_hw_accel=config.USE_HW_ACCEL,
+        use_hw_accel=settings.use_hw_accel,
         output_width=width,
         output_height=height,
         watermark_enabled=watermark_enabled,

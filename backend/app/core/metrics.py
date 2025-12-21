@@ -11,8 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Generator, Optional
 
-from backend.app.core import config
-from backend.app.core.env import get_app_env, is_dev_env
+from backend.app.core.config import settings
 
 
 def _env_bool(name: str) -> Optional[bool]:
@@ -41,14 +40,10 @@ def should_log_metrics() -> bool:
     if "PYTEST_CURRENT_TEST" in os.environ:
         return False
 
-    return is_dev_env()
-
+    return settings.is_dev
 
 def _resolve_log_path() -> Path:
-    custom = os.getenv("PIPELINE_LOG_PATH")
-    if custom:
-        return Path(custom).expanduser().resolve()
-    return (config.PROJECT_ROOT / "logs" / "pipeline_metrics.jsonl").resolve()
+    return (settings.project_root / "logs" / "pipeline_metrics.jsonl").resolve()
 
 
 def log_pipeline_metrics(event: dict[str, Any]) -> None:
@@ -59,7 +54,7 @@ def log_pipeline_metrics(event: dict[str, Any]) -> None:
     payload = {
         "ts": datetime.now(timezone.utc).isoformat(),
         "host": socket.gethostname(),
-        "app_env": get_app_env().value,
+        "app_env": settings.app_env.value,
         **event,
     }
 

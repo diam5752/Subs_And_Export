@@ -4,7 +4,7 @@ from typing import List, Optional
 
 import stable_whisper
 
-from backend.app.core import config
+from backend.app.core.config import settings
 from backend.app.services.subtitle_types import Cue, TimeRange, WordTiming
 from backend.app.services.transcription.base import Transcriber
 from backend.app.services.transcription.utils import normalize_text, write_srt_from_segments
@@ -20,7 +20,7 @@ def _get_whisper_model(
     Load a Stable-Whisper wrapped Faster-Whisper model.
     """
     if model_size == "turbo":
-        model_size = config.WHISPER_MODEL
+        model_size = settings.whisper_model
 
     # stable-ts wrapper for faster-whisper
     model = stable_whisper.load_faster_whisper(
@@ -41,8 +41,8 @@ class LocalWhisperTranscriber(Transcriber):
                  device: Optional[str] = None,
                  compute_type: Optional[str] = None,
                  beam_size: int = 5):
-        self.device = device or config.WHISPER_DEVICE
-        self.compute_type = compute_type or config.WHISPER_COMPUTE_TYPE
+        self.device = device or settings.whisper_device
+        self.compute_type = compute_type or settings.whisper_compute_type
         self.beam_size = beam_size
 
     def transcribe(self, audio_path: Path, output_dir: Path, language: str = "en", model: str = "base", **kwargs) -> tuple[Path, List[Cue]]:
@@ -69,7 +69,7 @@ class LocalWhisperTranscriber(Transcriber):
             check_cancelled()
 
         transcribe_kwargs = {
-            "language": language or config.WHISPER_LANGUAGE,
+            "language": language or settings.whisper_language,
             "task": "transcribe",
             "word_timestamps": True,
             "vad": kwargs.get("vad_filter", True),

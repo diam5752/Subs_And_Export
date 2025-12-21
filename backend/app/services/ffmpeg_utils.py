@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from backend.app.core import config
+from backend.app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -98,8 +98,8 @@ def build_filtergraph(
     if target_width is None and target_height is None:
         return f"format=yuv420p,{ass_filter}"
 
-    width = target_width or config.DEFAULT_WIDTH
-    height = target_height or config.DEFAULT_HEIGHT
+    width = target_width or settings.default_width
+    height = target_height or settings.default_height
     scale = (
         f"scale={width}:-2:force_original_aspect_ratio=decrease"
     )
@@ -109,9 +109,9 @@ def build_filtergraph(
     )
     graph = ",".join([scale, pad, "format=yuv420p"])
 
-    if watermark_enabled and config.WATERMARK_PATH.exists():
+    if watermark_enabled and settings.watermark_path.exists():
         # Clean path for FFmpeg
-        wm_path = config.WATERMARK_PATH.as_posix().replace("'", r"\'")
+        wm_path = settings.watermark_path.as_posix().replace("'", r"\'")
         # Dynamic watermark sizing (15% of video width)
         wm_w = int(width * 0.15)
         wm_overlay = (

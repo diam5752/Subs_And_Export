@@ -10,13 +10,13 @@ from typing import Any
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from ...core import config
+from ...core.config import settings
 from ...core.auth import User
 from ...core.errors import sanitize_message
 from ...core.gcs import generate_signed_upload_url, get_gcs_settings
 from ...core.gcs_uploads import GcsUploadStore
 from ...core.ratelimit import limiter_processing
-from ...core.settings import load_app_settings
+
 from ...schemas.base import JobResponse
 from ...services import pricing
 from ...services.charge_plans import reserve_processing_charges
@@ -33,7 +33,7 @@ from .validation import ALLOWED_VIDEO_EXTENSIONS, validate_upload_content_type
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-APP_SETTINGS = load_app_settings()
+
 
 
 class GcsUploadUrlRequest(BaseModel):
@@ -66,8 +66,8 @@ def create_gcs_upload_url(
     if file_ext not in ALLOWED_VIDEO_EXTENSIONS:
         raise HTTPException(status_code=400, detail="Invalid file type")
 
-    if payload.size_bytes > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=413, detail=f"File too large; limit is {APP_SETTINGS.max_upload_mb}MB")
+    if payload.size_bytes > (settings.max_upload_mb * 1024 * 1024):
+        raise HTTPException(status_code=413, detail=f"File too large; limit is {settings.max_upload_mb}MB")
 
     content_type = validate_upload_content_type(payload.content_type)
 
@@ -108,12 +108,12 @@ def create_gcs_upload_url(
 
 class GcsProcessRequest(BaseModel):
     upload_id: str = Field(..., max_length=128)
-    transcribe_model: str = Field(config.DEFAULT_TRANSCRIBE_TIER, max_length=50)
-    transcribe_provider: str = Field(config.TRANSCRIBE_TIER_PROVIDER[config.DEFAULT_TRANSCRIBE_TIER], max_length=50)
+    transcribe_model: str = Field(settings.default_transcribe_tier, max_length=50)
+    transcribe_provider: str = Field(settings.transcribe_tier_provider[settings.default_transcribe_tier], max_length=50)
     openai_model: str = Field("", max_length=50)
     video_quality: str = Field("high quality", max_length=50)
     video_resolution: str = Field("", max_length=50)
-    use_llm: bool = APP_SETTINGS.use_llm_by_default
+    use_llm: bool = settings.use_llm_by_default
     context_prompt: str = Field("", max_length=5000)
     subtitle_position: int = 16
     max_subtitle_lines: int = 2
@@ -141,10 +141,10 @@ def process_video_from_gcs(
         raise HTTPException(status_code=503, detail="GCS uploads are not configured")
 
     active_jobs = job_store.count_active_jobs_for_user(current_user.id)
-    if active_jobs >= config.MAX_CONCURRENT_JOBS:
+    if active_jobs >= settings.max_concurrent_jobs:
         raise HTTPException(
             status_code=429,
-            detail=f"Too many active jobs. Please wait for your current jobs to finish (max {config.MAX_CONCURRENT_JOBS}).",
+            detail=f"Too many active jobs. Please wait for your current jobs to finish (max {settings.max_concurrent_jobs}).",
         )
 
     session = gcs_upload_store.consume_upload(upload_id=payload.upload_id, user_id=current_user.id)
@@ -186,7 +186,7 @@ def process_video_from_gcs(
         user_id=current_user.id,
         job_id=job_id,
         tier=settings.transcribe_model,
-        duration_seconds=float(config.MAX_VIDEO_DURATION_SECONDS),
+        duration_seconds=float(settings.max_video_duration_seconds),
         use_llm=settings.use_llm,
         llm_model=llm_models.social,
         provider=settings.transcribe_provider,

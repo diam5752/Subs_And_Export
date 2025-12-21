@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Literal
 
-from backend.app.core import config
+from backend.app.core.config import settings
 
 
 @dataclass
@@ -10,7 +10,7 @@ class SubtitleStyle:
     Centralized configuration for subtitle visualization styling.
     """
     font_family: str = "Arial"
-    font_size: int = config.DEFAULT_SUB_FONT_SIZE
+    font_size: int = settings.default_sub_font_size
     primary_color: str = "#FFFF00"
     secondary_color: str = "#FFFFFF"
     stroke_color: str = "black"

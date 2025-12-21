@@ -43,7 +43,13 @@ const ProcessViewLayout = React.memo(({ currentStep, steps, hasChosenModel, sele
             const sectionId = stepId === 1 ? 'step-1-wrapper' : stepId === 2 ? 'step-2-wrapper' : 'step-3-wrapper';
             const element = document.getElementById(sectionId);
             if (element) {
-                element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                // Use getBoundingClientRect for accurate positioning
+                const rect = element.getBoundingClientRect();
+                const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                // Offset accounts for sticky header (approx 80px) + step indicator (approx 120px) + margin
+                const offset = stepId === 1 ? 20 : 120;
+                const targetY = rect.top + scrollTop - offset;
+                window.scrollTo({ top: targetY, behavior: 'smooth' });
             }
         }, 350);
     }, [setOverrideStep]);
@@ -60,7 +66,7 @@ const ProcessViewLayout = React.memo(({ currentStep, steps, hasChosenModel, sele
             {/* Always show all 3 steps - they appear greyed out when inactive */}
             <StepIndicator currentStep={currentStep} steps={steps} onStepClick={handleStepClick} maxStep={maxStep} />
 
-            <div id="step-1-wrapper" className="scroll-mt-32">
+            <div id="step-1-wrapper" className="scroll-mt-48">
                 <ModelSelector />
             </div>
 

@@ -20,15 +20,24 @@ export const StepIndicator = React.memo(function StepIndicator({ currentStep, st
     return (
         <div className="w-full max-w-4xl mx-auto mb-10 px-4">
             <div className="relative flex items-center justify-between">
-                {/* Connecting Line Background */}
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-1 bg-[var(--surface-elevated)] rounded-full -z-10" />
+                {/* Connecting Line Background - spans between circle centers */}
+                <div
+                    className="absolute h-1 bg-[var(--surface-elevated)] rounded-full pointer-events-none"
+                    style={{
+                        top: '24px', // Center of 48px step circles
+                        left: '24px', // Center of first circle (w-12 = 48px / 2)
+                        right: '24px', // Center of last circle
+                    }}
+                />
 
                 {/* Active Progress Line */}
                 <div
-                    className="absolute left-0 top-1/2 -translate-y-1/2 h-1 bg-gradient-to-r from-[var(--accent)] to-[var(--accent-secondary)] rounded-full -z-10 transition-all duration-700 ease-out"
+                    className="absolute h-1 bg-gradient-to-r from-[var(--accent)] to-[var(--accent-secondary)] rounded-full transition-all duration-700 ease-out pointer-events-none"
                     style={{
-                        // Width should reflect the maxStep, showing the full unlocked path
-                        width: `${((effectiveMaxStep - 1) / (steps.length - 1)) * 100}%`
+                        top: '24px', // Center of 48px step circles
+                        left: '24px', // Start from center of first circle
+                        // Width spans from center of circle 1 to center of circle N based on maxStep
+                        width: effectiveMaxStep <= 1 ? '0' : `calc(${((effectiveMaxStep - 1) / (steps.length - 1)) * 100}% - 48px)`
                     }}
                 />
 
@@ -63,7 +72,7 @@ export const StepIndicator = React.memo(function StepIndicator({ currentStep, st
                         >
                             {/* Step Circle */}
                             <div
-                                className={`w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all duration-500 z-10 ${isActive
+                                className={`relative w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all duration-500 ${isActive
                                     ? 'bg-[var(--accent)] border-[var(--accent)] shadow-[0_0_20px_-5px_var(--accent)] scale-110'
                                     : shouldShowAccent
                                         ? 'bg-[var(--surface-elevated)] border-[var(--accent)] text-[var(--accent)] scale-100 hover:scale-105 hover:shadow-[0_0_15px_-5px_var(--accent)]'

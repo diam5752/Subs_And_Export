@@ -4,8 +4,8 @@ from typing import Dict, List, Optional
 
 from sqlalchemy import delete, func, select
 
-from ..core.database import Database
-from ..db.models import DbJob
+from backend.app.core.database import Database
+from backend.app.db.models import DbJob
 
 
 @dataclass

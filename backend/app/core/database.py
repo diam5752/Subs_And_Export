@@ -14,7 +14,8 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from ..db import models as _models  # noqa: F401  # ensure models are registered
 from ..db.base import Base
-from . import config, logging
+from .config import settings
+from . import logging
 
 
 logger = logging.setup_logging()
@@ -29,17 +30,10 @@ class Database:
     """SQLAlchemy wrapper for PostgreSQL connections."""
 
     def __init__(self, url: str | None = None) -> None:
-        env_url = os.getenv("GSP_DATABASE_URL")
-
-        if url:
-            resolved_url = url
-        elif env_url:
-            resolved_url = env_url
-        else:
+        resolved_url = url or settings.database_url
+        if not resolved_url:
             raise RuntimeError(
-                "GSP_DATABASE_URL environment variable is required. "
-                "Set it to your PostgreSQL connection string, e.g.: "
-                "postgresql+psycopg://user:pass@localhost:5432/dbname"
+                "GSP_DATABASE_URL is required."
             )
 
         if not resolved_url.startswith("postgresql"):

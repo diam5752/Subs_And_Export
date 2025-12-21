@@ -12,7 +12,7 @@ from typing import Callable, Iterable, List, Optional, Tuple
 
 import stable_whisper
 
-from backend.app.core import config
+from backend.app.core.config import settings
 from backend.app.services import (
     fact_checking,
     llm_utils,
@@ -54,11 +54,11 @@ def extract_audio(
         str(input_video),
         "-vn",
         "-acodec",
-        config.AUDIO_CODEC,
+        settings.audio_codec,
         "-ar",
-        str(config.AUDIO_SAMPLE_RATE),
+        str(settings.audio_sample_rate),
         "-ac",
-        str(config.AUDIO_CHANNELS),
+        str(settings.audio_channels),
         str(audio_path),
     ]
 
@@ -159,9 +159,9 @@ def _get_whisper_model(
     Load a Stable-Whisper wrapped Faster-Whisper model.
     """
     # Map "turbo" alias to the config constant (which might be large-v3 now)
-    logger.debug("Runtime whisper model config: WHISPER_MODEL=%s", config.WHISPER_MODEL)
+    logger.debug("Runtime whisper model config: WHISPER_MODEL=%s", settings.whisper_model)
     if model_size == "turbo":
-        model_size = config.WHISPER_MODEL
+        model_size = settings.whisper_model
 
     logger.debug("Loading Whisper model: model=%s device=%s", model_size, device)
 
@@ -178,17 +178,17 @@ def _get_whisper_model(
 
 def generate_subtitles_from_audio(
     audio_path: Path,
-    model_size: str = config.WHISPER_MODEL,
-    language: str | None = config.WHISPER_LANGUAGE,
-    device: str = config.WHISPER_DEVICE,
-    compute_type: str = config.WHISPER_COMPUTE_TYPE,
+    model_size: str = settings.whisper_model,
+    language: str | None = settings.whisper_language,
+    device: str = settings.whisper_device,
+    compute_type: str = settings.whisper_compute_type,
     beam_size: int | None = None,
     best_of: int | None = 1,
     output_dir: Path | None = None,
     progress_callback: Callable[[float], None] | None = None,
     total_duration: float | None = None,
     temperature: float | None = None,
-    chunk_length: int | None = config.WHISPER_CHUNK_LENGTH,
+    chunk_length: int | None = settings.whisper_chunk_length,
     condition_on_previous_text: bool = False,
     initial_prompt: str | None = None,
     vad_filter: bool = True,
@@ -200,13 +200,13 @@ def generate_subtitles_from_audio(
     DEPRECATED: Use the Transcriber classes directly.
     Legacy wrapper to maintain backward compatibility during refactoring.
     """
-    from backend.app.services.transcription.groq_cloud import GroqTranscriber
-    from backend.app.services.transcription.local_whisper import LocalWhisperTranscriber
-    from backend.app.services.transcription.openai_cloud import OpenAITranscriber
-    from backend.app.services.transcription.standard_whisper import StandardTranscriber
+    from backend.app.transcription.groq_cloud import GroqTranscriber
+    from backend.app.transcription.local_whisper import LocalWhisperTranscriber
+    from backend.app.transcription.openai_cloud import OpenAITranscriber
+    from backend.app.transcription.standard_whisper import StandardTranscriber
 
     if not language or language.lower() == "auto":
-        language = config.WHISPER_LANGUAGE
+        language = settings.whisper_language
 
     wants_openai = provider == "openai" or llm_utils.model_uses_openai(model_size)
     output_dir = output_dir or Path(tempfile.mkdtemp())
@@ -218,7 +218,7 @@ def generate_subtitles_from_audio(
             audio_path,
             output_dir,
             language=language,
-            model=model_size or config.OPENAI_TRANSCRIBE_MODEL,
+            model=model_size or settings.openai_transcribe_model,
             initial_prompt=initial_prompt,
             progress_callback=progress_callback,
         )
@@ -226,14 +226,14 @@ def generate_subtitles_from_audio(
     if provider == "groq":
         transcriber = GroqTranscriber(api_key=openai_api_key)
         return transcriber.transcribe(
-            audio_path, output_dir, language=language, model=config.GROQ_TRANSCRIBE_MODEL,
+            audio_path, output_dir, language=language, model=settings.groq_transcribe_model,
             initial_prompt=initial_prompt, progress_callback=progress_callback
         )
 
     if provider == "local":
         resolved_model = model_size
         if resolved_model == "turbo":
-            resolved_model = config.WHISPER_MODEL
+            resolved_model = settings.whisper_model
 
         transcriber = LocalWhisperTranscriber(
             device=device,
@@ -259,7 +259,7 @@ def generate_subtitles_from_audio(
             audio_path,
             output_dir,
             language=language,
-            model=config.WHISPERCPP_MODEL,
+            model=settings.whispercpp_model,
             progress_callback=progress_callback,
         )
 

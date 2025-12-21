@@ -19,7 +19,7 @@ from sqlalchemy.exc import IntegrityError
 
 from ..db.models import DbSession, DbUser
 from ..services.points import PointsStore
-from . import config
+from .config import settings
 from .database import Database
 
 logger = logging.getLogger(__name__)
@@ -347,7 +347,7 @@ def _get_secret(key: str) -> str | None:
     search_paths = []
     if candidate:
         search_paths.append(Path(candidate))
-    search_paths.append(config.PROJECT_ROOT / "config" / "secrets.toml")
+    search_paths.append(settings.project_root / "config" / "secrets.toml")
 
     for path in search_paths:
         try:

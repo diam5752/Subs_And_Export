@@ -10,7 +10,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
-from ...core import config
+from ...core.config import settings
 from ...core.auth import User
 from ...core.errors import sanitize_message
 from ...core.gcs import download_object, get_gcs_settings, upload_object
@@ -43,7 +43,7 @@ def _ensure_job_size(job):
                 try:
                     full_path = DATA_DIR / video_path
                     if not full_path.exists():
-                        full_path = config.PROJECT_ROOT.parent / video_path
+                        full_path = settings.project_root.parent / video_path
                     if full_path.exists():
                         job.result_data["output_size"] = full_path.stat().st_size
                 except Exception as e:
@@ -88,7 +88,7 @@ def export_video(
         raise HTTPException(400, "Job must be completed to export")
 
     active_jobs = job_store.count_active_jobs_for_user(current_user.id)
-    if active_jobs >= config.MAX_CONCURRENT_JOBS:
+    if active_jobs >= settings.max_concurrent_jobs:
         raise HTTPException(status_code=429, detail="System busy. Please wait for your other jobs to finish.")
 
     data_dir, uploads_dir, artifacts_root = data_roots()

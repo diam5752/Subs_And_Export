@@ -16,7 +16,7 @@ except Exception:  # pragma: no cover
     GoogleAuthRequest = None  # type: ignore[assignment]
     storage = None  # type: ignore[assignment]
 
-from .settings import AppSettings, load_app_settings
+from .config import settings
 
 _BUCKET_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{1,220}[a-z0-9]$")
 _PREFIX_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9/_-]{0,250}[A-Za-z0-9]$")
@@ -234,6 +234,6 @@ def delete_object(*, settings: GcsSettings, object_name: str) -> None:
     client.bucket(settings.bucket).blob(object_name).delete()
 
 
-def max_upload_bytes(settings: AppSettings | None = None) -> int:
-    app_settings = settings or load_app_settings()
-    return int(app_settings.max_upload_mb) * 1024 * 1024
+def max_upload_bytes(provided_settings: Any | None = None) -> int:
+    s = provided_settings or settings
+    return int(s.max_upload_mb) * 1024 * 1024

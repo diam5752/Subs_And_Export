@@ -8,9 +8,9 @@ import re
 from fastapi import HTTPException
 from pydantic import BaseModel
 
-from ...core import config
+from ...core.config import settings
 from ...services import pricing
-from ...core.settings import load_app_settings
+
 from .validation import (
     validate_highlight_style,
     validate_max_subtitle_lines,
@@ -25,22 +25,22 @@ from .validation import (
 
 logger = logging.getLogger(__name__)
 
-APP_SETTINGS = load_app_settings()
+
 
 
 class ProcessingSettings(BaseModel):
     """Settings for video processing."""
 
-    transcribe_model: str = config.DEFAULT_TRANSCRIBE_TIER
+    transcribe_model: str = settings.default_transcribe_tier
     transcribe_provider: str = "groq"
     openai_model: str | None = None
     video_quality: str = "high quality"
     target_width: int | None = None
     target_height: int | None = None
-    use_llm: bool = APP_SETTINGS.use_llm_by_default
+    use_llm: bool = settings.use_llm_by_default
     context_prompt: str = ""
-    llm_model: str = APP_SETTINGS.llm_model
-    llm_temperature: float = APP_SETTINGS.llm_temperature
+    llm_model: str = settings.llm_model
+    llm_temperature: float = settings.llm_temperature
     subtitle_position: int = 16  # 5-35 percentage from bottom
     max_subtitle_lines: int = 2
     subtitle_color: str | None = None
@@ -67,8 +67,8 @@ def parse_resolution(res_str: str | None) -> tuple[int | None, int | None]:
         w = int(parts[0])
         h = int(parts[1])
         if w > 0 and h > 0:
-            if w > config.MAX_RESOLUTION_DIMENSION or h > config.MAX_RESOLUTION_DIMENSION:
-                logger.warning(f"Resolution {w}x{h} exceeds max {config.MAX_RESOLUTION_DIMENSION}")
+            if w > settings.max_resolution_dimension or h > settings.max_resolution_dimension:
+                logger.warning(f"Resolution {w}x{h} exceeds max {settings.max_resolution_dimension}")
                 return None, None
             return w, h
     except Exception as e:
@@ -116,8 +116,8 @@ def build_processing_settings(
         raise HTTPException(status_code=400, detail="Highlight style too long")
 
     tier = validate_transcribe_tier(transcribe_model)
-    provider = validate_transcribe_provider(transcribe_provider) if transcribe_provider else config.TRANSCRIBE_TIER_PROVIDER[tier]
-    expected_provider = config.TRANSCRIBE_TIER_PROVIDER[tier]
+    provider = validate_transcribe_provider(transcribe_provider) if transcribe_provider else settings.transcribe_tier_provider[tier]
+    expected_provider = settings.transcribe_tier_provider[tier]
     if provider != expected_provider:
         raise HTTPException(status_code=400, detail="transcribe_provider does not match selected tier")
 

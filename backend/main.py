@@ -28,9 +28,8 @@ from starlette.types import ASGIApp
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from backend.app.api.endpoints import auth, dev, history, videos
-from backend.app.core import config
+from backend.app.core.config import settings
 from backend.app.core.database import Database
-from backend.app.core.env import get_app_env, is_dev_env
 from backend.app.core.gcs import generate_signed_download_url, get_gcs_settings
 from backend.app.core.ratelimit import get_client_ip, limiter_static
 
@@ -48,9 +47,9 @@ app = FastAPI(
     title="Greek Sub Publisher API",
     description="Backend API for Greek Sub Publisher Video Processing",
     version="2.0.0",
-    docs_url="/docs" if is_dev_env() else None,
-    redoc_url="/redoc" if is_dev_env() else None,
-    openapi_url="/openapi.json" if is_dev_env() else None,
+    docs_url="/docs" if settings.is_dev else None,
+    redoc_url="/redoc" if settings.is_dev else None,
+    openapi_url="/openapi.json" if settings.is_dev else None,
     lifespan=lifespan,
 )
 
@@ -80,16 +79,11 @@ default_origins = (
         "http://localhost:8080",
         "http://127.0.0.1:8080",
     ]
-    if is_dev_env()
+    if settings.is_dev
     else []
 )
 origins = _env_list("GSP_ALLOWED_ORIGINS", default_origins)
-# If running on Cloud Run (K_SERVICE is set) and no origins are specified,
-# default to allowing .run.app subdomains for better first-run experience.
-if not is_dev_env() and not origins and os.getenv("K_SERVICE"):
-    origins = ["https://*.a.run.app", "https://*.run.app"]
-
-if not is_dev_env() and not origins:
+if not settings.is_dev and not origins:
     raise RuntimeError("GSP_ALLOWED_ORIGINS must be set in production")
 
 app.add_middleware(
@@ -102,11 +96,11 @@ app.add_middleware(
 
 default_trusted_hosts = (
     ["localhost", "127.0.0.1", "0.0.0.0", "[::1]", "testserver"]
-    if is_dev_env()
+    if settings.is_dev
     else ["*.run.app", "*.a.run.app"]
 )
 trusted_hosts = _env_list("GSP_TRUSTED_HOSTS", default_trusted_hosts)
-if not is_dev_env() and "*" in trusted_hosts:
+if not settings.is_dev and "*" in trusted_hosts:
     raise RuntimeError("GSP_TRUSTED_HOSTS cannot include '*' in production")
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=trusted_hosts)
 
@@ -133,7 +127,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         await self.secure_headers.set_headers_async(response)
         # Avoid sending HSTS on cleartext requests to keep local dev/proxy setups flexible.
-        if is_dev_env() and request.url.scheme not in ("https", "wss"):
+        if settings.is_dev and request.url.scheme not in ("https", "wss"):
             if "Strict-Transport-Security" in response.headers:
                 del response.headers["Strict-Transport-Security"]
         return response
@@ -152,7 +146,7 @@ if os.getenv("GSP_FORCE_HTTPS", "0") == "1":
 # Added last (executed first) so request.client.host & scheme are correct.
 proxy_trusted_hosts: list[str] | str = (
     "*"
-    if is_dev_env()
+    if settings.is_dev
     else _env_list(
         "GSP_PROXY_TRUSTED_HOSTS",
         [
@@ -167,9 +161,9 @@ proxy_trusted_hosts: list[str] | str = (
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=proxy_trusted_hosts)
 
 # Mount Static Files with Directory Listing
-# config.PROJECT_ROOT is the project root, e.g. /path/to/Subs_And_Export_Project
-# Use PROJECT_ROOT/data for all artifacts (consistent with videos.py)
-DATA_DIR = config.PROJECT_ROOT / "data"
+# settings.project_root is the project root, e.g. /path/to/Subs_And_Export_Project
+# Use project_root/data for all artifacts (consistent with videos.py)
+DATA_DIR = settings.data_dir
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 # LRU cache for signed URLs (5 min TTL, shorter than signed URL expiry)
@@ -201,7 +195,7 @@ def _get_cached_signed_url(object_name: str, gcs_settings) -> str:
 
 
 @app.get("/static/{file_path:path}")
-async def serve_static(request: Request, file_path: str):
+async def serve_static(request: Request, file_path: str, download: bool = False):
     # Rate limit static file access to prevent egress abuse
     ip = get_client_ip(request)
     limiter_static.check(ip)
@@ -215,7 +209,12 @@ async def serve_static(request: Request, file_path: str):
         raise HTTPException(status_code=403, detail="Access denied")
 
     if full_path.is_file():
-        return FileResponse(full_path)
+        # Force download for video files or when download=true
+        filename = full_path.name
+        content_disposition = None
+        if download or filename.endswith(('.mp4', '.mov', '.avi', '.webm', '.mkv')):
+            content_disposition = f'attachment; filename="{filename}"'
+        return FileResponse(full_path, headers={"Content-Disposition": content_disposition} if content_disposition else None)
 
     if full_path.is_dir():
         # Security: Disable directory listing to prevent information disclosure
@@ -243,7 +242,7 @@ app.include_router(dev.router, prefix="/dev", tags=["dev"])
 
 @app.get("/health")
 async def health_check():
-    return {"status": "ok", "service": "greek-sub-publisher-api", "app_env": get_app_env().value}
+    return {"status": "ok", "service": "greek-sub-publisher-api", "app_env": settings.app_env.value}
 
 @app.get("/")
 async def root():

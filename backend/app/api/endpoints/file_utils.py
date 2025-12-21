@@ -9,13 +9,11 @@ from pathlib import Path
 
 from fastapi import HTTPException, UploadFile
 
-from ...core import config
-from ...core.settings import load_app_settings
+from ...core.config import settings
 
 logger = logging.getLogger(__name__)
 
-APP_SETTINGS = load_app_settings()
-MAX_UPLOAD_BYTES = APP_SETTINGS.max_upload_mb * 1024 * 1024
+MAX_UPLOAD_BYTES = settings.max_upload_mb * 1024 * 1024
 
 
 def data_roots() -> tuple[Path, Path, Path]:
@@ -24,7 +22,7 @@ def data_roots() -> tuple[Path, Path, Path]:
     Returns:
         Tuple of (data_dir, uploads_dir, artifacts_dir)
     """
-    data_dir = config.PROJECT_ROOT / "data"
+    data_dir = settings.data_dir
     uploads_dir = data_dir / "uploads"
     artifacts_dir = data_dir / "artifacts"
     uploads_dir.mkdir(parents=True, exist_ok=True)
@@ -76,7 +74,7 @@ def save_upload_with_limit(upload: UploadFile, destination: Path) -> None:
                 destination.unlink(missing_ok=True)
                 raise HTTPException(
                     status_code=413,
-                    detail=f"File too large; limit is {APP_SETTINGS.max_upload_mb}MB",
+                    detail=f"File too large; limit is {settings.max_upload_mb}MB",
                 )
             buffer.write(chunk)
     if total == 0:

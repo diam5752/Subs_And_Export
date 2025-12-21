@@ -573,10 +573,11 @@ export function ProcessProvider({
                     try {
                         // Direct download link method - avoids loading entire file into memory (blob)
                         const link = document.createElement('a');
-                        link.href = url;
+                        // Add download=true query param to force Content-Disposition: attachment
+                        link.href = url + (url.includes('?') ? '&' : '?') + 'download=true';
                         const extension = resolution === 'srt' ? 'srt' : 'mp4';
                         link.download = `processed_${resolution}.${extension}`;
-                        link.target = "_blank";
+                        // NOTE: Don't set target="_blank" - it prevents download attribute from working
                         document.body.appendChild(link);
                         link.click();
                         document.body.removeChild(link);

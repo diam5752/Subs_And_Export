@@ -8,9 +8,9 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from ...core import config
+from ...core.config import settings
 from ...core.auth import User
-from ...core.env import is_dev_env
+
 from ...schemas.base import JobResponse
 from ...services.jobs import JobStore
 from ..deps import get_current_user, get_job_store
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 def _data_roots() -> tuple[Path, Path, Path]:
-    data_dir = config.PROJECT_ROOT / "data"
+    data_dir = settings.project_root / "data"
     uploads_dir = data_dir / "uploads"
     artifacts_dir = data_dir / "artifacts"
     uploads_dir.mkdir(parents=True, exist_ok=True)
@@ -152,7 +152,7 @@ def create_sample_job(
     DEV-only helper: Create a completed job by linking/copying an existing sample.
     Accepts optional provider/model_size to find a matching previously run job.
     """
-    if not is_dev_env():
+    if not settings.is_dev:
         raise HTTPException(status_code=404, detail="Not found")
 
     if request is None:

@@ -22,13 +22,12 @@ from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Request, UploadFile
 
-from ...core import config
+from ...core.config import settings
 from ...core.auth import User
 from ...core.database import Database
 from ...core.errors import sanitize_message
 from ...core.gcs import get_gcs_settings, upload_object
 from ...core.ratelimit import limiter_processing
-from ...core.settings import load_app_settings
 from ...schemas.base import JobResponse
 from ...services import pricing
 from ...services.history import HistoryStore
@@ -130,7 +129,7 @@ from .job_routes import (
     delete_job,
 )
 
-APP_SETTINGS = load_app_settings()
+# Legacy reference removed - now using unified settings
 
 
 def _ensure_job_size(job):
@@ -142,7 +141,7 @@ def _ensure_job_size(job):
                 try:
                     full_path = DATA_DIR / video_path
                     if not full_path.exists():
-                        full_path = config.PROJECT_ROOT.parent / video_path
+                        full_path = settings.project_root.parent / video_path
                     if full_path.exists():
                         job.result_data["output_size"] = full_path.stat().st_size
                 except Exception as e:
@@ -158,12 +157,12 @@ async def process_video(
     background_tasks: BackgroundTasks,
     request: Request,
     file: UploadFile = File(...),
-    transcribe_model: str = Form(config.DEFAULT_TRANSCRIBE_TIER),
-    transcribe_provider: str = Form(config.TRANSCRIBE_TIER_PROVIDER[config.DEFAULT_TRANSCRIBE_TIER]),
+    transcribe_model: str = Form(settings.default_transcribe_tier),
+    transcribe_provider: str = Form(settings.transcribe_tier_provider[settings.default_transcribe_tier]),
     openai_model: str = Form(""),
     video_quality: str = Form("high quality"),
     video_resolution: str = Form(""),
-    use_llm: bool = Form(APP_SETTINGS.use_llm_by_default),
+    use_llm: bool = Form(settings.use_llm_by_default),
     context_prompt: str = Form(""),
     subtitle_position: int = Form(16),
     max_subtitle_lines: int = Form(2),
@@ -180,7 +179,7 @@ async def process_video(
     db: Database = Depends(get_db),
 ):
     """Upload a video and start processing."""
-    settings = build_processing_settings(
+    proc_settings = build_processing_settings(
         transcribe_model=transcribe_model,
         transcribe_provider=transcribe_provider,
         openai_model=openai_model,
@@ -200,10 +199,10 @@ async def process_video(
 
     # Rate Limiting: Check concurrent jobs
     active_jobs = job_store.count_active_jobs_for_user(current_user.id)
-    if active_jobs >= config.MAX_CONCURRENT_JOBS:
+    if active_jobs >= settings.max_concurrent_jobs:
         raise HTTPException(
             status_code=429,
-            detail=f"Too many active jobs. Please wait for your current jobs to finish (max {config.MAX_CONCURRENT_JOBS})."
+            detail=f"Too many active jobs. Please wait for your current jobs to finish (max {settings.max_concurrent_jobs})."
         )
 
     job_id = str(uuid.uuid4())
@@ -222,7 +221,7 @@ async def process_video(
             if int(content_length) > MAX_UPLOAD_BYTES:
                 raise HTTPException(
                     status_code=413,
-                    detail=f"Request too large; limit is {APP_SETTINGS.max_upload_mb}MB",
+                    detail=f"Request too large; limit is {settings.max_upload_mb}MB",
                 )
         except ValueError:
             pass
@@ -240,27 +239,27 @@ async def process_video(
         input_path.unlink(missing_ok=True)
         raise HTTPException(status_code=400, detail="Could not determine video duration")
 
-    if probe.duration_s > config.MAX_VIDEO_DURATION_SECONDS:
+    if probe.duration_s > settings.max_video_duration_seconds:
         input_path.unlink(missing_ok=True)
         raise HTTPException(
             status_code=400,
-            detail=f"Video too long (max {config.MAX_VIDEO_DURATION_SECONDS/60:.1f} minutes)",
+            detail=f"Video too long (max {settings.max_video_duration_seconds/60:.1f} minutes)",
         )
 
     job = job_store.create_job(job_id, current_user.id)
 
     try:
-        llm_models = pricing.resolve_llm_models(settings.transcribe_model)
+        llm_models = pricing.resolve_llm_models(proc_settings.transcribe_model)
         charge_plan, new_balance = reserve_processing_charges(
             ledger_store=ledger_store,
             user_id=current_user.id,
             job_id=job_id,
-            tier=settings.transcribe_model,
+            tier=proc_settings.transcribe_model,
             duration_seconds=float(probe.duration_s),
             use_llm=use_llm,
             llm_model=llm_models.social,
-            provider=settings.transcribe_provider,
-            stt_model=pricing.resolve_transcribe_model(settings.transcribe_model),
+            provider=proc_settings.transcribe_provider,
+            stt_model=pricing.resolve_transcribe_model(proc_settings.transcribe_model),
         )
     except Exception:
         job_store.delete_job(job_id)
@@ -279,9 +278,9 @@ async def process_video(
             f"Queued {file.filename}",
             {
                 "job_id": job_id,
-                "model_size": settings.transcribe_model,
-                "provider": settings.transcribe_provider or config.TRANSCRIBE_TIER_PROVIDER[config.DEFAULT_TRANSCRIBE_TIER],
-                "video_quality": settings.video_quality,
+                "model_size": proc_settings.transcribe_model,
+                "provider": proc_settings.transcribe_provider or settings.transcribe_tier_provider[settings.default_transcribe_tier],
+                "video_quality": proc_settings.video_quality,
                 "video_resolution": video_resolution,
                 "use_llm": use_llm,
             },
@@ -302,7 +301,7 @@ async def process_video(
             input_path,
             output_path,
             artifact_path,
-            settings,
+            proc_settings,
             job_store,
             history_store,
             current_user,

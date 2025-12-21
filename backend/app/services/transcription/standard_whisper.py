@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 from typing import List
 
-from backend.app.core import config
+from backend.app.core.config import settings
 from backend.app.services.subtitle_types import Cue, TimeRange
 from backend.app.services.transcription.base import Transcriber
 from backend.app.services.transcription.utils import normalize_text, write_srt_from_segments
@@ -30,8 +30,8 @@ class StandardTranscriber(Transcriber):
                 "Or for basic install: pip install pywhispercpp"
             )
 
-        model_size = model or config.WHISPERCPP_MODEL
-        language = language or config.WHISPERCPP_LANGUAGE
+        model_size = model or settings.whispercpp_model
+        language = language or settings.whispercpp_language
 
         if progress_callback:
             progress_callback(5.0)

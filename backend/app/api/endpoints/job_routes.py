@@ -14,7 +14,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from ...core import config
+
 from ...core.auth import User
 from ...core.ratelimit import limiter_content
 from ...schemas.base import BatchDeleteRequest, BatchDeleteResponse, JobResponse, PaginatedJobsResponse

@@ -8,7 +8,7 @@ import shutil
 from pathlib import Path
 from typing import List, Optional
 
-from backend.app.services.social_intelligence import SocialCopy
+from .social_intelligence import SocialCopy
 from backend.app.services.subtitle_types import Cue
 
 logger = logging.getLogger(__name__)

@@ -4,7 +4,7 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 from backend.app.db.models import DbAIModel, DbTokenUsage
-from backend.app.core import config
+from backend.app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -38,14 +38,13 @@ class CostService:
         if pricing:
             input_price = pricing.input_price_per_1m
             output_price = pricing.output_price_per_1m
-        else:
             # Fallback to Config or Default if DB missing (Safety net)
             # Though migration should have seeded it.
             logger.warning(f"Pricing not found in DB for model {model_name}. Using fallback.")
-            fallback = config.MODEL_PRICING.get(model_name) or config.MODEL_PRICING.get("default")
-            if fallback:
-                input_price = fallback["input"]
-                output_price = fallback["output"]
+            # Fallback from settings
+            model_pricing = settings.llm_pricing.get(model_name, {})
+            input_price = model_pricing.get("input", settings.default_llm_input_price)
+            output_price = model_pricing.get("output", settings.default_llm_output_price)
 
         input_cost = (prompt_tokens / 1_000_000) * input_price
         output_cost = (completion_tokens / 1_000_000) * output_price

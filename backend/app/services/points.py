@@ -12,19 +12,19 @@ from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
-from ..core import config
-from . import pricing
-from ..core.database import Database
-from ..db.models import DbPointTransaction, DbUserPoints
+from backend.app.core.config import settings
+from backend.app.services import pricing
+from backend.app.core.database import Database
+from backend.app.db.models import DbPointTransaction, DbUserPoints
 
 STARTING_POINTS_BALANCE = 500
 TRIAL_CREDITS = 100  # Credits for unverified users (enough for one basic operation)
 VERIFIED_BONUS_CREDITS = 400  # Additional credits after email verification
 
-PROCESS_VIDEO_DEFAULT_COST = config.CREDITS_MIN_TRANSCRIBE["standard"]
+PROCESS_VIDEO_DEFAULT_COST = settings.credits_min_transcribe["standard"]
 PROCESS_VIDEO_MODEL_COSTS: dict[str, int] = {
-    "standard": config.CREDITS_MIN_TRANSCRIBE["standard"],
-    "pro": config.CREDITS_MIN_TRANSCRIBE["pro"],
+    "standard": settings.credits_min_transcribe["standard"],
+    "pro": settings.credits_min_transcribe["pro"],
 }
 
 REFUND_REASON_PREFIX = "refund_"

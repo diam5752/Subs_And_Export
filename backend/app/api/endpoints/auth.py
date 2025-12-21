@@ -183,7 +183,7 @@ def delete_account(
     """Delete current user account and all associated data (GDPR compliance)."""
     import shutil
 
-    from ...core import config
+    from backend.app.core.config import settings
 
     try:
         # 1. Cleanup Filesystem Artifacts
@@ -192,7 +192,7 @@ def delete_account(
 
         # Resolve data roots (simulating videos.py logic or reusing it if possible,
         # but locally defining for safety is fine)
-        data_dir = config.PROJECT_ROOT / "data"
+        data_dir = settings.project_root / "data"
         uploads_dir = data_dir / "uploads"
         artifacts_root = data_dir / "artifacts"
 

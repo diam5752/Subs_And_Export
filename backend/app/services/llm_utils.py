@@ -8,7 +8,7 @@ import os
 import tomllib
 from typing import Any, Tuple
 
-from backend.app.core import config
+from backend.app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ def resolve_openai_api_key(explicit_key: str | None = None) -> str | None:
         return env_key
 
     # 2. Config/Secrets file
-    secrets_path = config.PROJECT_ROOT / "config" / "secrets.toml"
+    secrets_path = settings.project_root / "config" / "secrets.toml"
     if secrets_path.exists():
         try:
             with open(secrets_path, "rb") as f:
@@ -57,7 +57,7 @@ def resolve_groq_api_key(explicit_key: str | None = None) -> str | None:
         return env_key
 
     # 2. Config/Secrets file
-    secrets_path = config.PROJECT_ROOT / "config" / "secrets.toml"
+    secrets_path = settings.project_root / "config" / "secrets.toml"
     if secrets_path.exists():
         try:
             with open(secrets_path, "rb") as f:
