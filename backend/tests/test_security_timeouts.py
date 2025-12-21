@@ -2,7 +2,22 @@ import pytest
 import sys
 import types
 from pathlib import Path
+from unittest.mock import patch
 from backend.app.services import subtitles
+from backend.app.services import llm_utils
+
+# 0. llm_utils.py tests (Factory Security)
+
+def test_load_openai_client_default_timeout():
+    """Verify load_openai_client sets a default timeout on the client."""
+    with patch("openai.OpenAI") as mock_cls:
+        llm_utils.load_openai_client("key")
+
+        # Verify timeout=60.0 was passed
+        mock_cls.assert_called_once()
+        _, kwargs = mock_cls.call_args
+        assert kwargs.get("timeout") == 60.0
+
 
 # 1. subtitles.py tests (Social Copy, Viral Metadata, Fact Check)
 
