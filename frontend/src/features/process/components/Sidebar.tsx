@@ -114,7 +114,9 @@ const TranscriptPanel = memo(() => {
         }
     }, [activeCueIndex, editingCueIndex, transcriptContainerRef]);
 
-    return (
+    // Optimized: Wrap return in useMemo to prevent VDOM generation on every frame
+    // (TranscriptPanel re-renders at 60fps due to usePlaybackContext consuming currentTime)
+    return useMemo(() => (
         <div
             role="tabpanel"
             id="panel-transcript"
@@ -158,7 +160,21 @@ const TranscriptPanel = memo(() => {
                 )}
             </div>
         </div>
-    );
+    ), [
+        transcriptSaveError,
+        isSavingTranscript,
+        t,
+        transcriptContainerRef,
+        cues,
+        activeCueIndex,
+        editingCueIndex,
+        editingCueDraft,
+        handleSeek,
+        beginEditingCue,
+        saveEditingCue,
+        cancelEditingCue,
+        handleUpdateDraft
+    ]);
 });
 TranscriptPanel.displayName = 'TranscriptPanel';
 
