@@ -11,6 +11,7 @@ import sys
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
@@ -93,6 +94,9 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
 )
+
+# Enable GZip compression for responses > 1000 bytes
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 default_trusted_hosts = (
     ["localhost", "127.0.0.1", "0.0.0.0", "[::1]", "testserver"]
