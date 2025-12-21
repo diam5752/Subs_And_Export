@@ -79,7 +79,7 @@ class TestReserveTranscriptionCharge:
         assert reservation.action == "transcription"
         assert reservation.tier == "standard"
         assert reservation.provider == "groq"
-        assert reservation.min_credits == config.CREDITS_MIN_TRANSCRIBE["standard"]
+        assert reservation.min_credits == config.settings.credits_min_transcribe["standard"]
         # 2 minutes at 10 credits/min = 20, but min is 25
         assert reservation.reserved_credits == 25
         assert balance == starting_balance - 25
@@ -130,9 +130,9 @@ class TestReserveLlmCharge:
             tier="standard",
             action="social_copy",
             model="gpt-5.1-mini",
-            max_prompt_chars=config.MAX_LLM_INPUT_CHARS,
-            max_completion_tokens=config.MAX_LLM_OUTPUT_TOKENS_SOCIAL,
-            min_credits=config.CREDITS_MIN_SOCIAL_COPY["standard"],
+            max_prompt_chars=config.settings.max_llm_input_chars,
+            max_completion_tokens=config.settings.max_llm_output_tokens_social,
+            min_credits=config.settings.credits_min_social_copy["standard"],
         )
 
         assert reservation.action == "social_copy"
@@ -164,7 +164,7 @@ class TestReserveProcessingCharges:
             use_llm=True,
             llm_model=llm_models.social,
             provider="groq",
-            stt_model=config.GROQ_MODEL_STANDARD,
+            stt_model=config.settings.transcribe_tier_model["standard"],
         )
 
         assert charge_plan.transcription is not None
@@ -179,6 +179,7 @@ class TestReserveProcessingCharges:
         _seed_job(db, user_id, job_id)
         points_store = PointsStore(db=db)
         points_store.ensure_account(user_id)
+        starting_balance = points_store.get_balance(user_id)
         ledger_store = UsageLedgerStore(db=db, points_store=points_store)
 
         charge_plan, balance = reserve_processing_charges(
@@ -190,7 +191,7 @@ class TestReserveProcessingCharges:
             use_llm=False,
             llm_model="gpt-5.1-mini",
             provider="groq",
-            stt_model=config.GROQ_MODEL_STANDARD,
+            stt_model=config.settings.transcribe_tier_model["standard"],
         )
 
         assert charge_plan.transcription is not None

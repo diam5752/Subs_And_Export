@@ -43,6 +43,9 @@ def should_log_metrics() -> bool:
     return settings.is_dev
 
 def _resolve_log_path() -> Path:
+    explicit = os.getenv("PIPELINE_LOG_PATH")
+    if explicit:
+        return Path(explicit).resolve()
     return (settings.project_root / "logs" / "pipeline_metrics.jsonl").resolve()
 
 

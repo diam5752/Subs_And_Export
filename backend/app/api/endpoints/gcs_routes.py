@@ -151,7 +151,7 @@ def process_video_from_gcs(
     if not session:
         raise HTTPException(status_code=404, detail="Upload not found or expired")
 
-    settings = build_processing_settings(
+    proc_settings = build_processing_settings(
         transcribe_model=payload.transcribe_model,
         transcribe_provider=payload.transcribe_provider,
         openai_model=payload.openai_model,
@@ -180,17 +180,17 @@ def process_video_from_gcs(
     output_path = artifacts_root / job_id / "processed.mp4"
     artifact_path = artifacts_root / job_id
 
-    llm_models = pricing.resolve_llm_models(settings.transcribe_model)
+    llm_models = pricing.resolve_llm_models(proc_settings.transcribe_model)
     charge_plan, new_balance = reserve_processing_charges(
         ledger_store=ledger_store,
         user_id=current_user.id,
         job_id=job_id,
-        tier=settings.transcribe_model,
+        tier=proc_settings.transcribe_model,
         duration_seconds=float(settings.max_video_duration_seconds),
-        use_llm=settings.use_llm,
+        use_llm=proc_settings.use_llm,
         llm_model=llm_models.social,
-        provider=settings.transcribe_provider,
-        stt_model=pricing.resolve_transcribe_model(settings.transcribe_model),
+        provider=proc_settings.transcribe_provider,
+        stt_model=pricing.resolve_transcribe_model(proc_settings.transcribe_model),
     )
 
     try:
@@ -198,7 +198,7 @@ def process_video_from_gcs(
         record_event_safe(
             history_store, current_user, "process_started",
             f"Queued {session.original_filename}",
-            {"job_id": job_id, "provider": settings.transcribe_provider, "model_size": settings.transcribe_model, "video_quality": settings.video_quality, "source": "gcs"},
+            {"job_id": job_id, "provider": proc_settings.transcribe_provider, "model_size": proc_settings.transcribe_model, "video_quality": proc_settings.video_quality, "source": "gcs"},
         )
 
         background_tasks.add_task(
@@ -208,7 +208,7 @@ def process_video_from_gcs(
             input_path=input_path,
             output_path=output_path,
             artifact_dir=artifact_path,
-            settings=settings,
+            settings=proc_settings,
             job_store=job_store,
             history_store=history_store,
             user=current_user,

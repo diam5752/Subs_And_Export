@@ -17,8 +17,9 @@ def _auth_header(client: TestClient, email: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 def test_srt_export_success(client: TestClient, monkeypatch, tmp_path: Path):
-    # Setup environment
-    monkeypatch.setattr(videos.config, "PROJECT_ROOT", tmp_path)
+    # Setup environment - patch the settings object project_root attribute
+    from backend.app.core.config import settings
+    monkeypatch.setattr(settings, "project_root", tmp_path)
     monkeypatch.setattr(videos, "_data_roots", lambda: (tmp_path, tmp_path / "uploads", tmp_path / "artifacts"))
     monkeypatch.setattr(export_routes, "data_roots", lambda: (tmp_path, tmp_path / "uploads", tmp_path / "artifacts"))
     

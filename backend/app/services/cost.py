@@ -38,6 +38,7 @@ class CostService:
         if pricing:
             input_price = pricing.input_price_per_1m
             output_price = pricing.output_price_per_1m
+        else:
             # Fallback to Config or Default if DB missing (Safety net)
             # Though migration should have seeded it.
             logger.warning(f"Pricing not found in DB for model {model_name}. Using fallback.")

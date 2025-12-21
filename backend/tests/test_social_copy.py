@@ -95,7 +95,8 @@ def test_build_social_copy_llm_prefers_explicit_key(monkeypatch) -> None:
 def test_build_social_copy_llm_requires_key(monkeypatch) -> None:
     """Verify that API key is required for LLM social copy generation."""
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    monkeypatch.setattr(subtitles.config, "SOCIAL_LLM_MODEL", "gpt-test")
+    from backend.app.core.config import settings
+    monkeypatch.setattr(settings, "social_llm_model", "gpt-test")
     monkeypatch.setattr("backend.app.services.llm_utils.resolve_openai_api_key", lambda: None)
     with pytest.raises(RuntimeError, match="OpenAI API key is required"):
         subtitles.build_social_copy_llm("hi there")

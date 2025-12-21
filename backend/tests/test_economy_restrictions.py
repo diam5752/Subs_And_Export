@@ -7,7 +7,7 @@ from backend.app.services.ffmpeg_utils import MediaProbe
 
 def test_concurrent_jobs_limit_process(client, user_auth_headers, monkeypatch):
     # Mock count_active_jobs_for_user to return limit + 1
-    monkeypatch.setattr(JobStore, "count_active_jobs_for_user", lambda self, uid: config.MAX_CONCURRENT_JOBS + 1)
+    monkeypatch.setattr(JobStore, "count_active_jobs_for_user", lambda self, uid: config.settings.max_concurrent_jobs + 1)
 
     # Mock probe_media to avoid actual file processing (though it happens after check)
     monkeypatch.setattr("backend.app.api.endpoints.videos.probe_media", lambda p: MediaProbe(duration_s=10.0, audio_codec="aac"))
@@ -30,7 +30,7 @@ def test_video_duration_limit(client, user_auth_headers, monkeypatch):
 
     # Mock probe_media to return duration > MAX
     def mock_probe(path):
-        return MediaProbe(duration_s=config.MAX_VIDEO_DURATION_SECONDS + 10, audio_codec="aac")
+        return MediaProbe(duration_s=config.settings.max_video_duration_seconds + 10, audio_codec="aac")
 
     monkeypatch.setattr("backend.app.api.endpoints.videos.probe_media", mock_probe)
 

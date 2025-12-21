@@ -200,10 +200,10 @@ def generate_subtitles_from_audio(
     DEPRECATED: Use the Transcriber classes directly.
     Legacy wrapper to maintain backward compatibility during refactoring.
     """
-    from backend.app.transcription.groq_cloud import GroqTranscriber
-    from backend.app.transcription.local_whisper import LocalWhisperTranscriber
-    from backend.app.transcription.openai_cloud import OpenAITranscriber
-    from backend.app.transcription.standard_whisper import StandardTranscriber
+    from backend.app.services.transcription.groq_cloud import GroqTranscriber
+    from backend.app.services.transcription.local_whisper import LocalWhisperTranscriber
+    from backend.app.services.transcription.openai_cloud import OpenAITranscriber
+    from backend.app.services.transcription.standard_whisper import StandardTranscriber
 
     if not language or language.lower() == "auto":
         language = settings.whisper_language

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from backend.app.core import config
+from backend.app.core.config import settings
 from backend.app.services import pricing
 
 
@@ -22,7 +22,7 @@ class TestTierNormalization:
         assert pricing.normalize_tier("  Pro  ") == "pro"
 
     def test_normalize_none_returns_default(self) -> None:
-        assert pricing.normalize_tier(None) == config.DEFAULT_TRANSCRIBE_TIER
+        assert pricing.normalize_tier(None) == settings.default_transcribe_tier
 
     def test_normalize_invalid_tier_raises(self) -> None:
         with pytest.raises(ValueError, match="Invalid tier"):
@@ -46,10 +46,10 @@ class TestTierResolution:
         assert pricing.resolve_tier_from_model("openai") == "pro"
 
     def test_resolve_tier_from_none_returns_default(self) -> None:
-        assert pricing.resolve_tier_from_model(None) == config.DEFAULT_TRANSCRIBE_TIER
+        assert pricing.resolve_tier_from_model(None) == settings.default_transcribe_tier
 
     def test_resolve_tier_from_empty_returns_default(self) -> None:
-        assert pricing.resolve_tier_from_model("") == config.DEFAULT_TRANSCRIBE_TIER
+        assert pricing.resolve_tier_from_model("") == settings.default_transcribe_tier
 
 
 class TestProviderResolution:
@@ -69,11 +69,11 @@ class TestModelResolution:
 
     def test_resolve_standard_model(self) -> None:
         model = pricing.resolve_transcribe_model("standard")
-        assert model == config.GROQ_MODEL_STANDARD
+        assert model == settings.transcribe_tier_model["standard"]
 
     def test_resolve_pro_model(self) -> None:
         model = pricing.resolve_transcribe_model("pro")
-        assert model == config.GROQ_MODEL_ULTIMATE
+        assert model == settings.transcribe_tier_model["pro"]
 
 
 class TestLlmModelsResolution:
@@ -81,15 +81,15 @@ class TestLlmModelsResolution:
 
     def test_standard_tier_llm_models(self) -> None:
         models = pricing.resolve_llm_models("standard")
-        assert models.social == config.SOCIAL_LLM_MODEL_STANDARD
-        assert models.fact_check == config.FACTCHECK_LLM_MODEL_STANDARD
-        assert models.extraction == config.EXTRACTION_LLM_MODEL_STANDARD
+        assert models.social == settings.social_llm_model
+        assert models.fact_check == settings.factcheck_llm_model
+        assert models.extraction == settings.extraction_llm_model
 
     def test_pro_tier_llm_models(self) -> None:
         models = pricing.resolve_llm_models("pro")
-        assert models.social == config.SOCIAL_LLM_MODEL_PRO
-        assert models.fact_check == config.FACTCHECK_LLM_MODEL_PRO
-        assert models.extraction == config.EXTRACTION_LLM_MODEL_PRO
+        assert models.social == settings.social_llm_model
+        assert models.fact_check == settings.factcheck_llm_model
+        assert models.extraction == settings.extraction_llm_model
 
 
 class TestCreditsCalculation:

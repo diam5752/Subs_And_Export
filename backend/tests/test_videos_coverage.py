@@ -8,12 +8,9 @@ from backend.main import app
 
 def test_upload_limit_exceeded(client: TestClient, user_auth_headers: dict, monkeypatch):
     """Test that uploading a file larger than the limit raises 413."""
-    # Create a mock/copy of settings with revised limit
-    from backend.app.core.settings import AppSettings
-    # Assuming we can instantiate it or copy
-    new_settings = AppSettings(max_upload_mb=1)
-    monkeypatch.setattr(videos, "APP_SETTINGS", new_settings)
-    monkeypatch.setattr(videos, "MAX_UPLOAD_BYTES", 1024 * 1024)
+    # Patch MAX_UPLOAD_BYTES to a small value (1MB)
+    from backend.app.api.endpoints import file_utils
+    monkeypatch.setattr(file_utils, "MAX_UPLOAD_BYTES", 1024 * 1024)
 
     # Create a dummy file > 1MB
     large_content = b"0" * (1024 * 1024 + 100)
@@ -25,14 +22,16 @@ def test_upload_limit_exceeded(client: TestClient, user_auth_headers: dict, monk
         files=files
     )
     assert response.status_code == 413
-    assert "Request too large" in response.json()["detail"]
+    assert "too large" in response.json()["detail"]
 
 def test_process_video_content_length_error(client: TestClient, user_auth_headers: dict, monkeypatch):
     """Test 413 based on Content-Length header check."""
-    from backend.app.core.settings import AppSettings
-    new_settings = AppSettings(max_upload_mb=1)
-    monkeypatch.setattr(videos, "APP_SETTINGS", new_settings)
-    monkeypatch.setattr(videos, "MAX_UPLOAD_BYTES", 1024 * 1024)
+    # Patch MAX_UPLOAD_BYTES to a small value (1MB)
+    from backend.app.api.endpoints import file_utils
+    monkeypatch.setattr(file_utils, "MAX_UPLOAD_BYTES", 1024 * 1024)
+    # Also patch the videos module's import of the constant
+    from backend.app.api.endpoints import videos as videos_module
+    monkeypatch.setattr(videos_module, "MAX_UPLOAD_BYTES", 1024 * 1024)
 
     # We can't easily fake Content-Length with TestClient in a way that the Starlette Request sees it
     # before stream consumption without some trickery, but we can verify logic via unit test or
@@ -50,7 +49,7 @@ def test_process_video_content_length_error(client: TestClient, user_auth_header
         files=files
     )
     assert response.status_code == 413
-    assert "Request too large" in response.json()["detail"]
+    assert "too large" in response.json()["detail"]
 
 def test_record_event_safe_exception(monkeypatch):
     """Verify that _record_event_safe suppresses exceptions."""

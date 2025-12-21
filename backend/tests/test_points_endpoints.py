@@ -57,7 +57,7 @@ def test_process_video_charges_points_and_returns_balance(
     expected_charge = pricing.credits_for_minutes(
         tier="standard",
         duration_seconds=10.0,
-        min_credits=config.CREDITS_MIN_TRANSCRIBE["standard"],
+        min_credits=config.settings.credits_min_transcribe["standard"],
     )
     assert body["balance"] == before - expected_charge
 
@@ -95,7 +95,7 @@ def test_process_video_refunds_points_when_processing_fails(
     expected_charge = pricing.credits_for_minutes(
         tier="standard",
         duration_seconds=10.0,
-        min_credits=config.CREDITS_MIN_TRANSCRIBE["standard"],
+        min_credits=config.settings.credits_min_transcribe["standard"],
     )
     assert body["balance"] == before - expected_charge
 
@@ -173,9 +173,9 @@ def test_fact_check_charges_points_and_rejects_on_insufficient_balance(
     assert fact_resp.status_code == 200, fact_resp.text
     expected_reserve = pricing.max_llm_credits_for_limits(
         tier="standard",
-        max_prompt_chars=config.MAX_LLM_INPUT_CHARS,
-        max_completion_tokens=config.MAX_LLM_OUTPUT_TOKENS_FACTCHECK,
-        min_credits=config.CREDITS_MIN_FACT_CHECK["standard"],
+        max_prompt_chars=config.settings.max_llm_input_chars,
+        max_completion_tokens=config.settings.max_llm_output_tokens_factcheck,
+        min_credits=config.settings.credits_min_fact_check["standard"],
     )["credits"]
     assert fact_resp.json()["balance"] == before - expected_reserve
 

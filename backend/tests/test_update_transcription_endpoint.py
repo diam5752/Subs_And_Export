@@ -9,6 +9,8 @@ from fastapi.testclient import TestClient
 
 def _auth_header(client: TestClient, email: str) -> dict[str, str]:
     from backend.app.core import ratelimit
+    from backend.app.core.database import Database
+    from backend.app.services.points import PointsStore
 
     ratelimit.limiter_login.reset()
     ratelimit.limiter_register.reset()
@@ -28,7 +30,20 @@ def _auth_header(client: TestClient, email: str) -> dict[str, str]:
     )
     assert token_resp.status_code == 200, token_resp.text
     token = token_resp.json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
+    headers = {"Authorization": f"Bearer {token}"}
+    
+    # Ensure user has credits
+    me_resp = client.get("/auth/me", headers=headers)
+    if me_resp.status_code == 200:
+        user_id = me_resp.json().get("id")
+        if user_id:
+            db = Database()
+            points_store = PointsStore(db=db)
+            points_store.ensure_account(user_id)
+            # Grant additional credits for tests
+            points_store.credit(user_id, 1000, "test_credit", {"source": "unit_tests"})
+    
+    return headers
 
 
 def test_update_transcription_overwrites_job_artifacts(monkeypatch, tmp_path: Path) -> None:
@@ -37,7 +52,13 @@ def test_update_transcription_overwrites_job_artifacts(monkeypatch, tmp_path: Pa
 
     from backend.app.core import config
 
-    monkeypatch.setattr(config, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(config.settings, "project_root", tmp_path)
+    monkeypatch.setattr(config.settings, "data_dir", tmp_path / "data")
+    # Also patch where settings is directly imported
+    monkeypatch.setattr("backend.app.api.endpoints.dev.settings.project_root", tmp_path)
+    monkeypatch.setattr("backend.app.api.endpoints.dev.settings.data_dir", tmp_path / "data")
+    monkeypatch.setattr("backend.app.api.endpoints.file_utils.settings.project_root", tmp_path)
+    monkeypatch.setattr("backend.app.api.endpoints.file_utils.settings.data_dir", tmp_path / "data")
 
     source_job_id = str(uuid.uuid4())
     data_dir = tmp_path / "data"

@@ -28,7 +28,7 @@ def test_hybrid_fact_check_extraction_empty(mock_client):
     assert mock_client.chat.completions.create.call_count == 1
     # Verify model used was extraction model
     call_args = mock_client.chat.completions.create.call_args
-    assert call_args.kwargs["model"] == config.EXTRACTION_LLM_MODEL
+    assert call_args.kwargs["model"] == config.settings.extraction_llm_model
 
 def test_hybrid_fact_check_extraction_found(mock_client):
     """Verify verification runs if claims are extracted."""
@@ -57,11 +57,11 @@ def test_hybrid_fact_check_extraction_found(mock_client):
     
     # Verify verification model used was smart model
     verify_call_args = mock_client.chat.completions.create.call_args_list[1]
-    assert verify_call_args.kwargs["model"] == config.FACTCHECK_LLM_MODEL
+    assert verify_call_args.kwargs["model"] == config.settings.factcheck_llm_model
 
 def test_social_copy_truncates_input(mock_client):
     """Verify input is truncated to MAX_LLM_INPUT_CHARS."""
-    long_text = "a" * (config.MAX_LLM_INPUT_CHARS + 1000)
+    long_text = "a" * (config.settings.max_llm_input_chars + 1000)
     
     mock_response = MagicMock()
     mock_response.choices[0].message.content = '{"title": "t", "description": "d", "hashtags": []}'
@@ -79,7 +79,7 @@ def test_social_copy_truncates_input(mock_client):
     sent_messages = call_args.kwargs["messages"]
     user_content = sent_messages[1]["content"]
     
-    assert len(user_content) <= config.MAX_LLM_INPUT_CHARS
+    assert len(user_content) <= config.settings.max_llm_input_chars
     assert len(user_content) < len(long_text)
 
 def test_calculate_cost():

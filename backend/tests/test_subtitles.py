@@ -199,7 +199,7 @@ def test_generate_subtitles_from_audio_accepts_auto_language(monkeypatch, tmp_pa
 
         call_args = mock_instance.transcribe.call_args
         assert call_args
-        assert call_args.kwargs["language"] == config.WHISPER_LANGUAGE
+        assert call_args.kwargs["language"] == config.settings.whisper_language
 
 
 def test_generate_subtitles_from_audio_passes_decoding_params(monkeypatch, tmp_path: Path):

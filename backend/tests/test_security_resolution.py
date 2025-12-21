@@ -21,7 +21,7 @@ def test_parse_resolution_invalid_format():
 
 def test_parse_resolution_max_limit():
     """Test boundary condition."""
-    limit = config.MAX_RESOLUTION_DIMENSION
+    limit = config.settings.max_resolution_dimension
     # Exact limit should pass
     w, h = videos._parse_resolution(f"{limit}x{limit}")
     assert w == limit

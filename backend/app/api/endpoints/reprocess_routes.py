@@ -92,7 +92,7 @@ def reprocess_job(
             detail=f"Too many active jobs. Please wait for your current jobs to finish (max {settings.max_concurrent_jobs}).",
         )
 
-    settings = build_processing_settings(
+    proc_settings = build_processing_settings(
         transcribe_model=request.transcribe_model,
         transcribe_provider=request.transcribe_provider,
         openai_model=request.openai_model,
@@ -131,17 +131,17 @@ def reprocess_job(
         job = job_store.create_job(new_job_id, current_user.id)
         
         try:
-            llm_models = pricing.resolve_llm_models(settings.transcribe_model)
+            llm_models = pricing.resolve_llm_models(proc_settings.transcribe_model)
             charge_plan, new_balance = reserve_processing_charges(
                 ledger_store=ledger_store,
                 user_id=current_user.id,
                 job_id=new_job_id,
-                tier=settings.transcribe_model,
+                tier=proc_settings.transcribe_model,
                 duration_seconds=float(settings.max_video_duration_seconds),
-                use_llm=settings.use_llm,
+                use_llm=proc_settings.use_llm,
                 llm_model=llm_models.social,
-                provider=settings.transcribe_provider,
-                stt_model=pricing.resolve_transcribe_model(settings.transcribe_model),
+                provider=proc_settings.transcribe_provider,
+                stt_model=pricing.resolve_transcribe_model(proc_settings.transcribe_model),
             )
         except Exception:
             job_store.delete_job(new_job_id)
@@ -153,7 +153,7 @@ def reprocess_job(
             record_event_safe(
                 history_store, current_user, "process_started",
                 f"Reprocessing {source_job.result_data.get('original_filename', 'video') if source_job.result_data else 'video'}",
-                {"job_id": new_job_id, "source_job_id": job_id, "provider": settings.transcribe_provider, "model_size": settings.transcribe_model, "source": "gcs"},
+                {"job_id": new_job_id, "source_job_id": job_id, "provider": proc_settings.transcribe_provider, "model_size": proc_settings.transcribe_model, "source": "gcs"},
             )
 
             background_tasks.add_task(
@@ -163,7 +163,7 @@ def reprocess_job(
                 input_path=input_path,
                 output_path=output_path,
                 artifact_dir=artifact_path,
-                settings=settings,
+                settings=proc_settings,
                 job_store=job_store,
                 history_store=history_store,
                 user=current_user,
@@ -232,17 +232,17 @@ def reprocess_job(
     job = job_store.create_job(new_job_id, current_user.id)
 
     try:
-        llm_models = pricing.resolve_llm_models(settings.transcribe_model)
+        llm_models = pricing.resolve_llm_models(proc_settings.transcribe_model)
         charge_plan, new_balance = reserve_processing_charges(
             ledger_store=ledger_store,
             user_id=current_user.id,
             job_id=new_job_id,
-            tier=settings.transcribe_model,
+            tier=proc_settings.transcribe_model,
             duration_seconds=float(probe.duration_s or 0),
-            use_llm=settings.use_llm,
+            use_llm=proc_settings.use_llm,
             llm_model=llm_models.social,
-            provider=settings.transcribe_provider,
-            stt_model=pricing.resolve_transcribe_model(settings.transcribe_model),
+            provider=proc_settings.transcribe_provider,
+            stt_model=pricing.resolve_transcribe_model(proc_settings.transcribe_model),
         )
     except Exception:
         job_store.delete_job(new_job_id)
@@ -255,12 +255,12 @@ def reprocess_job(
         record_event_safe(
             history_store, current_user, "process_started",
             f"Reprocessing {source_job.result_data.get('original_filename', 'video') if source_job.result_data else 'video'}",
-            {"job_id": new_job_id, "source_job_id": job_id, "provider": settings.transcribe_provider, "model_size": settings.transcribe_model, "source": "local"},
+            {"job_id": new_job_id, "source_job_id": job_id, "provider": proc_settings.transcribe_provider, "model_size": proc_settings.transcribe_model, "source": "local"},
         )
 
         background_tasks.add_task(
             run_video_processing,
-            new_job_id, input_path, output_path, artifact_path, settings,
+            new_job_id, input_path, output_path, artifact_path, proc_settings,
             job_store, history_store, current_user,
             (source_job.result_data or {}).get("original_filename"),
             ledger_store=ledger_store,

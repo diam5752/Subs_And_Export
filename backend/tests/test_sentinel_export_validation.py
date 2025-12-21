@@ -32,8 +32,9 @@ def test_export_video_validation_sentinel(client: TestClient, monkeypatch, tmp_p
     job_store.update_job(job_id, status="completed", progress=100)
 
     # Setup file system mocks
-    # Mock config.PROJECT_ROOT in videos module so _data_roots uses tmp_path
-    monkeypatch.setattr(videos.config, "PROJECT_ROOT", tmp_path)
+    # Mock project_root in settings so _data_roots uses tmp_path
+    from backend.app.core.config import settings
+    monkeypatch.setattr(settings, "project_root", tmp_path)
 
     # Create input file so export doesn't 404 on file
     data_dir = tmp_path / "data"

@@ -20,11 +20,25 @@ from backend.app.services.usage_ledger import UsageLedgerStore
 def _auth_header(client: TestClient, email: str | None = None) -> dict[str, str]:
     resolved_email = email or f"video_{uuid.uuid4().hex}@example.com"
     client.post("/auth/register", json={"email": resolved_email, "password": "testpassword123", "name": "Video"})
-    token = client.post(
+    token_resp = client.post(
         "/auth/token",
         data={"username": resolved_email, "password": "testpassword123"},
-    ).json()["access_token"]
-    return {"Authorization": f"Bearer {token}"}
+    )
+    token = token_resp.json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+    
+    # Ensure user has sufficient credits for testing
+    me_resp = client.get("/auth/me", headers=headers)
+    if me_resp.status_code == 200:
+        user_id = me_resp.json().get("id")
+        if user_id:
+            db = Database()
+            points_store = PointsStore(db=db)
+            points_store.ensure_account(user_id)
+            # Grant additional credits for tests (in case user already existed with low balance)
+            points_store.credit(user_id, 1000, "test_credit", {"source": "unit_tests"})
+    
+    return headers
 
 
 def test_job_store_lifecycle(tmp_path: Path):
@@ -64,7 +78,7 @@ def test_job_store_lifecycle(tmp_path: Path):
 
 def test_run_video_processing_success(monkeypatch, tmp_path: Path):
     # Keep paths relative to tmp_path so relative_to() succeeds
-    monkeypatch.setattr(videos.config, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(config.settings, "project_root", tmp_path)
 
     db = Database()
     store = jobs.JobStore(db)
@@ -96,7 +110,7 @@ def test_run_video_processing_success(monkeypatch, tmp_path: Path):
 
 
 def test_run_video_processing_failure(monkeypatch, tmp_path: Path):
-    monkeypatch.setattr(videos.config, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(config.settings, "project_root", tmp_path)
 
     db = Database()
     store = jobs.JobStore(db)
@@ -123,7 +137,7 @@ def test_run_video_processing_failure(monkeypatch, tmp_path: Path):
 
 
 def test_run_video_processing_handles_path_only(monkeypatch, tmp_path: Path):
-    monkeypatch.setattr(videos.config, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(config.settings, "project_root", tmp_path)
     db = Database()
     store = jobs.JobStore(db)
     user_id = backend_auth.UserStore(db=db).register_local_user(
@@ -150,7 +164,7 @@ def test_run_video_processing_handles_path_only(monkeypatch, tmp_path: Path):
 
 def test_run_video_processing_does_not_restart_cancelled_job_and_refunds(monkeypatch, tmp_path: Path):
     # REGRESSION: a cancelled job must never flip back to processing, and charges must be refunded.
-    monkeypatch.setattr(videos.config, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(config.settings, "project_root", tmp_path)
 
     db = Database()
     job_store = jobs.JobStore(db)
@@ -178,7 +192,7 @@ def test_run_video_processing_does_not_restart_cancelled_job_and_refunds(monkeyp
     expected_charge = pricing.credits_for_minutes(
         tier="standard",
         duration_seconds=60.0,
-        min_credits=config.CREDITS_MIN_TRANSCRIBE["standard"],
+        min_credits=config.settings.credits_min_transcribe["standard"],
     )
     assert points_store.get_balance(user_id) == starting_balance - expected_charge
 
@@ -213,7 +227,7 @@ def test_run_video_processing_does_not_restart_cancelled_job_and_refunds(monkeyp
 
 def test_run_gcs_video_processing_does_not_restart_cancelled_job_and_refunds(monkeypatch, tmp_path: Path):
     # REGRESSION: cancelled jobs must not download/process GCS uploads, and charges must be refunded.
-    monkeypatch.setattr(videos.config, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(config.settings, "project_root", tmp_path)
 
     import types
 
@@ -250,7 +264,7 @@ def test_run_gcs_video_processing_does_not_restart_cancelled_job_and_refunds(mon
     expected_charge = pricing.credits_for_minutes(
         tier="standard",
         duration_seconds=60.0,
-        min_credits=config.CREDITS_MIN_TRANSCRIBE["standard"],
+        min_credits=config.settings.credits_min_transcribe["standard"],
     )
     assert points_store.get_balance(user_id) == starting_balance - expected_charge
 

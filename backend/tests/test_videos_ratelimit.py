@@ -60,7 +60,8 @@ def test_viral_metadata_rate_limit(client, user_auth_headers, monkeypatch, tmp_p
     import pytest
     pytest.skip("viral-metadata endpoint removed")
     # Mock data roots to use tmp_path
-    monkeypatch.setattr(videos.config, "PROJECT_ROOT", tmp_path)
+    from backend.app.core.config import settings
+    monkeypatch.setattr(settings, "project_root", tmp_path)
 
     # Mock generate_viral_metadata to avoid LLM calls
     mock_metadata = MagicMock()

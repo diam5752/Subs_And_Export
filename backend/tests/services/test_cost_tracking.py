@@ -64,8 +64,8 @@ def test_track_usage_fallback_config():
     mock_query = mock_session.query.return_value
     mock_query.filter.return_value.first.return_value = None
     
-    # Mock config
-    with patch.dict(config.MODEL_PRICING, {"gpt-fallback": {"input": 5.0, "output": 5.0}}, clear=False):
+    # Mock config.settings.llm_pricing
+    with patch.object(config.settings, 'llm_pricing', {"gpt-fallback": {"input": 5.0, "output": 5.0}}):
         cost = CostService.track_usage(
             mock_session, 
             "gpt-fallback", 

@@ -89,7 +89,8 @@ class PointsStore:
 
         now = int(time.time())
         with self.db.session() as session:
-            self._ensure_account_in_session(session, user_id=user_id, now=now)
+            resolved_email_verified = self._resolve_email_verified(session, user_id, None)
+            self._ensure_account_in_session(session, user_id=user_id, now=now, email_verified=resolved_email_verified)
 
             result = session.execute(
                 update(DbUserPoints)
@@ -137,7 +138,8 @@ class PointsStore:
 
         now = int(time.time())
         with self.db.session() as session:
-            self._ensure_account_in_session(session, user_id=user_id, now=now)
+            resolved_email_verified = self._resolve_email_verified(session, user_id, None)
+            self._ensure_account_in_session(session, user_id=user_id, now=now, email_verified=resolved_email_verified)
 
             insert_stmt = pg_insert(DbPointTransaction).values(
                 id=transaction_id,
@@ -185,7 +187,8 @@ class PointsStore:
 
         now = int(time.time())
         with self.db.session() as session:
-            self._ensure_account_in_session(session, user_id=user_id, now=now)
+            resolved_email_verified = self._resolve_email_verified(session, user_id, None)
+            self._ensure_account_in_session(session, user_id=user_id, now=now, email_verified=resolved_email_verified)
 
             session.execute(
                 update(DbUserPoints)
@@ -239,7 +242,8 @@ class PointsStore:
 
         now = int(time.time())
         with self.db.session() as session:
-            self._ensure_account_in_session(session, user_id=user_id, now=now)
+            resolved_email_verified = self._resolve_email_verified(session, user_id, None)
+            self._ensure_account_in_session(session, user_id=user_id, now=now, email_verified=resolved_email_verified)
 
             insert_stmt = pg_insert(DbPointTransaction).values(
                 id=transaction_id,

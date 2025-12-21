@@ -76,10 +76,10 @@ class TestStandardTranscriber:
         mock_model_instance = MagicMock()
         mock_model_instance.transcribe.return_value = mock_segment
 
-        # We need to mock the import INSIDE the method or ensure it uses our sys.modules mock
-        with patch("backend.app.services.transcription.standard_whisper.config") as mock_config:
-            mock_config.WHISPERCPP_MODEL = "base"
-            mock_config.WHISPERCPP_LANGUAGE = "en"
+        # We need to mock settings since the module does 'from backend.app.core.config import settings'
+        with patch("backend.app.services.transcription.standard_whisper.settings") as mock_settings:
+            mock_settings.whispercpp_model = "base"
+            mock_settings.whispercpp_language = "en"
 
             # Since we masked sys.modules at top, the import inside transcribe should return our mock
             # We assume pywhispercpp.model.Model is our mock
