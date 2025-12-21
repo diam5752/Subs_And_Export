@@ -4,6 +4,7 @@ import '@testing-library/jest-dom';
 import { Sidebar } from '../components/Sidebar';
 import { I18nProvider } from '@/context/I18nContext';
 import { useProcessContext } from '../ProcessContext';
+import { PlaybackProvider } from '../PlaybackContext';
 
 // Mock useProcessContext
 jest.mock('../ProcessContext', () => ({
@@ -64,7 +65,9 @@ describe('Sidebar Tabs', () => {
     it('renders all three tabs with icons', () => {
         render(
             <I18nProvider initialLocale="en">
-                <Sidebar />
+                <PlaybackProvider>
+                    <Sidebar />
+                </PlaybackProvider>
             </I18nProvider>
         );
 
@@ -88,7 +91,9 @@ describe('Sidebar Tabs', () => {
 
         render(
             <I18nProvider initialLocale="en">
-                <Sidebar />
+                <PlaybackProvider>
+                    <Sidebar />
+                </PlaybackProvider>
             </I18nProvider>
         );
 
@@ -106,7 +111,9 @@ describe('Sidebar Tabs', () => {
 
         render(
             <I18nProvider initialLocale="en">
-                <Sidebar />
+                <PlaybackProvider>
+                    <Sidebar />
+                </PlaybackProvider>
             </I18nProvider>
         );
 

@@ -1,6 +1,7 @@
 import React, { useMemo, useCallback, memo } from 'react';
 import { useI18n } from '@/context/I18nContext';
 import { useProcessContext } from '../ProcessContext';
+import { usePlaybackContext } from '../PlaybackContext';
 import { PhoneFrame } from '@/components/PhoneFrame';
 import { PreviewPlayer } from '@/components/PreviewPlayer';
 import { Sidebar } from './Sidebar';
@@ -263,7 +264,6 @@ export function PreviewSection() {
         maxSubtitleLines,
         shadowStrength,
         watermarkEnabled,
-        setCurrentTime,
         playerRef,
         resultsRef,
         currentStep,
@@ -280,6 +280,8 @@ export function PreviewSection() {
 
     // Local state for VideoModal
     const [showPreview, setShowPreview] = React.useState(false);
+    const { setCurrentTime } = usePlaybackContext();
+
     // Local state for NewVideoConfirmModal
     const [showNewVideoModal, setShowNewVideoModal] = React.useState(false);
 

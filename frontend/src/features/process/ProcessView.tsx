@@ -1,6 +1,7 @@
 import React, { useCallback } from 'react';
 import { StepIndicator } from './StepIndicator';
 import { ProcessProvider, useProcessContext, ProcessingOptions } from './ProcessContext';
+import { PlaybackProvider } from './PlaybackContext';
 export type { ProcessingOptions } from './ProcessContext';
 import { ModelSelector } from './components/ModelSelector';
 import { UploadSection } from './components/UploadSection';
@@ -128,7 +129,9 @@ export function ProcessView(props: ProcessViewProps) {
 
     return (
         <ProcessProvider {...props} onFileSelect={onFileSelectInternal}>
-            <ProcessViewContent />
+            <PlaybackProvider>
+                <ProcessViewContent />
+            </PlaybackProvider>
         </ProcessProvider>
     );
 }

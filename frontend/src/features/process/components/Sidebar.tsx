@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, memo } from 'react';
 import { useI18n } from '@/context/I18nContext';
 import { useProcessContext } from '../ProcessContext';
+import { usePlaybackContext } from '../PlaybackContext';
 import { CueItem } from '../CueItem';
 import { Cue } from '@/components/SubtitleOverlay';
 import { findCueIndexAtTime } from '@/lib/subtitleUtils';
@@ -68,7 +69,6 @@ const TranscriptPanel = memo(() => {
     const { t } = useI18n();
     const {
         cues,
-        currentTime,
         editingCueIndex,
         editingCueDraft,
         isSavingTranscript,
@@ -80,6 +80,7 @@ const TranscriptPanel = memo(() => {
         saveEditingCue,
         cancelEditingCue
     } = useProcessContext();
+    const { currentTime } = usePlaybackContext();
 
     const handleSeek = useCallback((time: number) => {
         playerRef.current?.seekTo(time);
