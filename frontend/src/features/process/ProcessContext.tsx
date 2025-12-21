@@ -119,7 +119,7 @@ interface ProcessContextType {
     setTranscriptSaveError: (s: string | null) => void;
     beginEditingCue: (index: number) => void;
     cancelEditingCue: () => void;
-    saveEditingCue: () => Promise<void>;
+    saveEditingCue: (text?: string) => Promise<void>;
     updateCueText: (cue: Cue, nextText: string) => Cue;
     handleUpdateDraft: (text: string) => void;
 
@@ -694,9 +694,10 @@ export function ProcessProvider({
         cuesRef.current = cues;
     }, [editingCueDraft, editingCueIndex, cues]);
 
-    const saveEditingCue = useCallback(async () => {
+    const saveEditingCue = useCallback(async (textOverride?: string) => {
         const index = editingCueIndexRef.current;
-        const draft = editingCueDraftRef.current;
+        // Allow overriding the draft from local state (CueItem optimization)
+        const draft = textOverride ?? editingCueDraftRef.current;
         const currentCues = cuesRef.current;
 
         if (index === null) return;

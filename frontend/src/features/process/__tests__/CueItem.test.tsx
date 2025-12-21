@@ -26,13 +26,12 @@ describe('CueItem', () => {
         isActive: false,
         isEditing: false,
         canEdit: true,
-        draftText: '',
+        initialDraftText: '',
         isSaving: false,
         onSeek: jest.fn(),
         onEdit: jest.fn(),
         onSave: jest.fn(),
         onCancel: jest.fn(),
-        onUpdateDraft: jest.fn(),
     };
 
     it('renders correctly in view mode with accessible labels', () => {
@@ -46,7 +45,7 @@ describe('CueItem', () => {
     });
 
     it('renders correctly in edit mode', () => {
-        render(<CueItem {...defaultProps} isEditing={true} draftText="Editing..." />);
+        render(<CueItem {...defaultProps} isEditing={true} initialDraftText="Editing..." />);
         expect(screen.getByDisplayValue('Editing...')).toBeInTheDocument();
         expect(screen.getByText('transcriptSave')).toBeInTheDocument();
         expect(screen.getByText('transcriptCancel')).toBeInTheDocument();
@@ -64,10 +63,16 @@ describe('CueItem', () => {
         expect(defaultProps.onEdit).toHaveBeenCalledWith(0);
     });
 
-    it('calls onUpdateDraft when typing', () => {
-        render(<CueItem {...defaultProps} isEditing={true} />);
+    it('updates local state and calls onSave with new text', () => {
+        render(<CueItem {...defaultProps} isEditing={true} initialDraftText="Initial" />);
         const textarea = screen.getByRole('textbox');
-        fireEvent.change(textarea, { target: { value: 'New' } });
-        expect(defaultProps.onUpdateDraft).toHaveBeenCalledWith('New');
+
+        // Typing should update local state but not trigger external callbacks yet
+        fireEvent.change(textarea, { target: { value: 'New Text' } });
+        expect(textarea).toHaveValue('New Text');
+
+        // Save should pass the local text
+        fireEvent.click(screen.getByText('transcriptSave'));
+        expect(defaultProps.onSave).toHaveBeenCalledWith('New Text');
     });
 });

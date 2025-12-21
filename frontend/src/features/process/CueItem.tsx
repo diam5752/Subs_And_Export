@@ -1,4 +1,4 @@
-import React, { memo, useRef, useEffect } from 'react';
+import React, { memo, useRef, useEffect, useState } from 'react';
 import { Cue } from '@/components/SubtitleOverlay';
 import { useI18n } from '@/context/I18nContext';
 
@@ -8,13 +8,12 @@ interface CueItemProps {
     isActive: boolean;
     isEditing: boolean;
     canEdit: boolean;
-    draftText: string;
+    initialDraftText: string;
     isSaving: boolean;
     onSeek: (time: number) => void;
     onEdit: (index: number) => void;
-    onSave: () => void;
+    onSave: (text: string) => void;
     onCancel: () => void;
-    onUpdateDraft: (text: string) => void;
 }
 
 export const CueItem = memo(({
@@ -23,21 +22,31 @@ export const CueItem = memo(({
     isActive,
     isEditing,
     canEdit,
-    draftText,
+    initialDraftText,
     isSaving,
     onSeek,
     onEdit,
     onSave,
     onCancel,
-    onUpdateDraft
 }: CueItemProps) => {
     const { t } = useI18n();
     const formattedTime = `${Math.floor(cue.start / 60)}:${(cue.start % 60).toFixed(0).padStart(2, '0')}`;
+
+    // Optimization: Local state for draft text to prevent parent re-renders on every keystroke
+    const [localDraft, setLocalDraft] = useState(initialDraftText);
 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const editBtnRef = useRef<HTMLButtonElement>(null);
     const prevIsEditingRef = useRef(isEditing);
     const shouldRestoreFocusRef = useRef(false);
+
+    // Sync local state when entering edit mode
+    useEffect(() => {
+        if (isEditing) {
+            setLocalDraft(initialDraftText);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isEditing]);
 
     useEffect(() => {
         // Entering edit mode
@@ -62,7 +71,7 @@ export const CueItem = memo(({
 
     const handleSave = () => {
         shouldRestoreFocusRef.current = true;
-        onSave();
+        onSave(localDraft);
     };
 
     const handleCancel = () => {
@@ -91,8 +100,8 @@ export const CueItem = memo(({
                     {isEditing ? (
                         <textarea
                             ref={textareaRef}
-                            value={draftText}
-                            onChange={(e) => onUpdateDraft(e.target.value)}
+                            value={localDraft}
+                            onChange={(e) => setLocalDraft(e.target.value)}
                             className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)]/70 px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/30 min-h-[72px] resize-y"
                             disabled={isSaving}
                             aria-label={t('transcriptEdit') || 'Edit'}

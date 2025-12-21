@@ -16,7 +16,7 @@ interface CueListProps {
     isSaving: boolean;
     onSeek: (time: number) => void;
     onEdit: (index: number) => void;
-    onSave: () => void;
+    onSave: (text: string) => void;
     onCancel: () => void;
     onUpdateDraft: (text: string) => void;
 }
@@ -31,6 +31,7 @@ const CueList = memo(({
     onEdit,
     onSave,
     onCancel,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     onUpdateDraft
 }: CueListProps) => {
     return (
@@ -48,13 +49,12 @@ const CueList = memo(({
                             isActive={isActive}
                             isEditing={isEditing}
                             canEdit={canEditThis}
-                            draftText={isEditing ? editingCueDraft : ''}
+                            initialDraftText={isEditing ? editingCueDraft : ''}
                             isSaving={isSaving}
                             onSeek={onSeek}
                             onEdit={onEdit}
                             onSave={onSave}
                             onCancel={onCancel}
-                            onUpdateDraft={onUpdateDraft}
                         />
                     </div>
                 );
