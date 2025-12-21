@@ -63,13 +63,21 @@ class UserStore:
         if not password:
             raise ValueError("Password is required")
         _validate_password_strength(password)
+
+        # Service-layer name validation
+        final_name = name.strip()
+        if final_name:
+            _validate_name(final_name)
+        else:
+            final_name = email.split("@")[0][:100]
+
         existing = self.get_user_by_email(email)
         if existing:
             raise ValueError("User already exists")
         user = User(
             id=secrets.token_hex(8),
             email=email,
-            name=name.strip() or email.split("@")[0],
+            name=final_name,
             provider="local",
             password_hash=_hash_password(password),
             created_at=_utc_iso(),
@@ -96,11 +104,13 @@ class UserStore:
 
     def upsert_google_user(self, email: str, name: str, sub: str) -> User:
         email = email.strip().lower()
+        # Truncate name for external providers (don't fail)
+        final_name = (name.strip() or email.split("@")[0])[:100]
         created = False
         with self.db.session() as session:
             existing = session.scalar(select(DbUser).where(DbUser.email == email).limit(1))
             if existing:
-                existing.name = name.strip() or email.split("@")[0]
+                existing.name = final_name
                 existing.google_sub = sub
                 existing.provider = "google"
                 existing.password_hash = None
@@ -110,7 +120,7 @@ class UserStore:
                 user = User(
                     id=secrets.token_hex(8),
                     email=email,
-                    name=name.strip() or email.split("@")[0],
+                    name=final_name,
                     provider="google",
                     google_sub=sub,
                     created_at=_utc_iso(),
@@ -134,11 +144,13 @@ class UserStore:
         return user
 
     def update_name(self, user_id: str, new_name: str) -> None:
+        clean_name = new_name.strip()
+        _validate_name(clean_name)
         with self.db.session() as session:
             user = session.get(DbUser, user_id)
             if not user:
                 return
-            user.name = new_name.strip()
+            user.name = clean_name
 
     def update_password(self, user_id: str, new_password: str) -> None:
         _validate_password_strength(new_password)
@@ -322,6 +334,12 @@ def _validate_email(email: str) -> None:
     pattern = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
     if not re.match(pattern, email):
         raise ValueError("Invalid email format")
+
+
+def _validate_name(name: str) -> None:
+    """Enforce name length limit."""
+    if len(name) > 100:
+        raise ValueError("Name must be at most 100 characters long")
 
 
 def _utc_iso() -> str:
