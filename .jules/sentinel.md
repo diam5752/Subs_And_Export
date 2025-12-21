@@ -140,3 +140,8 @@
 **Vulnerability:** `UserStore` internal validation (`_validate_password_strength`, `_validate_email`) lacked `max_length` checks, relying solely on API-layer Pydantic models. This left the service vulnerable to DoS if called internally or via new unchecked endpoints.
 **Learning:** API-layer validation (Pydantic) does not protect the service layer from direct misuse. Defense in depth requires validating inputs at the lowest common denominator (the service/store).
 **Prevention:** Mirror API constraints (length, format) in service-level validation functions.
+
+## 2025-12-21 - [Medium] SRT Injection via Double Newlines
+**Vulnerability:** The `_write_srt_from_segments` function failed to sanitize double newline characters (`\n\n`), allowing attackers to inject arbitrary SRT cue blocks (e.g. fake timestamps and text) into the generated subtitle file by breaking out of the intended cue structure.
+**Learning:** Text-based formats (ASS, SRT, CSV) rely on specific delimiters (like blank lines in SRT) for structural integrity. User input containing these delimiters must be sanitized to prevent injection attacks.
+**Prevention:** Always collapse or remove structural delimiters (like double newlines) from user inputs before embedding them into line-based file formats.
