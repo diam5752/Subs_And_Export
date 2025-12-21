@@ -70,6 +70,16 @@ export const CueItem = memo(({
         onCancel();
     };
 
+    const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+            e.preventDefault();
+            handleSave();
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            handleCancel();
+        }
+    };
+
     return (
         <div
             id={`cue-${index}`}
@@ -93,6 +103,7 @@ export const CueItem = memo(({
                             ref={textareaRef}
                             value={draftText}
                             onChange={(e) => onUpdateDraft(e.target.value)}
+                            onKeyDown={handleKeyDown}
                             className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)]/70 px-3 py-2 text-sm text-[var(--foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/30 min-h-[72px] resize-y"
                             disabled={isSaving}
                             aria-label={t('transcriptEdit') || 'Edit'}
@@ -119,6 +130,7 @@ export const CueItem = memo(({
                                 onClick={handleSave}
                                 disabled={isSaving}
                                 className="px-2 py-1 rounded-md text-xs font-semibold bg-emerald-500/15 text-emerald-200 border border-emerald-500/25 hover:bg-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                                title="Save (Ctrl+Enter)"
                             >
                                 {isSaving ? (t('transcriptSaving') || 'Saving…') : (t('transcriptSave') || 'Save')}
                             </button>
@@ -127,6 +139,7 @@ export const CueItem = memo(({
                                 onClick={handleCancel}
                                 disabled={isSaving}
                                 className="px-2 py-1 rounded-md text-xs font-medium bg-white/5 text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-white/10 border border-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                                title="Cancel (Esc)"
                             >
                                 {t('transcriptCancel') || 'Cancel'}
                             </button>
