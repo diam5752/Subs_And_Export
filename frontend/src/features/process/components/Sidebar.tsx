@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, memo } from 'react';
+import { Spinner } from '@/components/Spinner';
 import { useI18n } from '@/context/I18nContext';
 import { useProcessContext } from '../ProcessContext';
 import { usePlaybackContext } from '../PlaybackContext';
@@ -128,7 +129,7 @@ const TranscriptPanel = memo(() => {
             )}
             {isSavingTranscript && (
                 <div className="flex items-center gap-2 px-1 text-xs text-[var(--muted)]">
-                    <span className="animate-spin">⏳</span>
+                    <Spinner className="w-3.5 h-3.5 text-[var(--muted)]" />
                     {t('transcriptSaving') || 'Saving…'}
                 </div>
             )}
