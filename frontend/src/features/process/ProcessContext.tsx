@@ -88,8 +88,6 @@ interface ProcessContextType {
     cues: Cue[];
     setCues: (cues: Cue[]) => void;
     processedCues: Cue[];
-    currentTime: number;
-    setCurrentTime: (t: number) => void;
 
     // Derived/Refs
     fileInputRef: React.RefObject<HTMLInputElement | null>;
@@ -280,7 +278,6 @@ export function ProcessProvider({
     const [videoInfo, setVideoInfo] = useState<{ width: number; height: number; aspectWarning: boolean; thumbnailUrl: string | null } | null>(null);
     const [previewVideoUrl, setPreviewVideoUrl] = useState<string | null>(null);
     const [cues, setCues] = useState<Cue[]>([]);
-    const [currentTime, setCurrentTime] = useState(0);
 
     const [overrideStep, setOverrideStep] = useState<number | null>(null);
     const [exportingResolutions, setExportingResolutions] = useState<Record<string, boolean>>({});
@@ -852,7 +849,6 @@ export function ProcessProvider({
         videoUrl,
         cues, setCues,
         processedCues,
-        currentTime, setCurrentTime,
         fileInputRef, resultsRef, transcriptContainerRef, playerRef,
         currentStep, setOverrideStep, overrideStep,
         handleStart, handleExport, exportingResolutions,

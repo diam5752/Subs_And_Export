@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ProcessViewContent } from '../ProcessView';
 import { I18nProvider } from '@/context/I18nContext';
 import { useProcessContext } from '../ProcessContext';
+import { PlaybackProvider } from '../PlaybackContext';
 
 // Global mock for HTMLMediaElement methods not implemented in JSDOM
 beforeAll(() => {
@@ -141,7 +142,9 @@ describe('ProcessView', () => {
     it('renders Step 1 initially', () => {
         render(
             <I18nProvider initialLocale="en">
-                <ProcessViewContent />
+                <PlaybackProvider>
+                    <ProcessViewContent />
+                </PlaybackProvider>
             </I18nProvider>
         );
         expect(screen.getAllByText(/Step 1/i).length).toBeGreaterThan(0);
@@ -158,7 +161,9 @@ describe('ProcessView', () => {
 
         render(
             <I18nProvider initialLocale="en">
-                <ProcessViewContent />
+                <PlaybackProvider>
+                    <ProcessViewContent />
+                </PlaybackProvider>
             </I18nProvider>
         );
 
@@ -177,7 +182,9 @@ describe('ProcessView', () => {
 
         render(
             <I18nProvider initialLocale="en">
-                <ProcessViewContent />
+                <PlaybackProvider>
+                    <ProcessViewContent />
+                </PlaybackProvider>
             </I18nProvider>
         );
 
@@ -195,7 +202,9 @@ describe('ProcessView', () => {
 
         render(
             <I18nProvider initialLocale="en">
-                <ProcessViewContent />
+                <PlaybackProvider>
+                    <ProcessViewContent />
+                </PlaybackProvider>
             </I18nProvider>
         );
 
@@ -221,7 +230,9 @@ describe('ProcessView', () => {
 
         const { rerender } = render(
             <I18nProvider initialLocale="en">
-                <ProcessViewContent />
+                <PlaybackProvider>
+                    <ProcessViewContent />
+                </PlaybackProvider>
             </I18nProvider>
         );
 
@@ -241,7 +252,9 @@ describe('ProcessView', () => {
 
         rerender(
             <I18nProvider initialLocale="en">
-                <ProcessViewContent />
+                <PlaybackProvider>
+                    <ProcessViewContent />
+                </PlaybackProvider>
             </I18nProvider>
         );
 
@@ -263,7 +276,9 @@ describe('ProcessView', () => {
 
         render(
             <I18nProvider initialLocale="en">
-                <ProcessViewContent />
+                <PlaybackProvider>
+                    <ProcessViewContent />
+                </PlaybackProvider>
             </I18nProvider>
         );
 
@@ -283,7 +298,9 @@ describe('ProcessView', () => {
 
         render(
             <I18nProvider initialLocale="en">
-                <ProcessViewContent />
+                <PlaybackProvider>
+                    <ProcessViewContent />
+                </PlaybackProvider>
             </I18nProvider>
         );
 
@@ -304,7 +321,9 @@ describe('ProcessView', () => {
 
         render(
             <I18nProvider initialLocale="en">
-                <ProcessViewContent />
+                <PlaybackProvider>
+                    <ProcessViewContent />
+                </PlaybackProvider>
             </I18nProvider>
         );
 
@@ -327,7 +346,9 @@ describe('ProcessView', () => {
 
         const { container } = render(
             <I18nProvider initialLocale="en">
-                <ProcessViewContent />
+                <PlaybackProvider>
+                    <ProcessViewContent />
+                </PlaybackProvider>
             </I18nProvider>
         );
 
