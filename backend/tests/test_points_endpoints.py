@@ -12,7 +12,7 @@ from backend.app.core import config
 from backend.app.core.database import Database
 from backend.app.services.jobs import JobStore
 from backend.app.services import pricing
-from backend.app.services.points import STARTING_POINTS_BALANCE, PointsStore
+from backend.app.services.points import TRIAL_CREDITS, PointsStore
 
 
 def _db_from_env() -> Database:
@@ -24,7 +24,7 @@ def test_auth_points_endpoint_returns_starting_balance(
 ) -> None:
     resp = client.get("/auth/points", headers=user_auth_headers)
     assert resp.status_code == 200
-    assert resp.json()["balance"] == STARTING_POINTS_BALANCE
+    assert resp.json()["balance"] == TRIAL_CREDITS
 
 
 def test_process_video_charges_points_and_returns_balance(
@@ -115,7 +115,10 @@ def test_process_video_rejects_on_insufficient_points(
     user_id = me.json()["id"]
 
     db = _db_from_env()
-    PointsStore(db=db).spend(user_id, STARTING_POINTS_BALANCE, reason="test_setup")
+    points_store = PointsStore(db=db)
+    current_balance = points_store.get_balance(user_id)
+    assert current_balance > 0
+    points_store.spend(user_id, current_balance, reason="test_setup")
 
     resp = client.post(
         "/videos/process",

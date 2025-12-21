@@ -13,7 +13,7 @@ from backend.app.core.database import Database
 from backend.app.services import jobs
 from backend.app.services import pricing
 from backend.app.services.charge_plans import reserve_processing_charges
-from backend.app.services.points import PointsStore, STARTING_POINTS_BALANCE
+from backend.app.services.points import PointsStore
 from backend.app.services.usage_ledger import UsageLedgerStore
 
 
@@ -161,6 +161,7 @@ def test_run_video_processing_does_not_restart_cancelled_job_and_refunds(monkeyp
         f"cancelled_{uuid.uuid4().hex}@example.com", "testpassword123", "Runner"
     ).id
     job = job_store.create_job(f"job-cancelled-{uuid.uuid4().hex}", user_id)
+    starting_balance = points_store.get_balance(user_id)
 
     llm_models = pricing.resolve_llm_models("standard")
     charge_plan, _ = reserve_processing_charges(
@@ -179,7 +180,7 @@ def test_run_video_processing_does_not_restart_cancelled_job_and_refunds(monkeyp
         duration_seconds=60.0,
         min_credits=config.CREDITS_MIN_TRANSCRIBE["standard"],
     )
-    assert points_store.get_balance(user_id) == STARTING_POINTS_BALANCE - expected_charge
+    assert points_store.get_balance(user_id) == starting_balance - expected_charge
 
     job_store.update_job(job.id, status="cancelled", message="Cancelled by user")
 
@@ -205,7 +206,7 @@ def test_run_video_processing_does_not_restart_cancelled_job_and_refunds(monkeyp
         charge_plan=charge_plan,
     )
 
-    assert points_store.get_balance(user_id) == STARTING_POINTS_BALANCE
+    assert points_store.get_balance(user_id) == starting_balance
     cancelled = job_store.get_job(job.id)
     assert cancelled and cancelled.status == "cancelled"
 
@@ -232,6 +233,7 @@ def test_run_gcs_video_processing_does_not_restart_cancelled_job_and_refunds(mon
         f"cancelled_gcs_{uuid.uuid4().hex}@example.com", "testpassword123", "Runner"
     ).id
     job = job_store.create_job(f"job-cancelled-gcs-{uuid.uuid4().hex}", user_id)
+    starting_balance = points_store.get_balance(user_id)
 
     llm_models = pricing.resolve_llm_models("standard")
     charge_plan, _ = reserve_processing_charges(
@@ -250,7 +252,7 @@ def test_run_gcs_video_processing_does_not_restart_cancelled_job_and_refunds(mon
         duration_seconds=60.0,
         min_credits=config.CREDITS_MIN_TRANSCRIBE["standard"],
     )
-    assert points_store.get_balance(user_id) == STARTING_POINTS_BALANCE - expected_charge
+    assert points_store.get_balance(user_id) == starting_balance - expected_charge
 
     job_store.update_job(job.id, status="cancelled", message="Cancelled by user")
 
@@ -267,7 +269,7 @@ def test_run_gcs_video_processing_does_not_restart_cancelled_job_and_refunds(mon
         charge_plan=charge_plan,
     )
 
-    assert points_store.get_balance(user_id) == STARTING_POINTS_BALANCE
+    assert points_store.get_balance(user_id) == starting_balance
     cancelled = job_store.get_job(job.id)
     assert cancelled and cancelled.status == "cancelled"
 

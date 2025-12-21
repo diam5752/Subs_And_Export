@@ -17,7 +17,7 @@ from backend.app.services.charge_plans import (
     reserve_processing_charges,
     reserve_transcription_charge,
 )
-from backend.app.services.points import PointsStore, STARTING_POINTS_BALANCE
+from backend.app.services.points import PointsStore
 from backend.app.services.usage_ledger import UsageLedgerStore
 
 
@@ -63,6 +63,7 @@ class TestReserveTranscriptionCharge:
         _seed_job(db, user_id, job_id)
         points_store = PointsStore(db=db)
         points_store.ensure_account(user_id)
+        starting_balance = points_store.get_balance(user_id)
         ledger_store = UsageLedgerStore(db=db, points_store=points_store)
 
         reservation, balance = reserve_transcription_charge(
@@ -81,7 +82,7 @@ class TestReserveTranscriptionCharge:
         assert reservation.min_credits == config.CREDITS_MIN_TRANSCRIBE["standard"]
         # 2 minutes at 10 credits/min = 20, but min is 25
         assert reservation.reserved_credits == 25
-        assert balance == STARTING_POINTS_BALANCE - 25
+        assert balance == starting_balance - 25
 
     def test_reserve_pro_tier(self) -> None:
         db = Database()
@@ -90,6 +91,7 @@ class TestReserveTranscriptionCharge:
         _seed_job(db, user_id, job_id)
         points_store = PointsStore(db=db)
         points_store.ensure_account(user_id)
+        starting_balance = points_store.get_balance(user_id)
         ledger_store = UsageLedgerStore(db=db, points_store=points_store)
 
         reservation, balance = reserve_transcription_charge(
@@ -105,7 +107,7 @@ class TestReserveTranscriptionCharge:
         assert reservation.tier == "pro"
         # 3 minutes at 20 credits/min = 60
         assert reservation.reserved_credits == 60
-        assert balance == STARTING_POINTS_BALANCE - 60
+        assert balance == starting_balance - 60
 
 
 class TestReserveLlmCharge:
@@ -118,6 +120,7 @@ class TestReserveLlmCharge:
         _seed_job(db, user_id, job_id)
         points_store = PointsStore(db=db)
         points_store.ensure_account(user_id)
+        starting_balance = points_store.get_balance(user_id)
         ledger_store = UsageLedgerStore(db=db, points_store=points_store)
 
         reservation, balance = reserve_llm_charge(
@@ -135,7 +138,7 @@ class TestReserveLlmCharge:
         assert reservation.action == "social_copy"
         assert reservation.provider == "openai"
         assert reservation.tier == "standard"
-        assert balance < STARTING_POINTS_BALANCE
+        assert balance < starting_balance
 
 
 class TestReserveProcessingCharges:
@@ -148,6 +151,7 @@ class TestReserveProcessingCharges:
         _seed_job(db, user_id, job_id)
         points_store = PointsStore(db=db)
         points_store.ensure_account(user_id)
+        starting_balance = points_store.get_balance(user_id)
         ledger_store = UsageLedgerStore(db=db, points_store=points_store)
 
         llm_models = pricing.resolve_llm_models("standard")
@@ -192,4 +196,4 @@ class TestReserveProcessingCharges:
         assert charge_plan.transcription is not None
         assert charge_plan.social_copy is None
         # Only transcription charge
-        assert balance == STARTING_POINTS_BALANCE - 25  # min credits
+        assert balance == starting_balance - 25  # min credits
