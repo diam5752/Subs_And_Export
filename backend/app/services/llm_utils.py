@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 import tomllib
@@ -89,7 +88,9 @@ def load_openai_client(api_key: str) -> Any:
             "OpenAI package is not installed. Please run 'pip install openai'."
         ) from exc
 
-    return OpenAI(api_key=api_key)
+    # Enforce default timeout to prevent indefinite hangs (DoS protection)
+    # Consumers can override this on individual requests if needed.
+    return OpenAI(api_key=api_key, timeout=60.0)
 
 
 def clean_json_response(content: str) -> str:
@@ -110,14 +111,14 @@ def extract_chat_completion_text(response: Any) -> Tuple[str | None, str | None]
     try:
         choice = response.choices[0]
         message = choice.message
-        
+
         # Check for refusal first (new API feature)
         refusal = getattr(message, "refusal", None)
         if refusal:
             return None, refusal
 
         content = message.content
-        
+
         # Handle list content (e.g. from vision models)
         if isinstance(content, list):
             text_parts = []
