@@ -6,6 +6,7 @@ import { PreviewPlayer } from '@/components/PreviewPlayer';
 import { Sidebar } from './Sidebar';
 import { VideoModal } from '@/components/VideoModal';
 import { NewVideoConfirmModal } from './NewVideoConfirmModal';
+import { Spinner } from '@/components/Spinner';
 
 const resolveTierFromJob = (provider?: string | null, model?: string | null): 'standard' | 'pro' => {
     const normalizedProvider = (provider ?? '').trim().toLowerCase();
@@ -140,11 +141,12 @@ const PreviewSectionLayout = memo(({
                                                         className="group relative h-[88px] rounded-lg bg-black/40 border border-white/10 hover:border-white/20 hover:bg-white/5 transition-all duration-200 overflow-hidden flex flex-col items-center justify-center gap-1"
                                                         onClick={() => handleExport('srt')}
                                                         disabled={exportingResolutions['srt']}
+                                                        aria-busy={exportingResolutions['srt']}
                                                         data-testid="srt-btn"
                                                     >
                                                         {exportingResolutions['srt'] ? (
                                                             <div className="flex flex-col items-center gap-2">
-                                                                <span className="animate-spin text-white/40 text-xs">✦</span>
+                                                                <Spinner className="w-4 h-4 text-white/40" />
                                                                 <span className="text-[10px] font-mono text-white/40 tracking-widest uppercase">Saving</span>
                                                             </div>
                                                         ) : (
@@ -165,11 +167,12 @@ const PreviewSectionLayout = memo(({
                                                         className="group relative h-[88px] rounded-lg bg-black/40 border border-white/10 hover:border-white/20 hover:bg-white/5 transition-all duration-200 overflow-hidden flex flex-col items-center justify-center gap-1"
                                                         onClick={() => handleExport('1080x1920')}
                                                         disabled={exportingResolutions['1080x1920']}
+                                                        aria-busy={exportingResolutions['1080x1920']}
                                                         data-testid="download-1080p-btn"
                                                     >
                                                         {exportingResolutions['1080x1920'] ? (
                                                             <div className="flex flex-col items-center gap-2">
-                                                                <span className="animate-spin text-emerald-400 text-xs">✦</span>
+                                                                <Spinner className="w-4 h-4 text-emerald-400" />
                                                                 <span className="text-[10px] font-mono text-white/40 tracking-widest uppercase">Rendering</span>
                                                             </div>
                                                         ) : (
@@ -185,10 +188,11 @@ const PreviewSectionLayout = memo(({
                                                         className="group relative h-[88px] rounded-lg bg-black/40 border border-white/10 hover:border-[var(--accent)]/30 hover:bg-[var(--accent)]/[0.03] transition-all duration-300 overflow-hidden flex flex-col items-center justify-center gap-1"
                                                         onClick={() => handleExport('2160x3840')}
                                                         disabled={exportingResolutions['2160x3840']}
+                                                        aria-busy={exportingResolutions['2160x3840']}
                                                     >
                                                         {exportingResolutions['2160x3840'] ? (
                                                             <div className="flex flex-col items-center gap-2">
-                                                                <span className="animate-spin text-[var(--accent)] text-xs">✦</span>
+                                                                <Spinner className="w-4 h-4 text-[var(--accent)]" />
                                                                 <span className="text-[10px] font-mono text-[var(--accent)] tracking-widest uppercase">Mastering</span>
                                                             </div>
                                                         ) : (
