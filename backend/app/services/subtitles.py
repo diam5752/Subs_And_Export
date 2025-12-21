@@ -117,19 +117,6 @@ def extract_audio(
     return audio_path
 
 
-def _write_srt_from_segments(segments: Iterable[TimeRange], dest: Path) -> Path:
-    lines: List[str] = []
-    for idx, (start, end, text) in enumerate(segments, start=1):
-        start_ts = subtitle_renderer.format_timestamp(start)
-        end_ts = subtitle_renderer.format_timestamp(end)
-        lines.append(str(idx))
-        lines.append(f"{start_ts.replace('.', ',')} --> {end_ts.replace('.', ',')}")
-        lines.append(text.strip())
-        lines.append("")  # blank line separator
-    dest.write_text("\n".join(lines), encoding="utf-8")
-    return dest
-
-
 def get_video_duration(path: Path) -> float:
     """Get the duration of a video/audio file in seconds using ffprobe."""
     cmd = [

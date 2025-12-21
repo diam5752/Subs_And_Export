@@ -1,4 +1,5 @@
 import functools
+import re
 import unicodedata
 from pathlib import Path
 from typing import Iterable, List, Tuple
@@ -28,7 +29,12 @@ def write_srt_from_segments(segments: Iterable[TimeRange], dest: Path) -> Path:
         end_ts = format_timestamp(end)
         lines.append(str(idx))
         lines.append(f"{start_ts.replace('.', ',')} --> {end_ts.replace('.', ',')}")
-        lines.append(text.strip())
+
+        # Security: Sanitize text to prevent SRT injection via double newlines
+        # Replace 2+ newlines (with optional whitespace) with a single newline
+        safe_text = re.sub(r'\n\s*\n', '\n', text.strip())
+
+        lines.append(safe_text)
         lines.append("")  # blank line separator
     dest.write_text("\n".join(lines), encoding="utf-8")
     return dest

@@ -97,7 +97,7 @@ def export_video(
     if request.resolution == "srt":
         # SRT Export: Fast path
         try:
-            from ...services.subtitles import _write_srt_from_segments
+            from ...services.transcription.utils import write_srt_from_segments
 
             transcription_json = artifact_dir / "transcription.json"
             if not transcription_json.exists():
@@ -107,7 +107,7 @@ def export_video(
             segments = [(cue["start"], cue["end"], cue["text"]) for cue in cues_data]
 
             srt_path = artifact_dir / "processed.srt"
-            _write_srt_from_segments(segments, srt_path)
+            write_srt_from_segments(segments, srt_path)
 
             result_data = job.result_data.copy() if job.result_data else {}
             variants = result_data.get("variants", {})
