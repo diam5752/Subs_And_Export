@@ -13,12 +13,19 @@ from backend.app.core.database import Database
 from backend.app.db.models import DbPointTransaction, DbUser, DbUserPoints
 from backend.app.services.points import (
     STARTING_POINTS_BALANCE,
+    TRIAL_CREDITS,
     PointsStore,
     make_idempotency_id,
 )
 
 
-def _seed_user(db: Database, *, user_id: str | None = None, email: str | None = None) -> str:
+def _seed_user(
+    db: Database,
+    *,
+    user_id: str | None = None,
+    email: str | None = None,
+    email_verified: bool = True,
+) -> str:
     resolved_user_id = user_id or uuid.uuid4().hex
     resolved_email = email or f"{resolved_user_id}@example.com"
     with db.session() as session:
@@ -31,6 +38,7 @@ def _seed_user(db: Database, *, user_id: str | None = None, email: str | None = 
                 password_hash="x",
                 google_sub=None,
                 created_at="now",
+                email_verified=email_verified,
             )
         )
     return resolved_user_id
@@ -38,7 +46,7 @@ def _seed_user(db: Database, *, user_id: str | None = None, email: str | None = 
 
 def test_ensure_account_creates_row_and_initial_transaction(tmp_path: Path) -> None:
     db = Database()
-    user_id = _seed_user(db)
+    user_id = _seed_user(db, email_verified=True)
 
     store = PointsStore(db=db)
     created = store.ensure_account(user_id)
@@ -59,9 +67,47 @@ def test_ensure_account_creates_row_and_initial_transaction(tmp_path: Path) -> N
         assert txs[0].reason == "initial_balance"
 
 
+def test_ensure_account_uses_trial_balance_for_unverified_user(tmp_path: Path) -> None:
+    db = Database()
+    user_id = _seed_user(db, email_verified=False)
+
+    store = PointsStore(db=db)
+    created = store.ensure_account(user_id)
+    assert created is True
+    assert store.get_balance(user_id) == TRIAL_CREDITS
+
+    with db.session() as session:
+        txs = list(
+            session.scalars(
+                select(DbPointTransaction).where(DbPointTransaction.user_id == user_id)
+            ).all()
+        )
+        assert len(txs) == 1
+        assert txs[0].delta == TRIAL_CREDITS
+        assert txs[0].reason == "trial_balance"
+
+
+def test_ensure_account_with_starting_balance_override_zero(tmp_path: Path) -> None:
+    db = Database()
+    user_id = _seed_user(db, email_verified=True)
+
+    store = PointsStore(db=db)
+    created = store.ensure_account(user_id, starting_balance_override=0)
+    assert created is True
+    assert store.get_balance(user_id) == 0
+
+    with db.session() as session:
+        txs = list(
+            session.scalars(
+                select(DbPointTransaction).where(DbPointTransaction.user_id == user_id)
+            ).all()
+        )
+        assert txs == []
+
+
 def test_spend_deducts_points_and_logs_transaction(tmp_path: Path) -> None:
     db = Database()
-    user_id = _seed_user(db)
+    user_id = _seed_user(db, email_verified=True)
 
     store = PointsStore(db=db)
     store.ensure_account(user_id)
@@ -88,7 +134,7 @@ def test_spend_deducts_points_and_logs_transaction(tmp_path: Path) -> None:
 def test_spend_once_is_idempotent(tmp_path: Path) -> None:
     # REGRESSION: spend_once must only deduct once for the same transaction id.
     db = Database()
-    user_id = _seed_user(db)
+    user_id = _seed_user(db, email_verified=True)
 
     store = PointsStore(db=db)
     store.ensure_account(user_id)
@@ -127,7 +173,7 @@ def test_spend_once_is_idempotent(tmp_path: Path) -> None:
 
 def test_spend_insufficient_funds_is_atomic(tmp_path: Path) -> None:
     db = Database()
-    user_id = _seed_user(db)
+    user_id = _seed_user(db, email_verified=True)
 
     store = PointsStore(db=db)
     store.ensure_account(user_id)
@@ -180,7 +226,7 @@ def test_spend_rejects_invalid_inputs(tmp_path: Path) -> None:
 
 def test_credit_and_refund_log_transactions(tmp_path: Path) -> None:
     db = Database()
-    user_id = _seed_user(db)
+    user_id = _seed_user(db, email_verified=True)
 
     store = PointsStore(db=db)
     store.ensure_account(user_id)
@@ -222,7 +268,7 @@ def test_credit_rejects_invalid_inputs(tmp_path: Path) -> None:
 
 def test_refund_once_rejects_invalid_inputs(tmp_path: Path) -> None:
     db = Database()
-    user_id = _seed_user(db)
+    user_id = _seed_user(db, email_verified=True)
 
     store = PointsStore(db=db)
     store.ensure_account(user_id)
@@ -263,7 +309,9 @@ def test_ensure_account_in_session_postgres_branch_is_covered(tmp_path: Path) ->
     created_result.scalar_one_or_none.return_value = "u1"
     session.execute.return_value = created_result
 
-    created = store._ensure_account_in_session(session, user_id="u1", now=123)
+    created = store._ensure_account_in_session(
+        session, user_id="u1", now=123, email_verified=True
+    )
     assert created is True
     session.add.assert_called_once()
 
@@ -272,7 +320,9 @@ def test_ensure_account_in_session_postgres_branch_is_covered(tmp_path: Path) ->
     not_created_result.scalar_one_or_none.return_value = None
     session.execute.return_value = not_created_result
 
-    created = store._ensure_account_in_session(session, user_id="u1", now=123)
+    created = store._ensure_account_in_session(
+        session, user_id="u1", now=123, email_verified=True
+    )
     assert created is False
     session.add.assert_not_called()
 
@@ -309,7 +359,7 @@ def test_refund_once_postgres_branch_uses_returning(tmp_path: Path, monkeypatch:
 def test_refund_once_credits_balance_and_is_idempotent(tmp_path: Path) -> None:
     # REGRESSION: refund_once must credit the balance exactly once (even if called repeatedly).
     db = Database()
-    user_id = _seed_user(db)
+    user_id = _seed_user(db, email_verified=True)
 
     store = PointsStore(db=db)
     store.ensure_account(user_id)
@@ -350,6 +400,4 @@ def test_refund_once_credits_balance_and_is_idempotent(tmp_path: Path) -> None:
         assert [tx.delta for tx in txs] == [STARTING_POINTS_BALANCE, -200, 200]
         assert txs[-1].id == tx_id
         assert txs[-1].reason == "refund_process_video"
-
-
 

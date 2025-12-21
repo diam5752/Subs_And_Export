@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from backend.app.core.config import settings
 from backend.app.services import pricing
 from backend.app.core.database import Database
-from backend.app.db.models import DbPointTransaction, DbUserPoints
+from backend.app.db.models import DbPointTransaction, DbUser, DbUserPoints
 
 STARTING_POINTS_BALANCE = 500
 TRIAL_CREDITS = 100  # Credits for unverified users (enough for one basic operation)
@@ -54,10 +54,25 @@ class PointsStore:
             )
             return int(balance or 0)
 
-    def ensure_account(self, user_id: str) -> bool:
+    def ensure_account(
+        self,
+        user_id: str,
+        *,
+        email_verified: bool | None = None,
+        starting_balance_override: int | None = None,
+    ) -> bool:
+        if starting_balance_override is not None and starting_balance_override < 0:
+            raise HTTPException(status_code=400, detail="Invalid starting balance")
         now = int(time.time())
         with self.db.session() as session:
-            return self._ensure_account_in_session(session, user_id=user_id, now=now)
+            resolved_email_verified = self._resolve_email_verified(session, user_id, email_verified)
+            return self._ensure_account_in_session(
+                session,
+                user_id=user_id,
+                now=now,
+                email_verified=resolved_email_verified,
+                starting_balance_override=starting_balance_override,
+            )
 
     def spend(
         self,
@@ -257,7 +272,13 @@ class PointsStore:
             return int(new_balance or 0)
 
     def _ensure_account_in_session(
-        self, session: Session, *, user_id: str, now: int, email_verified: bool = True
+        self,
+        session: Session,
+        *,
+        user_id: str,
+        now: int,
+        email_verified: bool,
+        starting_balance_override: int | None = None,
     ) -> bool:
         """Create user points account if it doesn't exist.
         
@@ -266,9 +287,14 @@ class PointsStore:
             user_id: User ID
             now: Unix timestamp
             email_verified: If True, grant full starting credits. If False, grant trial credits only.
+            starting_balance_override: Optional override for starting credits (can be zero).
         """
-        starting_balance = STARTING_POINTS_BALANCE if email_verified else TRIAL_CREDITS
-        reason = "initial_balance" if email_verified else "trial_balance"
+        if starting_balance_override is not None:
+            starting_balance = starting_balance_override
+            reason = "initial_balance_override"
+        else:
+            starting_balance = STARTING_POINTS_BALANCE if email_verified else TRIAL_CREDITS
+            reason = "initial_balance" if email_verified else "trial_balance"
         
         insert_stmt = pg_insert(DbUserPoints).values(
             user_id=user_id,
@@ -282,7 +308,7 @@ class PointsStore:
             is not None
         )
 
-        if created:
+        if created and starting_balance > 0:
             session.add(
                 DbPointTransaction(
                     id=uuid.uuid4().hex,
@@ -309,6 +335,19 @@ class PointsStore:
             reason="email_verified_bonus",
             meta={"source": "email_verification"},
         )
+
+    def _resolve_email_verified(
+        self,
+        session: Session,
+        user_id: str,
+        email_verified: bool | None,
+    ) -> bool:
+        if email_verified is not None:
+            return email_verified
+        stored_verified = session.scalar(
+            select(DbUser.email_verified).where(DbUser.id == user_id).limit(1)
+        )
+        return bool(stored_verified)
 
 
 def _validate_reason(reason: str) -> None:

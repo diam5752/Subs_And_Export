@@ -412,6 +412,44 @@ class TestDeleteAccount:
         )
         assert login_again.status_code == 400
 
+    def test_delete_account_prevents_repeat_credits(self, client, test_user_data):
+        """Deleting and re-registering should not grant new starting credits."""
+        client.post("/auth/register", json=test_user_data)
+        login_response = client.post(
+            "/auth/token",
+            data={
+                "username": test_user_data["email"],
+                "password": test_user_data["password"],
+            },
+        )
+        token = login_response.json()["access_token"]
+
+        response = client.delete(
+            "/auth/me",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert response.status_code == 200
+
+        re_register = client.post("/auth/register", json=test_user_data)
+        assert re_register.status_code == 200
+
+        re_login = client.post(
+            "/auth/token",
+            data={
+                "username": test_user_data["email"],
+                "password": test_user_data["password"],
+            },
+        )
+        assert re_login.status_code == 200
+        re_token = re_login.json()["access_token"]
+
+        points = client.get(
+            "/auth/points",
+            headers={"Authorization": f"Bearer {re_token}"},
+        )
+        assert points.status_code == 200
+        assert points.json()["balance"] == 0
+
     def test_delete_account_unauthorized(self, client):
         """Test that deleting account requires authentication."""
         response = client.delete("/auth/me")

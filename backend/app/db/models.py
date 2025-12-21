@@ -31,6 +31,13 @@ class DbUser(Base):
     )
 
 
+class DbDeletedEmail(Base):
+    __tablename__ = "deleted_emails"
+
+    email_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    deleted_at: Mapped[int] = mapped_column(Integer)
+
+
 class DbSession(Base):
     __tablename__ = "sessions"
 

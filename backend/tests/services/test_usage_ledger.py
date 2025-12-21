@@ -5,7 +5,7 @@ import uuid
 
 from backend.app.core.database import Database
 from backend.app.db.models import DbJob, DbUsageLedger, DbUser
-from backend.app.services.points import PointsStore, STARTING_POINTS_BALANCE
+from backend.app.services.points import PointsStore
 from backend.app.services.usage_ledger import UsageLedgerStore
 
 
@@ -48,6 +48,7 @@ def test_usage_ledger_reserve_finalize_refund_roundtrip() -> None:
     _seed_job(db, user_id, job_id)
     points_store = PointsStore(db=db)
     points_store.ensure_account(user_id)
+    starting_balance = points_store.get_balance(user_id)
     ledger_store = UsageLedgerStore(db=db, points_store=points_store)
 
     reservation, balance = ledger_store.reserve(
@@ -65,7 +66,7 @@ def test_usage_ledger_reserve_finalize_refund_roundtrip() -> None:
         endpoint="audio/transcriptions",
     )
     assert reservation.reserved_credits == 30
-    assert balance == STARTING_POINTS_BALANCE - 30
+    assert balance == starting_balance - 30
 
     final_balance = ledger_store.finalize(
         reservation,
@@ -73,7 +74,7 @@ def test_usage_ledger_reserve_finalize_refund_roundtrip() -> None:
         cost_usd=0.02,
         units={"audio_seconds": 60},
     )
-    assert final_balance == STARTING_POINTS_BALANCE - 25
+    assert final_balance == starting_balance - 25
 
     with db.session() as session:
         ledger = session.get(DbUsageLedger, reservation.ledger_id)
@@ -91,6 +92,7 @@ def test_usage_ledger_reserve_is_idempotent() -> None:
     idempotency_key = f"reserve-idempotent-{uuid.uuid4().hex[:8]}"
     points_store = PointsStore(db=db)
     points_store.ensure_account(user_id)
+    starting_balance = points_store.get_balance(user_id)
     ledger_store = UsageLedgerStore(db=db, points_store=points_store)
 
     reservation, balance = ledger_store.reserve(
@@ -107,7 +109,7 @@ def test_usage_ledger_reserve_is_idempotent() -> None:
         idempotency_key=idempotency_key,
         endpoint="audio/transcriptions",
     )
-    assert balance == STARTING_POINTS_BALANCE - 25
+    assert balance == starting_balance - 25
 
     again, balance_again = ledger_store.reserve(
         user_id=user_id,
@@ -124,7 +126,7 @@ def test_usage_ledger_reserve_is_idempotent() -> None:
         endpoint="audio/transcriptions",
     )
     assert again.ledger_id == reservation.ledger_id
-    assert balance_again == STARTING_POINTS_BALANCE - 25
+    assert balance_again == starting_balance - 25
 
 
 def test_usage_ledger_refund_if_reserved() -> None:
@@ -134,6 +136,7 @@ def test_usage_ledger_refund_if_reserved() -> None:
     _seed_job(db, user_id, job_id)
     points_store = PointsStore(db=db)
     points_store.ensure_account(user_id)
+    starting_balance = points_store.get_balance(user_id)
     ledger_store = UsageLedgerStore(db=db, points_store=points_store)
 
     reservation, _ = ledger_store.reserve(
@@ -150,10 +153,10 @@ def test_usage_ledger_refund_if_reserved() -> None:
         idempotency_key=f"reserve-refund-{uuid.uuid4().hex[:8]}",
         endpoint="audio/transcriptions",
     )
-    assert points_store.get_balance(user_id) == STARTING_POINTS_BALANCE - 25
+    assert points_store.get_balance(user_id) == starting_balance - 25
 
     balance = ledger_store.refund_if_reserved(reservation, status="failed", error="boom")
-    assert balance == STARTING_POINTS_BALANCE
+    assert balance == starting_balance
 
     with db.session() as session:
         ledger = session.get(DbUsageLedger, reservation.ledger_id)

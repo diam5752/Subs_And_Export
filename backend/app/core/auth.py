@@ -16,8 +16,9 @@ from typing import Optional
 
 from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 
-from ..db.models import DbSession, DbUser
+from ..db.models import DbDeletedEmail, DbSession, DbUser
 from ..services.points import PointsStore
 from .config import settings
 from .database import Database
@@ -74,6 +75,7 @@ class UserStore:
         existing = self.get_user_by_email(email)
         if existing:
             raise ValueError("User already exists")
+        deleted_email = self._email_was_deleted(email)
         user = User(
             id=secrets.token_hex(8),
             email=email,
@@ -99,7 +101,11 @@ class UserStore:
         except IntegrityError as exc:
             raise ValueError("User already exists") from exc
 
-        PointsStore(db=self.db).ensure_account(user.id)
+        PointsStore(db=self.db).ensure_account(
+            user.id,
+            email_verified=user.email_verified,
+            starting_balance_override=0 if deleted_email else None,
+        )
         return user
 
     def upsert_google_user(self, email: str, name: str, sub: str) -> User:
@@ -107,6 +113,7 @@ class UserStore:
         # Truncate name for external providers (don't fail)
         final_name = (name.strip() or email.split("@")[0])[:100]
         created = False
+        deleted_email = False
         with self.db.session() as session:
             existing = session.scalar(select(DbUser).where(DbUser.email == email).limit(1))
             if existing:
@@ -117,6 +124,7 @@ class UserStore:
                 session.flush()
                 user = _user_from_db(existing)
             else:
+                deleted_email = self._email_was_deleted(email, session=session)
                 user = User(
                     id=secrets.token_hex(8),
                     email=email,
@@ -140,7 +148,11 @@ class UserStore:
                 created = True
 
         if created:
-            PointsStore(db=self.db).ensure_account(user.id)
+            PointsStore(db=self.db).ensure_account(
+                user.id,
+                email_verified=user.email_verified,
+                starting_balance_override=0 if deleted_email else None,
+            )
         return user
 
     def update_name(self, user_id: str, new_name: str) -> None:
@@ -188,7 +200,25 @@ class UserStore:
             user = session.get(DbUser, user_id)
             if not user:
                 return
+            self._record_deleted_email(session, user.email or "")
             session.delete(user)
+
+    def _email_was_deleted(self, email: str, *, session: Session | None = None) -> bool:
+        email_hash = _email_fingerprint(email)
+        if session:
+            return session.get(DbDeletedEmail, email_hash) is not None
+        with self.db.session() as local_session:
+            return local_session.get(DbDeletedEmail, email_hash) is not None
+
+    def _record_deleted_email(self, session: Session, email: str) -> None:
+        email_hash = _email_fingerprint(email)
+        now = int(time.time())
+        session.merge(
+            DbDeletedEmail(
+                email_hash=email_hash,
+                deleted_at=now,
+            )
+        )
 
 
 class SessionStore:
@@ -323,6 +353,11 @@ def _validate_password_strength(password: str) -> None:
     has_digit = any(ch.isdigit() for ch in password)
     if not (has_letter and has_digit):
         raise ValueError("Password must include both letters and numbers")
+
+
+def _email_fingerprint(email: str) -> str:
+    normalized = email.strip().lower()
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
 
 def _validate_email(email: str) -> None:
