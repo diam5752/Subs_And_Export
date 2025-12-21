@@ -1,6 +1,7 @@
 {
   "tabTranscript": "Απομαγνητοφώνηση",
   "transcriptEdit": "Επεξεργασία",
+  "transcriptEditHint": "Ctrl+Enter για αποθήκευση",
   "transcriptSave": "Αποθήκευση",
   "transcriptCancel": "Ακύρωση",
   "transcriptSaving": "Αποθήκευση…",
