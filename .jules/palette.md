@@ -23,3 +23,7 @@
 ## 2025-03-01 - Accessible List Item Controls
 **Learning:** In list items (like transcript cues), text content often doubles as a control (e.g., "Click to seek"). Without `aria-label`, screen readers just announce the text, leaving the interactive nature ambiguous.
 **Action:** Always add descriptive `aria-label`s to list item controls (e.g., "Jump to time 0:12" instead of just "0:12") to clarify the action.
+
+## 2025-03-03 - Power User Shortcuts
+**Learning:** Repetitive tasks like editing subtitles benefit immensely from keyboard shortcuts (Save/Cancel). Adding `Ctrl+Enter` support reduced friction significantly.
+**Action:** Identify high-frequency "edit-save-repeat" workflows and implement `Ctrl+Enter` (Save) / `Esc` (Cancel) shortcuts, exposing them via tooltips for discovery.
