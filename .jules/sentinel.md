@@ -140,3 +140,8 @@
 **Vulnerability:** `UserStore` internal validation (`_validate_password_strength`, `_validate_email`) lacked `max_length` checks, relying solely on API-layer Pydantic models. This left the service vulnerable to DoS if called internally or via new unchecked endpoints.
 **Learning:** API-layer validation (Pydantic) does not protect the service layer from direct misuse. Defense in depth requires validating inputs at the lowest common denominator (the service/store).
 **Prevention:** Mirror API constraints (length, format) in service-level validation functions.
+
+## 2025-12-21 - [Medium] Missing Input Length Limit on Login
+**Vulnerability:** The `/auth/token` endpoint (OAuth2 login) accepted unbounded strings for `username` (email) and `password`. This allowed potential DoS via memory exhaustion or expensive hashing operations.
+**Learning:** `OAuth2PasswordRequestForm` does not enforce length limits on its `Form` fields.
+**Prevention:** Manually validate length of `username` and `password` from form data before processing.
