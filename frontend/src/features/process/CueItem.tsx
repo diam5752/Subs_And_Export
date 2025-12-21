@@ -1,6 +1,7 @@
 import React, { memo, useRef, useEffect } from 'react';
 import { Cue } from '@/components/SubtitleOverlay';
 import { useI18n } from '@/context/I18nContext';
+import { Spinner } from '@/components/Spinner';
 
 interface CueItemProps {
     cue: Cue;
@@ -129,19 +130,37 @@ export const CueItem = memo(({
                                 type="button"
                                 onClick={handleSave}
                                 disabled={isSaving}
-                                className="px-2 py-1 rounded-md text-xs font-semibold bg-emerald-500/15 text-emerald-200 border border-emerald-500/25 hover:bg-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="px-2 py-1 rounded-md text-xs font-semibold bg-emerald-500/15 text-emerald-200 border border-emerald-500/25 hover:bg-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 transition-all"
                                 title="Save (Ctrl+Enter)"
+                                aria-label={t('transcriptSave') || 'Save'}
                             >
-                                {isSaving ? (t('transcriptSaving') || 'Saving…') : (t('transcriptSave') || 'Save')}
+                                {isSaving ? (
+                                    <>
+                                        <Spinner className="w-3 h-3 text-current" />
+                                        <span>{t('transcriptSaving') || 'Saving…'}</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <span>{t('transcriptSave') || 'Save'}</span>
+                                        <kbd className="hidden sm:inline-flex h-4 items-center gap-0.5 rounded border border-emerald-500/30 bg-emerald-500/10 px-1 font-sans text-[9px] font-normal opacity-80" aria-hidden="true">
+                                            <span className="text-[10px]">↵</span>
+                                        </kbd>
+                                    </>
+                                )}
                             </button>
                             <button
                                 type="button"
                                 onClick={handleCancel}
                                 disabled={isSaving}
-                                className="px-2 py-1 rounded-md text-xs font-medium bg-white/5 text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-white/10 border border-white/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="px-2 py-1 rounded-md text-xs font-medium bg-white/5 text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-white/10 border border-white/10 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 transition-all"
                                 title="Cancel (Esc)"
+                                aria-label={t('transcriptCancel') || 'Cancel'}
+                                aria-keyshortcuts="Escape"
                             >
-                                {t('transcriptCancel') || 'Cancel'}
+                                <span>{t('transcriptCancel') || 'Cancel'}</span>
+                                <kbd className="hidden sm:inline-flex h-4 items-center rounded border border-white/10 bg-white/5 px-1 font-sans text-[9px] font-normal opacity-60" aria-hidden="true">
+                                    Esc
+                                </kbd>
                             </button>
                         </>
                     ) : (
