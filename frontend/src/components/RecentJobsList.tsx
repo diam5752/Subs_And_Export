@@ -1,6 +1,7 @@
 import React, { memo, useState, useCallback, useRef, useEffect } from 'react';
 import { api, JobResponse } from '@/lib/api';
 import { useI18n } from '@/context/I18nContext';
+import { Spinner } from '@/components/Spinner';
 import { JobListItem } from './JobListItem';
 
 interface RecentJobsListProps {
@@ -159,9 +160,10 @@ export const RecentJobsList = memo(function RecentJobsList({
                                     }
                                 }}
                                 disabled={isBatchDeleting}
-                                className="text-xs px-3 py-1.5 rounded bg-[var(--danger)] text-white hover:bg-[var(--danger)]/80 disabled:opacity-50"
+                                className="text-xs px-3 py-1.5 rounded bg-[var(--danger)] text-white hover:bg-[var(--danger)]/80 disabled:opacity-50 flex items-center justify-center min-w-[60px]"
+                                aria-busy={isBatchDeleting}
                             >
-                                {isBatchDeleting ? '...' : (t('confirmDelete') || 'Confirm')}
+                                {isBatchDeleting ? <Spinner className="w-3.5 h-3.5 text-white" /> : (t('confirmDelete') || 'Confirm')}
                             </button>
                             <button
                                 onClick={() => setConfirmBatchDelete(false)}
