@@ -1,43 +1,50 @@
 @import "tailwindcss";
 
+@utility backface-hidden {
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  -moz-backface-visibility: hidden;
+}
+
 :root {
-  /* Midnight studio palette */
+  /* Midnight studio palette - Premium Redesign */
   --background: #03050b;
   --foreground: #f4f7fd;
   --surface: #0b0f1a;
   --surface-elevated: #10172a;
-  --accent: #8df7df;
-  --accent-rgb: 141 247 223;
-  --accent-secondary: #ffd479;
-  --accent-secondary-rgb: 255 212 121;
-  --accent-tertiary: #6aa4ff;
-  --accent-tertiary-rgb: 106 164 255;
-  --accent-gradient-mid: #6ddaff;
-  --accent-gradient-mid-rgb: 109 218 255;
-  --accent-gradient-end: #7fa8ff;
-  --accent-gradient-end-rgb: 127 168 255;
+
+  /* Neon Orange Accent */
+  --accent: #f97316;
+  --accent-rgb: 249 115 22;
+  --accent-secondary: #fb923c;
+  --accent-secondary-rgb: 251 146 60;
+  --accent-tertiary: #fdba74;
+  --accent-tertiary-rgb: 253 186 116;
+
+  /* Gradients */
+  --accent-gradient-mid: #ea580c;
+  --accent-gradient-mid-rgb: 234 88 12;
+  --accent-gradient-end: #c2410c;
+  --accent-gradient-end-rgb: 194 65 12;
+
   --border: #1a2339;
   --muted: #9aa6c3;
   --danger: #ff6b6b;
-  --glow: 0 20px 70px rgb(var(--accent-rgb) / 0.18);
+
+  /* Stronger Neon Glow */
+  --glow: 0 0 20px rgb(var(--accent-rgb) / 0.3), 0 0 60px rgb(var(--accent-rgb) / 0.1);
+  --glow-strong: 0 0 30px rgb(var(--accent-rgb) / 0.5), 0 0 80px rgb(var(--accent-rgb) / 0.2);
 
   /* UI Variables */
   --radius: 12px;
   --radius-lg: 20px;
 }
 
+/* Dev environment uses same theme now, or can be distinct if needed */
 :root[data-app-env='dev'] {
+  /* Keep same as main for consistency during redesign, or override if specific dev color needed */
   --accent: #f97316;
   --accent-rgb: 249 115 22;
-  --accent-secondary: #fdba74;
-  --accent-secondary-rgb: 253 186 116;
-  --accent-tertiary: #f59e0b;
-  --accent-tertiary-rgb: 245 158 11;
-  --accent-gradient-mid: #fb923c;
-  --accent-gradient-mid-rgb: 251 146 60;
-  --accent-gradient-end: #ea580c;
-  --accent-gradient-end-rgb: 234 88 12;
-  --glow: 0 20px 70px rgb(var(--accent-rgb) / 0.22);
 }
 
 @theme inline {
@@ -55,10 +62,12 @@
 
 body {
   background:
-    radial-gradient(circle at 18% 18%, rgb(var(--accent-rgb) / 0.08), transparent 30%),
-    radial-gradient(circle at 82% 12%, rgb(var(--accent-secondary-rgb) / 0.14), transparent 26%),
-    radial-gradient(circle at 48% 78%, rgb(var(--accent-tertiary-rgb) / 0.09), transparent 30%),
-    linear-gradient(145deg, #050814 0%, #02040c 55%, #03050b 100%);
+    /* Warm glow top left */
+    radial-gradient(circle at 15% 15%, rgb(var(--accent-rgb) / 0.08), transparent 40%),
+    /* Secondary warm glow bottom right */
+    radial-gradient(circle at 85% 85%, rgb(var(--accent-secondary-rgb) / 0.06), transparent 40%),
+    /* Deep dark base */
+    linear-gradient(135deg, #020205 0%, #050810 100%);
   color: var(--foreground);
   font-family: var(--font-display), 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   font-size: 16px;
@@ -69,63 +78,32 @@ body {
   letter-spacing: 0.01em;
 }
 
-/* Consistent text rendering for Greek and English */
-* {
-  text-rendering: optimizeLegibility;
-}
+/* ... existing font rendering ... */
 
-/* Normalize font metrics for consistent Greek/English heights */
-h1,
-h2,
-h3,
-h4,
-h5,
-h6,
-p,
-span,
-div,
-button,
-a {
-  line-height: 1.4;
-  font-synthesis: none;
-}
-
-/* Large headings need tighter control */
-.text-xl,
-.text-2xl,
-.text-3xl,
-.text-4xl {
-  line-height: 1.2;
-  letter-spacing: -0.01em;
-}
-
-/* Custom Scrollbar - Apple Style */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: var(--surface);
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border-radius: 4px;
-}
-
-/* Selection - subdued blue for better text visibility */
-::selection {
-  background: rgba(59, 130, 246, 0.4);
-  color: white;
-}
-
-/* Glassmorphism utility */
+/* Standard Glass */
 .glass {
-  background: rgba(28, 28, 30, 0.7);
+  background: rgba(20, 24, 35, 0.6);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Premium Glass - Darker, sleeker, for cards */
+.glass-premium {
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+/* Active Glass - With neon border glow */
+.glass-active {
+  background: linear-gradient(165deg, rgba(var(--accent-rgb), 0.05) 0%, rgba(var(--accent-rgb), 0.01) 100%);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(var(--accent-rgb), 0.5);
+  box-shadow: 0 0 20px rgba(var(--accent-rgb), 0.15), inset 0 0 20px rgba(var(--accent-rgb), 0.05);
 }
 
 /* Button Styles */

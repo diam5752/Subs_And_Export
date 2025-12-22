@@ -68,25 +68,26 @@ export function ModelSelector() {
         <div
             role="radiogroup"
             aria-label={t('modelSelectTitle') || 'Pick a Model'}
-            className={`grid grid-cols-1 sm:grid-cols-3 gap-3 transition-all duration-300 ${hasChosenModel ? 'opacity-100' : 'animate-slide-down'}`}
+            className={`grid grid-cols-1 sm:grid-cols-2 gap-4 p-1 transition-all duration-300 w-full ${hasChosenModel ? 'opacity-100' : 'animate-slide-down'}`}
         >
             {AVAILABLE_MODELS.map((model) => {
                 const isSelected = transcribeProvider === model.provider && transcribeMode === model.mode;
                 const cost = processVideoCostForSelection(model.provider as string, model.mode as string);
+                const isPro = model.mode === 'pro';
 
-                const renderStat = (value: number, label: string, max: number = 5) => (
-                    <div className="flex gap-0.5" role="meter" aria-label={`${label}: ${value} out of ${max}`} aria-valuenow={value} aria-valuemin={0} aria-valuemax={max}>
-                        {Array.from({ length: max }).map((_, i) => (
-                            <div
-                                key={i}
-                                className={`h-1.5 w-full rounded-full transition-colors ${i < value
-                                    ? (isSelected ? 'bg-current opacity-80' : 'bg-[var(--foreground)] opacity-60')
-                                    : 'bg-[var(--foreground)] opacity-20'
-                                    } `}
-                            />
-                        ))}
-                    </div>
-                );
+                // Minimal Visual Stats
+                // Standard: Speed 100%, Quality 75%
+                // Pro: Speed 60%, Quality 100%
+                const speedPercent = isPro ? 60 : 100;
+                const qualityPercent = isPro ? 100 : 75;
+
+                // Theme Colors
+                // Standard: Emerald (Green)
+                // Pro: Neon Orange (Accent)
+                const themeColor = isPro ? 'var(--accent)' : '#10b981'; // Emerald-500
+                const themeClass = isPro ? 'text-[var(--accent)]' : 'text-emerald-500';
+                const bgClass = isPro ? 'bg-[var(--accent)]' : 'bg-emerald-500';
+                const borderClass = isPro ? 'border-[var(--accent)]' : 'border-emerald-500';
 
                 return (
                     <button
@@ -100,78 +101,86 @@ export function ModelSelector() {
                             setTranscribeMode(model.mode as TranscribeMode);
                             setHasChosenModel(true);
                             setOverrideStep(2);
-                            // Do NOT clear job here. We want to persist it until new upload or new start.
-                            // onJobSelect(null);
-
-                            // Wait for Step 1 to collapse (300ms) before scrolling to Step 2
                             setTimeout(scrollToUploadStep, 350);
                         }}
-                        className={`p-4 rounded-xl border text-left transition-all duration-300 relative overflow-hidden group flex flex-col h-full ${isSelected
-                            ? `${model.colorClass(true)} scale-[1.02] shadow-lg ring-1`
-                            : hasChosenModel
-                                ? 'border-[var(--border)] opacity-60 hover:opacity-100 hover:scale-[1.01] hover:bg-[var(--surface-elevated)] grayscale hover:grayscale-0'
-                                : model.colorClass(false)
-                            }`}
+                        className={`p-6 rounded-2xl text-left transition-all duration-300 relative overflow-hidden group flex flex-col h-full backface-hidden will-change-transform transform-gpu ${isSelected
+                            ? 'glass-active scale-[1.02] z-10'
+                            : `glass-premium hover:scale-[1.01] border-white/5 hover:${borderClass}/50 hover:bg-white/5`
+                            } ${isPro && isSelected ? 'shadow-[0_0_30px_-5px_var(--accent)] border-[var(--accent)]' : ''} ${!isPro && isSelected ? 'shadow-[0_0_30px_-5px_rgba(16,185,129,0.4)] border-emerald-500' : ''} ${!isSelected ? (isPro ? 'hover:shadow-[0_10px_30px_-10px_rgba(249,115,22,0.15)]' : 'hover:shadow-[0_10px_30px_-10px_rgba(16,185,129,0.15)]') : ''}`}
                     >
-                        <div className="flex items-start justify-between mb-2 w-full">
-                            {model.icon(isSelected)}
-                            {isSelected && (
-                                <div
-                                    className={`w-5 h-5 rounded-full flex items-center justify-center ${model.mode === 'pro'
-                                        ? 'bg-amber-400'
-                                        : 'bg-emerald-500'
-                                        }`}
-                                >
-                                    <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                    </svg>
+                        {/* Header: Icon + Title */}
+                        <div className="flex items-start justify-between mb-6 w-full">
+                            <div className="flex flex-col gap-2">
+                                <div className={`p-2.5 rounded-xl w-fit transition-colors duration-300 ${isSelected ? `${bgClass}/20 ${themeClass}` : `bg-white/5 ${isPro ? 'text-orange-500/50 group-hover:text-orange-400' : 'text-emerald-500/50 group-hover:text-emerald-400'}`}`}>
+                                    {model.icon(isSelected)}
                                 </div>
-                            )}
-                        </div>
-                        <div className="font-semibold text-base mb-1">{model.name}</div>
-                        <div className="text-sm text-[var(--muted)] mb-4">{model.description}</div>
+                                <div>
+                                    <h3 className={`font-bold text-xl tracking-tight transition-colors duration-300 ${isSelected ? 'text-white' : 'text-[var(--foreground)]'}`}>
+                                        {model.name}
+                                    </h3>
+                                    <p className="text-xs font-medium text-[var(--muted)] tracking-wide uppercase mt-0.5">
+                                        {isPro ? t('modelProBadge') : t('modelStandardBadge')}
+                                    </p>
+                                </div>
+                            </div>
 
-                        <div className="mb-4">
+                            {/* Cost Pill */}
                             <span
-                                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold tracking-wide backdrop-blur-md ${isSelected
-                                    ? 'border-indigo-500/30 bg-indigo-500/10 text-indigo-200'
-                                    : 'border-white/10 bg-white/5 text-white/70'
+                                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold tracking-wide backdrop-blur-md transition-all duration-300 ${isSelected
+                                    ? `${borderClass}/30 ${bgClass}/10 ${themeClass} shadow-[0_0_15px_-5px_currentColor]`
+                                    : 'border-white/10 bg-white/5 text-[var(--muted)]'
                                     }`}
-                                aria-label={`${t('creditsCostLabel') || 'Cost'}: ${formatPoints(cost)}`}
                             >
                                 <TokenIcon className="w-3.5 h-3.5" />
-                                <span className="font-mono">{formatPoints(cost)}</span>
+                                <span>{formatPoints(cost)}</span>
                             </span>
                         </div>
 
-                        <div className="mt-auto space-y-2 mb-3">
-                            <div className="grid grid-cols-[60px,1fr] items-center gap-2">
-                                <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">{t('statSpeed')}</span>
-                                {renderStat(model.stats.speed, t('statSpeed'))}
-                            </div>
-                            <div className="grid grid-cols-[60px,1fr] items-center gap-2">
-                                <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">{t('statAccuracy')}</span>
-                                {renderStat(model.stats.accuracy, t('statAccuracy'))}
-                            </div>
-                            <div className="grid grid-cols-[60px,1fr] items-center gap-2">
-                                <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">{t('statKaraoke')}</span>
-                                <div className={`text-[10px] font-bold ${model.stats.karaoke ? 'text-emerald-500' : 'text-[var(--muted)]'} `}>
-                                    {model.stats.karaoke ? t('statKaraokeSupported') : t('statKaraokeNo')}
+                        {/* Minimal Stats: Speed & Quality */}
+                        <div className="space-y-4 mt-auto">
+                            {/* Speed Bar */}
+                            <div className="space-y-1.5">
+                                <div className="flex justify-between text-[11px] font-bold uppercase tracking-wider text-[var(--muted)]">
+                                    <span>{t('statSpeed')}</span>
+                                    {isPro ?
+                                        <span className="opacity-60">Medium</span> :
+                                        <span className="text-emerald-400">Fast</span>
+                                    }
+                                </div>
+                                <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+                                    <div
+                                        className={`h-full rounded-full transition-all duration-700 ease-out ${isPro ? 'bg-[var(--accent)]' : 'bg-emerald-500'}`}
+                                        style={{ width: `${speedPercent}%`, opacity: isSelected ? 1 : 0.6 }}
+                                    />
                                 </div>
                             </div>
-                            <div className="grid grid-cols-[60px,1fr] items-center gap-2">
-                                <span className="text-[10px] uppercase font-bold tracking-wider opacity-60">{t('statLines')}</span>
-                                <div className={`text-[10px] font-bold ${model.stats.linesControl ? 'text-emerald-500' : 'text-cyan-400'} `}>
-                                    {model.stats.linesControl ? t('statLinesCustom') : t('statLinesAuto')}
+
+                            {/* Accuracy Bar */}
+                            <div className="space-y-1.5">
+                                <div className="flex justify-between text-[11px] font-bold uppercase tracking-wider text-[var(--muted)]">
+                                    <span>{t('statAccuracy')}</span>
+                                    {isPro ?
+                                        <span className="text-[var(--accent)] drop-shadow-[0_0_8px_rgba(249,115,22,0.6)]">Maximum</span> :
+                                        <span className="opacity-60">Good</span>
+                                    }
+                                </div>
+                                <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+                                    <div
+                                        className={`h-full rounded-full transition-all duration-700 ease-out ${isPro ? 'bg-[var(--accent)] shadow-[0_0_10px_var(--accent)]' : 'bg-emerald-500'}`}
+                                        style={{ width: `${qualityPercent}%`, opacity: isSelected ? 1 : 0.6 }}
+                                    />
                                 </div>
                             </div>
                         </div>
 
-                        <div className="flex items-center gap-2 text-xs pt-3 border-t border-[var(--border)]/50">
-                            <span className={`px-2 py-0.5 rounded-full font-medium ${model.badgeColor} `}>
-                                {model.badge}
-                            </span>
-                        </div>
+                        {/* Selection Indicator (Checkmark) */}
+                        {isSelected && (
+                            <div className={`absolute top-4 right-4 w-6 h-6 rounded-full flex items-center justify-center shadow-lg transform scale-100 opacity-100 transition-all duration-500 ${bgClass} text-white`}>
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                </svg>
+                            </div>
+                        )}
                     </button>
                 );
             })}
@@ -219,15 +228,40 @@ export function ModelSelector() {
                     className={`flex items-center gap-4 transition-all duration-300 cursor-pointer group/step ${currentStep !== 1 ? 'opacity-100 hover:scale-[1.005]' : 'opacity-100 scale-[1.01]'}`}
                     onClick={handleStepClick}
                 >
-                    <span className={`flex items-center justify-center px-4 py-1.5 rounded-full border font-mono text-sm font-bold tracking-widest shadow-sm transition-all duration-500 ${currentStep === 1
-                        ? 'bg-[var(--accent)] border-[var(--accent)] text-white shadow-[0_0_20px_2px_var(--accent)] scale-105 ring-2 ring-[var(--accent)]/30'
-                        : 'bg-[var(--surface-elevated)] border-[var(--accent)] text-[var(--accent)] shadow-[0_0_10px_-5px_var(--accent)]'
+                    <span className={`flex items-center justify-center px-4 py-1 rounded-full border font-mono text-sm font-bold tracking-widest shadow-sm transition-all duration-500 ${currentStep === 1
+                        ? 'bg-gradient-to-r from-[var(--accent)] to-[var(--accent-secondary)] border-transparent text-white shadow-[0_0_20px_var(--accent)] scale-105'
+                        : 'glass-premium border-[var(--border)] text-[var(--muted)]'
                         }`}>STEP 1</span>
                     <div>
                         <h3 className="text-xl font-semibold">{t('modelSelectTitle') || 'Pick a Model'}</h3>
-                        {!hasChosenModel && (
-                            <p className="text-sm text-[var(--muted)] mt-1 ml-0.5">{t('modelSelectSubtitle')}</p>
-                        )}
+                        <div className="flex items-center gap-2 mt-1 ml-0.5">
+                            <p className="text-sm text-[var(--muted)]">{t('modelSelectSubtitle')}</p>
+                            <div className="group/info relative relative z-50">
+                                <svg className="w-4 h-4 text-[var(--muted)] hover:text-white cursor-help transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+
+                                {/* Tooltip */}
+                                <div className="absolute left-1/2 -translate-x-1/2 top-6 w-72 bg-[#0A0A0A] border border-[var(--border)] rounded-xl p-4 shadow-2xl opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-200 z-[100] backdrop-blur-xl">
+                                    <div className="space-y-4">
+                                        <div className="space-y-1.5">
+                                            <div className="flex items-center gap-2 text-emerald-500 font-bold text-xs uppercase tracking-wider">
+                                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                                                Standard
+                                            </div>
+                                            <p className="text-xs leading-relaxed text-[var(--muted)]">Lightning fast & cost-effective. Perfect for clear English audio, podcasts, and content where speed matters.</p>
+                                        </div>
+                                        <div className="space-y-1.5 border-t border-white/5 pt-3">
+                                            <div className="flex items-center gap-2 text-[var(--accent)] font-bold text-xs uppercase tracking-wider">
+                                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
+                                                Pro
+                                            </div>
+                                            <p className="text-xs leading-relaxed text-[var(--muted)]">Maximum precision using Whisper Large V3. Essential for heavy accents, background noise, music lyrics, or translation.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     {/* Chevron indicator for expand/collapse */}
                     <svg

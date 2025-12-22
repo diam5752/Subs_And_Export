@@ -18,23 +18,22 @@ export const StepIndicator = React.memo(function StepIndicator({ currentStep, st
     const effectiveMaxStep = maxStep ?? currentStep;
 
     return (
-        <div className="w-full max-w-4xl mx-auto mb-10 px-8 sm:px-12">
+        <div className="w-full max-w-4xl mx-auto mb-6 px-8 sm:px-12">
             <div className="relative flex items-center justify-between">
                 {/* Connecting Line Background - spans between circle centers */}
                 <div
-                    className="absolute h-1 bg-[var(--surface-elevated)] rounded-full pointer-events-none -translate-y-1/2"
+                    className="absolute h-[1px] bg-[var(--border)] w-full top-6 pointer-events-none"
                     style={{
-                        top: '24px', // Center of 48px step circles
-                        left: '24px', // Center of first circle (w-12 = 48px / 2)
-                        right: '24px', // Center of last circle
+                        left: '0',
+                        right: '0',
                     }}
                 />
 
                 {/* Active Progress Line */}
                 <div
-                    className="absolute h-1 bg-gradient-to-r from-[var(--accent)] to-[var(--accent-secondary)] rounded-full transition-all duration-700 ease-out pointer-events-none -translate-y-1/2"
+                    className="absolute h-[2px] bg-gradient-to-r from-[var(--accent)] via-[var(--accent-secondary)] to-[var(--accent)] rounded-full transition-all duration-700 ease-out pointer-events-none shadow-[0_0_10px_var(--accent)]"
                     style={{
-                        top: '24px', // Center of 48px step circles
+                        top: '23px', // Center alignment
                         left: '24px', // Start from center of first circle
                         // Width spans from center of circle 1 to center of circle N based on maxStep
                         width: effectiveMaxStep <= 1 ? '0' : `calc(${((effectiveMaxStep - 1) / (steps.length - 1)) * 100}% - 48px)`
@@ -72,20 +71,20 @@ export const StepIndicator = React.memo(function StepIndicator({ currentStep, st
                         >
                             {/* Step Circle */}
                             <div
-                                className={`relative w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all duration-500 ${isActive
-                                    ? 'bg-[var(--accent)] border-[var(--accent)] shadow-[0_0_20px_-5px_var(--accent)] scale-110'
+                                className={`relative w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all duration-500 z-10 ${isActive
+                                    ? 'bg-[var(--surface-elevated)] border-[var(--accent)] shadow-[0_0_30px_-5px_var(--accent)] scale-110 text-[var(--accent)]'
                                     : shouldShowAccent
-                                        ? 'bg-[var(--surface-elevated)] border-[var(--accent)] text-[var(--accent)] scale-100 hover:scale-105 hover:shadow-[0_0_15px_-5px_var(--accent)]'
-                                        : 'bg-[var(--surface-elevated)] border-[var(--border)] text-[var(--muted)]'
-                                    } ${isClickable && !isActive ? 'hover:scale-105 hover:border-[var(--accent)] transition-all' : ''}`}
+                                        ? 'bg-[var(--surface-elevated)] border-[var(--accent)] text-[var(--accent)] scale-100 hover:scale-105 hover:shadow-[0_0_15px_-5px_var(--accent)] hover:border-[var(--accent-secondary)]'
+                                        : 'bg-[var(--surface)] border-[var(--border)] text-[var(--muted)] opacity-60'
+                                    } ${isClickable && !isActive ? 'hover:scale-105 transition-all cursor-pointer' : ''}`}
                             >
-                                <div className={`transition-all duration-500 ${isActive ? 'text-white' : shouldShowAccent ? 'text-[var(--accent)]' : 'text-[var(--muted)]'}`}>
+                                <div className={`transition-all duration-500 ${isActive ? 'drop-shadow-[0_0_8px_rgba(249,115,22,0.5)]' : ''}`}>
                                     {step.icon}
                                 </div>
                             </div>
 
                             {/* Label */}
-                            <div className={`absolute top-full mt-3 text-center transition-all duration-500 w-24 left-1/2 -translate-x-1/2 ${isActive
+                            <div className={`absolute top-full mt-3 text-center transition-all duration-500 w-40 left-1/2 -translate-x-1/2 ${isActive
                                 ? 'opacity-100 transform translate-y-0'
                                 : 'opacity-50 transform -translate-y-1'
                                 }`}>
