@@ -46,7 +46,7 @@ const PreviewSectionLayout = memo(({
     isExpanded // New prop, received from parent
 }: any) => {
     return (
-        <div id="preview-section" className={`space-y-4 transition-all duration-500 ${!selectedJob && !isProcessing ? 'opacity-50 grayscale' : ''}`} ref={resultsRef}>
+        <div id="preview-section" className={`card space-y-4 transition-all duration-500 ${!selectedJob && !isProcessing ? 'opacity-50 grayscale' : ''}`} ref={resultsRef}>
 
             <div
                 role="button"
@@ -77,7 +77,7 @@ const PreviewSectionLayout = memo(({
             {/* Collapsible content with smooth animation */}
             <div className={`transition-all duration-300 ease-in-out overflow-hidden ${isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`} >
 
-                <div className="card space-y-4 min-h-[200px]">
+                <div className="space-y-4 min-h-[200px]">
                     {(!selectedJob || selectedJob.status !== 'completed') ? (
                         <div className="py-20 flex flex-col items-center justify-center text-center text-[var(--muted)] border-2 border-dashed border-[var(--border)]/50 rounded-xl bg-[var(--surface-elevated)]/30">
                             <div className="text-5xl mb-4 opacity-20">🎬</div>
