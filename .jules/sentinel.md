@@ -149,3 +149,8 @@
 **Vulnerability:** The `_write_srt_from_segments` function failed to sanitize double newline characters (`\n\n`), allowing attackers to inject arbitrary SRT cue blocks (e.g. fake timestamps and text) into the generated subtitle file by breaking out of the intended cue structure.
 **Learning:** Text-based formats (ASS, SRT, CSV) rely on specific delimiters (like blank lines in SRT) for structural integrity. User input containing these delimiters must be sanitized to prevent injection attacks.
 **Prevention:** Always collapse or remove structural delimiters (like double newlines) from user inputs before embedding them into line-based file formats.
+
+## 2025-07-21 - [Medium] Missing Timeouts in GCS Operations
+**Vulnerability:** GCS helpers (`upload_object`, `download_object`) used Google Cloud Storage client methods without explicit timeouts, creating a risk of indefinite hangs if the service is unreachable.
+**Learning:** Cloud SDK methods (like `upload_from_filename`) often default to no timeout.
+**Prevention:** Always pass `timeout=...` to `google-cloud-storage` methods. Use `timeout=60` (which applies to read timeout) to catch stalled connections while allowing large transfers to proceed.
