@@ -51,6 +51,11 @@ type TextMeasurer = {
 
 let _sharedMeasurerCanvas: HTMLCanvasElement | null = null;
 
+// Persistent cache for word widths to avoid expensive canvas operations during frequent re-renders
+// (e.g. typing in the subtitle editor).
+// Key: fontSizePercent -> Map<word, width>
+const _wordWidthCache = new Map<number, Map<string, number>>();
+
 function getSharedMeasurerCanvas(): HTMLCanvasElement | null {
     /* istanbul ignore next -- exercised in browser or via canvas mocking */
     if (typeof document === 'undefined') return null;
@@ -70,18 +75,24 @@ function createTextMeasurer(fontSizePercent: number): TextMeasurer | null {
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     if (!ctx) return null;
 
+    let sizeCache = _wordWidthCache.get(fontSizePercent);
+    if (!sizeCache) {
+        sizeCache = new Map<string, number>();
+        _wordWidthCache.set(fontSizePercent, sizeCache);
+    }
+
     const fontSizePx = Math.max(1, Math.round(DEFAULT_SUB_FONT_SIZE * (fontSizePercent / 100)));
     // Add stroke width buffer? 
     // The stroke is around 3px scaled.
     // Using a conservative 90% width below handles this implicitly.
-    ctx.font = `${OVERLAY_FONT_WEIGHT} ${fontSizePx}px ${OVERLAY_FONT_FAMILY}`;
+    const fontSpec = `${OVERLAY_FONT_WEIGHT} ${fontSizePx}px ${OVERLAY_FONT_FAMILY}`;
+    ctx.font = fontSpec;
 
-    const cache = new Map<string, number>();
     const measureText = (text: string) => {
-        const cached = cache.get(text);
+        const cached = sizeCache!.get(text);
         if (cached !== undefined) return cached;
         const width = ctx.measureText(text).width;
-        cache.set(text, width);
+        sizeCache!.set(text, width);
         return width;
     };
 
