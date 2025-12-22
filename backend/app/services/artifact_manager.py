@@ -51,6 +51,7 @@ def persist_artifacts(
             json.dumps(social_json, ensure_ascii=False, indent=2), encoding="utf-8"
         )
 
+    cues_data = []
     if cues:
         cues_data = [
             {
@@ -64,6 +65,7 @@ def persist_artifacts(
             }
             for c in cues
         ]
-        (artifact_dir / "transcription.json").write_text(
-            json.dumps(cues_data, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
+    
+    (artifact_dir / "transcription.json").write_text(
+        json.dumps(cues_data, ensure_ascii=False, indent=2), encoding="utf-8"
+    )

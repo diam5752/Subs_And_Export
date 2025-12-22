@@ -79,7 +79,8 @@ const TranscriptPanel = memo(() => {
         handleUpdateDraft,
         beginEditingCue,
         saveEditingCue,
-        cancelEditingCue
+        cancelEditingCue,
+        isProcessing // Added from context
     } = useProcessContext();
     const { currentTime } = usePlaybackContext();
 
@@ -156,8 +157,10 @@ const TranscriptPanel = memo(() => {
                     onUpdateDraft={handleUpdateDraft}
                 />
                 {cues.length === 0 && (
-                    <div className="text-center text-[var(--muted)] py-10 opacity-50">
-                        {t('liveOutputStatusIdle') || 'Transcript will appear here...'}
+                    <div className="text-center text-[var(--muted)] py-10 opacity-50 font-medium">
+                        {isProcessing
+                            ? (t('statusProcessing') || 'Processing...')
+                            : (t('noSubtitlesFound') || 'No subtitles found in this video.')}
                     </div>
                 )}
             </div>
@@ -175,7 +178,9 @@ const TranscriptPanel = memo(() => {
         saveEditingCue,
         cancelEditingCue,
         handleUpdateDraft,
-        t
+        handleUpdateDraft,
+        t,
+        isProcessing
     ]);
 });
 TranscriptPanel.displayName = 'TranscriptPanel';
