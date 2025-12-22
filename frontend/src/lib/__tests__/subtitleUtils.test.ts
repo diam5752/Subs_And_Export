@@ -1,5 +1,5 @@
 
-import { resegmentCues, findCueIndexAtTime, findCueAtTime } from '../subtitleUtils';
+import { resegmentCues, findCueIndexAtTime, findCueAtTime, resetWordWidthCache } from '../subtitleUtils';
 import { TranscriptionCue as Cue } from '../api';
 
 // Mock cues
@@ -9,6 +9,11 @@ const mockCues: Cue[] = [
 ];
 
 describe('resegmentCues', () => {
+    // Clear cache after each test to prevent test pollution
+    afterEach(() => {
+        resetWordWidthCache();
+    });
+
     it('should return empty list for empty input', () => {
         expect(resegmentCues([], 2, 100)).toEqual([]);
     });
@@ -105,6 +110,58 @@ describe('resegmentCues', () => {
             expect(result).toHaveLength(2);
             expect(result[0].text).toBe('AAAAAA AAAAAA AAAAAA');
             expect(result[1].text).toBe('AAAAAA');
+        } finally {
+            getContextSpy.mockRestore();
+        }
+    });
+
+    it('caches text measurements for same font size and text', () => {
+        const measureTextMock = jest.fn((text: string) => ({
+            width: text === ' ' ? 20 : text.length * 10,
+        }));
+
+        const getContextSpy = jest
+            .spyOn(HTMLCanvasElement.prototype, 'getContext')
+            .mockImplementation(() => {
+                return {
+                    measureText: measureTextMock,
+                } as unknown as CanvasRenderingContext2D;
+            });
+
+        try {
+            const cue: Cue = {
+                start: 0,
+                end: 4,
+                text: 'REPEAT REPEAT',
+                words: [
+                    { start: 0, end: 1, text: 'REPEAT' },
+                    { start: 1, end: 2, text: 'REPEAT' },
+                ],
+            };
+
+            // First call - should call measureText for "REPEAT"
+            resegmentCues([cue], 3, 100);
+
+            // "REPEAT" called once?
+            // "REPEAT" is uppercased to "REPEAT"
+            // space is called
+            // so we expect calls.
+
+            const callsFirstPass = measureTextMock.mock.calls.length;
+            expect(callsFirstPass).toBeGreaterThan(0);
+
+            // Second call with same cue and size
+            resegmentCues([cue], 3, 100);
+
+            // Should NOT have increased calls (except maybe space if space isn't cached? space IS cached)
+            expect(measureTextMock.mock.calls.length).toBe(callsFirstPass);
+
+            // Third call with DIFFERENT size
+            resegmentCues([cue], 3, 110);
+
+            // Should increase calls
+            expect(measureTextMock.mock.calls.length).toBeGreaterThan(callsFirstPass);
+
         } finally {
             getContextSpy.mockRestore();
         }

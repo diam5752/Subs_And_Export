@@ -50,6 +50,12 @@ type TextMeasurer = {
 };
 
 let _sharedMeasurerCanvas: HTMLCanvasElement | null = null;
+const _wordWidthCache = new Map<string, number>();
+const MAX_CACHE_SIZE = 10000;
+
+export function resetWordWidthCache() {
+    _wordWidthCache.clear();
+}
 
 function getSharedMeasurerCanvas(): HTMLCanvasElement | null {
     /* istanbul ignore next -- exercised in browser or via canvas mocking */
@@ -76,12 +82,20 @@ function createTextMeasurer(fontSizePercent: number): TextMeasurer | null {
     // Using a conservative 90% width below handles this implicitly.
     ctx.font = `${OVERLAY_FONT_WEIGHT} ${fontSizePx}px ${OVERLAY_FONT_FAMILY}`;
 
-    const cache = new Map<string, number>();
     const measureText = (text: string) => {
-        const cached = cache.get(text);
+        const key = `${fontSizePx}:${text}`;
+        const cached = _wordWidthCache.get(key);
         if (cached !== undefined) return cached;
+
         const width = ctx.measureText(text).width;
-        cache.set(text, width);
+
+        if (_wordWidthCache.size >= MAX_CACHE_SIZE) {
+            // Simple FIFO eviction (Map preserves insertion order)
+            const firstKey = _wordWidthCache.keys().next().value;
+            if (firstKey !== undefined) _wordWidthCache.delete(firstKey);
+        }
+
+        _wordWidthCache.set(key, width);
         return width;
     };
 
