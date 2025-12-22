@@ -143,6 +143,9 @@ def generate_active_word_ass(cue: Cue, max_lines: int, primary_color: str, secon
     """
     Generates ASS dialogue lines for 'active word' highlighting.
     Each word gets its own dialogue event, appearing for its duration.
+    
+    When max_lines=0 (single word mode): Show ONLY the active word, nothing else.
+    When max_lines>0: Show all words with the active word highlighted.
     """
     if not cue.words:
         # Fallback to standard dialogue if no word timings
@@ -150,8 +153,19 @@ def generate_active_word_ass(cue: Cue, max_lines: int, primary_color: str, secon
 
     lines = []
 
+    # Single Word Mode (max_lines == 0): Show ONLY the active word, one at a time
+    if max_lines == 0:
+        for word in cue.words:
+            if not word.text.strip():
+                continue
+            # Render just this word in primary color for its duration
+            word_text = f"{{\\c{primary_color}&}}{word.text}"
+            lines.append(format_ass_dialogue(word.start, word.end, word_text))
+        return lines
+
+    # Multi-word Mode (max_lines > 0): Highlight active word in full sentence
     # Reconstruct the line structure from cue.text (which handles max_lines wrapping)
-    # cue.text contains "\N" for line breaks. We must preserve this structure.
+    # cue.text contains "\\N" for line breaks. We must preserve this structure.
     # We map the flattened cue.words list into a nested structure based on cue.text lines.
 
     line_struct: List[List[WordTiming]] = []
