@@ -18,11 +18,11 @@ export const StepIndicator = React.memo(function StepIndicator({ currentStep, st
     const effectiveMaxStep = maxStep ?? currentStep;
 
     return (
-        <div className="w-full max-w-4xl mx-auto mb-10 px-4">
+        <div className="w-full max-w-4xl mx-auto mb-10 px-8 sm:px-12">
             <div className="relative flex items-center justify-between">
                 {/* Connecting Line Background - spans between circle centers */}
                 <div
-                    className="absolute h-1 bg-[var(--surface-elevated)] rounded-full pointer-events-none"
+                    className="absolute h-1 bg-[var(--surface-elevated)] rounded-full pointer-events-none -translate-y-1/2"
                     style={{
                         top: '24px', // Center of 48px step circles
                         left: '24px', // Center of first circle (w-12 = 48px / 2)
@@ -32,7 +32,7 @@ export const StepIndicator = React.memo(function StepIndicator({ currentStep, st
 
                 {/* Active Progress Line */}
                 <div
-                    className="absolute h-1 bg-gradient-to-r from-[var(--accent)] to-[var(--accent-secondary)] rounded-full transition-all duration-700 ease-out pointer-events-none"
+                    className="absolute h-1 bg-gradient-to-r from-[var(--accent)] to-[var(--accent-secondary)] rounded-full transition-all duration-700 ease-out pointer-events-none -translate-y-1/2"
                     style={{
                         top: '24px', // Center of 48px step circles
                         left: '24px', // Start from center of first circle
@@ -85,10 +85,9 @@ export const StepIndicator = React.memo(function StepIndicator({ currentStep, st
                             </div>
 
                             {/* Label */}
-                            <div className={`absolute top-full mt-3 text-center transition-all duration-500 w-24 ${step.id === 1 ? 'left-0' : step.id === steps.length ? 'right-0' : 'left-1/2 -translate-x-1/2'
-                                } ${isActive
-                                    ? 'opacity-100 transform translate-y-0'
-                                    : 'opacity-50 transform -translate-y-1'
+                            <div className={`absolute top-full mt-3 text-center transition-all duration-500 w-24 left-1/2 -translate-x-1/2 ${isActive
+                                ? 'opacity-100 transform translate-y-0'
+                                : 'opacity-50 transform -translate-y-1'
                                 }`}>
                                 <span className={`text-xs font-bold tracking-wider uppercase block mb-0.5 ${isActive ? 'text-[var(--accent)] scale-110' : shouldShowAccent ? 'text-[var(--accent)] opacity-80' : 'text-[var(--muted)]'}`}>
                                     {t('stepLabel', { n: step.id }) || `Step ${step.id}`}
