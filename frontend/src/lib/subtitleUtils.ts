@@ -50,6 +50,19 @@ type TextMeasurer = {
 };
 
 let _sharedMeasurerCanvas: HTMLCanvasElement | null = null;
+// Bolt Optimization: Persistent cache for word widths to avoid expensive canvas measurements
+// Key: `${fontSizePx}:${text}`
+const _wordWidthCache = new Map<string, number>();
+let _lastFont = '';
+
+/**
+ * Reset the internal word width cache.
+ * Useful for tests to ensure clean state.
+ */
+export function resetWordWidthCache() {
+    _wordWidthCache.clear();
+    _lastFont = '';
+}
 
 function getSharedMeasurerCanvas(): HTMLCanvasElement | null {
     /* istanbul ignore next -- exercised in browser or via canvas mocking */
@@ -74,14 +87,28 @@ function createTextMeasurer(fontSizePercent: number): TextMeasurer | null {
     // Add stroke width buffer? 
     // The stroke is around 3px scaled.
     // Using a conservative 90% width below handles this implicitly.
-    ctx.font = `${OVERLAY_FONT_WEIGHT} ${fontSizePx}px ${OVERLAY_FONT_FAMILY}`;
+    const font = `${OVERLAY_FONT_WEIGHT} ${fontSizePx}px ${OVERLAY_FONT_FAMILY}`;
 
-    const cache = new Map<string, number>();
+    // Bolt Optimization: Only set font if changed to avoid context state overhead
+    if (_lastFont !== font) {
+        ctx.font = font;
+        _lastFont = font;
+    }
+
+    // Bolt Optimization: Use global cache with eviction
     const measureText = (text: string) => {
-        const cached = cache.get(text);
+        const key = `${fontSizePx}:${text}`;
+        const cached = _wordWidthCache.get(key);
         if (cached !== undefined) return cached;
+
         const width = ctx.measureText(text).width;
-        cache.set(text, width);
+
+        // Simple eviction strategy
+        if (_wordWidthCache.size > 10000) {
+            _wordWidthCache.clear();
+        }
+
+        _wordWidthCache.set(key, width);
         return width;
     };
 
