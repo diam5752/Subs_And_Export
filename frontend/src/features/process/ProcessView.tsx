@@ -4,10 +4,19 @@ import { ProcessProvider, useProcessContext, ProcessingOptions } from './Process
 import { PlaybackProvider } from './PlaybackContext';
 export type { ProcessingOptions } from './ProcessContext';
 import { ModelSelector } from './components/ModelSelector';
-import { UploadSection } from './components/UploadSection';
-import { PreviewSection } from './components/PreviewSection';
 import { JobResponse } from '@/lib/api';
 import { useI18n } from '@/context/I18nContext';
+import dynamic from 'next/dynamic';
+import { Spinner } from '@/components/Spinner';
+
+// Optimization: Lazy load heavy sections to reduce initial bundle size
+const UploadSection = dynamic(() => import('./components/UploadSection').then(mod => mod.UploadSection), {
+    loading: () => <div className="py-12 flex justify-center"><Spinner className="w-8 h-8 text-[var(--accent)]" /></div>
+});
+
+const PreviewSection = dynamic(() => import('./components/PreviewSection').then(mod => mod.PreviewSection), {
+    loading: () => <div className="py-12 flex justify-center"><Spinner className="w-8 h-8 text-[var(--accent)]" /></div>
+});
 
 interface ProcessViewProps {
     selectedFile: File | null;

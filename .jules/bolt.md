@@ -25,3 +25,7 @@
 ## 2025-05-23 - [Text Sanitization Caching]
 **Learning:** `lru_cache` provides significant speedup (~2.6x) for text sanitization in subtitles by caching repeated words (stop words), even when the underlying operation is simple string replacement.
 **Action:** Use `lru_cache` for stateless string processing functions that are called frequently with repetitive inputs (like word-level processing in transcripts).
+
+## 2025-05-24 - [Context Splitting vs Code Splitting]
+**Learning:** I investigated optimizing "Context Thrashing" where high-frequency updates (progress) caused re-renders in heavy components. Splitting the Context into Static/Dynamic required refactoring all consumers.
+**Action:** I opted for **Code Splitting** (`next/dynamic`) of the heavy components (`PreviewSection`, `UploadSection`) instead. This reduces the initial bundle size significantly and is a lower-risk change than an architectural refactor of the Context, while still improving perceived performance (LCP).

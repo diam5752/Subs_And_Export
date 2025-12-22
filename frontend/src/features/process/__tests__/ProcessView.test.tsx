@@ -173,7 +173,7 @@ describe('ProcessView', () => {
         expect(setTranscribeProvider).toHaveBeenCalledWith('groq');
     });
 
-    it('renders Step 2 (Upload) when file is selected', () => {
+    it('renders Step 2 (Upload) when file is selected', async () => {
         (useProcessContext as jest.Mock).mockReturnValue({
             ...mockContextValue,
             currentStep: 2,
@@ -188,11 +188,13 @@ describe('ProcessView', () => {
             </I18nProvider>
         );
 
-        expect(screen.getAllByText(/Step 2/i).length).toBeGreaterThan(0);
-        expect(screen.getAllByText(/^Upload$/i).length).toBeGreaterThan(0);
+        await waitFor(() => {
+            expect(screen.getAllByText(/Step 2/i).length).toBeGreaterThan(0);
+            expect(screen.getAllByText(/^Upload$/i).length).toBeGreaterThan(0);
+        });
     });
 
-    it('renders Step 3 (Preview) when job is completed', () => {
+    it('renders Step 3 (Preview) when job is completed', async () => {
         (useProcessContext as jest.Mock).mockReturnValue({
             ...mockContextValue,
             currentStep: 3,
@@ -210,7 +212,10 @@ describe('ProcessView', () => {
 
         expect(screen.getAllByText(/Step 3/i).length).toBeGreaterThan(0);
         expect(screen.getAllByText(/^Preview$/i).length).toBeGreaterThan(0);
-        expect(screen.getByRole('tab', { name: /Transcript/i })).toBeInTheDocument();
+
+        await waitFor(() => {
+            expect(screen.getByRole('tab', { name: /Transcript/i })).toBeInTheDocument();
+        });
     });
 
     it('switches between Transcript and Styles tabs', async () => {
@@ -263,7 +268,7 @@ describe('ProcessView', () => {
         });
     });
 
-    it('renders accessible progress bar during processing', () => {
+    it('renders accessible progress bar during processing', async () => {
         (useProcessContext as jest.Mock).mockReturnValue({
             ...mockContextValue,
             currentStep: 2,
@@ -282,14 +287,16 @@ describe('ProcessView', () => {
             </I18nProvider>
         );
 
-        const progressBar = screen.getByRole('progressbar', { name: /Processing.../i });
-        expect(progressBar).toBeInTheDocument();
-        expect(progressBar).toHaveAttribute('aria-valuenow', '45');
-        expect(progressBar).toHaveAttribute('aria-valuemin', '0');
-        expect(progressBar).toHaveAttribute('aria-valuemax', '100');
+        await waitFor(() => {
+            const progressBar = screen.getByRole('progressbar', { name: /Processing.../i });
+            expect(progressBar).toBeInTheDocument();
+            expect(progressBar).toHaveAttribute('aria-valuenow', '45');
+            expect(progressBar).toHaveAttribute('aria-valuemin', '0');
+            expect(progressBar).toHaveAttribute('aria-valuemax', '100');
+        });
     });
 
-    it('shows chevron arrow in both Step 1 and Step 2 headers', () => {
+    it('shows chevron arrow in both Step 1 and Step 2 headers', async () => {
         (useProcessContext as jest.Mock).mockReturnValue({
             ...mockContextValue,
             currentStep: 2,
@@ -306,11 +313,14 @@ describe('ProcessView', () => {
 
         // Verify Step 1 chevron
         expect(screen.getByTestId('step-1-chevron')).toBeInTheDocument();
+
         // Verify Step 2 chevron
-        expect(screen.getByTestId('step-2-chevron')).toBeInTheDocument();
+        await waitFor(() => {
+            expect(screen.getByTestId('step-2-chevron')).toBeInTheDocument();
+        });
     });
 
-    it('displays thumbnail preview in collapsed Step 2 header', () => {
+    it('displays thumbnail preview in collapsed Step 2 header', async () => {
         (useProcessContext as jest.Mock).mockReturnValue({
             ...mockContextValue,
             currentStep: 3, // Step 3 active, Step 2 collapsed
@@ -327,14 +337,14 @@ describe('ProcessView', () => {
             </I18nProvider>
         );
 
-        // In Step 3, Step 2 is collapsed. It should show the thumbnail image.
-        // We use getAllByAltText because it might appear in both compact and full view (even if one is hidden)
-        const thumbnails = screen.getAllByAltText('Thumbnail');
-        expect(thumbnails.length).toBeGreaterThanOrEqual(1);
-        expect(thumbnails[0]).toHaveAttribute('src', expect.stringContaining('http://example.com/thumb.jpg'));
+        await waitFor(() => {
+            const thumbnails = screen.getAllByAltText('Thumbnail');
+            expect(thumbnails.length).toBeGreaterThanOrEqual(1);
+            expect(thumbnails[0]).toHaveAttribute('src', expect.stringContaining('http://example.com/thumb.jpg'));
+        });
     });
 
-    it('renders Step 2 in compact mode on page refresh (selectedFile is null, job is active)', () => {
+    it('renders Step 2 in compact mode on page refresh (selectedFile is null, job is active)', async () => {
         (useProcessContext as jest.Mock).mockReturnValue({
             ...mockContextValue,
             currentStep: 3,
@@ -352,11 +362,13 @@ describe('ProcessView', () => {
             </I18nProvider>
         );
 
-        // Verify the compact section is present
-        const compactSection = container.querySelector('#upload-section-compact');
-        expect(compactSection).toBeInTheDocument();
+        await waitFor(() => {
+            // Verify the compact section is present
+            const compactSection = container.querySelector('#upload-section-compact');
+            expect(compactSection).toBeInTheDocument();
 
-        // Should also show "Ready" badge
-        expect(screen.getAllByText(/Ready/i).length).toBeGreaterThan(0);
+            // Should also show "Ready" badge
+            expect(screen.getAllByText(/Ready/i).length).toBeGreaterThan(0);
+        });
     });
 });
