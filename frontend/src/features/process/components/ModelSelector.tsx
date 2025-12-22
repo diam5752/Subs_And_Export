@@ -23,11 +23,13 @@ export function ModelSelector() {
     const [localCollapsed, setLocalCollapsed] = useState(false);
 
     // Reset local collapsed state when step changes
-    useEffect(() => {
+    const [prevStep, setPrevStep] = useState(currentStep);
+    if (currentStep !== prevStep) {
+        setPrevStep(currentStep);
         if (currentStep !== 1) {
             setLocalCollapsed(false);
         }
-    }, [currentStep]);
+    }
 
     // Collapsed state - expands automatically when on Step 1, unless manually collapsed
     const isExpanded = currentStep === 1 && !localCollapsed;
@@ -224,6 +226,7 @@ export function ModelSelector() {
                 <div
                     role="button"
                     tabIndex={0}
+                    aria-expanded={isExpanded}
                     onKeyDown={handleKeyDown}
                     className={`flex items-center gap-4 transition-all duration-300 cursor-pointer group/step ${currentStep !== 1 ? 'opacity-100 hover:scale-[1.005]' : 'opacity-100 scale-[1.01]'}`}
                     onClick={handleStepClick}
@@ -236,13 +239,18 @@ export function ModelSelector() {
                         <h3 className="text-xl font-semibold">{t('modelSelectTitle') || 'Pick a Model'}</h3>
                         <div className="flex items-center gap-2 mt-1 ml-0.5">
                             <p className="text-sm text-[var(--muted)]">{t('modelSelectSubtitle')}</p>
-                            <div className="group/info relative relative z-50">
-                                <svg className="w-4 h-4 text-[var(--muted)] hover:text-white cursor-help transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <div
+                                className="group/info relative z-50 focus:outline-none"
+                                role="button"
+                                tabIndex={0}
+                                aria-label={t('modelDifferences') || 'Show model differences'}
+                            >
+                                <svg className="w-4 h-4 text-[var(--muted)] group-hover/info:text-white group-focus/info:text-white cursor-help transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
 
                                 {/* Tooltip */}
-                                <div className="absolute left-1/2 -translate-x-1/2 top-6 w-72 bg-[#0A0A0A] border border-[var(--border)] rounded-xl p-4 shadow-2xl opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-200 z-[100] backdrop-blur-xl">
+                                <div className="absolute left-1/2 -translate-x-1/2 top-6 w-72 bg-[#0A0A0A] border border-[var(--border)] rounded-xl p-4 shadow-2xl opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible group-focus/info:opacity-100 group-focus/info:visible transition-all duration-200 z-[100] backdrop-blur-xl">
                                     <div className="space-y-4">
                                         <div className="space-y-1.5">
                                             <div className="flex items-center gap-2 text-emerald-500 font-bold text-xs uppercase tracking-wider">

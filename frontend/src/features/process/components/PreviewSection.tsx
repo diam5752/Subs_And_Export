@@ -36,7 +36,9 @@ const PreviewSectionLayout = memo(({
     handlePlayerTimeUpdate,
     handleExport,
     exportingResolutions,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     showPreview,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     setShowPreview,
     showNewVideoModal,
     setShowNewVideoModal,
@@ -44,7 +46,8 @@ const PreviewSectionLayout = memo(({
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     activeSidebarTab,
     isExpanded // New prop, received from parent
-}: any) => {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+}: Record<string, any>) => {
     return (
         <div id="preview-section" className={`card space-y-4 transition-all duration-500 ${!selectedJob && !isProcessing ? 'opacity-50 grayscale' : ''}`} ref={resultsRef}>
 
