@@ -1,6 +1,7 @@
 {
   "tabTranscript": "Transcript",
   "transcriptEdit": "Edit",
+  "transcriptEditHint": "Ctrl+Enter to save",
   "transcriptSave": "Save",
   "transcriptCancel": "Cancel",
   "transcriptSaving": "Saving…",
