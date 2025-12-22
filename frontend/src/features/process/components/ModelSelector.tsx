@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback } from 'react';
+import React, { useMemo, useCallback, useState, useEffect } from 'react';
 import { useI18n } from '@/context/I18nContext';
 import { useProcessContext, TranscribeProvider, TranscribeMode } from '../ProcessContext';
 import { TokenIcon } from '@/components/icons';
@@ -19,8 +19,18 @@ export function ModelSelector() {
         selectedJob,
     } = useProcessContext();
 
-    // Collapsed state - expands automatically when on Step 1
-    const isExpanded = currentStep === 1;
+    // Local state to allow collapsing Step 1 even when it is active
+    const [localCollapsed, setLocalCollapsed] = useState(false);
+
+    // Reset local collapsed state when step changes
+    useEffect(() => {
+        if (currentStep !== 1) {
+            setLocalCollapsed(false);
+        }
+    }, [currentStep]);
+
+    // Collapsed state - expands automatically when on Step 1, unless manually collapsed
+    const isExpanded = currentStep === 1 && !localCollapsed;
 
     // Get selected model for compact display
     const selectedModel = useMemo(() => {
@@ -169,23 +179,28 @@ export function ModelSelector() {
     ), [AVAILABLE_MODELS, transcribeProvider, transcribeMode, hasChosenModel, t, setTranscribeProvider, setTranscribeMode, setHasChosenModel, setOverrideStep, scrollToUploadStep]);
 
     const handleStepClick = useCallback(() => {
-        setOverrideStep(1);
-
-        // Match scrolling behavior from ProcessView.tsx
-        // Instead of scrolling to absolute top, scroll to the wrapper with correct offset
-        const element = document.getElementById('step-1-wrapper');
-        if (element) {
-            const rect = element.getBoundingClientRect();
-            const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-            // 20px offset matches the one used in ProcessView.tsx for Step 1
-            const offset = 20;
-            const targetY = rect.top + scrollTop - offset;
-            window.scrollTo({ top: targetY, behavior: 'smooth' });
+        if (currentStep === 1) {
+            setLocalCollapsed(prev => !prev);
         } else {
-            // Fallback
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+            setOverrideStep(1);
+            setLocalCollapsed(false);
+
+            // Match scrolling behavior from ProcessView.tsx
+            // Instead of scrolling to absolute top, scroll to the wrapper with correct offset
+            const element = document.getElementById('step-1-wrapper');
+            if (element) {
+                const rect = element.getBoundingClientRect();
+                const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                // 20px offset matches the one used in ProcessView.tsx for Step 1
+                const offset = 20;
+                const targetY = rect.top + scrollTop - offset;
+                window.scrollTo({ top: targetY, behavior: 'smooth' });
+            } else {
+                // Fallback
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
         }
-    }, [setOverrideStep]);
+    }, [currentStep, setOverrideStep]);
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
         if (e.key === 'Enter' || e.key === ' ') {

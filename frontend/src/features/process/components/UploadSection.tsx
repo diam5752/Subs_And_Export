@@ -58,16 +58,18 @@ export function UploadSection() {
     const [devSampleError, setDevSampleError] = useState<string | null>(null);
     const [fileValidationError, setFileValidationError] = useState<string | null>(null);
     const [pendingAutoStart, setPendingAutoStart] = useState(false);
-    const [isManuallyExpanded, setIsManuallyExpanded] = useState(false);
+    // Local state to allow collapsing Step 2 even when it is active, unless validating/processing
+    const [localCollapsed, setLocalCollapsed] = useState(false);
     const validationRequestId = React.useRef(0);
 
-    // Collapsed state - expands automatically when on Step 2, otherwise respects user toggle
-    const isExpanded = currentStep === 2 || isManuallyExpanded;
+    // Collapsed state - expands automatically when on Step 2, unless manually collapsed
+    // But forcing expansion if processing or uploading
+    const isExpanded = (currentStep === 2 && !localCollapsed) || isProcessing;
 
-    // Reset manual expansion when step changes
+    // Reset local collapsed state when step changes
     useEffect(() => {
-        if (currentStep === 2) {
-            setIsManuallyExpanded(false);
+        if (currentStep !== 2) {
+            setLocalCollapsed(false);
         }
     }, [currentStep]);
 
@@ -268,12 +270,17 @@ export function UploadSection() {
     }, [pendingAutoStart, selectedFile, videoInfo, fileValidationError, isProcessing, selectedJob, hasChosenModel, handleStart]);
 
     const handleStepClick = useCallback((id: string) => {
-        setOverrideStep(2);
-        // Wait for CSS transitions (similar to ProcessView)
-        setTimeout(() => {
-            document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }, 350);
-    }, [setOverrideStep]);
+        if (currentStep === 2) {
+            setLocalCollapsed(prev => !prev);
+        } else {
+            setOverrideStep(2);
+            setLocalCollapsed(false);
+            // Wait for CSS transitions (similar to ProcessView)
+            setTimeout(() => {
+                document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 350);
+        }
+    }, [currentStep, setOverrideStep]);
 
     return useMemo(() => {
         const selectedCost = selectedModel
@@ -706,7 +713,10 @@ export function UploadSection() {
         selectedFile, t, currentStep, videoInfo, isProcessing, error, hasChosenModel,
         selectedJob, handleStart, onFileSelect, setHasChosenModel, handleKeyDown,
         handleStepClick, activeTheme, isDragOver, selectedModel, showDevTools,
+        selectedJob, handleStart, onFileSelect, setHasChosenModel, handleKeyDown,
+        handleStepClick, activeTheme, isDragOver, selectedModel, showDevTools,
         transcribeProvider, transcribeMode, isExpanded,
+        handleUploadCardClick, handleDragEnter, handleDragLeave, handleDragOver,
         handleUploadCardClick, handleDragEnter, handleDragLeave, handleDragOver,
         handleDrop, fileInputRef, handleLoadDevSample, devSampleLoading,
         devSampleError, handleFileChange, fileValidationError, videoUrl, progress, statusMessage, onCancelProcessing,
