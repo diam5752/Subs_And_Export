@@ -1,8 +1,8 @@
 from pathlib import Path
 from typing import List
 
+from backend.app.services.llm_utils import load_openai_client, resolve_groq_api_key
 from backend.app.services.subtitle_types import Cue, TimeRange, WordTiming
-from backend.app.services.llm_utils import resolve_groq_api_key
 from backend.app.services.transcription.base import Transcriber
 from backend.app.services.transcription.utils import normalize_text, write_srt_from_segments
 
@@ -32,12 +32,7 @@ class GroqTranscriber(Transcriber):
             )
 
         # Groq uses OpenAI-compatible API
-        try:
-            from openai import OpenAI
-        except ImportError:
-            raise RuntimeError("openai package is required for Groq transcription")
-
-        client = OpenAI(
+        client = load_openai_client(
             api_key=api_key,
             base_url="https://api.groq.com/openai/v1"
         )

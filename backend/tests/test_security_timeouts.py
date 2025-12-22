@@ -1,7 +1,3 @@
-import pytest
-import sys
-import types
-from pathlib import Path
 from backend.app.services import subtitles
 
 # 1. subtitles.py tests (Social Copy, Viral Metadata, Fact Check)
@@ -88,9 +84,11 @@ def test_groq_transcribe_timeout(monkeypatch, tmp_path):
         class audio:
             transcriptions = MockTranscriptions()
 
-    # Mock OpenAI import for Groq
-    mock_openai = types.SimpleNamespace(OpenAI=MockClient)
-    monkeypatch.setitem(sys.modules, "openai", mock_openai)
+    # NEW: Patch load_openai_client instead of mocking openai module
+    def mock_load(api_key, base_url=None, timeout=None):
+        return MockClient()
+
+    monkeypatch.setattr("backend.app.services.transcription.groq_cloud.load_openai_client", mock_load)
 
     from backend.app.services.transcription.groq_cloud import GroqTranscriber
 

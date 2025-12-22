@@ -68,12 +68,16 @@ def resolve_groq_api_key(explicit_key: str | None = None) -> str | None:
     return None
 
 
-def load_openai_client(api_key: str) -> Any:
+def load_openai_client(
+    api_key: str, base_url: str | None = None, timeout: float = 60.0
+) -> Any:
     """
     Load OpenAI client with secure API key.
 
     Args:
         api_key: OpenAI API key for authentication
+        base_url: Optional base URL (e.g. for Groq)
+        timeout: Default timeout in seconds (default: 60.0)
 
     Returns:
         Configured OpenAI client instance
@@ -90,7 +94,7 @@ def load_openai_client(api_key: str) -> Any:
 
     # Security: Enforce default timeout to prevent indefinite hanging (DoS)
     # Consumers can override this per-request if needed (e.g. for long transcriptions)
-    return OpenAI(api_key=api_key, timeout=60.0)
+    return OpenAI(api_key=api_key, base_url=base_url, timeout=timeout)
 
 
 def clean_json_response(content: str) -> str:
