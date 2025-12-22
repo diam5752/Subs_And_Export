@@ -885,6 +885,7 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
                                             style={{
                                                 bottom: getPreviewBottom(value),
                                             }}
+                                            aria-hidden="true"
                                         >
                                             <h3
                                                 className="text-center font-black uppercase leading-[1.1] transition-all duration-300"

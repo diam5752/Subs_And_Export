@@ -27,3 +27,7 @@
 ## 2025-03-03 - Power User Shortcuts
 **Learning:** Repetitive tasks like editing subtitles benefit immensely from keyboard shortcuts (Save/Cancel). Adding `Ctrl+Enter` support reduced friction significantly.
 **Action:** Identify high-frequency "edit-save-repeat" workflows and implement `Ctrl+Enter` (Save) / `Esc` (Cancel) shortcuts, exposing them via tooltips for discovery.
+
+## 2025-03-03 - Decorative Text in Visual Previews
+**Learning:** Visual previews (like "WATCH THIS IS HOW") in mockups are often implemented as text but serve only a decorative purpose. Screen readers announce this content, confusing users about the actual interface.
+**Action:** Always apply `aria-hidden="true"` to text that is strictly part of a visual style preview or mockup to prevent screen reader noise.
