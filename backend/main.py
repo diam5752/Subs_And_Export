@@ -1,13 +1,13 @@
 
-from backend.app.core.logging import setup_logging
 from contextlib import asynccontextmanager
+
 from backend.app.core.errors import register_exception_handlers
+from backend.app.core.logging import setup_logging
 
 # Configure logging (JSON structured)
 logger = setup_logging()
 
 import os
-import sys
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -33,6 +33,7 @@ from backend.app.core.config import settings
 from backend.app.core.database import Database
 from backend.app.core.gcs import generate_signed_download_url, get_gcs_settings
 from backend.app.core.ratelimit import get_client_ip, limiter_static
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -134,6 +135,11 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         if settings.is_dev and request.url.scheme not in ("https", "wss"):
             if "Strict-Transport-Security" in response.headers:
                 del response.headers["Strict-Transport-Security"]
+
+        # Security: Disable caching for sensitive API endpoints to prevent data leakage in shared caches
+        if request.url.path.startswith(("/auth/", "/videos/", "/history/", "/jobs/")):
+            response.headers["Cache-Control"] = "no-store"
+
         return response
 
 
@@ -171,7 +177,6 @@ DATA_DIR = settings.data_dir
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 # LRU cache for signed URLs (5 min TTL, shorter than signed URL expiry)
-from functools import lru_cache
 import time as time_module
 
 _signed_url_cache: dict[str, tuple[str, float]] = {}
@@ -184,17 +189,17 @@ def _get_cached_signed_url(object_name: str, gcs_settings) -> str:
         url, expires = _signed_url_cache[object_name]
         if now < expires:
             return url
-    
+
     # Generate new signed URL
     url = generate_signed_download_url(settings=gcs_settings, object_name=object_name)
     _signed_url_cache[object_name] = (url, now + _SIGNED_URL_CACHE_TTL)
-    
+
     # Cleanup old entries (simple garbage collection)
     if len(_signed_url_cache) > 1000:
         expired = [k for k, (_, exp) in _signed_url_cache.items() if now >= exp]
         for k in expired:
             del _signed_url_cache[k]
-    
+
     return url
 
 
@@ -203,7 +208,7 @@ async def serve_static(request: Request, file_path: str, download: bool = False)
     # Rate limit static file access to prevent egress abuse
     ip = get_client_ip(request)
     limiter_static.check(ip)
-    
+
     full_path = DATA_DIR / file_path
 
     # Security: Prevent path traversal
