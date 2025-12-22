@@ -170,7 +170,21 @@ export function ModelSelector() {
 
     const handleStepClick = useCallback(() => {
         setOverrideStep(1);
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+
+        // Match scrolling behavior from ProcessView.tsx
+        // Instead of scrolling to absolute top, scroll to the wrapper with correct offset
+        const element = document.getElementById('step-1-wrapper');
+        if (element) {
+            const rect = element.getBoundingClientRect();
+            const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+            // 20px offset matches the one used in ProcessView.tsx for Step 1
+            const offset = 20;
+            const targetY = rect.top + scrollTop - offset;
+            window.scrollTo({ top: targetY, behavior: 'smooth' });
+        } else {
+            // Fallback
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
     }, [setOverrideStep]);
 
     const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
