@@ -51,6 +51,11 @@ type TextMeasurer = {
 
 let _sharedMeasurerCanvas: HTMLCanvasElement | null = null;
 
+// Global cache for word widths: Map<fontSpec, Map<word, width>>
+// Note: This cache grows indefinitely but keys are limited by unique words in session.
+// Typical memory usage is negligible (< 1MB).
+const _wordWidthCache = new Map<string, Map<string, number>>();
+
 function getSharedMeasurerCanvas(): HTMLCanvasElement | null {
     /* istanbul ignore next -- exercised in browser or via canvas mocking */
     if (typeof document === 'undefined') return null;
@@ -74,14 +79,21 @@ function createTextMeasurer(fontSizePercent: number): TextMeasurer | null {
     // Add stroke width buffer? 
     // The stroke is around 3px scaled.
     // Using a conservative 90% width below handles this implicitly.
-    ctx.font = `${OVERLAY_FONT_WEIGHT} ${fontSizePx}px ${OVERLAY_FONT_FAMILY}`;
+    const fontSpec = `${OVERLAY_FONT_WEIGHT} ${fontSizePx}px ${OVERLAY_FONT_FAMILY}`;
+    ctx.font = fontSpec;
 
-    const cache = new Map<string, number>();
+    let sizeCache = _wordWidthCache.get(fontSpec);
+    if (!sizeCache) {
+        sizeCache = new Map<string, number>();
+        _wordWidthCache.set(fontSpec, sizeCache);
+    }
+
     const measureText = (text: string) => {
-        const cached = cache.get(text);
+        // Use the global cache to prevent re-measuring same words on re-renders/edits
+        const cached = sizeCache!.get(text);
         if (cached !== undefined) return cached;
         const width = ctx.measureText(text).width;
-        cache.set(text, width);
+        sizeCache!.set(text, width);
         return width;
     };
 
