@@ -114,7 +114,10 @@ const TranscriptPanel = memo(() => {
         }
     }, [activeCueIndex, editingCueIndex, transcriptContainerRef]);
 
-    return (
+    // Optimized: Memoize the JSX to prevent VDOM re-creation on every frame (60fps)
+    // TranscriptPanel re-renders on every currentTime update, but the VDOM structure
+    // should only change when relevant state (activeCueIndex, editing state) changes.
+    return useMemo(() => (
         <div
             role="tabpanel"
             id="panel-transcript"
@@ -158,7 +161,21 @@ const TranscriptPanel = memo(() => {
                 )}
             </div>
         </div>
-    );
+    ), [
+        activeCueIndex,
+        cues,
+        editingCueIndex,
+        editingCueDraft,
+        isSavingTranscript,
+        transcriptSaveError,
+        transcriptContainerRef,
+        handleSeek,
+        beginEditingCue,
+        saveEditingCue,
+        cancelEditingCue,
+        handleUpdateDraft,
+        t
+    ]);
 });
 TranscriptPanel.displayName = 'TranscriptPanel';
 
