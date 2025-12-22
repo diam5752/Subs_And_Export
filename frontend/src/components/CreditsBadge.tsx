@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { useI18n } from '@/context/I18nContext';
 import { usePoints } from '@/context/PointsContext';
 import { InfoTooltip } from '@/components/InfoTooltip';
+import { Spinner } from '@/components/Spinner';
 import { TokenIcon, RefreshIcon } from '@/components/icons';
 import {
     FACT_CHECK_COST,
@@ -37,16 +38,7 @@ export function CreditsBadge() {
 
                 {isLoading ? (
                     <div className="text-[var(--muted)]" aria-hidden="true">
-                        <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
-                            <circle className="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
-                            <path
-                                className="opacity-80"
-                                d="M22 12a10 10 0 00-10-10"
-                                stroke="currentColor"
-                                strokeWidth="3"
-                                strokeLinecap="round"
-                            />
-                        </svg>
+                        <Spinner className="h-3.5 w-3.5" />
                     </div>
                 ) : (
                     <div className="text-[var(--muted)] group-hover:text-[var(--foreground)]/50 transition-colors" aria-hidden="true">
