@@ -8,7 +8,7 @@ import math
 import re
 import unicodedata
 from pathlib import Path
-from typing import Any, Callable, List, Optional, Sequence, Tuple
+from typing import Any, Callable, List, Sequence
 
 from backend.app.core.config import settings
 from backend.app.services.subtitle_types import Cue, TimeRange, WordTiming
@@ -38,10 +38,13 @@ def get_text_width(text: str, font_size: int) -> int:
     return int(len(text) * font_size * 0.5)
 
 
+@functools.lru_cache(maxsize=8192)
 def sanitize_ass_text(text: str) -> str:
     """
     Sanitize text to prevent ASS injection.
     Replaces special characters '{', '}' and '\\' to prevent tag injection.
+
+    Cached to optimize performance for repetitive words in subtitles.
     """
     if not text:
         return text
@@ -252,13 +255,13 @@ def normalize_cues_for_ass(cues: Sequence[Cue]) -> List[Cue]:
             continue
 
         # If overlapping, clamp current to (next.start - gap) when possible.
-        # Rationale: We prefer to show the next subtitle accurately as it's often 
+        # Rationale: We prefer to show the next subtitle accurately as it's often
         # a fresh sentence or thought.
         desired_end = next_cue.start - min_gap_s
-        
+
         # If segments strictly overlap (current.end > next.start)
         if current.end > next_cue.start:
-            logger.info("Overlap detected: Current(%s-%s) meets Next(%s-%s). Desired End: %s", 
+            logger.info("Overlap detected: Current(%s-%s) meets Next(%s-%s). Desired End: %s",
                         current.start, current.end, next_cue.start, next_cue.end, desired_end)
 
             # Check if clamping would destroy the segment
@@ -774,7 +777,7 @@ def create_styled_subtitle_file(
         )
         parsed_cues = normalize_cues_for_ass(parsed_cues)
 
-    
+
     output_dir = output_dir or transcript_path.parent
     output_dir.mkdir(parents=True, exist_ok=True)
     ass_path = output_dir / f"{transcript_path.stem}.ass"
