@@ -27,3 +27,7 @@
 ## 2025-03-03 - Power User Shortcuts
 **Learning:** Repetitive tasks like editing subtitles benefit immensely from keyboard shortcuts (Save/Cancel). Adding `Ctrl+Enter` support reduced friction significantly.
 **Action:** Identify high-frequency "edit-save-repeat" workflows and implement `Ctrl+Enter` (Save) / `Esc` (Cancel) shortcuts, exposing them via tooltips for discovery.
+
+## 2025-03-04 - Accessible Tooltips in Clickable Headers
+**Learning:** Tooltips implemented as hover-only `div`s inside clickable headers (`role="button"`) are inaccessible to keyboard users and create nested interactive control issues.
+**Action:** Use a `<button type="button">` for the tooltip trigger with `onClick={(e) => e.stopPropagation()}` to prevent triggering the parent action, and ensure visibility on focus (`group-focus-within` or explicit state). Use `aria-describedby` to link content.

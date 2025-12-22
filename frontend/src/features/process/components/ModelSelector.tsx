@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback, useState, useEffect } from 'react';
+import React, { useMemo, useCallback, useState, useId } from 'react';
 import { useI18n } from '@/context/I18nContext';
 import { useProcessContext, TranscribeProvider, TranscribeMode } from '../ProcessContext';
 import { TokenIcon } from '@/components/icons';
@@ -6,6 +6,7 @@ import { formatPoints, processVideoCostForSelection } from '@/lib/points';
 
 export function ModelSelector() {
     const { t } = useI18n();
+    const tooltipId = useId();
     const {
         AVAILABLE_MODELS,
         transcribeProvider,
@@ -21,13 +22,14 @@ export function ModelSelector() {
 
     // Local state to allow collapsing Step 1 even when it is active
     const [localCollapsed, setLocalCollapsed] = useState(false);
-
-    // Reset local collapsed state when step changes
-    useEffect(() => {
+    // Render-time state derivation to avoid useEffect
+    const [prevCurrentStep, setPrevCurrentStep] = useState(currentStep);
+    if (currentStep !== prevCurrentStep) {
+        setPrevCurrentStep(currentStep);
         if (currentStep !== 1) {
             setLocalCollapsed(false);
         }
-    }, [currentStep]);
+    }
 
     // Collapsed state - expands automatically when on Step 1, unless manually collapsed
     const isExpanded = currentStep === 1 && !localCollapsed;
@@ -78,13 +80,10 @@ export function ModelSelector() {
                 // Minimal Visual Stats
                 // Standard: Speed 100%, Quality 75%
                 // Pro: Speed 85%, Quality 100%
-                const speedPercent = isPro ? 85 : 100;
-                const qualityPercent = isPro ? 100 : 75;
 
                 // Theme Colors
                 // Standard: Emerald (Green)
                 // Pro: Neon Orange (Accent)
-                const themeColor = isPro ? 'var(--accent)' : '#10b981'; // Emerald-500
                 const themeClass = isPro ? 'text-[var(--accent)]' : 'text-emerald-500';
                 const bgClass = isPro ? 'bg-[var(--accent)]' : 'bg-emerald-500';
                 const borderClass = isPro ? 'border-[var(--accent)]' : 'border-emerald-500';
@@ -278,13 +277,28 @@ export function ModelSelector() {
                         )}
                     </div>
 
-                    <div className="group/info relative z-[100] shrink-0">
-                        <svg className="w-5 h-5 text-white/50 hover:text-white cursor-help transition-all duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <button
+                        type="button"
+                        className="group/info relative z-[100] shrink-0 rounded-full focus:outline-none focus:ring-2 focus:ring-white/50 p-0.5 -m-0.5"
+                        aria-label={t('modelHelp') || 'Model help'}
+                        aria-describedby={tooltipId}
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                                e.stopPropagation();
+                            }
+                        }}
+                    >
+                        <svg className="w-5 h-5 text-white/50 group-hover/info:text-white group-focus-within/info:text-white cursor-help transition-all duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
 
                         {/* Tooltip Content - Confirmed Solid Background */}
-                        <div className="absolute right-0 top-full mt-3 w-80 bg-zinc-950 border border-neutral-800 rounded-xl p-5 shadow-[0_20px_60px_rgba(0,0,0,0.8)] opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-150 z-[1002] origin-top-right">
+                        <div
+                            id={tooltipId}
+                            role="tooltip"
+                            className="absolute right-0 top-full mt-3 w-80 bg-zinc-950 border border-neutral-800 rounded-xl p-5 shadow-[0_20px_60px_rgba(0,0,0,0.8)] opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible group-focus-within/info:opacity-100 group-focus-within/info:visible transition-all duration-150 z-[1002] origin-top-right text-left cursor-auto"
+                        >
                             <div className="space-y-5">
                                 <div className="space-y-2 text-left">
                                     <div className="flex items-center gap-2 text-emerald-500 font-bold text-xs uppercase tracking-wider">
@@ -298,7 +312,7 @@ export function ModelSelector() {
                                 <div className="space-y-2 border-t border-white/5 pt-4 text-left">
                                     <div className="flex items-center gap-2 text-orange-500 font-bold text-xs uppercase tracking-wider">
                                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
-                                        Creator's Choice ✨
+                                        Creator&apos;s Choice ✨
                                     </div>
                                     <p className="text-[13px] leading-relaxed text-zinc-400">
                                         <strong className="text-white">What top creators use.</strong> Handles accents, background noise, music & multiple languages flawlessly. Worth every credit.
@@ -306,7 +320,7 @@ export function ModelSelector() {
                                 </div>
                             </div>
                         </div>
-                    </div>
+                    </button>
 
                     {/* Chevron indicator for expand/collapse */}
                     <svg
@@ -335,5 +349,5 @@ export function ModelSelector() {
                 {modelGrid}
             </div>
         </div>
-    ), [t, currentStep, hasChosenModel, modelGrid, handleStepClick, handleKeyDown, isExpanded, selectedModel]);
+    ), [t, currentStep, hasChosenModel, modelGrid, handleStepClick, handleKeyDown, isExpanded, selectedModel, tooltipId]);
 }
