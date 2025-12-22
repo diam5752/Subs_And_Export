@@ -68,6 +68,12 @@ def login_access_token(
     session_store: SessionStore = Depends(get_session_store),
 ) -> Any:
     """OAuth2 compatible token login, get an access token for future requests."""
+    # Security: Validate input lengths to prevent DoS via massive strings
+    if len(form_data.username) > 255:
+        raise HTTPException(status_code=400, detail="Email too long")
+    if len(form_data.password) > 128:
+        raise HTTPException(status_code=400, detail="Password too long")
+
     user = user_store.authenticate_local(form_data.username, form_data.password)
     if not user:
         raise HTTPException(status_code=400, detail="Incorrect email or password")
