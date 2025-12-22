@@ -16,6 +16,15 @@ except Exception:  # pragma: no cover
     GoogleAuthRequest = None  # type: ignore[assignment]
     storage = None  # type: ignore[assignment]
 
+# Define TimeoutRequest to enforce timeouts on auth calls
+if GoogleAuthRequest:
+    class TimeoutRequest(GoogleAuthRequest):
+        def __call__(self, *args, **kwargs):
+            kwargs.setdefault("timeout", 30)
+            return super().__call__(*args, **kwargs)
+else:
+    TimeoutRequest = None
+
 from .config import settings
 
 _BUCKET_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{1,220}[a-z0-9]$")
@@ -93,7 +102,8 @@ def get_gcs_settings() -> GcsSettings | None:
 def _refresh_access_token(client: Any) -> str:
     _require_storage()
     credentials = client._credentials
-    request = GoogleAuthRequest()  # type: ignore[operator]
+    # Use TimeoutRequest to prevent hanging on auth refresh
+    request = TimeoutRequest() if TimeoutRequest else GoogleAuthRequest()  # type: ignore[operator]
     credentials.refresh(request)
     token = credentials.token
     if not token:
@@ -192,7 +202,8 @@ def upload_object(
     _require_storage()
     client = storage.Client()
     blob = client.bucket(settings.bucket).blob(object_name)
-    blob.upload_from_filename(str(source), content_type=content_type)
+    # Enforce timeout on upload to prevent hanging
+    blob.upload_from_filename(str(source), content_type=content_type, timeout=60)
 
 
 def delete_prefix(*, settings: GcsSettings, prefix: str) -> None:
@@ -224,7 +235,8 @@ def download_object(
         raise ValueError("Object too large")
 
     destination.parent.mkdir(parents=True, exist_ok=True)
-    blob.download_to_filename(str(destination))
+    # Enforce timeout on download to prevent hanging
+    blob.download_to_filename(str(destination), timeout=60)
     return int(size)
 
 
