@@ -67,18 +67,18 @@ const ProcessViewLayout = React.memo(({ currentStep, steps, hasChosenModel, sele
             {/* Always show all 3 steps - they appear greyed out when inactive */}
             <StepIndicator currentStep={currentStep} steps={steps} onStepClick={handleStepClick} maxStep={maxStep} />
 
-            <div id="step-1-wrapper" className="scroll-mt-48">
+            <div id="step-1-wrapper" className="scroll-mt-48 relative z-30">
                 <ModelSelector />
             </div>
 
             {showUploadSection && (
-                <div id="step-2-wrapper" className="scroll-mt-32">
+                <div id="step-2-wrapper" className="scroll-mt-32 relative z-20">
                     <UploadSection />
                 </div>
             )}
 
             {showPreviewSection && (
-                <div id="step-3-wrapper" className="scroll-mt-32">
+                <div id="step-3-wrapper" className="scroll-mt-32 relative z-10">
                     <PreviewSection />
                 </div>
             )}

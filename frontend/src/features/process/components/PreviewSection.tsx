@@ -57,9 +57,7 @@ const PreviewSectionLayout = memo(({
             >
                 <span className={`flex items-center justify-center px-4 py-1 rounded-full border font-mono text-sm font-bold tracking-widest shadow-sm transition-all duration-500 ${currentStep === 3
                     ? 'bg-gradient-to-r from-[var(--accent)] to-[var(--accent-secondary)] border-transparent text-white shadow-[0_0_20px_var(--accent)] scale-105'
-                    : selectedJob?.status === 'completed'
-                        ? 'glass-premium border-[var(--accent)] text-[var(--accent)] shadow-[0_0_10px_-5px_var(--accent)]'
-                        : 'glass-premium border-[var(--border)] text-[var(--muted)] group-hover/step:border-[var(--accent)]/50 group-hover/step:text-[var(--accent)]'
+                    : 'glass-premium border-[var(--border)] text-[var(--muted)]'
                     }`}>STEP 3</span>
                 <h3 className="text-xl font-semibold">{t('previewWindowLabel') || 'Preview & Export'}</h3>
                 {/* Chevron indicator for expand/collapse */}

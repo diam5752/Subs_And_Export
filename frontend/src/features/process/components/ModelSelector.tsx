@@ -77,8 +77,8 @@ export function ModelSelector() {
 
                 // Minimal Visual Stats
                 // Standard: Speed 100%, Quality 75%
-                // Pro: Speed 60%, Quality 100%
-                const speedPercent = isPro ? 60 : 100;
+                // Pro: Speed 85%, Quality 100%
+                const speedPercent = isPro ? 85 : 100;
                 const qualityPercent = isPro ? 100 : 75;
 
                 // Theme Colors
@@ -136,39 +136,77 @@ export function ModelSelector() {
                             </span>
                         </div>
 
-                        {/* Minimal Stats: Speed & Quality */}
+                        {/* Minimal Stats: Speed & Quality (Out of 5) */}
                         <div className="space-y-4 mt-auto">
-                            {/* Speed Bar */}
-                            <div className="space-y-1.5">
+                            {/* Speed Bar - 5 futuristic segments */}
+                            <div className="space-y-2">
                                 <div className="flex justify-between text-[11px] font-bold uppercase tracking-wider text-[var(--muted)]">
                                     <span>{t('statSpeed')}</span>
-                                    {isPro ?
-                                        <span className="opacity-60">Medium</span> :
-                                        <span className="text-emerald-400">Fast</span>
-                                    }
                                 </div>
-                                <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
-                                    <div
-                                        className={`h-full rounded-full transition-all duration-700 ease-out ${isPro ? 'bg-[var(--accent)]' : 'bg-emerald-500'}`}
-                                        style={{ width: `${speedPercent}%`, opacity: isSelected ? 1 : 0.6 }}
-                                    />
+                                <div className="flex gap-1.5">
+                                    {[1, 2, 3, 4, 5].map((level) => {
+                                        const speedLevel = isPro ? 4.5 : 5;
+                                        const isFull = level <= Math.floor(speedLevel);
+                                        const isHalf = level === Math.ceil(speedLevel) && speedLevel % 1 !== 0;
+                                        const isEmpty = level > Math.ceil(speedLevel);
+
+                                        return (
+                                            <div
+                                                key={level}
+                                                className={`h-2.5 flex-1 rounded-full transition-all duration-500 relative overflow-hidden ${isEmpty
+                                                    ? 'bg-white/[0.08] border border-white/[0.05]'
+                                                    : ''} ${isFull
+                                                        ? (isPro
+                                                            ? 'bg-gradient-to-r from-orange-600 to-orange-400 shadow-[0_0_12px_rgba(249,115,22,0.4)]'
+                                                            : 'bg-gradient-to-r from-emerald-600 to-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.4)]')
+                                                        : ''}`}
+                                                style={{ opacity: isSelected ? 1 : ((isFull || isHalf) ? 0.7 : 0.4) }}
+                                            >
+                                                {isHalf && (
+                                                    <>
+                                                        <div className={`absolute inset-0 w-1/2 rounded-l-full ${isPro ? 'bg-gradient-to-r from-orange-600 to-orange-500' : 'bg-gradient-to-r from-emerald-600 to-emerald-500'}`} />
+                                                        <div className="absolute inset-0 w-full bg-white/[0.08] rounded-full" style={{ clipPath: 'inset(0 0 0 50%)' }} />
+                                                    </>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             </div>
 
-                            {/* Accuracy Bar */}
-                            <div className="space-y-1.5">
+                            {/* Accuracy Bar - 5 futuristic segments (Standard: 3.5/5) */}
+                            <div className="space-y-2">
                                 <div className="flex justify-between text-[11px] font-bold uppercase tracking-wider text-[var(--muted)]">
                                     <span>{t('statAccuracy')}</span>
-                                    {isPro ?
-                                        <span className="text-[var(--accent)] drop-shadow-[0_0_8px_rgba(249,115,22,0.6)]">Maximum</span> :
-                                        <span className="opacity-60">Good</span>
-                                    }
                                 </div>
-                                <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
-                                    <div
-                                        className={`h-full rounded-full transition-all duration-700 ease-out ${isPro ? 'bg-[var(--accent)] shadow-[0_0_10px_var(--accent)]' : 'bg-emerald-500'}`}
-                                        style={{ width: `${qualityPercent}%`, opacity: isSelected ? 1 : 0.6 }}
-                                    />
+                                <div className="flex gap-1.5">
+                                    {[1, 2, 3, 4, 5].map((level) => {
+                                        const qualityLevel = isPro ? 5 : 3.5;
+                                        const isFull = level <= Math.floor(qualityLevel);
+                                        const isHalf = level === Math.ceil(qualityLevel) && qualityLevel % 1 !== 0;
+                                        const isEmpty = level > Math.ceil(qualityLevel);
+
+                                        return (
+                                            <div
+                                                key={level}
+                                                className={`h-2.5 flex-1 rounded-full transition-all duration-500 relative overflow-hidden ${isEmpty
+                                                    ? 'bg-white/[0.08] border border-white/[0.05]'
+                                                    : ''} ${isFull
+                                                        ? (isPro
+                                                            ? 'bg-gradient-to-r from-orange-600 to-orange-400 shadow-[0_0_12px_rgba(249,115,22,0.5)]'
+                                                            : 'bg-gradient-to-r from-emerald-600 to-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.4)]')
+                                                        : ''} ${isPro && level === 5 ? 'shadow-[0_0_20px_rgba(249,115,22,0.6)]' : ''}`}
+                                                style={{ opacity: isSelected ? 1 : ((isFull || isHalf) ? 0.7 : 0.4) }}
+                                            >
+                                                {isHalf && (
+                                                    <>
+                                                        <div className={`absolute inset-0 w-1/2 rounded-l-full ${isPro ? 'bg-gradient-to-r from-orange-600 to-orange-500' : 'bg-gradient-to-r from-emerald-600 to-emerald-500'}`} />
+                                                        <div className="absolute inset-0 w-full bg-white/[0.08] rounded-full" style={{ clipPath: 'inset(0 0 0 50%)' }} />
+                                                    </>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             </div>
                         </div>
@@ -220,52 +258,59 @@ export function ModelSelector() {
 
     return useMemo(() => (
         <div id="model-selection-step" className="card space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 relative z-50">
                 <div
                     role="button"
                     tabIndex={0}
                     onKeyDown={handleKeyDown}
-                    className={`flex items-center gap-4 transition-all duration-300 cursor-pointer group/step ${currentStep !== 1 ? 'opacity-100 hover:scale-[1.005]' : 'opacity-100 scale-[1.01]'}`}
+                    className={`flex items-center gap-3 transition-all duration-300 cursor-pointer group/step ${currentStep !== 1 ? 'opacity-100 hover:scale-[1.005]' : 'opacity-100 scale-[1.01]'}`}
                     onClick={handleStepClick}
                 >
-                    <span className={`flex items-center justify-center px-4 py-1 rounded-full border font-mono text-sm font-bold tracking-widest shadow-sm transition-all duration-500 ${currentStep === 1
+                    <span className={`flex items-center justify-center px-4 py-1 rounded-full border font-mono text-sm font-bold tracking-widest shadow-sm transition-all duration-500 shrink-0 ${currentStep === 1
                         ? 'bg-gradient-to-r from-[var(--accent)] to-[var(--accent-secondary)] border-transparent text-white shadow-[0_0_20px_var(--accent)] scale-105'
                         : 'glass-premium border-[var(--border)] text-[var(--muted)]'
                         }`}>STEP 1</span>
-                    <div>
-                        <h3 className="text-xl font-semibold">{t('modelSelectTitle') || 'Pick a Model'}</h3>
-                        <div className="flex items-center gap-2 mt-1 ml-0.5">
-                            <p className="text-sm text-[var(--muted)]">{t('modelSelectSubtitle')}</p>
-                            <div className="group/info relative relative z-50">
-                                <svg className="w-4 h-4 text-[var(--muted)] hover:text-white cursor-help transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
 
-                                {/* Tooltip */}
-                                <div className="absolute left-1/2 -translate-x-1/2 top-6 w-72 bg-[#0A0A0A] border border-[var(--border)] rounded-xl p-4 shadow-2xl opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-200 z-[100] backdrop-blur-xl">
-                                    <div className="space-y-4">
-                                        <div className="space-y-1.5">
-                                            <div className="flex items-center gap-2 text-emerald-500 font-bold text-xs uppercase tracking-wider">
-                                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                                                Standard
-                                            </div>
-                                            <p className="text-xs leading-relaxed text-[var(--muted)]">Lightning fast & cost-effective. Perfect for clear English audio, podcasts, and content where speed matters.</p>
-                                        </div>
-                                        <div className="space-y-1.5 border-t border-white/5 pt-3">
-                                            <div className="flex items-center gap-2 text-[var(--accent)] font-bold text-xs uppercase tracking-wider">
-                                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
-                                                Pro
-                                            </div>
-                                            <p className="text-xs leading-relaxed text-[var(--muted)]">Maximum precision using Whisper Large V3. Essential for heavy accents, background noise, music lyrics, or translation.</p>
-                                        </div>
+                    <div className="min-w-0">
+                        <h3 className="text-xl font-semibold truncate">{t('modelSelectTitle') || 'Pick a Model'}</h3>
+                        {!hasChosenModel && (
+                            <p className="text-sm text-[var(--muted)] mt-0.5 ml-0.5 truncate">{t('modelSelectSubtitle')}</p>
+                        )}
+                    </div>
+
+                    <div className="group/info relative z-[100] shrink-0">
+                        <svg className="w-5 h-5 text-white/50 hover:text-white cursor-help transition-all duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+
+                        {/* Tooltip Content - Confirmed Solid Background */}
+                        <div className="absolute right-0 top-full mt-3 w-80 bg-zinc-950 border border-neutral-800 rounded-xl p-5 shadow-[0_20px_60px_rgba(0,0,0,0.8)] opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-150 z-[1002] origin-top-right">
+                            <div className="space-y-5">
+                                <div className="space-y-2 text-left">
+                                    <div className="flex items-center gap-2 text-emerald-500 font-bold text-xs uppercase tracking-wider">
+                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                                        Quick & Simple
                                     </div>
+                                    <p className="text-[13px] leading-relaxed text-zinc-400">
+                                        <strong className="text-zinc-200">Great for basic content.</strong> Works well with clear audio and simple speech. Budget-friendly for everyday videos.
+                                    </p>
+                                </div>
+                                <div className="space-y-2 border-t border-white/5 pt-4 text-left">
+                                    <div className="flex items-center gap-2 text-orange-500 font-bold text-xs uppercase tracking-wider">
+                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
+                                        Creator's Choice ✨
+                                    </div>
+                                    <p className="text-[13px] leading-relaxed text-zinc-400">
+                                        <strong className="text-white">What top creators use.</strong> Handles accents, background noise, music & multiple languages flawlessly. Worth every credit.
+                                    </p>
                                 </div>
                             </div>
                         </div>
                     </div>
+
                     {/* Chevron indicator for expand/collapse */}
                     <svg
-                        className={`w-5 h-5 text-[var(--muted)] transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}
+                        className={`w-5 h-5 text-[var(--muted)] transition-transform duration-300 shrink-0 ${isExpanded ? 'rotate-180' : ''}`}
                         fill="none"
                         viewBox="0 0 24 24"
                         stroke="currentColor"
