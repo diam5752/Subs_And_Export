@@ -8,7 +8,7 @@ import math
 import re
 import unicodedata
 from pathlib import Path
-from typing import Any, Callable, List, Optional, Sequence, Tuple
+from typing import Any, Callable, List, Sequence
 
 from backend.app.core.config import settings
 from backend.app.services.subtitle_types import Cue, TimeRange, WordTiming
@@ -38,10 +38,13 @@ def get_text_width(text: str, font_size: int) -> int:
     return int(len(text) * font_size * 0.5)
 
 
+@functools.lru_cache(maxsize=8192)
 def sanitize_ass_text(text: str) -> str:
     """
     Sanitize text to prevent ASS injection.
     Replaces special characters '{', '}' and '\\' to prevent tag injection.
+
+    Cached to optimize performance for repetitive words in subtitles.
     """
     if not text:
         return text
@@ -143,6 +146,9 @@ def generate_active_word_ass(cue: Cue, max_lines: int, primary_color: str, secon
     """
     Generates ASS dialogue lines for 'active word' highlighting.
     Each word gets its own dialogue event, appearing for its duration.
+    
+    When max_lines=0 (single word mode): Show ONLY the active word, nothing else.
+    When max_lines>0: Show all words with the active word highlighted.
     """
     if not cue.words:
         # Fallback to standard dialogue if no word timings
@@ -150,8 +156,19 @@ def generate_active_word_ass(cue: Cue, max_lines: int, primary_color: str, secon
 
     lines = []
 
+    # Single Word Mode (max_lines == 0): Show ONLY the active word, one at a time
+    if max_lines == 0:
+        for word in cue.words:
+            if not word.text.strip():
+                continue
+            # Render just this word in primary color for its duration
+            word_text = f"{{\\c{primary_color}&}}{word.text}"
+            lines.append(format_ass_dialogue(word.start, word.end, word_text))
+        return lines
+
+    # Multi-word Mode (max_lines > 0): Highlight active word in full sentence
     # Reconstruct the line structure from cue.text (which handles max_lines wrapping)
-    # cue.text contains "\N" for line breaks. We must preserve this structure.
+    # cue.text contains "\\N" for line breaks. We must preserve this structure.
     # We map the flattened cue.words list into a nested structure based on cue.text lines.
 
     line_struct: List[List[WordTiming]] = []
@@ -238,13 +255,13 @@ def normalize_cues_for_ass(cues: Sequence[Cue]) -> List[Cue]:
             continue
 
         # If overlapping, clamp current to (next.start - gap) when possible.
-        # Rationale: We prefer to show the next subtitle accurately as it's often 
+        # Rationale: We prefer to show the next subtitle accurately as it's often
         # a fresh sentence or thought.
         desired_end = next_cue.start - min_gap_s
-        
+
         # If segments strictly overlap (current.end > next.start)
         if current.end > next_cue.start:
-            logger.info("Overlap detected: Current(%s-%s) meets Next(%s-%s). Desired End: %s", 
+            logger.info("Overlap detected: Current(%s-%s) meets Next(%s-%s). Desired End: %s",
                         current.start, current.end, next_cue.start, next_cue.end, desired_end)
 
             # Check if clamping would destroy the segment
@@ -760,7 +777,7 @@ def create_styled_subtitle_file(
         )
         parsed_cues = normalize_cues_for_ass(parsed_cues)
 
-    
+
     output_dir = output_dir or transcript_path.parent
     output_dir.mkdir(parents=True, exist_ok=True)
     ass_path = output_dir / f"{transcript_path.stem}.ass"

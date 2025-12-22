@@ -650,3 +650,66 @@ def test_generate_video_variant_glob_srt(monkeypatch, tmp_path):
         "job1", input_video, artifact_dir, "1280x720", job_store, "u1"
     )
     assert res.exists()
+
+
+def test_generate_video_variant_active_graphics_maps_to_active(monkeypatch, tmp_path: Path):
+    """
+    REGRESSION: generate_video_variant must convert 'active-graphics' to 'active'
+    for proper subtitle highlighting in exports.
+    """
+    artifact_dir = tmp_path / "artifacts"
+    artifact_dir.mkdir()
+    input_video = tmp_path / "in.mp4"
+    input_video.touch()
+    (artifact_dir / "in.srt").touch()
+    
+    # Create transcription.json with word timings
+    transcription_data = [
+        {
+            "start": 0,
+            "end": 1,
+            "text": "Hello world",
+            "words": [
+                {"start": 0, "end": 0.5, "text": "Hello"},
+                {"start": 0.5, "end": 1, "text": "world"}
+            ]
+        }
+    ]
+    (artifact_dir / "transcription.json").write_text(
+        json.dumps(transcription_data), encoding="utf-8"
+    )
+    
+    job_store = MagicMock()
+    job = MagicMock()
+    job.user_id = "u1"
+    job.result_data = {"subtitle_size": 100}
+    job_store.get_job.return_value = job
+    
+    # Capture kwargs passed to create_styled_subtitle_file
+    style_calls = []
+    ass_output = artifact_dir / "in.ass"
+    def capture_style(*args, **kwargs):
+        style_calls.append(kwargs)
+        ass_output.touch()  # Create the file so fallback path is not triggered
+        return ass_output
+    
+    monkeypatch.setattr(subtitles, "create_styled_subtitle_file", capture_style)
+    def fake_burn(*args, **kwargs):
+        Path(args[2]).touch()
+    monkeypatch.setattr(ffmpeg_utils, "run_ffmpeg_with_subs", fake_burn)
+    
+    # Call with active-graphics highlight style
+    video_processing.generate_video_variant(
+        "job1", input_video, artifact_dir, "1280x720", job_store, "u1",
+        subtitle_settings={
+            "highlight_style": "active-graphics",
+            "karaoke_enabled": True,
+            "subtitle_size": 100,
+        }
+    )
+    
+    # Should be mapped to 'active' because words are present
+    assert len(style_calls) == 1
+    assert style_calls[0]["highlight_style"] == "active", \
+        f"Expected 'active' but got '{style_calls[0]['highlight_style']}'"
+

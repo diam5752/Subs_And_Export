@@ -193,6 +193,8 @@ def export_video(
         if subtitle_settings.get("subtitle_size") is not None:
             subtitle_settings["subtitle_size"] = validate_subtitle_size(int(subtitle_settings["subtitle_size"]))
 
+        logger.info(f"[EXPORT DEBUG] subtitle_settings for job {job_id}: {subtitle_settings}")
+
         output_path = generate_video_variant(
             job_id, input_video, artifact_dir, request.resolution,
             job_store, current_user.id, subtitle_settings=subtitle_settings or None,

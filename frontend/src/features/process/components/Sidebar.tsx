@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, memo } from 'react';
+import { Spinner } from '@/components/Spinner';
 import { useI18n } from '@/context/I18nContext';
 import { useProcessContext } from '../ProcessContext';
 import { usePlaybackContext } from '../PlaybackContext';
@@ -114,7 +115,10 @@ const TranscriptPanel = memo(() => {
         }
     }, [activeCueIndex, editingCueIndex, transcriptContainerRef]);
 
-    return (
+    // Optimized: Memoize the JSX to prevent VDOM re-creation on every frame (60fps)
+    // TranscriptPanel re-renders on every currentTime update, but the VDOM structure
+    // should only change when relevant state (activeCueIndex, editing state) changes.
+    return useMemo(() => (
         <div
             role="tabpanel"
             id="panel-transcript"
@@ -128,7 +132,7 @@ const TranscriptPanel = memo(() => {
             )}
             {isSavingTranscript && (
                 <div className="flex items-center gap-2 px-1 text-xs text-[var(--muted)]">
-                    <span className="animate-spin">⏳</span>
+                    <Spinner className="w-3.5 h-3.5 text-[var(--muted)]" />
                     {t('transcriptSaving') || 'Saving…'}
                 </div>
             )}
@@ -158,7 +162,21 @@ const TranscriptPanel = memo(() => {
                 )}
             </div>
         </div>
-    );
+    ), [
+        activeCueIndex,
+        cues,
+        editingCueIndex,
+        editingCueDraft,
+        isSavingTranscript,
+        transcriptSaveError,
+        transcriptContainerRef,
+        handleSeek,
+        beginEditingCue,
+        saveEditingCue,
+        cancelEditingCue,
+        handleUpdateDraft,
+        t
+    ]);
 });
 TranscriptPanel.displayName = 'TranscriptPanel';
 

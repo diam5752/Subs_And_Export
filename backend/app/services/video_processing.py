@@ -439,15 +439,23 @@ def generate_video_variant(
         requested_highlight_style = str(subtitle_settings.get("highlight_style") or "karaoke").lower()
         highlight_style = "static" if not karaoke_enabled else requested_highlight_style
 
+        # Convert active-graphics to active if words are available
+        has_words = bool(cues and any(c.words for c in cues))
+        if highlight_style == "active-graphics":
+            highlight_style = "active" if has_words else "karaoke"
+
         # FIX: Always use reference resolution (1080x1920) for ASS generation.
         base_width, base_height = settings.default_width, settings.default_height
+
+        resolved_color = str(subtitle_settings.get("subtitle_color") or settings.default_sub_color)
+        logger.info(f"[GENERATE_VARIANT DEBUG] Color being used: {resolved_color}, highlight_style: {highlight_style}, max_lines: {_resolve_param(subtitle_settings.get('max_subtitle_lines'), 2)}")
 
         ass_path = subtitles.create_styled_subtitle_file(
             transcript_path,
             cues=cues,
             subtitle_position=settings_utils.parse_legacy_position(subtitle_settings.get("subtitle_position")),
             max_lines=_resolve_param(subtitle_settings.get("max_subtitle_lines"), 2),
-            primary_color=str(subtitle_settings.get("subtitle_color") or settings.default_sub_color),
+            primary_color=resolved_color,
             shadow_strength=_resolve_param(subtitle_settings.get("shadow_strength"), 4),
             font_size=font_size,
             highlight_style=highlight_style,
@@ -485,6 +493,11 @@ def generate_video_variant(
                     ))
             except Exception as e:
                 logger.warning(f"Failed to load transcription.json: {e}")
+
+        # Convert active-graphics to active if words are available
+        has_words = bool(cues and any(c.words for c in cues))
+        if highlight_style == "active-graphics":
+            highlight_style = "active" if has_words else "karaoke"
 
         base_width, base_height = settings.default_width, settings.default_height
 

@@ -8,7 +8,7 @@ import subprocess
 import tempfile
 import time
 from pathlib import Path
-from typing import Callable, Iterable, List, Optional, Tuple
+from typing import Callable, Iterable, List, Tuple
 
 import stable_whisper
 
@@ -19,7 +19,7 @@ from backend.app.services import (
     social_intelligence,
     subtitle_renderer,
 )
-from backend.app.services.subtitle_types import Cue, TimeRange, WordTiming
+from backend.app.services.subtitle_types import Cue, TimeRange
 
 logger = logging.getLogger(__name__)
 
@@ -124,7 +124,10 @@ def _write_srt_from_segments(segments: Iterable[TimeRange], dest: Path) -> Path:
         end_ts = subtitle_renderer.format_timestamp(end)
         lines.append(str(idx))
         lines.append(f"{start_ts.replace('.', ',')} --> {end_ts.replace('.', ',')}")
-        lines.append(text.strip())
+        # Security: Sanitize text to prevent SRT injection via double newlines
+        # Replace 2+ newlines with a single newline to maintain multiline but prevent cue splitting
+        clean_text = re.sub(r'(\r?\n){2,}', '\n', text.strip())
+        lines.append(clean_text)
         lines.append("")  # blank line separator
     dest.write_text("\n".join(lines), encoding="utf-8")
     return dest
