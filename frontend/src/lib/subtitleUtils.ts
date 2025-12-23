@@ -11,6 +11,10 @@ const BASE_SAFE_WIDTH = BASE_VIDEO_WIDTH * (1 - SAFE_MARGIN_PCT * 2);
 const OVERLAY_FONT_FAMILY = "'Arial Black', 'Montserrat', sans-serif";
 const OVERLAY_FONT_WEIGHT = 900;
 
+// Optimization: Persistent Text Measurement Cache
+const _measureCache = new Map<string, number>();
+const MAX_CACHE_SIZE = 5000;
+
 /**
  * Estimate the effective character limit per line based on font size and video width.
  * Mirrored from backend `_effective_max_chars`
@@ -62,6 +66,11 @@ function getSharedMeasurerCanvas(): HTMLCanvasElement | null {
     return _sharedMeasurerCanvas;
 }
 
+// Export for testing
+export function _resetWordWidthCache() {
+    _measureCache.clear();
+}
+
 function createTextMeasurer(fontSizePercent: number): TextMeasurer | null {
     const canvas = getSharedMeasurerCanvas();
     if (!canvas) return null;
@@ -76,12 +85,21 @@ function createTextMeasurer(fontSizePercent: number): TextMeasurer | null {
     // Using a conservative 90% width below handles this implicitly.
     ctx.font = `${OVERLAY_FONT_WEIGHT} ${fontSizePx}px ${OVERLAY_FONT_FAMILY}`;
 
-    const cache = new Map<string, number>();
     const measureText = (text: string) => {
-        const cached = cache.get(text);
+        const cacheKey = `${fontSizePx}:${text}`;
+        const cached = _measureCache.get(cacheKey);
+
         if (cached !== undefined) return cached;
+
         const width = ctx.measureText(text).width;
-        cache.set(text, width);
+
+        if (_measureCache.size >= MAX_CACHE_SIZE) {
+            // Simple eviction: clear everything.
+            // In practice, this happens rarely (only if user tries tons of font sizes in one session).
+            _measureCache.clear();
+        }
+
+        _measureCache.set(cacheKey, width);
         return width;
     };
 
@@ -95,7 +113,7 @@ function createTextMeasurer(fontSizePercent: number): TextMeasurer | null {
 }
 
 /**
- * Flatten all words from a list of cues into a single timeline.
+ * Flatten all words from a list of cues into a single transcript string.
  */
 function expandPhraseTiming(word: TranscriptionWordTiming): TranscriptionWordTiming[] {
     const normalized = word.text.trim();
