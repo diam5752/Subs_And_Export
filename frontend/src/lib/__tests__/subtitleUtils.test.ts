@@ -1,5 +1,5 @@
 
-import { resegmentCues, findCueIndexAtTime, findCueAtTime } from '../subtitleUtils';
+import { resegmentCues, findCueIndexAtTime, findCueAtTime, resetWordWidthCache } from '../subtitleUtils';
 import { TranscriptionCue as Cue } from '../api';
 
 // Mock cues
@@ -9,6 +9,10 @@ const mockCues: Cue[] = [
 ];
 
 describe('resegmentCues', () => {
+    beforeEach(() => {
+        resetWordWidthCache();
+    });
+
     it('should return empty list for empty input', () => {
         expect(resegmentCues([], 2, 100)).toEqual([]);
     });
