@@ -50,6 +50,16 @@ type TextMeasurer = {
 };
 
 let _sharedMeasurerCanvas: HTMLCanvasElement | null = null;
+const _measureCache = new Map<string, number>();
+const MAX_CACHE_SIZE = 10000;
+
+/**
+ * Exported for testing purposes only to allow cache reset between tests.
+ * @internal
+ */
+export function resetWordWidthCache() {
+    _measureCache.clear();
+}
 
 function getSharedMeasurerCanvas(): HTMLCanvasElement | null {
     /* istanbul ignore next -- exercised in browser or via canvas mocking */
@@ -76,12 +86,22 @@ function createTextMeasurer(fontSizePercent: number): TextMeasurer | null {
     // Using a conservative 90% width below handles this implicitly.
     ctx.font = `${OVERLAY_FONT_WEIGHT} ${fontSizePx}px ${OVERLAY_FONT_FAMILY}`;
 
-    const cache = new Map<string, number>();
     const measureText = (text: string) => {
-        const cached = cache.get(text);
+        // Cache key includes font size to prevent collisions when resizing
+        const key = `${fontSizePx}:${text}`;
+        const cached = _measureCache.get(key);
         if (cached !== undefined) return cached;
+
         const width = ctx.measureText(text).width;
-        cache.set(text, width);
+
+        // Simple eviction: if cache gets too big, clear it all.
+        // This is O(1) compared to LRU eviction logic and sufficient for this use case
+        // (batch processing usually happens at one font size).
+        if (_measureCache.size >= MAX_CACHE_SIZE) {
+            _measureCache.clear();
+        }
+
+        _measureCache.set(key, width);
         return width;
     };
 
