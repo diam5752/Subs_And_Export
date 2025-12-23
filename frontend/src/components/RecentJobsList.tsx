@@ -45,11 +45,35 @@ export const RecentJobsList = memo(function RecentJobsList({
     const [deletingJobId, setDeletingJobId] = useState<string | null>(null);
     const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
+    // Refs for focus management
+    const batchDeleteBtnRef = useRef<HTMLButtonElement>(null);
+    const confirmBatchBtnRef = useRef<HTMLButtonElement>(null);
+    const prevBatchConfirmingRef = useRef(confirmBatchDelete);
+
     // Keep track of selectedJobId in a ref to avoid re-creating handleDeleteJob when it changes
     const selectedJobIdRef = useRef(selectedJobId);
     useEffect(() => {
         selectedJobIdRef.current = selectedJobId;
     }, [selectedJobId]);
+
+    // Focus management for batch delete confirmation
+    useEffect(() => {
+        // Entering confirmation mode
+        if (confirmBatchDelete && !prevBatchConfirmingRef.current) {
+            requestAnimationFrame(() => {
+                confirmBatchBtnRef.current?.focus();
+            });
+        }
+
+        // Exiting confirmation mode (cancelling)
+        if (!confirmBatchDelete && prevBatchConfirmingRef.current) {
+            requestAnimationFrame(() => {
+                batchDeleteBtnRef.current?.focus();
+            });
+        }
+
+        prevBatchConfirmingRef.current = confirmBatchDelete;
+    }, [confirmBatchDelete]);
 
     const handleDeleteJob = useCallback(async (jobId: string) => {
         setDeletingJobId(jobId);
@@ -139,6 +163,7 @@ export const RecentJobsList = memo(function RecentJobsList({
                                 {t('deleteSelectedConfirm') || `Delete ${selectedJobIds.size} items?`}
                             </span>
                             <button
+                                ref={confirmBatchBtnRef}
                                 onClick={async () => {
                                     setIsBatchDeleting(true);
                                     try {
@@ -159,7 +184,7 @@ export const RecentJobsList = memo(function RecentJobsList({
                                     }
                                 }}
                                 disabled={isBatchDeleting}
-                                className="text-xs px-3 py-1.5 rounded bg-[var(--danger)] text-white hover:bg-[var(--danger)]/80 disabled:opacity-50"
+                                className="text-xs px-3 py-1.5 rounded bg-[var(--danger)] text-white hover:bg-[var(--danger)]/80 disabled:opacity-50 min-w-[60px]"
                             >
                                 {isBatchDeleting ? '...' : (t('confirmDelete') || 'Confirm')}
                             </button>
@@ -172,6 +197,7 @@ export const RecentJobsList = memo(function RecentJobsList({
                         </div>
                     ) : (
                         <button
+                            ref={batchDeleteBtnRef}
                             onClick={() => setConfirmBatchDelete(true)}
                             disabled={selectedJobIds.size === 0}
                             className="text-xs px-3 py-1.5 rounded border border-[var(--danger)] text-[var(--danger)] hover:bg-[var(--danger)]/10 disabled:opacity-50 disabled:cursor-not-allowed"
