@@ -186,33 +186,65 @@ def generate_active_word_ass(cue: Cue, max_lines: int, primary_color: str, secon
         # Fallback if text/words desync (should not happen with normal flow)
         line_struct = [cue.words]
 
-    # Helper to build text for a specific active word (or None for all dim)
-    def build_text(active_word: WordTiming | None, *, hide_inactive: bool = False) -> str:
-        built_lines = []
-        for line_words in line_struct:
-            colored_tokens = []
-            for w in line_words:
-                is_active = w == active_word
-                if hide_inactive and not is_active:
-                    alpha = "&HFF&"
-                    color = secondary_color
-                else:
-                    alpha = "&H00&"
-                    color = primary_color if is_active else secondary_color
-                colored_tokens.append(f"{{\\alpha{alpha}\\c{color}&}}{w.text}")
-            built_lines.append(" ".join(colored_tokens))
-        return "\\N".join(built_lines)
+    # Optimization: Pre-calculate formatted strings for all words to avoid N^2 string formatting
+    # We need 3 states for each word:
+    # 1. Base Dim (visible, secondary color) - for Layer 0
+    # 2. Active Highlight (visible, primary color) - for Layer 1 (active word)
+    # 3. Hidden (transparent) - for Layer 1 (inactive words)
 
-    # 1. Base Layer (Layer 0): All Dim (Secondary Color)
-    # We render this for the FULL DURATION to provide the background.
-    full_text_dim = build_text(active_word=None)
+    # Map word object ID to its pre-calculated format tuple: (base_dim, active_lit, hidden)
+    # We use object ID because WordTiming instances in cue.words are unique objects per word
+    word_formats = {}
+
+    # Pre-calculate formatting strings once
+    base_dim_template = f"{{\\alpha&H00&\\c{secondary_color}&}}"
+    active_lit_template = f"{{\\alpha&H00&\\c{primary_color}&}}"
+    hidden_template = f"{{\\alpha&HFF&\\c{secondary_color}&}}"
+
+    # Flatten logic to pre-calc for all unique words found in line_struct
+    # (Note: line_struct contains references to the same objects as cue.words)
+    for line_words in line_struct:
+        for w in line_words:
+            w_id = id(w)
+            if w_id not in word_formats:
+                word_formats[w_id] = (
+                    f"{base_dim_template}{w.text}",   # 0: Base Dim
+                    f"{active_lit_template}{w.text}", # 1: Active Lit
+                    f"{hidden_template}{w.text}"      # 2: Hidden
+                )
+
+    # 1. Base Layer (Layer 0): All Dim
+    base_lines = []
+    for line_words in line_struct:
+        # Join using the Base Dim version (index 0)
+        line_parts = [word_formats[id(w)][0] for w in line_words]
+        base_lines.append(" ".join(line_parts))
+
+    full_text_dim = "\\N".join(base_lines)
     lines.append(format_ass_dialogue(cue.start, cue.end, full_text_dim, layer=0))
 
-    # 2. Active Layers (Layer 1): One event per word, Highlighting that word
+    # 2. Active Layers (Layer 1): One event per word
+    # For each word, we reconstruct the full text but with THAT word 'lit' and others 'hidden'
     for word in cue.words:
-        # Render ONLY the active word on this layer; base layer provides the rest.
-        active_text = build_text(active_word=word, hide_inactive=True)
-        # Layer 1 stands ON TOP of Layer 0
+        target_id = id(word)
+
+        # Check if word is actually used in the structure (handling potential sync issues)
+        if target_id not in word_formats:
+            continue
+
+        built_lines = []
+        for line_words in line_struct:
+            line_parts = []
+            for w in line_words:
+                w_id = id(w)
+                # If this is the active word, use Active Lit (index 1)
+                # Otherwise use Hidden (index 2)
+                fmt_idx = 1 if w_id == target_id else 2
+                line_parts.append(word_formats[w_id][fmt_idx])
+
+            built_lines.append(" ".join(line_parts))
+
+        active_text = "\\N".join(built_lines)
         lines.append(format_ass_dialogue(word.start, word.end, active_text, layer=1))
 
     return lines
