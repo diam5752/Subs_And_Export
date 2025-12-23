@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback, useState, useEffect } from 'react';
+import React, { useMemo, useCallback, useState } from 'react';
 import { useI18n } from '@/context/I18nContext';
 import { useProcessContext, TranscribeProvider, TranscribeMode } from '../ProcessContext';
 import { TokenIcon } from '@/components/icons';
@@ -22,12 +22,10 @@ export function ModelSelector() {
     // Local state to allow collapsing Step 1 even when it is active
     const [localCollapsed, setLocalCollapsed] = useState(false);
 
-    // Reset local collapsed state when step changes
-    useEffect(() => {
-        if (currentStep !== 1) {
-            setLocalCollapsed(false);
-        }
-    }, [currentStep]);
+    // Reset local collapsed state when step changes using render-time derivation/check
+    if (currentStep !== 1 && localCollapsed) {
+        setLocalCollapsed(false);
+    }
 
     // Collapsed state - expands automatically when on Step 1, unless manually collapsed
     const isExpanded = currentStep === 1 && !localCollapsed;
@@ -78,13 +76,10 @@ export function ModelSelector() {
                 // Minimal Visual Stats
                 // Standard: Speed 100%, Quality 75%
                 // Pro: Speed 85%, Quality 100%
-                const speedPercent = isPro ? 85 : 100;
-                const qualityPercent = isPro ? 100 : 75;
 
                 // Theme Colors
                 // Standard: Emerald (Green)
                 // Pro: Neon Orange (Accent)
-                const themeColor = isPro ? 'var(--accent)' : '#10b981'; // Emerald-500
                 const themeClass = isPro ? 'text-[var(--accent)]' : 'text-emerald-500';
                 const bgClass = isPro ? 'bg-[var(--accent)]' : 'bg-emerald-500';
                 const borderClass = isPro ? 'border-[var(--accent)]' : 'border-emerald-500';
@@ -223,7 +218,7 @@ export function ModelSelector() {
                 );
             })}
         </div>
-    ), [AVAILABLE_MODELS, transcribeProvider, transcribeMode, hasChosenModel, t, setTranscribeProvider, setTranscribeMode, setHasChosenModel, setOverrideStep, scrollToUploadStep]);
+    ), [AVAILABLE_MODELS, hasChosenModel, setHasChosenModel, setOverrideStep, setTranscribeMode, setTranscribeProvider, t, transcribeMode, transcribeProvider, scrollToUploadStep]);
 
     const handleStepClick = useCallback(() => {
         if (currentStep === 1) {
@@ -233,17 +228,14 @@ export function ModelSelector() {
             setLocalCollapsed(false);
 
             // Match scrolling behavior from ProcessView.tsx
-            // Instead of scrolling to absolute top, scroll to the wrapper with correct offset
             const element = document.getElementById('step-1-wrapper');
             if (element) {
                 const rect = element.getBoundingClientRect();
                 const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-                // 20px offset matches the one used in ProcessView.tsx for Step 1
                 const offset = 20;
                 const targetY = rect.top + scrollTop - offset;
                 window.scrollTo({ top: targetY, behavior: 'smooth' });
             } else {
-                // Fallback
                 window.scrollTo({ top: 0, behavior: 'smooth' });
             }
         }
@@ -260,31 +252,44 @@ export function ModelSelector() {
         <div id="model-selection-step" className="card space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3 relative z-50">
                 <div
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={handleKeyDown}
-                    className={`flex items-center gap-3 transition-all duration-300 cursor-pointer group/step ${currentStep !== 1 ? 'opacity-100 hover:scale-[1.005]' : 'opacity-100 scale-[1.01]'}`}
-                    onClick={handleStepClick}
+                    className={`flex items-center gap-3 transition-all duration-300 group/step ${currentStep !== 1 ? 'opacity-100 hover:scale-[1.005]' : 'opacity-100 scale-[1.01]'}`}
                 >
-                    <span className={`flex items-center justify-center px-4 py-1 rounded-full border font-mono text-sm font-bold tracking-widest shadow-sm transition-all duration-500 shrink-0 ${currentStep === 1
-                        ? 'bg-gradient-to-r from-[var(--accent)] to-[var(--accent-secondary)] border-transparent text-white shadow-[0_0_20px_var(--accent)] scale-105'
-                        : 'glass-premium border-[var(--border)] text-[var(--muted)]'
-                        }`}>STEP 1</span>
+                    {/* Main Clickable Area (Badge + Text) */}
+                    <div
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={handleKeyDown}
+                        onClick={handleStepClick}
+                        className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
+                    >
+                        <span className={`flex items-center justify-center px-4 py-1 rounded-full border font-mono text-sm font-bold tracking-widest shadow-sm transition-all duration-500 shrink-0 ${currentStep === 1
+                            ? 'bg-gradient-to-r from-[var(--accent)] to-[var(--accent-secondary)] border-transparent text-white shadow-[0_0_20px_var(--accent)] scale-105'
+                            : 'glass-premium border-[var(--border)] text-[var(--muted)]'
+                            }`}>STEP 1</span>
 
-                    <div className="min-w-0">
-                        <h3 className="text-xl font-semibold truncate">{t('modelSelectTitle') || 'Pick a Model'}</h3>
-                        {!hasChosenModel && (
-                            <p className="text-sm text-[var(--muted)] mt-0.5 ml-0.5 truncate">{t('modelSelectSubtitle')}</p>
-                        )}
+                        <div className="min-w-0">
+                            <h3 className="text-xl font-semibold truncate">{t('modelSelectTitle') || 'Pick a Model'}</h3>
+                            {!hasChosenModel && (
+                                <p className="text-sm text-[var(--muted)] mt-0.5 ml-0.5 truncate">{t('modelSelectSubtitle')}</p>
+                            )}
+                        </div>
                     </div>
 
-                    <div className="group/info relative z-[100] shrink-0">
-                        <svg className="w-5 h-5 text-white/50 hover:text-white cursor-help transition-all duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    {/* Sibling Info Icon - Separated from main button */}
+                    <div
+                        role="button"
+                        tabIndex={0}
+                        aria-label={t('modelInfo') || "Model Information"}
+                        className="group/info relative z-[100] shrink-0 cursor-help focus:outline-none"
+                        onClick={(e) => e.stopPropagation()} // Prevent triggering step toggle
+                        onKeyDown={(e) => e.stopPropagation()}
+                    >
+                        <svg className="w-5 h-5 text-white/50 hover:text-white group-focus/info:text-white transition-all duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
 
-                        {/* Tooltip Content - Confirmed Solid Background */}
-                        <div className="absolute right-0 top-full mt-3 w-80 bg-zinc-950 border border-neutral-800 rounded-xl p-5 shadow-[0_20px_60px_rgba(0,0,0,0.8)] opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-150 z-[1002] origin-top-right">
+                        {/* Tooltip Content */}
+                        <div className="absolute right-0 top-full mt-3 w-80 bg-zinc-950 border border-neutral-800 rounded-xl p-5 shadow-[0_20px_60px_rgba(0,0,0,0.8)] opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible group-focus/info:opacity-100 group-focus/info:visible transition-all duration-150 z-[1002] origin-top-right focus:outline-none" role="tooltip">
                             <div className="space-y-5">
                                 <div className="space-y-2 text-left">
                                     <div className="flex items-center gap-2 text-emerald-500 font-bold text-xs uppercase tracking-wider">
@@ -298,7 +303,7 @@ export function ModelSelector() {
                                 <div className="space-y-2 border-t border-white/5 pt-4 text-left">
                                     <div className="flex items-center gap-2 text-orange-500 font-bold text-xs uppercase tracking-wider">
                                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
-                                        Creator's Choice ✨
+                                        Creator&apos;s Choice ✨
                                     </div>
                                     <p className="text-[13px] leading-relaxed text-zinc-400">
                                         <strong className="text-white">What top creators use.</strong> Handles accents, background noise, music & multiple languages flawlessly. Worth every credit.
@@ -308,16 +313,25 @@ export function ModelSelector() {
                         </div>
                     </div>
 
-                    {/* Chevron indicator for expand/collapse */}
-                    <svg
-                        className={`w-5 h-5 text-[var(--muted)] transition-transform duration-300 shrink-0 ${isExpanded ? 'rotate-180' : ''}`}
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        data-testid="step-1-chevron"
+                    {/* Chevron indicator - Separate button or part of main? Let's make it clickable too */}
+                    <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={handleStepClick}
+                        onKeyDown={handleKeyDown}
+                        className="cursor-pointer p-1"
+                        aria-label={isExpanded ? (t('collapseStep') || 'Collapse step') : (t('expandStep') || 'Expand step')}
                     >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
+                        <svg
+                            className={`w-5 h-5 text-[var(--muted)] transition-transform duration-300 shrink-0 ${isExpanded ? 'rotate-180' : ''}`}
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            data-testid="step-1-chevron"
+                        >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </div>
                 </div>
                 <div className="flex items-center gap-3">
                     {/* Compact selected model indicator when collapsed */}
