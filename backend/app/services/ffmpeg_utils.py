@@ -45,12 +45,14 @@ def probe_media(input_path: Path) -> MediaProbe:
         "json",
         str(input_path),
     ]
+    # Security: Enforce timeout to prevent DoS via hanging processes
     result = subprocess.run(
         probe_cmd,
         check=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
+        timeout=30.0,
     )
     probe_payload = json.loads(result.stdout or "{}")
 

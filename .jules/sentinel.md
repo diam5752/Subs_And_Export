@@ -73,7 +73,7 @@
 ## 2025-06-27 - [Medium] Missing Input Length Limit on Batch Request
 **Vulnerability:** The `BatchDeleteRequest` accepted a list of unbounded strings (`List[str]`), allowing an attacker to send excessively large payloads (e.g., 1MB strings) that could cause memory exhaustion during parsing or validation.
 **Learning:** `List[str]` in Pydantic does not automatically inherit constraints. You must use `List[Annotated[str, Field(max_length=...)]]` to constrain the items within the list.
-**Prevention:** Audit all list fields in Pydantic models to ensure the contained items have explicit length constraints.
+**Prevention:** Audit all `List` fields in Pydantic models to ensure the contained items have explicit length constraints.
 
 ## 2025-06-29 - [Critical] Insecure Default Environment
 **Vulnerability:** The application defaulted to `DEV` mode when `APP_ENV` was unset, exposing debug endpoints (e.g., `/dev/sample-job`) and potentially insecure configurations in production if the environment variable was missing.
@@ -149,3 +149,8 @@
 **Vulnerability:** The `_write_srt_from_segments` function failed to sanitize double newline characters (`\n\n`), allowing attackers to inject arbitrary SRT cue blocks (e.g. fake timestamps and text) into the generated subtitle file by breaking out of the intended cue structure.
 **Learning:** Text-based formats (ASS, SRT, CSV) rely on specific delimiters (like blank lines in SRT) for structural integrity. User input containing these delimiters must be sanitized to prevent injection attacks.
 **Prevention:** Always collapse or remove structural delimiters (like double newlines) from user inputs before embedding them into line-based file formats.
+
+## 2025-12-27 - [Medium] Missing Timeouts on Subprocess Calls
+**Vulnerability:** `probe_media` and `get_video_duration` utilized `subprocess.run` without a `timeout` argument. This exposed the backend to Denial of Service (DoS) attacks where a malicious or corrupt file could cause the underlying `ffprobe` process to hang indefinitely, tying up worker threads.
+**Learning:** `subprocess.run` blocks by default. Interacting with external binaries (like FFmpeg) on untrusted inputs requires strict time bounds to ensure system availability.
+**Prevention:** Always pass an explicit `timeout` argument (e.g., `timeout=30`) when using `subprocess.run` or `communicate` in synchronous contexts.
