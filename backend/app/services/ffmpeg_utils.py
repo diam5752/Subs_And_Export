@@ -51,6 +51,7 @@ def probe_media(input_path: Path) -> MediaProbe:
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
+        timeout=30,  # Security: Prevent DoS via hanging process
     )
     probe_payload = json.loads(result.stdout or "{}")
 

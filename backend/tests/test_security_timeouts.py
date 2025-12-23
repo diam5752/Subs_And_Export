@@ -99,3 +99,51 @@ def test_groq_transcribe_timeout(monkeypatch, tmp_path):
 
     print("Testing GroqTranscriber...")
     GroqTranscriber(api_key="k").transcribe(audio, tmp_path)
+
+
+# 4. ffmpeg/subprocess tests
+
+def test_ffmpeg_probe_timeout(monkeypatch):
+    """Verify probe_media uses a timeout."""
+    import subprocess
+    from backend.app.services import ffmpeg_utils
+
+    called_with_timeout = False
+
+    class MockResult:
+        stdout = "{}"
+        returncode = 0
+
+    def mock_run_success(*args, **kwargs):
+        nonlocal called_with_timeout
+        if "timeout" in kwargs and kwargs["timeout"] is not None:
+            called_with_timeout = True
+        return MockResult()
+
+    monkeypatch.setattr(subprocess, "run", mock_run_success)
+
+    ffmpeg_utils.probe_media(Path("dummy.mp4"))
+    assert called_with_timeout
+
+
+def test_get_video_duration_timeout(monkeypatch):
+    """Verify get_video_duration uses a timeout."""
+    import subprocess
+    from backend.app.services import subtitles
+
+    called_with_timeout = False
+
+    class MockResult:
+        stdout = b"10.0"
+        returncode = 0
+
+    def mock_run_success(*args, **kwargs):
+        nonlocal called_with_timeout
+        if "timeout" in kwargs and kwargs["timeout"] is not None:
+            called_with_timeout = True
+        return MockResult()
+
+    monkeypatch.setattr(subprocess, "run", mock_run_success)
+
+    subtitles.get_video_duration(Path("dummy.mp4"))
+    assert called_with_timeout
