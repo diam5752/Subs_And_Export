@@ -149,3 +149,8 @@
 **Vulnerability:** The `_write_srt_from_segments` function failed to sanitize double newline characters (`\n\n`), allowing attackers to inject arbitrary SRT cue blocks (e.g. fake timestamps and text) into the generated subtitle file by breaking out of the intended cue structure.
 **Learning:** Text-based formats (ASS, SRT, CSV) rely on specific delimiters (like blank lines in SRT) for structural integrity. User input containing these delimiters must be sanitized to prevent injection attacks.
 **Prevention:** Always collapse or remove structural delimiters (like double newlines) from user inputs before embedding them into line-based file formats.
+
+## 2025-07-21 - [Medium] Missing Timeouts on Synchronous Subprocess Calls
+**Vulnerability:** The `probe_media` and `get_video_duration` functions used `subprocess.run` without a `timeout` argument. Malformed media files causing `ffprobe` to hang could exhaust API worker threads (DoS).
+**Learning:** `subprocess.run` blocks by default. While long-running jobs (transcription) are often async/backgrounded, metadata probes are often synchronous in the request cycle.
+**Prevention:** Always pass `timeout=...` to `subprocess.run`, even for "quick" operations.
