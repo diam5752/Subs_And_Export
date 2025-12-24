@@ -281,20 +281,13 @@ export function ModelSelector() {
                         )}
                     </div>
 
-                    <div
-                        className="group/info relative z-[100] shrink-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-                        role="button"
-                        tabIndex={0}
+                    <button
+                        type="button"
+                        className="group/info relative z-[100] shrink-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] cursor-help"
                         aria-label={t('modelInfo') || "Model comparison information"}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                e.stopPropagation();
-                            }
-                        }}
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <svg className="w-5 h-5 text-white/50 group-focus/info:text-white group-hover/info:text-white cursor-help transition-all duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg className="w-5 h-5 text-white/50 group-focus/info:text-white group-hover/info:text-white transition-all duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
 
@@ -321,7 +314,7 @@ export function ModelSelector() {
                                 </div>
                             </div>
                         </div>
-                    </div>
+                    </button>
 
                     {/* Chevron indicator for expand/collapse */}
                     <svg
