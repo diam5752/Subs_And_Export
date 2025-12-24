@@ -2,7 +2,7 @@
 
 import logging
 import re
-from typing import Union, Any
+from typing import Union
 
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
@@ -15,12 +15,23 @@ logger = logging.getLogger(__name__)
 # Regex to detect internal paths (Unix/Linux focus for container env)
 _PATH_PATTERN = re.compile(r"(\/(?:app|home|var|tmp|usr|etc|opt)\/[\w\-\.\/]+)")
 
+# Regex to detect API keys (OpenAI, Groq, etc)
+# Matches sk-proj-..., sk-svc-..., gsk_... followed by at least 10 chars
+_API_KEY_PATTERN = re.compile(r"(sk-(?:proj|svc)-[a-zA-Z0-9]{10,}|gsk_[a-zA-Z0-9]{10,})")
+
 def sanitize_message(msg: str) -> str:
     """
     Sanitize string messages to prevent leaking internal details.
     """
+    # Scrub API keys first
+    # Using re.sub without count=0 replaces ALL occurrences
+    if _API_KEY_PATTERN.search(msg):
+        msg = _API_KEY_PATTERN.sub("[API_KEY_REDACTED]", msg)
+
+    # Then scrub paths
     if _PATH_PATTERN.search(msg):
-        return _PATH_PATTERN.sub("[INTERNAL_PATH]", msg)
+        msg = _PATH_PATTERN.sub("[INTERNAL_PATH]", msg)
+
     return msg
 
 def sanitize_error(exc: Union[Exception, str]) -> str:
