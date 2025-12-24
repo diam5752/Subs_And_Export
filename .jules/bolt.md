@@ -25,3 +25,7 @@
 ## 2025-05-23 - [Text Sanitization Caching]
 **Learning:** `lru_cache` provides significant speedup (~2.6x) for text sanitization in subtitles by caching repeated words (stop words), even when the underlying operation is simple string replacement.
 **Action:** Use `lru_cache` for stateless string processing functions that are called frequently with repetitive inputs (like word-level processing in transcripts).
+
+## 2025-03-01 - [Global Cache for Canvas Text Measurement]
+**Learning:** `ctx.measureText` is expensive. Creating a new cache `Map` inside the helper function (`createTextMeasurer`) meant the cache was destroyed and recreated on every re-render or re-calculation (e.g. dragging a slider), defeating the purpose of caching.
+**Action:** Move read-only or expensive caches to module scope (global) with a size limit to share results across function calls, and export a reset function for test isolation.

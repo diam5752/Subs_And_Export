@@ -49,6 +49,13 @@ type TextMeasurer = {
     maxLineWidth: number;
 };
 
+const MAX_CACHE_SIZE = 10000;
+const _wordWidthCache = new Map<string, number>();
+
+export function resetWordWidthCache() {
+    _wordWidthCache.clear();
+}
+
 let _sharedMeasurerCanvas: HTMLCanvasElement | null = null;
 
 function getSharedMeasurerCanvas(): HTMLCanvasElement | null {
@@ -76,12 +83,19 @@ function createTextMeasurer(fontSizePercent: number): TextMeasurer | null {
     // Using a conservative 90% width below handles this implicitly.
     ctx.font = `${OVERLAY_FONT_WEIGHT} ${fontSizePx}px ${OVERLAY_FONT_FAMILY}`;
 
-    const cache = new Map<string, number>();
     const measureText = (text: string) => {
-        const cached = cache.get(text);
+        const key = `${fontSizePx}:${text}`;
+        const cached = _wordWidthCache.get(key);
         if (cached !== undefined) return cached;
+
         const width = ctx.measureText(text).width;
-        cache.set(text, width);
+
+        if (_wordWidthCache.size >= MAX_CACHE_SIZE) {
+            const firstKey = _wordWidthCache.keys().next().value;
+            if (firstKey) _wordWidthCache.delete(firstKey);
+        }
+
+        _wordWidthCache.set(key, width);
         return width;
     };
 
