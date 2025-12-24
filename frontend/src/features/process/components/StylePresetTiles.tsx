@@ -86,7 +86,7 @@ export const StylePresetTiles = memo(({
                             e.stopPropagation();
                             onSelectPreset(preset);
                         }}
-                        className={`p-3 rounded-xl border text-left transition-all relative overflow-hidden group flex flex-row gap-3 items-center ${activePreset === preset.id
+                        className={`p-3 rounded-xl border text-left transition-all relative overflow-hidden group flex flex-row gap-3 items-center focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] focus-visible:outline-none ${activePreset === preset.id
                             ? 'border-[var(--accent)] ring-1 ring-[var(--accent)]'
                             : 'border-[var(--border)] hover:border-[var(--accent)]/50'
                             } `}
@@ -132,7 +132,7 @@ export const StylePresetTiles = memo(({
                     if (!lastUsedSettings) return;
                     onSelectLastUsed();
                 }}
-                className={`p-3 rounded-xl border text-left transition-all relative overflow-hidden group flex flex-row gap-3 items-center ${activePreset === 'lastUsed'
+                className={`p-3 rounded-xl border text-left transition-all relative overflow-hidden group flex flex-row gap-3 items-center focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] focus-visible:outline-none ${activePreset === 'lastUsed'
                     ? 'border-[var(--accent)] ring-1 ring-[var(--accent)]'
                     : !lastUsedSettings
                         ? 'border-[var(--border)] opacity-50 grayscale cursor-not-allowed'

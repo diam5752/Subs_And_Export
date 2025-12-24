@@ -316,7 +316,7 @@ export function UploadSection() {
                                 role="button"
                                 tabIndex={0}
                                 onKeyDown={(e) => handleKeyDown(e, () => handleStepClick('upload-section-compact'))}
-                                className={`flex items-center gap-4 transition-all duration-300 cursor-pointer group/step ${currentStep !== 2 ? 'opacity-100 hover:scale-[1.005]' : 'opacity-100 scale-[1.01]'}`}
+                                className={`flex items-center gap-4 transition-all duration-300 cursor-pointer group/step focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:rounded-full focus-visible:outline-none ${currentStep !== 2 ? 'opacity-100 hover:scale-[1.005]' : 'opacity-100 scale-[1.01]'}`}
                                 onClick={() => handleStepClick('upload-section-compact')}
                             >
                                 <span className={`flex items-center justify-center px-4 py-1 rounded-full border font-mono text-sm font-bold tracking-widest shadow-sm transition-all duration-500 ${currentStep === 2
@@ -574,7 +574,7 @@ export function UploadSection() {
                     role="button"
                     tabIndex={0}
                     onKeyDown={(e) => handleKeyDown(e, () => handleStepClick('upload-section'))}
-                    className={`mb-2 flex items-center gap-4 transition-all duration-300 cursor-pointer group/step ${currentStep !== 2 ? (hasChosenModel ? 'opacity-100 hover:scale-[1.005]' : 'opacity-40 grayscale blur-[1px]') : 'opacity-100 scale-[1.01]'}`}
+                    className={`mb-2 flex items-center gap-4 transition-all duration-300 cursor-pointer group/step focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:rounded-full focus-visible:outline-none ${currentStep !== 2 ? (hasChosenModel ? 'opacity-100 hover:scale-[1.005]' : 'opacity-40 grayscale blur-[1px]') : 'opacity-100 scale-[1.01]'}`}
                     onClick={() => handleStepClick('upload-section')}
                 >
                     <span className={`flex items-center justify-center px-4 py-1 rounded-full border font-mono text-sm font-bold tracking-widest shadow-sm transition-all duration-500 ${currentStep === 2
@@ -600,7 +600,7 @@ export function UploadSection() {
                 )}
 
                 <div
-                    className={`card relative overflow-hidden cursor-pointer group transition-all duration-500 ${isDragOver
+                    className={`card relative overflow-hidden cursor-pointer group transition-all duration-500 focus-visible:ring-4 focus-visible:ring-[var(--accent)]/50 focus-visible:outline-none ${isDragOver
                         ? `border-2 border-dashed bg-opacity-10 scale-[1.02] ${activeTheme.borderColor}`
                         : `border-2 ${activeTheme.borderColor} ${activeTheme.glowColor}`
                         } ${!hasChosenModel ? 'grayscale' : ''}`}
@@ -687,7 +687,7 @@ export function UploadSection() {
                             </div>
                             <button
                                 type="button"
-                                className="btn-primary w-full flex items-center justify-center gap-2"
+                                className="btn-primary w-full flex items-center justify-center gap-2 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] focus-visible:ring-[var(--accent)] focus-visible:outline-none"
                                 onClick={handleLoadDevSample}
                                 disabled={isProcessing || devSampleLoading}
                                 aria-busy={devSampleLoading}
@@ -713,10 +713,7 @@ export function UploadSection() {
         selectedFile, t, currentStep, videoInfo, isProcessing, error, hasChosenModel,
         selectedJob, handleStart, onFileSelect, setHasChosenModel, handleKeyDown,
         handleStepClick, activeTheme, isDragOver, selectedModel, showDevTools,
-        selectedJob, handleStart, onFileSelect, setHasChosenModel, handleKeyDown,
-        handleStepClick, activeTheme, isDragOver, selectedModel, showDevTools,
         transcribeProvider, transcribeMode, isExpanded,
-        handleUploadCardClick, handleDragEnter, handleDragLeave, handleDragOver,
         handleUploadCardClick, handleDragEnter, handleDragLeave, handleDragOver,
         handleDrop, fileInputRef, handleLoadDevSample, devSampleLoading,
         devSampleError, handleFileChange, fileValidationError, videoUrl, progress, statusMessage, onCancelProcessing,
