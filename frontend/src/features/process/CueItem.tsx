@@ -1,6 +1,7 @@
 import React, { memo, useRef, useEffect } from 'react';
 import { Cue } from '@/components/SubtitleOverlay';
 import { useI18n } from '@/context/I18nContext';
+import { Spinner } from '@/components/Spinner';
 
 interface CueItemProps {
     cue: Cue;
@@ -131,12 +132,20 @@ export const CueItem = memo(({
                                     className="px-2.5 py-1.5 rounded-md text-xs font-semibold bg-emerald-500/15 text-emerald-200 border border-emerald-500/25 hover:bg-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-1.5"
                                     title="Save (Ctrl+Enter)"
                                     aria-label={t('transcriptSave') || 'Save changes'}
+                                    aria-busy={isSaving}
                                 >
-                                    <span>{isSaving ? (t('transcriptSaving') || 'Saving…') : (t('transcriptSave') || 'Save')}</span>
-                                    {!isSaving && (
-                                        <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1 rounded bg-emerald-500/20 border border-emerald-500/30 text-[9px] font-sans opacity-80">
-                                            ⌘↵
-                                        </kbd>
+                                    {isSaving ? (
+                                        <>
+                                            <Spinner className="w-3.5 h-3.5 text-emerald-200" />
+                                            <span>{t('transcriptSaving') || 'Saving…'}</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <span>{t('transcriptSave') || 'Save'}</span>
+                                            <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1 rounded bg-emerald-500/20 border border-emerald-500/30 text-[9px] font-sans opacity-80">
+                                                ⌘↵
+                                            </kbd>
+                                        </>
                                     )}
                                 </button>
                             </div>
