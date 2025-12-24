@@ -146,7 +146,7 @@ def generate_active_word_ass(cue: Cue, max_lines: int, primary_color: str, secon
     """
     Generates ASS dialogue lines for 'active word' highlighting.
     Each word gets its own dialogue event, appearing for its duration.
-    
+
     When max_lines=0 (single word mode): Show ONLY the active word, nothing else.
     When max_lines>0: Show all words with the active word highlighted.
     """
@@ -224,27 +224,45 @@ def generate_active_word_ass(cue: Cue, max_lines: int, primary_color: str, secon
     lines.append(format_ass_dialogue(cue.start, cue.end, full_text_dim, layer=0))
 
     # 2. Active Layers (Layer 1): One event per word
-    # For each word, we reconstruct the full text but with THAT word 'lit' and others 'hidden'
+    # Optimization: Pre-calculate "All Hidden" lines to avoid O(N^2) string reconstruction
+    # Instead of rebuilding every line for every word, we only rebuild the line containing the active word.
+
+    # Map word object ID to its location in line_struct (row, col)
+    word_locations = {}
+    for r, line_words in enumerate(line_struct):
+        for c, w in enumerate(line_words):
+            word_locations[id(w)] = (r, c)
+
+    # Pre-calculate "All Hidden" parts for each line
+    hidden_lines_struct = []
+    for line_words in line_struct:
+        hidden_lines_struct.append([word_formats[id(w)][2] for w in line_words])
+
+    # Pre-calculate joined "All Hidden" lines (as a list of strings)
+    hidden_lines_joined = [" ".join(parts) for parts in hidden_lines_struct]
+
     for word in cue.words:
         target_id = id(word)
 
         # Check if word is actually used in the structure (handling potential sync issues)
-        if target_id not in word_formats:
+        if target_id not in word_locations:
             continue
 
-        built_lines = []
-        for line_words in line_struct:
-            line_parts = []
-            for w in line_words:
-                w_id = id(w)
-                # If this is the active word, use Active Lit (index 1)
-                # Otherwise use Hidden (index 2)
-                fmt_idx = 1 if w_id == target_id else 2
-                line_parts.append(word_formats[w_id][fmt_idx])
+        row, col = word_locations[target_id]
 
-            built_lines.append(" ".join(line_parts))
+        # Start with all lines hidden (shallow copy of the list of strings)
+        current_lines = list(hidden_lines_joined)
 
-        active_text = "\\N".join(built_lines)
+        # Reconstruct ONLY the specific line that has the active word
+        # Get the hidden parts for this line (shallow copy)
+        active_line_parts = list(hidden_lines_struct[row])
+        # Swap the active word to "Active Lit" (index 1)
+        active_line_parts[col] = word_formats[target_id][1]
+
+        # Re-join this line and update the lines list
+        current_lines[row] = " ".join(active_line_parts)
+
+        active_text = "\\N".join(current_lines)
         lines.append(format_ass_dialogue(word.start, word.end, active_text, layer=1))
 
     return lines
