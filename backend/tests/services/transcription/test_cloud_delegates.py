@@ -20,10 +20,11 @@ def test_groq_transcriber_delegates(tmp_path):
         t = GroqTranscriber(api_key="fake-key")
         t.transcribe(tmp_path / "in.wav", tmp_path, language="fr")
 
-        # Verify initialization (base_url for Groq)
+        # Verify initialization (base_url for Groq, with timeout)
         MockOpenAI.assert_called_with(
             api_key="fake-key",
-            base_url="https://api.groq.com/openai/v1"
+            base_url="https://api.groq.com/openai/v1",
+            timeout=60.0
         )
         # Verify transcribe call
         mock_client.audio.transcriptions.create.assert_called_with(
