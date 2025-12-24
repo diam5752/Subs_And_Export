@@ -518,12 +518,14 @@ export function UploadSection() {
                             </div>
                         </div>
                         {error && (
-                            <div className="rounded-xl border border-[var(--danger)]/30 bg-[var(--danger)]/10 px-4 py-3 text-sm text-[var(--danger)] animate-fade-in">
+                            <div role="alert" className="rounded-xl border border-[var(--danger)]/30 bg-[var(--danger)]/10 px-4 py-3 text-sm text-[var(--danger)] animate-fade-in">
+                                <span className="sr-only">Error: </span>
                                 {error}
                             </div>
                         )}
                         {fileValidationError && (
-                            <div className="rounded-xl border border-[var(--danger)]/30 bg-[var(--danger)]/10 px-4 py-3 text-sm text-[var(--danger)] animate-fade-in">
+                            <div role="alert" className="rounded-xl border border-[var(--danger)]/30 bg-[var(--danger)]/10 px-4 py-3 text-sm text-[var(--danger)] animate-fade-in">
+                                <span className="sr-only">Error: </span>
                                 {fileValidationError}
                             </div>
                         )}
@@ -702,7 +704,10 @@ export function UploadSection() {
                                 )}
                             </button>
                             {devSampleError && (
-                                <p className="text-xs text-[var(--danger)]">{devSampleError}</p>
+                                <p role="alert" className="text-xs text-[var(--danger)]">
+                                    <span className="sr-only">Error: </span>
+                                    {devSampleError}
+                                </p>
                             )}
                         </div>
                     </div>
