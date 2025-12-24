@@ -51,6 +51,7 @@ def probe_media(input_path: Path) -> MediaProbe:
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
+        timeout=30.0,  # Security: Prevent infinite hang if ffprobe stalls
     )
     probe_payload = json.loads(result.stdout or "{}")
 

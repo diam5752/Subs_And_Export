@@ -19,7 +19,7 @@ from backend.app.services import (
     social_intelligence,
     subtitle_renderer,
 )
-from backend.app.services.subtitle_types import Cue, TimeRange
+from backend.app.services.subtitle_types import Cue, TimeRange, WordTiming
 
 logger = logging.getLogger(__name__)
 
@@ -145,7 +145,8 @@ def get_video_duration(path: Path) -> float:
         "default=noprint_wrappers=1:nokey=1",
         str(path),
     ]
-    result = subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    # Security: Timeout enforced to prevent hangs
+    result = subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30.0)
     return float(result.stdout.strip())
 
 
