@@ -63,7 +63,7 @@
 ## 2025-06-25 - [Medium] Missing Input Length Limits in Nested Models
 **Vulnerability:** `TranscriptionCueRequest` and `TikTokUploadRequest` lacked `max_length` constraints on `code` and `state` fields, allowing potential DoS via memory exhaustion or large file writes.
 **Learning:** Secondary or nested Pydantic models often miss validation that is present on primary user models. `BaseModel` does not imply safety.
-**Prevention:** Audit all Pydantic models, especially those used for lists or nested structures, and ensure every `str` field has a `max_length`.
+**Prevention:** Audit all Pydantic models, especially those used for lists or nested structures, and strictly enforce `max_length` on all string fields.
 
 ## 2025-06-26 - [High] DoS via Unbounded Resolution
 **Vulnerability:** The video processing endpoints accepted arbitrary resolution strings (e.g., "100000x100000") via `_parse_resolution` and `ExportRequest`, which FFmpeg would attempt to process, leading to potential server memory exhaustion (DoS).
@@ -73,7 +73,7 @@
 ## 2025-06-27 - [Medium] Missing Input Length Limit on Batch Request
 **Vulnerability:** The `BatchDeleteRequest` accepted a list of unbounded strings (`List[str]`), allowing an attacker to send excessively large payloads (e.g., 1MB strings) that could cause memory exhaustion during parsing or validation.
 **Learning:** `List[str]` in Pydantic does not automatically inherit constraints. You must use `List[Annotated[str, Field(max_length=...)]]` to constrain the items within the list.
-**Prevention:** Audit all list fields in Pydantic models to ensure the contained items have explicit length constraints.
+**Prevention:** Audit all `List` fields in Pydantic models to ensure the contained items have explicit length constraints.
 
 ## 2025-06-29 - [Critical] Insecure Default Environment
 **Vulnerability:** The application defaulted to `DEV` mode when `APP_ENV` was unset, exposing debug endpoints (e.g., `/dev/sample-job`) and potentially insecure configurations in production if the environment variable was missing.
@@ -154,3 +154,7 @@
 **Vulnerability:** The `_refresh_access_token` function and GCS upload/download helpers used default configurations that lack timeouts, allowing operations to hang indefinitely if the metadata server or GCS API becomes unresponsive.
 **Learning:** `google.auth.transport.requests.Request` and `google.cloud.storage` operations do not enforce timeouts by default. Explicit configuration is required for availability.
 **Prevention:** Subclass `Request` to enforce a default timeout for auth calls, and always pass `timeout=...` to storage client methods (`upload_from_filename`, `download_to_filename`).
+## 2025-12-28 - [High] Missing Rate Limiting on OAuth Initiation
+**Vulnerability:** The `/auth/google/url` endpoint triggered database writes (issuing state tokens) without authentication or rate limiting, allowing attackers to fill the state store.
+**Learning:** Endpoints that initiate flows (like OAuth) are public by definition but still consume resources. They are often missed when auditing "login" or "register" endpoints.
+**Prevention:** Apply rate limits (e.g. `limiter_login`) to ALL public endpoints that trigger backend state creation, not just the final submission step.
