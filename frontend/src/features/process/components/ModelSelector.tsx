@@ -81,13 +81,10 @@ export function ModelSelector() {
                 // Minimal Visual Stats
                 // Standard: Speed 100%, Quality 75%
                 // Pro: Speed 85%, Quality 100%
-                const speedPercent = isPro ? 85 : 100;
-                const qualityPercent = isPro ? 100 : 75;
 
                 // Theme Colors
                 // Standard: Emerald (Green)
                 // Pro: Neon Orange (Accent)
-                const themeColor = isPro ? 'var(--accent)' : '#10b981'; // Emerald-500
                 const themeClass = isPro ? 'text-[var(--accent)]' : 'text-emerald-500';
                 const bgClass = isPro ? 'bg-[var(--accent)]' : 'bg-emerald-500';
                 const borderClass = isPro ? 'border-[var(--accent)]' : 'border-emerald-500';
@@ -106,7 +103,7 @@ export function ModelSelector() {
                             setOverrideStep(2);
                             setTimeout(scrollToUploadStep, 350);
                         }}
-                        className={`p-6 rounded-2xl text-left transition-all duration-300 relative overflow-hidden group flex flex-col h-full backface-hidden will-change-transform transform-gpu ${isSelected
+                        className={`p-6 rounded-2xl text-left transition-all duration-300 relative overflow-hidden group flex flex-col h-full backface-hidden will-change-transform transform-gpu focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] focus-visible:ring-[var(--accent)] focus-visible:outline-none ${isSelected
                             ? 'glass-active scale-[1.02] z-10'
                             : `glass-premium hover:scale-[1.01] border-white/5 hover:${borderClass}/50 hover:bg-white/5`
                             } ${isPro && isSelected ? 'shadow-[0_0_30px_-5px_var(--accent)] border-[var(--accent)]' : ''} ${!isPro && isSelected ? 'shadow-[0_0_30px_-5px_rgba(16,185,129,0.4)] border-emerald-500' : ''} ${!isSelected ? (isPro ? 'hover:shadow-[0_10px_30px_-10px_rgba(249,115,22,0.15)]' : 'hover:shadow-[0_10px_30px_-10px_rgba(16,185,129,0.15)]') : ''}`}
