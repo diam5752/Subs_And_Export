@@ -178,7 +178,6 @@ const TranscriptPanel = memo(() => {
         saveEditingCue,
         cancelEditingCue,
         handleUpdateDraft,
-        handleUpdateDraft,
         t,
         isProcessing
     ]);
@@ -376,7 +375,7 @@ export function Sidebar() {
                             aria-selected={activeSidebarTab === 'transcript'}
                             aria-controls="panel-transcript"
                             onClick={() => setActiveSidebarTab('transcript')}
-                            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-xs font-medium transition-all ${activeSidebarTab === 'transcript'
+                            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-xs font-medium transition-all focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${activeSidebarTab === 'transcript'
                                 ? 'bg-[var(--accent)] text-[#031018] shadow-sm'
                                 : 'text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-white/5'
                                 }`}
@@ -392,7 +391,7 @@ export function Sidebar() {
                             aria-selected={activeSidebarTab === 'styles'}
                             aria-controls="panel-styles"
                             onClick={() => setActiveSidebarTab('styles')}
-                            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-xs font-medium transition-all ${activeSidebarTab === 'styles'
+                            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-xs font-medium transition-all focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${activeSidebarTab === 'styles'
                                 ? 'bg-[var(--accent)] text-[#031018] shadow-sm'
                                 : 'text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-white/5'
                                 }`}
@@ -408,7 +407,7 @@ export function Sidebar() {
                             aria-selected={activeSidebarTab === 'intelligence'}
                             aria-controls="panel-intelligence"
                             onClick={() => setActiveSidebarTab('intelligence')}
-                            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-xs font-medium transition-all ${activeSidebarTab === 'intelligence'
+                            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-xs font-medium transition-all focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${activeSidebarTab === 'intelligence'
                                 ? 'bg-[var(--accent)] text-[#031018] shadow-sm'
                                 : 'text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-white/5'
                                 }`}
