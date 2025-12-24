@@ -815,7 +815,7 @@ export function ProcessProvider({
         }
     }, [calculatedStep, overrideStep]);
 
-    const value = {
+    const value = useMemo(() => ({
         selectedFile,
         onFileSelect,
         isProcessing,
@@ -858,7 +858,50 @@ export function ProcessProvider({
         isSavingTranscript, transcriptSaveError, setTranscriptSaveError,
         beginEditingCue, cancelEditingCue, saveEditingCue, updateCueText, handleUpdateDraft,
         SUBTITLE_COLORS, STYLE_PRESETS, AVAILABLE_MODELS,
-    };
+    }), [
+        selectedFile,
+        onFileSelect,
+        isProcessing,
+        progress,
+        statusMessage,
+        error,
+        onStartProcessing,
+        onReprocessJob,
+        onReset,
+        onCancelProcessing,
+        selectedJob,
+        onJobSelect,
+        statusStyles,
+        buildStaticUrl,
+        hasVideos,
+        hasActiveJob,
+        hasChosenModel, setHasChosenModel,
+        transcribeMode, setTranscribeMode,
+        transcribeProvider, setTranscribeProvider,
+        subtitlePosition, setSubtitlePosition,
+        maxSubtitleLines, setMaxSubtitleLines,
+        subtitleColor, setSubtitleColor,
+        subtitleSize, setSubtitleSize,
+        karaokeEnabled, setKaraokeEnabled,
+        watermarkEnabled, setWatermarkEnabled,
+        shadowStrength,
+        activeSidebarTab, setActiveSidebarTab,
+        activePreset, setActivePreset,
+        videoInfo, setVideoInfo,
+        previewVideoUrl, setPreviewVideoUrl,
+        videoUrl,
+        cues, setCues,
+        processedCues,
+        fileInputRef, resultsRef, transcriptContainerRef, playerRef,
+        currentStep, setOverrideStep, overrideStep,
+        handleStart, handleExport, exportingResolutions,
+        saveLastUsedSettings, lastUsedSettings,
+        editingCueIndex, setEditingCueIndex,
+        editingCueDraft, setEditingCueDraft,
+        isSavingTranscript, transcriptSaveError, setTranscriptSaveError,
+        beginEditingCue, cancelEditingCue, saveEditingCue, updateCueText, handleUpdateDraft,
+        SUBTITLE_COLORS, STYLE_PRESETS, AVAILABLE_MODELS,
+    ]);
 
     return <ProcessContext.Provider value={value}>{children}</ProcessContext.Provider>;
 }
