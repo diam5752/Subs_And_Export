@@ -1,7 +1,6 @@
-import React, { useCallback, useEffect, useImperativeHandle, useRef, useState, forwardRef, memo, useMemo } from 'react';
+import React, { useCallback, useEffect, useImperativeHandle, useRef, useState, forwardRef, memo } from 'react';
 import Image from 'next/image';
 import { SubtitleOverlay, Cue } from './SubtitleOverlay';
-import { resegmentCues } from '../lib/subtitleUtils';
 
 export interface PreviewPlayerHandle {
     seekTo: (time: number) => void;
@@ -166,7 +165,6 @@ export const PreviewPlayer = memo(forwardRef<PreviewPlayerHandle, PreviewPlayerP
     }, []);
 
     // Set initial time when video loads or initialTime changes
-    // Set initial time when video loads or initialTime changes
     useEffect(() => {
         if (typeof initialTime === 'number' && videoRef.current) {
             // Add slight offset (0.1s) to ensure renderer catches it, as requested
@@ -220,18 +218,9 @@ export const PreviewPlayer = memo(forwardRef<PreviewPlayerHandle, PreviewPlayerP
         };
     }, [startHighResTimeSync, stopHighResTimeSync]);
 
-    // 4. Transform cues (Split/Page if too long) matching backend logic
-    const displayedCues = useMemo(() => {
-        // Only run expensive re-segment logic if not 1-word-at-a-time mode
-        if (settings.maxLines > 0) {
-            // Import dynamically or assume it's available? It's in the same file as SubtitleOverlay? No, separate.
-            // We need to import it. Since I can't add imports with replace_file easily, I'll rely on update helper.
-            // Wait, I can't add imports here easily. I should check imports first.
-            // Assuming I'll add the import in a separate step or it's available.
-            return resegmentCues(cues, settings.maxLines, settings.fontSize);
-        }
-        return cues;
-    }, [cues, settings.maxLines, settings.fontSize]);
+    // OPTIMIZATION: Removed redundant re-segmentation logic.
+    // The cues passed to PreviewPlayer are expected to be already processed/segmented
+    // by the parent (ProcessContext). This saves a duplicate canvas text measurement loop.
 
     return (
         <div
@@ -268,7 +257,6 @@ export const PreviewPlayer = memo(forwardRef<PreviewPlayerHandle, PreviewPlayerP
                 }}
             >
                 {/* Watermark Overlay */}
-                {/* Watermark Overlay */}
                 {settings.watermarkEnabled && (
                     <div
                         className="absolute bottom-[40px] right-[40px] z-20 animate-in fade-in duration-500"
@@ -288,7 +276,7 @@ export const PreviewPlayer = memo(forwardRef<PreviewPlayerHandle, PreviewPlayerP
                 {settings && (
                     <SubtitleOverlay
                         currentTime={currentTime}
-                        cues={displayedCues}
+                        cues={cues}
                         settings={settings}
                         videoWidth={contentRect.width}
                     />
