@@ -43,22 +43,21 @@ const CueList = memo(({
                 const canEditThis = !isSaving && (editingCueIndex === null || isEditing);
 
                 return (
-                    <div id={`cue-${index}`} key={`${cue.start}-${cue.end}-${index}`}>
-                        <CueItem
-                            cue={cue}
-                            index={index}
-                            isActive={isActive}
-                            isEditing={isEditing}
-                            canEdit={canEditThis}
-                            draftText={isEditing ? editingCueDraft : ''}
-                            isSaving={isSaving}
-                            onSeek={onSeek}
-                            onEdit={onEdit}
-                            onSave={onSave}
-                            onCancel={onCancel}
-                            onUpdateDraft={onUpdateDraft}
-                        />
-                    </div>
+                    <CueItem
+                        key={`${cue.start}-${cue.end}-${index}`}
+                        cue={cue}
+                        index={index}
+                        isActive={isActive}
+                        isEditing={isEditing}
+                        canEdit={canEditThis}
+                        draftText={isEditing ? editingCueDraft : ''}
+                        isSaving={isSaving}
+                        onSeek={onSeek}
+                        onEdit={onEdit}
+                        onSave={onSave}
+                        onCancel={onCancel}
+                        onUpdateDraft={onUpdateDraft}
+                    />
                 );
             })}
         </>
