@@ -52,8 +52,16 @@ type TextMeasurer = {
 const MAX_CACHE_SIZE = 10000;
 const _wordWidthCache = new Map<string, number>();
 
+// Cache for cue segmentation results to avoid expensive re-calculations on every render/edit
+// Key: Cue object (reference) -> Map<settingsKey, Cue[]>
+let _segmentationCache = new WeakMap<Cue, Map<string, Cue[]>>();
+
 export function resetWordWidthCache() {
     _wordWidthCache.clear();
+}
+
+export function resetSegmentationCache() {
+    _segmentationCache = new WeakMap<Cue, Map<string, Cue[]>>();
 }
 
 let _sharedMeasurerCanvas: HTMLCanvasElement | null = null;
@@ -285,8 +293,17 @@ export function resegmentCues(
 
     const measurer = createTextMeasurer(fontSizePercent);
     const effectiveMaxChars = getEffectiveMaxChars(fontSizePercent);
+    const settingsKey = `${maxLines}:${fontSizePercent}`;
 
     return originalCues.flatMap((cue) => {
+        // Optimization: Check cache first
+        // Since cues are typically referentially stable unless edited, this avoids re-processing 99% of cues
+        let cueCache = _segmentationCache.get(cue);
+        if (cueCache) {
+            const cached = cueCache.get(settingsKey);
+            if (cached) return cached;
+        }
+
         // 1. Get words for this SPECIFIC cue (real or interpolated)
         let cueWords: TranscriptionWordTiming[] = [];
         if (cue.words && cue.words.length > 0) {
@@ -305,7 +322,7 @@ export function resegmentCues(
             : chunkTimedWords(cueWords, effectiveMaxChars, maxLines);
 
         // 3. Create new cues from chunks
-        return wordChunks
+        const result = wordChunks
             .filter((chunkWords) => chunkWords.length > 0)
             .map((chunkWords) => {
                 const first = chunkWords[0];
@@ -323,6 +340,15 @@ export function resegmentCues(
                     words: chunkWords,
                 };
             });
+
+        // Update cache
+        if (!cueCache) {
+            cueCache = new Map();
+            _segmentationCache.set(cue, cueCache);
+        }
+        cueCache.set(settingsKey, result);
+
+        return result;
     });
 }
 

@@ -1,5 +1,5 @@
 
-import { resegmentCues, findCueIndexAtTime, findCueAtTime, resetWordWidthCache } from '../subtitleUtils';
+import { resegmentCues, findCueIndexAtTime, findCueAtTime, resetWordWidthCache, resetSegmentationCache } from '../subtitleUtils';
 import { TranscriptionCue as Cue } from '../api';
 
 // Mock cues
@@ -11,6 +11,7 @@ const mockCues: Cue[] = [
 describe('resegmentCues', () => {
     beforeEach(() => {
         resetWordWidthCache();
+        resetSegmentationCache();
     });
 
     it('should return empty list for empty input', () => {
@@ -166,6 +167,49 @@ describe('resegmentCues', () => {
         expect(words[words.length - 1].end).toBe(4);
         expect(words[0].end).toBeCloseTo(4 * (3 / 11), 5);
         expect(words[1].end).toBeCloseTo(4 * (6 / 11), 5);
+    });
+
+    it('should use cached results for unchanged cues', () => {
+        // Create stable cue object
+        const cue = mockCues[0];
+
+        // Mock measurement to verify calls
+        let measureCalls = 0;
+        const getContextSpy = jest
+            .spyOn(HTMLCanvasElement.prototype, 'getContext')
+            .mockImplementation(() => {
+                return {
+                    measureText: (text: string) => {
+                        measureCalls++;
+                        return { width: 10 };
+                    },
+                } as unknown as CanvasRenderingContext2D;
+            });
+
+        try {
+            // First call - should compute (and cache)
+            const result1 = resegmentCues([cue], 1, 100);
+            const initialCalls = measureCalls;
+            expect(initialCalls).toBeGreaterThan(0);
+
+            // Second call - same cue, same settings -> should use cache
+            const result2 = resegmentCues([cue], 1, 100);
+            expect(measureCalls).toBe(initialCalls); // Calls count unchanged
+            expect(result2).toEqual(result1); // Result identical
+
+            // Third call - same cue, DIFFERENT settings -> should compute
+            const result3 = resegmentCues([cue], 2, 100);
+            expect(measureCalls).toBeGreaterThan(initialCalls); // Calls count increased
+
+            // Fourth call - different cue object (even if identical content) -> should compute
+            const cueClone = { ...cue };
+            const previousCalls = measureCalls;
+            const result4 = resegmentCues([cueClone], 1, 100);
+            expect(measureCalls).toBeGreaterThan(previousCalls);
+
+        } finally {
+            getContextSpy.mockRestore();
+        }
     });
 });
 
