@@ -265,6 +265,7 @@ export function ModelSelector() {
                 <div
                     role="button"
                     tabIndex={0}
+                    aria-expanded={isExpanded}
                     onKeyDown={handleKeyDown}
                     className={`flex items-center gap-3 transition-all duration-300 cursor-pointer group/step ${currentStep !== 1 ? 'opacity-100 hover:scale-[1.005]' : 'opacity-100 scale-[1.01]'}`}
                     onClick={handleStepClick}
@@ -285,6 +286,7 @@ export function ModelSelector() {
                         className="group/info relative z-[100] shrink-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
                         role="button"
                         tabIndex={0}
+                        // @ts-expect-error - modelInfo key is missing in translation types
                         aria-label={t('modelInfo') || "Model comparison information"}
                         onKeyDown={(e) => {
                             if (e.key === 'Enter' || e.key === ' ') {
