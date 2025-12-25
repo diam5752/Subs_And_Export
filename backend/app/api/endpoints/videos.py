@@ -246,6 +246,15 @@ async def process_video(
             detail=f"Video too long (max {settings.max_video_duration_seconds/60:.1f} minutes)",
         )
 
+    # Security: Validate dimensions to prevent DoS
+    if probe.width and probe.height:
+        if probe.width > settings.max_resolution_dimension or probe.height > settings.max_resolution_dimension:
+            input_path.unlink(missing_ok=True)
+            raise HTTPException(
+                status_code=400,
+                detail=f"Video resolution too high (max {settings.max_resolution_dimension}px)",
+            )
+
     job = job_store.create_job(job_id, current_user.id)
 
     try:
