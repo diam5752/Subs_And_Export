@@ -1,6 +1,6 @@
-import React, { useMemo, memo } from 'react';
+import React, { useMemo, memo, useRef } from 'react';
 import { TranscriptionCue } from '../lib/api';
-import { findCueAtTime } from '../lib/subtitleUtils';
+import { findCueIndexAtTime } from '../lib/subtitleUtils';
 
 export type Cue = TranscriptionCue;
 
@@ -24,9 +24,14 @@ export const SubtitleOverlay = memo<SubtitleOverlayProps>(({
     settings,
     videoWidth = 1080,
 }) => {
+    // Optimization: Cache last active cue index to speed up linear playback lookups
+    const lastCueIndexRef = useRef<number>(-1);
+
     // 1. Find active cue
     const activeCue = useMemo(() => {
-        return findCueAtTime(cues, currentTime);
+        const index = findCueIndexAtTime(cues, currentTime, lastCueIndexRef.current);
+        lastCueIndexRef.current = index;
+        return index !== -1 ? cues[index] : undefined;
     }, [currentTime, cues]);
 
     // 2. Base Styles
