@@ -44,6 +44,7 @@ const PreviewSectionLayout = memo(({
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     activeSidebarTab,
     isExpanded // New prop, received from parent
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 }: any) => {
     return (
         <div id="preview-section" className={`card space-y-4 transition-all duration-500 ${!selectedJob && !isProcessing ? 'opacity-50 grayscale' : ''}`} ref={resultsRef}>
@@ -51,6 +52,7 @@ const PreviewSectionLayout = memo(({
             <div
                 role="button"
                 tabIndex={0}
+                aria-expanded={isExpanded}
                 onKeyDown={handleKeyDown}
                 className={`mb-2 flex items-center gap-4 transition-all duration-300 cursor-pointer group/step ${currentStep !== 3 ? (selectedJob?.status === 'completed' ? 'opacity-100 hover:scale-[1.005]' : 'opacity-40 grayscale blur-[1px]') : 'opacity-100 scale-[1.01]'}`}
                 onClick={handleStepClick}
