@@ -29,3 +29,7 @@
 ## 2025-03-04 - Focus Visibility for Custom Elements
 **Learning:** Custom interactive elements (like `div role="button"`) and styled buttons often have their default focus rings suppressed by resets or `outline-none`. This renders them invisible to keyboard users.
 **Action:** Explicitly add `focus-visible:ring-2` (and an appropriate color) to all interactive elements, especially those with custom styling or background colors, to ensure they are discoverable via keyboard.
+
+## 2025-03-05 - Invalid Interactive Nesting
+**Learning:** `div role="button"` implementations often lead to invalid HTML when they contain other interactive elements (like tooltips or info buttons), causing screen reader confusion and focus trapping.
+**Action:** Refactor complex clickable containers into separate sibling `<button>` elements or use a non-interactive container with specific interactive children, avoiding nested interactive controls entirely.
