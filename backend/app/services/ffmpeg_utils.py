@@ -26,6 +26,8 @@ TIME_PATTERN = re.compile(r"time=(\d{2}):(\d{2}):(\d{2}\.\d{2})")
 class MediaProbe:
     duration_s: float | None
     audio_codec: str | None
+    width: int | None = None
+    height: int | None = None
 
     @property
     def audio_is_aac(self) -> bool:
@@ -64,15 +66,36 @@ def probe_media(input_path: Path) -> MediaProbe:
         duration_s = None
 
     audio_codec: str | None = None
+    width: int | None = None
+    height: int | None = None
+
     streams = probe_payload.get("streams") or []
     if isinstance(streams, list) and streams:
+        # Extract dimensions from the first valid video stream
+        for stream in streams:
+            if isinstance(stream, dict) and stream.get("codec_type") == "video":
+                try:
+                    w = int(stream.get("width") or 0)
+                    h = int(stream.get("height") or 0)
+                    if w > 0 and h > 0:
+                        width, height = w, h
+                        break
+                except (ValueError, TypeError):
+                    continue
+
+        # Extract audio codec from the first stream (legacy behavior)
         first_stream = streams[0]
         if isinstance(first_stream, dict):
             codec_name = first_stream.get("codec_name")
             if isinstance(codec_name, str) and codec_name.strip():
                 audio_codec = codec_name.strip().lower()
 
-    return MediaProbe(duration_s=duration_s, audio_codec=audio_codec)
+    return MediaProbe(
+        duration_s=duration_s,
+        audio_codec=audio_codec,
+        width=width,
+        height=height
+    )
 
 
 def input_audio_is_aac(input_path: Path) -> bool:

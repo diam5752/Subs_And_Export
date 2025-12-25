@@ -219,6 +219,14 @@ def reprocess_job(
     if probe.duration_s > settings.max_video_duration_seconds:
         raise HTTPException(status_code=400, detail=f"Video too long (max {settings.max_video_duration_seconds/60:.1f} minutes)")
 
+    # Security: Validate dimensions
+    if probe.width and probe.height:
+        if probe.width > settings.max_resolution_dimension or probe.height > settings.max_resolution_dimension:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Video resolution too high (max {settings.max_resolution_dimension}px)",
+            )
+
     new_job_id = str(uuid.uuid4())
     input_path = uploads_dir / f"{new_job_id}_input{file_ext}"
     output_path = artifacts_root / new_job_id / "processed.mp4"
