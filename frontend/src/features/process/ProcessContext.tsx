@@ -815,7 +815,7 @@ export function ProcessProvider({
         }
     }, [calculatedStep, overrideStep]);
 
-    const value = {
+    const value = useMemo(() => ({
         selectedFile,
         onFileSelect,
         isProcessing,
@@ -858,7 +858,60 @@ export function ProcessProvider({
         isSavingTranscript, transcriptSaveError, setTranscriptSaveError,
         beginEditingCue, cancelEditingCue, saveEditingCue, updateCueText, handleUpdateDraft,
         SUBTITLE_COLORS, STYLE_PRESETS, AVAILABLE_MODELS,
-    };
+    }), [
+        selectedFile,
+        onFileSelect,
+        isProcessing,
+        progress,
+        statusMessage,
+        error,
+        onStartProcessing,
+        onReprocessJob,
+        onReset,
+        onCancelProcessing,
+        selectedJob,
+        onJobSelect,
+        statusStyles,
+        buildStaticUrl,
+        hasVideos,
+        hasActiveJob,
+        hasChosenModel,
+        transcribeMode,
+        transcribeProvider,
+        subtitlePosition,
+        maxSubtitleLines,
+        subtitleColor,
+        subtitleSize,
+        karaokeEnabled,
+        watermarkEnabled,
+        shadowStrength,
+        activeSidebarTab,
+        activePreset,
+        videoInfo,
+        previewVideoUrl,
+        videoUrl,
+        cues,
+        processedCues,
+        currentStep,
+        overrideStep,
+        handleStart,
+        handleExport,
+        exportingResolutions,
+        saveLastUsedSettings,
+        lastUsedSettings,
+        editingCueIndex,
+        editingCueDraft,
+        isSavingTranscript,
+        transcriptSaveError,
+        beginEditingCue,
+        cancelEditingCue,
+        saveEditingCue,
+        updateCueText,
+        handleUpdateDraft,
+        SUBTITLE_COLORS,
+        STYLE_PRESETS,
+        AVAILABLE_MODELS
+    ]);
 
     return <ProcessContext.Provider value={value}>{children}</ProcessContext.Provider>;
 }
