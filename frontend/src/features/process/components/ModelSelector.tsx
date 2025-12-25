@@ -81,13 +81,10 @@ export function ModelSelector() {
                 // Minimal Visual Stats
                 // Standard: Speed 100%, Quality 75%
                 // Pro: Speed 85%, Quality 100%
-                const speedPercent = isPro ? 85 : 100;
-                const qualityPercent = isPro ? 100 : 75;
 
                 // Theme Colors
                 // Standard: Emerald (Green)
                 // Pro: Neon Orange (Accent)
-                const themeColor = isPro ? 'var(--accent)' : '#10b981'; // Emerald-500
                 const themeClass = isPro ? 'text-[var(--accent)]' : 'text-emerald-500';
                 const bgClass = isPro ? 'bg-[var(--accent)]' : 'bg-emerald-500';
                 const borderClass = isPro ? 'border-[var(--accent)]' : 'border-emerald-500';
@@ -281,25 +278,25 @@ export function ModelSelector() {
                         )}
                     </div>
 
-                    <div
-                        className="group/info relative z-[100] shrink-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-                        role="button"
-                        tabIndex={0}
-                        aria-label={t('modelInfo') || "Model comparison information"}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                e.stopPropagation();
-                            }
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <svg className="w-5 h-5 text-white/50 group-focus/info:text-white group-hover/info:text-white cursor-help transition-all duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
+                    <div className="relative group/info z-[100] shrink-0">
+                        <button
+                            type="button"
+                            className="rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] cursor-help"
+                            aria-describedby="model-info-tooltip"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <span className="sr-only">{t('modelInfo') || "Model comparison information"}</span>
+                            <svg className="w-5 h-5 text-white/50 group-focus-within/info:text-white group-hover/info:text-white transition-all duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </button>
 
                         {/* Tooltip Content - Confirmed Solid Background */}
-                        <div className="absolute right-0 top-full mt-3 w-80 bg-zinc-950 border border-neutral-800 rounded-xl p-5 shadow-[0_20px_60px_rgba(0,0,0,0.8)] opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible group-focus/info:opacity-100 group-focus/info:visible transition-all duration-150 z-[1002] origin-top-right">
+                        <div
+                            id="model-info-tooltip"
+                            role="tooltip"
+                            className="absolute right-0 top-full mt-3 w-80 bg-zinc-950 border border-neutral-800 rounded-xl p-5 shadow-[0_20px_60px_rgba(0,0,0,0.8)] opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible group-focus-within/info:opacity-100 group-focus-within/info:visible transition-all duration-150 z-[1002] origin-top-right"
+                        >
                             <div className="space-y-5">
                                 <div className="space-y-2 text-left">
                                     <div className="flex items-center gap-2 text-emerald-500 font-bold text-xs uppercase tracking-wider">
