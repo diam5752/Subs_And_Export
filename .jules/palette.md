@@ -29,3 +29,10 @@
 ## 2025-03-04 - Focus Visibility for Custom Elements
 **Learning:** Custom interactive elements (like `div role="button"`) and styled buttons often have their default focus rings suppressed by resets or `outline-none`. This renders them invisible to keyboard users.
 **Action:** Explicitly add `focus-visible:ring-2` (and an appropriate color) to all interactive elements, especially those with custom styling or background colors, to ensure they are discoverable via keyboard.
+## 2025-03-04 - Un-nesting Interactive Elements
+**Learning:** Nested interactive controls (e.g., a button inside a clickable div) are invalid HTML and confusing for screen readers. The solution is to flatten the hierarchy and use sibling elements with absolute positioning or flexbox to maintain visual layout while separating interaction targets.
+**Action:** When implementing 'clickable cards' with internal actions, avoid wrapping the whole card in a button. Instead, make the main content area a button and place secondary actions as siblings, using CSS to position them visually if needed.
+
+## 2025-03-04 - Testing Complex Components in Isolation
+**Learning:** Testing feature-rich components (like `ModelSelector`) in a standalone test page is difficult because they often depend on global providers (ProcessContext, I18n, Auth, QueryClient) and specific environment configurations.
+**Action:** For verification of internal component structure (like accessibility attributes), rely on unit tests (Jest/RTL) where providers can be easily mocked. Use Playwright for full e2e flows where the app is fully initialized.

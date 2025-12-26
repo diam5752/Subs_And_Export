@@ -262,36 +262,31 @@ export function ModelSelector() {
     return useMemo(() => (
         <div id="model-selection-step" className="card space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3 relative z-50">
-                <div
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={handleKeyDown}
-                    className={`flex items-center gap-3 transition-all duration-300 cursor-pointer group/step ${currentStep !== 1 ? 'opacity-100 hover:scale-[1.005]' : 'opacity-100 scale-[1.01]'}`}
-                    onClick={handleStepClick}
-                >
-                    <span className={`flex items-center justify-center px-4 py-1 rounded-full border font-mono text-sm font-bold tracking-widest shadow-sm transition-all duration-500 shrink-0 ${currentStep === 1
-                        ? 'bg-gradient-to-r from-[var(--accent)] to-[var(--accent-secondary)] border-transparent text-white shadow-[0_0_20px_var(--accent)] scale-105'
-                        : 'glass-premium border-[var(--border)] text-[var(--muted)]'
-                        }`}>STEP 1</span>
+                <div className={`flex items-center gap-3 transition-all duration-300 group/step ${currentStep !== 1 ? 'opacity-100 hover:scale-[1.005]' : 'opacity-100 scale-[1.01]'}`}>
+                    <button
+                        type="button"
+                        onClick={handleStepClick}
+                        className="flex items-center gap-3 text-left focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:rounded-lg focus-visible:outline-none"
+                    >
+                        <span className={`flex items-center justify-center px-4 py-1 rounded-full border font-mono text-sm font-bold tracking-widest shadow-sm transition-all duration-500 shrink-0 ${currentStep === 1
+                            ? 'bg-gradient-to-r from-[var(--accent)] to-[var(--accent-secondary)] border-transparent text-white shadow-[0_0_20px_var(--accent)] scale-105'
+                            : 'glass-premium border-[var(--border)] text-[var(--muted)]'
+                            }`}>STEP 1</span>
 
-                    <div className="min-w-0">
-                        <h3 className="text-xl font-semibold truncate">{t('modelSelectTitle') || 'Pick a Model'}</h3>
-                        {!hasChosenModel && (
-                            <p className="text-sm text-[var(--muted)] mt-0.5 ml-0.5 truncate">{t('modelSelectSubtitle')}</p>
-                        )}
-                    </div>
+                        <div className="min-w-0">
+                            <h3 className="text-xl font-semibold truncate">{t('modelSelectTitle') || 'Pick a Model'}</h3>
+                            {!hasChosenModel && (
+                                <p className="text-sm text-[var(--muted)] mt-0.5 ml-0.5 truncate">{t('modelSelectSubtitle')}</p>
+                            )}
+                        </div>
+                    </button>
 
-                    <div
+                    <button
+                        type="button"
                         className="group/info relative z-[100] shrink-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-                        role="button"
-                        tabIndex={0}
+                        // @ts-expect-error - 'modelInfo' is missing in some locales but handled by fallback
                         aria-label={t('modelInfo') || "Model comparison information"}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                e.stopPropagation();
-                            }
-                        }}
+                        aria-describedby="model-info-tooltip"
                         onClick={(e) => e.stopPropagation()}
                     >
                         <svg className="w-5 h-5 text-white/50 group-focus/info:text-white group-hover/info:text-white cursor-help transition-all duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -299,7 +294,7 @@ export function ModelSelector() {
                         </svg>
 
                         {/* Tooltip Content - Confirmed Solid Background */}
-                        <div className="absolute right-0 top-full mt-3 w-80 bg-zinc-950 border border-neutral-800 rounded-xl p-5 shadow-[0_20px_60px_rgba(0,0,0,0.8)] opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible group-focus/info:opacity-100 group-focus/info:visible transition-all duration-150 z-[1002] origin-top-right">
+                        <div id="model-info-tooltip" className="absolute right-0 top-full mt-3 w-80 bg-zinc-950 border border-neutral-800 rounded-xl p-5 shadow-[0_20px_60px_rgba(0,0,0,0.8)] opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible group-focus/info:opacity-100 group-focus/info:visible transition-all duration-150 z-[1002] origin-top-right">
                             <div className="space-y-5">
                                 <div className="space-y-2 text-left">
                                     <div className="flex items-center gap-2 text-emerald-500 font-bold text-xs uppercase tracking-wider">
@@ -321,18 +316,25 @@ export function ModelSelector() {
                                 </div>
                             </div>
                         </div>
-                    </div>
+                    </button>
 
-                    {/* Chevron indicator for expand/collapse */}
-                    <svg
-                        className={`w-5 h-5 text-[var(--muted)] transition-transform duration-300 shrink-0 ${isExpanded ? 'rotate-180' : ''}`}
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        data-testid="step-1-chevron"
+                    <button
+                        type="button"
+                        onClick={handleStepClick}
+                        className="focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:rounded-lg focus-visible:outline-none"
+                        aria-label={isExpanded ? "Collapse step" : "Expand step"}
                     >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
+                        {/* Chevron indicator for expand/collapse */}
+                        <svg
+                            className={`w-5 h-5 text-[var(--muted)] transition-transform duration-300 shrink-0 ${isExpanded ? 'rotate-180' : ''}`}
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            data-testid="step-1-chevron"
+                        >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
                 </div>
                 <div className="flex items-center gap-3">
                     {/* Compact selected model indicator when collapsed */}
