@@ -160,6 +160,7 @@ const TranscriptPanel = memo(() => {
                     <div className="text-center text-[var(--muted)] py-10 opacity-50 font-medium">
                         {isProcessing
                             ? (t('statusProcessing') || 'Processing...')
+                            // @ts-expect-error - 'noSubtitlesFound' key is missing in some locales
                             : (t('noSubtitlesFound') || 'No subtitles found in this video.')}
                     </div>
                 )}
