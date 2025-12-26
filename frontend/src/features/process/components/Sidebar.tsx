@@ -42,23 +42,25 @@ const CueList = memo(({
                 const isEditing = editingCueIndex === index;
                 const canEditThis = !isSaving && (editingCueIndex === null || isEditing);
 
+                // Optimization: Removed redundant wrapper <div> which caused duplicate IDs and extra DOM nodes.
+                // Using index as key is safe here because the list is never reordered/filtered in place
+                // (cues array is replaced entirely on resegmentation).
                 return (
-                    <div id={`cue-${index}`} key={`${cue.start}-${cue.end}-${index}`}>
-                        <CueItem
-                            cue={cue}
-                            index={index}
-                            isActive={isActive}
-                            isEditing={isEditing}
-                            canEdit={canEditThis}
-                            draftText={isEditing ? editingCueDraft : ''}
-                            isSaving={isSaving}
-                            onSeek={onSeek}
-                            onEdit={onEdit}
-                            onSave={onSave}
-                            onCancel={onCancel}
-                            onUpdateDraft={onUpdateDraft}
-                        />
-                    </div>
+                    <CueItem
+                        key={index}
+                        cue={cue}
+                        index={index}
+                        isActive={isActive}
+                        isEditing={isEditing}
+                        canEdit={canEditThis}
+                        draftText={isEditing ? editingCueDraft : ''}
+                        isSaving={isSaving}
+                        onSeek={onSeek}
+                        onEdit={onEdit}
+                        onSave={onSave}
+                        onCancel={onCancel}
+                        onUpdateDraft={onUpdateDraft}
+                    />
                 );
             })}
         </>
