@@ -1,3 +1,4 @@
+'use client';
 import React, { memo, useRef, useEffect } from 'react';
 import { Spinner } from '@/components/Spinner';
 import { JobResponse } from '@/lib/api';
@@ -194,7 +195,7 @@ export const JobListItem = memo(function JobListItem({
                                             onDeleteConfirmed(job.id);
                                         }}
                                         disabled={isDeleting}
-                                        className="text-xs px-2 py-1 rounded bg-[var(--danger)] text-white hover:bg-[var(--danger)]/80 disabled:opacity-50 min-w-[28px] flex items-center justify-center"
+                                        className="text-xs px-2 py-1 rounded bg-[var(--danger)] text-white hover:bg-[var(--danger)]/80 disabled:opacity-50 min-w-[28px] flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
                                         aria-label={isDeleting
                                             ? `${t('deleting') || 'Deleting'} ${displayFilename}`
                                             : `${t('confirmDelete') || 'Confirm delete'} ${displayFilename}`
@@ -215,7 +216,7 @@ export const JobListItem = memo(function JobListItem({
                                             wasCancelledRef.current = true;
                                             setConfirmDeleteId(null);
                                         }}
-                                        className="text-xs px-2 py-1 rounded border border-[var(--border)] hover:bg-white/5 flex items-center justify-center min-w-[28px]"
+                                        className="text-xs px-2 py-1 rounded border border-[var(--border)] hover:bg-white/5 flex items-center justify-center min-w-[28px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border)]"
                                         aria-label={t('cancel') || 'Cancel'}
                                     >
                                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -230,7 +231,7 @@ export const JobListItem = memo(function JobListItem({
                                         e.stopPropagation();
                                         setConfirmDeleteId(job.id);
                                     }}
-                                    className="text-xs px-2 py-1 rounded border border-[var(--border)] hover:border-[var(--danger)] hover:text-[var(--danger)] transition-colors flex items-center justify-center min-w-[28px]"
+                                    className="text-xs px-2 py-1 rounded border border-[var(--border)] hover:border-[var(--danger)] hover:text-[var(--danger)] transition-colors flex items-center justify-center min-w-[28px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--danger)]"
                                     title={t('deleteJob')}
                                     aria-label={`${t('deleteJob') || 'Delete job'} ${displayFilename}`}
                                 >
