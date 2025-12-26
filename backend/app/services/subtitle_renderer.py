@@ -6,27 +6,16 @@ import functools
 import logging
 import math
 import re
-import unicodedata
 from pathlib import Path
 from typing import Any, Callable, List, Sequence
 
 from backend.app.core.config import settings
 from backend.app.services.subtitle_types import Cue, TimeRange, WordTiming
+from backend.app.services.transcription.utils import normalize_text
 
 logger = logging.getLogger(__name__)
 
 TIME_PATTERN = re.compile(r"time=(\d{2}):(\d{2}):(\d{2}\.\d{2})")
-
-
-@functools.lru_cache(maxsize=4096)
-def normalize_text(text: str) -> str:
-    """
-    Uppercase + strip accents for consistent, bold subtitle styling.
-    """
-    # Remove diacritics
-    normalized = unicodedata.normalize("NFD", text)
-    stripped = "".join(ch for ch in normalized if not unicodedata.combining(ch))
-    return stripped.upper()
 
 
 def get_text_width(text: str, font_size: int) -> int:
@@ -146,7 +135,7 @@ def generate_active_word_ass(cue: Cue, max_lines: int, primary_color: str, secon
     """
     Generates ASS dialogue lines for 'active word' highlighting.
     Each word gets its own dialogue event, appearing for its duration.
-    
+
     When max_lines=0 (single word mode): Show ONLY the active word, nothing else.
     When max_lines>0: Show all words with the active word highlighted.
     """
