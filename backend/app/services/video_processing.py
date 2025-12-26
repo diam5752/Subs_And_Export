@@ -301,7 +301,8 @@ def normalize_and_stub_subtitles(
                         output_width=output_width,
                         output_height=output_height,
                         watermark_enabled=watermark_enabled,
-                        check_cancelled=check_cancelled
+                        check_cancelled=check_cancelled,
+                        timeout=3600.0,  # Security: Enforce 1 hour limit
                     )
                 except subprocess.CalledProcessError as exc:
                     if use_hw_accel:
@@ -319,7 +320,8 @@ def normalize_and_stub_subtitles(
                             output_width=output_width,
                             output_height=output_height,
                             watermark_enabled=watermark_enabled,
-                            check_cancelled=check_cancelled
+                            check_cancelled=check_cancelled,
+                            timeout=3600.0,  # Security: Enforce 1 hour limit
                         )
                     else:
                         raise
@@ -535,6 +537,7 @@ def generate_video_variant(
         output_width=width,
         output_height=height,
         watermark_enabled=watermark_enabled,
+        timeout=3600.0,  # Security: Enforce 1 hour limit
     )
 
     return destination
