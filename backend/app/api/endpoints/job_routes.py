@@ -42,12 +42,18 @@ def ensure_job_size(job):
                 if cleaned_path.startswith("data/"):
                     cleaned_path = cleaned_path[5:]  # Remove "data/" prefix
                 
-                full_path = DATA_DIR / cleaned_path
+                # Security: Prevent path traversal
+                data_dir_resolved = DATA_DIR.resolve()
+                full_path = (DATA_DIR / cleaned_path).resolve()
                 
                 # Also try the artifacts path directly
-                artifacts_path = DATA_DIR / "artifacts" / job.id / "processed.mp4"
+                artifacts_path = (DATA_DIR / "artifacts" / job.id / "processed.mp4").resolve()
                 
-                file_exists = full_path.exists() or artifacts_path.exists()
+                # Verify paths are safe (contained within data directory)
+                is_safe_full = full_path.is_relative_to(data_dir_resolved)
+                is_safe_artifacts = artifacts_path.is_relative_to(data_dir_resolved)
+
+                file_exists = (is_safe_full and full_path.exists()) or (is_safe_artifacts and artifacts_path.exists())
                 
                 if not file_exists:
                     # Mark job as having missing files
@@ -55,7 +61,7 @@ def ensure_job_size(job):
                 else:
                     # Backfill output_size if missing
                     if not job.result_data.get("output_size"):
-                        existing_path = full_path if full_path.exists() else artifacts_path
+                        existing_path = full_path if (is_safe_full and full_path.exists()) else artifacts_path
                         job.result_data["output_size"] = existing_path.stat().st_size
             except Exception as e:
                 logger.warning(f"Failed to check job file integrity: {e}")
