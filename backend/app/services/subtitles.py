@@ -39,9 +39,19 @@ def extract_audio(
     check_cancelled: Callable[[], None] | None = None,
     progress_callback: Callable[[float], None] | None = None,
     total_duration: float | None = None,
+    timeout: float = 1200.0,
 ) -> Path:
     """
     Extract the audio track from a video file into a mono WAV for transcription.
+
+    Args:
+        input_video: Path to input video file
+        output_dir: Optional directory to save output WAV
+        check_cancelled: Optional callback to check for cancellation
+        progress_callback: Optional callback for progress updates
+        total_duration: Optional total duration for progress calculation
+        timeout: Maximum execution time in seconds (default: 1200s / 20m)
+                 Security: Enforced to prevent indefinite hangs (DoS)
     """
     output_dir = output_dir or Path(tempfile.mkdtemp())
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -73,12 +83,19 @@ def extract_audio(
     try:
         import select
 
+        start_time = time.monotonic()
         last_cancel_check = 0.0
 
         while True:
+            # Security: Check for overall timeout
+            now = time.monotonic()
+            if now - start_time > timeout:
+                logger.error(f"ffmpeg extraction timed out after {timeout}s")
+                process.kill()
+                raise subprocess.TimeoutExpired(cmd, timeout)
+
             # 1. Periodic cancellation check
             if check_cancelled:
-                now = time.monotonic()
                 # Throttle check to avoid excessive DB overhead (every 0.5s)
                 if now - last_cancel_check > 0.5:
                     check_cancelled()
