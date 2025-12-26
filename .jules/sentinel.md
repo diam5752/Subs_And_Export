@@ -1,3 +1,12 @@
+## 2025-12-29 - [Medium] Missing Timeout in Subprocess Calls
+**Vulnerability:** The `run_ffmpeg_with_subs` function utilized `subprocess.Popen` with a cancellation check but lacked an explicit timeout, potentially allowing hung FFmpeg processes to run indefinitely (Denial of Service).
+**Learning:** `subprocess.Popen` polling loops must include a wall-clock timeout check (`time.monotonic()`) in addition to I/O monitoring (`select`). Reliance on external cancellation signals is insufficient for hung processes.
+**Prevention:** Always accept a `timeout` argument in subprocess wrapper functions and enforce it within the polling loop by killing the process and raising `TimeoutError`.
+
+## 2025-12-29 - [Medium] Missing Timeout in Subprocess Calls
+**Vulnerability:** The  function utilized  with a cancellation check but lacked an explicit timeout, potentially allowing hung FFmpeg processes to run indefinitely (Denial of Service).
+**Learning:**  polling loops must include a wall-clock timeout check () in addition to I/O monitoring (). Reliance on external cancellation signals is insufficient for hung processes.
+**Prevention:** Always accept a  argument in subprocess wrapper functions and enforce it within the polling loop by killing the process and raising .
 ## 2025-02-18 - [Critical] Unprotected Admin Endpoint
 **Vulnerability:** The `/videos/jobs/cleanup` endpoint allowed unauthenticated deletion of all jobs (files and database entries).
 **Learning:** Endpoints added for maintenance/admin tasks often bypass standard authentication patterns used elsewhere in the API. Dependencies like `get_job_store` do not enforce security.
