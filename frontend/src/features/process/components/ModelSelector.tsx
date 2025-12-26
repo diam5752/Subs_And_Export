@@ -252,46 +252,40 @@ export function ModelSelector() {
         }
     }, [currentStep, setOverrideStep]);
 
-    const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            handleStepClick();
-        }
-    }, [handleStepClick]);
-
     return useMemo(() => (
         <div id="model-selection-step" className="card space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3 relative z-50">
                 <div
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={handleKeyDown}
                     className={`flex items-center gap-3 transition-all duration-300 cursor-pointer group/step ${currentStep !== 1 ? 'opacity-100 hover:scale-[1.005]' : 'opacity-100 scale-[1.01]'}`}
                     onClick={handleStepClick}
                 >
-                    <span className={`flex items-center justify-center px-4 py-1 rounded-full border font-mono text-sm font-bold tracking-widest shadow-sm transition-all duration-500 shrink-0 ${currentStep === 1
-                        ? 'bg-gradient-to-r from-[var(--accent)] to-[var(--accent-secondary)] border-transparent text-white shadow-[0_0_20px_var(--accent)] scale-105'
-                        : 'glass-premium border-[var(--border)] text-[var(--muted)]'
-                        }`}>STEP 1</span>
-
-                    <div className="min-w-0">
-                        <h3 className="text-xl font-semibold truncate">{t('modelSelectTitle') || 'Pick a Model'}</h3>
-                        {!hasChosenModel && (
-                            <p className="text-sm text-[var(--muted)] mt-0.5 ml-0.5 truncate">{t('modelSelectSubtitle')}</p>
-                        )}
-                    </div>
-
-                    <div
-                        className="group/info relative z-[100] shrink-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-                        role="button"
-                        tabIndex={0}
-                        aria-label={t('modelInfo') || "Model comparison information"}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                e.stopPropagation();
-                            }
+                    <button
+                        type="button"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            handleStepClick();
                         }}
+                        className="flex flex-1 items-center gap-3 text-left focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:rounded-lg focus-visible:outline-none -my-1 py-1 rounded-lg"
+                        aria-expanded={isExpanded}
+                    >
+                        <span className={`flex items-center justify-center px-4 py-1 rounded-full border font-mono text-sm font-bold tracking-widest shadow-sm transition-all duration-500 shrink-0 ${currentStep === 1
+                            ? 'bg-gradient-to-r from-[var(--accent)] to-[var(--accent-secondary)] border-transparent text-white shadow-[0_0_20px_var(--accent)] scale-105'
+                            : 'glass-premium border-[var(--border)] text-[var(--muted)]'
+                            }`}>STEP 1</span>
+
+                        <div className="min-w-0">
+                            <h3 className="text-xl font-semibold truncate">{t('modelSelectTitle') || 'Pick a Model'}</h3>
+                            {!hasChosenModel && (
+                                <p className="text-sm text-[var(--muted)] mt-0.5 ml-0.5 truncate">{t('modelSelectSubtitle')}</p>
+                            )}
+                        </div>
+                    </button>
+
+                    <button
+                        type="button"
+                        className="group/info relative z-[100] shrink-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                        // @ts-expect-error - 'modelInfo' key is missing in some locales
+                        aria-label={t('modelInfo') || "Model comparison information"}
                         onClick={(e) => e.stopPropagation()}
                     >
                         <svg className="w-5 h-5 text-white/50 group-focus/info:text-white group-hover/info:text-white cursor-help transition-all duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -321,7 +315,7 @@ export function ModelSelector() {
                                 </div>
                             </div>
                         </div>
-                    </div>
+                    </button>
 
                     {/* Chevron indicator for expand/collapse */}
                     <svg
@@ -330,6 +324,7 @@ export function ModelSelector() {
                         viewBox="0 0 24 24"
                         stroke="currentColor"
                         data-testid="step-1-chevron"
+                        aria-hidden="true"
                     >
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
@@ -350,5 +345,5 @@ export function ModelSelector() {
                 {modelGrid}
             </div>
         </div>
-    ), [t, currentStep, hasChosenModel, modelGrid, handleStepClick, handleKeyDown, isExpanded, selectedModel]);
+    ), [t, currentStep, hasChosenModel, modelGrid, handleStepClick, isExpanded, selectedModel]);
 }
