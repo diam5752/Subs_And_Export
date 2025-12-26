@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import React, { memo, useId } from 'react';
 import { useI18n } from '@/context/I18nContext';
 
 const SUBTITLE_PREVIEW_BG_CLASS_BY_COLOR: Record<string, string> = {
@@ -68,6 +68,9 @@ export const StylePresetTiles = memo(({
     onSelectLastUsed
 }: StylePresetTilesProps) => {
     const { t } = useI18n();
+    const baseId = useId();
+    const lastUsedNameId = `${baseId}-last-used-name`;
+    const lastUsedDescId = `${baseId}-last-used-desc`;
 
     return (
         <div
@@ -76,12 +79,15 @@ export const StylePresetTiles = memo(({
             aria-label={t('tabStyles') || 'Style Presets'}
         >
             {presets.map((preset) => {
+                const nameId = `${baseId}-${preset.id}-name`;
+                const descId = `${baseId}-${preset.id}-desc`;
                 return (
                     <button
                         key={preset.id}
                         role="radio"
                         aria-checked={activePreset === preset.id}
-                        aria-label={preset.name}
+                        aria-labelledby={nameId}
+                        aria-describedby={descId}
                         onClick={(e) => {
                             e.stopPropagation();
                             onSelectPreset(preset);
@@ -105,10 +111,10 @@ export const StylePresetTiles = memo(({
                         </div>
                         <div className="flex-1 min-w-0 relative">
                             <div className="flex items-center gap-1.5 mb-0.5">
-                                <span className="text-sm">{preset.emoji}</span>
-                                <span className="font-semibold text-xs truncate">{preset.name}</span>
+                                <span className="text-sm" aria-hidden="true">{preset.emoji}</span>
+                                <span id={nameId} className="font-semibold text-xs truncate">{preset.name}</span>
                             </div>
-                            <p className="text-[10px] text-[var(--muted)] leading-tight line-clamp-2">{preset.description}</p>
+                            <p id={descId} className="text-[10px] text-[var(--muted)] leading-tight line-clamp-2">{preset.description}</p>
                         </div>
                         {activePreset === preset.id && (
                             <div className="absolute top-2 right-2 w-4 h-4 rounded-full bg-[var(--accent)] flex items-center justify-center animate-scale-in">
@@ -125,7 +131,8 @@ export const StylePresetTiles = memo(({
             <button
                 role="radio"
                 aria-checked={activePreset === 'lastUsed'}
-                aria-label={t('styleLastUsedName') || 'Last Used'}
+                aria-labelledby={lastUsedNameId}
+                aria-describedby={lastUsedDescId}
                 aria-disabled={!lastUsedSettings}
                 onClick={(e) => {
                     e.stopPropagation();
@@ -164,10 +171,10 @@ export const StylePresetTiles = memo(({
                 </div>
                 <div className="flex-1 min-w-0 relative">
                     <div className="flex items-center gap-1.5 mb-0.5">
-                        <span className="text-sm">🕐</span>
-                        <span className="font-semibold text-xs truncate">{t('styleLastUsedName') || 'Last Used'}</span>
+                        <span className="text-sm" aria-hidden="true">🕐</span>
+                        <span id={lastUsedNameId} className="font-semibold text-xs truncate">{t('styleLastUsedName') || 'Last Used'}</span>
                     </div>
-                    <p className="text-[10px] text-[var(--muted)] leading-tight line-clamp-2">
+                    <p id={lastUsedDescId} className="text-[10px] text-[var(--muted)] leading-tight line-clamp-2">
                         {lastUsedSettings ? (t('styleLastUsedDesc') || 'Your most recent settings') : (t('styleLastUsedNoHistory') || 'No previous exports yet')}
                     </p>
                 </div>
