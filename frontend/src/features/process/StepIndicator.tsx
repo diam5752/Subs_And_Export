@@ -18,7 +18,7 @@ export const StepIndicator = React.memo(function StepIndicator({ currentStep, st
     const effectiveMaxStep = maxStep ?? currentStep;
 
     return (
-        <div className="w-full max-w-4xl mx-auto mb-6 px-8 sm:px-12">
+        <nav aria-label={t('progressLabel') || "Progress"} className="w-full max-w-4xl mx-auto mb-6 px-8 sm:px-12">
             <div className="relative flex items-center justify-between">
                 {/* Connecting Line Background - spans between circle centers */}
                 <div
@@ -67,6 +67,7 @@ export const StepIndicator = React.memo(function StepIndicator({ currentStep, st
                             onClick={() => isClickable && onStepClick?.(step.id)}
                             role={isClickable ? "button" : undefined}
                             tabIndex={isClickable ? 0 : undefined}
+                            aria-current={isActive ? 'step' : undefined}
                             onKeyDown={handleKeyDown}
                         >
                             {/* Step Circle */}
@@ -101,6 +102,6 @@ export const StepIndicator = React.memo(function StepIndicator({ currentStep, st
             </div>
             {/* Spacing for labels */}
             <div className="h-14"></div>
-        </div >
+        </nav >
     );
 });
