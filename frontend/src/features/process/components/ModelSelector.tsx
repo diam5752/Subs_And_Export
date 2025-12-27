@@ -79,15 +79,19 @@ export function ModelSelector() {
                 const isPro = model.mode === 'pro';
 
                 // Minimal Visual Stats
-                // Standard: Speed 100%, Quality 75%
-                // Pro: Speed 85%, Quality 100%
-                const speedPercent = isPro ? 85 : 100;
-                const qualityPercent = isPro ? 100 : 75;
+                // Standard: Speed 100% (5/5), Quality 75% (3.5/5)
+                // Pro: Speed 85% (4.5/5), Quality 100% (5/5)
+                const speedScore = isPro ? '4.5' : '5';
+                const qualityScore = isPro ? '5' : '3.5';
+
+                // Accessible labels for screen readers
+                const speedLabel = `${t('statSpeed') || 'Speed'}: ${speedScore}/5`;
+                const qualityLabel = `${t('statAccuracy') || 'Accuracy'}: ${qualityScore}/5`;
+                const statsLabel = `${speedLabel}, ${qualityLabel}`;
 
                 // Theme Colors
                 // Standard: Emerald (Green)
                 // Pro: Neon Orange (Accent)
-                const themeColor = isPro ? 'var(--accent)' : '#10b981'; // Emerald-500
                 const themeClass = isPro ? 'text-[var(--accent)]' : 'text-emerald-500';
                 const bgClass = isPro ? 'bg-[var(--accent)]' : 'bg-emerald-500';
                 const borderClass = isPro ? 'border-[var(--accent)]' : 'border-emerald-500';
@@ -139,8 +143,11 @@ export function ModelSelector() {
                             </span>
                         </div>
 
+                        {/* Hidden accessible description of stats */}
+                        <span className="sr-only">{statsLabel}</span>
+
                         {/* Minimal Stats: Speed & Quality (Out of 5) */}
-                        <div className="space-y-4 mt-auto">
+                        <div className="space-y-4 mt-auto" aria-hidden="true">
                             {/* Speed Bar - 5 futuristic segments */}
                             <div className="space-y-2">
                                 <div className="flex justify-between text-[11px] font-bold uppercase tracking-wider text-[var(--muted)]">
