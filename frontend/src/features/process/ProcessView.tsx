@@ -27,8 +27,10 @@ interface ProcessViewProps {
     totalJobs: number;
 }
 
+// Optimization: Removed unused props (activeSidebarTab, hasVideos, isProcessing) to prevent
+// unnecessary re-renders of the entire layout when unrelated context state changes (e.g. switching tabs).
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const ProcessViewLayout = React.memo(({ currentStep, steps, hasChosenModel, selectedJob, setOverrideStep }: { currentStep: number; steps: any[]; activeSidebarTab: string; hasVideos: boolean; hasChosenModel: boolean; isProcessing: boolean; selectedJob: JobResponse | null; setOverrideStep: (s: number | null) => void }) => {
+const ProcessViewLayout = React.memo(({ currentStep, steps, hasChosenModel, selectedJob, setOverrideStep }: { currentStep: number; steps: any[]; hasChosenModel: boolean; selectedJob: JobResponse | null; setOverrideStep: (s: number | null) => void }) => {
     // Step 2: Show if model chosen OR if we are already on Step 2+ (e.g. session restored)
     const showUploadSection = hasChosenModel || currentStep >= 2;
 
@@ -89,7 +91,7 @@ ProcessViewLayout.displayName = 'ProcessViewLayout';
 
 export function ProcessViewContent() {
     const { t } = useI18n();
-    const { currentStep, activeSidebarTab, hasVideos, hasChosenModel, isProcessing, selectedJob, setOverrideStep } = useProcessContext();
+    const { currentStep, hasChosenModel, selectedJob, setOverrideStep } = useProcessContext();
 
     const STEPS = React.useMemo(() => [
         {
@@ -121,7 +123,7 @@ export function ProcessViewContent() {
         }
     ], [t]);
 
-    return <ProcessViewLayout currentStep={currentStep} steps={STEPS} activeSidebarTab={activeSidebarTab} hasVideos={hasVideos} hasChosenModel={hasChosenModel} isProcessing={isProcessing} selectedJob={selectedJob} setOverrideStep={setOverrideStep} />;
+    return <ProcessViewLayout currentStep={currentStep} steps={STEPS} hasChosenModel={hasChosenModel} selectedJob={selectedJob} setOverrideStep={setOverrideStep} />;
 }
 
 export function ProcessView(props: ProcessViewProps) {
