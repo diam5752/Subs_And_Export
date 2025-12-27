@@ -67,6 +67,7 @@ export const StepIndicator = React.memo(function StepIndicator({ currentStep, st
                             onClick={() => isClickable && onStepClick?.(step.id)}
                             role={isClickable ? "button" : undefined}
                             tabIndex={isClickable ? 0 : undefined}
+                            aria-current={isActive ? "step" : undefined}
                             onKeyDown={handleKeyDown}
                         >
                             {/* Step Circle */}
