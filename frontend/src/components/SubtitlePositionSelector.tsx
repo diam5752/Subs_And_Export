@@ -384,11 +384,15 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
 
     const [showColorGrid, setShowColorGrid] = useState(false);
     const gridRef = useRef<HTMLDivElement>(null);
+    const colorGridTriggerRef = useRef<HTMLButtonElement>(null);
+    const firstColorBtnRef = useRef<HTMLButtonElement>(null);
+    const shouldRestoreFocusRef = useRef(false);
 
     // Close color grid when clicking outside
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
             if (gridRef.current && !gridRef.current.contains(event.target as Node)) {
+                shouldRestoreFocusRef.current = false;
                 setShowColorGrid(false);
             }
         }
@@ -397,6 +401,21 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
             document.removeEventListener("mousedown", handleClickOutside);
         };
     }, []);
+
+    // Focus management for color grid
+    useEffect(() => {
+        if (showColorGrid) {
+            shouldRestoreFocusRef.current = true;
+            requestAnimationFrame(() => {
+                firstColorBtnRef.current?.focus();
+            });
+        } else if (shouldRestoreFocusRef.current) {
+            requestAnimationFrame(() => {
+                colorGridTriggerRef.current?.focus();
+            });
+            shouldRestoreFocusRef.current = false;
+        }
+    }, [showColorGrid]);
 
     // Preset tick marks for position
     const positionPresets = [
@@ -726,6 +745,7 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
                                     {/* More Colors Button (Toggle Popover) */}
                                     <div className="relative">
                                         <button
+                                            ref={colorGridTriggerRef}
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 setShowColorGrid(!showColorGrid);
@@ -766,13 +786,21 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
                                                 aria-label={t('moreColors') || 'More Colors'}
                                             >
                                                 <div className="grid grid-cols-4 gap-2">
-                                                    {MORE_COLORS.map((color) => (
+                                                    {MORE_COLORS.map((color, index) => (
                                                         <button
                                                             key={color.value}
+                                                            ref={index === 0 ? firstColorBtnRef : undefined}
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
                                                                 onChangeColor(color.value);
                                                                 setShowColorGrid(false);
+                                                            }}
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Escape') {
+                                                                    e.preventDefault();
+                                                                    e.stopPropagation();
+                                                                    setShowColorGrid(false);
+                                                                }
                                                             }}
                                                             className="w-8 h-8 rounded-full border border-white/10 hover:border-white hover:scale-110 transition-all shadow-sm relative focus-visible:ring-2 focus-visible:ring-white/50 focus-visible:outline-none"
                                                             style={{ backgroundColor: color.value }}

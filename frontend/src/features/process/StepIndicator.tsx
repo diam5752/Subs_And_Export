@@ -66,6 +66,7 @@ export const StepIndicator = React.memo(function StepIndicator({ currentStep, st
                             className={`group relative flex flex-col items-center ${isClickable ? 'cursor-pointer' : 'cursor-default'}`}
                             onClick={() => isClickable && onStepClick?.(step.id)}
                             role={isClickable ? "button" : undefined}
+                            aria-current={isActive ? 'step' : undefined}
                             tabIndex={isClickable ? 0 : undefined}
                             onKeyDown={handleKeyDown}
                         >
