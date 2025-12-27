@@ -384,6 +384,18 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
 
     const [showColorGrid, setShowColorGrid] = useState(false);
     const gridRef = useRef<HTMLDivElement>(null);
+    const colorTriggerRef = useRef<HTMLButtonElement>(null);
+    const colorPopoverRef = useRef<HTMLDivElement>(null);
+
+    // Focus management for color grid popover
+    useEffect(() => {
+        if (showColorGrid) {
+            // Focus current selection or first option when opened
+            const selectedBtn = colorPopoverRef.current?.querySelector('button[aria-checked="true"]');
+            const target = selectedBtn || colorPopoverRef.current?.querySelector('button');
+            (target as HTMLElement)?.focus();
+        }
+    }, [showColorGrid]);
 
     // Close color grid when clicking outside
     useEffect(() => {
@@ -726,6 +738,7 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
                                     {/* More Colors Button (Toggle Popover) */}
                                     <div className="relative">
                                         <button
+                                            ref={colorTriggerRef}
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 setShowColorGrid(!showColorGrid);
@@ -761,9 +774,18 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
                                         {/* Color Grid Popover */}
                                         {showColorGrid && (
                                             <div
+                                                ref={colorPopoverRef}
                                                 className="absolute top-full left-1/2 -translate-x-1/2 mt-3 p-3 bg-[var(--surface-elevated)] border border-[var(--border)] rounded-xl shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-200 min-w-[180px]"
                                                 role="radiogroup"
                                                 aria-label={t('moreColors') || 'More Colors'}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Escape') {
+                                                        e.preventDefault();
+                                                        e.stopPropagation();
+                                                        setShowColorGrid(false);
+                                                        colorTriggerRef.current?.focus();
+                                                    }
+                                                }}
                                             >
                                                 <div className="grid grid-cols-4 gap-2">
                                                     {MORE_COLORS.map((color) => (
@@ -773,6 +795,7 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
                                                                 e.stopPropagation();
                                                                 onChangeColor(color.value);
                                                                 setShowColorGrid(false);
+                                                                colorTriggerRef.current?.focus();
                                                             }}
                                                             className="w-8 h-8 rounded-full border border-white/10 hover:border-white hover:scale-110 transition-all shadow-sm relative focus-visible:ring-2 focus-visible:ring-white/50 focus-visible:outline-none"
                                                             style={{ backgroundColor: color.value }}
