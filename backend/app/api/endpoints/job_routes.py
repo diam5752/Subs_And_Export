@@ -14,7 +14,6 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-
 from ...core.auth import User
 from ...core.ratelimit import limiter_content
 from ...schemas.base import BatchDeleteRequest, BatchDeleteResponse, JobResponse, PaginatedJobsResponse
@@ -41,22 +40,28 @@ def ensure_job_size(job):
                     cleaned_path = cleaned_path[7:]  # Remove "static/" prefix
                 if cleaned_path.startswith("data/"):
                     cleaned_path = cleaned_path[5:]  # Remove "data/" prefix
-                
-                full_path = DATA_DIR / cleaned_path
-                
+
+                full_path = (DATA_DIR / cleaned_path).resolve()
+                data_dir_resolved = DATA_DIR.resolve()
+
+                # Security: Prevent path traversal out of DATA_DIR
+                is_safe_path = full_path.is_relative_to(data_dir_resolved)
+
                 # Also try the artifacts path directly
                 artifacts_path = DATA_DIR / "artifacts" / job.id / "processed.mp4"
-                
-                file_exists = full_path.exists() or artifacts_path.exists()
-                
+
+                file_exists = (is_safe_path and full_path.exists()) or artifacts_path.exists()
+
                 if not file_exists:
                     # Mark job as having missing files
                     job.result_data = {**job.result_data, "files_missing": True}
                 else:
                     # Backfill output_size if missing
                     if not job.result_data.get("output_size"):
-                        existing_path = full_path if full_path.exists() else artifacts_path
-                        job.result_data["output_size"] = existing_path.stat().st_size
+                        if is_safe_path and full_path.exists():
+                            job.result_data["output_size"] = full_path.stat().st_size
+                        elif artifacts_path.exists():
+                            job.result_data["output_size"] = artifacts_path.stat().st_size
             except Exception as e:
                 logger.warning(f"Failed to check job file integrity: {e}")
     return job
