@@ -76,12 +76,16 @@ export const StylePresetTiles = memo(({
             aria-label={t('tabStyles') || 'Style Presets'}
         >
             {presets.map((preset) => {
+                const labelId = `preset-label-${preset.id}`;
+                const descId = `preset-desc-${preset.id}`;
+
                 return (
                     <button
                         key={preset.id}
                         role="radio"
                         aria-checked={activePreset === preset.id}
-                        aria-label={preset.name}
+                        aria-labelledby={labelId}
+                        aria-describedby={descId}
                         onClick={(e) => {
                             e.stopPropagation();
                             onSelectPreset(preset);
@@ -106,9 +110,9 @@ export const StylePresetTiles = memo(({
                         <div className="flex-1 min-w-0 relative">
                             <div className="flex items-center gap-1.5 mb-0.5">
                                 <span className="text-sm">{preset.emoji}</span>
-                                <span className="font-semibold text-xs truncate">{preset.name}</span>
+                                <span id={labelId} className="font-semibold text-xs truncate">{preset.name}</span>
                             </div>
-                            <p className="text-[10px] text-[var(--muted)] leading-tight line-clamp-2">{preset.description}</p>
+                            <p id={descId} className="text-[10px] text-[var(--muted)] leading-tight line-clamp-2">{preset.description}</p>
                         </div>
                         {activePreset === preset.id && (
                             <div className="absolute top-2 right-2 w-4 h-4 rounded-full bg-[var(--accent)] flex items-center justify-center animate-scale-in">
