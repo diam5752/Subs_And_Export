@@ -81,13 +81,10 @@ export function ModelSelector() {
                 // Minimal Visual Stats
                 // Standard: Speed 100%, Quality 75%
                 // Pro: Speed 85%, Quality 100%
-                const speedPercent = isPro ? 85 : 100;
-                const qualityPercent = isPro ? 100 : 75;
 
                 // Theme Colors
                 // Standard: Emerald (Green)
                 // Pro: Neon Orange (Accent)
-                const themeColor = isPro ? 'var(--accent)' : '#10b981'; // Emerald-500
                 const themeClass = isPro ? 'text-[var(--accent)]' : 'text-emerald-500';
                 const bgClass = isPro ? 'bg-[var(--accent)]' : 'bg-emerald-500';
                 const borderClass = isPro ? 'border-[var(--accent)]' : 'border-emerald-500';
@@ -109,7 +106,7 @@ export function ModelSelector() {
                         className={`p-6 rounded-2xl text-left transition-all duration-300 relative overflow-hidden group flex flex-col h-full backface-hidden will-change-transform transform-gpu ${isSelected
                             ? 'glass-active scale-[1.02] z-10'
                             : `glass-premium hover:scale-[1.01] border-white/5 hover:${borderClass}/50 hover:bg-white/5`
-                            } ${isPro && isSelected ? 'shadow-[0_0_30px_-5px_var(--accent)] border-[var(--accent)]' : ''} ${!isPro && isSelected ? 'shadow-[0_0_30px_-5px_rgba(16,185,129,0.4)] border-emerald-500' : ''} ${!isSelected ? (isPro ? 'hover:shadow-[0_10px_30px_-10px_rgba(249,115,22,0.15)]' : 'hover:shadow-[0_10px_30px_-10px_rgba(16,185,129,0.15)]') : ''}`}
+                            } ${isPro && isSelected ? 'shadow-[0_0_30px_-5px_var(--accent)] border-[var(--accent)]' : ''} ${!isPro && isSelected ? 'shadow-[0_0_30px_-5px_rgba(16,185,129,0.4)] border-emerald-500' : ''} ${!isSelected ? (isPro ? 'hover:shadow-[0_10px_30px_-10px_rgba(249,115,22,0.15)]' : 'hover:shadow-[0_10px_30px_-10px_rgba(16,185,129,0.15)]') : ''} focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none`}
                     >
                         {/* Header: Icon + Title */}
                         <div className="flex items-start justify-between mb-6 w-full">
@@ -252,88 +249,96 @@ export function ModelSelector() {
         }
     }, [currentStep, setOverrideStep]);
 
-    const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            handleStepClick();
-        }
-    }, [handleStepClick]);
+    // handleKeyDown is no longer needed on the container if we use native buttons
+    // But we might need it if we wanted to replicate the container behavior.
+    // Since we are switching to buttons, we don't need manual Enter/Space handling.
 
     return useMemo(() => (
         <div id="model-selection-step" className="card space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3 relative z-50">
-                <div
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={handleKeyDown}
-                    className={`flex items-center gap-3 transition-all duration-300 cursor-pointer group/step ${currentStep !== 1 ? 'opacity-100 hover:scale-[1.005]' : 'opacity-100 scale-[1.01]'}`}
-                    onClick={handleStepClick}
-                >
-                    <span className={`flex items-center justify-center px-4 py-1 rounded-full border font-mono text-sm font-bold tracking-widest shadow-sm transition-all duration-500 shrink-0 ${currentStep === 1
-                        ? 'bg-gradient-to-r from-[var(--accent)] to-[var(--accent-secondary)] border-transparent text-white shadow-[0_0_20px_var(--accent)] scale-105'
-                        : 'glass-premium border-[var(--border)] text-[var(--muted)]'
-                        }`}>STEP 1</span>
+            {/*
+              ACCESSIBILITY FIX:
+              Refactored from a nested interactive structure (div role=button containing another button)
+              to a clean structure with sibling buttons.
+            */}
+            <div className={`flex flex-wrap items-center justify-between gap-3 relative z-50 transition-all duration-300 group/step ${currentStep !== 1 ? 'opacity-100' : 'opacity-100'}`}>
 
-                    <div className="min-w-0">
-                        <h3 className="text-xl font-semibold truncate">{t('modelSelectTitle') || 'Pick a Model'}</h3>
-                        {!hasChosenModel && (
-                            <p className="text-sm text-[var(--muted)] mt-0.5 ml-0.5 truncate">{t('modelSelectSubtitle')}</p>
-                        )}
-                    </div>
-
-                    <div
-                        className="group/info relative z-[100] shrink-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
-                        role="button"
-                        tabIndex={0}
-                        aria-label={t('modelInfo') || "Model comparison information"}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                e.stopPropagation();
-                            }
-                        }}
-                        onClick={(e) => e.stopPropagation()}
+                {/* Main Action Group */}
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <button
+                        type="button"
+                        onClick={handleStepClick}
+                        className={`flex items-center gap-3 text-left focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:rounded-lg focus-visible:outline-none transition-transform duration-300 ${currentStep !== 1 ? 'hover:scale-[1.005]' : ''}`}
                     >
-                        <svg className="w-5 h-5 text-white/50 group-focus/info:text-white group-hover/info:text-white cursor-help transition-all duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
+                        <span className={`flex items-center justify-center px-4 py-1 rounded-full border font-mono text-sm font-bold tracking-widest shadow-sm transition-all duration-500 shrink-0 ${currentStep === 1
+                            ? 'bg-gradient-to-r from-[var(--accent)] to-[var(--accent-secondary)] border-transparent text-white shadow-[0_0_20px_var(--accent)] scale-105'
+                            : 'glass-premium border-[var(--border)] text-[var(--muted)]'
+                            }`}>STEP 1</span>
 
-                        {/* Tooltip Content - Confirmed Solid Background */}
-                        <div className="absolute right-0 top-full mt-3 w-80 bg-zinc-950 border border-neutral-800 rounded-xl p-5 shadow-[0_20px_60px_rgba(0,0,0,0.8)] opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible group-focus/info:opacity-100 group-focus/info:visible transition-all duration-150 z-[1002] origin-top-right">
-                            <div className="space-y-5">
-                                <div className="space-y-2 text-left">
-                                    <div className="flex items-center gap-2 text-emerald-500 font-bold text-xs uppercase tracking-wider">
-                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-                                        Quick & Simple
+                        <div className="min-w-0">
+                            <h3 className="text-xl font-semibold truncate">{t('modelSelectTitle') || 'Pick a Model'}</h3>
+                            {!hasChosenModel && (
+                                <p className="text-sm text-[var(--muted)] mt-0.5 ml-0.5 truncate">{t('modelSelectSubtitle')}</p>
+                            )}
+                        </div>
+                    </button>
+
+                    {/* Tooltip Button - Independent Sibling */}
+                    <div className="relative z-[100]">
+                        <button
+                            type="button"
+                            className="group/info flex items-center justify-center rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+                            aria-label={t('modelInfo') || "Model comparison information"}
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <svg className="w-5 h-5 text-white/50 group-focus/info:text-white group-hover/info:text-white cursor-help transition-all duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+
+                            {/* Tooltip Content */}
+                            <div className="absolute right-0 top-full mt-3 w-80 bg-zinc-950 border border-neutral-800 rounded-xl p-5 shadow-[0_20px_60px_rgba(0,0,0,0.8)] opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible group-focus/info:opacity-100 group-focus/info:visible transition-all duration-150 z-[1002] origin-top-right cursor-auto">
+                                <div className="space-y-5">
+                                    <div className="space-y-2 text-left">
+                                        <div className="flex items-center gap-2 text-emerald-500 font-bold text-xs uppercase tracking-wider">
+                                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                                            Quick & Simple
+                                        </div>
+                                        <p className="text-[13px] leading-relaxed text-zinc-400">
+                                            <strong className="text-zinc-200">Great for basic content.</strong> Works well with clear audio and simple speech. Budget-friendly for everyday videos.
+                                        </p>
                                     </div>
-                                    <p className="text-[13px] leading-relaxed text-zinc-400">
-                                        <strong className="text-zinc-200">Great for basic content.</strong> Works well with clear audio and simple speech. Budget-friendly for everyday videos.
-                                    </p>
-                                </div>
-                                <div className="space-y-2 border-t border-white/5 pt-4 text-left">
-                                    <div className="flex items-center gap-2 text-orange-500 font-bold text-xs uppercase tracking-wider">
-                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
-                                        Creator&apos;s Choice ✨
+                                    <div className="space-y-2 border-t border-white/5 pt-4 text-left">
+                                        <div className="flex items-center gap-2 text-orange-500 font-bold text-xs uppercase tracking-wider">
+                                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
+                                            Creator&apos;s Choice ✨
+                                        </div>
+                                        <p className="text-[13px] leading-relaxed text-zinc-400">
+                                            <strong className="text-white">What top creators use.</strong> Handles accents, background noise, music &amp; multiple languages flawlessly. Worth every credit.
+                                        </p>
                                     </div>
-                                    <p className="text-[13px] leading-relaxed text-zinc-400">
-                                        <strong className="text-white">What top creators use.</strong> Handles accents, background noise, music &amp; multiple languages flawlessly. Worth every credit.
-                                    </p>
                                 </div>
                             </div>
-                        </div>
+                        </button>
                     </div>
 
-                    {/* Chevron indicator for expand/collapse */}
-                    <svg
-                        className={`w-5 h-5 text-[var(--muted)] transition-transform duration-300 shrink-0 ${isExpanded ? 'rotate-180' : ''}`}
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        data-testid="step-1-chevron"
+                    {/* Chevron Button */}
+                    <button
+                        type="button"
+                        onClick={handleStepClick}
+                        aria-label={isExpanded ? "Collapse" : "Expand"}
+                        className="focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:rounded focus-visible:outline-none p-1"
                     >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
+                        <svg
+                            className={`w-5 h-5 text-[var(--muted)] transition-transform duration-300 shrink-0 ${isExpanded ? 'rotate-180' : ''}`}
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            data-testid="step-1-chevron"
+                        >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </button>
                 </div>
+
                 <div className="flex items-center gap-3">
                     {/* Compact selected model indicator when collapsed */}
                     {!isExpanded && selectedModel && (
@@ -350,5 +355,5 @@ export function ModelSelector() {
                 {modelGrid}
             </div>
         </div>
-    ), [t, currentStep, hasChosenModel, modelGrid, handleStepClick, handleKeyDown, isExpanded, selectedModel]);
+    ), [t, currentStep, hasChosenModel, modelGrid, handleStepClick, isExpanded, selectedModel]);
 }
