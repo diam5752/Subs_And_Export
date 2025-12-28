@@ -30,6 +30,28 @@ def data_roots() -> tuple[Path, Path, Path]:
     return data_dir, uploads_dir, artifacts_dir
 
 
+def validate_path_is_safe(path: Path, base_dir: Path | None = None) -> None:
+    """
+    Security: Ensure path is within the allowed data directory to prevent traversal attacks.
+    """
+    if base_dir is None:
+        base_dir = settings.data_dir
+
+    try:
+        # Resolve symlinks and .. components
+        resolved_path = path.resolve()
+        resolved_base = base_dir.resolve()
+
+        # Check if resolved path is within resolved base
+        if not resolved_path.is_relative_to(resolved_base):
+             # Try parent directory check for cases where file doesn't exist yet
+             if not resolved_path.parent.is_relative_to(resolved_base):
+                raise ValueError("Path traversal detected")
+    except (ValueError, RuntimeError) as e:
+        logger.warning(f"Path security check failed: {path} not in {base_dir}")
+        raise HTTPException(status_code=400, detail="Invalid path")
+
+
 def relpath_safe(path: Path, base: Path) -> Path:
     """Return ``path`` relative to ``base`` when possible, otherwise the absolute path."""
     try:
@@ -44,6 +66,7 @@ def link_or_copy_file(source: Path, destination: Path) -> None:
     Raises:
         FileExistsError: If destination already exists
     """
+    validate_path_is_safe(destination)
     destination.parent.mkdir(parents=True, exist_ok=True)
     if destination.exists():
         raise FileExistsError(f"Refusing to overwrite {destination}")
@@ -63,6 +86,8 @@ def save_upload_with_limit(upload: UploadFile, destination: Path) -> None:
     Raises:
         HTTPException: If file is too large or empty
     """
+    validate_path_is_safe(destination)
+
     destination.parent.mkdir(parents=True, exist_ok=True)
     total = 0
     upload.file.seek(0)
