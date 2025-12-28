@@ -285,6 +285,7 @@ export function ModelSelector() {
                         className="group/info relative z-[100] shrink-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
                         role="button"
                         tabIndex={0}
+                        // @ts-expect-error - Key missing in types but valid for fallback
                         aria-label={t('modelInfo') || "Model comparison information"}
                         onKeyDown={(e) => {
                             if (e.key === 'Enter' || e.key === ' ') {
