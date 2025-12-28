@@ -97,7 +97,7 @@ def list_jobs_paginated(
     return PaginatedJobsResponse(items=items, total=total, page=page, page_size=page_size, total_pages=total_pages)
 
 
-@router.post("/jobs/batch-delete", response_model=BatchDeleteResponse)
+@router.post("/jobs/batch-delete", response_model=BatchDeleteResponse, dependencies=[Depends(limiter_content)])
 def batch_delete_jobs(
     request: BatchDeleteRequest,
     current_user: User = Depends(get_current_user),
@@ -205,7 +205,7 @@ def update_transcription(
     return {"status": "ok"}
 
 
-@router.delete("/jobs/{job_id}")
+@router.delete("/jobs/{job_id}", dependencies=[Depends(limiter_content)])
 def delete_job(
     job_id: str,
     current_user: User = Depends(get_current_user),
@@ -234,7 +234,7 @@ def delete_job(
     return {"status": "deleted", "job_id": job_id}
 
 
-@router.post("/jobs/{job_id}/cancel", response_model=JobResponse)
+@router.post("/jobs/{job_id}/cancel", response_model=JobResponse, dependencies=[Depends(limiter_content)])
 def cancel_job(
     job_id: str,
     current_user: User = Depends(get_current_user),
