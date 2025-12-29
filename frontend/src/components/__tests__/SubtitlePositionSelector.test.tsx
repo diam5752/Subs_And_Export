@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { SubtitlePositionSelector } from '@/components/SubtitlePositionSelector';
 
@@ -185,5 +185,33 @@ describe('SubtitlePositionSelector', () => {
         // Scrubber
         const scrubber = screen.getByLabelText('seekVideo');
         expect(scrubber).toBeInTheDocument();
+    });
+
+    it('manages focus when opening and closing color popover', async () => {
+        const colors = [{ label: 'Green', value: '#00FF00', ass: '&H0000FF00' }];
+        const onChangeColor = jest.fn();
+        render(<SubtitlePositionSelector {...defaultProps} colors={colors} onChangeColor={onChangeColor} subtitleColor="#00FF00" />);
+
+        const toggleButton = screen.getByRole('button', { name: 'moreColors' });
+
+        // Open popover
+        fireEvent.click(toggleButton);
+
+        const popover = await screen.findByRole('radiogroup', { name: 'moreColors' });
+        expect(popover).toBeInTheDocument();
+
+        // Check focus moved to first color in popover
+        const firstColor = screen.getByRole('radio', { name: 'Red' });
+        await waitFor(() => {
+            expect(document.activeElement).toBe(firstColor);
+        });
+
+        // Close popover via Escape
+        fireEvent.keyDown(popover, { key: 'Escape' });
+
+        // Check focus restored to toggle
+        await waitFor(() => {
+            expect(document.activeElement).toBe(toggleButton);
+        });
     });
 });

@@ -29,3 +29,7 @@
 ## 2025-03-04 - Focus Visibility for Custom Elements
 **Learning:** Custom interactive elements (like `div role="button"`) and styled buttons often have their default focus rings suppressed by resets or `outline-none`. This renders them invisible to keyboard users.
 **Action:** Explicitly add `focus-visible:ring-2` (and an appropriate color) to all interactive elements, especially those with custom styling or background colors, to ensure they are discoverable via keyboard.
+
+## 2025-03-06 - Focus Management in Custom Popovers
+**Learning:** Custom popovers that don't rely on native dialog/popover elements often fail to capture focus, leaving keyboard users stranded outside the interaction context.
+**Action:** Implement manual focus management using `useEffect` and `refs`: move focus to the first interactive element upon opening (via `requestAnimationFrame`), and restore focus to the trigger button upon closing or pressing Escape.
