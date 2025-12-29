@@ -268,6 +268,8 @@ export function ModelSelector() {
                     onKeyDown={handleKeyDown}
                     className={`flex items-center gap-3 transition-all duration-300 cursor-pointer group/step ${currentStep !== 1 ? 'opacity-100 hover:scale-[1.005]' : 'opacity-100 scale-[1.01]'}`}
                     onClick={handleStepClick}
+                    aria-expanded={isExpanded}
+                    aria-controls="model-selection-content"
                 >
                     <span className={`flex items-center justify-center px-4 py-1 rounded-full border font-mono text-sm font-bold tracking-widest shadow-sm transition-all duration-500 shrink-0 ${currentStep === 1
                         ? 'bg-gradient-to-r from-[var(--accent)] to-[var(--accent-secondary)] border-transparent text-white shadow-[0_0_20px_var(--accent)] scale-105'
@@ -285,6 +287,7 @@ export function ModelSelector() {
                         className="group/info relative z-[100] shrink-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
                         role="button"
                         tabIndex={0}
+                        // @ts-expect-error - key 'modelInfo' missing in types
                         aria-label={t('modelInfo') || "Model comparison information"}
                         onKeyDown={(e) => {
                             if (e.key === 'Enter' || e.key === ' ') {
@@ -346,7 +349,10 @@ export function ModelSelector() {
             </div>
 
             {/* Collapsible model grid with smooth animation */}
-            <div className={`transition-all duration-300 ease-in-out overflow-hidden ${isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}>
+            <div
+                id="model-selection-content"
+                className={`transition-all duration-300 ease-in-out overflow-hidden ${isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}
+            >
                 {modelGrid}
             </div>
         </div>

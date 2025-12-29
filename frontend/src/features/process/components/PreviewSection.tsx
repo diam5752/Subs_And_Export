@@ -44,6 +44,7 @@ const PreviewSectionLayout = memo(({
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     activeSidebarTab,
     isExpanded // New prop, received from parent
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
 }: any) => {
     return (
         <div id="preview-section" className={`card space-y-4 transition-all duration-500 ${!selectedJob && !isProcessing ? 'opacity-50 grayscale' : ''}`} ref={resultsRef}>
@@ -54,6 +55,8 @@ const PreviewSectionLayout = memo(({
                 onKeyDown={handleKeyDown}
                 className={`mb-2 flex items-center gap-4 transition-all duration-300 cursor-pointer group/step ${currentStep !== 3 ? (selectedJob?.status === 'completed' ? 'opacity-100 hover:scale-[1.005]' : 'opacity-40 grayscale blur-[1px]') : 'opacity-100 scale-[1.01]'}`}
                 onClick={handleStepClick}
+                aria-expanded={isExpanded}
+                aria-controls="preview-section-content"
             >
                 <span className={`flex items-center justify-center px-4 py-1 rounded-full border font-mono text-sm font-bold tracking-widest shadow-sm transition-all duration-500 ${currentStep === 3
                     ? 'bg-gradient-to-r from-[var(--accent)] to-[var(--accent-secondary)] border-transparent text-white shadow-[0_0_20px_var(--accent)] scale-105'
@@ -73,7 +76,10 @@ const PreviewSectionLayout = memo(({
             </div>
 
             {/* Collapsible content with smooth animation */}
-            <div className={`transition-all duration-300 ease-in-out overflow-hidden ${isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`} >
+            <div
+                id="preview-section-content"
+                className={`transition-all duration-300 ease-in-out overflow-hidden ${isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}
+            >
 
                 <div className="space-y-4 min-h-[200px]">
                     {(!selectedJob || selectedJob.status !== 'completed') ? (

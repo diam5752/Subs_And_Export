@@ -57,6 +57,9 @@ importers:
       knip:
         specifier: ^5.73.0
         version: 5.73.4(@types/node@20.19.26)(typescript@5.9.3)
+      playwright:
+        specifier: ^1.57.0
+        version: 1.57.0
       tailwindcss:
         specifier: ^4
         version: 4.1.18
