@@ -38,6 +38,33 @@ def relpath_safe(path: Path, base: Path) -> Path:
         return path
 
 
+def validate_path_is_safe(path: Path | str, base_dir: Path | None = None) -> Path:
+    """
+    Ensure a path is contained within a safe base directory.
+
+    Args:
+        path: The path to validate (can be string or Path)
+        base_dir: The allowed parent directory. Defaults to DATA_DIR.
+
+    Returns:
+        The resolved, safe absolute Path.
+
+    Raises:
+        ValueError: If the path traverses outside the base directory.
+    """
+    if base_dir is None:
+        base_dir = DATA_DIR
+
+    # Resolve fully to eliminate .. and symlinks
+    safe_base = base_dir.resolve()
+    requested_path = (safe_base / path).resolve()
+
+    if not requested_path.is_relative_to(safe_base):
+        raise ValueError(f"Path traversal attempt detected: {path}")
+
+    return requested_path
+
+
 def link_or_copy_file(source: Path, destination: Path) -> None:
     """Create a hard link or copy a file to destination.
     

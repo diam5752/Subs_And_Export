@@ -21,7 +21,7 @@ from ...schemas.base import BatchDeleteRequest, BatchDeleteResponse, JobResponse
 from ...services.history import HistoryStore
 from ...services.jobs import JobStore
 from ..deps import get_current_user, get_history_store, get_job_store
-from .file_utils import DATA_DIR, data_roots
+from .file_utils import DATA_DIR, data_roots, validate_path_is_safe
 from .processing_tasks import record_event_safe
 
 logger = logging.getLogger(__name__)
@@ -35,14 +35,19 @@ def ensure_job_size(job):
         video_path = job.result_data.get("video_path") or job.result_data.get("public_url")
         if video_path:
             try:
-                # Clean up the path - handle various formats like "/static/artifacts/..." or "data/artifacts/..."
+                # Security: Validate path is within DATA_DIR
                 cleaned_path = video_path.lstrip("/")
                 if cleaned_path.startswith("static/"):
                     cleaned_path = cleaned_path[7:]  # Remove "static/" prefix
                 if cleaned_path.startswith("data/"):
                     cleaned_path = cleaned_path[5:]  # Remove "data/" prefix
                 
-                full_path = DATA_DIR / cleaned_path
+                try:
+                    full_path = validate_path_is_safe(cleaned_path, DATA_DIR)
+                except ValueError:
+                    logger.warning(f"Path traversal detected in job {job.id}: {video_path}")
+                    job.result_data = {**job.result_data, "files_missing": True}
+                    return job
                 
                 # Also try the artifacts path directly
                 artifacts_path = DATA_DIR / "artifacts" / job.id / "processed.mp4"
