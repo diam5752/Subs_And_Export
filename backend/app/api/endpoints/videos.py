@@ -22,20 +22,19 @@ from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Request, UploadFile
 
-from ...core.config import settings
 from ...core.auth import User
+from ...core.config import settings
 from ...core.database import Database
 from ...core.errors import sanitize_message
 from ...core.gcs import get_gcs_settings, upload_object
 from ...core.ratelimit import limiter_processing
 from ...schemas.base import JobResponse
 from ...services import pricing
+from ...services.charge_plans import reserve_processing_charges
+from ...services.ffmpeg_utils import probe_media
 from ...services.history import HistoryStore
 from ...services.jobs import JobStore
-from ...services.charge_plans import reserve_processing_charges
 from ...services.usage_ledger import UsageLedgerStore
-from ...services.ffmpeg_utils import probe_media
-from ...services.video_processing import generate_video_variant, normalize_and_stub_subtitles
 from ..deps import (
     get_current_user,
     get_db,
@@ -54,11 +53,9 @@ from .file_utils import (
 from .processing_tasks import (
     record_event_safe,
     refund_charge_best_effort,
-    run_gcs_video_processing,
     run_video_processing,
 )
 from .settings import (
-    ProcessingSettings,
     build_processing_settings,
     parse_resolution,
 )
@@ -95,10 +92,10 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 # Include sub-routers
-from .job_routes import router as job_router
+from .export_routes import router as export_router
 from .gcs_routes import router as gcs_router
 from .intelligence_routes import router as intelligence_router
-from .export_routes import router as export_router
+from .job_routes import router as job_router
 from .reprocess_routes import router as reprocess_router
 
 router.include_router(job_router)
@@ -136,14 +133,26 @@ def _ensure_job_size(job):
     """Helper to backfill output_size for legacy jobs."""
     if job.status == "completed" and job.result_data:
         if not job.result_data.get("output_size"):
-            video_path = job.result_data.get("video_path")
+            video_path = job.result_data.get("video_path") or job.result_data.get("public_url")
             if video_path:
                 try:
-                    full_path = DATA_DIR / video_path
-                    if not full_path.exists():
-                        full_path = settings.project_root.parent / video_path
-                    if full_path.exists():
-                        job.result_data["output_size"] = full_path.stat().st_size
+                    # Clean up the path - handle various formats
+                    cleaned_path = video_path.lstrip("/")
+                    if cleaned_path.startswith("static/"):
+                        cleaned_path = cleaned_path[7:]
+                    if cleaned_path.startswith("data/"):
+                        cleaned_path = cleaned_path[5:]
+
+                    full_path = (DATA_DIR / cleaned_path).resolve()
+                    if not full_path.is_relative_to(DATA_DIR.resolve()):
+                        full_path = Path("nonexistent")
+
+                    # Also try the artifacts path directly
+                    artifacts_path = DATA_DIR / "artifacts" / job.id / "processed.mp4"
+
+                    existing_path = full_path if full_path.exists() else artifacts_path
+                    if existing_path.exists():
+                        job.result_data["output_size"] = existing_path.stat().st_size
                 except Exception as e:
                     logger.warning(f"Failed to ensure job size: {e}")
     return job
