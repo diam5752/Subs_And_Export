@@ -52,8 +52,20 @@ type TextMeasurer = {
 const MAX_CACHE_SIZE = 10000;
 const _wordWidthCache = new Map<string, number>();
 
+// Cache for cue segmentation results.
+// Keys are Cue objects. Values are objects containing the parameters used and the result.
+// Using WeakMap ensures that if a Cue object is replaced (e.g. edited), the old entry is GC'd.
+const _segmentationCache = new WeakMap<Cue, { params: string; result: Cue[] }>();
+
 export function resetWordWidthCache() {
     _wordWidthCache.clear();
+}
+
+// Exposed mainly for testing to allow full reset, though WeakMap manages itself for GC.
+export function resetSegmentationCache() {
+    // WeakMap cannot be cleared, but we can't iterate it anyway.
+    // Tests that need a clean slate should use fresh Cue objects.
+    // This function is effectively a no-op for WeakMap but kept if we switch strategy later.
 }
 
 let _sharedMeasurerCanvas: HTMLCanvasElement | null = null;
@@ -274,6 +286,11 @@ function chunkTimedWordsByWidth(
  * Re-segment cues to fit within maxLines constraints.
  * Ports backend `_split_long_cues` logic.
  * Processes each cue individually to preserve original time boundaries/silences.
+ *
+ * Optimized with caching:
+ * - Uses a WeakMap to cache results per Cue object reference.
+ * - If `originalCues` contains the same object instances, processing is skipped.
+ * - Lazy initialization of TextMeasurer to avoid context setup if all cues are cached.
  */
 export function resegmentCues(
     originalCues: Cue[],
@@ -283,11 +300,26 @@ export function resegmentCues(
     if (!originalCues || originalCues.length === 0) return [];
     if (maxLines === 0) return originalCues; // Handled by SubtitleOverlay specially ("One Word" mode)
 
-    const measurer = createTextMeasurer(fontSizePercent);
-    const effectiveMaxChars = getEffectiveMaxChars(fontSizePercent);
+    const paramsKey = `${maxLines}:${fontSizePercent}`;
+
+    // Lazy init
+    let measurer: TextMeasurer | null | undefined;
+    let effectiveMaxChars: number | undefined;
 
     return originalCues.flatMap((cue) => {
-        // 1. Get words for this SPECIFIC cue (real or interpolated)
+        // 1. Check cache
+        const cached = _segmentationCache.get(cue);
+        if (cached && cached.params === paramsKey) {
+            return cached.result;
+        }
+
+        // 2. Init resources if needed (only once per batch)
+        if (measurer === undefined) {
+             measurer = createTextMeasurer(fontSizePercent);
+             effectiveMaxChars = getEffectiveMaxChars(fontSizePercent);
+        }
+
+        // 3. Get words for this SPECIFIC cue (real or interpolated)
         let cueWords: TranscriptionWordTiming[] = [];
         if (cue.words && cue.words.length > 0) {
             cue.words.forEach((word) => {
@@ -297,15 +329,19 @@ export function resegmentCues(
             cueWords = interpolateWordsFromCueText(cue);
         }
 
-        if (cueWords.length === 0) return [cue];
+        if (cueWords.length === 0) {
+             const emptyResult = [cue];
+             _segmentationCache.set(cue, { params: paramsKey, result: emptyResult });
+             return emptyResult;
+        }
 
-        // 2. Chunk ONLY this cue's words
+        // 4. Chunk ONLY this cue's words
         const wordChunks = measurer
             ? chunkTimedWordsByWidth(cueWords, maxLines, measurer)
-            : chunkTimedWords(cueWords, effectiveMaxChars, maxLines);
+            : chunkTimedWords(cueWords, effectiveMaxChars!, maxLines);
 
-        // 3. Create new cues from chunks
-        return wordChunks
+        // 5. Create new cues from chunks
+        const result = wordChunks
             .filter((chunkWords) => chunkWords.length > 0)
             .map((chunkWords) => {
                 const first = chunkWords[0];
@@ -323,6 +359,10 @@ export function resegmentCues(
                     words: chunkWords,
                 };
             });
+
+        // 6. Cache and return
+        _segmentationCache.set(cue, { params: paramsKey, result });
+        return result;
     });
 }
 

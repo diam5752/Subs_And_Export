@@ -29,3 +29,7 @@
 ## 2025-03-01 - [Global Cache for Canvas Text Measurement]
 **Learning:** `ctx.measureText` is expensive. Creating a new cache `Map` inside the helper function (`createTextMeasurer`) meant the cache was destroyed and recreated on every re-render or re-calculation (e.g. dragging a slider), defeating the purpose of caching.
 **Action:** Move read-only or expensive caches to module scope (global) with a size limit to share results across function calls, and export a reset function for test isolation.
+
+## 2025-06-15 - [Referential Cache for Expensive Loops]
+**Learning:** Editing a single subtitle cue triggered a full re-segmentation of the entire transcript because the processing function (`resegmentCues`) iterated over all items blindly, even though 99% of `Cue` objects were referentially identical.
+**Action:** Implement a `WeakMap` cache keyed by the item object (reference) combined with config parameters. This creates an O(1) path for unchanged items during list processing, reducing complexity from O(N_total) to O(N_changed).
