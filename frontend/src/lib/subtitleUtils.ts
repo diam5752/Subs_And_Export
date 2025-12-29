@@ -331,7 +331,27 @@ export function resegmentCues(
  * Assumes cues are sorted by start time.
  * Returns -1 if no cue is active.
  */
-export function findCueIndexAtTime(cues: Cue[], time: number): number {
+export function findCueIndexAtTime(cues: Cue[], time: number, hintIndex = -1): number {
+    if (!cues || cues.length === 0) return -1;
+
+    // 1. Check hint first (Linear Playback Optimization)
+    if (hintIndex >= 0 && hintIndex < cues.length) {
+        // Check current hint (most likely case: we are still on the same cue)
+        const cue = cues[hintIndex];
+        if (time >= cue.start && time < cue.end) {
+            return hintIndex;
+        }
+
+        // Check next cue (common case: we just advanced to the next cue)
+        const nextIndex = hintIndex + 1;
+        if (nextIndex < cues.length) {
+            const nextCue = cues[nextIndex];
+            if (time >= nextCue.start && time < nextCue.end) {
+                return nextIndex;
+            }
+        }
+    }
+
     let low = 0;
     let high = cues.length - 1;
 
@@ -351,7 +371,7 @@ export function findCueIndexAtTime(cues: Cue[], time: number): number {
     return -1;
 }
 
-export function findCueAtTime(cues: Cue[], time: number): Cue | undefined {
-    const index = findCueIndexAtTime(cues, time);
+export function findCueAtTime(cues: Cue[], time: number, hintIndex = -1): Cue | undefined {
+    const index = findCueIndexAtTime(cues, time, hintIndex);
     return index !== -1 ? cues[index] : undefined;
 }
