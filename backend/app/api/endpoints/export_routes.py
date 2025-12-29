@@ -10,8 +10,8 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
-from ...core.config import settings
 from ...core.auth import User
+from ...core.config import settings
 from ...core.errors import sanitize_message
 from ...core.gcs import download_object, get_gcs_settings, upload_object
 from ...core.ratelimit import limiter_content
@@ -29,7 +29,6 @@ from .validation import (
     validate_subtitle_size,
 )
 
-
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
@@ -38,14 +37,26 @@ def _ensure_job_size(job):
     """Helper to backfill output_size for legacy jobs."""
     if job.status == "completed" and job.result_data:
         if not job.result_data.get("output_size"):
-            video_path = job.result_data.get("video_path")
+            video_path = job.result_data.get("video_path") or job.result_data.get("public_url")
             if video_path:
                 try:
-                    full_path = DATA_DIR / video_path
-                    if not full_path.exists():
-                        full_path = settings.project_root.parent / video_path
-                    if full_path.exists():
-                        job.result_data["output_size"] = full_path.stat().st_size
+                    # Clean up the path - handle various formats
+                    cleaned_path = video_path.lstrip("/")
+                    if cleaned_path.startswith("static/"):
+                        cleaned_path = cleaned_path[7:]
+                    if cleaned_path.startswith("data/"):
+                        cleaned_path = cleaned_path[5:]
+
+                    full_path = (DATA_DIR / cleaned_path).resolve()
+                    if not full_path.is_relative_to(DATA_DIR.resolve()):
+                        full_path = Path("nonexistent")
+
+                    # Also try the artifacts path directly
+                    artifacts_path = DATA_DIR / "artifacts" / job.id / "processed.mp4"
+
+                    existing_path = full_path if full_path.exists() else artifacts_path
+                    if existing_path.exists():
+                        job.result_data["output_size"] = existing_path.stat().st_size
                 except Exception as e:
                     logger.warning(f"Failed to ensure job size: {e}")
     return job
