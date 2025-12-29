@@ -104,6 +104,13 @@ export const RecentJobsList = memo(function RecentJobsList({
         });
     }, []);
 
+    const handleCreateNew = () => {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        // Optionally focus the upload area if we had a ref to it, but scrolling up is a good start.
+        // A more robust way would be to focus the main heading or the file input label,
+        // but simple scroll is safe for now.
+    };
+
     return (
         <div className="card mt-6 border-none bg-transparent shadow-none p-0">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
@@ -209,7 +216,11 @@ export const RecentJobsList = memo(function RecentJobsList({
             )}
 
             {jobs.length === 0 && (
-                <div className="flex flex-col items-center justify-center py-12 px-4 rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface-elevated)]/30 text-center animate-fade-in">
+                <div
+                    className="flex flex-col items-center justify-center py-12 px-4 rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface-elevated)]/30 text-center animate-fade-in"
+                    role="status"
+                    aria-live="polite"
+                >
                     <div className="mb-3 p-3 rounded-full bg-[var(--surface-elevated)] border border-[var(--border)] text-[var(--muted)] opacity-70">
                         <svg aria-hidden="true" className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -218,9 +229,16 @@ export const RecentJobsList = memo(function RecentJobsList({
                     <h4 className="text-sm font-semibold text-[var(--foreground)] mb-1">
                         {t('noHistory') || 'No history yet.'}
                     </h4>
-                    <p className="text-xs text-[var(--muted)] max-w-[200px]">
+                    <p className="text-xs text-[var(--muted)] max-w-[200px] mb-4">
                         {t('noRunsYet') || 'Your processed videos will appear here.'}
                     </p>
+
+                    <button
+                        onClick={handleCreateNew}
+                        className="text-xs font-medium px-4 py-2 rounded-lg bg-[var(--surface-elevated)] border border-[var(--border)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-all active:scale-95 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
+                    >
+                        {t('createNewVideo') || 'Create New Video'}
+                    </button>
                 </div>
             )}
             <div className="space-y-2">

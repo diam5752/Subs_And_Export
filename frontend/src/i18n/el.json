@@ -389,5 +389,8 @@
   "newVideoModalTitle": "Ξεκινήσετε νέο project;",
   "newVideoModalDesc": "Το τρέχον βίντεο και όλες οι επεξεργασίες θα διαγραφούν. Αυτή η ενέργεια δεν μπορεί να αναιρεθεί.",
   "newVideoCancel": "Συνέχιση Εργασίας",
-  "newVideoConfirm": "Νέα Αρχή"
+  "newVideoConfirm": "Νέα Αρχή",
+  "createNewVideo": "Νέο Βίντεο",
+  "modelInfo": "Πληροφορίες Μοντέλου",
+  "noSubtitlesFound": "Δεν βρέθηκαν υπότιτλοι"
 }
