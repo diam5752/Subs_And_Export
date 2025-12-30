@@ -327,11 +327,32 @@ export function resegmentCues(
 }
 
 /**
- * Efficiently finds the index of the cue active at the given time using binary search.
+ * Efficiently finds the index of the cue active at the given time.
+ * Supports an optional hintIndex to optimize sequential lookups (O(1)).
+ * Fallbacks to binary search (O(log N)).
  * Assumes cues are sorted by start time.
  * Returns -1 if no cue is active.
  */
-export function findCueIndexAtTime(cues: Cue[], time: number): number {
+export function findCueIndexAtTime(cues: Cue[], time: number, hintIndex?: number): number {
+    // 1. Optimization: Check hint index first (and next) for O(1) sequential playback
+    if (hintIndex !== undefined && hintIndex >= 0 && hintIndex < cues.length) {
+        // Check exact hint match
+        const cue = cues[hintIndex];
+        if (time >= cue.start && time < cue.end) {
+            return hintIndex;
+        }
+
+        // Check next cue (forward playback)
+        const nextIndex = hintIndex + 1;
+        if (nextIndex < cues.length) {
+            const nextCue = cues[nextIndex];
+            if (time >= nextCue.start && time < nextCue.end) {
+                return nextIndex;
+            }
+        }
+    }
+
+    // 2. Binary Search (O(log N))
     let low = 0;
     let high = cues.length - 1;
 
