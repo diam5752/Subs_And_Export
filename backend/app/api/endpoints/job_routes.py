@@ -21,7 +21,7 @@ from ...schemas.base import BatchDeleteRequest, BatchDeleteResponse, JobResponse
 from ...services.history import HistoryStore
 from ...services.jobs import JobStore
 from ..deps import get_current_user, get_history_store, get_job_store
-from .file_utils import DATA_DIR, data_roots
+from .file_utils import DATA_DIR, data_roots, validate_path_is_safe
 from .processing_tasks import record_event_safe
 
 logger = logging.getLogger(__name__)
@@ -184,9 +184,11 @@ def update_transcription(
         raise HTTPException(404, "Job not found")
 
     _, _, artifacts_root = data_roots()
-    artifacts_root_resolved = artifacts_root.resolve()
-    artifact_dir = (artifacts_root / job_id).resolve()
-    if not artifact_dir.is_relative_to(artifacts_root_resolved):
+
+    # Security: Validate job_id prevents path traversal
+    try:
+        artifact_dir = validate_path_is_safe(artifacts_root / job_id, artifacts_root)
+    except ValueError:
         raise HTTPException(status_code=400, detail="Invalid job id")
 
     transcription_json = artifact_dir / "transcription.json"

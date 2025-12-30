@@ -30,6 +30,26 @@ def data_roots() -> tuple[Path, Path, Path]:
     return data_dir, uploads_dir, artifacts_dir
 
 
+def validate_path_is_safe(path: Path, base: Path) -> Path:
+    """
+    Validate that the given path is contained within the base directory.
+    Resolves both paths to ensure symlinks don't bypass the check.
+
+    Returns:
+        The resolved absolute path if safe.
+
+    Raises:
+        ValueError: If path traversal is detected or path is outside base.
+    """
+    resolved_path = path.resolve()
+    resolved_base = base.resolve()
+
+    if not resolved_path.is_relative_to(resolved_base):
+        raise ValueError(f"Path traversal detected: {path} is not within {base}")
+
+    return resolved_path
+
+
 def relpath_safe(path: Path, base: Path) -> Path:
     """Return ``path`` relative to ``base`` when possible, otherwise the absolute path."""
     try:
