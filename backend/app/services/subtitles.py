@@ -7,6 +7,7 @@ import re
 import subprocess
 import tempfile
 import time
+from collections import deque
 from pathlib import Path
 from typing import Callable, Iterable, List, Tuple
 
@@ -70,6 +71,9 @@ def extract_audio(
         bufsize=1,
     )
 
+    # Capture last N lines of stderr for error reporting
+    stderr_lines = deque(maxlen=200)
+
     try:
         import select
 
@@ -92,6 +96,8 @@ def extract_audio(
                     if not line:
                         break  # EOF
 
+                    stderr_lines.append(line)
+
                     if progress_callback and total_duration and total_duration > 0:
                         if "time=" in line:
                             match = TIME_PATTERN.search(line)
@@ -106,7 +112,7 @@ def extract_audio(
 
         process.wait()
         if process.returncode != 0:
-            raise subprocess.CalledProcessError(process.returncode, cmd, output=None)
+            raise subprocess.CalledProcessError(process.returncode, cmd, output="".join(stderr_lines))
 
     except Exception:
         if process.poll() is None:
