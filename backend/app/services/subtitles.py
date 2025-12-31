@@ -19,7 +19,7 @@ from backend.app.services import (
     social_intelligence,
     subtitle_renderer,
 )
-from backend.app.services.subtitle_types import Cue, TimeRange, WordTiming
+from backend.app.services.subtitle_types import Cue, TimeRange
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +39,7 @@ def extract_audio(
     check_cancelled: Callable[[], None] | None = None,
     progress_callback: Callable[[float], None] | None = None,
     total_duration: float | None = None,
+    timeout: float | None = 300.0,  # Security: Default 5 min timeout
 ) -> Path:
     """
     Extract the audio track from a video file into a mono WAV for transcription.
@@ -74,11 +75,18 @@ def extract_audio(
         import select
 
         last_cancel_check = 0.0
+        start_time = time.monotonic()
 
         while True:
+            now = time.monotonic()
+
+            # Security: Enforce hard timeout
+            if timeout and (now - start_time > timeout):
+                process.kill()
+                raise TimeoutError(f"Audio extraction exceeded timeout of {timeout}s")
+
             # 1. Periodic cancellation check
             if check_cancelled:
-                now = time.monotonic()
                 # Throttle check to avoid excessive DB overhead (every 0.5s)
                 if now - last_cancel_check > 0.5:
                     check_cancelled()
