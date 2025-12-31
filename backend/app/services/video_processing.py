@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import logging
+import subprocess
 import tempfile
 import time
-import subprocess
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Callable
@@ -16,6 +16,7 @@ from backend.app.core.database import Database
 from backend.app.services import (
     artifact_manager,
     ffmpeg_utils,
+    pricing,
     settings_utils,
     subtitles,
 )
@@ -23,7 +24,6 @@ from backend.app.services.styles import SubtitleStyle
 from backend.app.services.transcription.groq_cloud import GroqTranscriber
 from backend.app.services.transcription.openai_cloud import OpenAITranscriber
 from backend.app.services.usage_ledger import ChargePlan, UsageLedgerStore
-from backend.app.services import pricing
 
 logger = logging.getLogger(__name__)
 
@@ -157,12 +157,15 @@ def normalize_and_stub_subtitles(
             if progress_callback: progress_callback("Extracting audio...", 0.0)
             if check_cancelled: check_cancelled()
             with metrics.measure_time(pipeline_timings, "extract_audio_s"):
+                # Security: Enforce generous but strict timeout (min 5 mins, or 2x duration)
+                extract_timeout = max(300.0, total_duration * 2.0) if total_duration else 600.0
                 audio_path = subtitles.extract_audio(
-                    input_path, 
-                    output_dir=scratch, 
+                    input_path,
+                    output_dir=scratch,
                     check_cancelled=check_cancelled,
                     progress_callback=_extract_cb if total_duration else None,
-                    total_duration=total_duration
+                    total_duration=total_duration,
+                    timeout=extract_timeout
                 )
 
             # Step 2: Transcribe
@@ -289,6 +292,9 @@ def normalize_and_stub_subtitles(
                     def _enc_cb(p):
                         if progress_callback: progress_callback(f"Encoding ({int(p)}%)...", 80.0 + (p * 0.2))
 
+                    # Security: Enforce encoding timeout (min 30 mins, or 20x duration for slow CPUs)
+                    encode_timeout = max(1800.0, total_duration * 20.0) if total_duration else 3600.0
+
                     ffmpeg_utils.run_ffmpeg_with_subs(
                         input_path, ass_path, destination,
                         video_crf=video_crf or settings.default_video_crf,
@@ -301,7 +307,8 @@ def normalize_and_stub_subtitles(
                         output_width=output_width,
                         output_height=output_height,
                         watermark_enabled=watermark_enabled,
-                        check_cancelled=check_cancelled
+                        check_cancelled=check_cancelled,
+                        timeout=encode_timeout
                     )
                 except subprocess.CalledProcessError as exc:
                     if use_hw_accel:
@@ -319,7 +326,8 @@ def normalize_and_stub_subtitles(
                             output_width=output_width,
                             output_height=output_height,
                             watermark_enabled=watermark_enabled,
-                            check_cancelled=check_cancelled
+                            check_cancelled=check_cancelled,
+                            timeout=encode_timeout
                         )
                     else:
                         raise
@@ -522,7 +530,7 @@ def generate_video_variant(
     video_crf = int(stored_crf) if stored_crf is not None else settings.default_video_crf
 
     watermark_enabled = bool(subtitle_settings.get("watermark_enabled", False)) if subtitle_settings else bool(result_data.get("watermark_enabled", False))
-    
+
     ffmpeg_utils.run_ffmpeg_with_subs(
         input_path,
         ass_path,
