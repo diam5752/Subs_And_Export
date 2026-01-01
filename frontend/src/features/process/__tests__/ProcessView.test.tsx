@@ -359,4 +359,42 @@ describe('ProcessView', () => {
         // Should also show "Ready" badge
         expect(screen.getAllByText(/Ready/i).length).toBeGreaterThan(0);
     });
+
+    it('accordion headers have accessible aria-expanded attributes', () => {
+        (useProcessContext as jest.Mock).mockReturnValue({
+            ...mockContextValue,
+            currentStep: 2, // Step 2 is active (expanded), Step 1 is collapsed
+            hasChosenModel: true
+        });
+
+        render(
+            <I18nProvider initialLocale="en">
+                <PlaybackProvider>
+                    <ProcessViewContent />
+                </PlaybackProvider>
+            </I18nProvider>
+        );
+
+        // Use more specific selectors to avoid ambiguity with StepIndicator
+
+        // Step 1 Header (Model Selector) - should be collapsed because Step 2 is active
+        // The Model Selector header is a div[role="button"] containing "STEP 1" and "Pick a Model" (or similar)
+        // We look for the heading inside the button
+        const step1Title = screen.getByRole('heading', { name: /Pick a Model|Select a Model/i });
+        const step1Header = step1Title.closest('div[role="button"]');
+        expect(step1Header).toHaveAttribute('aria-expanded', 'false');
+
+        // Step 2 Header (Upload Section) - should be expanded
+        // In the mock state, we see multiple headers because compact/full logic is rendered based on context.
+        // In the test setup, both might be present in the DOM but hidden/shown via CSS.
+        // We use getAllByRole to find all matching headers and check at least one is expanded.
+        const step2Titles = screen.getAllByRole('heading', { name: /Upload/i });
+        const step2Headers = step2Titles.map(t => t.closest('div[role="button"]')).filter(h => h !== null);
+
+        expect(step2Headers.length).toBeGreaterThan(0);
+        step2Headers.forEach(header => {
+            // Both the compact and full header should reflect the expanded state if visible/rendered
+            expect(header).toHaveAttribute('aria-expanded', 'true');
+        });
+    });
 });
