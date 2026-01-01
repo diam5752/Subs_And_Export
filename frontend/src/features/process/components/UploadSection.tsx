@@ -315,6 +315,7 @@ export function UploadSection() {
                             <div
                                 role="button"
                                 tabIndex={0}
+                                aria-expanded={isExpanded}
                                 onKeyDown={(e) => handleKeyDown(e, () => handleStepClick('upload-section-compact'))}
                                 className={`flex items-center gap-4 transition-all duration-300 cursor-pointer group/step focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:rounded-full focus-visible:outline-none ${currentStep !== 2 ? 'opacity-100 hover:scale-[1.005]' : 'opacity-100 scale-[1.01]'}`}
                                 onClick={() => handleStepClick('upload-section-compact')}
@@ -573,6 +574,7 @@ export function UploadSection() {
                 <div
                     role="button"
                     tabIndex={0}
+                    aria-expanded={isExpanded}
                     onKeyDown={(e) => handleKeyDown(e, () => handleStepClick('upload-section'))}
                     className={`mb-2 flex items-center gap-4 transition-all duration-300 cursor-pointer group/step focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:rounded-full focus-visible:outline-none ${currentStep !== 2 ? (hasChosenModel ? 'opacity-100 hover:scale-[1.005]' : 'opacity-40 grayscale blur-[1px]') : 'opacity-100 scale-[1.01]'}`}
                     onClick={() => handleStepClick('upload-section')}
