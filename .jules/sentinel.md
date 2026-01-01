@@ -158,3 +158,7 @@
 **Vulnerability:** The `/auth/google/url` endpoint triggered database writes (issuing state tokens) without authentication or rate limiting, allowing attackers to fill the state store.
 **Learning:** Endpoints that initiate flows (like OAuth) are public by definition but still consume resources. They are often missed when auditing "login" or "register" endpoints.
 **Prevention:** Apply rate limits (e.g. `limiter_login`) to ALL public endpoints that trigger backend state creation, not just the final submission step.
+## 2025-12-28 - [Medium] Missing FFmpeg Process Timeouts
+**Vulnerability:** The video processing pipeline (audio extraction, video encoding) executed `subprocess.Popen` without enforcing a total runtime timeout, allowing hanged processes (e.g., due to corrupted input or deadlocks) to consume resources indefinitely.
+**Learning:** `subprocess.run` has a `timeout` parameter, but manual `Popen` loops (often used for progress monitoring) must manually enforce timeouts. Polling loops relying solely on database cancellation checks are insufficient if the process itself hangs or the database check fails.
+**Prevention:** Always implement an explicit timeout check (using `time.monotonic()`) inside any subprocess polling loop and forcibly kill the process if the duration is exceeded.
