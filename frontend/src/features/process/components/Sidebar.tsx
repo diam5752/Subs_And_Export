@@ -9,6 +9,7 @@ import { findCueIndexAtTime } from '@/lib/subtitleUtils';
 import { SubtitlePositionSelector } from '@/components/SubtitlePositionSelector';
 import { ViralIntelligence } from '@/components/ViralIntelligence';
 import { StylePresetTiles, StylePreset } from './StylePresetTiles';
+import { useVirtualizer } from '@tanstack/react-virtual';
 
 interface CueListProps {
     cues: Cue[];
@@ -21,6 +22,7 @@ interface CueListProps {
     onSave: () => void;
     onCancel: () => void;
     onUpdateDraft: (text: string) => void;
+    scrollContainerRef: React.RefObject<HTMLDivElement | null>;
 }
 
 const CueList = memo(({
@@ -33,17 +35,62 @@ const CueList = memo(({
     onEdit,
     onSave,
     onCancel,
-    onUpdateDraft
+    onUpdateDraft,
+    scrollContainerRef
 }: CueListProps) => {
+    // Virtualizer for performance with long lists
+    // eslint-disable-next-line react-hooks/incompatible-library
+    const rowVirtualizer = useVirtualizer({
+        count: cues.length,
+        getScrollElement: () => scrollContainerRef.current,
+        estimateSize: () => 100, // Approximate height of a cue item
+        overscan: 5,
+    });
+
+    // Handle scrolling to active cue
+    useEffect(() => {
+        if (editingCueIndex !== null) return;
+        if (activeCueIndex === -1) return;
+
+        rowVirtualizer.scrollToIndex(activeCueIndex, {
+            align: 'center',
+            behavior: 'smooth',
+        });
+    }, [activeCueIndex, editingCueIndex, rowVirtualizer]);
+
+    // Force re-measure when cues change length significantly or layout changes
+    useEffect(() => {
+        rowVirtualizer.measure();
+    }, [cues.length, rowVirtualizer]);
+
     return (
-        <>
-            {cues.map((cue, index) => {
+        <div
+            style={{
+                height: `${rowVirtualizer.getTotalSize()}px`,
+                width: '100%',
+                position: 'relative',
+            }}
+        >
+            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                const index = virtualRow.index;
+                const cue = cues[index];
                 const isActive = index === activeCueIndex;
                 const isEditing = editingCueIndex === index;
                 const canEditThis = !isSaving && (editingCueIndex === null || isEditing);
 
                 return (
-                    <div id={`cue-${index}`} key={`${cue.start}-${cue.end}-${index}`}>
+                    <div
+                        key={virtualRow.key}
+                        ref={rowVirtualizer.measureElement}
+                        data-index={index}
+                        style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            transform: `translateY(${virtualRow.start}px)`,
+                        }}
+                    >
                         <CueItem
                             cue={cue}
                             index={index}
@@ -61,7 +108,7 @@ const CueList = memo(({
                     </div>
                 );
             })}
-        </>
+        </div>
     );
 });
 CueList.displayName = 'CueList';
@@ -92,29 +139,6 @@ const TranscriptPanel = memo(() => {
         if (!cues || cues.length === 0) return -1;
         return findCueIndexAtTime(cues, currentTime);
     }, [cues, currentTime]);
-
-    // Scroll active cue into view
-    useEffect(() => {
-        if (editingCueIndex !== null) return;
-        if (activeCueIndex === -1) return;
-
-        if (transcriptContainerRef.current) {
-            const element = document.getElementById(`cue-${activeCueIndex}`);
-            const container = transcriptContainerRef.current;
-
-            if (element) {
-                const elementTop = element.offsetTop;
-                const elementHeight = element.offsetHeight;
-                const containerHeight = container.clientHeight;
-                const targetScroll = elementTop - (containerHeight / 2) + (elementHeight / 2);
-
-                container.scrollTo({
-                    top: targetScroll,
-                    behavior: 'smooth'
-                });
-            }
-        }
-    }, [activeCueIndex, editingCueIndex, transcriptContainerRef]);
 
     // Optimized: Memoize the JSX to prevent VDOM re-creation on every frame (60fps)
     // TranscriptPanel re-renders on every currentTime update, but the VDOM structure
@@ -155,6 +179,7 @@ const TranscriptPanel = memo(() => {
                     onSave={saveEditingCue}
                     onCancel={cancelEditingCue}
                     onUpdateDraft={handleUpdateDraft}
+                    scrollContainerRef={transcriptContainerRef}
                 />
                 {cues.length === 0 && (
                     <div className="text-center text-[var(--muted)] py-10 opacity-50 font-medium">
