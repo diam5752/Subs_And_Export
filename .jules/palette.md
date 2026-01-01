@@ -29,3 +29,6 @@
 ## 2025-03-04 - Focus Visibility for Custom Elements
 **Learning:** Custom interactive elements (like `div role="button"`) and styled buttons often have their default focus rings suppressed by resets or `outline-none`. This renders them invisible to keyboard users.
 **Action:** Explicitly add `focus-visible:ring-2` (and an appropriate color) to all interactive elements, especially those with custom styling or background colors, to ensure they are discoverable via keyboard.
+## 2025-03-05 - Nested Interactive Controls Fix
+**Learning:** Nested interactive elements (e.g., a button inside a clickable `div`) are invalid HTML and cause accessibility issues. The "Clickable Card" pattern—using an absolute positioned `button` as a background layer with `z-index: 0` and placing interactive siblings above it (`z-20`)—solves this elegantly while maintaining the "whole card is clickable" UX.
+**Action:** When creating complex clickable cards with internal buttons, avoid nesting `onClick` handlers. Instead, use a background button sibling for the main action and `pointer-events-none` on non-interactive content to let clicks pass through.
