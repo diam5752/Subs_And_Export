@@ -43,7 +43,15 @@ const CueList = memo(({
                 const canEditThis = !isSaving && (editingCueIndex === null || isEditing);
 
                 return (
-                    <div id={`cue-${index}`} key={`${cue.start}-${cue.end}-${index}`}>
+                    <div
+                        id={`cue-${index}`}
+                        key={`${cue.start}-${cue.end}-${index}`}
+                        style={{
+                            // Optimize rendering performance for long lists by skipping layout/paint for off-screen items
+                            contentVisibility: 'auto',
+                            containIntrinsicSize: 'auto 80px',
+                        } as React.CSSProperties}
+                    >
                         <CueItem
                             cue={cue}
                             index={index}
