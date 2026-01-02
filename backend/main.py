@@ -33,6 +33,7 @@ from backend.app.core.config import settings
 from backend.app.core.database import Database
 from backend.app.core.gcs import generate_signed_download_url, get_gcs_settings
 from backend.app.core.ratelimit import get_client_ip, limiter_static
+from backend.app.api.endpoints.file_utils import validate_path_is_safe
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -208,7 +209,7 @@ async def serve_static(request: Request, file_path: str, download: bool = False)
 
     # Security: Prevent path traversal
     try:
-        full_path.resolve().relative_to(DATA_DIR.resolve())
+        validate_path_is_safe(full_path, DATA_DIR)
     except ValueError:
         raise HTTPException(status_code=403, detail="Access denied")
 
