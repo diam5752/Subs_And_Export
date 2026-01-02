@@ -29,3 +29,7 @@
 ## 2025-03-01 - [Global Cache for Canvas Text Measurement]
 **Learning:** `ctx.measureText` is expensive. Creating a new cache `Map` inside the helper function (`createTextMeasurer`) meant the cache was destroyed and recreated on every re-render or re-calculation (e.g. dragging a slider), defeating the purpose of caching.
 **Action:** Move read-only or expensive caches to module scope (global) with a size limit to share results across function calls, and export a reset function for test isolation.
+
+## 2025-05-15 - [Duplicate DOM IDs in Lists]
+**Learning:** React components that render lists should avoid wrapping items in extra elements (like `div`) solely for applying `key` or `id` if the child component can accept them directly. In this case, `CueList` wrapped `CueItem` in a `div` with an `id`, while `CueItem` also applied the same `id` to its root element.
+**Action:** Always check rendered DOM for lists to ensure no redundant wrappers or duplicate IDs are created. Pass `key` and necessary props directly to the list item component.
