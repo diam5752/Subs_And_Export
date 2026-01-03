@@ -1,3 +1,6 @@
+## 2025-03-01 - [Referential Caching for derived Arrays]
+**Learning:** `resegmentCues` was being called inside `useMemo`, but because `cues` (the dependency) was a new array reference on every edit, the memoization failed. The function then iterated O(N) over all cues.
+**Action:** Implemented a module-level `WeakMap<Cue, ...>` cache keyed by the stable `Cue` object references. This allows O(1) skipping of processing for unchanged cues even when the container array changes, significantly improving edit performance on long lists.
 ## 2025-02-19 - [Image Optimization Wins]
 **Learning:** The codebase was serving full-resolution assets (1280x1280 PNGs) for small UI elements (icons/logos at 48px-128px). This is a massive waste of bandwidth and impacts LCP.
 **Action:** Always check actual rendered size vs intrinsic size of assets. Replaced `<img>` with `next/image` to leverage automatic resizing and optimization.
