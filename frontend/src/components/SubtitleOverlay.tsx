@@ -1,6 +1,6 @@
-import React, { useMemo, memo } from 'react';
+import React, { useMemo, memo, useRef, useEffect } from 'react';
 import { TranscriptionCue } from '../lib/api';
-import { findCueAtTime } from '../lib/subtitleUtils';
+import { findCueIndexAtTime } from '../lib/subtitleUtils';
 
 export type Cue = TranscriptionCue;
 
@@ -24,9 +24,30 @@ export const SubtitleOverlay = memo<SubtitleOverlayProps>(({
     settings,
     videoWidth = 1080,
 }) => {
+    const hintIndex = useRef(0);
+
     // 1. Find active cue
+    // OPTIMIZED: Use hintIndex to speed up lookups from O(log N) to O(1) for sequential playback
+    // This runs at 60fps, so avoiding binary search every frame is valuable.
     const activeCue = useMemo(() => {
-        return findCueAtTime(cues, currentTime);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        const index = findCueIndexAtTime(cues, currentTime, hintIndex.current);
+        if (index !== -1) {
+            // Update hint for next frame (side effect in render is safe for refs if not read during render of other components)
+            // But strict mode might double invoke. useEffect is safer but delayed.
+            // For a cache like this, direct assignment is acceptable performance pattern if handled carefully.
+            // To be strictly pure, we should use useEffect, but that triggers another render? No, refs don't trigger render.
+            // But we need the value for the *next* render.
+        }
+        return index !== -1 ? cues[index] : undefined;
+    }, [currentTime, cues]);
+
+    // Update hint ref in effect to keep render pure
+    useEffect(() => {
+        const index = findCueIndexAtTime(cues, currentTime, hintIndex.current);
+        if (index !== -1) {
+            hintIndex.current = index;
+        }
     }, [currentTime, cues]);
 
     // 2. Base Styles

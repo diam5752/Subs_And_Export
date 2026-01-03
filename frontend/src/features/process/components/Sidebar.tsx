@@ -83,6 +83,7 @@ const TranscriptPanel = memo(() => {
         isProcessing // Added from context
     } = useProcessContext();
     const { currentTime } = usePlaybackContext();
+    const hintIndex = React.useRef(0);
 
     const handleSeek = useCallback((time: number) => {
         playerRef.current?.seekTo(time);
@@ -90,8 +91,16 @@ const TranscriptPanel = memo(() => {
 
     const activeCueIndex = useMemo(() => {
         if (!cues || cues.length === 0) return -1;
-        return findCueIndexAtTime(cues, currentTime);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        return findCueIndexAtTime(cues, currentTime, hintIndex.current);
     }, [cues, currentTime]);
+
+    // Update hint index ref for next render (optimization)
+    useEffect(() => {
+        if (activeCueIndex !== -1) {
+            hintIndex.current = activeCueIndex;
+        }
+    }, [activeCueIndex]);
 
     // Scroll active cue into view
     useEffect(() => {
