@@ -29,3 +29,7 @@
 ## 2025-03-01 - [Global Cache for Canvas Text Measurement]
 **Learning:** `ctx.measureText` is expensive. Creating a new cache `Map` inside the helper function (`createTextMeasurer`) meant the cache was destroyed and recreated on every re-render or re-calculation (e.g. dragging a slider), defeating the purpose of caching.
 **Action:** Move read-only or expensive caches to module scope (global) with a size limit to share results across function calls, and export a reset function for test isolation.
+
+## 2025-05-24 - [Expensive Re-calculations in Render Loop]
+**Learning:** `resegmentCues` was performing expensive canvas measurements and array allocations on every render for all cues, even when only one cue was being edited.
+**Action:** Implemented a `WeakMap` cache keyed by the `Cue` object reference. This allows checking if the configuration (maxLines/fontSize) has changed for that specific cue instance, skipping 99% of work for unchanged cues during edits or playback.
