@@ -330,10 +330,43 @@ export function resegmentCues(
  * Efficiently finds the index of the cue active at the given time using binary search.
  * Assumes cues are sorted by start time.
  * Returns -1 if no cue is active.
+ *
+ * @param hintIndex Optional index to check first (optimization for sequential playback)
  */
-export function findCueIndexAtTime(cues: Cue[], time: number): number {
+export function findCueIndexAtTime(cues: Cue[], time: number, hintIndex = 0): number {
+    if (!cues || cues.length === 0) return -1;
+
+    // OPTIMIZATION: Check the hint index and the next one first
+    // This makes linear playback lookups O(1) instead of O(log n)
+    const hint = Math.min(Math.max(0, hintIndex), cues.length - 1);
+    const hintCue = cues[hint];
+
+    // Check hint
+    if (time >= hintCue.start && time < hintCue.end) {
+        return hint;
+    }
+
+    // Check next (sequential forward)
+    if (hint + 1 < cues.length) {
+        const nextCue = cues[hint + 1];
+        if (time >= nextCue.start && time < nextCue.end) {
+            return hint + 1;
+        }
+    }
+
+    // Fallback to binary search
+    // We can optimize the search range based on where the time is relative to the hint
     let low = 0;
     let high = cues.length - 1;
+
+    if (time > hintCue.end) {
+        // Time is after hint, so search in [hint + 1, end]
+        // (We already checked hint+1, so strictly hint+2, but binary search handles overlap fine)
+        low = hint + 1;
+    } else if (time < hintCue.start) {
+        // Time is before hint, so search in [0, hint - 1]
+        high = hint - 1;
+    }
 
     while (low <= high) {
         const mid = Math.floor((low + high) / 2);
@@ -351,7 +384,7 @@ export function findCueIndexAtTime(cues: Cue[], time: number): number {
     return -1;
 }
 
-export function findCueAtTime(cues: Cue[], time: number): Cue | undefined {
-    const index = findCueIndexAtTime(cues, time);
+export function findCueAtTime(cues: Cue[], time: number, hintIndex = 0): Cue | undefined {
+    const index = findCueIndexAtTime(cues, time, hintIndex);
     return index !== -1 ? cues[index] : undefined;
 }
