@@ -29,3 +29,7 @@
 ## 2025-03-04 - Focus Visibility for Custom Elements
 **Learning:** Custom interactive elements (like `div role="button"`) and styled buttons often have their default focus rings suppressed by resets or `outline-none`. This renders them invisible to keyboard users.
 **Action:** Explicitly add `focus-visible:ring-2` (and an appropriate color) to all interactive elements, especially those with custom styling or background colors, to ensure they are discoverable via keyboard.
+
+## 2025-03-06 - Semantic Stepper Navigation
+**Learning:** Step indicators implemented as generic `div`s lack the semantic context needed for screen readers to understand linear progression.
+**Action:** Implement multi-step indicators using `<nav>` and `<ol>` structures with `aria-current="step"` on the active item, ensuring users perceive the sequence and current position correctly.
