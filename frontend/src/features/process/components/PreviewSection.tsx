@@ -3,11 +3,12 @@ import { useI18n } from '@/context/I18nContext';
 import { useProcessContext } from '../ProcessContext';
 import { usePlaybackContext } from '../PlaybackContext';
 import { PhoneFrame } from '@/components/PhoneFrame';
-import { PreviewPlayer } from '@/components/PreviewPlayer';
+import { PreviewPlayer, PreviewPlayerHandle } from '@/components/PreviewPlayer';
 import { Sidebar } from './Sidebar';
 import { VideoModal } from '@/components/VideoModal';
 import { NewVideoConfirmModal } from './NewVideoConfirmModal';
 import { Spinner } from '@/components/Spinner';
+import { JobResponse, TranscriptionCue } from '@/lib/api';
 
 const resolveTierFromJob = (provider?: string | null, model?: string | null): 'standard' | 'pro' => {
     const normalizedProvider = (provider ?? '').trim().toLowerCase();
@@ -18,6 +19,41 @@ const resolveTierFromJob = (provider?: string | null, model?: string | null): 's
     if (normalizedProvider === 'openai' || normalizedModel.includes('ultimate') || normalizedModel.includes('whisper-1')) return 'pro';
     return 'standard';
 };
+
+interface PreviewSectionLayoutProps {
+    resultsRef: React.RefObject<HTMLDivElement | null>;
+    currentStep: number;
+    handleKeyDown: (e: React.KeyboardEvent) => void;
+    handleStepClick: () => void;
+    selectedJob: JobResponse | null;
+    isProcessing: boolean;
+    t: (key: string) => string;
+    transcribeProvider: string | null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    displayedModel: any;
+    processedCues: TranscriptionCue[];
+    playerRef: React.RefObject<PreviewPlayerHandle | null>;
+    videoUrl: string | null;
+    playerSettings: {
+        position: number;
+        color: string;
+        fontSize: number;
+        karaoke: boolean;
+        maxLines: number;
+        shadowStrength: number;
+        watermarkEnabled: boolean;
+    };
+    handlePlayerTimeUpdate: (t: number) => void;
+    handleExport: (resolution: string) => void;
+    exportingResolutions: Record<string, boolean>;
+    showPreview: boolean;
+    setShowPreview: (show: boolean) => void;
+    showNewVideoModal: boolean;
+    setShowNewVideoModal: (show: boolean) => void;
+    onNewVideoConfirm: () => void;
+    activeSidebarTab: 'transcript' | 'styles' | 'intelligence';
+    isExpanded: boolean;
+}
 
 const PreviewSectionLayout = memo(({
     resultsRef,
@@ -44,7 +80,7 @@ const PreviewSectionLayout = memo(({
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     activeSidebarTab,
     isExpanded // New prop, received from parent
-}: any) => {
+}: PreviewSectionLayoutProps) => {
     return (
         <div id="preview-section" className={`card space-y-4 transition-all duration-500 ${!selectedJob && !isProcessing ? 'opacity-50 grayscale' : ''}`} ref={resultsRef}>
 
