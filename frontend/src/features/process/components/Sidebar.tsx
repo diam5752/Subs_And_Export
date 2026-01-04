@@ -160,7 +160,8 @@ const TranscriptPanel = memo(() => {
                     <div className="text-center text-[var(--muted)] py-10 opacity-50 font-medium">
                         {isProcessing
                             ? (t('statusProcessing') || 'Processing...')
-                            : (t('noSubtitlesFound') || 'No subtitles found in this video.')}
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            : (t('noSubtitlesFound' as any) || 'No subtitles found in this video.')}
                     </div>
                 )}
             </div>
