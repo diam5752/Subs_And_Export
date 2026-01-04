@@ -56,6 +56,16 @@ export function resetWordWidthCache() {
     _wordWidthCache.clear();
 }
 
+// Optimization: Cache re-segmentation results per cue instance.
+// Key: Cue object reference -> Map<cacheKey, Result>
+// cacheKey: `${maxLines}:${fontSizePercent}`
+// Result: Cue[] (the re-segmented cues derived from this original cue)
+let _segmentationCache = new WeakMap<Cue, Map<string, Cue[]>>();
+
+export function resetSegmentationCache() {
+    _segmentationCache = new WeakMap<Cue, Map<string, Cue[]>>();
+}
+
 let _sharedMeasurerCanvas: HTMLCanvasElement | null = null;
 
 function getSharedMeasurerCanvas(): HTMLCanvasElement | null {
@@ -274,6 +284,8 @@ function chunkTimedWordsByWidth(
  * Re-segment cues to fit within maxLines constraints.
  * Ports backend `_split_long_cues` logic.
  * Processes each cue individually to preserve original time boundaries/silences.
+ *
+ * Optimized with WeakMap caching to skip re-calculation for unchanged cue objects.
  */
 export function resegmentCues(
     originalCues: Cue[],
@@ -285,8 +297,21 @@ export function resegmentCues(
 
     const measurer = createTextMeasurer(fontSizePercent);
     const effectiveMaxChars = getEffectiveMaxChars(fontSizePercent);
+    const cacheKey = `${maxLines}:${fontSizePercent}`;
 
     return originalCues.flatMap((cue) => {
+        // Check cache
+        let cueCache = _segmentationCache.get(cue);
+        if (!cueCache) {
+            cueCache = new Map();
+            _segmentationCache.set(cue, cueCache);
+        }
+
+        const cachedResult = cueCache.get(cacheKey);
+        if (cachedResult) {
+            return cachedResult;
+        }
+
         // 1. Get words for this SPECIFIC cue (real or interpolated)
         let cueWords: TranscriptionWordTiming[] = [];
         if (cue.words && cue.words.length > 0) {
@@ -297,7 +322,11 @@ export function resegmentCues(
             cueWords = interpolateWordsFromCueText(cue);
         }
 
-        if (cueWords.length === 0) return [cue];
+        if (cueWords.length === 0) {
+            const result = [cue];
+            cueCache.set(cacheKey, result);
+            return result;
+        }
 
         // 2. Chunk ONLY this cue's words
         const wordChunks = measurer
@@ -305,7 +334,7 @@ export function resegmentCues(
             : chunkTimedWords(cueWords, effectiveMaxChars, maxLines);
 
         // 3. Create new cues from chunks
-        return wordChunks
+        const result = wordChunks
             .filter((chunkWords) => chunkWords.length > 0)
             .map((chunkWords) => {
                 const first = chunkWords[0];
@@ -323,6 +352,9 @@ export function resegmentCues(
                     words: chunkWords,
                 };
             });
+
+        cueCache.set(cacheKey, result);
+        return result;
     });
 }
 

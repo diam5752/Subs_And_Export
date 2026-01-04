@@ -1,8 +1,6 @@
-import React, { useMemo, useCallback, useState } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { useI18n } from '@/context/I18nContext';
-import { useProcessContext, TranscribeProvider, TranscribeMode } from '../ProcessContext';
-import { TokenIcon } from '@/components/icons';
-import { formatPoints, processVideoCostForSelection } from '@/lib/points';
+import { useProcessContext } from '../ProcessContext';
 
 export function ModelSelector() {
     const { t } = useI18n();
@@ -10,206 +8,143 @@ export function ModelSelector() {
         AVAILABLE_MODELS,
         transcribeProvider,
         transcribeMode,
+        hasChosenModel,
         setTranscribeProvider,
         setTranscribeMode,
         setHasChosenModel,
         setOverrideStep,
-        hasChosenModel,
-        currentStep,
-        selectedJob,
+        currentStep
     } = useProcessContext();
 
     // Local state to allow collapsing Step 1 even when it is active
-    const [localCollapsed, setLocalCollapsed] = useState(false);
+    const [localCollapsed, setLocalCollapsed] = React.useState(false);
 
     // Reset local collapsed state when step changes
-    // Using render-time state derivation pattern to avoid useEffect warning
-    const [prevCurrentStep, setPrevCurrentStep] = useState(currentStep);
-    if (currentStep !== prevCurrentStep) {
-        setPrevCurrentStep(currentStep);
+    React.useEffect(() => {
         if (currentStep !== 1) {
             setLocalCollapsed(false);
         }
-    }
+    }, [currentStep]);
 
     // Collapsed state - expands automatically when on Step 1, unless manually collapsed
     const isExpanded = currentStep === 1 && !localCollapsed;
 
-    // Get selected model for compact display
+    // Derived: Find the currently selected model object for display when collapsed
     const selectedModel = useMemo(() => {
-        // 1. Current explicit selection
-        const selected = AVAILABLE_MODELS.find(m => m.provider === transcribeProvider && m.mode === transcribeMode);
-        if (selected) return selected;
-
-        // 2. Fallback to current job's model if no explicit selection
-        if (selectedJob?.result_data) {
-            const jobProvider = selectedJob.result_data.transcribe_provider;
-            const jobModelSize = selectedJob.result_data.model_size;
-            const normalizedProvider = (jobProvider || '').toLowerCase();
-            const normalizedModel = (jobModelSize || '').toLowerCase();
-            const jobTier = normalizedModel === 'pro' || normalizedModel === 'standard'
-                ? normalizedModel
-                : normalizedModel.includes('turbo') || normalizedModel.includes('enhanced')
-                    ? 'standard'
-                    : normalizedModel.includes('large')
-                        ? 'pro'
-                        : normalizedProvider === 'openai' || normalizedModel.includes('ultimate') || normalizedModel.includes('whisper-1')
-                            ? 'pro'
-                            : 'standard';
-
-            return AVAILABLE_MODELS.find(m => m.mode === jobTier);
-        }
-        return null;
-    }, [AVAILABLE_MODELS, transcribeProvider, transcribeMode, selectedJob]);
+        return AVAILABLE_MODELS.find(m => m.provider === transcribeProvider && m.mode === transcribeMode);
+    }, [AVAILABLE_MODELS, transcribeProvider, transcribeMode]);
 
     const scrollToUploadStep = useCallback(() => {
-        const target = document.getElementById('step-2-wrapper');
-        target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, []);
+        setHasChosenModel(true);
+        // Scroll to the next step's wrapper with offset
+        setTimeout(() => {
+            const element = document.getElementById('step-2-wrapper');
+            if (element) {
+                const rect = element.getBoundingClientRect();
+                const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+                // 20px offset matches the one used in ProcessView.tsx
+                const offset = 20;
+                const targetY = rect.top + scrollTop - offset;
+                window.scrollTo({ top: targetY, behavior: 'smooth' });
+            }
+        }, 100);
+    }, [setHasChosenModel]);
 
     const modelGrid = useMemo(() => (
-        <div
-            role="radiogroup"
-            aria-label={t('modelSelectTitle') || 'Pick a Model'}
-            className={`grid grid-cols-1 sm:grid-cols-2 gap-4 p-1 transition-all duration-300 w-full ${hasChosenModel ? 'opacity-100' : 'animate-slide-down'}`}
-        >
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
             {AVAILABLE_MODELS.map((model) => {
                 const isSelected = transcribeProvider === model.provider && transcribeMode === model.mode;
-                const cost = processVideoCostForSelection(model.provider as string, model.mode as string);
-                const isPro = model.mode === 'pro';
+                const isPro = model.id === 'pro';
 
-                // Minimal Visual Stats
-                // Standard: Speed 100%, Quality 75%
-                // Pro: Speed 85%, Quality 100%
-                const speedPercent = isPro ? 85 : 100;
-                const qualityPercent = isPro ? 100 : 75;
+                // Ensure consistent focus ring color (orange) for ALL cards
+                const focusClass = "focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]";
 
-                // Theme Colors
-                // Standard: Emerald (Green)
-                // Pro: Neon Orange (Accent)
-                const themeColor = isPro ? 'var(--accent)' : '#10b981'; // Emerald-500
-                const themeClass = isPro ? 'text-[var(--accent)]' : 'text-emerald-500';
-                const bgClass = isPro ? 'bg-[var(--accent)]' : 'bg-emerald-500';
-                const borderClass = isPro ? 'border-[var(--accent)]' : 'border-emerald-500';
+                // Base container classes - subtle by default
+                const containerClass = `relative w-full text-left p-4 rounded-xl border transition-all duration-200 outline-none ${focusClass} ${model.colorClass(isSelected)}`;
+
+                // Background glow effect
+                const bgClass = isPro ? 'bg-amber-500' : 'bg-emerald-500';
 
                 return (
                     <button
                         key={model.id}
+                        onClick={() => {
+                            setTranscribeProvider(model.provider);
+                            setTranscribeMode(model.mode);
+                            setOverrideStep(2); // Move to next step immediately
+                            scrollToUploadStep();
+                        }}
+                        className={containerClass}
                         role="radio"
                         aria-checked={isSelected}
-                        data-testid={`model-${model.mode}`}
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            setTranscribeProvider(model.provider as TranscribeProvider);
-                            setTranscribeMode(model.mode as TranscribeMode);
-                            setHasChosenModel(true);
-                            setOverrideStep(2);
-                            setTimeout(scrollToUploadStep, 350);
-                        }}
-                        className={`p-6 rounded-2xl text-left transition-all duration-300 relative overflow-hidden group flex flex-col h-full backface-hidden will-change-transform transform-gpu ${isSelected
-                            ? 'glass-active scale-[1.02] z-10'
-                            : `glass-premium hover:scale-[1.01] border-white/5 hover:${borderClass}/50 hover:bg-white/5`
-                            } ${isPro && isSelected ? 'shadow-[0_0_30px_-5px_var(--accent)] border-[var(--accent)]' : ''} ${!isPro && isSelected ? 'shadow-[0_0_30px_-5px_rgba(16,185,129,0.4)] border-emerald-500' : ''} ${!isSelected ? (isPro ? 'hover:shadow-[0_10px_30px_-10px_rgba(249,115,22,0.15)]' : 'hover:shadow-[0_10px_30px_-10px_rgba(16,185,129,0.15)]') : ''}`}
                     >
-                        {/* Header: Icon + Title */}
-                        <div className="flex items-start justify-between mb-6 w-full">
-                            <div className="flex flex-col gap-2">
-                                <div className={`p-2.5 rounded-xl w-fit transition-colors duration-300 ${isSelected ? `${bgClass}/20 ${themeClass}` : `bg-white/5 ${isPro ? 'text-orange-500/50 group-hover:text-orange-400' : 'text-emerald-500/50 group-hover:text-emerald-400'}`}`}>
-                                    {model.icon(isSelected)}
-                                </div>
-                                <div>
-                                    <h3 className={`font-bold text-xl tracking-tight transition-colors duration-300 ${isSelected ? 'text-white' : 'text-[var(--foreground)]'}`}>
+                        <div className="flex items-start gap-4 relative z-10">
+                            <div className="shrink-0 pt-1">
+                                {model.icon(isSelected)}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                    <h3 className={`font-semibold text-lg ${isSelected ? 'text-[var(--foreground)]' : 'text-[var(--foreground)]/80'}`}>
                                         {model.name}
                                     </h3>
-                                    <p className="text-xs font-medium text-[var(--muted)] tracking-wide uppercase mt-0.5">
-                                        {isPro ? t('modelProBadge') : t('modelStandardBadge')}
-                                    </p>
+                                    {model.badge && (
+                                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${model.badgeColor}`}>
+                                            {model.badge}
+                                        </span>
+                                    )}
                                 </div>
-                            </div>
+                                <p className="text-sm text-[var(--muted)] leading-relaxed mb-4">
+                                    {model.description}
+                                </p>
 
-                            {/* Cost Pill */}
-                            <span
-                                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold tracking-wide backdrop-blur-md transition-all duration-300 ${isSelected
-                                    ? `${borderClass}/30 ${bgClass}/10 ${themeClass} shadow-[0_0_15px_-5px_currentColor]`
-                                    : 'border-white/10 bg-white/5 text-[var(--muted)]'
-                                    }`}
-                            >
-                                <TokenIcon className="w-3.5 h-3.5" />
-                                <span>{formatPoints(cost)}</span>
-                            </span>
-                        </div>
-
-                        {/* Minimal Stats: Speed & Quality (Out of 5) */}
-                        <div className="space-y-4 mt-auto">
-                            {/* Speed Bar - 5 futuristic segments */}
-                            <div className="space-y-2">
-                                <div className="flex justify-between text-[11px] font-bold uppercase tracking-wider text-[var(--muted)]">
-                                    <span>{t('statSpeed')}</span>
-                                </div>
-                                <div className="flex gap-1.5">
-                                    {[1, 2, 3, 4, 5].map((level) => {
-                                        const speedLevel = isPro ? 4.5 : 5;
-                                        const isFull = level <= Math.floor(speedLevel);
-                                        const isHalf = level === Math.ceil(speedLevel) && speedLevel % 1 !== 0;
-                                        const isEmpty = level > Math.ceil(speedLevel);
+                                {/* Stats - Visual Bars */}
+                                <div className="space-y-2">
+                                    {['speed', 'accuracy'].map((stat) => {
+                                        const value = model.stats[stat as keyof typeof model.stats] as number;
+                                        // 5 is max score
+                                        const isFull = value >= 5;
+                                        const isHalf = value >= 4 && value < 5;
 
                                         return (
-                                            <div
-                                                key={level}
-                                                className={`h-2.5 flex-1 rounded-full transition-all duration-500 relative overflow-hidden ${isEmpty
-                                                    ? 'bg-white/[0.08] border border-white/[0.05]'
-                                                    : ''} ${isFull
-                                                        ? (isPro
-                                                            ? 'bg-gradient-to-r from-orange-600 to-orange-400 shadow-[0_0_12px_rgba(249,115,22,0.4)]'
-                                                            : 'bg-gradient-to-r from-emerald-600 to-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.4)]')
-                                                        : ''}`}
-                                                style={{ opacity: isSelected ? 1 : ((isFull || isHalf) ? 0.7 : 0.4) }}
-                                            >
-                                                {isHalf && (
-                                                    <>
-                                                        <div className={`absolute inset-0 w-1/2 rounded-l-full ${isPro ? 'bg-gradient-to-r from-orange-600 to-orange-500' : 'bg-gradient-to-r from-emerald-600 to-emerald-500'}`} />
-                                                        <div className="absolute inset-0 w-full bg-white/[0.08] rounded-full" style={{ clipPath: 'inset(0 0 0 50%)' }} />
-                                                    </>
-                                                )}
+                                            <div key={stat} className="flex items-center gap-3">
+                                                <span className="text-[10px] font-bold text-[var(--muted)] uppercase tracking-wider w-16">
+                                                    {t(stat === 'speed' ? 'modelStatSpeed' : 'modelStatAccuracy') || stat}
+                                                </span>
+                                                <div className="flex-1 h-1.5 bg-[var(--surface-elevated)] rounded-full overflow-hidden flex gap-0.5">
+                                                    {[1, 2, 3, 4, 5].map((i) => (
+                                                        <div
+                                                            key={i}
+                                                            className={`flex-1 rounded-full transition-all duration-500 ${i <= value ? (isPro ? 'bg-amber-400' : 'bg-emerald-400') : 'bg-transparent'}`}
+                                                            style={{ opacity: i <= value ? 1 : 0.1 }}
+                                                        />
+                                                    ))}
+                                                </div>
                                             </div>
                                         );
                                     })}
                                 </div>
-                            </div>
 
-                            {/* Accuracy Bar - 5 futuristic segments (Standard: 3.5/5) */}
-                            <div className="space-y-2">
-                                <div className="flex justify-between text-[11px] font-bold uppercase tracking-wider text-[var(--muted)]">
-                                    <span>{t('statAccuracy')}</span>
-                                </div>
-                                <div className="flex gap-1.5">
-                                    {[1, 2, 3, 4, 5].map((level) => {
-                                        const qualityLevel = isPro ? 5 : 3.5;
-                                        const isFull = level <= Math.floor(qualityLevel);
-                                        const isHalf = level === Math.ceil(qualityLevel) && qualityLevel % 1 !== 0;
-                                        const isEmpty = level > Math.ceil(qualityLevel);
+                                {/* Karaoke Support Badge - Dynamic per model */}
+                                <div className="mt-4 flex flex-wrap gap-2">
+                                    {/* All models support karaoke now, but we highlight differences */}
+                                    <div className={`text-[10px] font-bold px-2 py-1 rounded border flex items-center gap-1.5 ${isSelected
+                                        ? (isPro ? 'bg-amber-500/10 border-amber-500/20 text-amber-200' : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-200')
+                                        : 'bg-[var(--surface-elevated)] border-[var(--border)] text-[var(--muted)]'
+                                        }`}>
+                                        <span className="text-xs">🎤</span>
+                                        {t('karaokeSupported') || 'Karaoke Ready'}
+                                    </div>
 
-                                        return (
-                                            <div
-                                                key={level}
-                                                className={`h-2.5 flex-1 rounded-full transition-all duration-500 relative overflow-hidden ${isEmpty
-                                                    ? 'bg-white/[0.08] border border-white/[0.05]'
-                                                    : ''} ${isFull
-                                                        ? (isPro
-                                                            ? 'bg-gradient-to-r from-orange-600 to-orange-400 shadow-[0_0_12px_rgba(249,115,22,0.5)]'
-                                                            : 'bg-gradient-to-r from-emerald-600 to-emerald-400 shadow-[0_0_12px_rgba(16,185,129,0.4)]')
-                                                        : ''} ${isPro && level === 5 ? 'shadow-[0_0_20px_rgba(249,115,22,0.6)]' : ''}`}
-                                                style={{ opacity: isSelected ? 1 : ((isFull || isHalf) ? 0.7 : 0.4) }}
-                                            >
-                                                {isHalf && (
-                                                    <>
-                                                        <div className={`absolute inset-0 w-1/2 rounded-l-full ${isPro ? 'bg-gradient-to-r from-orange-600 to-orange-500' : 'bg-gradient-to-r from-emerald-600 to-emerald-500'}`} />
-                                                        <div className="absolute inset-0 w-full bg-white/[0.08] rounded-full" style={{ clipPath: 'inset(0 0 0 50%)' }} />
-                                                    </>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
+                                    {/* Additional feature badges based on model */}
+                                    {isPro && (
+                                        <div className={`text-[10px] font-bold px-2 py-1 rounded border flex items-center gap-1.5 ${isSelected
+                                            ? 'bg-amber-500/10 border-amber-500/20 text-amber-200'
+                                            : 'bg-[var(--surface-elevated)] border-[var(--border)] text-[var(--muted)]'
+                                            }`}>
+                                            <span className="text-xs">🌍</span>
+                                            {t('multilingualSupport') || '99+ Languages'}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
