@@ -18,10 +18,11 @@ export const StepIndicator = React.memo(function StepIndicator({ currentStep, st
     const effectiveMaxStep = maxStep ?? currentStep;
 
     return (
-        <div className="w-full max-w-4xl mx-auto mb-6 px-8 sm:px-12">
-            <div className="relative flex items-center justify-between">
+        <nav aria-label={t('progressSteps') || "Progress"} className="w-full max-w-4xl mx-auto mb-6 px-8 sm:px-12">
+            <div className="relative">
                 {/* Connecting Line Background - spans between circle centers */}
                 <div
+                    aria-hidden="true"
                     className="absolute h-[1px] bg-[var(--border)] w-full top-6 pointer-events-none"
                     style={{
                         left: '0',
@@ -31,6 +32,7 @@ export const StepIndicator = React.memo(function StepIndicator({ currentStep, st
 
                 {/* Active Progress Line */}
                 <div
+                    aria-hidden="true"
                     className="absolute h-[2px] bg-gradient-to-r from-[var(--accent)] via-[var(--accent-secondary)] to-[var(--accent)] rounded-full transition-all duration-700 ease-out pointer-events-none shadow-[0_0_10px_var(--accent)]"
                     style={{
                         top: '23px', // Center alignment
@@ -40,67 +42,86 @@ export const StepIndicator = React.memo(function StepIndicator({ currentStep, st
                     }}
                 />
 
-                {steps.map((step) => {
-                    const isActive = currentStep === step.id; // Strictly active (currently viewing)
+                <ol className="relative flex items-center justify-between">
+                    {steps.map((step) => {
+                        const isActive = currentStep === step.id; // Strictly active (currently viewing)
+                        const isUnlocked = step.id <= effectiveMaxStep; // Accessible (unlocked)
 
-                    const isUnlocked = step.id <= effectiveMaxStep; // Accessible (unlocked)
+                        // Determine visual state:
+                        // 1. Active: Big, Glowing, Accent color
+                        // 2. Unlocked (Future or Past): Accent color (like Completed), interactive
+                        // 3. Locked: Muted, Gray
+                        const shouldShowAccent = isActive || isUnlocked;
+                        const isClickable = onStepClick && isUnlocked;
 
-                    // Determine visual state:
-                    // 1. Active: Big, Glowing, Accent color
-                    // 2. Unlocked (Future or Past): Accent color (like Completed), interactive
-                    // 3. Locked: Muted, Gray
-                    const shouldShowAccent = isActive || isUnlocked;
+                        const handleKeyDown = (e: React.KeyboardEvent) => {
+                            if (isClickable && (e.key === 'Enter' || e.key === ' ')) {
+                                e.preventDefault();
+                                onStepClick(step.id);
+                            }
+                        };
 
-                    const handleKeyDown = (e: React.KeyboardEvent) => {
-                        if (onStepClick && isUnlocked && (e.key === 'Enter' || e.key === ' ')) {
-                            e.preventDefault();
-                            onStepClick(step.id);
-                        }
-                    };
+                        const stepLabel = t('stepLabel', { n: step.id }) || `Step ${step.id}`;
+                        const accessibleName = `${stepLabel}: ${step.label}`;
 
-                    const isClickable = onStepClick && isUnlocked;
+                        return (
+                            <li key={step.id} className="relative z-10">
+                                <div
+                                    className={`group relative flex flex-col items-center ${isClickable ? 'cursor-pointer' : 'cursor-default'}`}
+                                    onClick={() => isClickable && onStepClick?.(step.id)}
+                                    role={isClickable ? "button" : undefined}
+                                    tabIndex={isClickable ? 0 : undefined}
+                                    onKeyDown={handleKeyDown}
+                                    aria-current={isActive ? 'step' : undefined}
+                                    aria-disabled={!isUnlocked}
+                                    aria-label={isClickable ? accessibleName : undefined}
+                                >
+                                    {/* Inner content hidden from SR because we use aria-label on the container */}
+                                    <div aria-hidden="true" className="contents">
+                                        {/* Step Circle */}
+                                        <div
+                                            className={`relative w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all duration-500 z-10 ${isActive
+                                                ? 'bg-[var(--surface-elevated)] border-[var(--accent)] shadow-[0_0_30px_-5px_var(--accent)] scale-110 text-[var(--accent)]'
+                                                : shouldShowAccent
+                                                    ? 'bg-[var(--surface-elevated)] border-[var(--accent)] text-[var(--accent)] scale-100 hover:scale-105 hover:shadow-[0_0_15px_-5px_var(--accent)] hover:border-[var(--accent-secondary)]'
+                                                    : 'bg-[var(--surface)] border-[var(--border)] text-[var(--muted)] opacity-60'
+                                                } ${isClickable && !isActive ? 'hover:scale-105 transition-all cursor-pointer' : ''}`}
+                                        >
+                                            <div className={`transition-all duration-500 ${isActive ? 'drop-shadow-[0_0_8px_rgba(249,115,22,0.5)]' : ''}`}>
+                                                {step.icon}
+                                            </div>
+                                        </div>
 
-                    return (
-                        <div
-                            key={step.id}
-                            className={`group relative flex flex-col items-center ${isClickable ? 'cursor-pointer' : 'cursor-default'}`}
-                            onClick={() => isClickable && onStepClick?.(step.id)}
-                            role={isClickable ? "button" : undefined}
-                            tabIndex={isClickable ? 0 : undefined}
-                            onKeyDown={handleKeyDown}
-                        >
-                            {/* Step Circle */}
-                            <div
-                                className={`relative w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all duration-500 z-10 ${isActive
-                                    ? 'bg-[var(--surface-elevated)] border-[var(--accent)] shadow-[0_0_30px_-5px_var(--accent)] scale-110 text-[var(--accent)]'
-                                    : shouldShowAccent
-                                        ? 'bg-[var(--surface-elevated)] border-[var(--accent)] text-[var(--accent)] scale-100 hover:scale-105 hover:shadow-[0_0_15px_-5px_var(--accent)] hover:border-[var(--accent-secondary)]'
-                                        : 'bg-[var(--surface)] border-[var(--border)] text-[var(--muted)] opacity-60'
-                                    } ${isClickable && !isActive ? 'hover:scale-105 transition-all cursor-pointer' : ''}`}
-                            >
-                                <div className={`transition-all duration-500 ${isActive ? 'drop-shadow-[0_0_8px_rgba(249,115,22,0.5)]' : ''}`}>
-                                    {step.icon}
+                                        {/* Label */}
+                                        <div className={`absolute top-full mt-3 text-center transition-all duration-500 w-40 left-1/2 -translate-x-1/2 ${isActive
+                                            ? 'opacity-100 transform translate-y-0'
+                                            : 'opacity-50 transform -translate-y-1'
+                                            }`}
+                                        >
+                                            <span className={`text-xs font-bold tracking-wider uppercase block mb-0.5 ${isActive ? 'text-[var(--accent)] scale-110' : shouldShowAccent ? 'text-[var(--accent)] opacity-80' : 'text-[var(--muted)]'}`}>
+                                                {stepLabel}
+                                            </span>
+                                            <span className={`text-sm font-semibold ${isActive ? 'text-[var(--foreground)]' : 'text-[var(--muted)]'}`}>
+                                                {step.label}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Fallback for non-interactive steps: if it's not a button, we still want SR to see the text.
+                                        But we put aria-hidden on the inner content above.
+                                        So for non-interactive steps, we need to expose the text.
+                                    */}
+                                    {!isClickable && (
+                                        <span className="sr-only">{accessibleName}</span>
+                                    )}
                                 </div>
-                            </div>
-
-                            {/* Label */}
-                            <div className={`absolute top-full mt-3 text-center transition-all duration-500 w-40 left-1/2 -translate-x-1/2 ${isActive
-                                ? 'opacity-100 transform translate-y-0'
-                                : 'opacity-50 transform -translate-y-1'
-                                }`}>
-                                <span className={`text-xs font-bold tracking-wider uppercase block mb-0.5 ${isActive ? 'text-[var(--accent)] scale-110' : shouldShowAccent ? 'text-[var(--accent)] opacity-80' : 'text-[var(--muted)]'}`}>
-                                    {t('stepLabel', { n: step.id }) || `Step ${step.id}`}
-                                </span>
-                                <span className={`text-sm font-semibold ${isActive ? 'text-[var(--foreground)]' : 'text-[var(--muted)]'}`}>
-                                    {step.label}
-                                </span>
-                            </div>
-                        </div>
-                    );
-                })}
+                            </li>
+                        );
+                    })}
+                </ol>
             </div>
             {/* Spacing for labels */}
             <div className="h-14"></div>
-        </div >
+        </nav >
     );
 });
