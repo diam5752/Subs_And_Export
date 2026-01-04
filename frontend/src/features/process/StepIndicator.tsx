@@ -18,8 +18,11 @@ export const StepIndicator = React.memo(function StepIndicator({ currentStep, st
     const effectiveMaxStep = maxStep ?? currentStep;
 
     return (
-        <div className="w-full max-w-4xl mx-auto mb-6 px-8 sm:px-12">
-            <div className="relative flex items-center justify-between">
+        <nav
+            aria-label={t('progressSteps') || 'Progress'}
+            className="w-full max-w-4xl mx-auto mb-6 px-8 sm:px-12"
+        >
+            <div className="relative">
                 {/* Connecting Line Background - spans between circle centers */}
                 <div
                     className="absolute h-[1px] bg-[var(--border)] w-full top-6 pointer-events-none"
@@ -27,6 +30,7 @@ export const StepIndicator = React.memo(function StepIndicator({ currentStep, st
                         left: '0',
                         right: '0',
                     }}
+                    aria-hidden="true"
                 />
 
                 {/* Active Progress Line */}
@@ -38,69 +42,90 @@ export const StepIndicator = React.memo(function StepIndicator({ currentStep, st
                         // Width spans from center of circle 1 to center of circle N based on maxStep
                         width: effectiveMaxStep <= 1 ? '0' : `calc(${((effectiveMaxStep - 1) / (steps.length - 1)) * 100}% - 48px)`
                     }}
+                    aria-hidden="true"
                 />
 
-                {steps.map((step) => {
-                    const isActive = currentStep === step.id; // Strictly active (currently viewing)
+                <ol className="relative flex items-center justify-between z-10">
+                    {steps.map((step) => {
+                        const isActive = currentStep === step.id; // Strictly active (currently viewing)
+                        const isUnlocked = step.id <= effectiveMaxStep; // Accessible (unlocked)
 
-                    const isUnlocked = step.id <= effectiveMaxStep; // Accessible (unlocked)
+                        // Determine visual state:
+                        // 1. Active: Big, Glowing, Accent color
+                        // 2. Unlocked (Future or Past): Accent color (like Completed), interactive
+                        // 3. Locked: Muted, Gray
+                        const shouldShowAccent = isActive || isUnlocked;
 
-                    // Determine visual state:
-                    // 1. Active: Big, Glowing, Accent color
-                    // 2. Unlocked (Future or Past): Accent color (like Completed), interactive
-                    // 3. Locked: Muted, Gray
-                    const shouldShowAccent = isActive || isUnlocked;
+                        const handleKeyDown = (e: React.KeyboardEvent) => {
+                            if (onStepClick && isUnlocked && (e.key === 'Enter' || e.key === ' ')) {
+                                e.preventDefault();
+                                onStepClick(step.id);
+                            }
+                        };
 
-                    const handleKeyDown = (e: React.KeyboardEvent) => {
-                        if (onStepClick && isUnlocked && (e.key === 'Enter' || e.key === ' ')) {
-                            e.preventDefault();
-                            onStepClick(step.id);
-                        }
-                    };
+                        const isClickable = onStepClick && isUnlocked;
+                        const labelText = t('stepLabel', { n: step.id }) || `Step ${step.id}`;
 
-                    const isClickable = onStepClick && isUnlocked;
+                        // Accessibility strategy:
+                        // If clickable (interactive): acts as a button. We use aria-label on the container and hide inner text to avoid redundancy.
+                        // If NOT clickable (static): acts as a static list item. We do NOT use aria-label (it's ignored on divs) and we show inner text.
 
-                    return (
-                        <div
-                            key={step.id}
-                            className={`group relative flex flex-col items-center ${isClickable ? 'cursor-pointer' : 'cursor-default'}`}
-                            onClick={() => isClickable && onStepClick?.(step.id)}
-                            role={isClickable ? "button" : undefined}
-                            tabIndex={isClickable ? 0 : undefined}
-                            onKeyDown={handleKeyDown}
-                        >
-                            {/* Step Circle */}
-                            <div
-                                className={`relative w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all duration-500 z-10 ${isActive
-                                    ? 'bg-[var(--surface-elevated)] border-[var(--accent)] shadow-[0_0_30px_-5px_var(--accent)] scale-110 text-[var(--accent)]'
-                                    : shouldShowAccent
-                                        ? 'bg-[var(--surface-elevated)] border-[var(--accent)] text-[var(--accent)] scale-100 hover:scale-105 hover:shadow-[0_0_15px_-5px_var(--accent)] hover:border-[var(--accent-secondary)]'
-                                        : 'bg-[var(--surface)] border-[var(--border)] text-[var(--muted)] opacity-60'
-                                    } ${isClickable && !isActive ? 'hover:scale-105 transition-all cursor-pointer' : ''}`}
-                            >
-                                <div className={`transition-all duration-500 ${isActive ? 'drop-shadow-[0_0_8px_rgba(249,115,22,0.5)]' : ''}`}>
-                                    {step.icon}
+                        const containerProps = isClickable ? {
+                            role: "button",
+                            tabIndex: 0,
+                            "aria-label": `${labelText}: ${step.label}`,
+                            "aria-current": isActive ? "step" as const : undefined,
+                            onKeyDown: handleKeyDown,
+                            onClick: () => onStepClick?.(step.id)
+                        } : {
+                            "aria-current": isActive ? "step" as const : undefined,
+                            // No role, no tabIndex, no aria-label for static content
+                        };
+
+                        return (
+                            <li key={step.id} className="relative">
+                                <div
+                                    className={`group flex flex-col items-center ${isClickable ? 'cursor-pointer' : 'cursor-default'}`}
+                                    {...containerProps}
+                                >
+                                    {/* Step Circle */}
+                                    <div
+                                        className={`relative w-12 h-12 rounded-full flex items-center justify-center border-2 transition-all duration-500 z-10 ${isActive
+                                            ? 'bg-[var(--surface-elevated)] border-[var(--accent)] shadow-[0_0_30px_-5px_var(--accent)] scale-110 text-[var(--accent)]'
+                                            : shouldShowAccent
+                                                ? 'bg-[var(--surface-elevated)] border-[var(--accent)] text-[var(--accent)] scale-100 hover:scale-105 hover:shadow-[0_0_15px_-5px_var(--accent)] hover:border-[var(--accent-secondary)]'
+                                                : 'bg-[var(--surface)] border-[var(--border)] text-[var(--muted)] opacity-60'
+                                            } ${isClickable && !isActive ? 'hover:scale-105 transition-all cursor-pointer' : ''}`}
+                                        aria-hidden={isClickable ? "true" : undefined}
+                                    >
+                                        <div className={`transition-all duration-500 ${isActive ? 'drop-shadow-[0_0_8px_rgba(249,115,22,0.5)]' : ''}`}>
+                                            {step.icon}
+                                        </div>
+                                    </div>
+
+                                    {/* Label */}
+                                    <div
+                                        className={`absolute top-full mt-3 text-center transition-all duration-500 w-40 left-1/2 -translate-x-1/2 ${isActive
+                                            ? 'opacity-100 transform translate-y-0'
+                                            : 'opacity-50 transform -translate-y-1'
+                                            }`}
+                                        aria-hidden={isClickable ? "true" : undefined}
+                                    >
+                                        <span className={`text-xs font-bold tracking-wider uppercase block mb-0.5 ${isActive ? 'text-[var(--accent)] scale-110' : shouldShowAccent ? 'text-[var(--accent)] opacity-80' : 'text-[var(--muted)]'}`}>
+                                            {labelText}
+                                        </span>
+                                        <span className={`text-sm font-semibold ${isActive ? 'text-[var(--foreground)]' : 'text-[var(--muted)]'}`}>
+                                            {step.label}
+                                        </span>
+                                    </div>
                                 </div>
-                            </div>
-
-                            {/* Label */}
-                            <div className={`absolute top-full mt-3 text-center transition-all duration-500 w-40 left-1/2 -translate-x-1/2 ${isActive
-                                ? 'opacity-100 transform translate-y-0'
-                                : 'opacity-50 transform -translate-y-1'
-                                }`}>
-                                <span className={`text-xs font-bold tracking-wider uppercase block mb-0.5 ${isActive ? 'text-[var(--accent)] scale-110' : shouldShowAccent ? 'text-[var(--accent)] opacity-80' : 'text-[var(--muted)]'}`}>
-                                    {t('stepLabel', { n: step.id }) || `Step ${step.id}`}
-                                </span>
-                                <span className={`text-sm font-semibold ${isActive ? 'text-[var(--foreground)]' : 'text-[var(--muted)]'}`}>
-                                    {step.label}
-                                </span>
-                            </div>
-                        </div>
-                    );
-                })}
+                            </li>
+                        );
+                    })}
+                </ol>
             </div>
             {/* Spacing for labels */}
             <div className="h-14"></div>
-        </div >
+        </nav>
     );
 });
