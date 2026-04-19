@@ -1,6 +1,6 @@
 
 import { test, expect } from '@playwright/test';
-import { mockApi } from './mocks';
+import { mockApi, waitForModelPicker } from './mocks';
 import el from '@/i18n/el.json';
 
 test.describe('Video Processing Flow', () => {
@@ -58,6 +58,7 @@ test.describe('Video Processing Flow', () => {
 
         // 2. Go to page
         await page.goto('/');
+        await waitForModelPicker(page);
 
         // Select model first
         await page.getByTestId('model-standard').click({ force: true });

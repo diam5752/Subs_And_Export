@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { mockApi, stabilizeUi } from './mocks';
+import { mockApi, stabilizeUi, waitForDashboardShell, waitForModelPicker } from './mocks';
 import el from '@/i18n/el.json';
 
 /**
@@ -14,7 +14,7 @@ test.describe('Job Polling E2E', () => {
         // Use the existing mockApi which includes a processing job
         await mockApi(page);
         await page.goto('/');
-        await page.waitForLoadState('networkidle');
+        await waitForModelPicker(page);
         await page.getByTestId('model-standard').click({ force: true });
 
         // Dashboard should render with the upload area
@@ -31,7 +31,7 @@ test.describe('Job Polling E2E', () => {
     test('dashboard handles authenticated state correctly', async ({ page }) => {
         await mockApi(page, { authenticated: true });
         await page.goto('/');
-        await page.waitForLoadState('networkidle');
+        await waitForModelPicker(page);
         await page.getByTestId('model-standard').click({ force: true });
 
         // Verify dashboard loaded
@@ -53,7 +53,7 @@ test.describe('Job Polling E2E', () => {
     test('job list displays different job statuses', async ({ page }) => {
         await mockApi(page);
         await page.goto('/');
-        await page.waitForLoadState('networkidle');
+        await waitForDashboardShell(page);
         await stabilizeUi(page);
 
         // The mock includes jobs with various statuses (completed, processing, pending, failed)

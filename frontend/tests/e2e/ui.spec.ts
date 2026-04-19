@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { mockApi, stabilizeUi } from './mocks';
+import { mockApi, stabilizeUi, waitForDashboardShell, waitForModelPicker } from './mocks';
 import el from '@/i18n/el.json';
 
 const viewports = {
@@ -42,11 +42,14 @@ for (const [label, viewport] of Object.entries(viewports)) {
     test('workspace renders upload area without overflow', async ({ page }) => {
       await mockApi(page);
       await page.goto('/');
+      await waitForModelPicker(page);
       await page.getByTestId('model-standard').click({ force: true });
-      await page.getByText(el.uploadDropTitle).waitFor();
+      const uploadSection = page.getByTestId('upload-section');
+      await uploadSection.waitFor({ state: 'visible' });
 
-      // Check that the upload area is visible
-      await expect(page.getByText(el.uploadDropTitle)).toBeVisible();
+      // Check that the upload area is visible regardless of whether it is
+      // rendering the full dropzone or the compact restored-session view.
+      await expect(uploadSection).toBeVisible();
 
       await stabilizeUi(page);
       await expectNoHorizontalOverflow(page);
@@ -72,6 +75,7 @@ for (const [label, viewport] of Object.entries(viewports)) {
     test('history section shows event cards neatly', async ({ page }) => {
       await mockApi(page);
       await page.goto('/');
+      await waitForDashboardShell(page);
       await page.getByRole('button', { name: el.accountSettingsTitle }).click();
       await page.getByRole('button', { name: el.historyTitle }).click();
       await page.getByRole('heading', { name: el.historyTitle }).waitFor();
@@ -88,6 +92,7 @@ for (const [label, viewport] of Object.entries(viewports)) {
     test('account settings modal keeps controls readable', async ({ page }) => {
       await mockApi(page);
       await page.goto('/');
+      await waitForDashboardShell(page);
 
       // Wait for the account settings button to be rendered (after auth check) and click it
       await page.getByRole('button', { name: el.accountSettingsTitle }).click();

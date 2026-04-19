@@ -1,4 +1,5 @@
 import { Page, Route } from '@playwright/test';
+import el from '@/i18n/el.json';
 
 type MockJob = {
   id: string;
@@ -167,6 +168,7 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
   await page.addInitScript(() => {
     localStorage.setItem('cookie-consent', 'accepted');
     localStorage.setItem('preferredLocale', 'el');
+    localStorage.removeItem('lastActiveJobId');
   });
   const shortCircuitOptions = async (route: Route) => {
     if (route.request().method() === 'OPTIONS') {
@@ -312,5 +314,21 @@ export async function stabilizeUi(page: Page): Promise<void> {
       }
       video { background: #000 !important; }
     `,
+  });
+}
+
+export async function waitForDashboardShell(page: Page): Promise<void> {
+  await page.waitForLoadState('networkidle');
+  await page.getByRole('button', { name: el.accountSettingsTitle }).waitFor({
+    state: 'visible',
+    timeout: 15_000,
+  });
+}
+
+export async function waitForModelPicker(page: Page): Promise<void> {
+  await waitForDashboardShell(page);
+  await page.getByTestId('model-standard').waitFor({
+    state: 'visible',
+    timeout: 15_000,
   });
 }
