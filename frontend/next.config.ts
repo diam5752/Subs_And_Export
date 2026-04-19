@@ -7,7 +7,7 @@ const nextConfig: NextConfig = {
   // server does not block its own Next assets during E2E runs.
   allowedDevOrigins: ['127.0.0.1', 'localhost'],
   async headers() {
-    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
     // Allow connecting to the API backend
     const isDev = process.env.NODE_ENV !== 'production';
     const scriptSrc = isDev ? `script-src 'self' 'unsafe-eval' 'unsafe-inline';` : `script-src 'self' 'unsafe-inline';`;

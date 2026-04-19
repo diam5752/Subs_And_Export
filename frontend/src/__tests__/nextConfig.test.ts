@@ -18,6 +18,19 @@ describe('next.config', () => {
 
     expect(csp).toContain("media-src 'self' http://localhost:8080");
     expect(csp).toContain("img-src 'self' http://localhost:8080");
+    expect(csp).toContain("connect-src 'self' http://localhost:8080");
+  });
+
+  it('defaults CSP API access to the frontend API base fallback', async () => {
+    delete process.env.NEXT_PUBLIC_API_URL;
+
+    const nextConfigModule = await import('../../next.config');
+    const headers = await nextConfigModule.default.headers?.();
+    const csp = headers?.[0]?.headers?.find((header) => header.key === 'Content-Security-Policy')?.value;
+
+    expect(csp).toContain("img-src 'self' http://localhost:8080");
+    expect(csp).toContain("media-src 'self' http://localhost:8080");
+    expect(csp).toContain("connect-src 'self' http://localhost:8080");
   });
 
   it('allows local loopback dev origins for Next assets in CI', async () => {
