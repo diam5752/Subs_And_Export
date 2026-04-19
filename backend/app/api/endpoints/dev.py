@@ -8,9 +8,8 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from ...core.config import settings
 from ...core.auth import User
-
+from ...core.config import settings
 from ...schemas.base import JobResponse
 from ...services.jobs import JobStore
 from ..deps import get_current_user, get_job_store
@@ -55,6 +54,13 @@ class DevSampleRequest(BaseModel):
     provider: str | None = None
     model_size: str | None = None
 
+
+def _prioritize_preferred(candidates: list[str], preferred: str | None) -> list[str]:
+    if preferred and preferred in candidates:
+        return [preferred, *[job_id for job_id in candidates if job_id != preferred]]
+    return candidates
+
+
 def _resolve_sample_source(
     uploads_dir: Path,
     artifacts_root: Path,
@@ -68,14 +74,13 @@ def _resolve_sample_source(
     Otherwise/fallback: Prefers GSP_DEV_SAMPLE_JOB_ID or picks first available.
     """
     preferred = os.getenv("GSP_DEV_SAMPLE_JOB_ID")
-    candidates: list[str] = []
 
     # 1. Gather all candidates from artifacts directory
     all_candidates = sorted({p.parent.name for p in artifacts_root.glob("*/transcription.json")})
+    filtered_candidates: list[str] = []
 
     # 2. If filtering is requested, check job store
     if req.provider or req.model_size:
-        filtered_candidates = []
         for job_id in all_candidates:
             job = job_store.get_job(job_id)
             if not job or not job.result_data:
@@ -92,25 +97,7 @@ def _resolve_sample_source(
             if match_provider and match_model:
                 filtered_candidates.append(job_id)
 
-        # If we found matches, use them. If not, we fall through?
-        # User requested specific model alignment. If we fallback, it breaks expectation.
-        # But we can fallback to *any* if we fail? strict=False?
-        # Let's try strict.
-        # If we found matches, use them.
-        if filtered_candidates:
-            candidates = filtered_candidates
-            # Put preferred first if it's in the filtered list
-            if preferred and preferred in candidates:
-                candidates.remove(preferred)
-                candidates.insert(0, preferred)
-        else:
-             # Fallback to ALL candidates if strict match fails
-             # This allows dev tools to work even if we haven't run this specific model yet
-             candidates = list(all_candidates)
-             if candidates:
-                 logger.warning(f"No exact match for {req}. Falling back to available samples: {candidates[:3]}")
-
-    if not candidates:
+    if not all_candidates:
         # If absolutely no samples exist (fresh install), we can't do anything
         hint = (
             f"No sample video found matching provider={req.provider}, model={req.model_size}. "
@@ -118,22 +105,37 @@ def _resolve_sample_source(
         )
         raise HTTPException(status_code=404, detail=hint)
 
-    # Use the first available candidate
-    # Logic below iterates, but effectively picks the first valid one
-    pass
+    fallback_candidates = [job_id for job_id in all_candidates if job_id not in filtered_candidates]
+    candidate_groups: list[list[str]] = []
 
-    for job_id in candidates:
-        artifact_dir = artifacts_root / job_id
-        transcription_json = artifact_dir / "transcription.json"
+    if filtered_candidates:
+        candidate_groups.append(_prioritize_preferred(filtered_candidates, preferred))
+        if fallback_candidates:
+            logger.warning(
+                "Exact dev-sample matches for %s may be stale; falling back to other samples if inputs are missing.",
+                req,
+            )
+    else:
+        if req.provider or req.model_size:
+            logger.warning("No exact match for %s. Falling back to available samples: %s", req, all_candidates[:3])
+        fallback_candidates = all_candidates
 
-        # Double check existence (redundant matching check but safe)
-        if not transcription_json.exists():
-            continue
+    if fallback_candidates:
+        candidate_groups.append(_prioritize_preferred(fallback_candidates, preferred))
 
-        for ext in (".mp4", ".mov", ".mkv"):
-            input_path = uploads_dir / f"{job_id}_input{ext}"
-            if input_path.exists():
-                return job_id, input_path, artifact_dir
+    for candidates in candidate_groups:
+        for job_id in candidates:
+            artifact_dir = artifacts_root / job_id
+            transcription_json = artifact_dir / "transcription.json"
+
+            # Double check existence (redundant matching check but safe)
+            if not transcription_json.exists():
+                continue
+
+            for ext in (".mp4", ".mov", ".mkv"):
+                input_path = uploads_dir / f"{job_id}_input{ext}"
+                if input_path.exists():
+                    return job_id, input_path, artifact_dir
 
     hint = (
         f"No sample video found matching provider={req.provider}, model={req.model_size}. "
@@ -231,4 +233,3 @@ def create_sample_job(
     if not job:
         raise HTTPException(status_code=500, detail="Failed to load created sample job")
     return job
-

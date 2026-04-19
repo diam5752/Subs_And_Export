@@ -1,12 +1,14 @@
 import json
 import uuid
 from pathlib import Path
+
 from fastapi.testclient import TestClient
-from backend.app.api.endpoints import videos
-from backend.app.api.endpoints import export_routes
+
+from backend.app.api.endpoints import export_routes, videos
 from backend.app.core import auth as backend_auth
 from backend.app.core.database import Database
 from backend.app.services import jobs
+
 
 def _auth_header(client: TestClient, email: str) -> dict[str, str]:
     try:
@@ -22,18 +24,18 @@ def test_srt_export_success(client: TestClient, monkeypatch, tmp_path: Path):
     monkeypatch.setattr(settings, "project_root", tmp_path)
     monkeypatch.setattr(videos, "_data_roots", lambda: (tmp_path, tmp_path / "uploads", tmp_path / "artifacts"))
     monkeypatch.setattr(export_routes, "data_roots", lambda: (tmp_path, tmp_path / "uploads", tmp_path / "artifacts"))
-    
+
     # Setup DB
     db = Database()
     store = jobs.JobStore(db)
     email = f"srt_{uuid.uuid4().hex}@example.com"
     user_id = backend_auth.UserStore(db=db).register_local_user(email, "testpassword123", "User").id
-    
+
     # Create Job
     job = store.create_job(f"srt-job-{uuid.uuid4().hex}", user_id)
     artifact_dir = tmp_path / "artifacts" / job.id
     artifact_dir.mkdir(parents=True, exist_ok=True)
-    
+
     # Add dummy transcription
     cues = [
         {"start": 0.5, "end": 1.5, "text": "Hello world"},
@@ -44,23 +46,23 @@ def test_srt_export_success(client: TestClient, monkeypatch, tmp_path: Path):
     store.update_job(job.id, status="completed", result_data={}) # Ensure result_data dict exists
 
     # Override get_job_store dep
-    from backend.app.api.deps import get_job_store, get_db
+    from backend.app.api.deps import get_db, get_job_store
     from backend.main import app
     app.dependency_overrides[get_job_store] = lambda: store
     app.dependency_overrides[get_db] = lambda: db
 
     try:
         headers = _auth_header(client, email)
-        
+
         # Trigger export
         resp = client.post(
             f"/videos/jobs/{job.id}/export",
             headers=headers,
             json={"resolution": "srt"}
         )
-        
+
         assert resp.status_code == 200, f"Status: {resp.status_code}, Body: {resp.text}"
-        
+
         # Verify file creation
         srt_path = artifact_dir / "processed.srt"
         assert srt_path.exists()

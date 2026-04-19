@@ -8,10 +8,8 @@ Create Date: 2025-12-18 22:45:12.419717
 
 from __future__ import annotations
 
-from alembic import op
 import sqlalchemy as sa
-
-
+from alembic import op
 
 revision = '429a30578e50'
 down_revision = '0003_reconcile_points_balances'
@@ -55,7 +53,7 @@ def upgrade() -> None:
     op.create_index(op.f('ix_oauth_states_expires_at'), 'oauth_states', ['expires_at'], unique=False)
     op.drop_index(op.f('ix_users_email'), table_name='users')
     op.create_index(op.f('ix_users_email'), 'users', ['email'], unique=True)
-    
+
     # --- Data Seeding ---
     pricing_data = [
         # GPT-4o
@@ -65,7 +63,7 @@ def upgrade() -> None:
             "output_price_per_1m": 15.00,
             "currency": "USD",
             "active": True,
-            "updated_at": 1734560000 
+            "updated_at": 1734560000
         },
         # GPT-4o-mini
         {
@@ -86,7 +84,7 @@ def upgrade() -> None:
             "updated_at": 1734560000
         },
     ]
-    
+
     # Use the table object to enable bulk insert
     ai_models = sa.table('ai_models',
         sa.column('id', sa.String),
@@ -96,7 +94,7 @@ def upgrade() -> None:
         sa.column('active', sa.Boolean),
         sa.column('updated_at', sa.Integer)
     )
-    
+
     op.bulk_insert(ai_models, pricing_data)
     # --- End Data Seeding ---
 

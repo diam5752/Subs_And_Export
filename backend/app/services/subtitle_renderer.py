@@ -146,7 +146,7 @@ def generate_active_word_ass(cue: Cue, max_lines: int, primary_color: str, secon
     """
     Generates ASS dialogue lines for 'active word' highlighting.
     Each word gets its own dialogue event, appearing for its duration.
-    
+
     When max_lines=0 (single word mode): Show ONLY the active word, nothing else.
     When max_lines>0: Show all words with the active word highlighted.
     """

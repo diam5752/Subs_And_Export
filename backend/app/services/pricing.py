@@ -38,6 +38,21 @@ def resolve_transcribe_model(tier: str) -> str:
     return settings.transcribe_tier_model[normalized]
 
 
+def resolve_requested_transcribe_model(
+    *,
+    tier: str,
+    provider: str | None,
+    openai_model: str | None = None,
+) -> str:
+    normalized_tier = normalize_tier(tier)
+    normalized_provider = (provider or resolve_transcribe_provider(normalized_tier)).strip().lower()
+
+    if normalized_provider == "openai":
+        return (openai_model or settings.openai_transcribe_model).strip()
+
+    return settings.transcribe_tier_model[normalized_tier]
+
+
 def resolve_llm_models(tier: str) -> LlmModels:
     normalized = normalize_tier(tier)
     if normalized == "pro":
@@ -59,6 +74,8 @@ def resolve_tier_from_model(value: str | None) -> str:
     normalized = value.strip().lower()
     if normalized in settings.transcribe_tier_provider:
         return normalized
+    if "transcribe" in normalized and normalized.startswith("gpt-4o"):
+        return "pro"
     if "turbo" in normalized or normalized == "enhanced":
         return "standard"
     if normalized in {"ultimate", "whisper-1"}:

@@ -1,9 +1,9 @@
-import subprocess
-import pytest
-from unittest.mock import patch, MagicMock
 from pathlib import Path
+from unittest.mock import patch
+
 from backend.app.services.ffmpeg_utils import probe_media
 from backend.app.services.subtitles import get_video_duration
+
 
 def test_probe_media_timeout():
     """Verify probe_media enforces a timeout on subprocess.run."""

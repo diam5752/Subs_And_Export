@@ -1,30 +1,23 @@
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import Image from 'next/image';
 import { useI18n } from '@/context/I18nContext';
+import { useAppEnv } from '@/context/AppEnvContext';
 import { useProcessContext } from '../ProcessContext';
 import { api } from '@/lib/api';
 import { validateVideoAspectRatio } from '@/lib/video';
 import { TokenIcon } from '@/components/icons';
 import { Spinner } from '@/components/Spinner';
 import { formatPoints, processVideoCostForSelection } from '@/lib/points';
+import { resolveTranscriptionTier } from '@/lib/transcription';
 
 const MAX_UPLOAD_BYTES = 1024 * 1024 * 1024; // 1GiB
 const MAX_VIDEO_DURATION_SECONDS = 3 * 60 + 30;
 const ALLOWED_VIDEO_EXT = /\.(mp4|mov|mkv)$/i;
 
-const resolveTierFromJob = (provider?: string | null, model?: string | null): 'standard' | 'pro' => {
-    const normalizedProvider = (provider ?? '').trim().toLowerCase();
-    const normalizedModel = (model ?? '').trim().toLowerCase();
-    if (normalizedModel === 'pro' || normalizedModel === 'standard') return normalizedModel as 'standard' | 'pro';
-    if (normalizedModel.includes('turbo') || normalizedModel.includes('enhanced')) return 'standard';
-    if (normalizedModel.includes('large')) return 'pro';
-    if (normalizedProvider === 'openai' || normalizedModel.includes('ultimate') || normalizedModel.includes('whisper-1')) return 'pro';
-    return 'standard';
-};
-
 export function UploadSection() {
     const { t } = useI18n();
-    const showDevTools = true; // Always enable for user request
+    const { appEnv } = useAppEnv();
+    const showDevTools = appEnv === 'dev';
 
     const {
         selectedFile,
@@ -442,7 +435,7 @@ export function UploadSection() {
                                                 const jobProvider = selectedJob?.result_data?.transcribe_provider;
                                                 const jobModel = selectedJob?.result_data?.model_size;
 
-                                                const jobTier = resolveTierFromJob(jobProvider, jobModel);
+                                                const jobTier = resolveTranscriptionTier(jobProvider, jobModel);
                                                 const selectedTier = transcribeMode || 'standard';
                                                 const isMatch = Boolean(jobCompleted && jobTier === selectedTier);
 

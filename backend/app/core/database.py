@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Iterator
@@ -13,10 +12,8 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from ..db import models as _models  # noqa: F401  # ensure models are registered
-from ..db.base import Base
-from .config import settings
 from . import logging
-
+from .config import settings
 
 logger = logging.setup_logging()
 

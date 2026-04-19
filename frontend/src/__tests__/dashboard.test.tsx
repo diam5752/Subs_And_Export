@@ -152,7 +152,7 @@ describe('DashboardPage', () => {
         expect(screen.getByText('heroTitle')).toBeInTheDocument();
         expect(screen.getByTestId('process-view')).toBeInTheDocument();
         expect(screen.getByLabelText('accountSettingsTitle')).toBeInTheDocument();
-        expect(mockLoadJobs).toHaveBeenCalled();
+        expect(mockLoadJobs).not.toHaveBeenCalled();
     });
 
     it('renders footer with privacy and terms links', () => {
@@ -438,7 +438,7 @@ describe('DashboardPage', () => {
         fireEvent.click(screen.getByTestId('refresh-jobs-btn'));
 
         await waitFor(() => {
-            expect(mockLoadJobs).toHaveBeenCalledTimes(2); // Once on mount, once on refresh
+            expect(mockLoadJobs).toHaveBeenCalledTimes(1);
         });
     });
 

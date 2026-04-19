@@ -13,7 +13,6 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from backend.app.core.config import settings
-from backend.app.services import pricing
 from backend.app.core.database import Database
 from backend.app.db.models import DbPointTransaction, DbUser, DbUserPoints
 
@@ -285,7 +284,7 @@ class PointsStore:
         starting_balance_override: int | None = None,
     ) -> bool:
         """Create user points account if it doesn't exist.
-        
+
         Args:
             session: DB session
             user_id: User ID
@@ -299,7 +298,7 @@ class PointsStore:
         else:
             starting_balance = STARTING_POINTS_BALANCE if email_verified else TRIAL_CREDITS
             reason = "initial_balance" if email_verified else "trial_balance"
-        
+
         insert_stmt = pg_insert(DbUserPoints).values(
             user_id=user_id,
             balance=starting_balance,
@@ -327,10 +326,10 @@ class PointsStore:
 
     def grant_verified_credits(self, user_id: str) -> int:
         """Grant bonus credits after email verification.
-        
+
         This should be called when a user verifies their email to give them
         the remaining credits they would have gotten if they were verified at signup.
-        
+
         Returns the new balance.
         """
         return self.credit(

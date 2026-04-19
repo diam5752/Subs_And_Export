@@ -1,13 +1,11 @@
-
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from starlette.testclient import TestClient
 
 from backend.app.api.endpoints import videos
-from backend.app.core import cleanup
-from backend.app.core import auth
-from backend.app.services import subtitles, llm_utils
+from backend.app.core import auth, cleanup
+from backend.app.services import llm_utils, subtitles
 
 # ==========================================
 # Videos Endpoint Coverage (app/api/endpoints/videos.py)
@@ -313,7 +311,6 @@ def test_save_upload_limit_boundary(monkeypatch):
 
 def test_transcribe_with_openai_no_key(monkeypatch, tmp_path):
     """Cover OpenAITranscriber missing key."""
-    from backend.app.services import subtitles
     from backend.app.services.transcription.openai_cloud import OpenAITranscriber
 
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
@@ -339,7 +336,6 @@ def test_wrap_lines_no_result():
 
 def test_load_openai_client_no_key(monkeypatch):
     """Cover _load_openai_client missing key (line 858)."""
-    from backend.app.services import subtitles
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.setattr("backend.app.services.llm_utils.resolve_openai_api_key", lambda *a: None)
 
@@ -448,6 +444,7 @@ def test_video_processing_artifact_same_path(monkeypatch):
             return Path("a.srt"), []
 
     monkeypatch.setattr(video_processing, "GroqTranscriber", lambda: MockTranscriber())
+    monkeypatch.setattr(video_processing.llm_utils, "resolve_groq_api_key", lambda: "test-groq-key")
     monkeypatch.setattr("backend.app.services.ffmpeg_utils.probe_media", lambda p: video_processing.ffmpeg_utils.MediaProbe(duration_s=10.0, audio_codec="aac"))
     monkeypatch.setattr(video_processing.subtitles, "extract_audio", lambda *a, **k: Path("a.wav"))
     monkeypatch.setattr(video_processing.subtitles, "generate_subtitles_from_audio", lambda *a, **k: (Path("a.srt"), []))

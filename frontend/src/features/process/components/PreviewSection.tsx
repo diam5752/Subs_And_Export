@@ -3,20 +3,42 @@ import { useI18n } from '@/context/I18nContext';
 import { useProcessContext } from '../ProcessContext';
 import { usePlaybackContext } from '../PlaybackContext';
 import { PhoneFrame } from '@/components/PhoneFrame';
-import { PreviewPlayer } from '@/components/PreviewPlayer';
+import { PreviewPlayer, type PreviewPlayerHandle } from '@/components/PreviewPlayer';
 import { Sidebar } from './Sidebar';
 import { VideoModal } from '@/components/VideoModal';
 import { NewVideoConfirmModal } from './NewVideoConfirmModal';
 import { Spinner } from '@/components/Spinner';
+import type { MessageKey } from '@/context/i18nMessages';
+import { resolveTranscriptionTier } from '@/lib/transcription';
+import type { JobResponse } from '@/lib/api';
 
-const resolveTierFromJob = (provider?: string | null, model?: string | null): 'standard' | 'pro' => {
-    const normalizedProvider = (provider ?? '').trim().toLowerCase();
-    const normalizedModel = (model ?? '').trim().toLowerCase();
-    if (normalizedModel === 'pro' || normalizedModel === 'standard') return normalizedModel as 'standard' | 'pro';
-    if (normalizedModel.includes('turbo') || normalizedModel.includes('enhanced')) return 'standard';
-    if (normalizedModel.includes('large')) return 'pro';
-    if (normalizedProvider === 'openai' || normalizedModel.includes('ultimate') || normalizedModel.includes('whisper-1')) return 'pro';
-    return 'standard';
+type PreviewSectionLayoutProps = {
+    resultsRef: React.RefObject<HTMLDivElement | null>;
+    currentStep: number;
+    handleKeyDown: (event: React.KeyboardEvent) => void;
+    handleStepClick: () => void;
+    selectedJob: JobResponse | null;
+    isProcessing: boolean;
+    t: (key: MessageKey, params?: Record<string, string | number>) => string;
+    transcribeProvider: string | null;
+    displayedModel?: {
+        icon: (selected: boolean) => React.ReactNode;
+        name: string;
+    };
+    processedCues: React.ComponentProps<typeof PreviewPlayer>['cues'];
+    playerRef: React.RefObject<PreviewPlayerHandle | null>;
+    videoUrl: string | null;
+    playerSettings: React.ComponentProps<typeof PreviewPlayer>['settings'];
+    handlePlayerTimeUpdate: (time: number) => void;
+    handleExport: (resolution: string) => Promise<void>;
+    exportingResolutions: Record<string, boolean>;
+    exportError: string | null;
+    showPreview: boolean;
+    setShowPreview: React.Dispatch<React.SetStateAction<boolean>>;
+    showNewVideoModal: boolean;
+    setShowNewVideoModal: React.Dispatch<React.SetStateAction<boolean>>;
+    onNewVideoConfirm: () => void;
+    isExpanded: boolean;
 };
 
 const PreviewSectionLayout = memo(({
@@ -36,15 +58,14 @@ const PreviewSectionLayout = memo(({
     handlePlayerTimeUpdate,
     handleExport,
     exportingResolutions,
+    exportError,
     showPreview,
     setShowPreview,
     showNewVideoModal,
     setShowNewVideoModal,
     onNewVideoConfirm,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    activeSidebarTab,
     isExpanded // New prop, received from parent
-}: any) => {
+}: PreviewSectionLayoutProps) => {
     return (
         <div id="preview-section" className={`card space-y-4 transition-all duration-500 ${!selectedJob && !isProcessing ? 'opacity-50 grayscale' : ''}`} ref={resultsRef}>
 
@@ -214,6 +235,15 @@ const PreviewSectionLayout = memo(({
                                                         </button>
                                                     </div>
 
+                                                    {exportError && (
+                                                        <p
+                                                            className="mt-4 w-full max-w-[800px] mx-auto text-sm text-[var(--danger)] text-center"
+                                                            role="alert"
+                                                        >
+                                                            {exportError}
+                                                        </p>
+                                                    )}
+
                                                     {/* Process New Video Button */}
                                                     <div className="mt-6 pt-6 border-t border-white/5 w-full max-w-[800px] mx-auto z-10 relative">
                                                         <button
@@ -280,7 +310,7 @@ export function PreviewSection() {
         transcribeMode,
         handleExport,
         exportingResolutions,
-        activeSidebarTab,
+        exportError,
         onReset,
         setHasChosenModel,
         onJobSelect,
@@ -354,7 +384,7 @@ export function PreviewSection() {
             const provider = selectedJob.result_data.transcribe_provider;
             const model = selectedJob.result_data.model_size;
 
-            const jobTier = resolveTierFromJob(provider, model);
+            const jobTier = resolveTranscriptionTier(provider, model);
             return AVAILABLE_MODELS.find(m => m.mode === jobTier);
         }
 
@@ -380,12 +410,12 @@ export function PreviewSection() {
             handlePlayerTimeUpdate={handlePlayerTimeUpdate}
             handleExport={handleExport}
             exportingResolutions={exportingResolutions}
+            exportError={exportError}
             showPreview={showPreview}
             setShowPreview={setShowPreview}
             showNewVideoModal={showNewVideoModal}
             setShowNewVideoModal={setShowNewVideoModal}
             onNewVideoConfirm={handleNewVideoConfirm}
-            activeSidebarTab={activeSidebarTab}
             isExpanded={isExpanded}
         />
     );

@@ -291,7 +291,10 @@ describe('API Client', () => {
             });
 
             const { api } = await import('@/lib/api');
-            const result = await api.processVideoFromGcs('upload-123', { transcribe_provider: 'groq' });
+            const result = await api.processVideoFromGcs('upload-123', {
+                transcribe_provider: 'groq',
+                source_duration_seconds: 42.5,
+            });
 
             expect(fetch).toHaveBeenCalledWith(
                 expect.stringContaining('/videos/gcs/process'),
@@ -302,6 +305,7 @@ describe('API Client', () => {
                         transcribe_model: 'standard',
                         transcribe_provider: 'groq',
                         openai_model: '',
+                        source_duration_seconds: 42.5,
                         video_quality: 'balanced',
                         video_resolution: '',
                         use_llm: false,
@@ -522,6 +526,25 @@ describe('API Client', () => {
 
             expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/videos/jobs/job-123'), expect.objectContaining({ method: 'DELETE' }));
             expect(result.job_id).toBe('job-123');
+        });
+    });
+
+    describe('deleteJobs', () => {
+        it('should batch delete jobs using the backend route contract', async () => {
+            const mockResponse = { status: 'deleted', deleted_count: 2 };
+            (fetch as jest.Mock).mockResolvedValueOnce({ ok: true, json: async () => mockResponse });
+
+            const { api } = await import('@/lib/api');
+            const result = await api.deleteJobs(['job-1', 'job-2']);
+
+            expect(fetch).toHaveBeenCalledWith(
+                expect.stringContaining('/videos/jobs/batch-delete'),
+                expect.objectContaining({
+                    method: 'POST',
+                    body: JSON.stringify({ job_ids: ['job-1', 'job-2'] }),
+                }),
+            );
+            expect(result.deleted_count).toBe(2);
         });
     });
 

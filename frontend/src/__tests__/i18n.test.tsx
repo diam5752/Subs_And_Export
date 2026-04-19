@@ -1,4 +1,6 @@
 import React from 'react';
+import fs from 'fs';
+import path from 'path';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import DashboardPage from '@/app/page';
@@ -51,7 +53,7 @@ jest.mock('@/lib/api', () => {
     const getHistory = jest.fn();
     return {
         ...actual,
-        API_BASE: 'http://localhost:8000',
+        API_BASE: 'http://localhost:8080',
         api: {
             ...actual.api,
             getJobs,
@@ -70,6 +72,32 @@ const getHistoryMock = __getHistoryMock as jest.Mock;
 
 const renderWithI18n = (ui: React.ReactNode, initialLocale?: 'el' | 'en') =>
     render(<I18nProvider initialLocale={initialLocale}>{ui}</I18nProvider>);
+
+function collectTranslationKeysUsedInSource() {
+    const srcRoot = path.join(process.cwd(), 'src');
+    const usedKeys = new Set<string>();
+
+    const walk = (dir: string) => {
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+            const fullPath = path.join(dir, entry.name);
+            if (entry.isDirectory()) {
+                if (entry.name === '__tests__') continue;
+                walk(fullPath);
+                continue;
+            }
+            if (!/\.(ts|tsx|js|jsx)$/.test(entry.name)) continue;
+
+            const text = fs.readFileSync(fullPath, 'utf8');
+            const matches = text.matchAll(/\bt\(\s*['"]([^'"]+)['"]/g);
+            for (const match of matches) {
+                usedKeys.add(match[1]);
+            }
+        }
+    };
+
+    walk(srcRoot);
+    return [...usedKeys].sort();
+}
 
 const TranslatedProbe = () => {
     const { t } = useI18n();
@@ -93,6 +121,29 @@ afterEach(() => {
 });
 
 describe('i18n provider defaults and persistence', () => {
+    it('keeps locale dictionaries in sync for model-selection labels', () => {
+        /**
+         * REGRESSION: `ModelSelector` uses `t("modelInfo")`, so missing locale keys
+         * break the production TypeScript build even if the dev server appears healthy.
+         */
+        expect(Object.keys(messages.el).sort()).toEqual(Object.keys(messages.en).sort());
+        expect(messages.el.modelInfo).toBe('Πληροφορίες σύγκρισης μοντέλων');
+        expect(messages.en.modelInfo).toBe('Model comparison information');
+    });
+
+    it('covers every translation key used by production source files', () => {
+        /**
+         * REGRESSION: several `t("...")` calls were missing from both locale files,
+         * which only surfaced during the production Next.js build.
+         */
+        const usedKeys = collectTranslationKeysUsedInSource();
+        const missingFromEnglish = usedKeys.filter((key) => !(key in messages.en));
+        const missingFromGreek = usedKeys.filter((key) => !(key in messages.el));
+
+        expect(missingFromEnglish).toEqual([]);
+        expect(missingFromGreek).toEqual([]);
+    });
+
     it('renders Greek copy by default and updates <html lang> accordingly', async () => {
         renderWithI18n(<LoginPage />);
 

@@ -22,20 +22,19 @@ from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Request, UploadFile
 
-from ...core.config import settings
 from ...core.auth import User
+from ...core.config import settings
 from ...core.database import Database
 from ...core.errors import sanitize_message
 from ...core.gcs import get_gcs_settings, upload_object
 from ...core.ratelimit import limiter_processing
 from ...schemas.base import JobResponse
 from ...services import pricing
+from ...services.charge_plans import reserve_processing_charges
+from ...services.ffmpeg_utils import probe_media
 from ...services.history import HistoryStore
 from ...services.jobs import JobStore
-from ...services.charge_plans import reserve_processing_charges
 from ...services.usage_ledger import UsageLedgerStore
-from ...services.ffmpeg_utils import probe_media
-from ...services.video_processing import generate_video_variant, normalize_and_stub_subtitles
 from ..deps import (
     get_current_user,
     get_db,
@@ -54,11 +53,9 @@ from .file_utils import (
 from .processing_tasks import (
     record_event_safe,
     refund_charge_best_effort,
-    run_gcs_video_processing,
     run_video_processing,
 )
 from .settings import (
-    ProcessingSettings,
     build_processing_settings,
     parse_resolution,
 )
@@ -95,10 +92,10 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 # Include sub-routers
-from .job_routes import router as job_router
+from .export_routes import router as export_router
 from .gcs_routes import router as gcs_router
 from .intelligence_routes import router as intelligence_router
-from .export_routes import router as export_router
+from .job_routes import router as job_router
 from .reprocess_routes import router as reprocess_router
 
 router.include_router(job_router)
@@ -108,26 +105,23 @@ router.include_router(export_router)
 router.include_router(reprocess_router)
 
 # Re-export models for backward compatibility with tests
-from .job_routes import (
-    TranscriptionWordRequest,
-    TranscriptionCueRequest,
-    UpdateTranscriptionRequest,
-)
-from .gcs_routes import GcsUploadUrlRequest, GcsUploadUrlResponse, GcsProcessRequest
-from .export_routes import ExportRequest
-from .reprocess_routes import ReprocessRequest
-
 # Re-export GCS functions for backward compatibility with tests
-from ...core.gcs import (
-    generate_signed_upload_url,
-    download_object,
-)
+from ...core.gcs import download_object, generate_signed_upload_url  # noqa: F401
+from ...services.video_processing import generate_video_variant, normalize_and_stub_subtitles  # noqa: F401
+from .export_routes import ExportRequest  # noqa: F401
+from .gcs_routes import GcsProcessRequest, GcsUploadUrlRequest, GcsUploadUrlResponse  # noqa: F401
 
 # Re-export job-related functions that tests may patch
-from .job_routes import (
-    get_job,
+from .job_routes import (  # noqa: F401  # noqa: F401
+    TranscriptionCueRequest,
+    TranscriptionWordRequest,
+    UpdateTranscriptionRequest,
     delete_job,
+    get_job,
 )
+from .processing_tasks import run_gcs_video_processing  # noqa: F401
+from .reprocess_routes import ReprocessRequest  # noqa: F401
+from .settings import ProcessingSettings  # noqa: F401
 
 # Legacy reference removed - now using unified settings
 
@@ -259,7 +253,11 @@ async def process_video(
             use_llm=use_llm,
             llm_model=llm_models.social,
             provider=proc_settings.transcribe_provider,
-            stt_model=pricing.resolve_transcribe_model(proc_settings.transcribe_model),
+            stt_model=pricing.resolve_requested_transcribe_model(
+                tier=proc_settings.transcribe_model,
+                provider=proc_settings.transcribe_provider,
+                openai_model=proc_settings.openai_model,
+            ),
         )
     except Exception:
         job_store.delete_job(job_id)
@@ -309,6 +307,7 @@ async def process_video(
             ledger_store=ledger_store,
             charge_plan=charge_plan,
             db=db,
+            source_probe=probe,
             **processing_kwargs,
         )
 

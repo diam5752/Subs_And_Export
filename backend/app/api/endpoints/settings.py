@@ -10,7 +10,6 @@ from pydantic import BaseModel
 
 from ...core.config import settings
 from ...services import pricing
-
 from .validation import (
     validate_highlight_style,
     validate_max_subtitle_lines,
@@ -49,6 +48,12 @@ class ProcessingSettings(BaseModel):
     subtitle_size: int = 100  # 50-150 percentage scale
     karaoke_enabled: bool = True
     watermark_enabled: bool = False
+
+
+ALLOWED_TIER_PROVIDER_OVERRIDES: dict[str, set[str]] = {
+    "standard": {"groq", "local"},
+    "pro": {"groq", "openai", "local"},
+}
 
 
 def parse_resolution(res_str: str | None) -> tuple[int | None, int | None]:
@@ -117,11 +122,13 @@ def build_processing_settings(
 
     tier = validate_transcribe_tier(transcribe_model)
     provider = validate_transcribe_provider(transcribe_provider) if transcribe_provider else settings.transcribe_tier_provider[tier]
-    expected_provider = settings.transcribe_tier_provider[tier]
-    if provider != expected_provider:
+    allowed_providers = ALLOWED_TIER_PROVIDER_OVERRIDES[tier]
+    if provider not in allowed_providers:
         raise HTTPException(status_code=400, detail="transcribe_provider does not match selected tier")
 
     openai_model_value = validate_model_name(openai_model, allow_empty=True, field_name="openai_model")
+    if openai_model_value and provider != "openai":
+        raise HTTPException(status_code=400, detail="openai_model requires transcribe_provider=openai")
 
     quality = validate_video_quality(video_quality)
     subtitle_position = validate_subtitle_position(subtitle_position)

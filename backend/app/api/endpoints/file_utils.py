@@ -18,7 +18,7 @@ MAX_UPLOAD_BYTES = settings.max_upload_mb * 1024 * 1024
 
 def data_roots() -> tuple[Path, Path, Path]:
     """Resolve data directories relative to the configured project root.
-    
+
     Returns:
         Tuple of (data_dir, uploads_dir, artifacts_dir)
     """
@@ -40,7 +40,7 @@ def relpath_safe(path: Path, base: Path) -> Path:
 
 def link_or_copy_file(source: Path, destination: Path) -> None:
     """Create a hard link or copy a file to destination.
-    
+
     Raises:
         FileExistsError: If destination already exists
     """
@@ -59,7 +59,7 @@ def link_or_copy_file(source: Path, destination: Path) -> None:
 
 def save_upload_with_limit(upload: UploadFile, destination: Path) -> None:
     """Write an upload to disk while enforcing the configured size limit.
-    
+
     Raises:
         HTTPException: If file is too large or empty
     """

@@ -367,7 +367,7 @@ export function Sidebar() {
 
                     <div
                         role="tablist"
-                        className="flex items-center gap-1 p-1 bg-[var(--surface-elevated)] rounded-lg border border-[var(--border)] mb-4"
+                        className="flex items-center gap-0.5 sm:gap-1 p-1 bg-[var(--surface-elevated)] rounded-lg border border-[var(--border)] mb-4 overflow-hidden"
                     >
                         <button
                             role="tab"
@@ -375,15 +375,15 @@ export function Sidebar() {
                             aria-selected={activeSidebarTab === 'transcript'}
                             aria-controls="panel-transcript"
                             onClick={() => setActiveSidebarTab('transcript')}
-                            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-xs font-medium transition-all focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${activeSidebarTab === 'transcript'
+                            className={`min-w-0 flex-1 flex items-center justify-center gap-1 sm:gap-2 py-2 px-2 sm:px-3 rounded-md text-[11px] sm:text-xs font-medium transition-all focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${activeSidebarTab === 'transcript'
                                 ? 'bg-[var(--accent)] text-[#031018] shadow-sm'
                                 : 'text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-white/5'
                                 }`}
                         >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <svg className="hidden h-4 w-4 shrink-0 sm:block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
-                            {t('tabTranscript') || 'Transcript'}
+                            <span className="truncate">{t('tabTranscript') || 'Transcript'}</span>
                         </button>
                         <button
                             role="tab"
@@ -391,15 +391,15 @@ export function Sidebar() {
                             aria-selected={activeSidebarTab === 'styles'}
                             aria-controls="panel-styles"
                             onClick={() => setActiveSidebarTab('styles')}
-                            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-xs font-medium transition-all focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${activeSidebarTab === 'styles'
+                            className={`min-w-0 flex-1 flex items-center justify-center gap-1 sm:gap-2 py-2 px-2 sm:px-3 rounded-md text-[11px] sm:text-xs font-medium transition-all focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${activeSidebarTab === 'styles'
                                 ? 'bg-[var(--accent)] text-[#031018] shadow-sm'
                                 : 'text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-white/5'
                                 }`}
                         >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <svg className="hidden h-4 w-4 shrink-0 sm:block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
                             </svg>
-                            {t('tabStyles') || 'Styles'}
+                            <span className="truncate">{t('tabStyles') || 'Styles'}</span>
                         </button>
                         <button
                             role="tab"
@@ -407,12 +407,12 @@ export function Sidebar() {
                             aria-selected={activeSidebarTab === 'intelligence'}
                             aria-controls="panel-intelligence"
                             onClick={() => setActiveSidebarTab('intelligence')}
-                            className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-md text-xs font-medium transition-all focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${activeSidebarTab === 'intelligence'
+                            className={`min-w-0 flex-1 flex items-center justify-center gap-1 sm:gap-2 py-2 px-2 sm:px-3 rounded-md text-[11px] sm:text-xs font-medium transition-all focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${activeSidebarTab === 'intelligence'
                                 ? 'bg-[var(--accent)] text-[#031018] shadow-sm'
                                 : 'text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-white/5'
                                 }`}
                         >
-                            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <svg className="hidden h-4 w-4 shrink-0 sm:block" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <path d="M9.5 2A5.5 5.5 0 0 0 4 7.5c0 1.63.71 3.1 1.84 4.1A4.5 4.5 0 0 0 5 16.5 4.5 4.5 0 0 0 9.5 21h5a4.5 4.5 0 0 0 4.5-4.5 4.5 4.5 0 0 0-.84-2.6A5.5 5.5 0 0 0 20 7.5a5.5 5.5 0 0 0-5.5-5.5h-5z" />
                                 <path d="M12 2v19" />
                                 <path d="M8 7c0 .5-.5 1-1 1s-1-.5-1-1 1-2 2-2 2 1.5 2 2" />
@@ -420,7 +420,7 @@ export function Sidebar() {
                                 <path d="M9 14c0 .5-.5 1-1 1s-1-.5-1-1 1-2 2-2" />
                                 <path d="M15 14c0 .5.5 1 1 1s1-.5 1-1-1-2-2-2" />
                             </svg>
-                            {t('tabIntelligence') || 'Intelligence'}
+                            <span className="truncate">{t('tabIntelligence') || 'Intelligence'}</span>
                         </button>
                     </div>
 

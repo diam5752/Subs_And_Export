@@ -7,7 +7,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
-from pydantic import AliasChoices, Field, field_validator, validator
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import (
     BaseSettings,
     PydanticBaseSettingsSource,
@@ -48,7 +48,7 @@ class LegacyTomlSettingsSource(PydanticBaseSettingsSource):
 
         # Flatten nested keys for legacy compatibility
         flattened = {}
-        
+
         # [ai] section
         ai = data.get("ai", {})
         if isinstance(ai, dict):
@@ -171,7 +171,7 @@ class Settings(BaseSettings):
     default_highlight_color: str = "&H0000FFFF"
 
     # --- STT (Local) ---
-    whisper_model: str = "medium"
+    whisper_model: str = "large-v3-turbo"
     whisper_language: str = "el"
     whisper_device: str = "auto"
     whisper_compute_type: str = "auto"
@@ -181,7 +181,7 @@ class Settings(BaseSettings):
     whispercpp_language: str = "el"
 
     # --- STT (Cloud) ---
-    openai_transcribe_model: str = "whisper-1"
+    openai_transcribe_model: str = "gpt-4o-transcribe"
     groq_transcribe_model: str = "whisper-large-v3"
     groq_model_enhanced: str = "whisper-large-v3-turbo"
     groq_model_ultimate: str = "whisper-large-v3"
@@ -254,12 +254,12 @@ class Settings(BaseSettings):
         # 3. .env file
         # 4. config/app_settings.toml (Legacy support)
         # 5. Secrets
-        
+
         # Determine TOML path
         toml_path = os.getenv("GSP_APP_SETTINGS_FILE")
         if not toml_path:
             toml_path = str(PROJECT_ROOT / "config" / "app_settings.toml")
-            
+
         return (
             init_settings,
             env_settings,

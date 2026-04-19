@@ -44,6 +44,8 @@ class TestTierResolution:
         assert pricing.resolve_tier_from_model("whisper-1") == "pro"
         assert pricing.resolve_tier_from_model("whisper-large-v3") == "pro"
         assert pricing.resolve_tier_from_model("openai") == "pro"
+        assert pricing.resolve_tier_from_model("gpt-4o-transcribe") == "pro"
+        assert pricing.resolve_tier_from_model("gpt-4o-mini-transcribe") == "pro"
 
     def test_resolve_tier_from_none_returns_default(self) -> None:
         assert pricing.resolve_tier_from_model(None) == settings.default_transcribe_tier
@@ -74,6 +76,22 @@ class TestModelResolution:
     def test_resolve_pro_model(self) -> None:
         model = pricing.resolve_transcribe_model("pro")
         assert model == settings.transcribe_tier_model["pro"]
+
+    def test_resolve_requested_model_for_openai_override(self) -> None:
+        model = pricing.resolve_requested_transcribe_model(
+            tier="pro",
+            provider="openai",
+            openai_model="gpt-4o-mini-transcribe",
+        )
+        assert model == "gpt-4o-mini-transcribe"
+
+    def test_resolve_requested_model_for_openai_default(self) -> None:
+        model = pricing.resolve_requested_transcribe_model(
+            tier="pro",
+            provider="openai",
+            openai_model=None,
+        )
+        assert model == settings.openai_transcribe_model
 
 
 class TestLlmModelsResolution:

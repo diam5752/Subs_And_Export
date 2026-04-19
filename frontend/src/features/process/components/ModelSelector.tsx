@@ -3,6 +3,7 @@ import { useI18n } from '@/context/I18nContext';
 import { useProcessContext, TranscribeProvider, TranscribeMode } from '../ProcessContext';
 import { TokenIcon } from '@/components/icons';
 import { formatPoints, processVideoCostForSelection } from '@/lib/points';
+import { resolveTranscriptionTier } from '@/lib/transcription';
 
 export function ModelSelector() {
     const { t } = useI18n();
@@ -45,18 +46,7 @@ export function ModelSelector() {
         if (selectedJob?.result_data) {
             const jobProvider = selectedJob.result_data.transcribe_provider;
             const jobModelSize = selectedJob.result_data.model_size;
-            const normalizedProvider = (jobProvider || '').toLowerCase();
-            const normalizedModel = (jobModelSize || '').toLowerCase();
-            const jobTier = normalizedModel === 'pro' || normalizedModel === 'standard'
-                ? normalizedModel
-                : normalizedModel.includes('turbo') || normalizedModel.includes('enhanced')
-                    ? 'standard'
-                    : normalizedModel.includes('large')
-                        ? 'pro'
-                        : normalizedProvider === 'openai' || normalizedModel.includes('ultimate') || normalizedModel.includes('whisper-1')
-                            ? 'pro'
-                            : 'standard';
-
+            const jobTier = resolveTranscriptionTier(jobProvider, jobModelSize);
             return AVAILABLE_MODELS.find(m => m.mode === jobTier);
         }
         return null;
@@ -78,16 +68,9 @@ export function ModelSelector() {
                 const cost = processVideoCostForSelection(model.provider as string, model.mode as string);
                 const isPro = model.mode === 'pro';
 
-                // Minimal Visual Stats
-                // Standard: Speed 100%, Quality 75%
-                // Pro: Speed 85%, Quality 100%
-                const speedPercent = isPro ? 85 : 100;
-                const qualityPercent = isPro ? 100 : 75;
-
                 // Theme Colors
                 // Standard: Emerald (Green)
                 // Pro: Neon Orange (Accent)
-                const themeColor = isPro ? 'var(--accent)' : '#10b981'; // Emerald-500
                 const themeClass = isPro ? 'text-[var(--accent)]' : 'text-emerald-500';
                 const bgClass = isPro ? 'bg-[var(--accent)]' : 'bg-emerald-500';
                 const borderClass = isPro ? 'border-[var(--accent)]' : 'border-emerald-500';

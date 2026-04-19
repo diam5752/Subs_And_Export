@@ -34,7 +34,7 @@ def test_process_command_invokes_pipeline(monkeypatch, tmp_path: Path) -> None:
     assert result.exit_code == 0
     assert output_file.exists()
     assert "Processed video saved to" in result.stdout
-    # Updated assertion to match new SocialCopy structure  
+    # Updated assertion to match new SocialCopy structure
     assert "Test Title English" in result.stdout or "Generic title:" in result.stdout or "Title:" in result.stdout
 
 

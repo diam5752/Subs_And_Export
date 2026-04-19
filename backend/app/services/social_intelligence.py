@@ -11,9 +11,8 @@ from typing import Any, List, Sequence
 from sqlalchemy.orm import Session
 
 from backend.app.core.config import settings
-from backend.app.services import llm_utils
+from backend.app.services import llm_utils, pricing
 from backend.app.services.cost import CostService
-from backend.app.services import pricing
 from backend.app.services.usage_ledger import ChargeReservation, UsageLedgerStore
 
 logger = logging.getLogger(__name__)
@@ -115,9 +114,9 @@ def _platform_copy(
     desc_el = f"{summary_el}\n{formatted_tags}".strip()
     desc_en = f"{summary_en}\n{formatted_tags}".strip()
     return SocialContent(
-        title_el=base_title_el.strip(), 
+        title_el=base_title_el.strip(),
         title_en=base_title_en.strip(),
-        description_el=desc_el, 
+        description_el=desc_el,
         description_en=desc_en,
         hashtags=all_tags
     )
@@ -247,7 +246,7 @@ def build_social_copy_llm(
                 response_format={"type": "json_object"},
                 timeout=60.0,
             )
-            
+
             # Log usage for Social Copy
             if hasattr(response, "usage"):
                 prompt_tokens = int(response.usage.prompt_tokens or 0)
@@ -257,10 +256,10 @@ def build_social_copy_llm(
 
                 if session:
                     cost = CostService.track_usage(
-                        session, 
-                        model_name, 
-                        prompt_tokens, 
-                        completion_tokens, 
+                        session,
+                        model_name,
+                        prompt_tokens,
+                        completion_tokens,
                         job_id
                     )
                     total_cost += cost
@@ -271,7 +270,7 @@ def build_social_copy_llm(
                     # Fallback logging if no session
                     logger.warning("No DB session provided for build_social_copy_llm. Cost not tracked in DB.")
                     logger.info(f"Social Copy Token Usage: Input={prompt_tokens}, Output={completion_tokens}")
-            
+
             content, refusal = llm_utils.extract_chat_completion_text(response)
             if refusal:
                 raise ValueError(f"LLM refusal: {refusal}")

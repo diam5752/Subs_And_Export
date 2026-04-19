@@ -1,6 +1,6 @@
-from unittest.mock import MagicMock, patch, mock_open
+from unittest.mock import MagicMock, patch
+
 import pytest
-from pathlib import Path
 
 from backend.app.services.transcription.groq_cloud import GroqTranscriber
 from backend.app.services.transcription.openai_cloud import OpenAITranscriber
@@ -47,11 +47,11 @@ def test_groq_transcriber_missing_api_key(tmp_path):
 def test_groq_transcriber_cancellation(tmp_path):
     (tmp_path / "in.wav").touch()
     check_cancelled = MagicMock(side_effect=RuntimeError("Cancelled"))
-    
+
     t = GroqTranscriber(api_key="k")
     with pytest.raises(RuntimeError, match="Cancelled"):
         t.transcribe(tmp_path / "in.wav", tmp_path, check_cancelled=check_cancelled)
-    
+
     # Verify it was called before API call
     assert check_cancelled.call_count >= 1
 
@@ -72,6 +72,56 @@ def test_groq_transcriber_progress(tmp_path):
         progress_callback.assert_any_call(10.0)
         progress_callback.assert_any_call(90.0)
         progress_callback.assert_any_call(100.0)
+
+
+def test_groq_transcriber_wraps_api_failures(tmp_path):
+    (tmp_path / "in.wav").touch()
+
+    with patch("openai.OpenAI") as MockOpenAI:
+        mock_client = MockOpenAI.return_value
+        mock_client.audio.transcriptions.create.side_effect = RuntimeError("upstream boom")
+
+        t = GroqTranscriber(api_key="k")
+        with pytest.raises(RuntimeError, match="Groq transcription failed: upstream boom"):
+            t.transcribe(tmp_path / "in.wav", tmp_path)
+
+
+def test_groq_transcriber_builds_cues_and_writes_srt(tmp_path):
+    audio_path = tmp_path / "in.wav"
+    audio_path.touch()
+    progress_callback = MagicMock()
+    check_cancelled = MagicMock()
+
+    segment = MagicMock()
+    segment.text = " Hello world "
+    segment.start = 1.0
+    segment.end = 2.5
+    word = MagicMock()
+    word.start = 1.1
+    word.end = 1.9
+    word.word = " Hello "
+    mock_transcript = MagicMock()
+    mock_transcript.segments = [segment]
+    mock_transcript.words = [word]
+
+    with patch("openai.OpenAI") as MockOpenAI:
+        mock_client = MockOpenAI.return_value
+        mock_client.audio.transcriptions.create.return_value = mock_transcript
+
+        t = GroqTranscriber(api_key="k")
+        srt_path, cues = t.transcribe(
+            audio_path,
+            tmp_path,
+            progress_callback=progress_callback,
+            check_cancelled=check_cancelled,
+        )
+
+    assert check_cancelled.call_count == 3
+    assert srt_path.exists()
+    assert "Hello world" in srt_path.read_text(encoding="utf-8")
+    assert len(cues) == 1
+    assert cues[0].text == " HELLO WORLD "
+    assert cues[0].words[0].text == " HELLO "
 
 
 class match_any_file_handle:
@@ -100,6 +150,6 @@ def test_openai_transcriber_delegates(tmp_path):
             language="de",
             prompt=None,
             response_format="verbose_json",
-            timestamp_granularities=["word"],
+            timestamp_granularities=["word", "segment"],
             timeout=300.0,
         )

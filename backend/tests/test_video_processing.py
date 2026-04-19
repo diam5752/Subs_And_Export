@@ -1,7 +1,7 @@
 import json
+import select
 import shutil
 import subprocess
-import select
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -15,7 +15,12 @@ from backend.app.services import (
     video_processing,
 )
 from backend.app.services.subtitle_types import Cue, WordTiming
-from backend.app.core import config
+
+
+@pytest.fixture(autouse=True)
+def _default_cloud_keys_for_video_processing_tests(monkeypatch):
+    monkeypatch.setattr(video_processing.llm_utils, "resolve_groq_api_key", lambda: "test-groq-key")
+    monkeypatch.setattr(video_processing.llm_utils, "resolve_openai_api_key", lambda explicit=None: explicit or "test-openai-key")
 
 
 def test_font_size_from_subtitle_size_presets():
@@ -32,7 +37,7 @@ def test_font_size_from_subtitle_size_presets():
     assert settings_utils.font_size_from_subtitle_size(150) == 93
     # None -> 62
     assert settings_utils.font_size_from_subtitle_size(None) == 62
-    
+
     # Check clamping
     assert settings_utils.font_size_from_subtitle_size(10) == 31   # Clamped to 50%
     assert settings_utils.font_size_from_subtitle_size(200) == 93  # Clamped to 150%
@@ -42,15 +47,15 @@ def test_normalize_and_stub_subtitles_runs_pipeline(monkeypatch, tmp_path: Path)
     # Mock all the heavy lifting
     input_video = tmp_path / "input.mp4"
     input_video.touch()
-    
+
     def fake_extract(input_video: Path, output_dir=None, **kwargs):
         wav = output_dir / "audio.wav"
         wav.touch()
         return wav
-    
+
     srt_file = tmp_path / "test.srt"
     srt_file.write_text("1\n00:00:00,000 --> 00:00:01,000\nHi", encoding="utf-8")
-    
+
     class FakeTranscriber:
         def __init__(self, *args, **kwargs): pass
         def transcribe(self, audio_path, output_dir, **kwargs):
@@ -60,7 +65,7 @@ def test_normalize_and_stub_subtitles_runs_pipeline(monkeypatch, tmp_path: Path)
         ass = transcript_path.with_suffix(".ass")
         ass.touch()
         return ass
-        
+
     def fake_burn(
         input_path: Path,
         ass_path: Path,
@@ -80,21 +85,80 @@ def test_normalize_and_stub_subtitles_runs_pipeline(monkeypatch, tmp_path: Path)
     monkeypatch.setattr(subtitles, "create_styled_subtitle_file", fake_style)
     monkeypatch.setattr(ffmpeg_utils, "run_ffmpeg_with_subs", fake_burn)
     monkeypatch.setattr(ffmpeg_utils, "probe_media", lambda p: ffmpeg_utils.MediaProbe(10.0, "aac"))
-    
+
     # Correctly patch the symbol imported in video_processing
     monkeypatch.setattr(video_processing, "GroqTranscriber", FakeTranscriber)
 
     output_path = tmp_path / "final.mp4"
-    
+
     res = video_processing.normalize_and_stub_subtitles(
         input_path=input_video,
         output_path=output_path,
         transcribe_provider="groq",
         model_size="tiny",
     )
-    
+
     assert res == output_path
     assert output_path.exists()
+
+
+def test_normalize_and_stub_subtitles_falls_back_to_local_when_groq_key_missing(monkeypatch, tmp_path: Path):
+    input_video = tmp_path / "input.mp4"
+    input_video.touch()
+
+    def fake_extract(input_video: Path, output_dir=None, **kwargs):
+        wav = output_dir / "audio.wav"
+        wav.touch()
+        return wav
+
+    srt_file = tmp_path / "local.srt"
+    srt_file.write_text("1\n00:00:00,000 --> 00:00:01,000\nHi", encoding="utf-8")
+
+    class FakeLocalTranscriber:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def transcribe(self, audio_path, output_dir, **kwargs):
+            return srt_file, [Cue(0, 1, "Hi")]
+
+    def fake_style(transcript_path: Path, **kwargs):
+        ass = transcript_path.with_suffix(".ass")
+        ass.touch()
+        return ass
+
+    def fake_burn(input_path: Path, ass_path: Path, output_path: Path, **kwargs):
+        output_path.touch()
+        return str(output_path)
+
+    monkeypatch.setattr(subtitles, "extract_audio", fake_extract)
+    monkeypatch.setattr(subtitles, "create_styled_subtitle_file", fake_style)
+    monkeypatch.setattr(ffmpeg_utils, "run_ffmpeg_with_subs", fake_burn)
+    monkeypatch.setattr(ffmpeg_utils, "probe_media", lambda p: ffmpeg_utils.MediaProbe(10.0, "aac"))
+    monkeypatch.setattr(video_processing.llm_utils, "resolve_groq_api_key", lambda: None)
+    monkeypatch.setattr(video_processing, "LocalWhisperTranscriber", FakeLocalTranscriber)
+
+    def fail_if_cloud_used(*args, **kwargs):
+        raise AssertionError("Groq transcriber should not be used when GROQ_API_KEY is missing")
+
+    monkeypatch.setattr(video_processing, "GroqTranscriber", fail_if_cloud_used)
+
+    output_path = tmp_path / "final.mp4"
+    result = video_processing.normalize_and_stub_subtitles(
+        input_path=input_video,
+        output_path=output_path,
+        transcribe_provider="groq",
+        model_size="standard",
+    )
+
+    assert result == output_path
+    assert output_path.exists()
+
+
+def test_resolve_runtime_transcribe_provider_treats_empty_secret_as_missing(monkeypatch):
+    # REGRESSION: config/secrets.toml may contain empty-string placeholders.
+    # These must still trigger local fallback instead of pretending a cloud key exists.
+    monkeypatch.setattr(video_processing.llm_utils, "resolve_groq_api_key", lambda: "")
+    assert video_processing.resolve_runtime_transcribe_provider("groq") == "local"
 
 
 def test_active_graphics_maps_to_ass_active(monkeypatch, tmp_path: Path):
@@ -142,7 +206,7 @@ def test_active_graphics_maps_to_ass_active(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(video_processing, "GroqTranscriber", FakeTranscriber)
 
     output_path = tmp_path / "final.mp4"
-    
+
     video_processing.normalize_and_stub_subtitles(
         input_path=input_video,
         output_path=output_path,
@@ -150,7 +214,7 @@ def test_active_graphics_maps_to_ass_active(monkeypatch, tmp_path: Path):
         highlight_style="active-graphics",
         karaoke_enabled=True,
     )
-    
+
     assert len(style_calls) == 1
     # Should be mapped to 'active' because words are present
     assert style_calls[0]["highlight_style"] == "active"
@@ -168,26 +232,26 @@ def test_normalize_and_stub_subtitles_removes_temporary_directory(
 ):
     input_video = tmp_path / "input.mp4"
     input_video.touch()
-    
+
     class FakeTemporaryDirectory:
         def __init__(self):
             self.name = str(tmp_path / "scratch")
             Path(self.name).mkdir(exist_ok=True)
-            
+
         def __enter__(self):
             return self.name
-            
+
         def __exit__(self, exc_type, exc, tb):
             shutil.rmtree(self.name)
 
     monkeypatch.setattr("tempfile.TemporaryDirectory", FakeTemporaryDirectory)
-    
+
     # Mock everything else
     def fake_extract(input_video: Path, output_dir=None, **kwargs):
         wav = Path(output_dir) / "video.wav"
         wav.touch()
         return wav
-        
+
     class FakeTranscriber:
         def __init__(self, *args, **kwargs): pass
         def transcribe(self, audio_path, output_dir, **kwargs):
@@ -207,15 +271,15 @@ def test_normalize_and_stub_subtitles_removes_temporary_directory(
     monkeypatch.setattr(subtitles, "create_styled_subtitle_file", fake_style)
     monkeypatch.setattr(ffmpeg_utils, "run_ffmpeg_with_subs", fake_burn)
     monkeypatch.setattr(ffmpeg_utils, "probe_media", lambda p: ffmpeg_utils.MediaProbe(10.0, "aac"))
-    
+
     monkeypatch.setattr(video_processing, "GroqTranscriber", FakeTranscriber)
 
     output_path = tmp_path / "out.mp4"
-    
+
     video_processing.normalize_and_stub_subtitles(
         input_video, output_path, transcribe_provider="groq"
     )
-    
+
     # Check scratch is gone
     assert not (tmp_path / "scratch").exists()
 
@@ -225,7 +289,7 @@ def test_normalize_and_stub_subtitles_can_return_social_copy(
 ):
     input_video = tmp_path / "vid.mp4"
     input_video.touch()
-    
+
     # Mock mocks
     monkeypatch.setattr(subtitles, "extract_audio", lambda *args, **kwargs: tmp_path / "a.wav")
     monkeypatch.setattr(subtitles, "create_styled_subtitle_file", lambda *args, **kwargs: tmp_path / "a.ass")
@@ -234,7 +298,7 @@ def test_normalize_and_stub_subtitles_can_return_social_copy(
         Path(output_path).touch()
     monkeypatch.setattr(ffmpeg_utils, "run_ffmpeg_with_subs", fake_burn)
     monkeypatch.setattr(ffmpeg_utils, "probe_media", lambda p: ffmpeg_utils.MediaProbe(10.0, "aac"))
-    
+
     class FakeTranscriber:
         def __init__(self, *args, **kwargs): pass
         def transcribe(self, audio_path, output_dir, **kwargs):
@@ -256,28 +320,64 @@ def test_normalize_and_stub_subtitles_can_return_social_copy(
         transcribe_provider="groq",
         generate_social_copy=True
     )
-    
+
     assert copy == soc
+
+
+def test_normalize_and_stub_subtitles_persists_preview_asset_for_transcription_only(
+    monkeypatch, tmp_path: Path
+):
+    input_video = tmp_path / "vid.mp4"
+    input_video.write_bytes(b"video")
+    artifact_dir = tmp_path / "artifacts"
+
+    monkeypatch.setattr(subtitles, "extract_audio", lambda *args, **kwargs: tmp_path / "a.wav")
+    monkeypatch.setattr(subtitles, "create_styled_subtitle_file", lambda *args, **kwargs: tmp_path / "a.ass")
+    monkeypatch.setattr(ffmpeg_utils, "probe_media", lambda _path: ffmpeg_utils.MediaProbe(10.0, "aac"))
+
+    class FakeTranscriber:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def transcribe(self, audio_path, output_dir, **kwargs):
+            srt = output_dir / "a.srt"
+            srt.touch()
+            return srt, [Cue(0, 10, "Hello world")]
+
+    monkeypatch.setattr(video_processing, "GroqTranscriber", FakeTranscriber)
+
+    output_path = tmp_path / "artifacts" / "processed.mp4"
+    res = video_processing.normalize_and_stub_subtitles(
+        input_video,
+        output_path,
+        transcribe_provider="groq",
+        artifact_dir=artifact_dir,
+        transcription_only=True,
+    )
+
+    assert res == output_path
+    assert output_path.exists()
+    assert output_path.read_bytes() == b"video"
 
 
 def test_normalize_and_stub_subtitles_persists_artifacts(monkeypatch, tmp_path: Path):
     input_video = tmp_path / "vid.mp4"
     input_video.touch()
     artifact_dir = tmp_path / "artifacts"
-    
+
     mock_persist = MagicMock()
     monkeypatch.setattr(artifact_manager, "persist_artifacts", mock_persist)
-    
+
     # Mocks
     monkeypatch.setattr(subtitles, "extract_audio", lambda *args, **kwargs: tmp_path / "a.wav")
     monkeypatch.setattr(subtitles, "create_styled_subtitle_file", lambda *args, **kwargs: tmp_path / "a.ass")
-    
+
     def fake_burn(input_path, ass_path, output_path, **kwargs):
         Path(output_path).touch()
     monkeypatch.setattr(ffmpeg_utils, "run_ffmpeg_with_subs", fake_burn)
-    
+
     monkeypatch.setattr(ffmpeg_utils, "probe_media", lambda p: ffmpeg_utils.MediaProbe(10.0, "aac"))
-    
+
     class FakeTranscriber:
         def __init__(self, *args, **kwargs): pass
         def transcribe(self, audio_path, output_dir, **kwargs):
@@ -286,13 +386,13 @@ def test_normalize_and_stub_subtitles_persists_artifacts(monkeypatch, tmp_path: 
             return srt, []
 
     monkeypatch.setattr(video_processing, "GroqTranscriber", FakeTranscriber)
-    
+
     video_processing.normalize_and_stub_subtitles(
         input_video, tmp_path/"out.mp4",
         transcribe_provider="groq",
         artifact_dir=artifact_dir
     )
-    
+
     mock_persist.assert_called_once()
     assert mock_persist.call_args[0][0] == artifact_dir
 
@@ -301,14 +401,14 @@ def test_normalize_and_stub_subtitles_can_use_llm_social_copy(monkeypatch, tmp_p
     # Verify use_llm_social_copy triggers build_social_copy_llm
     input_video = tmp_path / "vid.mp4"
     input_video.touch()
-    
+
     monkeypatch.setattr(subtitles, "extract_audio", lambda *args, **kwargs: tmp_path / "a.wav")
     monkeypatch.setattr(subtitles, "create_styled_subtitle_file", lambda *args, **kwargs: tmp_path / "a.ass")
     def fake_burn(input_path, ass_path, output_path, **kwargs):
         Path(output_path).touch()
     monkeypatch.setattr(ffmpeg_utils, "run_ffmpeg_with_subs", fake_burn)
     monkeypatch.setattr(ffmpeg_utils, "probe_media", lambda p: ffmpeg_utils.MediaProbe(10.0, "aac"))
-    
+
     class FakeTranscriber:
         def __init__(self, *args, **kwargs): pass
         def transcribe(self, audio_path, output_dir, **kwargs):
@@ -319,25 +419,25 @@ def test_normalize_and_stub_subtitles_can_use_llm_social_copy(monkeypatch, tmp_p
 
     mock_llm = MagicMock()
     monkeypatch.setattr(subtitles, "build_social_copy_llm", mock_llm)
-    
+
     video_processing.normalize_and_stub_subtitles(
         input_video, tmp_path/"out.mp4",
         transcribe_provider="groq",
         generate_social_copy=True,
         use_llm_social_copy=True,
     )
-    
+
     mock_llm.assert_called_once()
 
 
 def test_pipeline_logs_metrics(monkeypatch, tmp_path: Path):
     input_video = tmp_path / "vid.mp4"
     input_video.touch()
-    
+
     mock_metrics = MagicMock()
     from backend.app.core import metrics
     monkeypatch.setattr(metrics, "log_pipeline_metrics", mock_metrics)
-    
+
     # Mocks
     monkeypatch.setattr(subtitles, "extract_audio", lambda *args, **kwargs: tmp_path / "a.wav")
     monkeypatch.setattr(subtitles, "create_styled_subtitle_file", lambda *args, **kwargs: tmp_path / "a.ass")
@@ -345,7 +445,7 @@ def test_pipeline_logs_metrics(monkeypatch, tmp_path: Path):
         Path(output_path).touch()
     monkeypatch.setattr(ffmpeg_utils, "run_ffmpeg_with_subs", fake_burn)
     monkeypatch.setattr(ffmpeg_utils, "probe_media", lambda p: ffmpeg_utils.MediaProbe(10.0, "aac"))
-    
+
     class FakeTranscriber:
         def __init__(self, *args, **kwargs): pass
         def transcribe(self, audio_path, output_dir, **kwargs):
@@ -358,7 +458,7 @@ def test_pipeline_logs_metrics(monkeypatch, tmp_path: Path):
         input_video, tmp_path/"out.mp4",
         transcribe_provider="groq"
     )
-    
+
     mock_metrics.assert_called_once()
     data = mock_metrics.call_args[0][0]
     assert data["status"] == "success"
@@ -368,13 +468,13 @@ def test_pipeline_logs_metrics(monkeypatch, tmp_path: Path):
 def test_pipeline_logs_error_when_output_missing(monkeypatch, tmp_path: Path):
     input_video = tmp_path / "vid.mp4"
     input_video.touch()
-    
+
     # Mocks that FAIL to produce output video
     monkeypatch.setattr(subtitles, "extract_audio", lambda *args, **kwargs: tmp_path / "a.wav")
     monkeypatch.setattr(subtitles, "create_styled_subtitle_file", lambda *args, **kwargs: tmp_path / "a.ass")
     monkeypatch.setattr(ffmpeg_utils, "run_ffmpeg_with_subs", lambda *args, **kwargs: None) # Does nothing, file not created
     monkeypatch.setattr(ffmpeg_utils, "probe_media", lambda p: ffmpeg_utils.MediaProbe(10.0, "aac"))
-    
+
     class FakeTranscriber:
         def __init__(self, *args, **kwargs): pass
         def transcribe(self, audio_path, output_dir, **kwargs):
@@ -382,7 +482,7 @@ def test_pipeline_logs_error_when_output_missing(monkeypatch, tmp_path: Path):
             srt.touch()
             return srt, []
     monkeypatch.setattr(video_processing, "GroqTranscriber", FakeTranscriber)
-    
+
     # Should raise RuntimeError because output missing
     with pytest.raises(RuntimeError):
         video_processing.normalize_and_stub_subtitles(
@@ -393,10 +493,10 @@ def test_pipeline_logs_error_when_output_missing(monkeypatch, tmp_path: Path):
 def test_input_audio_is_aac(monkeypatch, tmp_path: Path):
     f = tmp_path/"test.mp4"
     f.touch()
-    
+
     monkeypatch.setattr(ffmpeg_utils, "probe_media", lambda p: ffmpeg_utils.MediaProbe(10.0, "aac"))
     assert ffmpeg_utils.input_audio_is_aac(f) is True
-    
+
     monkeypatch.setattr(ffmpeg_utils, "probe_media", lambda p: ffmpeg_utils.MediaProbe(10.0, "mp3"))
     assert ffmpeg_utils.input_audio_is_aac(f) is False
 
@@ -404,7 +504,7 @@ def test_input_audio_is_aac(monkeypatch, tmp_path: Path):
 def test_run_ffmpeg_with_subs_parses_progress(monkeypatch, tmp_path: Path):
     # This tests the progress parsing inside run_ffmpeg_with_subs.
     # We need to simulate stderr output.
-    
+
     class MockProcess:
         def __init__(self, *args, **kwargs):
             self.stderr = MagicMock()
@@ -414,24 +514,24 @@ def test_run_ffmpeg_with_subs_parses_progress(monkeypatch, tmp_path: Path):
                 ""
             ]
             self.returncode = 0
-            
+
         def wait(self): pass
         def poll(self): return 0
         def kill(self): pass
 
     monkeypatch.setattr(subprocess, "Popen", MockProcess)
-    
+
     # Mock select to avoid fileno() error
     # We return [process.stderr] as ready to read
     monkeypatch.setattr(select, "select", lambda r, w, x, t: ([r[0]], [], []))
-    
+
     progress_mock = MagicMock()
     ffmpeg_utils.run_ffmpeg_with_subs(
         tmp_path/"in.mp4", tmp_path/"sub.ass", tmp_path/"out.mp4",
         video_crf=23, video_preset="fast", audio_bitrate="128k", audio_copy=False,
         progress_callback=progress_mock, total_duration=10.0
     )
-    
+
     # Check if progress callback called. 5s / 10s = 50%
     progress_mock.assert_called()
     args = progress_mock.call_args[0]
@@ -448,23 +548,23 @@ def test_run_ffmpeg_with_subs_uses_hw_accel(monkeypatch, tmp_path: Path):
         def wait(self): pass
         def poll(self): return 0
         def kill(self): pass
-        
+
     monkeypatch.setattr(subprocess, "Popen", MockProcess)
     monkeypatch.setattr("platform.system", lambda: "Darwin")
     monkeypatch.setattr(select, "select", lambda r, w, x, t: ([r[0]], [], []))
-    
+
     calls = []
     def spy_popen(cmd, *args, **kwargs):
         calls.append(cmd)
         return MockProcess(cmd, *args, **kwargs)
     monkeypatch.setattr(subprocess, "Popen", spy_popen)
-    
+
     ffmpeg_utils.run_ffmpeg_with_subs(
         tmp_path/"in.mp4", tmp_path/"sub.ass", tmp_path/"out.mp4",
         video_crf=23, video_preset="fast", audio_bitrate="128k", audio_copy=False,
         use_hw_accel=True
     )
-    
+
     cmd = calls[0]
     assert "-c:v" in cmd
     assert "h264_videotoolbox" in cmd
@@ -473,7 +573,7 @@ def test_run_ffmpeg_with_subs_uses_hw_accel(monkeypatch, tmp_path: Path):
 def test_pipeline_retries_without_hw_accel(monkeypatch, tmp_path: Path):
     input_video = tmp_path / "in.mp4"
     input_video.touch()
-    
+
     # Mock first ffmpeg call fails, second succeeds and creates FILE
     def side_effect(input_path, ass_path, destination, **kwargs):
         if kwargs.get("use_hw_accel") is True:
@@ -483,13 +583,13 @@ def test_pipeline_retries_without_hw_accel(monkeypatch, tmp_path: Path):
         return None
 
     ffmpeg_mock = MagicMock(side_effect=side_effect)
-    
+
     monkeypatch.setattr(ffmpeg_utils, "run_ffmpeg_with_subs", ffmpeg_mock)
-    
+
     monkeypatch.setattr(subtitles, "extract_audio", lambda *args, **kwargs: tmp_path / "a.wav")
     monkeypatch.setattr(subtitles, "create_styled_subtitle_file", lambda *args, **kwargs: tmp_path / "a.ass")
     monkeypatch.setattr(ffmpeg_utils, "probe_media", lambda p: ffmpeg_utils.MediaProbe(10.0, "aac"))
-    
+
     class FakeTranscriber:
         def __init__(self, *args, **kwargs): pass
         def transcribe(self, audio_path, output_dir, **kwargs): return (output_dir/"a.srt", [])
@@ -498,7 +598,7 @@ def test_pipeline_retries_without_hw_accel(monkeypatch, tmp_path: Path):
     video_processing.normalize_and_stub_subtitles(
         input_video, tmp_path/"out.mp4", transcribe_provider="groq", use_hw_accel=True
     )
-    
+
     assert ffmpeg_mock.call_count == 2
     # First call with True, second with False
     assert ffmpeg_mock.call_args_list[0][1]["use_hw_accel"] is True
@@ -509,18 +609,18 @@ def test_pipeline_retries_without_hw_accel(monkeypatch, tmp_path: Path):
 def test_normalize_handles_duration_failure(monkeypatch, tmp_path: Path):
     # If probe fails, total_duration is 0, logic should proceed without progress
     monkeypatch.setattr(ffmpeg_utils, "probe_media", lambda p: ffmpeg_utils.MediaProbe(None, None))
-    
+
     input_video = tmp_path / "in.mp4"
     input_video.touch()
-    
+
     # Mocks
     monkeypatch.setattr(subtitles, "extract_audio", lambda *args, **kwargs: tmp_path / "a.wav")
     monkeypatch.setattr(subtitles, "create_styled_subtitle_file", lambda *args, **kwargs: tmp_path / "a.ass")
-    
+
     def fake_burn(input_path, ass_path, output_path, **kwargs):
         Path(output_path).touch()
     monkeypatch.setattr(ffmpeg_utils, "run_ffmpeg_with_subs", fake_burn)
-    
+
     class FakeTranscriber:
         def __init__(self, *args, **kwargs): pass
         def transcribe(self, audio_path, output_dir, **kwargs): return (output_dir/"a.srt", [])
@@ -545,10 +645,10 @@ def test_run_ffmpeg_with_subs_raises_on_failure(monkeypatch, tmp_path: Path):
         def wait(self): pass
         def poll(self): return 1
         def kill(self): pass
-        
+
     monkeypatch.setattr(subprocess, "Popen", MockProcess)
     monkeypatch.setattr(select, "select", lambda r, w, x, t: ([r[0]], [], []))
-    
+
     with pytest.raises(subprocess.CalledProcessError):
         ffmpeg_utils.run_ffmpeg_with_subs(tmp_path/"in", tmp_path/"sub", tmp_path/"out",
             video_crf=23, video_preset="f", audio_bitrate="k", audio_copy=False)
@@ -575,19 +675,19 @@ def test_generate_video_variant_success(monkeypatch, tmp_path: Path):
     input_video = tmp_path / "in.mp4"
     input_video.touch()
     (artifact_dir / "in.srt").touch()
-    
+
     # Mock job store
     job_store = MagicMock()
     job = MagicMock()
     job.user_id = "u1"
     job.result_data = {"subtitle_size": 100} # Explicit dict
     job_store.get_job.return_value = job
-    
+
     monkeypatch.setattr(subtitles, "create_styled_subtitle_file", lambda *args, **kwargs: tmp_path / "a.ass")
     def fake_burn(*args, **kwargs):
         Path(args[2]).touch() # args[2] is output_path
     monkeypatch.setattr(ffmpeg_utils, "run_ffmpeg_with_subs", fake_burn)
-    
+
     res = video_processing.generate_video_variant(
         "job1", input_video, artifact_dir, "1280x720", job_store, "u1"
     )
@@ -600,31 +700,32 @@ def test_generate_video_variant_reuses_existing_ass(monkeypatch, tmp_path: Path)
     input_video.touch()
     (artifact_dir / "in.srt").touch()
     (artifact_dir / "in.ass").touch() # exists
-    
+
     job_store = MagicMock()
     job = MagicMock()
     job.user_id = "u1"
     job.result_data = {"subtitle_size": 100}
     job_store.get_job.return_value = job
-    
+
     # Should NOT call create_styled_subtitle_file if no settings passed
     create_mock = MagicMock()
     monkeypatch.setattr(subtitles, "create_styled_subtitle_file", create_mock)
     def fake_burn(*args, **kwargs):
         Path(args[2]).touch()
     monkeypatch.setattr(ffmpeg_utils, "run_ffmpeg_with_subs", fake_burn)
-    
+
     video_processing.generate_video_variant(
         "job1", input_video, artifact_dir, "1280x720", job_store, "u1"
     )
-    
+
     create_mock.assert_not_called()
 
 def test_generate_video_variant_resolution_bad_string(tmp_path):
-    with pytest.raises(Exception):
-         video_processing.generate_video_variant(
-            "j", tmp_path/"i", tmp_path/"a", "badres", None, "u"
-         )
+    input_video = tmp_path / "i"
+    input_video.touch()
+
+    with pytest.raises(ValueError, match="Invalid resolution format"):
+        video_processing.generate_video_variant("j", input_video, tmp_path / "a", "badres", None, "u")
 
 def test_generate_video_variant_glob_srt(monkeypatch, tmp_path):
     # Verify fallback to glob *.srt if specific name not found
@@ -633,7 +734,7 @@ def test_generate_video_variant_glob_srt(monkeypatch, tmp_path):
     input_video = tmp_path / "in.mp4"
     input_video.touch()
     (artifact_dir / "other.srt").touch()
-    
+
     job_store = MagicMock()
     job = MagicMock()
     job.user_id = "u1"
@@ -644,7 +745,7 @@ def test_generate_video_variant_glob_srt(monkeypatch, tmp_path):
     def fake_burn(*args, **kwargs):
         Path(args[2]).touch()
     monkeypatch.setattr(ffmpeg_utils, "run_ffmpeg_with_subs", fake_burn)
-    
+
     # Should pass finding other.srt
     res = video_processing.generate_video_variant(
         "job1", input_video, artifact_dir, "1280x720", job_store, "u1"
@@ -662,7 +763,7 @@ def test_generate_video_variant_active_graphics_maps_to_active(monkeypatch, tmp_
     input_video = tmp_path / "in.mp4"
     input_video.touch()
     (artifact_dir / "in.srt").touch()
-    
+
     # Create transcription.json with word timings
     transcription_data = [
         {
@@ -678,13 +779,13 @@ def test_generate_video_variant_active_graphics_maps_to_active(monkeypatch, tmp_
     (artifact_dir / "transcription.json").write_text(
         json.dumps(transcription_data), encoding="utf-8"
     )
-    
+
     job_store = MagicMock()
     job = MagicMock()
     job.user_id = "u1"
     job.result_data = {"subtitle_size": 100}
     job_store.get_job.return_value = job
-    
+
     # Capture kwargs passed to create_styled_subtitle_file
     style_calls = []
     ass_output = artifact_dir / "in.ass"
@@ -692,12 +793,12 @@ def test_generate_video_variant_active_graphics_maps_to_active(monkeypatch, tmp_
         style_calls.append(kwargs)
         ass_output.touch()  # Create the file so fallback path is not triggered
         return ass_output
-    
+
     monkeypatch.setattr(subtitles, "create_styled_subtitle_file", capture_style)
     def fake_burn(*args, **kwargs):
         Path(args[2]).touch()
     monkeypatch.setattr(ffmpeg_utils, "run_ffmpeg_with_subs", fake_burn)
-    
+
     # Call with active-graphics highlight style
     video_processing.generate_video_variant(
         "job1", input_video, artifact_dir, "1280x720", job_store, "u1",
@@ -707,9 +808,8 @@ def test_generate_video_variant_active_graphics_maps_to_active(monkeypatch, tmp_
             "subtitle_size": 100,
         }
     )
-    
+
     # Should be mapped to 'active' because words are present
     assert len(style_calls) == 1
     assert style_calls[0]["highlight_style"] == "active", \
         f"Expected 'active' but got '{style_calls[0]['highlight_style']}'"
-

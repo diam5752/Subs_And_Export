@@ -1,6 +1,9 @@
-import pytest
 from unittest.mock import MagicMock
-from backend.app.core.auth import UserStore, Database
+
+import pytest
+
+from backend.app.core.auth import Database, UserStore
+
 
 # Simple mock for DbUser to track state changes
 class MockDbUser:

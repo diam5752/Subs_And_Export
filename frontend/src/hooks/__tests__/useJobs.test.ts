@@ -12,7 +12,7 @@ jest.mock('@/lib/api', () => ({
 
 // Mock contexts
 const mockUser = { id: 'user1' };
-const mockUseAuth = jest.fn(() => ({ user: mockUser }));
+const mockUseAuth = jest.fn((): { user: typeof mockUser | null } => ({ user: mockUser }));
 jest.mock('@/context/AuthContext', () => ({
     useAuth: () => mockUseAuth()
 }));

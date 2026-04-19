@@ -18,6 +18,7 @@ def test_ass_generation_forces_1080p_playres():
          patch("backend.app.services.ffmpeg_utils.probe_media") as mock_probe, \
          patch("backend.app.services.video_processing.subtitles.extract_audio") as mock_extract, \
          patch("backend.app.services.video_processing.GroqTranscriber") as mock_transcriber, \
+         patch("backend.app.services.video_processing.llm_utils.resolve_groq_api_key", return_value="test-groq-key"), \
          patch("backend.app.services.ffmpeg_utils.run_ffmpeg_with_subs"):
 
         # Setup mocks
