@@ -228,7 +228,7 @@
     },
     "check:security": {
       "kind": "shell",
-      "shell": "cd backend && bandit -r app -ll && rm -rf .audit-venv && python3 -m venv .audit-venv && . .audit-venv/bin/activate && python -m pip install --upgrade pip >/dev/null && pip install -r requirements.txt pip-audit >/dev/null && pip-audit --local && rm -rf .audit-venv && cd ../frontend && npm audit --audit-level=high",
+      "shell": "cd backend && rm -rf .audit-venv && python3 -m venv .audit-venv && . .audit-venv/bin/activate && python -m pip install --upgrade pip >/dev/null && pip install -r requirements.txt bandit pip-audit >/dev/null && bandit -r app -ll && pip-audit --local && deactivate && rm -rf .audit-venv && cd ../frontend && npm audit --audit-level=high",
       "status": "enabled"
     },
     "check:mutation": {
