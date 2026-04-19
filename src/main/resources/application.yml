@@ -1,0 +1,87 @@
+spring:
+  application:
+    name: greek-sub-publisher
+  config:
+    import:
+      - optional:file:.env[.properties]
+      - optional:file:.env.local[.properties]
+  flyway:
+    baseline-on-migrate: true
+    baseline-version: 1
+    locations: classpath:db/migration
+  threads:
+    virtual:
+      enabled: true
+
+server:
+  port: ${PORT:8080}
+  forward-headers-strategy: framework
+  compression:
+    enabled: true
+    min-response-size: 1024
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,applicationmodules
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+  tracing:
+    enabled: true
+    sampling:
+      probability: ${OTEL_TRACES_SAMPLER_ARG:1.0}
+  otlp:
+    metrics:
+      export:
+        enabled: ${OTEL_METRICS_EXPORTER_ENABLED:false}
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+
+logging:
+  level:
+    root: ${LOG_LEVEL:INFO}
+  structured:
+    format:
+      console: ecs
+
+app:
+  env: ${GSP_APP_ENV:${APP_ENV:production}}
+  database-url: ${GSP_DATABASE_URL:${DATABASE_URL:postgresql://localhost:5432/gsp}}
+  database-username: ${GSP_DATABASE_USERNAME:${DATABASE_USERNAME:}}
+  database-password: ${GSP_DATABASE_PASSWORD:${DATABASE_PASSWORD:}}
+  allowed-origins: ${GSP_ALLOWED_ORIGINS:http://localhost:3000,http://127.0.0.1:3000,http://localhost:8080,http://127.0.0.1:8080}
+  trusted-hosts: ${GSP_TRUSTED_HOSTS:localhost,127.0.0.1,0.0.0.0,[::1],testserver}
+  proxy-trusted-hosts: ${GSP_PROXY_TRUSTED_HOSTS:127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
+  force-https: ${GSP_FORCE_HTTPS:false}
+  max-upload-mb: ${GSP_MAX_UPLOAD_MB:1024}
+  max-video-duration-seconds: 210
+  max-concurrent-jobs: 2
+  static-rate-limit: 60
+  static-rate-limit-window: 60
+  signup-limit-per-ip-per-day: 5
+  default-width: 1080
+  default-height: 1920
+  max-resolution-dimension: 4096
+  default-transcribe-tier: standard
+  use-llm-by-default: ${GSP_USE_LLM_BY_DEFAULT:false}
+  llm-model: ${GSP_LLM_MODEL:gpt-5.1-mini}
+  llm-temperature: ${GSP_LLM_TEMPERATURE:0.6}
+  social-llm-model: gpt-5.1-mini
+  factcheck-llm-model: gpt-5.1-mini
+  extraction-llm-model: gpt-5.1-mini
+  admin-emails: ${GSP_ADMIN_EMAILS:}
+  gcs-bucket: ${GSP_GCS_BUCKET:}
+  gcs-uploads-prefix: ${GSP_GCS_UPLOADS_PREFIX:uploads}
+  gcs-static-prefix: ${GSP_GCS_STATIC_PREFIX:static}
+  gcs-upload-url-ttl-seconds: ${GSP_GCS_UPLOAD_URL_TTL_SECONDS:3600}
+  gcs-download-url-ttl-seconds: ${GSP_GCS_DOWNLOAD_URL_TTL_SECONDS:600}
+  gcs-keep-uploads: ${GSP_GCS_KEEP_UPLOADS:true}
+  gcs-signer-email: ${GSP_GCS_SIGNER_EMAIL:}
