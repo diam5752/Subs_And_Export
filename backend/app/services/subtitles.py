@@ -8,9 +8,7 @@ import subprocess
 import tempfile
 import time
 from pathlib import Path
-from typing import Callable, Iterable, List, Tuple
-
-import stable_whisper
+from typing import Callable, Iterable, List, Sequence, Tuple
 
 from backend.app.core.config import settings
 from backend.app.services import (
@@ -19,7 +17,8 @@ from backend.app.services import (
     social_intelligence,
     subtitle_renderer,
 )
-from backend.app.services.subtitle_types import Cue, TimeRange, WordTiming
+from backend.app.services.subtitle_types import Cue, TimeRange
+from backend.app.services.subtitle_types import WordTiming as SubtitleWordTiming
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +28,7 @@ SocialCopy = social_intelligence.SocialCopy
 ViralMetadata = social_intelligence.ViralMetadata
 FactCheckResult = fact_checking.FactCheckResult
 FactCheckItem = fact_checking.FactCheckItem
+WordTiming = SubtitleWordTiming
 
 TIME_PATTERN = re.compile(r"time=(\d{2}):(\d{2}):(\d{2}\.\d{2})")
 
@@ -148,36 +148,6 @@ def get_video_duration(path: Path) -> float:
     # Security: Timeout enforced to prevent hangs
     result = subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=30.0)
     return float(result.stdout.strip())
-
-
-# Define type alias for the wrapped model
-StableWhisperModel = stable_whisper.WhisperResult
-
-def _get_whisper_model(
-    model_size: str,
-    device: str,
-    compute_type: str,
-    cpu_threads: int,
-) -> stable_whisper.WhisperResult:  # pragma: no cover
-    """
-    Load a Stable-Whisper wrapped Faster-Whisper model.
-    """
-    # Map "turbo" alias to the config constant (which might be large-v3 now)
-    logger.debug("Runtime whisper model config: WHISPER_MODEL=%s", settings.whisper_model)
-    if model_size == "turbo":
-        model_size = settings.whisper_model
-
-    logger.debug("Loading Whisper model: model=%s device=%s", model_size, device)
-
-    # stable-ts wrapper for faster-whisper
-    # It internally loads FasterWhisperModel and wraps it.
-    model = stable_whisper.load_faster_whisper(
-        model_size_or_path=model_size,
-        device=device,
-        compute_type=compute_type,
-        cpu_threads=cpu_threads,
-    )
-    return model
 
 
 def generate_subtitles_from_audio(

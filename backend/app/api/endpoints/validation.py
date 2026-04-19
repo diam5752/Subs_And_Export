@@ -14,7 +14,7 @@ ALLOWED_VIDEO_CONTENT_TYPES = {
     "video/x-matroska",
     "application/octet-stream",
 }
-ALLOWED_TRANSCRIBE_PROVIDERS = {"groq"}
+ALLOWED_TRANSCRIBE_PROVIDERS = {"groq", "openai", "local"}
 ALLOWED_TRANSCRIBE_TIERS = {"standard", "pro"}
 ALLOWED_VIDEO_QUALITIES = {"low size", "balanced", "high quality"}
 ALLOWED_HIGHLIGHT_STYLES = {"static", "karaoke", "pop", "active-graphics", "active"}

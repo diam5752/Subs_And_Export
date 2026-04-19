@@ -1,8 +1,8 @@
 from pathlib import Path
 from typing import List, Optional
 
-from backend.app.services.subtitle_types import Cue, TimeRange, WordTiming
 from backend.app.services.llm_utils import load_openai_client, resolve_openai_api_key
+from backend.app.services.subtitle_types import Cue, TimeRange, WordTiming
 from backend.app.services.transcription.base import Transcriber
 from backend.app.services.transcription.utils import normalize_text, write_srt_from_segments
 
@@ -56,7 +56,7 @@ class OpenAITranscriber(Transcriber):
                     language=language or "el",
                     prompt=prompt,
                     response_format="verbose_json",
-                    timestamp_granularities=["word"],
+                    timestamp_granularities=["word", "segment"],
                     timeout=300.0,
                 )
         except Exception as exc:

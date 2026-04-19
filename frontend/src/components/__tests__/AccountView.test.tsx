@@ -32,6 +32,7 @@ const renderAccountView = (props: Partial<React.ComponentProps<typeof AccountVie
             <AccountView
                 user={mockUser}
                 onSaveProfile={jest.fn()}
+                onLogout={jest.fn()}
                 accountMessage=""
                 accountError=""
                 accountSaving={false}
@@ -77,6 +78,7 @@ describe('AccountView', () => {
                 <AccountView
                     user={{ ...mockUser, provider: 'google' }}
                     onSaveProfile={jest.fn()}
+                    onLogout={jest.fn()}
                     accountMessage=""
                     accountError=""
                     accountSaving={false}

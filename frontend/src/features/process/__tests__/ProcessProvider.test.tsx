@@ -10,7 +10,7 @@ function PositionReader() {
 }
 
 function StartHarness() {
-  const { fileInputRef, handleStart, setHasChosenModel, setTranscribeMode, setTranscribeProvider } = useProcessContext();
+  const { fileInputRef, handleStart, setHasChosenModel, setTranscribeMode, setTranscribeProvider, setVideoInfo } = useProcessContext();
   return (
     <div>
       <input ref={fileInputRef} data-testid="file-input" type="file" />
@@ -23,6 +23,20 @@ function StartHarness() {
         }}
       >
         select-model
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          setVideoInfo({
+            width: 1080,
+            height: 1920,
+            aspectWarning: false,
+            thumbnailUrl: 'blob:thumb',
+            durationSeconds: 42,
+          });
+        }}
+      >
+        set-video-info
       </button>
       <button type="button" onClick={handleStart}>start</button>
     </div>
@@ -113,6 +127,36 @@ describe('ProcessProvider', () => {
     fireEvent.click(screen.getByRole('button', { name: 'start' }));
 
     expect(clickSpy).toHaveBeenCalled();
+  });
+
+  it('passes the detected video duration into start processing', () => {
+    /**
+     * REGRESSION: `handleStart` forwards `videoInfo.durationSeconds` to the backend
+     * processing request so pricing and downstream limits can use real source length.
+     */
+    const onStartProcessing = jest.fn(async () => { });
+
+    render(
+      <I18nProvider initialLocale="en">
+        <ProcessProvider
+          {...baseProps}
+          selectedFile={new File(['video'], 'clip.mp4', { type: 'video/mp4' })}
+          onStartProcessing={onStartProcessing}
+        >
+          <StartHarness />
+        </ProcessProvider>
+      </I18nProvider>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'select-model' }));
+    fireEvent.click(screen.getByRole('button', { name: 'set-video-info' }));
+    fireEvent.click(screen.getByRole('button', { name: 'start' }));
+
+    expect(onStartProcessing).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceDurationSeconds: 42,
+      }),
+    );
   });
 
   it('reprocesses a completed job instead of opening the picker', () => {

@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import logging
+import shutil
+import subprocess
 import tempfile
 import time
-import subprocess
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Callable
@@ -16,16 +17,55 @@ from backend.app.core.database import Database
 from backend.app.services import (
     artifact_manager,
     ffmpeg_utils,
+    llm_utils,
+    pricing,
     settings_utils,
     subtitles,
 )
 from backend.app.services.styles import SubtitleStyle
 from backend.app.services.transcription.groq_cloud import GroqTranscriber
+from backend.app.services.transcription.local_whisper import LocalWhisperTranscriber
 from backend.app.services.transcription.openai_cloud import OpenAITranscriber
 from backend.app.services.usage_ledger import ChargePlan, UsageLedgerStore
-from backend.app.services import pricing
 
 logger = logging.getLogger(__name__)
+
+ALLOWED_TIER_PROVIDER_OVERRIDES: dict[str, set[str]] = {
+    "standard": {"groq", "local"},
+    "pro": {"groq", "openai", "local"},
+}
+
+
+def resolve_runtime_transcribe_provider(
+    requested_provider: str,
+    *,
+    openai_api_key: str | None = None,
+) -> str:
+    normalized_provider = requested_provider.strip().lower()
+
+    if normalized_provider == "groq" and not llm_utils.resolve_groq_api_key():
+        logger.warning("GROQ_API_KEY is missing; falling back to local faster-whisper transcription.")
+        return "local"
+
+    if normalized_provider == "openai" and not llm_utils.resolve_openai_api_key(openai_api_key):
+        logger.warning("OPENAI_API_KEY is missing; falling back to local faster-whisper transcription.")
+        return "local"
+
+    return normalized_provider
+
+
+def _persist_preview_asset(source: Path, destination: Path) -> None:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    if destination.exists():
+        return
+
+    try:
+        destination.hardlink_to(source)
+        return
+    except OSError:
+        pass
+
+    shutil.copy2(source, destination)
 
 
 def normalize_and_stub_subtitles(
@@ -37,6 +77,7 @@ def normalize_and_stub_subtitles(
     language: str | None = None,
     transcribe_provider: str | None = None,
     openai_api_key: str | None = None,
+    provider_model: str | None = None,
     # Style Options (Will construct SubtitleStyle)
     subtitle_position: int = 16,
     max_subtitle_lines: int = 2,
@@ -60,6 +101,7 @@ def normalize_and_stub_subtitles(
     transcription_only: bool = False,
     output_width: int | None = None,
     output_height: int | None = None,
+    media_probe: ffmpeg_utils.MediaProbe | None = None,
     # Legacy/Passed-through but less impactful now
     beam_size: int | None = None,
     best_of: int | None = None,
@@ -107,13 +149,21 @@ def normalize_and_stub_subtitles(
     tier = pricing.resolve_tier_from_model(model_size)
     provider_name = transcribe_provider.strip().lower() if transcribe_provider else None
     if provider_name:
-        expected_provider = settings.transcribe_tier_provider[tier]
-        if provider_name != expected_provider:
+        allowed_providers = ALLOWED_TIER_PROVIDER_OVERRIDES[tier]
+        if provider_name not in allowed_providers:
             raise ValueError("transcribe_provider does not match selected tier")
     else:
         provider_name = settings.transcribe_tier_provider[tier]
 
-    selected_model = settings.transcribe_tier_model[tier]
+    provider_name = resolve_runtime_transcribe_provider(
+        provider_name,
+        openai_api_key=openai_api_key,
+    )
+    selected_model = pricing.resolve_requested_transcribe_model(
+        tier=tier,
+        provider=provider_name,
+        openai_model=provider_model,
+    )
 
     # Instantiate Transcriber (The Ear)
     transcriber = None
@@ -121,6 +171,12 @@ def normalize_and_stub_subtitles(
         transcriber = GroqTranscriber()
     elif provider_name == "openai":
         transcriber = OpenAITranscriber(api_key=openai_api_key)
+    elif provider_name == "local":
+        transcriber = LocalWhisperTranscriber(
+            device=device,
+            compute_type=compute_type,
+            beam_size=beam_size or 5,
+        )
     else:
         raise ValueError(f"Provider '{provider_name}' is not supported.")
 
@@ -141,7 +197,7 @@ def normalize_and_stub_subtitles(
             # Probe once for duration + audio codec
             if progress_callback is not None or audio_copy is None:
                 try:
-                    probe = ffmpeg_utils.probe_media(input_path)
+                    probe = media_probe or ffmpeg_utils.probe_media(input_path)
                     if probe.duration_s is not None and probe.duration_s > 0:
                         total_duration = probe.duration_s
                     if audio_copy is None:
@@ -158,8 +214,8 @@ def normalize_and_stub_subtitles(
             if check_cancelled: check_cancelled()
             with metrics.measure_time(pipeline_timings, "extract_audio_s"):
                 audio_path = subtitles.extract_audio(
-                    input_path, 
-                    output_dir=scratch, 
+                    input_path,
+                    output_dir=scratch,
                     check_cancelled=check_cancelled,
                     progress_callback=_extract_cb if total_duration else None,
                     total_duration=total_duration
@@ -329,11 +385,12 @@ def normalize_and_stub_subtitles(
 
             # Step 5: Artifacts
             if progress_callback: progress_callback("Finalizing...", 95.0)
+            if transcription_only:
+                 _persist_preview_asset(input_path, destination)
             if artifact_dir:
                  artifact_manager.persist_artifacts(artifact_dir, audio_path, srt_path, ass_path, transcript_text, social_copy, cues)
                  if destination.exists() and artifact_dir != destination.parent:
                      try:
-                         import shutil
                          shutil.copy2(destination, artifact_dir / destination.name)
                      except FileNotFoundError:
                          pass
@@ -368,8 +425,8 @@ def normalize_and_stub_subtitles(
         if social_copy is None:
             # Safety fallback
             social_copy = subtitles.build_social_copy(transcript_text or "")
-        return (destination if not transcription_only else input_path), social_copy
-    return destination if not transcription_only else input_path
+        return destination, social_copy
+    return destination
 
 
 def generate_video_variant(
@@ -387,13 +444,18 @@ def generate_video_variant(
     width, height = settings.default_width, settings.default_height
     try:
         w_str, h_str = resolution.lower().replace("×", "x").split("x")
+    except ValueError as exc:
+        raise ValueError("Invalid resolution format") from exc
+
+    try:
         width, height = int(w_str), int(h_str)
-        if width > settings.max_resolution_dimension or height > settings.max_resolution_dimension:
-            raise ValueError(f"Resolution exceeds max {settings.max_resolution_dimension}")
-    except Exception as e:
-        logger.warning(f"Failed to parse resolution in variant gen: {e}")
-        if "exceeds max" in str(e):
-            raise e
+    except ValueError as exc:
+        raise ValueError("Invalid resolution format") from exc
+
+    if width <= 0 or height <= 0:
+        raise ValueError("Resolution dimensions must be positive")
+    if width > settings.max_resolution_dimension or height > settings.max_resolution_dimension:
+        raise ValueError(f"Resolution exceeds max {settings.max_resolution_dimension}")
 
     transcript_path = artifact_dir / f"{input_path.stem}.srt"
     if not transcript_path.exists():
@@ -448,8 +510,6 @@ def generate_video_variant(
         base_width, base_height = settings.default_width, settings.default_height
 
         resolved_color = str(subtitle_settings.get("subtitle_color") or settings.default_sub_color)
-        logger.info(f"[GENERATE_VARIANT DEBUG] Color being used: {resolved_color}, highlight_style: {highlight_style}, max_lines: {_resolve_param(subtitle_settings.get('max_subtitle_lines'), 2)}")
-
         ass_path = subtitles.create_styled_subtitle_file(
             transcript_path,
             cues=cues,
@@ -522,7 +582,7 @@ def generate_video_variant(
     video_crf = int(stored_crf) if stored_crf is not None else settings.default_video_crf
 
     watermark_enabled = bool(subtitle_settings.get("watermark_enabled", False)) if subtitle_settings else bool(result_data.get("watermark_enabled", False))
-    
+
     ffmpeg_utils.run_ffmpeg_with_subs(
         input_path,
         ass_path,

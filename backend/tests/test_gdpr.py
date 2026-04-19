@@ -15,7 +15,7 @@ def test_data_export(client, user_auth_headers):
     assert "profile" in data
     assert "jobs" in data
     assert len(data["jobs"]) >= 1
-    
+
     # Get current user email to verify
     me_resp = client.get("/auth/me", headers=user_auth_headers)
     assert me_resp.status_code == 200
@@ -28,7 +28,7 @@ def test_account_deletion_cleans_files(client, user_auth_headers):
     # Get email before deletion
     me_resp = client.get("/auth/me", headers=user_auth_headers)
     email = me_resp.json()["email"]
-    
+
     # 1. Create Job
     files = {"file": ("gdpr_delete.mp4", b"content", "video/mp4")}
     resp = client.post("/videos/process", headers=user_auth_headers, files=files)

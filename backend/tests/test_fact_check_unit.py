@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from backend.app.services import subtitles, llm_utils
+from backend.app.services import llm_utils, subtitles
 
 
 def _fake_openai_client(calls: dict | None = None):
@@ -70,9 +70,9 @@ def test_generate_fact_check_uses_correct_model_and_params(monkeypatch) -> None:
     # If response has "claims": ["mock claim"] AND "items": [...], it works for BOTH calls?
     # Extraction expects {claims: []}.
     # Verification expects {items: []}.
-    # The payload in _fake_openai_client contains BOTH `claims` and `items`. 
+    # The payload in _fake_openai_client contains BOTH `claims` and `items`.
     # So it should pass both stages happily.
-    
+
     result = subtitles.generate_fact_check("some text")
 
     # Model can be either gpt-4o-mini or config.FACTCHECK_LLM_MODEL depending on config

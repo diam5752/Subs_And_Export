@@ -4,9 +4,6 @@ from __future__ import annotations
 
 import time
 import uuid
-from unittest.mock import MagicMock, patch
-
-import pytest
 
 from backend.app.core import config
 from backend.app.core.database import Database

@@ -40,7 +40,7 @@ class TestEmailValidation:
             # Deconstruct email to insert random part
             local, domain = base_email.split("@")
             unique_email = f"{local}_{uuid.uuid4().hex}@{domain}"
-            
+
             response = client.post("/auth/register", json={
                 "email": unique_email,
                 "password": "ValidPassword123",

@@ -3,6 +3,7 @@ import { API_BASE, JobResponse, api } from '@/lib/api';
 import { useI18n } from '@/context/I18nContext';
 import { Cue } from '@/components/SubtitleOverlay';
 import { resegmentCues } from '@/lib/subtitleUtils';
+import { resolveTranscriptionTier } from '@/lib/transcription';
 import { PreviewPlayerHandle } from '@/components/PreviewPlayer';
 
 export type TranscribeMode = 'standard' | 'pro';
@@ -11,6 +12,7 @@ export type TranscribeProvider = 'groq';
 export interface ProcessingOptions {
     transcribeMode: TranscribeMode;
     transcribeProvider: TranscribeProvider;
+    sourceDurationSeconds?: number | null;
     outputQuality: 'low size' | 'balanced' | 'high quality';
     outputResolution: '1080x1920' | '2160x3840' | '';
     useAI: boolean;
@@ -23,6 +25,14 @@ export interface ProcessingOptions {
     subtitle_size: number;
     karaoke_enabled: boolean;
     watermark_enabled: boolean;
+}
+
+export interface VideoInfo {
+    width: number;
+    height: number;
+    aspectWarning: boolean;
+    thumbnailUrl: string | null;
+    durationSeconds: number;
 }
 
 interface LastUsedSettings {
@@ -80,8 +90,8 @@ interface ProcessContextType {
     setActiveSidebarTab: (v: 'transcript' | 'styles' | 'intelligence') => void;
     activePreset: string | null;
     setActivePreset: (v: string | null) => void;
-    videoInfo: { width: number; height: number; aspectWarning: boolean; thumbnailUrl: string | null } | null;
-    setVideoInfo: (v: { width: number; height: number; aspectWarning: boolean; thumbnailUrl: string | null } | null) => void;
+    videoInfo: VideoInfo | null;
+    setVideoInfo: (v: VideoInfo | null) => void;
     previewVideoUrl: string | null;
     setPreviewVideoUrl: (url: string | null) => void;
     videoUrl: string | null;
@@ -104,6 +114,7 @@ interface ProcessContextType {
     handleStart: () => void;
     handleExport: (resolution: string) => Promise<void>;
     exportingResolutions: Record<string, boolean>;
+    exportError: string | null;
     saveLastUsedSettings: () => void;
     lastUsedSettings: LastUsedSettings | null;
 
@@ -130,22 +141,6 @@ interface ProcessContextType {
 }
 
 const ProcessContext = createContext<ProcessContextType | undefined>(undefined);
-
-const resolveTierFromJob = (
-    provider: string | null | undefined,
-    model: string | null | undefined,
-): TranscribeMode => {
-    const normalizedProvider = (provider ?? '').trim().toLowerCase();
-    const normalizedModel = (model ?? '').trim().toLowerCase();
-    if (normalizedModel === 'pro' || normalizedModel === 'standard') {
-        return normalizedModel as TranscribeMode;
-    }
-    if (normalizedModel.includes('turbo') || normalizedModel.includes('enhanced')) return 'standard';
-    if (normalizedModel.includes('large')) return 'pro';
-    if (normalizedProvider === 'openai') return 'pro';
-    if (normalizedModel.includes('ultimate') || normalizedModel.includes('whisper-1') || normalizedModel.includes('openai')) return 'pro';
-    return 'standard';
-};
 
 export function useProcessContext() {
     const context = useContext(ProcessContext);
@@ -275,12 +270,13 @@ export function ProcessProvider({
     const [activeSidebarTab, setActiveSidebarTab] = useState<'transcript' | 'styles' | 'intelligence'>('transcript');
     const [activePreset, setActivePreset] = useState<string | null>(null); // No preset active by default if we load custom settings
 
-    const [videoInfo, setVideoInfo] = useState<{ width: number; height: number; aspectWarning: boolean; thumbnailUrl: string | null } | null>(null);
+    const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null);
     const [previewVideoUrl, setPreviewVideoUrl] = useState<string | null>(null);
     const [cues, setCues] = useState<Cue[]>([]);
 
     const [overrideStep, setOverrideStep] = useState<number | null>(null);
     const [exportingResolutions, setExportingResolutions] = useState<Record<string, boolean>>({});
+    const [exportError, setExportError] = useState<string | null>(null);
 
     // Transcript editing state
     const [editingCueIndex, setEditingCueIndex] = useState<number | null>(null);
@@ -304,7 +300,7 @@ export function ProcessProvider({
             const jobProvider = selectedJob.result_data?.transcribe_provider;
             const jobModel = selectedJob.result_data?.model_size; // 'standard' | 'pro' (or legacy values)
 
-            const jobTier = resolveTierFromJob(jobProvider, jobModel);
+            const jobTier = resolveTranscriptionTier(jobProvider, jobModel);
             if (!transcribeMode || jobTier === transcribeMode) {
                 return 3;
             }
@@ -484,6 +480,7 @@ export function ProcessProvider({
                 void onReprocessJob(selectedJob.id, {
                     transcribeMode,
                     transcribeProvider,
+                    sourceDurationSeconds: videoInfo?.durationSeconds ?? null,
                     outputQuality: 'high quality',
                     outputResolution: '',
                     useAI: false,
@@ -511,6 +508,7 @@ export function ProcessProvider({
         onStartProcessing({
             transcribeMode,
             transcribeProvider,
+            sourceDurationSeconds: videoInfo?.durationSeconds ?? null,
             outputQuality: 'high quality',
             outputResolution: '',
             useAI: false,
@@ -540,12 +538,14 @@ export function ProcessProvider({
         subtitleSize,
         transcribeMode,
         transcribeProvider,
+        videoInfo?.durationSeconds,
         watermarkEnabled,
     ]);
 
     const handleExport = useCallback(async (resolution: string) => {
         if (!selectedJob) return;
 
+        setExportError(null);
         setExportingResolutions(prev => ({ ...prev, [resolution]: true }));
         try {
             const colorObj = SUBTITLE_COLORS.find(c => c.value === subtitleColor) || SUBTITLE_COLORS[0];
@@ -585,7 +585,9 @@ export function ProcessProvider({
                 }
             }
         } catch (err) {
-            console.error('Export failed:', err);
+            setExportError(
+                err instanceof Error ? err.message : (t('exportVideoError') || 'Failed to export file')
+            );
         } finally {
             setExportingResolutions(prev => ({ ...prev, [resolution]: false }));
         }
@@ -602,6 +604,7 @@ export function ProcessProvider({
         karaokeEnabled,
         watermarkEnabled,
         saveLastUsedSettings,
+        t,
     ]);
 
     // Transcript Editing Helpers
@@ -766,6 +769,7 @@ export function ProcessProvider({
     }, [selectedFile, selectedJob, onJobSelect]);
 
     useEffect(() => {
+        setExportError(null);
         setTranscriptSaveError(null);
         setIsSavingTranscript(false);
         setEditingCueIndex(null);
@@ -852,6 +856,7 @@ export function ProcessProvider({
         fileInputRef, resultsRef, transcriptContainerRef, playerRef,
         currentStep, setOverrideStep, overrideStep,
         handleStart, handleExport, exportingResolutions,
+        exportError,
         saveLastUsedSettings, lastUsedSettings,
         editingCueIndex, setEditingCueIndex,
         editingCueDraft, setEditingCueDraft,

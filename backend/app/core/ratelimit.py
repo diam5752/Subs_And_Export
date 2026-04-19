@@ -13,10 +13,8 @@ from typing import TYPE_CHECKING
 
 from fastapi import Depends, HTTPException, Request, status
 from sqlalchemy import text
-from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from ..api.deps import get_current_user
-from ..db.models import DbRateLimit
 from .auth import User
 
 if TYPE_CHECKING:
@@ -159,13 +157,13 @@ class DbRateLimiter:
                     INSERT INTO rate_limits (key, count, window_start, expires_at)
                     VALUES (:key, 1, :now, :expires_at)
                     ON CONFLICT (key) DO UPDATE SET
-                        count = CASE 
-                            WHEN rate_limits.window_start < :min_ws THEN 1 
-                            ELSE rate_limits.count + 1 
+                        count = CASE
+                            WHEN rate_limits.window_start < :min_ws THEN 1
+                            ELSE rate_limits.count + 1
                         END,
-                        window_start = CASE 
-                            WHEN rate_limits.window_start < :min_ws THEN :now 
-                            ELSE rate_limits.window_start 
+                        window_start = CASE
+                            WHEN rate_limits.window_start < :min_ws THEN :now
+                            ELSE rate_limits.window_start
                         END,
                         expires_at = :expires_at
                     RETURNING count

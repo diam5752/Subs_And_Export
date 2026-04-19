@@ -1,0 +1,8 @@
+[run]
+omit =
+    app/api/endpoints/dev.py
+    app/api/endpoints/intelligence_routes.py
+    app/api/endpoints/reprocess_routes.py
+    app/core/gcs.py
+    app/services/ffmpeg_utils.py
+    app/services/subtitle_renderer.py

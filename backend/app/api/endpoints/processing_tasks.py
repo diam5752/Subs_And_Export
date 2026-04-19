@@ -5,18 +5,17 @@ from __future__ import annotations
 import logging
 import time
 from pathlib import Path
-from typing import Any
 
-from ...core.config import settings
 from ...core.auth import User
+from ...core.config import settings as app_settings
 from ...core.database import Database
 from ...core.errors import sanitize_message
 from ...core.gcs import delete_object, download_object, get_gcs_settings, upload_object
+from ...services.ffmpeg_utils import MediaProbe, probe_media
 from ...services.history import HistoryStore
 from ...services.jobs import JobStore
 from ...services.usage_ledger import ChargePlan, UsageLedgerStore
-from ...services.ffmpeg_utils import probe_media
-from ...services.video_processing import normalize_and_stub_subtitles
+from ...services.video_processing import normalize_and_stub_subtitles, resolve_runtime_transcribe_provider
 from .file_utils import MAX_UPLOAD_BYTES, data_roots, relpath_safe
 from .settings import ProcessingSettings
 
@@ -80,6 +79,7 @@ def run_video_processing(
     ledger_store: UsageLedgerStore | None = None,
     charge_plan: ChargePlan | None = None,
     db: Database | None = None,
+    source_probe: MediaProbe | None = None,
 ) -> None:
     """Background task to run the heavy video processing."""
     try:
@@ -115,13 +115,24 @@ def run_video_processing(
 
         # Map settings to internal params
         model_size = settings.transcribe_model
-        provider = settings.transcribe_provider or settings.transcribe_tier_provider.get(
-            settings.transcribe_model, settings.transcribe_tier_provider[settings.default_transcribe_tier]
+        requested_provider = settings.transcribe_provider or app_settings.transcribe_tier_provider.get(
+            settings.transcribe_model, app_settings.transcribe_tier_provider[app_settings.default_transcribe_tier]
         )
+        provider = resolve_runtime_transcribe_provider(requested_provider)
         crf_map = {"low size": 28, "balanced": 20, "high quality": 12}
         video_crf = crf_map.get(settings.video_quality.lower(), 12)
         target_width = settings.target_width
         target_height = settings.target_height
+        source_duration_seconds: float | None = None
+
+        effective_probe = source_probe
+        try:
+            if effective_probe is None:
+                effective_probe = probe_media(input_path)
+            if effective_probe.duration_s is not None and effective_probe.duration_s > 0:
+                source_duration_seconds = float(effective_probe.duration_s)
+        except Exception:
+            source_duration_seconds = None
 
         artifact_dir.mkdir(parents=True, exist_ok=True)
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -138,6 +149,7 @@ def run_video_processing(
             video_crf=video_crf,
             initial_prompt=settings.context_prompt,
             transcribe_provider=provider,
+            provider_model=settings.openai_model,
             progress_callback=progress_callback,
             output_width=target_width,
             output_height=target_height,
@@ -155,6 +167,7 @@ def run_video_processing(
             job_id=job_id,
             ledger_store=ledger_store,
             charge_plan=charge_plan,
+            media_probe=effective_probe,
         )
 
         # Result unpacking
@@ -209,7 +222,8 @@ def run_video_processing(
             "model_size": model_size,
             "transcribe_provider": provider,
             "output_size": final_path.stat().st_size if final_path.exists() else 0,
-            "resolution": f"{target_width}x{target_height}",
+            "resolution": f"{target_width}x{target_height}" if target_width and target_height else "",
+            "duration_seconds": source_duration_seconds,
             "max_subtitle_lines": settings.max_subtitle_lines,
             "subtitle_position": settings.subtitle_position,
             "subtitle_color": settings.subtitle_color,
@@ -304,8 +318,8 @@ def run_gcs_video_processing(
 
         if probe.duration_s is None or probe.duration_s <= 0:
             raise ValueError("Could not determine video duration")
-        if probe.duration_s > settings.max_video_duration_seconds:
-            raise ValueError(f"Video too long (max {settings.max_video_duration_seconds/60:.1f} minutes)")
+        if probe.duration_s > app_settings.max_video_duration_seconds:
+            raise ValueError(f"Video too long (max {app_settings.max_video_duration_seconds/60:.1f} minutes)")
 
         run_video_processing(
             job_id,
@@ -320,6 +334,7 @@ def run_gcs_video_processing(
             source_gcs_object_name=gcs_object_name,
             ledger_store=ledger_store,
             charge_plan=charge_plan,
+            source_probe=probe,
         )
 
         if not gcs_settings.keep_uploads:

@@ -28,7 +28,7 @@ def setup_test_database():
     """Create test database and run migrations before tests."""
     import subprocess
     test_db_url = os.environ.get("GSP_DATABASE_URL", "postgresql+psycopg://gsp:gsp@localhost:5432/gsp_test")
-    
+
     # Create the test database if it doesn't exist
     try:
         import psycopg
@@ -37,12 +37,12 @@ def setup_test_database():
         parts = test_db_url.replace("postgresql+psycopg://", "").split("/")
         dbname = parts[-1] if len(parts) > 1 else "gsp_test"
         host_part = parts[0]
-        
+
         # Connect to postgres database to create test db
         user_pass, host_port = host_part.split("@")
         user, password = user_pass.split(":")
         host, port = host_port.split(":")
-        
+
         with psycopg.connect(f"postgresql://{user}:{password}@{host}:{port}/postgres", autocommit=True) as conn:
             with conn.cursor() as cur:
                 cur.execute(f"SELECT 1 FROM pg_database WHERE datname = '{dbname}'")
@@ -50,7 +50,7 @@ def setup_test_database():
                     cur.execute(f"CREATE DATABASE {dbname}")
     except Exception as e:
         print(f"Note: Could not auto-create test database: {e}")
-    
+
     # Run migrations
     result = subprocess.run(
         ["alembic", "upgrade", "head"],
@@ -61,9 +61,9 @@ def setup_test_database():
     )
     if result.returncode != 0:
         print(f"Migration warning: {result.stderr}")
-    
+
     yield
-    
+
     # Cleanup: optionally drop tables after all tests
     # (commented out to preserve test data for debugging)
     # from backend.app.db.base import Base
@@ -83,9 +83,9 @@ def client(monkeypatch) -> TestClient:
     from backend.main import app
 
     # specific methods, but checking logic is what raises 429.
-    # We MUST patch the CLASS __call__ method because special dunder methods 
+    # We MUST patch the CLASS __call__ method because special dunder methods
     # are looked up on the type, not the instance.
-    
+
     # We rely on GSP_DISABLE_RATELIMIT=1 in env to disable it by default.
     # This allows individual tests to enable it by deleting the env var.
     # noop = lambda *args, **kwargs: None
@@ -150,7 +150,7 @@ def prevent_paid_api_calls(monkeypatch):
         monkeypatch.setattr("backend.app.services.subtitles._resolve_groq_api_key", lambda *args: None)
     except (ImportError, AttributeError):
         pass
-        
+
     try:
         monkeypatch.setattr("backend.app.services.transcription.openai_cloud._resolve_openai_api_key", lambda *args: None)
         monkeypatch.setattr("backend.app.services.transcription.groq_cloud._resolve_groq_api_key", lambda *args: None)

@@ -28,7 +28,7 @@ def test_cleanup_endpoint_security(client, user_auth_headers):
     # Get current user email
     me_resp = client.get("/auth/me", headers=user_auth_headers)
     email = me_resp.json()["email"]
-    
+
     with patch.dict(os.environ, {"GSP_ADMIN_EMAILS": email}):
         resp = client.post("/videos/jobs/cleanup?days=30", headers=user_auth_headers)
         assert resp.status_code == 200

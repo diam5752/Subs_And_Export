@@ -8,8 +8,9 @@ import shutil
 from pathlib import Path
 from typing import List, Optional
 
-from .social_intelligence import SocialCopy
 from backend.app.services.subtitle_types import Cue
+
+from .social_intelligence import SocialCopy
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +66,7 @@ def persist_artifacts(
             }
             for c in cues
         ]
-    
+
     (artifact_dir / "transcription.json").write_text(
         json.dumps(cues_data, ensure_ascii=False, indent=2), encoding="utf-8"
     )

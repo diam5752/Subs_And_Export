@@ -7,8 +7,8 @@ from typing import Union
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from starlette.exceptions import HTTPException as StarletteHTTPException
 from sqlalchemy.exc import SQLAlchemyError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +61,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     Handle Pydantic validation errors.
     """
     errors = exc.errors()
-    
+
     # Specific logic ported from main.py for batch delete limit
     if request.url.path.endswith("/videos/jobs/batch-delete"):
          for error in errors:
@@ -80,7 +80,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         loc = ".".join([str(x) for x in err.get("loc", [])])
         msg = err.get("msg", "Invalid input")
         sanitized_errors.append(f"{loc}: {msg}")
-    
+
     error_msg = "; ".join(sanitized_errors)
     return create_error_response(status.HTTP_422_UNPROCESSABLE_CONTENT, f"Validation Error: {sanitize_message(error_msg)}")
 
@@ -90,7 +90,7 @@ async def database_exception_handler(request: Request, exc: SQLAlchemyError):
     """
     logger.exception("Database error occurred", extra={"path": request.url.path})
     return create_error_response(
-        status.HTTP_500_INTERNAL_SERVER_ERROR, 
+        status.HTTP_500_INTERNAL_SERVER_ERROR,
         "A database error occurred. Please try again later.",
         "DB_ERROR"
     )

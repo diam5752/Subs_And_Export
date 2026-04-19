@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import List
 
-from backend.app.services.subtitles import Cue
+from backend.app.services.subtitle_types import Cue
 
 
 class Transcriber(ABC):

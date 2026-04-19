@@ -1,5 +1,9 @@
 .PHONY: install test lint run docker-up docker-down clean coverage coverage-frontend coverage-backend coverage-open
 
+APP_ENV ?= dev
+PORT ?= 8080
+UVICORN_APP ?= backend.main:app
+
 install:
 	@echo "Installing backend dependencies..."
 	cd backend && pip install -r requirements.txt
@@ -42,7 +46,7 @@ coverage-open:
 
 run:
 	@echo "Running backend locally..."
-	cd backend && APP_ENV=dev uvicorn main:app --reload
+	APP_ENV=$(APP_ENV) uvicorn $(UVICORN_APP) --reload --port $(PORT)
 
 docker-up:
 	docker-compose up --build
@@ -72,3 +76,7 @@ clean:
 	find . -type d -name ".pytest_cache" -exec rm -rf {} +
 	find . -type d -name ".ruff_cache" -exec rm -rf {} +
 	rm -rf frontend/coverage backend/htmlcov
+
+ifneq ("$(wildcard .codex/quality.mk)","")
+include .codex/quality.mk
+endif

@@ -1,13 +1,9 @@
-import pytest
-from fastapi import FastAPI, HTTPException, status
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 from pydantic import BaseModel, Field
 from sqlalchemy.exc import SQLAlchemyError
 
-from backend.app.core.errors import (
-    sanitize_message,
-    register_exception_handlers
-)
+from backend.app.core.errors import register_exception_handlers, sanitize_message
 
 # Setup a dummy app for testing handlers
 dummy_app = FastAPI()

@@ -1,7 +1,9 @@
 import os
-import json
+
 from openai import OpenAI
+
 from backend.app.core import config
+
 
 def test_model(model_name):
     api_key = os.getenv("OPENAI_API_KEY")

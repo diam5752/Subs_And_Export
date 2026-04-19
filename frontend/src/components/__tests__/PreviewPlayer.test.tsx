@@ -1,7 +1,13 @@
+/* eslint-disable @next/next/no-img-element */
 import React from 'react';
-import { fireEvent, render } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { PreviewPlayer } from '@/components/PreviewPlayer';
+
+jest.mock('next/image', () => ({
+    __esModule: true,
+    default: (props: React.ImgHTMLAttributes<HTMLImageElement>) => <img {...props} alt={props.alt ?? ''} />,
+}));
 
 function mockResizeObserver() {
     if (typeof window.ResizeObserver !== 'undefined') return;
@@ -17,6 +23,14 @@ function mockResizeObserver() {
 describe('PreviewPlayer', () => {
     beforeAll(() => {
         mockResizeObserver();
+        Object.defineProperty(window.HTMLMediaElement.prototype, 'play', {
+            configurable: true,
+            value: jest.fn().mockResolvedValue(undefined),
+        });
+        Object.defineProperty(window.HTMLMediaElement.prototype, 'pause', {
+            configurable: true,
+            value: jest.fn(),
+        });
     });
 
     afterEach(() => {
@@ -78,5 +92,56 @@ describe('PreviewPlayer', () => {
         unmount();
         expect(cancelAnimationFrameSpy).toHaveBeenCalledWith(456);
     });
-});
 
+    it('renders the watermark and reports time updates', async () => {
+        const onTimeUpdate = jest.fn();
+        const { container } = render(
+            <PreviewPlayer
+                {...baseProps}
+                settings={{ ...baseProps.settings, watermarkEnabled: true }}
+                onTimeUpdate={onTimeUpdate}
+            />,
+        );
+
+        expect(screen.getByAltText('Watermark')).toBeInTheDocument();
+
+        const video = container.querySelector('video') as HTMLVideoElement;
+        Object.defineProperty(video, 'currentTime', {
+            configurable: true,
+            value: 4.2,
+            writable: true,
+        });
+
+        fireEvent.timeUpdate(video);
+
+        await waitFor(() => {
+            expect(onTimeUpdate).toHaveBeenCalledWith(4.2);
+        });
+    });
+
+    it('seeks through the imperative handle and applies initial time on metadata load', () => {
+        const playerRef = React.createRef<{ seekTo: (time: number) => void }>();
+        const { container } = render(
+            <PreviewPlayer
+                {...baseProps}
+                ref={playerRef}
+                initialTime={2}
+            />,
+        );
+
+        const video = container.querySelector('video') as HTMLVideoElement;
+        Object.defineProperty(video, 'currentTime', {
+            configurable: true,
+            value: 0,
+            writable: true,
+        });
+
+        fireEvent.loadedMetadata(video);
+        expect(video.currentTime).toBeCloseTo(2.1, 4);
+
+        act(() => {
+            playerRef.current?.seekTo(7.5);
+        });
+        expect(video.currentTime).toBeCloseTo(7.5, 4);
+    });
+});

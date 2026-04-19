@@ -31,7 +31,7 @@ def _auth_header(client: TestClient, email: str) -> dict[str, str]:
     assert token_resp.status_code == 200, token_resp.text
     token = token_resp.json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
-    
+
     # Ensure user has credits
     me_resp = client.get("/auth/me", headers=headers)
     if me_resp.status_code == 200:
@@ -42,7 +42,7 @@ def _auth_header(client: TestClient, email: str) -> dict[str, str]:
             points_store.ensure_account(user_id)
             # Grant additional credits for tests
             points_store.credit(user_id, 1000, "test_credit", {"source": "unit_tests"})
-    
+
     return headers
 
 

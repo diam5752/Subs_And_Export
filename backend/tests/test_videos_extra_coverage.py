@@ -1,8 +1,7 @@
-
 from fastapi.testclient import TestClient
 
-from backend.main import app
 from backend.app.api.endpoints import export_routes
+from backend.main import app
 
 
 def test_cancel_job_success(client: TestClient, user_auth_headers: dict, monkeypatch):
@@ -119,15 +118,12 @@ def test_export_video_failure(client: TestClient, user_auth_headers: dict, monke
             def mock_gen(*args, **kwargs):
                 raise ValueError("FFmpeg error")
 
-            # We need to monkeypatch the import inside endpoints.videos?
-            # It imports using relative: from ...services.video_processing import generate_video_variant
-            # So we patch "backend.app.services.video_processing.generate_video_variant"
-            monkeypatch.setattr("backend.app.services.video_processing.generate_video_variant", mock_gen)
+            monkeypatch.setattr(export_routes, "generate_video_variant", mock_gen)
 
             response = client.post(
                 "/videos/jobs/job1/export",
                 headers=user_auth_headers,
-                json={"resolution": "1080p"}
+                json={"resolution": "1080x1920"}
             )
             assert response.status_code == 500
             assert "Export failed" in response.json()["detail"]

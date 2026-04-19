@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from backend.app.services import subtitles, llm_utils
+from backend.app.services import llm_utils, subtitles
 
 
 def _fake_openai_client(calls: dict | None = None):

@@ -5,20 +5,22 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from backend.app.api.endpoints import videos
-from backend.app.api.endpoints import processing_tasks
+from backend.app.api.endpoints import export_routes, processing_tasks, videos
 from backend.app.core import auth as backend_auth
 from backend.app.core import config
 from backend.app.core.database import Database
-from backend.app.services import jobs
-from backend.app.services import pricing
+from backend.app.services import jobs, pricing
 from backend.app.services.charge_plans import reserve_processing_charges
 from backend.app.services.points import PointsStore
 from backend.app.services.usage_ledger import UsageLedgerStore
 
 
 def _auth_header(client: TestClient, email: str | None = None) -> dict[str, str]:
-    resolved_email = email or f"video_{uuid.uuid4().hex}@example.com"
+    if email:
+        local, _, domain = email.partition("@")
+        resolved_email = f"{local}_{uuid.uuid4().hex}@{domain or 'example.com'}"
+    else:
+        resolved_email = f"video_{uuid.uuid4().hex}@example.com"
     client.post("/auth/register", json={"email": resolved_email, "password": "testpassword123", "name": "Video"})
     token_resp = client.post(
         "/auth/token",
@@ -26,7 +28,7 @@ def _auth_header(client: TestClient, email: str | None = None) -> dict[str, str]
     )
     token = token_resp.json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}
-    
+
     # Ensure user has sufficient credits for testing
     me_resp = client.get("/auth/me", headers=headers)
     if me_resp.status_code == 200:
@@ -37,7 +39,7 @@ def _auth_header(client: TestClient, email: str | None = None) -> dict[str, str]
             points_store.ensure_account(user_id)
             # Grant additional credits for tests (in case user already existed with low balance)
             points_store.credit(user_id, 1000, "test_credit", {"source": "unit_tests"})
-    
+
     return headers
 
 
@@ -107,6 +109,7 @@ def test_run_video_processing_success(monkeypatch, tmp_path: Path):
     assert finished and finished.status == "completed"
     assert finished.progress == 100
     assert finished.result_data["video_path"].endswith("out.mp4")
+    assert finished.result_data["transcribe_provider"] == "local"
 
 
 def test_run_video_processing_failure(monkeypatch, tmp_path: Path):
@@ -160,6 +163,40 @@ def test_run_video_processing_handles_path_only(monkeypatch, tmp_path: Path):
 
     finished = store.get_job(job.id)
     assert finished and finished.status == "completed"
+
+
+def test_run_video_processing_records_duration_and_empty_resolution(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(config.settings, "project_root", tmp_path)
+    db = Database()
+    store = jobs.JobStore(db)
+    user_id = backend_auth.UserStore(db=db).register_local_user(
+        f"runner_{uuid.uuid4().hex}@example.com", "testpassword123", "Runner"
+    ).id
+    job = store.create_job(f"job-duration-{uuid.uuid4().hex}", user_id)
+
+    input_path = tmp_path / "input-duration.mp4"
+    input_path.write_bytes(b"data")
+    output_path = tmp_path / "artifacts-duration" / "out.mp4"
+
+    monkeypatch.setattr(
+        processing_tasks,
+        "probe_media",
+        lambda _path: types.SimpleNamespace(duration_s=12.5, width=1920, height=1080),
+    )
+
+    def fake_normalize(*_args, **_kwargs):
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_bytes(b"ok")
+        return output_path
+
+    monkeypatch.setattr(processing_tasks, "normalize_and_stub_subtitles", fake_normalize)
+    settings = videos.ProcessingSettings()
+    videos.run_video_processing(job.id, input_path, output_path, output_path.parent, settings, store)
+
+    finished = store.get_job(job.id)
+    assert finished and finished.status == "completed"
+    assert finished.result_data["duration_seconds"] == 12.5
+    assert finished.result_data["resolution"] == ""
 
 
 def test_run_video_processing_does_not_restart_cancelled_job_and_refunds(monkeypatch, tmp_path: Path):
@@ -288,6 +325,54 @@ def test_run_gcs_video_processing_does_not_restart_cancelled_job_and_refunds(mon
     assert cancelled and cancelled.status == "cancelled"
 
 
+def test_run_gcs_video_processing_uses_app_settings_for_duration_limit(monkeypatch, tmp_path: Path):
+    # REGRESSION: ProcessingSettings must not shadow app config during GCS validation.
+    monkeypatch.setattr(config.settings, "project_root", tmp_path)
+    monkeypatch.setattr(config.settings, "max_video_duration_seconds", 10)
+
+    db = Database()
+    job_store = jobs.JobStore(db)
+    user_id = backend_auth.UserStore(db=db).register_local_user(
+        f"gcs_limit_{uuid.uuid4().hex}@example.com", "testpassword123", "Runner"
+    ).id
+    job = job_store.create_job(f"job-gcs-limit-{uuid.uuid4().hex}", user_id)
+
+    monkeypatch.setattr(
+        processing_tasks,
+        "get_gcs_settings",
+        lambda: types.SimpleNamespace(keep_uploads=True),
+    )
+    monkeypatch.setattr(
+        processing_tasks,
+        "download_object",
+        lambda **kwargs: kwargs["destination"].write_bytes(b"video"),
+    )
+    monkeypatch.setattr(
+        processing_tasks,
+        "probe_media",
+        lambda _path: types.SimpleNamespace(duration_s=30.0, width=1920, height=1080),
+    )
+    monkeypatch.setattr(
+        processing_tasks,
+        "run_video_processing",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("should fail before processing")),
+    )
+
+    videos.run_gcs_video_processing(
+        job_id=job.id,
+        gcs_object_name="uploads/test.mp4",
+        input_path=tmp_path / "gcs-input.mp4",
+        output_path=tmp_path / "gcs-output.mp4",
+        artifact_dir=tmp_path / "gcs-artifacts",
+        settings=videos.ProcessingSettings(),
+        job_store=job_store,
+    )
+
+    failed = job_store.get_job(job.id)
+    assert failed and failed.status == "failed"
+    assert failed.message is not None and "Video too long" in failed.message
+
+
 def test_process_video_rejects_invalid_extension(client: TestClient):
     headers = _auth_header(client, email="reject@example.com")
     resp = client.post(
@@ -320,6 +405,117 @@ def test_process_video_creates_job(client: TestClient, monkeypatch):
     assert detail.status_code == 200
 
 
+def test_process_video_accepts_openai_provider_override(client: TestClient, monkeypatch):
+    headers = _auth_header(client, email="process-openai@example.com")
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(videos, "run_video_processing", lambda *args, **kwargs: None)
+
+    def fake_reserve_processing_charges(*args, **kwargs):
+        captured.update(kwargs)
+        return None, 5000
+
+    monkeypatch.setattr(videos, "reserve_processing_charges", fake_reserve_processing_charges)
+
+    resp = client.post(
+        "/videos/process",
+        headers=headers,
+        data={
+            "transcribe_model": "pro",
+            "transcribe_provider": "openai",
+            "openai_model": "gpt-4o-mini-transcribe",
+        },
+        files={"file": ("clip.mp4", io.BytesIO(b"123"), "video/mp4")},
+    )
+
+    assert resp.status_code == 200
+    assert captured["provider"] == "openai"
+    assert captured["stt_model"] == "gpt-4o-mini-transcribe"
+
+
+def test_process_video_accepts_local_provider_override(client: TestClient, monkeypatch):
+    headers = _auth_header(client, email="process-local@example.com")
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(videos, "run_video_processing", lambda *args, **kwargs: None)
+
+    def fake_reserve_processing_charges(*args, **kwargs):
+        captured.update(kwargs)
+        return None, 5000
+
+    monkeypatch.setattr(videos, "reserve_processing_charges", fake_reserve_processing_charges)
+
+    resp = client.post(
+        "/videos/process",
+        headers=headers,
+        data={
+            "transcribe_model": "standard",
+            "transcribe_provider": "local",
+        },
+        files={"file": ("clip.mp4", io.BytesIO(b"123"), "video/mp4")},
+    )
+
+    assert resp.status_code == 200
+    assert captured["provider"] == "local"
+    assert captured["stt_model"] == config.settings.transcribe_tier_model["standard"]
+
+
+def test_export_video_falls_back_to_result_video_path(client: TestClient, monkeypatch, tmp_path: Path):
+    # REGRESSION: completed jobs must remain exportable after uploads cleanup if the preview copy exists.
+    monkeypatch.setattr(config.settings, "project_root", tmp_path)
+    headers = _auth_header(client, email="export-preview@example.com")
+    user = client.get("/auth/me", headers=headers).json()
+
+    data_dir = tmp_path / "data"
+    uploads_dir = data_dir / "uploads"
+    artifacts_dir = data_dir / "artifacts"
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setattr(export_routes, "data_roots", lambda: (data_dir, uploads_dir, artifacts_dir))
+    monkeypatch.setattr(export_routes, "get_gcs_settings", lambda: None)
+
+    db = Database()
+    store = jobs.JobStore(db)
+    job_id = f"job-export-{uuid.uuid4().hex}"
+    store.create_job(job_id, user["id"])
+
+    artifact_dir = artifacts_dir / job_id
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+    preview_path = artifact_dir / "processed.mp4"
+    preview_path.write_bytes(b"preview")
+
+    store.update_job(
+        job_id,
+        status="completed",
+        progress=100,
+        message="Done!",
+        result_data={
+            "video_path": preview_path.relative_to(data_dir).as_posix(),
+            "artifacts_dir": artifact_dir.relative_to(data_dir).as_posix(),
+            "public_url": f"/static/{preview_path.relative_to(data_dir).as_posix()}",
+        },
+    )
+
+    captured: dict[str, Path] = {}
+
+    def fake_generate_variant(job_id: str, input_video, artifact_dir, resolution, *_args, **_kwargs):
+        captured["input_video"] = input_video
+        out = artifact_dir / f"export_{resolution}.mp4"
+        out.write_bytes(b"variant")
+        return out
+
+    monkeypatch.setattr(export_routes, "generate_video_variant", fake_generate_variant)
+
+    resp = client.post(
+        f"/videos/jobs/{job_id}/export",
+        headers=headers,
+        json={"resolution": "1080x1920"},
+    )
+
+    assert resp.status_code == 200
+    assert captured["input_video"] == preview_path
+
+
 def test_reprocess_job_creates_new_job(client: TestClient, monkeypatch):
     headers = _auth_header(client, email="reprocess@example.com")
     calls: list[str] = []
@@ -332,7 +528,7 @@ def test_reprocess_job_creates_new_job(client: TestClient, monkeypatch):
     from backend.app.api.endpoints import reprocess_routes
     monkeypatch.setattr(reprocess_routes, "run_video_processing", fake_run)
     monkeypatch.setattr(videos, "run_video_processing", fake_run)
-    
+
     # Mock probe_media to return valid probe result for fake video data
     fake_probe_result = types.SimpleNamespace(duration_s=10.0, width=1920, height=1080)
     monkeypatch.setattr(reprocess_routes, "probe_media", lambda path: fake_probe_result)

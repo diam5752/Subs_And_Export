@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import uuid
 from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import MagicMock
-import uuid
 
 import pytest
 from fastapi import HTTPException

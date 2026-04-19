@@ -12,26 +12,29 @@ from pathlib import Path
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from ...core.config import settings
 from ...core.auth import User
+from ...core.config import settings
 from ...core.errors import sanitize_message
 from ...core.gcs import get_gcs_settings
 from ...core.ratelimit import limiter_processing
-
 from ...schemas.base import JobResponse
 from ...schemas.usage import UsageSummaryResponse, UsageSummaryRow
 from ...services import pricing
 from ...services.charge_plans import reserve_processing_charges
+from ...services.ffmpeg_utils import probe_media
 from ...services.history import HistoryStore
 from ...services.jobs import JobStore
 from ...services.usage_ledger import UsageLedgerStore
-from ...services.ffmpeg_utils import probe_media
 from ..deps import get_current_user, get_history_store, get_job_store, get_usage_ledger_store
-from .file_utils import MAX_UPLOAD_BYTES, data_roots, link_or_copy_file
-from .processing_tasks import record_event_safe, refund_charge_best_effort, run_gcs_video_processing, run_video_processing
+from .file_utils import data_roots, link_or_copy_file
+from .processing_tasks import (
+    record_event_safe,
+    refund_charge_best_effort,
+    run_gcs_video_processing,
+    run_video_processing,
+)
 from .settings import build_processing_settings
 from .validation import ALLOWED_VIDEO_EXTENSIONS
-
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -129,19 +132,29 @@ def reprocess_job(
         artifact_path = artifacts_root / new_job_id
 
         job = job_store.create_job(new_job_id, current_user.id)
-        
+
         try:
             llm_models = pricing.resolve_llm_models(proc_settings.transcribe_model)
+            source_duration_seconds = (source_job.result_data or {}).get("duration_seconds")
+            estimated_duration_seconds = (
+                float(source_duration_seconds)
+                if isinstance(source_duration_seconds, (int, float)) and source_duration_seconds > 0
+                else float(settings.max_video_duration_seconds)
+            )
             charge_plan, new_balance = reserve_processing_charges(
                 ledger_store=ledger_store,
                 user_id=current_user.id,
                 job_id=new_job_id,
                 tier=proc_settings.transcribe_model,
-                duration_seconds=float(settings.max_video_duration_seconds),
+                duration_seconds=estimated_duration_seconds,
                 use_llm=proc_settings.use_llm,
                 llm_model=llm_models.social,
                 provider=proc_settings.transcribe_provider,
-                stt_model=pricing.resolve_transcribe_model(proc_settings.transcribe_model),
+                stt_model=pricing.resolve_requested_transcribe_model(
+                    tier=proc_settings.transcribe_model,
+                    provider=proc_settings.transcribe_provider,
+                    openai_model=proc_settings.openai_model,
+                ),
             )
         except Exception:
             job_store.delete_job(new_job_id)
@@ -242,7 +255,11 @@ def reprocess_job(
             use_llm=proc_settings.use_llm,
             llm_model=llm_models.social,
             provider=proc_settings.transcribe_provider,
-            stt_model=pricing.resolve_transcribe_model(proc_settings.transcribe_model),
+            stt_model=pricing.resolve_requested_transcribe_model(
+                tier=proc_settings.transcribe_model,
+                provider=proc_settings.transcribe_provider,
+                openai_model=proc_settings.openai_model,
+            ),
         )
     except Exception:
         job_store.delete_job(new_job_id)
@@ -265,6 +282,7 @@ def reprocess_job(
             (source_job.result_data or {}).get("original_filename"),
             ledger_store=ledger_store,
             charge_plan=charge_plan,
+            source_probe=probe,
         )
 
         from ...core.cleanup import cleanup_old_uploads

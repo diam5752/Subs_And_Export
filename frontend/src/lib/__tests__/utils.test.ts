@@ -2,7 +2,7 @@ import { formatDate, buildStaticUrl } from '../utils';
 
 // Mock API_BASE
 jest.mock('../api', () => ({
-    API_BASE: 'http://localhost:8000',
+    API_BASE: 'http://localhost:8080',
 }));
 
 describe('utils', () => {
@@ -38,28 +38,28 @@ describe('utils', () => {
 
         it('should handle paths already with /static/ prefix', () => {
             const result = buildStaticUrl('/static/video.mp4');
-            expect(result).toBe('http://localhost:8000/static/video.mp4');
+            expect(result).toBe('http://localhost:8080/static/video.mp4');
         });
 
         it('should add /static/ prefix to data paths', () => {
             const result = buildStaticUrl('data/artifacts/video.mp4');
-            expect(result).toBe('http://localhost:8000/static/artifacts/video.mp4');
+            expect(result).toBe('http://localhost:8080/static/artifacts/video.mp4');
         });
 
         it('should strip host from full URLs', () => {
             const result = buildStaticUrl('https://example.com/static/video.mp4');
-            expect(result).toBe('http://localhost:8000/static/video.mp4');
+            expect(result).toBe('http://localhost:8080/static/video.mp4');
         });
 
         it('should handle paths with leading slash', () => {
             const result = buildStaticUrl('/data/artifacts/video.mp4');
-            expect(result).toBe('http://localhost:8000/static/artifacts/video.mp4');
+            expect(result).toBe('http://localhost:8080/static/artifacts/video.mp4');
         });
 
         it('should handle double static prefix', () => {
             const result = buildStaticUrl('static/static/video.mp4');
             // The function strips one static prefix, so static/static becomes static
-            expect(result).toBe('http://localhost:8000/static/static/video.mp4');
+            expect(result).toBe('http://localhost:8080/static/static/video.mp4');
         });
     });
 });

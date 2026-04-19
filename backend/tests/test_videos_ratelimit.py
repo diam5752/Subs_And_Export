@@ -1,9 +1,9 @@
 from unittest.mock import MagicMock
 
+import pytest
+
 from backend.app.api.endpoints import videos
 
-
-import pytest
 
 @pytest.fixture(autouse=True)
 def enable_ratelimit(monkeypatch):

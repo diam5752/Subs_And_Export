@@ -1,0 +1,271 @@
+{
+  "schema_version": 1,
+  "generated_by": "cross-project-quality-gates",
+  "status": "partial_enforcement",
+  "repo_root": "/Users/aggelosdiamantopoulos/Development/Subs_And_Export_Project",
+  "primary_stack": "typescript",
+  "detected_stacks": [
+    {
+      "stack": "javascript",
+      "evidence": [
+        "package.json"
+      ]
+    },
+    {
+      "stack": "typescript",
+      "evidence": [
+        "tsconfig.json"
+      ]
+    },
+    {
+      "stack": "python",
+      "evidence": [
+        "pyproject.toml",
+        "requirements.txt",
+        "setup.py"
+      ]
+    }
+  ],
+  "ci_providers": [
+    "github-actions"
+  ],
+  "enforcement": {
+    "agent_file": "AGENT.md",
+    "quality_contract_file": ".codex/quality-gates.json",
+    "acceptance_flows_file": ".codex/acceptance-flows.md"
+  },
+  "policy": {
+    "acceptance_critical_flows": {
+      "type": "hard_gate",
+      "target": "100%",
+      "owner": "human_review_required"
+    },
+    "unit_coverage": {
+      "type": "strong_target",
+      "line_pct_min": 90,
+      "branch_pct_min": 90,
+      "ideal_pct": 100
+    },
+    "crap_score": {
+      "type": "strong_target",
+      "max": 8,
+      "ideal_max": 5
+    },
+    "mutation_kill_rate": {
+      "type": "strong_target",
+      "min_pct": 95
+    },
+    "integration_boundaries": {
+      "type": "hard_expectation",
+      "target": "all_declared_boundaries"
+    },
+    "architecture_violations": {
+      "type": "hard_gate",
+      "max": 0
+    },
+    "static_analysis": {
+      "type": "hard_gate",
+      "critical_max": 0,
+      "blocker_max": 0,
+      "high_max": 0
+    },
+    "ci_pass_rate": {
+      "type": "hard_gate",
+      "target": "always_green"
+    },
+    "performance": {
+      "type": "heuristic_or_context_gate",
+      "max_degradation_pct": 10,
+      "notes": "Set path-specific latency budgets per application."
+    },
+    "security": {
+      "type": "hard_gate",
+      "high_max": 0,
+      "critical_max": 0
+    },
+    "code_to_test_ratio": {
+      "type": "heuristic",
+      "warn_if_code_to_test_exceeds": "1:2"
+    },
+    "function_size": {
+      "type": "heuristic",
+      "ideal_lines_max": 50
+    }
+  },
+  "pr_gates": [
+    {
+      "id": "unit-coverage",
+      "requirement": "Unit tests with >90% line and branch coverage.",
+      "status": "partial",
+      "suggested_command": "Backend and frontend line coverage are enforced; repo-wide branch coverage remains tracked debt that still needs more tests.",
+      "command_id": "check:unit"
+    },
+    {
+      "id": "integration",
+      "requirement": "Integration coverage for all declared integration boundaries.",
+      "status": "enabled",
+      "suggested_command": "Run the backend API and processing integration suites as a dedicated gate.",
+      "command_id": "check:integration"
+    },
+    {
+      "id": "acceptance",
+      "requirement": "Acceptance or E2E coverage for critical flows.",
+      "status": "enabled",
+      "suggested_command": "Add or confirm Playwright or equivalent acceptance coverage after human review of critical flows.",
+      "command_id": "check:e2e"
+    },
+    {
+      "id": "architecture",
+      "requirement": "Zero architecture violations.",
+      "status": "enabled",
+      "suggested_command": "Run the repo-local architecture checker for cross-stack leaks and import cycles.",
+      "command_id": "check:arch"
+    },
+    {
+      "id": "static-analysis",
+      "requirement": "Zero critical or blocker static-analysis issues.",
+      "status": "enabled",
+      "suggested_command": "Run Ruff, ESLint, and frontend TypeScript type-checking.",
+      "command_id": "check:static"
+    },
+    {
+      "id": "security",
+      "requirement": "Zero high or critical security issues.",
+      "status": "enabled",
+      "suggested_command": "Run Bandit, backend dependency audit in an isolated venv, and frontend npm audit.",
+      "command_id": "check:security"
+    }
+  ],
+  "nightly_gates": [
+    {
+      "id": "mutation",
+      "requirement": "Mutation kill rate above 95% for critical logic or the full repo where practical.",
+      "status": "blocked",
+      "suggested_command": "Add a Stryker job if missing.",
+      "command_id": "check:mutation"
+    },
+    {
+      "id": "performance",
+      "requirement": "No more than 10% degradation on critical paths.",
+      "status": "blocked",
+      "suggested_command": "Add k6, artillery, or Lighthouse-based performance checks where applicable.",
+      "command_id": "check:performance"
+    },
+    {
+      "id": "dast",
+      "requirement": "No high or critical DAST findings on the deployable surface.",
+      "status": "blocked",
+      "suggested_command": "Run OWASP ZAP against a preview environment if one exists.",
+      "command_id": "check:security"
+    }
+  ],
+  "notes": [
+    "Acceptance flows remain human-owned and should be confirmed in .codex/acceptance-flows.md.",
+    "Fast/static/security/integration/E2E enforcement is executable today.",
+    "Repo-wide branch coverage, mutation testing, and repeatable performance budgets still need additional engineering work before they can be hard-failed."
+  ],
+  "generated_at": "2026-04-19T11:38:30.278215+00:00",
+  "stack_profile": "hybrid-python-typescript",
+  "command_interface": {
+    "runner": ".codex/scripts/quality_runner.py",
+    "make_include": ".codex/quality.mk",
+    "make_targets": [
+      "check-fast",
+      "check-static",
+      "check-unit",
+      "check-integration",
+      "check-e2e",
+      "check-arch",
+      "check-security",
+      "check-mutation",
+      "check-performance",
+      "check-all"
+    ]
+  },
+  "commands": {
+    "check:contract": {
+      "kind": "builtin",
+      "builtin": "contract",
+      "status": "enabled"
+    },
+    "check:static": {
+      "kind": "shell",
+      "shell": "ruff check backend && cd frontend && npm run lint && npx tsc --noEmit",
+      "status": "enabled"
+    },
+    "check:unit:backend": {
+      "kind": "shell",
+      "shell": "cd backend && APP_ENV=dev pytest",
+      "status": "enabled"
+    },
+    "check:unit:frontend": {
+      "kind": "shell",
+      "shell": "cd frontend && npm test -- --coverage --watchAll=false",
+      "status": "enabled"
+    },
+    "check:unit": {
+      "kind": "composite",
+      "steps": [
+        "check:unit:backend",
+        "check:unit:frontend"
+      ],
+      "status": "enabled"
+    },
+    "check:e2e": {
+      "kind": "shell",
+      "shell": "cd frontend && npm run e2e",
+      "status": "enabled"
+    },
+    "check:integration": {
+      "kind": "shell",
+      "shell": "cd backend && APP_ENV=dev pytest -o addopts='' tests/test_auth.py tests/test_gcs_endpoints.py tests/test_jobs_and_videos.py tests/test_export_route_regressions.py tests/test_processing_task_helpers.py tests/test_validation_helpers.py",
+      "status": "enabled"
+    },
+    "check:arch": {
+      "kind": "shell",
+      "shell": "python3 .codex/scripts/check_architecture.py",
+      "status": "enabled"
+    },
+    "check:security": {
+      "kind": "shell",
+      "shell": "cd backend && bandit -r app -ll && rm -rf .audit-venv && python3 -m venv .audit-venv && . .audit-venv/bin/activate && python -m pip install --upgrade pip >/dev/null && pip install -r requirements.txt pip-audit >/dev/null && pip-audit --local && rm -rf .audit-venv && cd ../frontend && npm audit --audit-level=high",
+      "status": "enabled"
+    },
+    "check:mutation": {
+      "kind": "blocked",
+      "message": "No mutation-testing command is configured yet for this repo.",
+      "status": "blocked",
+      "exit_code": 2
+    },
+    "check:performance": {
+      "kind": "blocked",
+      "message": "No repeatable performance command is configured yet for this repo.",
+      "status": "blocked",
+      "exit_code": 2
+    },
+    "check:fast": {
+      "kind": "composite",
+      "steps": [
+        "check:contract",
+        "check:static",
+        "check:unit"
+      ],
+      "status": "enabled"
+    },
+    "check:all": {
+      "kind": "composite",
+      "steps": [
+        "check:fast",
+        "check:integration",
+        "check:arch",
+        "check:security",
+        "check:e2e"
+      ],
+      "status": "enabled"
+    }
+  },
+  "ci": {
+    "enabled": true,
+    "workflow_path": ".github/workflows/quality-gates.yml"
+  }
+}

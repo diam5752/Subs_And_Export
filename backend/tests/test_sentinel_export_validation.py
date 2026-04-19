@@ -2,7 +2,6 @@ import uuid
 
 from fastapi.testclient import TestClient
 
-from backend.app.api.endpoints import videos
 from backend.app.services import jobs
 
 

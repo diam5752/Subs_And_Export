@@ -16,7 +16,7 @@ def test_database_rejects_sqlite_path(monkeypatch, tmp_path: Path) -> None:
 
 def test_database_requires_postgres_url(monkeypatch, tmp_path: Path) -> None:
     from backend.app.core.config import settings
-    
+
     monkeypatch.delenv("GSP_DATABASE_URL", raising=False)
     monkeypatch.setenv("GSP_DATABASE_PATH", str(tmp_path / "app.db"))
     # Also patch settings since the value is cached at import time

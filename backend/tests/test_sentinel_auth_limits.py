@@ -1,7 +1,10 @@
-import pytest
 from unittest.mock import MagicMock
-from backend.app.core.auth import UserStore, User
-from backend.app.api.deps import get_user_store, get_session_store
+
+import pytest
+
+from backend.app.api.deps import get_session_store, get_user_store
+from backend.app.core.auth import User, UserStore
+
 
 @pytest.fixture
 def mock_user_store():

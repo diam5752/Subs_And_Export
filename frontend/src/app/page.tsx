@@ -80,11 +80,6 @@ export default function DashboardPage() {
     }
   }, [user, isLoading, router]);
 
-  // Refresh data
-  useEffect(() => {
-    loadJobs();
-  }, [loadJobs]);
-
   // Restore session
   useEffect(() => {
     if (didRestoreSession.current) return;
@@ -188,6 +183,7 @@ export default function DashboardPage() {
       const settings = {
         transcribe_model: selectedModel,
         transcribe_provider: provider,
+        source_duration_seconds: options.sourceDurationSeconds ?? null,
         video_quality: options.outputQuality,
         video_resolution: options.outputResolution,
         use_llm: options.useAI,

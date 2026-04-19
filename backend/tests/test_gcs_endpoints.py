@@ -3,9 +3,7 @@ import io
 import pytest
 from fastapi.testclient import TestClient
 
-from backend.app.api.endpoints import videos
-from backend.app.api.endpoints import gcs_routes
-from backend.app.api.endpoints import export_routes
+from backend.app.api.endpoints import export_routes, gcs_routes, videos
 from backend.app.core import gcs
 
 
@@ -47,7 +45,13 @@ def test_gcs_process_consumes_upload_id(client: TestClient, user_auth_headers: d
     monkeypatch.setenv("GSP_GCS_BUCKET", "test-bucket")
     monkeypatch.setattr(gcs_routes, "generate_signed_upload_url", lambda **_kwargs: "https://signed.example/upload")
     monkeypatch.setattr(gcs_routes, "run_gcs_video_processing", lambda **_kwargs: None)
-    monkeypatch.setattr(gcs_routes, "reserve_processing_charges", lambda *args, **kwargs: (None, 5000))
+    captured: dict[str, object] = {}
+
+    def fake_reserve_processing_charges(*args, **kwargs):
+        captured.update(kwargs)
+        return None, 5000
+
+    monkeypatch.setattr(gcs_routes, "reserve_processing_charges", fake_reserve_processing_charges)
 
     upload_resp = client.post(
         "/videos/gcs/upload-url",
@@ -60,11 +64,12 @@ def test_gcs_process_consumes_upload_id(client: TestClient, user_auth_headers: d
     process_resp = client.post(
         "/videos/gcs/process",
         headers=user_auth_headers,
-        json={"upload_id": upload_id},
+        json={"upload_id": upload_id, "source_duration_seconds": 42.5},
     )
     assert process_resp.status_code == 200
     job_id = process_resp.json()["id"]
     assert job_id
+    assert captured["duration_seconds"] == 42.5
 
     # Second use should fail (anti-replay)
     process_again = client.post(
@@ -86,7 +91,7 @@ def test_export_falls_back_to_gcs_when_input_missing(client: TestClient, user_au
     artifacts_dir = data_dir / "artifacts"
     uploads_dir.mkdir(parents=True)
     artifacts_dir.mkdir(parents=True)
-    
+
     # Patch data_roots in all modules that use it
     monkeypatch.setattr(videos, "_data_roots", lambda: (data_dir, uploads_dir, artifacts_dir))
     monkeypatch.setattr(export_routes, "data_roots", lambda: (data_dir, uploads_dir, artifacts_dir))

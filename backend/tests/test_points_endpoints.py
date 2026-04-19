@@ -10,8 +10,8 @@ from fastapi.testclient import TestClient
 from backend.app.api.endpoints import videos as videos_endpoints
 from backend.app.core import config
 from backend.app.core.database import Database
-from backend.app.services.jobs import JobStore
 from backend.app.services import pricing
+from backend.app.services.jobs import JobStore
 from backend.app.services.points import TRIAL_CREDITS, PointsStore
 
 
@@ -185,7 +185,7 @@ def test_fact_check_charges_points_and_rejects_on_insufficient_balance(
     current = client.get("/auth/points", headers=user_auth_headers).json()["balance"]
     if current:
         PointsStore(db=db).spend(user_id, current, reason="test_setup")
-    
+
     # Verify zero balance
     zero_bal = client.get("/auth/points", headers=user_auth_headers).json()["balance"]
     assert zero_bal == 0, f"Balance not drained! {zero_bal}"

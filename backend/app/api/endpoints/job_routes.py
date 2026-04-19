@@ -14,7 +14,6 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-
 from ...core.auth import User
 from ...core.ratelimit import limiter_content
 from ...schemas.base import BatchDeleteRequest, BatchDeleteResponse, JobResponse, PaginatedJobsResponse
@@ -41,14 +40,14 @@ def ensure_job_size(job):
                     cleaned_path = cleaned_path[7:]  # Remove "static/" prefix
                 if cleaned_path.startswith("data/"):
                     cleaned_path = cleaned_path[5:]  # Remove "data/" prefix
-                
+
                 full_path = DATA_DIR / cleaned_path
-                
+
                 # Also try the artifacts path directly
                 artifacts_path = DATA_DIR / "artifacts" / job.id / "processed.mp4"
-                
+
                 file_exists = full_path.exists() or artifacts_path.exists()
-                
+
                 if not file_exists:
                     # Mark job as having missing files
                     job.result_data = {**job.result_data, "files_missing": True}

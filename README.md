@@ -78,6 +78,11 @@ To run the backend locally:
 make run
 ```
 
+If port `8080` is already in use, run:
+```bash
+make PORT=8081 run
+```
+
 To run the frontend:
 ```bash
 cd frontend && npm run dev

@@ -1,10 +1,9 @@
 import json
 import logging
+import os
 import sys
 from datetime import datetime
 from typing import Any
-
-import os
 
 # Configure logging levels
 LOG_LEVEL_STR = os.getenv("LOG_LEVEL", "INFO").upper()
@@ -45,16 +44,16 @@ def setup_logging():
 
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(JSONFormatter())
-    
+
     # Remove existing handlers to avoid duplicates (e.g. from Uvicorn's default config)
     logger.handlers = []
     logger.addHandler(handler)
 
     # Specific tweaks for third-party libraries
     logging.getLogger("uvicorn.access").disabled = True
-    
+
     # Silence noisy third-party libraries unless they are WARNING or higher
     for noisy_logger in ["torio", "torch", "faster_whisper", "stable_ts", "httpcore", "httpx"]:
         logging.getLogger(noisy_logger).setLevel(logging.WARNING)
-    
+
     return logger

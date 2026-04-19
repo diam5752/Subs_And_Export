@@ -10,13 +10,12 @@ from typing import Any
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from ...core.config import settings
 from ...core.auth import User
+from ...core.config import settings
 from ...core.errors import sanitize_message
 from ...core.gcs import generate_signed_upload_url, get_gcs_settings
 from ...core.gcs_uploads import GcsUploadStore
 from ...core.ratelimit import limiter_processing
-
 from ...schemas.base import JobResponse
 from ...services import pricing
 from ...services.charge_plans import reserve_processing_charges
@@ -24,11 +23,10 @@ from ...services.history import HistoryStore
 from ...services.jobs import JobStore
 from ...services.usage_ledger import UsageLedgerStore
 from ..deps import get_current_user, get_gcs_upload_store, get_history_store, get_job_store, get_usage_ledger_store
-from .file_utils import MAX_UPLOAD_BYTES, data_roots
+from .file_utils import data_roots
 from .processing_tasks import record_event_safe, refund_charge_best_effort, run_gcs_video_processing
 from .settings import build_processing_settings
 from .validation import ALLOWED_VIDEO_EXTENSIONS, validate_upload_content_type
-
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -111,6 +109,7 @@ class GcsProcessRequest(BaseModel):
     transcribe_model: str = Field(settings.default_transcribe_tier, max_length=50)
     transcribe_provider: str = Field(settings.transcribe_tier_provider[settings.default_transcribe_tier], max_length=50)
     openai_model: str = Field("", max_length=50)
+    source_duration_seconds: float | None = Field(None, gt=0, le=settings.max_video_duration_seconds)
     video_quality: str = Field("high quality", max_length=50)
     video_resolution: str = Field("", max_length=50)
     use_llm: bool = settings.use_llm_by_default
@@ -181,16 +180,21 @@ def process_video_from_gcs(
     artifact_path = artifacts_root / job_id
 
     llm_models = pricing.resolve_llm_models(proc_settings.transcribe_model)
+    estimated_duration_seconds = float(payload.source_duration_seconds or settings.max_video_duration_seconds)
     charge_plan, new_balance = reserve_processing_charges(
         ledger_store=ledger_store,
         user_id=current_user.id,
         job_id=job_id,
         tier=proc_settings.transcribe_model,
-        duration_seconds=float(settings.max_video_duration_seconds),
+        duration_seconds=estimated_duration_seconds,
         use_llm=proc_settings.use_llm,
         llm_model=llm_models.social,
         provider=proc_settings.transcribe_provider,
-        stt_model=pricing.resolve_transcribe_model(proc_settings.transcribe_model),
+        stt_model=pricing.resolve_requested_transcribe_model(
+            tier=proc_settings.transcribe_model,
+            provider=proc_settings.transcribe_provider,
+            openai_model=proc_settings.openai_model,
+        ),
     )
 
     try:

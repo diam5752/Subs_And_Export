@@ -10,8 +10,8 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
 
-from ...core.config import settings
 from ...core.auth import User
+from ...core.config import settings
 from ...core.errors import sanitize_message
 from ...core.gcs import download_object, get_gcs_settings, upload_object
 from ...core.ratelimit import limiter_content
@@ -28,7 +28,6 @@ from .validation import (
     validate_subtitle_position,
     validate_subtitle_size,
 )
-
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -70,6 +69,30 @@ class ExportRequest(BaseModel):
         if not re.match(r"^&H[0-9A-Fa-f]{8}$", v):
             raise ValueError("Invalid subtitle color format (expected &HAABBGGRR)")
         return v
+
+    @field_validator("resolution")
+    @classmethod
+    def validate_resolution(cls, value: str) -> str:
+        cleaned = value.strip().lower().replace("×", "x")
+        if cleaned == "srt":
+            return cleaned
+
+        parts = cleaned.split("x")
+        if len(parts) != 2:
+            raise ValueError("Invalid resolution format (expected WIDTHxHEIGHT or 'srt')")
+
+        try:
+            width = int(parts[0])
+            height = int(parts[1])
+        except ValueError as exc:
+            raise ValueError("Invalid resolution format (expected WIDTHxHEIGHT or 'srt')") from exc
+
+        if width <= 0 or height <= 0:
+            raise ValueError("Resolution dimensions must be positive")
+        if width > settings.max_resolution_dimension or height > settings.max_resolution_dimension:
+            raise ValueError(f"Resolution exceeds max {settings.max_resolution_dimension}")
+
+        return f"{width}x{height}"
 
 
 @router.post("/jobs/{job_id}/export", response_model=JobResponse, dependencies=[Depends(limiter_content)])
@@ -130,7 +153,8 @@ def export_video(
             job_store.update_job(job_id, result_data=result_data, status="completed")
             updated_job = job_store.get_job(job_id)
             return _ensure_job_size(updated_job)
-
+        except HTTPException:
+            raise
         except Exception as e:
             logger.exception("SRT Export failed")
             raise HTTPException(500, f"SRT Export failed: {sanitize_message(str(e))}")
@@ -142,6 +166,14 @@ def export_video(
         if candidate.exists():
             input_video = candidate
             break
+
+    if not input_video:
+        candidate_rel = (job.result_data or {}).get("video_path")
+        if isinstance(candidate_rel, str) and candidate_rel:
+            candidate = (data_dir / candidate_rel).resolve()
+            data_dir_resolved = data_dir.resolve()
+            if candidate.is_relative_to(data_dir_resolved) and candidate.exists():
+                input_video = candidate
 
     if not input_video:
         gcs_settings = get_gcs_settings()
@@ -193,8 +225,6 @@ def export_video(
         if subtitle_settings.get("subtitle_size") is not None:
             subtitle_settings["subtitle_size"] = validate_subtitle_size(int(subtitle_settings["subtitle_size"]))
 
-        logger.info(f"[EXPORT DEBUG] subtitle_settings for job {job_id}: {subtitle_settings}")
-
         output_path = generate_video_variant(
             job_id, input_video, artifact_dir, request.resolution,
             job_store, current_user.id, subtitle_settings=subtitle_settings or None,
@@ -222,6 +252,7 @@ def export_video(
         job_store.update_job(job_id, result_data=result_data, status="completed", progress=100)
         updated_job = job_store.get_job(job_id)
         return _ensure_job_size(updated_job)
-
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(500, f"Export failed: {sanitize_message(str(e))}")

@@ -1,4 +1,4 @@
-export const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+export const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
 interface TokenResponse {
     access_token: string;
@@ -20,6 +20,7 @@ export interface JobResultData {
     model_size?: string;
     transcribe_provider?: string;
     output_size?: number;
+    duration_seconds?: number;
     resolution?: string;
     variants?: Record<string, string>;
     files_missing?: boolean;
@@ -295,6 +296,7 @@ class ApiClient {
         transcribe_model?: string;
         transcribe_provider?: string;
         openai_model?: string;
+        source_duration_seconds?: number | null;
         video_quality?: string;
         video_resolution?: string;
         use_llm?: boolean;
@@ -315,6 +317,7 @@ class ApiClient {
                 transcribe_model: settings.transcribe_model || 'standard',
                 transcribe_provider: settings.transcribe_provider || 'groq',
                 openai_model: settings.openai_model || '',
+                source_duration_seconds: settings.source_duration_seconds ?? null,
                 video_quality: settings.video_quality || 'balanced',
                 video_resolution: settings.video_resolution || '',
                 use_llm: Boolean(settings.use_llm),
@@ -423,8 +426,8 @@ class ApiClient {
     }
 
     async deleteJobs(jobIds: string[]): Promise<{ status: string; deleted_count: number }> {
-        return this.request<{ status: string; deleted_count: number }>('/videos/jobs/batch', {
-            method: 'DELETE',
+        return this.request<{ status: string; deleted_count: number }>('/videos/jobs/batch-delete', {
+            method: 'POST',
             body: JSON.stringify({ job_ids: jobIds }),
         });
     }

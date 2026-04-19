@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import uuid
 from pathlib import Path
+from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
 
@@ -56,3 +57,73 @@ def test_dev_sample_job_creates_completed_job(monkeypatch, tmp_path: Path) -> No
         assert payload["status"] == "completed"
         assert payload["result_data"]["transcription_url"].endswith("/transcription.json")
         assert payload["result_data"]["dev_sample_source_job_id"] == sample_job_id
+
+
+def test_resolve_sample_source_falls_back_when_exact_match_upload_is_missing(tmp_path: Path) -> None:
+    from backend.app.api.endpoints.dev import DevSampleRequest, _resolve_sample_source
+
+    uploads_dir = tmp_path / "data" / "uploads"
+    artifacts_root = tmp_path / "data" / "artifacts"
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+    artifacts_root.mkdir(parents=True, exist_ok=True)
+
+    stale_job_id = "stale-groq-sample"
+    usable_job_id = "usable-local-sample"
+
+    (artifacts_root / stale_job_id).mkdir()
+    (artifacts_root / stale_job_id / "transcription.json").write_text("[]", encoding="utf-8")
+    (artifacts_root / usable_job_id).mkdir()
+    (artifacts_root / usable_job_id / "transcription.json").write_text("[]", encoding="utf-8")
+    usable_input = uploads_dir / f"{usable_job_id}_input.mp4"
+    usable_input.write_bytes(b"video")
+
+    class FakeJobStore:
+        def get_job(self, job_id: str):
+            if job_id == stale_job_id:
+                return SimpleNamespace(result_data={"transcribe_provider": "groq", "model_size": "standard"})
+            if job_id == usable_job_id:
+                return SimpleNamespace(result_data={"transcribe_provider": "local", "model_size": "standard"})
+            return None
+
+    resolved_job_id, input_path, artifact_dir = _resolve_sample_source(
+        uploads_dir,
+        artifacts_root,
+        FakeJobStore(),
+        DevSampleRequest(provider="groq", model_size="standard"),
+    )
+
+    assert resolved_job_id == usable_job_id
+    assert input_path == usable_input
+    assert artifact_dir == artifacts_root / usable_job_id
+
+
+def test_resolve_sample_source_uses_any_available_sample_when_filters_are_missing(tmp_path: Path) -> None:
+    from backend.app.api.endpoints.dev import DevSampleRequest, _resolve_sample_source
+
+    uploads_dir = tmp_path / "data" / "uploads"
+    artifacts_root = tmp_path / "data" / "artifacts"
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+    artifacts_root.mkdir(parents=True, exist_ok=True)
+
+    sample_job_id = "sample-without-filters"
+    (artifacts_root / sample_job_id).mkdir()
+    (artifacts_root / sample_job_id / "transcription.json").write_text("[]", encoding="utf-8")
+    sample_input = uploads_dir / f"{sample_job_id}_input.mp4"
+    sample_input.write_bytes(b"video")
+
+    class FakeJobStore:
+        def get_job(self, job_id: str):
+            if job_id == sample_job_id:
+                return SimpleNamespace(result_data={"transcribe_provider": "local", "model_size": "standard"})
+            return None
+
+    resolved_job_id, input_path, artifact_dir = _resolve_sample_source(
+        uploads_dir,
+        artifacts_root,
+        FakeJobStore(),
+        DevSampleRequest(),
+    )
+
+    assert resolved_job_id == sample_job_id
+    assert input_path == sample_input
+    assert artifact_dir == artifacts_root / sample_job_id

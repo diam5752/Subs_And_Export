@@ -174,11 +174,11 @@ class DbTokenUsage(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     job_id: Mapped[str | None] = mapped_column(ForeignKey("jobs.id", ondelete="SET NULL"), nullable=True, index=True)
     model_id: Mapped[str] = mapped_column(ForeignKey("ai_models.id"), index=True)
-    
+
     prompt_tokens: Mapped[int] = mapped_column(Integer)
     completion_tokens: Mapped[int] = mapped_column(Integer)
     total_tokens: Mapped[int] = mapped_column(Integer)
-    
+
     cost: Mapped[float] = mapped_column(default=0.0)  # Calculated cost in currency
     timestamp: Mapped[int] = mapped_column(Integer, index=True)
 

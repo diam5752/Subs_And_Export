@@ -1,6 +1,9 @@
-import pytest
 from unittest.mock import MagicMock
-from backend.app.core.auth import UserStore, Database
+
+import pytest
+
+from backend.app.core.auth import Database, UserStore
+
 
 def test_register_local_user_password_length_limit():
     """Verify that UserStore rejects passwords longer than 128 chars."""

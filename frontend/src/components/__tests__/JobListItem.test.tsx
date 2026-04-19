@@ -37,6 +37,16 @@ describe('JobListItem', () => {
         t: (key: string) => key,
     };
 
+    beforeEach(() => {
+        Object.defineProperty(window, 'requestAnimationFrame', {
+            writable: true,
+            value: (callback: FrameRequestCallback) => {
+                callback(0);
+                return 1;
+            },
+        });
+    });
+
     it('renders job details correctly', () => {
         render(<JobListItem {...mockProps} />);
         expect(screen.getByText('test-video.mp4')).toBeInTheDocument();
@@ -65,6 +75,48 @@ describe('JobListItem', () => {
         render(<JobListItem {...mockProps} isConfirmingDelete={true} isDeleting={true} />);
         expect(screen.getByLabelText('deleting test-video.mp4')).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'deleting test-video.mp4' })).toHaveAttribute('aria-busy', 'true');
+    });
+
+    it('opens the preview when clicking view and forwards the selected job', () => {
+        render(<JobListItem {...mockProps} />);
+
+        fireEvent.click(screen.getByLabelText('view test-video.mp4'));
+
+        expect(mockProps.onJobSelect).toHaveBeenCalledWith(mockJob);
+        expect(mockProps.setShowPreview).toHaveBeenCalledWith(true);
+    });
+
+    it('opens the delete confirmation and confirms deletion', () => {
+        const { rerender } = render(<JobListItem {...mockProps} />);
+
+        fireEvent.click(screen.getByLabelText('deleteJob test-video.mp4'));
+        expect(mockProps.setConfirmDeleteId).toHaveBeenCalledWith('job-123');
+
+        rerender(<JobListItem {...mockProps} isConfirmingDelete={true} />);
+        fireEvent.click(screen.getByLabelText('confirmDelete test-video.mp4'));
+
+        expect(mockProps.onDeleteConfirmed).toHaveBeenCalledWith('job-123');
+    });
+
+    it('restores focus to the delete button after cancelling confirmation', () => {
+        const { rerender } = render(<JobListItem {...mockProps} />);
+        const focusSpy = jest.spyOn(HTMLButtonElement.prototype, 'focus').mockImplementation(() => { });
+
+        rerender(<JobListItem {...mockProps} isConfirmingDelete={true} />);
+        rerender(<JobListItem {...mockProps} isConfirmingDelete={true} />);
+        fireEvent.click(screen.getByLabelText('cancel'));
+        rerender(<JobListItem {...mockProps} isConfirmingDelete={false} />);
+
+        expect(focusSpy).toHaveBeenCalled();
+        expect(mockProps.setConfirmDeleteId).toHaveBeenCalledWith(null);
+    });
+
+    it('shows the expired badge instead of actions for expired jobs', () => {
+        render(<JobListItem {...mockProps} isExpired={true} publicUrl={null} />);
+
+        expect(screen.getByText('expired')).toBeInTheDocument();
+        expect(screen.queryByLabelText('view test-video.mp4')).not.toBeInTheDocument();
+        expect(screen.queryByLabelText('download test-video.mp4')).not.toBeInTheDocument();
     });
 
     it('has correct accessibility attributes', () => {

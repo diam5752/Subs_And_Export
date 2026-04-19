@@ -10,9 +10,8 @@ from typing import Any, List
 from sqlalchemy.orm import Session
 
 from backend.app.core.config import settings
-from backend.app.services import llm_utils
+from backend.app.services import llm_utils, pricing
 from backend.app.services.cost import CostService
-from backend.app.services import pricing
 from backend.app.services.usage_ledger import ChargeReservation, UsageLedgerStore
 
 logger = logging.getLogger(__name__)
@@ -78,7 +77,7 @@ def generate_fact_check(
         "Format: { \"claims\": [\"claim 1\", \"claim 2\"] }\n"
         "Ignore opinions. Focus on objective facts (dates, numbers, events)."
     )
-    
+
     usage_prompt = 0
     usage_completion = 0
     total_cost = 0.0
@@ -123,7 +122,7 @@ def generate_fact_check(
         extract_content = llm_utils.extract_chat_completion_text(extract_response)[0]
         extracted_data = json.loads(llm_utils.clean_json_response(extract_content or "{}"))
         claims = extracted_data.get("claims", [])
-        
+
         if not claims:
             logger.info("Fact Check: No doubtful claims found by extractor.")
             if ledger_store and charge_reservation:
@@ -155,11 +154,11 @@ def generate_fact_check(
                     units=units,
                 )
             return FactCheckResult(truth_score=100, supported_claims_pct=100, claims_checked=0, items=[])
-            
+
     except Exception as e:
         logger.warning(f"Fact Check Extraction failed: {e}. Fallback to full check.")
         # Fallback to original full check if extraction fails
-        claims = ["Full Text Analysis"] 
+        claims = ["Full Text Analysis"]
 
     # 2. Verification (Smart Model)
     # We send the specific claims + context to the smart model
@@ -231,7 +230,7 @@ def generate_fact_check(
                 max_completion_tokens=settings.max_llm_output_tokens_factcheck,
                 response_format={"type": "json_object"},
             )
-            
+
             # Log usage for Detailed Check
             if hasattr(response, "usage"):
                 prompt_tokens = int(response.usage.prompt_tokens or 0)
@@ -259,7 +258,7 @@ def generate_fact_check(
                     )
                 else:
                     logger.info(f"Fact Check Detail Token Usage: Input={prompt_tokens}, Output={completion_tokens}")
-            
+
             content, refusal = llm_utils.extract_chat_completion_text(response)
             if refusal:
                 raise ValueError(f"LLM refusal: {refusal}")

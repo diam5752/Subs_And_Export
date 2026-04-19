@@ -1,5 +1,6 @@
 from unittest.mock import patch
 
+
 def test_delete_account_error_sanitization(client, user_auth_headers):
     # Mock shutil.rmtree to raise an exception with a path
     # We use a path that should trigger the regex in sanitize_error (/app/...)
