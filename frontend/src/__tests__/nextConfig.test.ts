@@ -19,5 +19,15 @@ describe('next.config', () => {
     expect(csp).toContain("media-src 'self' http://localhost:8080");
     expect(csp).toContain("img-src 'self' http://localhost:8080");
   });
-});
 
+  it('allows local loopback dev origins for Next assets in CI', async () => {
+    // REGRESSION: GitHub Actions Playwright runs can request dev assets from
+    // 127.0.0.1 even when the main page uses localhost, which otherwise breaks
+    // dashboard hydration and E2E shell rendering.
+    const nextConfigModule = await import('../../next.config');
+
+    expect(nextConfigModule.default.allowedDevOrigins).toEqual(
+      expect.arrayContaining(['127.0.0.1', 'localhost']),
+    );
+  });
+});

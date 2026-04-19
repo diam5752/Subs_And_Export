@@ -2,6 +2,10 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  // Playwright/Chromium can resolve dev assets from 127.0.0.1 in CI even when
+  // the app is opened through localhost. Allow both loopback hosts so the dev
+  // server does not block its own Next assets during E2E runs.
+  allowedDevOrigins: ['127.0.0.1', 'localhost'],
   async headers() {
     const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
     // Allow connecting to the API backend

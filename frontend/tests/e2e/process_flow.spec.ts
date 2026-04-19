@@ -91,8 +91,8 @@ test.describe('Video Processing Flow', () => {
         // If Upload -> Settings -> Click Process, we must click.
         // Based on previous `ProcessView.test.tsx`, it seems we select file, then change settings, then click "Process Video".
 
-        // Wait for text "test.mp4" to appear to confirm upload
-        await expect(page.getByText('test.mp4')).toBeVisible();
+        // Wait for the uploaded file heading to appear to confirm upload.
+        await expect(page.getByRole('heading', { name: 'test.mp4' })).toBeVisible();
 
         // Check if button is enabled/visible
         const processBtn = page.getByRole('button', { name: /Έναρξη|Start/i });
