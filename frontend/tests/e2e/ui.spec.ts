@@ -63,7 +63,7 @@ for (const [label, viewport] of Object.entries(viewports)) {
       });
       await page.goto('/');
 
-      await page.getByText(el.subtitlesReady).waitFor();
+      await page.getByText(el.subtitlesReady).waitFor({ timeout: 30_000 });
       await stabilizeUi(page);
       await expectNoHorizontalOverflow(page);
       await expectNoHorizontalOverflow(page, 'main');

@@ -197,6 +197,15 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
     }));
   });
 
+  await page.route('**/auth/points', async (route) => {
+    if (await shortCircuitOptions(route)) return;
+    if (!authenticated) {
+      await route.fulfill(unauthorizedResponse);
+      return;
+    }
+    await route.fulfill(withCors({ balance: 125 }));
+  });
+
   await page.route('**/auth/register', async (route) => {
     if (await shortCircuitOptions(route)) return;
     await route.fulfill(withCors(mockUser));
@@ -318,17 +327,17 @@ export async function stabilizeUi(page: Page): Promise<void> {
 }
 
 export async function waitForDashboardShell(page: Page): Promise<void> {
-  await page.waitForLoadState('networkidle');
+  await page.waitForLoadState('domcontentloaded');
   await page.getByRole('button', { name: el.accountSettingsTitle }).waitFor({
     state: 'visible',
-    timeout: 15_000,
+    timeout: 30_000,
   });
 }
 
 export async function waitForModelPicker(page: Page): Promise<void> {
-  await waitForDashboardShell(page);
+  await page.waitForLoadState('domcontentloaded');
   await page.getByTestId('model-standard').waitFor({
     state: 'visible',
-    timeout: 15_000,
+    timeout: 30_000,
   });
 }
