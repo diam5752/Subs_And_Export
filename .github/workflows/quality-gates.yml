@@ -7,6 +7,23 @@ on:
 jobs:
   quality:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: gsp
+          POSTGRES_PASSWORD: gsp
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U gsp -d postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      APP_ENV: dev
+      GSP_DATABASE_URL: postgresql+psycopg://gsp:gsp@localhost:5432/gsp_test
     steps:
       - uses: actions/checkout@v4
       - name: Install system dependencies
