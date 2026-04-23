@@ -497,3 +497,25 @@ def test_split_long_cues_with_phrases_interpolation():
     # "Hello world" is ~11 chars. "this is a test" is ~14.
     # Should be about half/half duration.
     assert 1.0 < res[0].end < 3.0
+
+
+def test_split_long_cues_avoids_orphan_final_word():
+    cues = [
+        Cue(
+            0,
+            5,
+            "AAAAAA AAAAAA AAAAAA AAAAAA AAAAAA",
+            words=[
+                WordTiming(0, 1, "AAAAAA"),
+                WordTiming(1, 2, "AAAAAA"),
+                WordTiming(2, 3, "AAAAAA"),
+                WordTiming(3, 4, "AAAAAA"),
+                WordTiming(4, 5, "AAAAAA"),
+            ],
+        )
+    ]
+
+    res = subtitle_renderer.split_long_cues(cues, max_chars=13, max_lines=2)
+    assert len(res) == 2
+    assert [len(cue.text.split()) for cue in res] in ([2, 3], [3, 2])
+    assert all(len(cue.text.split()) > 1 for cue in res)

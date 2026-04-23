@@ -177,9 +177,13 @@ describe('PreviewSection', () => {
         expect(setCurrentTime).toHaveBeenCalledWith(12.5);
 
         fireEvent.click(screen.getByTestId('srt-btn'));
+        fireEvent.click(screen.getByTestId('vtt-btn'));
+        fireEvent.click(screen.getByTestId('txt-btn'));
         fireEvent.click(screen.getByTestId('download-1080p-btn'));
 
         expect(contextValue.handleExport).toHaveBeenCalledWith('srt');
+        expect(contextValue.handleExport).toHaveBeenCalledWith('vtt');
+        expect(contextValue.handleExport).toHaveBeenCalledWith('txt');
         expect(contextValue.handleExport).toHaveBeenCalledWith('1080x1920');
         expect(screen.getByTestId('sidebar')).toBeInTheDocument();
     });

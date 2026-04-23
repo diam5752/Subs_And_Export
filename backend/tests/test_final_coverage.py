@@ -450,7 +450,7 @@ def test_video_processing_artifact_same_path(monkeypatch):
     monkeypatch.setattr(video_processing.subtitles, "generate_subtitles_from_audio", lambda *a, **k: (Path("a.srt"), []))
     monkeypatch.setattr(video_processing.subtitles, "create_styled_subtitle_file", lambda *a, **k: Path("a.ass"))
     monkeypatch.setattr(video_processing.ffmpeg_utils, "run_ffmpeg_with_subs", lambda *a, **k: "")
-    monkeypatch.setattr(video_processing.artifact_manager, "persist_artifacts", lambda *a: None)
+    monkeypatch.setattr(video_processing.artifact_manager, "persist_artifacts", lambda *a, **kw: None)
 
     import tempfile
     with tempfile.TemporaryDirectory() as td:

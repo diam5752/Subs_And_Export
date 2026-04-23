@@ -1,4 +1,4 @@
-"""Export routes - video and SRT exports."""
+"""Export routes - video and subtitle file exports."""
 
 from __future__ import annotations
 
@@ -16,7 +16,9 @@ from ...core.errors import sanitize_message
 from ...core.gcs import download_object, get_gcs_settings, upload_object
 from ...core.ratelimit import limiter_content
 from ...schemas.base import JobResponse
+from ...services import subtitle_renderer
 from ...services.jobs import JobStore
+from ...services.subtitle_types import Cue, WordTiming
 from ...services.video_processing import generate_video_variant
 from ..deps import get_current_user, get_job_store
 from .file_utils import DATA_DIR, MAX_UPLOAD_BYTES, data_roots, relpath_safe
@@ -31,6 +33,59 @@ from .validation import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+SUBTITLE_EXPORT_FORMATS = {"srt", "vtt", "txt"}
+
+
+def _resegment_export_cues(
+    cues_data: list[dict],
+    *,
+    max_subtitle_lines: int,
+    subtitle_size: int,
+) -> list[Cue]:
+    cues: list[Cue] = []
+    for cue_data in cues_data:
+        words_payload = cue_data.get("words")
+        words = None
+        if words_payload:
+            words = [
+                WordTiming(
+                    start=float(word["start"]),
+                    end=float(word["end"]),
+                    text=str(word["text"]),
+                )
+                for word in words_payload
+                if str(word.get("text", "")).strip()
+            ]
+
+        text = str(cue_data.get("text", "")).strip()
+        if not text:
+            continue
+
+        cues.append(
+            Cue(
+                start=float(cue_data["start"]),
+                end=float(cue_data["end"]),
+                text=text,
+                words=words,
+            )
+        )
+
+    normalized = subtitle_renderer.normalize_cues_for_ass(cues)
+    if max_subtitle_lines <= 0:
+        return normalized
+
+    effective_chars = subtitle_renderer.effective_max_chars(
+        max_chars=settings.max_sub_line_chars,
+        font_size=subtitle_size,
+        play_res_x=settings.default_width,
+    )
+    return subtitle_renderer.normalize_cues_for_ass(
+        subtitle_renderer.split_long_cues(
+            normalized,
+            max_chars=effective_chars,
+            max_lines=max_subtitle_lines,
+        )
+    )
 
 
 def _ensure_job_size(job):
@@ -74,18 +129,18 @@ class ExportRequest(BaseModel):
     @classmethod
     def validate_resolution(cls, value: str) -> str:
         cleaned = value.strip().lower().replace("×", "x")
-        if cleaned == "srt":
+        if cleaned in SUBTITLE_EXPORT_FORMATS:
             return cleaned
 
         parts = cleaned.split("x")
         if len(parts) != 2:
-            raise ValueError("Invalid resolution format (expected WIDTHxHEIGHT or 'srt')")
+            raise ValueError("Invalid resolution format (expected WIDTHxHEIGHT or subtitle export format)")
 
         try:
             width = int(parts[0])
             height = int(parts[1])
         except ValueError as exc:
-            raise ValueError("Invalid resolution format (expected WIDTHxHEIGHT or 'srt')") from exc
+            raise ValueError("Invalid resolution format (expected WIDTHxHEIGHT or subtitle export format)") from exc
 
         if width <= 0 or height <= 0:
             raise ValueError("Resolution dimensions must be positive")
@@ -117,25 +172,52 @@ def export_video(
     data_dir, uploads_dir, artifacts_root = data_roots()
     artifact_dir = artifacts_root / job_id
 
-    if request.resolution == "srt":
-        # SRT Export: Fast path
+    if request.resolution in SUBTITLE_EXPORT_FORMATS:
+        # Subtitle file export: fast path
         try:
-            from ...services.subtitles import _write_srt_from_segments
+            from ...services.subtitles import (
+                _write_srt_from_segments,
+                _write_txt_from_segments,
+                _write_vtt_from_segments,
+            )
 
             transcription_json = artifact_dir / "transcription.json"
             if not transcription_json.exists():
-                raise HTTPException(404, "Transcript not found (cannot export SRT)")
+                raise HTTPException(404, "Transcript not found (cannot export subtitle file)")
 
             cues_data = json.loads(transcription_json.read_text(encoding="utf-8"))
-            segments = [(cue["start"], cue["end"], cue["text"]) for cue in cues_data]
-
-            srt_path = artifact_dir / "processed.srt"
-            _write_srt_from_segments(segments, srt_path)
-
             result_data = job.result_data.copy() if job.result_data else {}
+            resolved_lines = request.max_subtitle_lines
+            if resolved_lines is None:
+                resolved_lines = int(result_data.get("max_subtitle_lines", 2) or 2)
+            resolved_size = request.subtitle_size
+            if resolved_size is None:
+                resolved_size = int(result_data.get("subtitle_size", settings.default_sub_font_size) or settings.default_sub_font_size)
+
+            delivery_cues = _resegment_export_cues(
+                cues_data,
+                max_subtitle_lines=resolved_lines,
+                subtitle_size=resolved_size,
+            )
+            segments = [(cue.start, cue.end, cue.text) for cue in delivery_cues]
+
+            writer_by_format = {
+                "srt": _write_srt_from_segments,
+                "vtt": _write_vtt_from_segments,
+                "txt": _write_txt_from_segments,
+            }
+            content_type_by_format = {
+                "srt": "application/x-subrip",
+                "vtt": "text/vtt",
+                "txt": "text/plain",
+            }
+
+            export_path = artifact_dir / f"processed.{request.resolution}"
+            writer_by_format[request.resolution](segments, export_path)
+
             variants = result_data.get("variants", {})
-            public_path = relpath_safe(srt_path, data_dir).as_posix()
-            variants["srt"] = f"/static/{public_path}"
+            public_path = relpath_safe(export_path, data_dir).as_posix()
+            variants[request.resolution] = f"/static/{public_path}"
             result_data["variants"] = variants
 
             gcs_settings = get_gcs_settings()
@@ -144,11 +226,11 @@ def export_video(
                     upload_object(
                         settings=gcs_settings,
                         object_name=f"{gcs_settings.static_prefix}/{public_path}",
-                        source=srt_path,
-                        content_type="text/plain",
+                        source=export_path,
+                        content_type=content_type_by_format[request.resolution],
                     )
                 except Exception as exc:
-                    logger.warning("Failed to upload SRT export to GCS (%s): %s", job_id, exc)
+                    logger.warning("Failed to upload %s export to GCS (%s): %s", request.resolution.upper(), job_id, exc)
 
             job_store.update_job(job_id, result_data=result_data, status="completed")
             updated_job = job_store.get_job(job_id)
@@ -156,8 +238,8 @@ def export_video(
         except HTTPException:
             raise
         except Exception as e:
-            logger.exception("SRT Export failed")
-            raise HTTPException(500, f"SRT Export failed: {sanitize_message(str(e))}")
+            logger.exception("%s export failed", request.resolution.upper())
+            raise HTTPException(500, f"{request.resolution.upper()} export failed: {sanitize_message(str(e))}")
 
     # Video export
     input_video = None

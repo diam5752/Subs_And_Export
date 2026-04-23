@@ -388,7 +388,17 @@ def normalize_and_stub_subtitles(
             if transcription_only:
                  _persist_preview_asset(input_path, destination)
             if artifact_dir:
-                 artifact_manager.persist_artifacts(artifact_dir, audio_path, srt_path, ass_path, transcript_text, social_copy, cues)
+                 artifact_manager.persist_artifacts(
+                     artifact_dir,
+                     audio_path,
+                     srt_path,
+                     ass_path,
+                     transcript_text,
+                     social_copy,
+                     cues,
+                     max_subtitle_lines=style.max_lines,
+                     subtitle_size=style.font_size,
+                 )
                  if destination.exists() and artifact_dir != destination.parent:
                      try:
                          shutil.copy2(destination, artifact_dir / destination.name)

@@ -392,12 +392,16 @@ def test_refund_once_credits_balance_and_is_idempotent(tmp_path: Path) -> None:
 
         txs = list(
             session.scalars(
-                select(DbPointTransaction)
-                .where(DbPointTransaction.user_id == user_id)
-                .order_by(DbPointTransaction.created_at.asc())
+                select(DbPointTransaction).where(DbPointTransaction.user_id == user_id)
             ).all()
         )
-        assert [tx.delta for tx in txs] == [STARTING_POINTS_BALANCE, -200, 200]
-        assert txs[-1].id == tx_id
-        assert txs[-1].reason == "refund_process_video"
+        assert len(txs) == 3
+        assert sorted((tx.reason, tx.delta) for tx in txs) == [
+            ("initial_balance", STARTING_POINTS_BALANCE),
+            ("process_video", -200),
+            ("refund_process_video", 200),
+        ]
 
+        refund_txs = [tx for tx in txs if tx.reason == "refund_process_video"]
+        assert len(refund_txs) == 1
+        assert refund_txs[0].id == tx_id

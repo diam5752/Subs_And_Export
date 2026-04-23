@@ -75,3 +75,9 @@ test_output/
 
 # Temp repro
 temp_repro
+
+# Local browser automation traces
+.playwright-cli/
+
+# Temporary QA scratch space
+tmp/

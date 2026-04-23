@@ -43,6 +43,8 @@ function AuthHarness() {
 describe('AuthContext', () => {
     beforeEach(() => {
         jest.clearAllMocks();
+        localStorage.clear();
+        localStorage.setItem('auth_token', 'test-token');
         (api.getCurrentUser as jest.Mock).mockResolvedValue({
             id: 'u1',
             email: 'user@example.com',
@@ -62,6 +64,22 @@ describe('AuthContext', () => {
 
         await waitFor(() => {
             expect(screen.getByTestId('user-email')).toHaveTextContent('user@example.com');
+            expect(screen.getByTestId('loading')).toHaveTextContent('false');
+        });
+    });
+
+    it('skips the session lookup when no token is stored', async () => {
+        localStorage.clear();
+
+        render(
+            <AuthProvider>
+                <AuthHarness />
+            </AuthProvider>,
+        );
+
+        await waitFor(() => {
+            expect(api.getCurrentUser).not.toHaveBeenCalled();
+            expect(screen.getByTestId('user-email')).toHaveTextContent('none');
             expect(screen.getByTestId('loading')).toHaveTextContent('false');
         });
     });

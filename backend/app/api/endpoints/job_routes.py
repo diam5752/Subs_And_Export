@@ -19,6 +19,7 @@ from ...core.ratelimit import limiter_content
 from ...schemas.base import BatchDeleteRequest, BatchDeleteResponse, JobResponse, PaginatedJobsResponse
 from ...services.history import HistoryStore
 from ...services.jobs import JobStore
+from ...services.transcription.utils import normalize_text
 from ..deps import get_current_user, get_history_store, get_job_store
 from .file_utils import DATA_DIR, data_roots
 from .processing_tasks import record_event_safe
@@ -170,6 +171,40 @@ class UpdateTranscriptionRequest(BaseModel):
     cues: list[TranscriptionCueRequest] = Field(..., max_length=5000)
 
 
+def _normalize_transcription_text(text: str) -> str:
+    return " ".join(normalize_text(text).split())
+
+
+def _normalize_transcription_payload(cues: list[TranscriptionCueRequest]) -> list[dict[str, object]]:
+    payload: list[dict[str, object]] = []
+    for cue in cues:
+        words_payload = None
+        if cue.words is not None:
+            words_payload = [
+                {
+                    "start": word.start,
+                    "end": word.end,
+                    "text": _normalize_transcription_text(word.text),
+                }
+                for word in cue.words
+                if _normalize_transcription_text(word.text)
+            ]
+
+        normalized_text = _normalize_transcription_text(cue.text)
+        if words_payload:
+            normalized_text = " ".join(word["text"] for word in words_payload)
+
+        payload.append(
+            {
+                "start": cue.start,
+                "end": cue.end,
+                "text": normalized_text,
+                "words": words_payload,
+            }
+        )
+    return payload
+
+
 @router.put("/jobs/{job_id}/transcription", dependencies=[Depends(limiter_content)])
 def update_transcription(
     job_id: str,
@@ -192,7 +227,7 @@ def update_transcription(
     if not transcription_json.exists():
         raise HTTPException(status_code=404, detail="Transcript not found")
 
-    payload = [cue.model_dump() for cue in request.cues]
+    payload = _normalize_transcription_payload(request.cues)
     tmp_path = transcription_json.with_suffix(".json.tmp")
     tmp_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     tmp_path.replace(transcription_json)

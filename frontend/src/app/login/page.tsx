@@ -140,6 +140,7 @@ function LoginContent() {
                                 onChange={(e) => setEmail(e.target.value)}
                                 className="input-field"
                                 placeholder={t('loginEmailPlaceholder')}
+                                autoComplete="email"
                                 required
                             />
                         </div>
@@ -155,6 +156,7 @@ function LoginContent() {
                                 onChange={(e) => setPassword(e.target.value)}
                                 className="input-field"
                                 placeholder={t('loginPasswordPlaceholder')}
+                                autoComplete="current-password"
                                 required
                             />
                         </div>

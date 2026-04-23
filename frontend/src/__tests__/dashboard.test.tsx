@@ -80,8 +80,9 @@ jest.mock('@/features/process/ProcessView', () => ({
                     width: 1920,
                     height: 1080,
                     duration: 10,
-                    subtitle_position: 'bottom',
-                    max_subtitle_lines: 2
+                    subtitle_position: 16,
+                    max_subtitle_lines: 2,
+                    watermark_enabled: true,
                 })}>Start Process</button>
                 <button onClick={() => onReprocessJob('job1', {
                     transcribeMode: 'standard',
@@ -91,8 +92,9 @@ jest.mock('@/features/process/ProcessView', () => ({
                     width: 1920,
                     height: 1080,
                     duration: 10,
-                    subtitle_position: 'bottom',
-                    max_subtitle_lines: 2
+                    subtitle_position: 16,
+                    max_subtitle_lines: 2,
+                    watermark_enabled: true,
                 })}>Reprocess</button>
                 <button onClick={onReset}>Reset</button>
             </div>
@@ -217,6 +219,12 @@ describe('DashboardPage', () => {
         await waitFor(() => {
             expect(api.processVideo).toHaveBeenCalled();
         });
+        expect(api.processVideo).toHaveBeenCalledWith(
+            expect.any(File),
+            expect.objectContaining({
+                watermark_enabled: true,
+            }),
+        );
         expect(__setBalanceMock).toHaveBeenCalledWith(800);
     });
 
@@ -254,6 +262,12 @@ describe('DashboardPage', () => {
         await waitFor(() => {
             expect(api.reprocessJob).toHaveBeenCalledWith('job1', expect.any(Object));
         });
+        expect(api.reprocessJob).toHaveBeenCalledWith(
+            'job1',
+            expect.objectContaining({
+                watermark_enabled: true,
+            }),
+        );
         expect(__setBalanceMock).toHaveBeenCalledWith(700);
     });
 

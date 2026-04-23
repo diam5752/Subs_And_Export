@@ -1,5 +1,5 @@
 
-import { resegmentCues, findCueIndexAtTime, findCueAtTime, resetWordWidthCache } from '../subtitleUtils';
+import { resegmentCues, findCueIndexAtTime, findCueAtTime, normalizeSubtitleText, resetWordWidthCache } from '../subtitleUtils';
 import { TranscriptionCue as Cue } from '../api';
 
 // Mock cues
@@ -75,8 +75,7 @@ describe('resegmentCues', () => {
 
         const result = resegmentCues([cue], 3, 300); // very large font => low max chars per line
         expect(result).toHaveLength(2);
-        expect(result[0].text).toBe('AAAAAA AAAAAA AAAAAA');
-        expect(result[1].text).toBe('AAAAAA');
+        expect(result.flatMap((item) => item.text.split(' '))).toEqual(['AAAAAA', 'AAAAAA', 'AAAAAA', 'AAAAAA']);
     });
 
     it('uses canvas text measurement (when available) to enforce maxLines', () => {
@@ -107,8 +106,7 @@ describe('resegmentCues', () => {
 
             const result = resegmentCues([cue], 3, 100);
             expect(result).toHaveLength(2);
-            expect(result[0].text).toBe('AAAAAA AAAAAA AAAAAA');
-            expect(result[1].text).toBe('AAAAAA');
+            expect(result.flatMap((item) => item.text.split(' '))).toEqual(['AAAAAA', 'AAAAAA', 'AAAAAA', 'AAAAAA']);
         } finally {
             getContextSpy.mockRestore();
         }
@@ -127,7 +125,7 @@ describe('resegmentCues', () => {
 
         const result = resegmentCues([cue], 3, 100);
         expect(result).toHaveLength(1);
-        expect(result[0].words?.map((w) => w.text)).toEqual(['hello', 'world', 'again']);
+        expect(result[0].words?.map((w) => w.text)).toEqual(['HELLO', 'WORLD', 'AGAIN']);
         expect(result[0].words?.[0].start).toBe(0);
         expect(result[0].words?.[0].end).toBe(1);
         expect(result[0].words?.[1].start).toBe(1);
@@ -147,7 +145,7 @@ describe('resegmentCues', () => {
 
         const result = resegmentCues([cue], 2, 100);
         expect(result).toHaveLength(1);
-        expect(result[0].words?.map((w) => w.text)).toEqual(['hello', 'world']);
+        expect(result[0].words?.map((w) => w.text)).toEqual(['HELLO', 'WORLD']);
     });
 
     it('interpolates word timings when cues have no word-level data', () => {
@@ -161,11 +159,51 @@ describe('resegmentCues', () => {
         const result = resegmentCues([cue], 3, 100);
         expect(result).toHaveLength(1);
         const words = result[0].words ?? [];
-        expect(words.map((w) => w.text)).toEqual(['one', 'two', 'three']);
+        expect(words.map((w) => w.text)).toEqual(['ONE', 'TWO', 'THREE']);
         expect(words[0].start).toBe(0);
         expect(words[words.length - 1].end).toBe(4);
         expect(words[0].end).toBeCloseTo(4 * (3 / 11), 5);
         expect(words[1].end).toBeCloseTo(4 * (6 / 11), 5);
+    });
+
+    it('normalizes Greek accents to match backend subtitle rendering', () => {
+        expect(normalizeSubtitleText('Γειά σου κόσμε')).toBe('ΓΕΙΑ ΣΟΥ ΚΟΣΜΕ');
+
+        const cue: Cue = {
+            start: 0,
+            end: 2,
+            text: 'γειά σου κόσμε',
+            words: [
+                { start: 0, end: 0.6, text: 'γειά' },
+                { start: 0.6, end: 1.2, text: 'σου' },
+                { start: 1.2, end: 2, text: 'κόσμε' },
+            ],
+        };
+
+        const result = resegmentCues([cue], 2, 100);
+        expect(result).toHaveLength(1);
+        expect(result[0].text).toBe('ΓΕΙΑ ΣΟΥ ΚΟΣΜΕ');
+        expect(result[0].words?.map((word) => word.text)).toEqual(['ΓΕΙΑ', 'ΣΟΥ', 'ΚΟΣΜΕ']);
+    });
+
+    it('avoids leaving a single orphan word in the final cue chunk', () => {
+        const cue: Cue = {
+            start: 0,
+            end: 5,
+            text: 'AAAAAA AAAAAA AAAAAA AAAAAA AAAAAA',
+            words: [
+                { start: 0, end: 1, text: 'AAAAAA' },
+                { start: 1, end: 2, text: 'AAAAAA' },
+                { start: 2, end: 3, text: 'AAAAAA' },
+                { start: 3, end: 4, text: 'AAAAAA' },
+                { start: 4, end: 5, text: 'AAAAAA' },
+            ],
+        };
+
+        const result = resegmentCues([cue], 2, 200);
+        expect(result).toHaveLength(2);
+        expect(result.map((item) => item.text.split(' ').length)).toEqual(expect.arrayContaining([2, 3]));
+        expect(result.every((item) => item.text.split(' ').length > 1)).toBe(true);
     });
 });
 

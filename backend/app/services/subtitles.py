@@ -133,6 +133,30 @@ def _write_srt_from_segments(segments: Iterable[TimeRange], dest: Path) -> Path:
     return dest
 
 
+def _write_vtt_from_segments(segments: Iterable[TimeRange], dest: Path) -> Path:
+    lines: List[str] = ["WEBVTT", ""]
+    for idx, (start, end, text) in enumerate(segments, start=1):
+        start_ts = subtitle_renderer.format_timestamp(start)
+        end_ts = subtitle_renderer.format_timestamp(end)
+        lines.append(str(idx))
+        lines.append(f"{start_ts} --> {end_ts}")
+        clean_text = re.sub(r"(\r?\n){2,}", "\n", text.strip())
+        lines.append(clean_text)
+        lines.append("")
+    dest.write_text("\n".join(lines), encoding="utf-8")
+    return dest
+
+
+def _write_txt_from_segments(segments: Iterable[TimeRange], dest: Path) -> Path:
+    lines = []
+    for _, _, text in segments:
+        clean_text = re.sub(r"(\r?\n){2,}", "\n", text.strip())
+        if clean_text:
+            lines.append(clean_text)
+    dest.write_text("\n".join(lines), encoding="utf-8")
+    return dest
+
+
 def get_video_duration(path: Path) -> float:
     """Get the duration of a video/audio file in seconds using ffprobe."""
     cmd = [

@@ -101,10 +101,10 @@ def test_update_transcription_overwrites_job_artifacts(monkeypatch, tmp_path: Pa
                 {
                     "start": 0.0,
                     "end": 1.0,
-                    "text": "hello world",
+                    "text": "γειά κόσμε",
                     "words": [
-                        {"start": 0.0, "end": 0.5, "text": "hello"},
-                        {"start": 0.5, "end": 1.0, "text": "world"},
+                        {"start": 0.0, "end": 0.5, "text": "γειά"},
+                        {"start": 0.5, "end": 1.0, "text": "κόσμε"},
                     ],
                 }
             ]
@@ -115,7 +115,17 @@ def test_update_transcription_overwrites_job_artifacts(monkeypatch, tmp_path: Pa
         assert resp.json()["status"] == "ok"
 
         updated = json.loads(target_transcription_path.read_text(encoding="utf-8"))
-        assert updated == update_body["cues"]
+        assert updated == [
+            {
+                "start": 0.0,
+                "end": 1.0,
+                "text": "ΓΕΙΑ ΚΟΣΜΕ",
+                "words": [
+                    {"start": 0.0, "end": 0.5, "text": "ΓΕΙΑ"},
+                    {"start": 0.5, "end": 1.0, "text": "ΚΟΣΜΕ"},
+                ],
+            }
+        ]
 
         source_after = json.loads((source_artifacts_dir / "transcription.json").read_text(encoding="utf-8"))
         assert source_after == source_transcription

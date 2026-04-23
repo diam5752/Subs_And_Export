@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import functools
 import logging
-import math
 import re
 import unicodedata
 from pathlib import Path
@@ -16,6 +15,8 @@ from backend.app.services.subtitle_types import Cue, TimeRange, WordTiming
 logger = logging.getLogger(__name__)
 
 TIME_PATTERN = re.compile(r"time=(\d{2}):(\d{2}):(\d{2}\.\d{2})")
+STRONG_BREAK_PUNCTUATION = frozenset(".!?;:…")
+SOFT_BREAK_PUNCTUATION = frozenset(",")
 
 
 @functools.lru_cache(maxsize=4096)
@@ -365,6 +366,120 @@ def effective_max_chars(*, max_chars: int, font_size: int, play_res_x: int) -> i
     return max(10, min(40, effective))
 
 
+def _line_text_length(texts: Sequence[str]) -> int:
+    if not texts:
+        return 0
+    return sum(len(text) for text in texts) + max(0, len(texts) - 1)
+
+
+def _line_break_bonus(last_text: str) -> float:
+    stripped = last_text.rstrip()
+    if not stripped:
+        return 0.0
+    tail = stripped[-1]
+    if tail in STRONG_BREAK_PUNCTUATION:
+        return 0.45
+    if tail in SOFT_BREAK_PUNCTUATION:
+        return 0.18
+    return 0.0
+
+
+def _wrap_items_balanced(
+    items: Sequence[Any],
+    get_text: Callable[[Any], str],
+    max_chars: int,
+) -> List[List[Any]]:
+    if not items:
+        return []
+
+    safe_max_chars = max(1, max_chars)
+    texts = [get_text(item) for item in items]
+    item_count = len(items)
+
+    @functools.lru_cache(maxsize=None)
+    def best_layout(start_index: int) -> tuple[float, tuple[int, ...]]:
+        if start_index >= item_count:
+            return 0.0, ()
+
+        best_cost: float | None = None
+        best_breaks: tuple[int, ...] | None = None
+        running_length = 0
+
+        for end_index in range(start_index, item_count):
+            text = texts[end_index]
+            running_length = len(text) if end_index == start_index else running_length + 1 + len(text)
+            overflow = max(0, running_length - safe_max_chars)
+
+            if overflow > 0 and end_index > start_index:
+                break
+
+            is_last_line = end_index == item_count - 1
+            visible_length = min(running_length, safe_max_chars)
+            slack = max(0, safe_max_chars - visible_length)
+            gap_weight = 0.35 if is_last_line else 1.0
+            line_cost = (overflow ** 2) * 1000.0 + (slack ** 2) * gap_weight
+            if not is_last_line:
+                line_cost -= _line_break_bonus(text)
+
+            next_cost, next_breaks = best_layout(end_index + 1)
+            total_cost = line_cost + next_cost
+
+            if best_cost is None or total_cost < best_cost:
+                best_cost = total_cost
+                best_breaks = (end_index + 1, *next_breaks)
+
+        if best_cost is None or best_breaks is None:
+            fallback_break = min(start_index + 1, item_count)
+            return 0.0, (fallback_break,)
+
+        return best_cost, best_breaks
+
+    _, breakpoints = best_layout(0)
+    lines: List[List[Any]] = []
+    start_index = 0
+    for end_index in breakpoints:
+        lines.append(list(items[start_index:end_index]))
+        start_index = end_index
+
+    if not lines:
+        return [list(items)]
+    return lines
+
+
+def _score_wrapped_chunk(
+    wrapped_lines: Sequence[Sequence[str]],
+    *,
+    max_chars: int,
+    max_lines: int,
+    remaining_items: int,
+) -> float:
+    if not wrapped_lines:
+        return float("-inf")
+
+    lengths = [_line_text_length(line) for line in wrapped_lines]
+    safe_max_chars = max(1, max_chars)
+    safe_max_lines = max(1, max_lines)
+    total_tokens = sum(len(line) for line in wrapped_lines)
+    fill_ratio = sum(min(length, safe_max_chars) for length in lengths) / (safe_max_lines * safe_max_chars)
+    imbalance = ((max(lengths) - min(lengths)) / safe_max_chars) if len(lengths) > 1 else 0.0
+    unused_line_penalty = 0.0
+    if remaining_items > 0 and len(wrapped_lines) < safe_max_lines:
+        unused_line_penalty = ((safe_max_lines - len(wrapped_lines)) / safe_max_lines) * 0.25
+    single_token_penalty = 0.45 if remaining_items > 0 and total_tokens == 1 else 0.0
+
+    tail_penalty = 0.0
+    if remaining_items == 1:
+        tail_penalty = 0.6
+    elif remaining_items == 2:
+        tail_penalty = 0.18
+
+    last_line = list(wrapped_lines[-1])
+    last_token = str(last_line[-1]) if last_line else ""
+    punctuation_bonus = _line_break_bonus(last_token)
+
+    return fill_ratio - (imbalance * 0.35) - unused_line_penalty - single_token_penalty - tail_penalty + punctuation_bonus
+
+
 def wrap_lines(
     words: List[str],
     max_chars: int = settings.max_sub_line_chars,
@@ -375,62 +490,7 @@ def wrap_lines(
     """
     if not words:
         return []
-
-    lines = []
-    current_line = []
-    current_length = 0
-
-    for word in words:
-        word_len = len(word)
-        space_needed = 1 if current_length > 0 else 0
-
-        # Case 1: Word fits on current line
-        if current_length + space_needed + word_len <= max_chars:
-            current_line.append(word)
-            current_length += space_needed + word_len
-            continue
-
-        # Case 2: Word does not fit
-        if word_len > max_chars:
-             # Try to fill current line with part of the word
-             remaining = word
-             if current_length > 0:
-                 space_left = max_chars - current_length - space_needed
-                 if space_left >= 1:
-                     chunk = remaining[:space_left]
-                     current_line.append(chunk)
-                     lines.append(current_line)
-                     current_line = []
-                     current_length = 0
-                     remaining = remaining[space_left:]
-                     space_needed = 0
-                 else:
-                     lines.append(current_line)
-                     current_line = []
-                     current_length = 0
-                     space_needed = 0
-
-             # Now process remaining as new lines
-             while len(remaining) > max_chars:
-                 lines.append([remaining[:max_chars]])
-                 remaining = remaining[max_chars:]
-
-             if remaining:
-                 current_line = [remaining]
-                 current_length = len(remaining)
-
-        else:
-             # Word fits on a NEW line
-             if current_line:
-                 lines.append(current_line)
-
-             current_line = [word]
-             current_length = word_len
-
-    if current_line:
-        lines.append(current_line)
-
-    return lines
+    return _wrap_items_balanced(words, lambda word: word, max_chars)
 
 
 def wrap_word_timings(
@@ -443,45 +503,7 @@ def wrap_word_timings(
     """
     if not words:
         return []
-
-    lines = []
-    current_line = []
-    current_length = 0
-
-    for word in words:
-        word_len = len(word.text)
-        space_needed = 1 if current_length > 0 else 0
-
-        # Case 1: Word fits on current line
-        if current_length + space_needed + word_len <= max_chars:
-            current_line.append(word)
-            current_length += space_needed + word_len
-            continue
-
-        # Case 2: Word does not fit
-        # For WordTiming, we generally avoid splitting active words mid-word
-        # unless absolutely necessary because it complicates timing significantly.
-        # Simple strategy: Move to next line.
-
-        # If current line is not empty, push it and start new line
-        if current_line:
-            lines.append(current_line)
-            current_line = []
-            current_length = 0
-            space_needed = 0
-
-        # Now check if word alone exceeds max_chars (very long word)
-        if word_len > max_chars:
-             # Force it onto the line anyway (better than dropping it)
-             lines.append([word])
-        else:
-             current_line = [word]
-             current_length = word_len
-
-    if current_line:
-        lines.append(current_line)
-
-    return lines
+    return _wrap_items_balanced(words, lambda word: word.text, max_chars)
 
 
 def format_karaoke_text(
@@ -563,66 +585,52 @@ def chunk_items(
     max_lines: int
 ) -> List[List[Any]]:
     """
-    Greedily chunks items (strings or WordTiming objects) into groups that fit
-    within max_lines x max_chars.
+    Chunk items into groups that fit within max_lines while preferring
+    balanced line lengths and natural breakpoints.
     """
-    chunks = []
-    current_chunk: List[Any] = []
-    current_lines = 1
-    current_line_chars = 0
+    if not items:
+        return []
 
-    for item in items:
-        text = get_text(item)
-        w_len = len(text)
+    total_items = len(items)
 
-        space = 1 if current_line_chars > 0 else 0
+    @functools.lru_cache(maxsize=None)
+    def best_chunking(start_index: int) -> tuple[float, tuple[int, ...]]:
+        if start_index >= total_items:
+            return 0.0, ()
 
-        # Check fit on current line
-        if current_line_chars + space + w_len <= max_chars:
-            current_line_chars += space + w_len
-        else:
-            # Does not fit on current line.
-            # Calculate lines needed for this word alone
-            word_lines = math.ceil(w_len / max_chars) if w_len > max_chars else 1
+        best_score = float("-inf")
+        best_breaks: tuple[int, ...] = (min(start_index + 1, total_items),)
+        candidate_texts: List[str] = []
 
-            # Check if adding this word (possibly wrapping) exceeds max_lines
-            # If current_chunk is empty, we must accept it to avoid infinite loop
-            if current_chunk and (current_lines + word_lines > max_lines):
-                # Chunk full
-                chunks.append(current_chunk)
-                current_chunk = []
-                # Reset for new chunk
-                current_lines = 1
-                current_line_chars = 0
+        for end_index in range(start_index, total_items):
+            candidate_texts.append(get_text(items[end_index]))
+            wrapped = wrap_lines(candidate_texts, max_chars=max_chars, max_lines=max_lines)
+            wrapped_count = len(wrapped)
 
-                # Note: If the word itself > max_lines, it will be added to the new chunk
-                # and take > max_lines. This is acceptable fallback behavior.
-                current_lines = word_lines
+            if wrapped_count > max_lines and end_index > start_index:
+                break
 
-            else:
-                # Add to current chunk, wrapping to new line
-                if current_chunk:
-                    current_lines += 1  # We wrapped to at least one new line
-                else:
-                    # Starting fresh (should be covered by reset above, but safety)
-                    current_lines = 1
+            chunk_score = _score_wrapped_chunk(
+                wrapped,
+                max_chars=max_chars,
+                max_lines=max_lines,
+                remaining_items=total_items - end_index - 1,
+            )
+            next_score, next_breaks = best_chunking(end_index + 1)
+            total_score = chunk_score + next_score
 
-                if w_len > max_chars:
-                    current_lines += (word_lines - 1)
+            if total_score >= best_score:
+                best_score = total_score
+                best_breaks = (end_index + 1, *next_breaks)
 
-            # Update chars for the last line of the word
-            if w_len > max_chars:
-                current_line_chars = w_len % max_chars
-                if current_line_chars == 0:
-                    current_line_chars = max_chars
-            else:
-                current_line_chars = w_len
+        return best_score, best_breaks
 
-        current_chunk.append(item)
-
-    if current_chunk:
-        chunks.append(current_chunk)
-
+    _, breakpoints = best_chunking(0)
+    chunks: List[List[Any]] = []
+    start_index = 0
+    for end_index in breakpoints:
+        chunks.append(list(items[start_index:end_index]))
+        start_index = end_index
     return chunks
 
 

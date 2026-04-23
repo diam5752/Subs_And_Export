@@ -2,7 +2,7 @@ import React, { createContext, useContext, useMemo, useState, useEffect, useRef,
 import { API_BASE, JobResponse, api } from '@/lib/api';
 import { useI18n } from '@/context/I18nContext';
 import { Cue } from '@/components/SubtitleOverlay';
-import { resegmentCues } from '@/lib/subtitleUtils';
+import { normalizeSubtitleText, resegmentCues } from '@/lib/subtitleUtils';
 import { resolveTranscriptionTier } from '@/lib/transcription';
 import { PreviewPlayerHandle } from '@/components/PreviewPlayer';
 
@@ -272,6 +272,7 @@ export function ProcessProvider({
 
     const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null);
     const [previewVideoUrl, setPreviewVideoUrl] = useState<string | null>(null);
+    const [activePreviewVariant, setActivePreviewVariant] = useState<string | null>(null);
     const [cues, setCues] = useState<Cue[]>([]);
 
     const [overrideStep, setOverrideStep] = useState<number | null>(null);
@@ -318,8 +319,11 @@ export function ProcessProvider({
         if (selectedJob?.result_data?.files_missing) {
             return null;
         }
-        return buildStaticUrl(selectedJob?.result_data?.public_url || selectedJob?.result_data?.video_path);
-    }, [buildStaticUrl, selectedJob]);
+        const variantPath = activePreviewVariant
+            ? selectedJob?.result_data?.variants?.[activePreviewVariant]
+            : null;
+        return buildStaticUrl(variantPath || selectedJob?.result_data?.public_url || selectedJob?.result_data?.video_path);
+    }, [activePreviewVariant, buildStaticUrl, selectedJob]);
 
     // Last Used Settings State (synced with above, mainly for context access if needed directly)
     const [lastUsedSettings, setLastUsedSettings] = useState<LastUsedSettings | null>(() => {
@@ -548,6 +552,7 @@ export function ProcessProvider({
         setExportError(null);
         setExportingResolutions(prev => ({ ...prev, [resolution]: true }));
         try {
+            const subtitleFileFormats = new Set(['srt', 'vtt', 'txt']);
             const colorObj = SUBTITLE_COLORS.find(c => c.value === subtitleColor) || SUBTITLE_COLORS[0];
 
             const updatedJob = await api.exportVideo(selectedJob.id, resolution, {
@@ -561,6 +566,9 @@ export function ProcessProvider({
                 watermark_enabled: watermarkEnabled,
             });
             onJobSelect(updatedJob);
+            if (!subtitleFileFormats.has(resolution) && updatedJob.result_data?.variants?.[resolution]) {
+                setActivePreviewVariant(resolution);
+            }
 
             saveLastUsedSettings();
 
@@ -572,7 +580,7 @@ export function ProcessProvider({
                         const link = document.createElement('a');
                         // Add download=true query param to force Content-Disposition: attachment
                         link.href = url + (url.includes('?') ? '&' : '?') + 'download=true';
-                        const extension = resolution === 'srt' ? 'srt' : 'mp4';
+                        const extension = subtitleFileFormats.has(resolution) ? resolution : 'mp4';
                         link.download = `processed_${resolution}.${extension}`;
                         // NOTE: Don't set target="_blank" - it prevents download attribute from working
                         document.body.appendChild(link);
@@ -609,7 +617,7 @@ export function ProcessProvider({
 
     // Transcript Editing Helpers
     const updateCueText = useCallback((cue: Cue, nextText: string): Cue => {
-        const normalizedText = nextText.replace(/\s+/g, ' ').trim();
+        const normalizedText = normalizeSubtitleText(nextText).replace(/\s+/g, ' ').trim();
         const tokens = normalizedText.length > 0 ? normalizedText.split(' ') : [];
 
         if (!tokens.length) {
@@ -628,7 +636,7 @@ export function ProcessProvider({
         if (nextCount === oldCount) {
             for (let i = 0; i < oldCount; i += 1) {
                 const word = oldWords[i];
-                newWords.push({ ...word, text: tokens[i] });
+                newWords.push({ ...word, text: normalizeSubtitleText(tokens[i]) });
             }
             return { ...cue, text: normalizedText, words: newWords };
         }
@@ -644,7 +652,7 @@ export function ProcessProvider({
                 cursor += size;
                 const first = group[0];
                 const last = group[group.length - 1];
-                newWords.push({ start: first.start, end: last.end, text: tokens[i] });
+                newWords.push({ start: first.start, end: last.end, text: normalizeSubtitleText(tokens[i]) });
             }
 
             return { ...cue, text: normalizedText, words: newWords };
@@ -664,7 +672,7 @@ export function ProcessProvider({
             for (let j = 0; j < segments; j += 1) {
                 const start = wordStart + segmentDuration * j;
                 const end = j === segments - 1 ? wordEnd : wordStart + segmentDuration * (j + 1);
-                newWords.push({ start, end, text: tokens[tokenCursor] });
+                newWords.push({ start, end, text: normalizeSubtitleText(tokens[tokenCursor]) });
                 tokenCursor += 1;
             }
         }
@@ -774,6 +782,7 @@ export function ProcessProvider({
         setIsSavingTranscript(false);
         setEditingCueIndex(null);
         setEditingCueDraft('');
+        setActivePreviewVariant(null);
     }, [selectedJob?.id]);
 
     useEffect(() => {

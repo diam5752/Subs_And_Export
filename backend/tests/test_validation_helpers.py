@@ -67,6 +67,9 @@ def test_validate_model_name_rejects_empty_and_unsafe_values() -> None:
 
 
 def test_export_request_validates_subtitle_color() -> None:
+    assert ExportRequest(resolution="srt").resolution == "srt"
+    assert ExportRequest(resolution="vtt").resolution == "vtt"
+    assert ExportRequest(resolution="txt").resolution == "txt"
     assert ExportRequest(resolution="1080x1920", subtitle_color=None).subtitle_color is None
     assert ExportRequest(resolution="1080x1920", subtitle_color="&H00FFFFFF").subtitle_color == "&H00FFFFFF"
 

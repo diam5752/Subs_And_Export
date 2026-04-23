@@ -22,11 +22,22 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+function hasStoredAuthToken(): boolean {
+    if (typeof window === 'undefined') {
+        return false;
+    }
+    return Boolean(localStorage.getItem('auth_token'));
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
 
     const refreshUser = useCallback(async () => {
+        if (!hasStoredAuthToken()) {
+            setUser(null);
+            return;
+        }
         try {
             const userData = await api.getCurrentUser();
             setUser(userData);
@@ -39,6 +50,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         // Check for existing session
         const checkAuth = async () => {
+            if (!hasStoredAuthToken()) {
+                setUser(null);
+                setIsLoading(false);
+                return;
+            }
             try {
                 const userData = await api.getCurrentUser();
                 setUser(userData);

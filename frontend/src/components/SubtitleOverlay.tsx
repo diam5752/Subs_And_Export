@@ -1,6 +1,6 @@
 import React, { useMemo, memo } from 'react';
 import { TranscriptionCue } from '../lib/api';
-import { findCueAtTime } from '../lib/subtitleUtils';
+import { findCueAtTime, normalizeSubtitleText } from '../lib/subtitleUtils';
 
 export type Cue = TranscriptionCue;
 
@@ -91,7 +91,7 @@ export const SubtitleOverlay = memo<SubtitleOverlayProps>(({
             return (
                 <div style={containerStyle}>
                     <div style={{ ...textStyle, color: settings.color, transform: 'scale(1.1)', transition: 'all 0.1s ease-out' }}>
-                        {String(currentWord.text).trim().toUpperCase()}
+                        {normalizeSubtitleText(String(currentWord.text).trim())}
                     </div>
                 </div>
             );
@@ -103,7 +103,7 @@ export const SubtitleOverlay = memo<SubtitleOverlayProps>(({
             return (
                 <div style={containerStyle}>
                     <div style={{ ...textStyle, color: settings.color }}>
-                        {activeCue.text}
+                        {normalizeSubtitleText(activeCue.text)}
                     </div>
                 </div>
             );
@@ -112,7 +112,7 @@ export const SubtitleOverlay = memo<SubtitleOverlayProps>(({
         // Mode C: Karaoke Fill (Highlight active word in sentence)
         const karaokeNodes: React.ReactNode[] = [];
         for (const [idx, word] of activeCue.words.entries()) {
-            const trimmedText = String(word.text).trim();
+            const trimmedText = normalizeSubtitleText(String(word.text).trim());
             if (!trimmedText) continue;
 
             // Use memoized activeWordIndex instead of currentTime range check
@@ -132,7 +132,7 @@ export const SubtitleOverlay = memo<SubtitleOverlayProps>(({
                         transition,
                     }}
                 >
-                    {trimmedText.toUpperCase()}
+                    {trimmedText}
                 </span>
             );
 

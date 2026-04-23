@@ -160,7 +160,7 @@ const PreviewSectionLayout = memo(({
                                                     </div>
 
                                                     {/* Export Actions - Linear/Minimal Style */}
-                                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-8 w-full max-w-[800px] mx-auto z-10 relative">
+                                                    <div className="grid grid-cols-2 xl:grid-cols-5 gap-4 mt-8 w-full max-w-[960px] mx-auto z-10 relative">
                                                         {/* SRT Button */}
                                                         <button
                                                             className="group relative h-[88px] rounded-lg bg-black/40 border border-white/10 hover:border-white/20 hover:bg-white/5 transition-all duration-200 overflow-hidden flex flex-col items-center justify-center gap-1"
@@ -182,7 +182,59 @@ const PreviewSectionLayout = memo(({
                                                                         </svg>
                                                                         <span className="text-lg font-medium tracking-tight">SRT</span>
                                                                     </div>
-                                                                    <span className="text-[11px] text-white/40 font-medium">Subtitles Only</span>
+                                                                    <span className="text-[11px] text-white/40 font-medium">{t('subtitleFileSrtDesc') || 'Subtitles only'}</span>
+                                                                </>
+                                                            )}
+                                                        </button>
+
+                                                        {/* VTT Button */}
+                                                        <button
+                                                            className="group relative h-[88px] rounded-lg bg-black/40 border border-white/10 hover:border-white/20 hover:bg-white/5 transition-all duration-200 overflow-hidden flex flex-col items-center justify-center gap-1"
+                                                            onClick={() => handleExport('vtt')}
+                                                            disabled={exportingResolutions['vtt']}
+                                                            aria-busy={exportingResolutions['vtt']}
+                                                            data-testid="vtt-btn"
+                                                        >
+                                                            {exportingResolutions['vtt'] ? (
+                                                                <div className="flex flex-col items-center gap-2">
+                                                                    <Spinner className="w-4 h-4 text-white/40" />
+                                                                    <span className="text-[10px] font-mono text-white/40 tracking-widest uppercase">Saving</span>
+                                                                </div>
+                                                            ) : (
+                                                                <>
+                                                                    <div className="flex items-center gap-2 text-white/90 group-hover:text-white transition-colors">
+                                                                        <svg className="w-4 h-4 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 7h16M4 12h16M4 17h10" />
+                                                                        </svg>
+                                                                        <span className="text-lg font-medium tracking-tight">VTT</span>
+                                                                    </div>
+                                                                    <span className="text-[11px] text-white/40 font-medium">{t('subtitleFileVttDesc') || 'Web captions'}</span>
+                                                                </>
+                                                            )}
+                                                        </button>
+
+                                                        {/* TXT Button */}
+                                                        <button
+                                                            className="group relative h-[88px] rounded-lg bg-black/40 border border-white/10 hover:border-white/20 hover:bg-white/5 transition-all duration-200 overflow-hidden flex flex-col items-center justify-center gap-1"
+                                                            onClick={() => handleExport('txt')}
+                                                            disabled={exportingResolutions['txt']}
+                                                            aria-busy={exportingResolutions['txt']}
+                                                            data-testid="txt-btn"
+                                                        >
+                                                            {exportingResolutions['txt'] ? (
+                                                                <div className="flex flex-col items-center gap-2">
+                                                                    <Spinner className="w-4 h-4 text-white/40" />
+                                                                    <span className="text-[10px] font-mono text-white/40 tracking-widest uppercase">Saving</span>
+                                                                </div>
+                                                            ) : (
+                                                                <>
+                                                                    <div className="flex items-center gap-2 text-white/90 group-hover:text-white transition-colors">
+                                                                        <svg className="w-4 h-4 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 8h10M7 12h10M7 16h6" />
+                                                                        </svg>
+                                                                        <span className="text-lg font-medium tracking-tight">TXT</span>
+                                                                    </div>
+                                                                    <span className="text-[11px] text-white/40 font-medium">{t('subtitleFileTxtDesc') || 'Plain transcript'}</span>
                                                                 </>
                                                             )}
                                                         </button>

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import os
 import shutil
@@ -33,12 +34,6 @@ def _link_or_copy_file(source: Path, destination: Path) -> None:
         raise FileExistsError(f"Refusing to overwrite {destination}")
 
     try:
-        destination.symlink_to(source)
-        return
-    except Exception:
-        pass
-
-    try:
         os.link(source, destination)
         return
     except Exception:
@@ -59,6 +54,86 @@ def _prioritize_preferred(candidates: list[str], preferred: str | None) -> list[
     if preferred and preferred in candidates:
         return [preferred, *[job_id for job_id in candidates if job_id != preferred]]
     return candidates
+
+
+def _parse_srt_timestamp(value: str) -> float:
+    hours, minutes, seconds = value.replace(",", ".").split(":")
+    return int(hours) * 3600 + int(minutes) * 60 + float(seconds)
+
+
+def _transcription_json_from_srt(srt_path: Path) -> list[dict[str, object]]:
+    content = srt_path.read_text(encoding="utf-8").replace("\r\n", "\n").strip()
+    if not content:
+        return []
+
+    cues: list[dict[str, object]] = []
+    for block in content.split("\n\n"):
+        lines = [line.strip() for line in block.split("\n") if line.strip()]
+        if len(lines) < 2:
+            continue
+
+        timing_line_index = 0 if "-->" in lines[0] else 1
+        if timing_line_index >= len(lines) or "-->" not in lines[timing_line_index]:
+            continue
+
+        start_raw, end_raw = [part.strip() for part in lines[timing_line_index].split("-->", maxsplit=1)]
+        text = "\n".join(lines[timing_line_index + 1:]).strip()
+        if not text:
+            continue
+
+        cues.append(
+            {
+                "start": _parse_srt_timestamp(start_raw),
+                "end": _parse_srt_timestamp(end_raw),
+                "text": text,
+                "words": [],
+            }
+        )
+
+    return cues
+
+
+def _ensure_bundled_dev_sample(uploads_dir: Path, artifacts_root: Path) -> tuple[str, Path, Path] | None:
+    fixture_root = settings.project_root / "backend" / "tests" / "data"
+    bundled_input = fixture_root / "demo.mp4"
+    if not bundled_input.exists():
+        bundled_input = settings.project_root / "backend" / "data" / "demo.mp4"
+
+    bundled_artifacts = fixture_root / "demo_artifacts"
+    bundled_srt = bundled_artifacts / "demo.srt"
+    if not bundled_input.exists() or not bundled_srt.exists():
+        return None
+
+    source_job_id = "bundled-dev-sample"
+    input_path = uploads_dir / f"{source_job_id}_input{bundled_input.suffix}"
+    if not input_path.exists():
+        _link_or_copy_file(bundled_input, input_path)
+
+    artifact_dir = artifacts_root / source_job_id
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+
+    bundled_output = fixture_root / "demo_output.mp4"
+    output_source = bundled_output if bundled_output.exists() else bundled_input
+
+    artifacts_to_copy = {
+        "processed.mp4": output_source,
+        "demo.srt": bundled_srt,
+        "demo.ass": bundled_artifacts / "demo.ass",
+        "transcript.txt": bundled_artifacts / "transcript.txt",
+    }
+    for filename, source in artifacts_to_copy.items():
+        destination = artifact_dir / filename
+        if source.exists() and not destination.exists():
+            _link_or_copy_file(source, destination)
+
+    transcription_path = artifact_dir / "transcription.json"
+    if not transcription_path.exists():
+        transcription_path.write_text(
+            json.dumps(_transcription_json_from_srt(bundled_srt), ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+    return source_job_id, input_path, artifact_dir
 
 
 def _resolve_sample_source(
@@ -98,7 +173,10 @@ def _resolve_sample_source(
                 filtered_candidates.append(job_id)
 
     if not all_candidates:
-        # If absolutely no samples exist (fresh install), we can't do anything
+        bundled = _ensure_bundled_dev_sample(uploads_dir, artifacts_root)
+        if bundled:
+            logger.info("Seeded bundled DEV sample because no recorded sample jobs were available.")
+            return bundled
         hint = (
             f"No sample video found matching provider={req.provider}, model={req.model_size}. "
             "Run a job with these settings first to create a sample."
@@ -136,6 +214,11 @@ def _resolve_sample_source(
                 input_path = uploads_dir / f"{job_id}_input{ext}"
                 if input_path.exists():
                     return job_id, input_path, artifact_dir
+
+    bundled = _ensure_bundled_dev_sample(uploads_dir, artifacts_root)
+    if bundled:
+        logger.warning("Falling back to bundled DEV sample because recorded samples were incomplete.")
+        return bundled
 
     hint = (
         f"No sample video found matching provider={req.provider}, model={req.model_size}. "
@@ -187,7 +270,11 @@ def create_sample_job(
     if not (artifact_dir / "transcription.json").exists():
         raise HTTPException(status_code=500, detail="Sample artifacts are missing transcription.json")
 
-    video_rel = input_path.relative_to(data_dir).as_posix()
+    preview_path = artifact_dir / "processed.mp4"
+    if not preview_path.exists():
+        preview_path = input_path
+
+    video_rel = preview_path.relative_to(data_dir).as_posix()
     artifacts_rel = artifact_dir.relative_to(data_dir).as_posix()
 
     # Merge/Overlay result data
@@ -204,6 +291,7 @@ def create_sample_job(
         "model_size": request.model_size or result_data.get("model_size", "dev-sample"),
         "transcribe_provider": request.provider or result_data.get("transcribe_provider", "dev-sample"),
         "dev_sample_source_job_id": source_job_id,
+        "output_size": preview_path.stat().st_size if preview_path.exists() else result_data.get("output_size", 0),
     })
 
     # Ensure defaults like resolution exist for UI if missing in source

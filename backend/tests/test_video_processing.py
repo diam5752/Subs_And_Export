@@ -669,6 +669,49 @@ def test_persist_artifacts_copy_logic(tmp_path):
     # Stub test
     pass
 
+
+def test_persist_artifacts_resegments_transcription_json(tmp_path: Path):
+    artifact_dir = tmp_path / "artifacts"
+    audio_path = tmp_path / "audio.wav"
+    srt_path = tmp_path / "captions.srt"
+    ass_path = tmp_path / "captions.ass"
+    for path in (audio_path, srt_path, ass_path):
+        path.write_text("x", encoding="utf-8")
+
+    words = [
+        WordTiming(start=i * 0.4, end=(i + 1) * 0.4, text=text)
+        for i, text in enumerate([
+            "ΓΕΙΑ", "ΣΑΣ,", "ΜΕ", "ΛΕΝΕ", "ΙΑΝΝΗ.", "ΕΙΜΑΙ", "ΑΠΟ", "ΤΗΝ", "ΑΜΕΡΙΚΗ.",
+            "Ο", "ΠΑΤΕΡΑΣ", "ΜΟΥ", "ΕΙΝΑΙ", "ΑΠΟ", "ΤΗΝ", "ΜΑΚΕΔΟΝΙΑ,", "ΣΕΡΡΕΣ,",
+            "ΑΛΛΑ", "Ο", "ΠΑΠΠΟΥΣ", "ΜΟΥ", "ΚΑΙ", "Η", "ΓΙΑΓΙΑ", "ΜΟΥ", "ΗΤΑΝ",
+            "ΠΡΟΣΦΥΓΕΣ", "ΑΠΟ", "ΤΗΝ", "ΘΡΑΚΗ.",
+        ])
+    ]
+    cue = Cue(
+        start=0.0,
+        end=words[-1].end,
+        text=" ".join(word.text for word in words),
+        words=words,
+    )
+
+    artifact_manager.persist_artifacts(
+        artifact_dir,
+        audio_path,
+        srt_path,
+        ass_path,
+        cue.text,
+        social_copy=None,
+        cues=[cue],
+        max_subtitle_lines=2,
+        subtitle_size=85,
+    )
+
+    transcription = json.loads((artifact_dir / "transcription.json").read_text(encoding="utf-8"))
+    assert len(transcription) >= 2
+    assert transcription[0]["end"] < cue.end
+    assert transcription[0]["words"]
+    assert any("ΘΡΑΚΗ" in entry["text"] for entry in transcription)
+
 def test_generate_video_variant_success(monkeypatch, tmp_path: Path):
     artifact_dir = tmp_path / "artifacts"
     artifact_dir.mkdir()

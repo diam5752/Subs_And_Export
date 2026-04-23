@@ -58,6 +58,7 @@ export default function RegisterPage() {
                                 onChange={(e) => setName(e.target.value)}
                                 className="input-field"
                                 placeholder={t('registerNamePlaceholder')}
+                                autoComplete="name"
                                 required
                             />
                         </div>
@@ -73,6 +74,7 @@ export default function RegisterPage() {
                                 onChange={(e) => setEmail(e.target.value)}
                                 className="input-field"
                                 placeholder={t('registerEmailPlaceholder')}
+                                autoComplete="email"
                                 required
                             />
                         </div>
@@ -89,6 +91,7 @@ export default function RegisterPage() {
                                 className="input-field"
                                 placeholder={t('registerPasswordPlaceholder')}
                                 minLength={6}
+                                autoComplete="new-password"
                                 required
                             />
                         </div>

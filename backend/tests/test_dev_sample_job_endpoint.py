@@ -44,6 +44,7 @@ def test_dev_sample_job_creates_completed_job(monkeypatch, tmp_path: Path) -> No
         json.dumps([{"start": 0.0, "end": 1.0, "text": "hi", "words": []}]),
         encoding="utf-8",
     )
+    (artifacts_dir / "processed.mp4").write_bytes(b"rendered-video")
     (artifacts_dir / f"{sample_job_id}_input.srt").write_text("1\n00:00:00,000 --> 00:00:01,000\nhi\n", encoding="utf-8")
 
     from backend.main import app
@@ -57,6 +58,12 @@ def test_dev_sample_job_creates_completed_job(monkeypatch, tmp_path: Path) -> No
         assert payload["status"] == "completed"
         assert payload["result_data"]["transcription_url"].endswith("/transcription.json")
         assert payload["result_data"]["dev_sample_source_job_id"] == sample_job_id
+        assert payload["result_data"]["public_url"].endswith("/processed.mp4")
+        assert payload["result_data"]["video_path"].endswith("/processed.mp4")
+        assert payload["result_data"]["output_size"] == len(b"rendered-video")
+        transcription_resp = client.get(payload["result_data"]["transcription_url"])
+        assert transcription_resp.status_code == 200
+        assert transcription_resp.json() == [{"start": 0.0, "end": 1.0, "text": "hi", "words": []}]
 
 
 def test_resolve_sample_source_falls_back_when_exact_match_upload_is_missing(tmp_path: Path) -> None:
@@ -127,3 +134,31 @@ def test_resolve_sample_source_uses_any_available_sample_when_filters_are_missin
     assert resolved_job_id == sample_job_id
     assert input_path == sample_input
     assert artifact_dir == artifacts_root / sample_job_id
+
+
+def test_resolve_sample_source_seeds_bundled_fallback_when_repo_has_no_samples(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    from backend.app.api.endpoints import dev
+
+    uploads_dir = tmp_path / "data" / "uploads"
+    artifacts_root = tmp_path / "data" / "artifacts"
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+    artifacts_root.mkdir(parents=True, exist_ok=True)
+
+    fallback = ("bundled-dev-sample", uploads_dir / "bundled-dev-sample_input.mp4", artifacts_root / "bundled-dev-sample")
+    monkeypatch.setattr(dev, "_ensure_bundled_dev_sample", lambda *_args: fallback)
+
+    class FakeJobStore:
+        def get_job(self, job_id: str):
+            return None
+
+    resolved = dev._resolve_sample_source(
+        uploads_dir,
+        artifacts_root,
+        FakeJobStore(),
+        dev.DevSampleRequest(provider="groq", model_size="standard"),
+    )
+
+    assert resolved == fallback

@@ -195,6 +195,7 @@ export default function DashboardPage() {
         highlight_style: options.highlight_style,
         subtitle_size: options.subtitle_size,
         karaoke_enabled: options.karaoke_enabled,
+        watermark_enabled: options.watermark_enabled,
       };
 
       const result = appEnv === 'production'
@@ -252,6 +253,7 @@ export default function DashboardPage() {
         highlight_style: options.highlight_style,
         subtitle_size: options.subtitle_size,
         karaoke_enabled: options.karaoke_enabled,
+        watermark_enabled: options.watermark_enabled,
       };
 
       const result = await api.reprocessJob(sourceJobId, settings);
