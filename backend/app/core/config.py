@@ -166,7 +166,7 @@ class Settings(BaseSettings):
     default_sub_margin_v: int = 320
     default_sub_margin_l: int = 80
     default_sub_margin_r: int = 80
-    max_sub_line_chars: int = 28
+    max_sub_line_chars: int = 26
     default_output_suffix: str = "_subbed"
     default_highlight_color: str = "&H0000FFFF"
 

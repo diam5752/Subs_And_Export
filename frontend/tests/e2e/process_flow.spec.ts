@@ -7,9 +7,10 @@ test.describe('Video Processing Flow', () => {
     test('complete flow: upload -> processing -> completed -> download', async ({ page }) => {
         // 1. Mock API with specific job sequence
         await mockApi(page);
+        const exportPayloads: Array<Record<string, unknown>> = [];
 
         // Override job creation to return a specific ID
-        await page.route('**/api/videos/process', async route => {
+        await page.route('**/videos/process', async route => {
             const json = {
                 id: 'job-123',
                 status: 'pending',
@@ -25,7 +26,7 @@ test.describe('Video Processing Flow', () => {
 
         // Mock polling for job-123
         let pollCount = 0;
-        await page.route('**/api/videos/jobs/job-123', async route => {
+        await page.route('**/videos/jobs/job-123', async route => {
             pollCount++;
             let status = 'processing';
             let progress = 10;
@@ -38,7 +39,9 @@ test.describe('Video Processing Flow', () => {
                 result_data = {
                     public_url: '/static/video.mp4',
                     artifact_url: '/static/artifacts',
-                    output_size: 1024
+                    output_size: 1024,
+                    model_size: 'standard',
+                    transcribe_provider: 'groq'
                 };
             }
 
@@ -53,6 +56,34 @@ test.describe('Video Processing Flow', () => {
                     message: status === 'completed' ? 'Done' : 'Processing...',
                     result_data
                 }
+            });
+        });
+
+        await page.route('**/videos/jobs/job-123/export', async route => {
+            const payload = route.request().postDataJSON() as Record<string, unknown>;
+            exportPayloads.push(payload);
+            const resolution = String(payload.resolution);
+            const extension = ['srt', 'vtt', 'txt'].includes(resolution) ? resolution : 'mp4';
+            await route.fulfill({
+                json: {
+                    id: 'job-123',
+                    status: 'completed',
+                    user_id: 'test-user',
+                    created_at: Date.now(),
+                    updated_at: Date.now(),
+                    progress: 100,
+                    message: 'Done',
+                    result_data: {
+                        public_url: '/static/video.mp4',
+                        artifact_url: '/static/artifacts',
+                        output_size: 1024,
+                        model_size: 'standard',
+                        transcribe_provider: 'groq',
+                        variants: {
+                            [resolution]: `/static/artifacts/job-123/processed_${resolution}.${extension}`,
+                        },
+                    },
+                },
             });
         });
 
@@ -110,5 +141,32 @@ test.describe('Video Processing Flow', () => {
 
         // 7. Check Download Options
         await expect(page.getByTestId('download-1080p-btn')).toBeVisible();
+
+        const srtDownloadPromise = page.waitForEvent('download');
+        await page.getByTestId('srt-btn').click();
+        const srtDownload = await srtDownloadPromise;
+        expect(srtDownload.suggestedFilename()).toContain('processed_srt.srt');
+
+        const mp4DownloadPromise = page.waitForEvent('download');
+        await page.getByTestId('download-1080p-btn').click();
+        const mp4Download = await mp4DownloadPromise;
+        expect(mp4Download.suggestedFilename()).toContain('processed_1080x1920.mp4');
+
+        expect(exportPayloads).toEqual([
+            expect.objectContaining({
+                resolution: 'srt',
+                max_subtitle_lines: 2,
+                subtitle_size: 85,
+                highlight_style: 'active-graphics',
+                karaoke_enabled: true,
+            }),
+            expect.objectContaining({
+                resolution: '1080x1920',
+                max_subtitle_lines: 2,
+                subtitle_size: 85,
+                highlight_style: 'active-graphics',
+                karaoke_enabled: true,
+            }),
+        ]);
     });
 });

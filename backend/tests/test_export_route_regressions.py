@@ -50,6 +50,88 @@ def test_srt_export_missing_transcript_returns_404(client: TestClient, monkeypat
         app.dependency_overrides = {}
 
 
+def test_subtitle_file_export_validates_style_settings(client: TestClient, monkeypatch, user_auth_headers, tmp_path: Path):
+    # REGRESSION: subtitle-only exports must enforce the same range checks as video exports.
+    monkeypatch.setattr(export_routes.settings, "project_root", tmp_path)
+    data_dir = tmp_path
+    uploads_dir = tmp_path / "uploads"
+    artifacts_root = tmp_path / "artifacts"
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+    artifacts_root.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(export_routes, "data_roots", lambda: (data_dir, uploads_dir, artifacts_root))
+    monkeypatch.setattr(export_routes, "get_gcs_settings", lambda: None)
+
+    db = Database()
+    store = jobs.JobStore(db)
+    app.dependency_overrides[get_job_store] = lambda: store
+    app.dependency_overrides[get_db] = lambda: db
+
+    try:
+        user = client.get("/auth/me", headers=user_auth_headers).json()
+        job_id = f"srt-style-validation-{uuid.uuid4().hex}"
+        store.create_job(job_id, user["id"])
+        artifact_dir = artifacts_root / job_id
+        artifact_dir.mkdir(parents=True, exist_ok=True)
+        (artifact_dir / "transcription.json").write_text(
+            '[{"start": 0.0, "end": 1.0, "text": "Hello"}]',
+            encoding="utf-8",
+        )
+        store.update_job(job_id, status="completed", result_data={})
+
+        response = client.post(
+            f"/videos/jobs/{job_id}/export",
+            headers=user_auth_headers,
+            json={"resolution": "srt", "max_subtitle_lines": 99},
+        )
+
+        assert response.status_code == 400
+        assert "max_subtitle_lines out of range" in response.text
+    finally:
+        app.dependency_overrides = {}
+
+
+def test_subtitle_file_export_malformed_transcript_returns_422(client: TestClient, monkeypatch, user_auth_headers, tmp_path: Path):
+    # REGRESSION: corrupt persisted captions should be reported as an export contract error, not a generic 500.
+    monkeypatch.setattr(export_routes.settings, "project_root", tmp_path)
+    data_dir = tmp_path
+    uploads_dir = tmp_path / "uploads"
+    artifacts_root = tmp_path / "artifacts"
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+    artifacts_root.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(export_routes, "data_roots", lambda: (data_dir, uploads_dir, artifacts_root))
+    monkeypatch.setattr(export_routes, "get_gcs_settings", lambda: None)
+
+    db = Database()
+    store = jobs.JobStore(db)
+    app.dependency_overrides[get_job_store] = lambda: store
+    app.dependency_overrides[get_db] = lambda: db
+
+    try:
+        user = client.get("/auth/me", headers=user_auth_headers).json()
+        job_id = f"srt-malformed-{uuid.uuid4().hex}"
+        store.create_job(job_id, user["id"])
+        artifact_dir = artifacts_root / job_id
+        artifact_dir.mkdir(parents=True, exist_ok=True)
+        (artifact_dir / "transcription.json").write_text(
+            '{"start": 0, "end": 1, "text": "not a list"}',
+            encoding="utf-8",
+        )
+        store.update_job(job_id, status="completed", result_data={})
+
+        response = client.post(
+            f"/videos/jobs/{job_id}/export",
+            headers=user_auth_headers,
+            json={"resolution": "srt"},
+        )
+
+        assert response.status_code == 422
+        assert "Cannot export malformed transcript" in response.text
+    finally:
+        app.dependency_overrides = {}
+
+
 def test_export_video_invalid_resolution_returns_422(client: TestClient, monkeypatch, user_auth_headers, tmp_path: Path):
     # REGRESSION: bogus resolution strings must be rejected instead of silently exporting the default size.
     monkeypatch.setattr(export_routes.settings, "project_root", tmp_path)

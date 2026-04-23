@@ -19,3 +19,9 @@
     *   ❌ Global variables.
     *   ❌ Mutable default arguments.
     *   ❌ Print debugging (use strict logging).
+
+## Java / Spring Migration Surface
+*   **Runtime:** Java 25, enforced by Maven (`pom.xml` requires `[25,26)`).
+*   **Build:** Use the Maven wrapper (`./mvnw`) only; do not rely on a global Maven install.
+*   **Testing:** Keep JUnit, Spring integration tests, ArchUnit, and Flyway migration checks green for touched Java behavior.
+*   **Contracts:** Preserve existing `/auth`, `/videos`, `/history`, `/static`, and migration compatibility contracts unless the user explicitly approves a contract change.

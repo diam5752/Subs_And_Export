@@ -13,6 +13,7 @@ type MockJob = {
     artifacts_dir: string;
     public_url?: string;
     artifact_url?: string;
+    variants?: Record<string, string>;
     social?: string | null;
     original_filename?: string | null;
     video_crf?: number;
@@ -165,11 +166,16 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
   const { authenticated = true } = options;
 
   // Pre-set consent and locale to avoid banners/flicker
-  await page.addInitScript(() => {
+  await page.addInitScript(({ authenticated: isAuthenticated }) => {
     localStorage.setItem('cookie-consent', 'accepted');
     localStorage.setItem('preferredLocale', 'el');
     localStorage.removeItem('lastActiveJobId');
-  });
+    if (isAuthenticated) {
+      localStorage.setItem('auth_token', 'test-token');
+    } else {
+      localStorage.removeItem('auth_token');
+    }
+  }, { authenticated });
   const shortCircuitOptions = async (route: Route) => {
     if (route.request().method() === 'OPTIONS') {
       await route.fulfill({ status: 200, headers: corsHeaders });
@@ -244,6 +250,34 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
     }));
   });
 
+  await page.route('**/videos/jobs/*/export', async (route) => {
+    if (await shortCircuitOptions(route)) return;
+    if (!authenticated) {
+      await route.fulfill(unauthorizedResponse);
+      return;
+    }
+
+    const url = new URL(route.request().url());
+    const parts = url.pathname.split('/');
+    const jobId = parts[parts.indexOf('jobs') + 1] ?? mockJobs[0].id;
+    const job = jobLookup.get(jobId) ?? mockJobs[0];
+    const request = route.request().postDataJSON() as { resolution?: string };
+    const resolution = request.resolution ?? '1080x1920';
+    const extension = ['srt', 'vtt', 'txt'].includes(resolution) ? resolution : 'mp4';
+    const variantPath = `/static/artifacts/${jobId}/processed_${resolution}.${extension}`;
+
+    await route.fulfill(withCors({
+      ...job,
+      result_data: {
+        ...(job.result_data ?? {}),
+        variants: {
+          ...(job.result_data?.variants ?? {}),
+          [resolution]: variantPath,
+        },
+      },
+    }));
+  });
+
   await page.route('**/videos/jobs**', async (route) => {
     if (await shortCircuitOptions(route)) return;
     if (!authenticated) {
@@ -298,9 +332,15 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
       return;
     }
 
+    const headers: Record<string, string> = { ...corsHeaders };
+    if (url.searchParams.get('download') === 'true') {
+      const filename = url.pathname.split('/').pop() || 'processed.txt';
+      headers['content-disposition'] = `attachment; filename="${filename}"`;
+    }
+
     await route.fulfill({
       status: 200,
-      headers: corsHeaders,
+      headers,
       contentType: 'text/plain',
       body: 'stub',
     });

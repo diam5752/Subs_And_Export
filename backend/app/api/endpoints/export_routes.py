@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import re
 from pathlib import Path
@@ -16,9 +15,12 @@ from ...core.errors import sanitize_message
 from ...core.gcs import download_object, get_gcs_settings, upload_object
 from ...core.ratelimit import limiter_content
 from ...schemas.base import JobResponse
-from ...services import subtitle_renderer
 from ...services.jobs import JobStore
-from ...services.subtitle_types import Cue, WordTiming
+from ...services.subtitle_exports import (
+    SUBTITLE_EXPORT_FORMATS,
+    MalformedTranscriptError,
+    export_subtitle_file,
+)
 from ...services.video_processing import generate_video_variant
 from ..deps import get_current_user, get_job_store
 from .file_utils import DATA_DIR, MAX_UPLOAD_BYTES, data_roots, relpath_safe
@@ -33,59 +35,19 @@ from .validation import (
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
-SUBTITLE_EXPORT_FORMATS = {"srt", "vtt", "txt"}
 
 
-def _resegment_export_cues(
-    cues_data: list[dict],
-    *,
-    max_subtitle_lines: int,
-    subtitle_size: int,
-) -> list[Cue]:
-    cues: list[Cue] = []
-    for cue_data in cues_data:
-        words_payload = cue_data.get("words")
-        words = None
-        if words_payload:
-            words = [
-                WordTiming(
-                    start=float(word["start"]),
-                    end=float(word["end"]),
-                    text=str(word["text"]),
-                )
-                for word in words_payload
-                if str(word.get("text", "")).strip()
-            ]
-
-        text = str(cue_data.get("text", "")).strip()
-        if not text:
-            continue
-
-        cues.append(
-            Cue(
-                start=float(cue_data["start"]),
-                end=float(cue_data["end"]),
-                text=text,
-                words=words,
-            )
-        )
-
-    normalized = subtitle_renderer.normalize_cues_for_ass(cues)
-    if max_subtitle_lines <= 0:
-        return normalized
-
-    effective_chars = subtitle_renderer.effective_max_chars(
-        max_chars=settings.max_sub_line_chars,
-        font_size=subtitle_size,
-        play_res_x=settings.default_width,
-    )
-    return subtitle_renderer.normalize_cues_for_ass(
-        subtitle_renderer.split_long_cues(
-            normalized,
-            max_chars=effective_chars,
-            max_lines=max_subtitle_lines,
-        )
-    )
+def _validate_subtitle_export_settings(request: "ExportRequest") -> None:
+    if request.subtitle_position is not None:
+        validate_subtitle_position(request.subtitle_position)
+    if request.max_subtitle_lines is not None:
+        validate_max_subtitle_lines(request.max_subtitle_lines)
+    if request.shadow_strength is not None:
+        validate_shadow_strength(request.shadow_strength)
+    if request.subtitle_size is not None:
+        validate_subtitle_size(request.subtitle_size)
+    if request.highlight_style is not None:
+        validate_highlight_style(request.highlight_style)
 
 
 def _ensure_job_size(job):
@@ -171,49 +133,31 @@ def export_video(
 
     data_dir, uploads_dir, artifacts_root = data_roots()
     artifact_dir = artifacts_root / job_id
+    _validate_subtitle_export_settings(request)
 
     if request.resolution in SUBTITLE_EXPORT_FORMATS:
         # Subtitle file export: fast path
         try:
-            from ...services.subtitles import (
-                _write_srt_from_segments,
-                _write_txt_from_segments,
-                _write_vtt_from_segments,
-            )
-
             transcription_json = artifact_dir / "transcription.json"
             if not transcription_json.exists():
                 raise HTTPException(404, "Transcript not found (cannot export subtitle file)")
 
-            cues_data = json.loads(transcription_json.read_text(encoding="utf-8"))
             result_data = job.result_data.copy() if job.result_data else {}
             resolved_lines = request.max_subtitle_lines
             if resolved_lines is None:
                 resolved_lines = int(result_data.get("max_subtitle_lines", 2) or 2)
             resolved_size = request.subtitle_size
             if resolved_size is None:
-                resolved_size = int(result_data.get("subtitle_size", settings.default_sub_font_size) or settings.default_sub_font_size)
+                resolved_size = int(result_data.get("subtitle_size", 100) or 100)
 
-            delivery_cues = _resegment_export_cues(
-                cues_data,
+            export_path = artifact_dir / f"processed.{request.resolution}"
+            subtitle_export = export_subtitle_file(
+                transcription_json=transcription_json,
+                export_path=export_path,
+                export_format=request.resolution,
                 max_subtitle_lines=resolved_lines,
                 subtitle_size=resolved_size,
             )
-            segments = [(cue.start, cue.end, cue.text) for cue in delivery_cues]
-
-            writer_by_format = {
-                "srt": _write_srt_from_segments,
-                "vtt": _write_vtt_from_segments,
-                "txt": _write_txt_from_segments,
-            }
-            content_type_by_format = {
-                "srt": "application/x-subrip",
-                "vtt": "text/vtt",
-                "txt": "text/plain",
-            }
-
-            export_path = artifact_dir / f"processed.{request.resolution}"
-            writer_by_format[request.resolution](segments, export_path)
 
             variants = result_data.get("variants", {})
             public_path = relpath_safe(export_path, data_dir).as_posix()
@@ -226,8 +170,8 @@ def export_video(
                     upload_object(
                         settings=gcs_settings,
                         object_name=f"{gcs_settings.static_prefix}/{public_path}",
-                        source=export_path,
-                        content_type=content_type_by_format[request.resolution],
+                        source=subtitle_export.path,
+                        content_type=subtitle_export.content_type,
                     )
                 except Exception as exc:
                     logger.warning("Failed to upload %s export to GCS (%s): %s", request.resolution.upper(), job_id, exc)
@@ -237,6 +181,8 @@ def export_video(
             return _ensure_job_size(updated_job)
         except HTTPException:
             raise
+        except MalformedTranscriptError as e:
+            raise HTTPException(422, f"Cannot export malformed transcript: {sanitize_message(str(e))}") from e
         except Exception as e:
             logger.exception("%s export failed", request.resolution.upper())
             raise HTTPException(500, f"{request.resolution.upper()} export failed: {sanitize_message(str(e))}")
@@ -281,17 +227,6 @@ def export_video(
 
     if not input_video:
         raise HTTPException(404, "Original input video not found")
-
-    if request.subtitle_position is not None:
-        validate_subtitle_position(request.subtitle_position)
-    if request.max_subtitle_lines is not None:
-        validate_max_subtitle_lines(request.max_subtitle_lines)
-    if request.shadow_strength is not None:
-        validate_shadow_strength(request.shadow_strength)
-    if request.subtitle_size is not None:
-        validate_subtitle_size(request.subtitle_size)
-    if request.highlight_style is not None:
-        validate_highlight_style(request.highlight_style)
 
     try:
         subtitle_settings = request.model_dump(exclude_defaults=True)

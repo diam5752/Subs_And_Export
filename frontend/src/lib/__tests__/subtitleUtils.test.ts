@@ -1,4 +1,7 @@
 
+import fs from 'node:fs';
+import path from 'node:path';
+
 import { resegmentCues, findCueIndexAtTime, findCueAtTime, normalizeSubtitleText, resetWordWidthCache } from '../subtitleUtils';
 import { TranscriptionCue as Cue } from '../api';
 
@@ -204,6 +207,25 @@ describe('resegmentCues', () => {
         expect(result).toHaveLength(2);
         expect(result.map((item) => item.text.split(' ').length)).toEqual(expect.arrayContaining([2, 3]));
         expect(result.every((item) => item.text.split(' ').length > 1)).toBe(true);
+    });
+
+    it('matches the backend Greek export segmentation fixture', () => {
+        // REGRESSION: preview segmentation and exported SRT/VTT/TXT segmentation must
+        // agree on the UI percentage scale for Greek captions.
+        const fixturePath = path.join(process.cwd(), '..', 'testdata', 'subtitles', 'greek_long_cue.json');
+        const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf-8')) as Cue[];
+
+        const result = resegmentCues(fixture, 2, 85);
+
+        expect(result.map((cue) => cue.text)).toEqual([
+            'ΓΕΙΑ ΣΑΣ,',
+            'ΜΕ ΛΕΝΕ ΙΑΝΝΗ.',
+            'ΕΙΜΑΙ ΑΠΟ ΤΗΝ ΑΜΕΡΙΚΗ.',
+            'Ο ΠΑΤΕΡΑΣ ΜΟΥ ΕΙΝΑΙ ΑΠΟ ΤΗΝ ΜΑΚΕΔΟΝΙΑ, ΣΕΡΡΕΣ,',
+            'ΑΛΛΑ Ο ΠΑΠΠΟΥΣ ΜΟΥ ΚΑΙ Η ΓΙΑΓΙΑ ΜΟΥ ΗΤΑΝ ΠΡΟΣΦΥΓΕΣ',
+            'ΑΠΟ ΤΗΝ ΘΡΑΚΗ.',
+        ]);
+        expect(result[result.length - 1].end).toBe(15);
     });
 });
 

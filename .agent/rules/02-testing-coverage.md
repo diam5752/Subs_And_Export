@@ -8,6 +8,7 @@
 1.  **Mandatory Coverage:** Every line of new or modified code MUST have a corresponding test.
     *   **Frontend:** Unit tests (Jest) + E2E (Playwright).
     *   **Backend:** Unit/Integration tests (Pytest).
+    *   **Java/Spring:** Maven/JUnit tests with Java 25 (`make check-java` or `./mvnw -B test` under JDK 25).
 2.  **Test First:** Write the test *before* or *simultaneously* with the code.
 3.  **Green Build:** You must run the full suite (`npm test`, `pytest`) before declaring a task finished.
 4.  **Snapshots:** If UI changes, carefully review and update Playwright snapshots.
@@ -43,6 +44,7 @@ Add this to the end of every `walkthrough.md`:
 ## ⚖️ Rules Compliance Checklist
 - [ ] Added unit tests for all new/modified code
 - [ ] Verified tests pass locally (`pytest`/`npm test`)
+- [ ] Verified Java tests pass when Java/Spring code or migration contracts changed (`make check-java`)
 - [ ] No regression or logic gaps left uncovered
 ```
 

@@ -111,3 +111,16 @@ jobs:
         env:
           CI: 'true'
         run: npm run e2e
+
+  java-spring-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Run Java/Spring tests
+        run: python3 .codex/scripts/run_java_gate.py ./mvnw -B test

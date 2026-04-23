@@ -79,8 +79,8 @@ const PreviewSectionLayout = memo(({
                 <span className={`flex items-center justify-center px-4 py-1 rounded-full border font-mono text-sm font-bold tracking-widest shadow-sm transition-all duration-500 ${currentStep === 3
                     ? 'bg-gradient-to-r from-[var(--accent)] to-[var(--accent-secondary)] border-transparent text-white shadow-[0_0_20px_var(--accent)] scale-105'
                     : 'glass-premium border-[var(--border)] text-[var(--muted)]'
-                    }`}>STEP 3</span>
-                <h3 className="text-xl font-semibold">{t('previewWindowLabel') || 'Preview & Export'}</h3>
+                    }`}>{t('step3Label')}</span>
+                <h3 className="text-xl font-semibold">{t('previewWindowLabel')}</h3>
                 {/* Chevron indicator for expand/collapse */}
                 <svg
                     className={`w-5 h-5 text-[var(--muted)] transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}
@@ -100,15 +100,15 @@ const PreviewSectionLayout = memo(({
                     {(!selectedJob || selectedJob.status !== 'completed') ? (
                         <div className="py-20 flex flex-col items-center justify-center text-center text-[var(--muted)] border-2 border-dashed border-[var(--border)]/50 rounded-xl bg-[var(--surface-elevated)]/30">
                             <div className="text-5xl mb-4 opacity-20">🎬</div>
-                            <p className="font-semibold text-lg opacity-60">Result Preview</p>
-                            <p className="text-sm mt-1 opacity-40 max-w-[200px]">Generate a video to see the preview and export options here</p>
+                            <p className="font-semibold text-lg opacity-60">{t('resultPreviewTitle')}</p>
+                            <p className="text-sm mt-1 opacity-40 max-w-[220px]">{t('resultPreviewDescription')}</p>
                         </div>
                     ) : (
                         <>
                             <div className="flex flex-wrap items-start justify-between gap-3">
                                 <div className="min-w-0 flex-1">
                                     <h3 className="text-2xl font-semibold break-words [overflow-wrap:anywhere]">
-                                        {t('subtitlesReady') || 'Live Preview'}
+                                        {t('subtitlesReady')}
                                     </h3>
                                     <p className="text-sm text-[var(--muted)]">{t('liveOutputSubtitle')}</p>
                                 </div>
@@ -152,7 +152,7 @@ const PreviewSectionLayout = memo(({
                                                                 <div className="relative group w-full h-full flex items-center justify-center bg-gray-900">
                                                                     <div className="relative z-10 text-center p-6">
                                                                         <div className="mb-3 text-4xl animate-bounce">👆</div>
-                                                                        <p className="text-sm font-medium text-white/90">{t('clickToPreview') || 'Preview Pending...'}</p>
+                                                                        <p className="text-sm font-medium text-white/90">{t('clickToPreview')}</p>
                                                                     </div>
                                                                 </div>
                                                             )}
@@ -172,7 +172,7 @@ const PreviewSectionLayout = memo(({
                                                             {exportingResolutions['srt'] ? (
                                                                 <div className="flex flex-col items-center gap-2">
                                                                     <Spinner className="w-4 h-4 text-white/40" />
-                                                                    <span className="text-[10px] font-mono text-white/40 tracking-widest uppercase">Saving</span>
+                                                                    <span className="text-[10px] font-mono text-white/40 tracking-widest uppercase">{t('exportSaving')}</span>
                                                                 </div>
                                                             ) : (
                                                                 <>
@@ -182,7 +182,7 @@ const PreviewSectionLayout = memo(({
                                                                         </svg>
                                                                         <span className="text-lg font-medium tracking-tight">SRT</span>
                                                                     </div>
-                                                                    <span className="text-[11px] text-white/40 font-medium">{t('subtitleFileSrtDesc') || 'Subtitles only'}</span>
+                                                                    <span className="text-[11px] text-white/40 font-medium">{t('subtitleFileSrtDesc')}</span>
                                                                 </>
                                                             )}
                                                         </button>
@@ -198,7 +198,7 @@ const PreviewSectionLayout = memo(({
                                                             {exportingResolutions['vtt'] ? (
                                                                 <div className="flex flex-col items-center gap-2">
                                                                     <Spinner className="w-4 h-4 text-white/40" />
-                                                                    <span className="text-[10px] font-mono text-white/40 tracking-widest uppercase">Saving</span>
+                                                                    <span className="text-[10px] font-mono text-white/40 tracking-widest uppercase">{t('exportSaving')}</span>
                                                                 </div>
                                                             ) : (
                                                                 <>
@@ -208,7 +208,7 @@ const PreviewSectionLayout = memo(({
                                                                         </svg>
                                                                         <span className="text-lg font-medium tracking-tight">VTT</span>
                                                                     </div>
-                                                                    <span className="text-[11px] text-white/40 font-medium">{t('subtitleFileVttDesc') || 'Web captions'}</span>
+                                                                    <span className="text-[11px] text-white/40 font-medium">{t('subtitleFileVttDesc')}</span>
                                                                 </>
                                                             )}
                                                         </button>
@@ -224,7 +224,7 @@ const PreviewSectionLayout = memo(({
                                                             {exportingResolutions['txt'] ? (
                                                                 <div className="flex flex-col items-center gap-2">
                                                                     <Spinner className="w-4 h-4 text-white/40" />
-                                                                    <span className="text-[10px] font-mono text-white/40 tracking-widest uppercase">Saving</span>
+                                                                    <span className="text-[10px] font-mono text-white/40 tracking-widest uppercase">{t('exportSaving')}</span>
                                                                 </div>
                                                             ) : (
                                                                 <>
@@ -234,7 +234,7 @@ const PreviewSectionLayout = memo(({
                                                                         </svg>
                                                                         <span className="text-lg font-medium tracking-tight">TXT</span>
                                                                     </div>
-                                                                    <span className="text-[11px] text-white/40 font-medium">{t('subtitleFileTxtDesc') || 'Plain transcript'}</span>
+                                                                    <span className="text-[11px] text-white/40 font-medium">{t('subtitleFileTxtDesc')}</span>
                                                                 </>
                                                             )}
                                                         </button>
@@ -250,12 +250,12 @@ const PreviewSectionLayout = memo(({
                                                             {exportingResolutions['1080x1920'] ? (
                                                                 <div className="flex flex-col items-center gap-2">
                                                                     <Spinner className="w-4 h-4 text-emerald-400" />
-                                                                    <span className="text-[10px] font-mono text-white/40 tracking-widest uppercase">Rendering</span>
+                                                                    <span className="text-[10px] font-mono text-white/40 tracking-widest uppercase">{t('exportRendering')}</span>
                                                                 </div>
                                                             ) : (
                                                                 <>
                                                                     <span className="text-lg font-medium text-white/90 group-hover:text-white transition-colors tracking-tight">1080p</span>
-                                                                    <span className="text-[11px] text-white/40 font-medium">High Definition</span>
+                                                                    <span className="text-[11px] text-white/40 font-medium">{t('exportHdDesc')}</span>
                                                                 </>
                                                             )}
                                                         </button>
@@ -270,7 +270,7 @@ const PreviewSectionLayout = memo(({
                                                             {exportingResolutions['2160x3840'] ? (
                                                                 <div className="flex flex-col items-center gap-2">
                                                                     <Spinner className="w-4 h-4 text-[var(--accent)]" />
-                                                                    <span className="text-[10px] font-mono text-[var(--accent)] tracking-widest uppercase">Mastering</span>
+                                                                    <span className="text-[10px] font-mono text-[var(--accent)] tracking-widest uppercase">{t('exportMastering')}</span>
                                                                 </div>
                                                             ) : (
                                                                 <>
@@ -281,7 +281,7 @@ const PreviewSectionLayout = memo(({
                                                                             Ultra
                                                                         </span>
                                                                     </div>
-                                                                    <span className="text-[11px] text-white/40 font-medium group-hover:text-[var(--accent)]/70 transition-colors">Cinema Grade</span>
+                                                                    <span className="text-[11px] text-white/40 font-medium group-hover:text-[var(--accent)]/70 transition-colors">{t('export4kDesc')}</span>
                                                                 </>
                                                             )}
                                                         </button>
@@ -306,7 +306,7 @@ const PreviewSectionLayout = memo(({
                                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                                                             </svg>
                                                             <span className="text-sm font-medium text-white/40 group-hover:text-[var(--accent)] transition-colors">
-                                                                {t('newVideoButton') || 'Process New Video'}
+                                                                {t('newVideoButton')}
                                                             </span>
                                                         </button>
                                                     </div>

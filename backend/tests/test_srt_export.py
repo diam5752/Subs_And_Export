@@ -45,8 +45,8 @@ def _parse_srt_file(path: Path) -> list[tuple[float, float, str]]:
 @pytest.mark.parametrize(
     ("resolution", "expected_name", "expected_snippet"),
     [
-        ("srt", "processed.srt", "0:00:00,50 --> 0:00:01,50"),
-        ("vtt", "processed.vtt", "WEBVTT"),
+        ("srt", "processed.srt", "00:00:00,500 --> 00:00:01,500"),
+        ("vtt", "processed.vtt", "00:00:00.500 --> 00:00:01.500"),
         ("txt", "processed.txt", "Hello world"),
     ],
 )

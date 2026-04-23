@@ -5,4 +5,4 @@
 > The functionality of the agent is governed by the rules in `.agent/rules/`.
 > This file merely points to them.
 
-Always read and follow the rules defined in `.agent/rules/` and the index in `AGENTS.md`.
+Always read and follow the rules defined in `.agent/rules/` and the index in `AGENTS.md`, including the active Next.js + Python + Java/Spring hybrid architecture.

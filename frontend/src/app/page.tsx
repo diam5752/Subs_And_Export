@@ -440,6 +440,7 @@ export default function DashboardPage() {
                   alt="Ascentia Logo"
                   width={150}
                   height={150}
+                  loading="eager"
                   className="relative h-16 w-auto object-contain drop-shadow-lg group-hover:drop-shadow-[0_0_15px_rgba(141,247,223,0.4)] transition-all duration-300"
                 />
               </div>

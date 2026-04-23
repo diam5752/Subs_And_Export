@@ -1,0 +1,33 @@
+name: nightly-quality
+
+on:
+  schedule:
+    - cron: '17 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  nightly-quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Install Python dependencies
+        run: |
+          python3 -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pip install -e .[dev]
+
+      - name: Run performance smoke gate
+        run: python3 .codex/scripts/quality_runner.py check:performance
+
+      - name: Run Java PIT mutation gate
+        run: python3 .codex/scripts/quality_runner.py check:mutation

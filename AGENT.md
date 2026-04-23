@@ -117,10 +117,11 @@ Repo-specific interpretation:
 
 ### Architecture
 
-- Preserve the local-first split stack.
+- Preserve the local-first hybrid stack.
 - `frontend/` is Next.js 16 App Router plus React 19 plus TailwindCSS v4 and acts as the primary UI and control plane.
 - `backend/` is Python 3.11+ and FastAPI for AI processing, file manipulation, subtitles, auth, and export workflows.
-- Keep frontend and backend communication behind explicit API contracts or CLI boundaries.
+- `src/main/java/` is the Java 25 Spring migration surface for auth, jobs, history, static-artifact serving, and compatibility contracts.
+- Keep frontend, Python backend, and Java/Spring communication behind explicit API contracts, migrations, or CLI boundaries.
 - If you touch a legacy file, refactor it toward the target architecture in the same pass.
 
 ### Frontend Standards
@@ -144,7 +145,7 @@ Repo-specific interpretation:
 
 - Read `.codex/quality-gates.json` before changing or validating code.
 - Default shared enforcement entrypoint: `python3 .codex/scripts/quality_runner.py check:fast`.
-- Wrapper targets are exposed through `Makefile`, including `check-fast`, `check-static`, `check-unit`, `check-integration`, `check-e2e`, `check-arch`, `check-security`, and `check-all`.
+- Wrapper targets are exposed through `Makefile`, including `check-fast`, `check-static`, `check-unit`, `check-integration`, `check-e2e`, `check-arch`, `check-java`, `check-security`, and `check-all`.
 - Do not weaken thresholds or silently redefine the human-owned acceptance contract in `.codex/acceptance-flows.md`.
 - If a required quality surface is missing or broken, repair it before claiming the work is done.
 
@@ -166,6 +167,7 @@ Repo-specific interpretation:
 - Frontend UI changes should also run `cd frontend && npm run lint`, `cd frontend && npm test -- --watchAll=false`, and `cd frontend && npm run e2e`. Update Playwright snapshots only after review.
 - Backend or API changes should run `cd backend && APP_ENV=dev pytest`; run the integration gate as well when API, processing, auth, storage, or export boundaries move.
 - Cross-stack or structural changes should also run `make check-arch` and any relevant security or acceptance gates.
+- Java/Spring changes should run `make check-java`; this requires JDK 25 because `pom.xml` enforces `[25,26)`.
 - Dependency changes should update lockfiles where applicable and run the security gate.
 - Schema changes must include migrations, seed updates when needed, rollback coverage, and local verification of upgrade and downgrade paths.
 - End substantial work with a scorecard: `pass`, `fail`, `missing`, or `blocked`.

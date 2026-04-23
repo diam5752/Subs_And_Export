@@ -3,7 +3,7 @@
   "generated_by": "cross-project-quality-gates",
   "status": "partial_enforcement",
   "repo_root": "/Users/aggelosdiamantopoulos/Development/Subs_And_Export_Project",
-  "primary_stack": "typescript",
+  "primary_stack": "hybrid-java-python-typescript",
   "detected_stacks": [
     {
       "stack": "javascript",
@@ -23,6 +23,14 @@
         "pyproject.toml",
         "requirements.txt",
         "setup.py"
+      ]
+    },
+    {
+      "stack": "java-maven",
+      "evidence": [
+        "pom.xml",
+        "mvnw",
+        ".mvn"
       ]
     }
   ],
@@ -134,35 +142,44 @@
       "status": "enabled",
       "suggested_command": "Run Bandit, backend dependency audit in an isolated venv, and frontend npm audit.",
       "command_id": "check:security"
+    },
+    {
+      "id": "java-spring",
+      "requirement": "The Java/Spring migration surface must build and pass tests under JDK 25.",
+      "status": "enabled",
+      "suggested_command": "Run the Maven wrapper through the JDK 25 resolver.",
+      "command_id": "check:java"
     }
   ],
   "nightly_gates": [
     {
       "id": "mutation",
       "requirement": "Mutation kill rate above 95% for critical logic or the full repo where practical.",
-      "status": "blocked",
-      "suggested_command": "Add a Stryker job if missing.",
+      "status": "enabled",
+      "suggested_command": "Run Java PIT mutation testing under the nightly JDK 25 workflow.",
       "command_id": "check:mutation"
     },
     {
       "id": "performance",
       "requirement": "No more than 10% degradation on critical paths.",
-      "status": "blocked",
-      "suggested_command": "Add k6, artillery, or Lighthouse-based performance checks where applicable.",
+      "status": "enabled",
+      "suggested_command": "Run the deterministic subtitle export performance smoke gate.",
       "command_id": "check:performance"
     },
     {
       "id": "dast",
       "requirement": "No high or critical DAST findings on the deployable surface.",
       "status": "blocked",
-      "suggested_command": "Run OWASP ZAP against a preview environment if one exists.",
-      "command_id": "check:security"
+      "suggested_command": "Run OWASP ZAP only after a deployable preview target exists.",
+      "command_id": "check:dast"
     }
   ],
   "notes": [
     "Acceptance flows remain human-owned and should be confirmed in .codex/acceptance-flows.md.",
     "Fast/static/security/integration/E2E enforcement is executable today.",
-    "Repo-wide branch coverage, mutation testing, and repeatable performance budgets still need additional engineering work before they can be hard-failed."
+    "Java/Spring enforcement is executable through check:java and CI configures JDK 25; local runs require a JDK 25 installation.",
+    "Java PIT mutation testing and subtitle export performance smoke are executable nightly gates.",
+    "DAST remains blocked until the repo has a stable deployable preview target for OWASP ZAP."
   ],
   "generated_at": "2026-04-19T11:38:30.278215+00:00",
   "stack_profile": "hybrid-python-typescript",
@@ -176,9 +193,11 @@
       "check-integration",
       "check-e2e",
       "check-arch",
+      "check-java",
       "check-security",
       "check-mutation",
       "check-performance",
+      "check-dast",
       "check-all"
     ]
   },
@@ -226,20 +245,29 @@
       "shell": "python3 .codex/scripts/check_architecture.py",
       "status": "enabled"
     },
+    "check:java": {
+      "kind": "shell",
+      "shell": "python3 .codex/scripts/run_java_gate.py ./mvnw -B test",
+      "status": "enabled"
+    },
     "check:security": {
       "kind": "shell",
       "shell": "cd backend && rm -rf .audit-venv && python3 -m venv .audit-venv && . .audit-venv/bin/activate && python -m pip install --upgrade pip >/dev/null && pip install -r requirements.txt bandit pip-audit >/dev/null && bandit -r app -ll && pip-audit --local && deactivate && rm -rf .audit-venv && cd ../frontend && npm audit --audit-level=high",
       "status": "enabled"
     },
     "check:mutation": {
-      "kind": "blocked",
-      "message": "No mutation-testing command is configured yet for this repo.",
-      "status": "blocked",
-      "exit_code": 2
+      "kind": "shell",
+      "shell": "python3 .codex/scripts/run_java_gate.py ./mvnw -B org.pitest:pitest-maven:mutationCoverage",
+      "status": "enabled"
     },
     "check:performance": {
+      "kind": "shell",
+      "shell": "python3 .codex/scripts/check_performance_smoke.py",
+      "status": "enabled"
+    },
+    "check:dast": {
       "kind": "blocked",
-      "message": "No repeatable performance command is configured yet for this repo.",
+      "message": "DAST requires a stable deployable preview URL; no ZAP target is configured for this local-first repo yet.",
       "status": "blocked",
       "exit_code": 2
     },
@@ -258,6 +286,7 @@
         "check:fast",
         "check:integration",
         "check:arch",
+        "check:java",
         "check:security",
         "check:e2e"
       ],

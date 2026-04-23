@@ -4,13 +4,14 @@ Local-first tooling for Greek subtitles and vertical video prep.
 
 ## Project Structure
 
-This project follows a clean monorepo structure:
+This project follows a local-first hybrid monorepo structure:
 
 - **`backend/`**: FastAPI backend service.
     - `app/core`: Configuration, Auth, Database.
     - `app/services`: Business logic (Video Processing, Subtitles).
     - `app/api`: REST Endpoints.
 - **`frontend/`**: Next.js frontend application.
+- **`src/main/java/`**: Java 25 Spring migration/compatibility surface for auth, jobs, history, static serving, and data contracts.
 - **`docker-compose.yml`**: orchestration for the full stack.
 
 ## Quick Start (Docker)
@@ -63,6 +64,7 @@ curl http://localhost:8080/health  # Should return {"status": "ok"}
 ### Prerequisites
 - Python 3.11+
 - Node.js 20+
+- JDK 25 for Java/Spring migration checks
 - FFmpeg installed (`brew install ffmpeg`)
 
 ### Setup
@@ -93,6 +95,17 @@ cd frontend && npm run dev
 Run the full backend test suite:
 ```bash
 make test
+```
+
+Run the Java/Spring compatibility surface:
+```bash
+make check-java
+```
+
+Run the shared quality gates:
+```bash
+make check-fast
+make check-all
 ```
 
 ## Docs

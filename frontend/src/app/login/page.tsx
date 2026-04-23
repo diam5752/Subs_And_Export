@@ -203,6 +203,7 @@ function LoginContent() {
                                 alt="Ascentia Logo"
                                 width={100}
                                 height={100}
+                                loading="eager"
                                 className="relative h-12 w-auto object-contain drop-shadow-lg group-hover:drop-shadow-[0_0_15px_rgba(141,247,223,0.4)] transition-all duration-300"
                             />
                         </div>

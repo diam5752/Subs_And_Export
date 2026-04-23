@@ -22,8 +22,8 @@ Reusable procedures live in `.agent/workflows/`:
 
 ## 📚 Rule Index
 1.  **[Universal Sync](.agent/rules/000-universal-sync.md):** Keep all config files in sync.
-2.  **[Core Architecture](.agent/rules/00-core-architecture.md):** Local-First, Next.js + Python split. Refactor legacy code on sight.
-3.  **[Stack Standards](.agent/rules/01-stack-standards.md):** Strict TypeScript & Python Type Hints. TailwindCSS v4. `pathlib` over `os.path`.
+2.  **[Core Architecture](.agent/rules/00-core-architecture.md):** Local-First hybrid Next.js + Python + Java/Spring surface. Refactor legacy code on sight.
+3.  **[Stack Standards](.agent/rules/01-stack-standards.md):** Strict TypeScript, Python Type Hints, Java 25 Spring standards, TailwindCSS v4, and `pathlib` over `os.path`.
 4.  **[Testing Policy](.agent/rules/02-testing-coverage.md):** Zero-gap coverage. No tests = No merge.
 
 ## 🤖 Registered Agents
@@ -35,4 +35,5 @@ Reusable procedures live in `.agent/workflows/`:
 ## 🚀 Quick Start
 *   **Frontend Test:** `npm test` / `npm run e2e`
 *   **Backend Test:** `python3 -m pytest`
+*   **Java/Spring Test:** `make check-java` (requires JDK 25)
 *   **Lint:** `npm run lint` / `ruff check .`

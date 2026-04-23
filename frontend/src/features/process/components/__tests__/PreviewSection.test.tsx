@@ -158,7 +158,7 @@ describe('PreviewSection', () => {
     it('shows the placeholder state when no completed job is available', () => {
         render(<PreviewSection />);
 
-        expect(screen.getByText('Result Preview')).toBeInTheDocument();
+        expect(screen.getByText('resultPreviewTitle')).toBeInTheDocument();
         expect(screen.queryByTestId('preview-player')).not.toBeInTheDocument();
     });
 
@@ -235,7 +235,7 @@ describe('PreviewSection', () => {
 
         render(<PreviewSection />);
 
-        fireEvent.click(screen.getByText('STEP 3'));
+        fireEvent.click(screen.getByText('step3Label'));
 
         expect(contextValue.setOverrideStep).toHaveBeenCalledWith(3);
         act(() => {
