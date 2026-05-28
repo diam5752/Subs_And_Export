@@ -10,7 +10,10 @@ const nextConfig: NextConfig = {
     const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
     // Allow connecting to the API backend
     const isDev = process.env.NODE_ENV !== 'production';
-    const scriptSrc = isDev ? `script-src 'self' 'unsafe-eval' 'unsafe-inline';` : `script-src 'self' 'unsafe-inline';`;
+    const googleIdentityOrigin = 'https://accounts.google.com';
+    const scriptSrc = isDev
+      ? `script-src 'self' 'unsafe-eval' 'unsafe-inline' ${googleIdentityOrigin};`
+      : `script-src 'self' 'unsafe-inline' ${googleIdentityOrigin};`;
     const csp = [
       `default-src 'self';`,
       `base-uri 'self';`,
@@ -20,7 +23,8 @@ const nextConfig: NextConfig = {
       `media-src 'self' ${apiBase} blob: data:;`,
       scriptSrc,
       `style-src 'self' 'unsafe-inline';`,
-      `connect-src 'self' ${apiBase};`,
+      `connect-src 'self' ${apiBase} ${googleIdentityOrigin};`,
+      `frame-src ${googleIdentityOrigin};`,
       `font-src 'self' data:;`,
     ].join(' ');
 
