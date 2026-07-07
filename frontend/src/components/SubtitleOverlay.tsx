@@ -1,8 +1,13 @@
 import React, { useMemo, memo } from 'react';
 import { TranscriptionCue } from '../lib/api';
-import { findCueAtTime } from '../lib/subtitleUtils';
+import { findCueIndexAtTime } from '../lib/subtitleUtils';
 
 export type Cue = TranscriptionCue;
+
+// Module-level cache to store the last active cue index for each component instance.
+// Using WeakMap allows us to associate a stable "instance key" with a state value
+// without causing memory leaks or violating React's render purity rules.
+const activeCueIndexCache = new WeakMap<object, number>();
 
 interface SubtitleOverlayProps {
     currentTime: number;
@@ -24,10 +29,21 @@ export const SubtitleOverlay = memo<SubtitleOverlayProps>(({
     settings,
     videoWidth = 1080,
 }) => {
+    // Stable identity for this component instance to use as a cache key
+    const instanceKey = useMemo(() => ({}), []);
+
     // 1. Find active cue
+    // Optimization: Use cached hint for O(1) lookups during linear playback
     const activeCue = useMemo(() => {
-        return findCueAtTime(cues, currentTime);
-    }, [currentTime, cues]);
+        const lastIndex = activeCueIndexCache.get(instanceKey) ?? -1;
+        const index = findCueIndexAtTime(cues, currentTime, lastIndex);
+
+        if (index !== -1) {
+            activeCueIndexCache.set(instanceKey, index);
+            return cues[index];
+        }
+        return undefined;
+    }, [currentTime, cues, instanceKey]);
 
     // 2. Base Styles
     // Map settings to CSS

@@ -10,6 +10,11 @@ import { SubtitlePositionSelector } from '@/components/SubtitlePositionSelector'
 import { ViralIntelligence } from '@/components/ViralIntelligence';
 import { StylePresetTiles, StylePreset } from './StylePresetTiles';
 
+// Module-level cache to store the last active cue index.
+// Using WeakMap allows us to associate a stable "instance key" with a state value
+// without causing memory leaks or violating React's render purity rules.
+const sidebarCueIndexCache = new WeakMap<object, number>();
+
 interface CueListProps {
     cues: Cue[];
     activeCueIndex: number;
@@ -88,10 +93,21 @@ const TranscriptPanel = memo(() => {
         playerRef.current?.seekTo(time);
     }, [playerRef]);
 
+    // Stable identity for this component instance to use as a cache key
+    const instanceKey = useMemo(() => ({}), []);
+
+    // Optimization: Track last found index for O(1) lookups during linear playback
     const activeCueIndex = useMemo(() => {
         if (!cues || cues.length === 0) return -1;
-        return findCueIndexAtTime(cues, currentTime);
-    }, [cues, currentTime]);
+
+        const lastIndex = sidebarCueIndexCache.get(instanceKey) ?? -1;
+        const index = findCueIndexAtTime(cues, currentTime, lastIndex);
+
+        if (index !== -1) {
+            sidebarCueIndexCache.set(instanceKey, index);
+        }
+        return index;
+    }, [cues, currentTime, instanceKey]);
 
     // Scroll active cue into view
     useEffect(() => {
