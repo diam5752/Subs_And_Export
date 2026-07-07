@@ -29,3 +29,7 @@
 ## 2025-03-04 - Focus Visibility for Custom Elements
 **Learning:** Custom interactive elements (like `div role="button"`) and styled buttons often have their default focus rings suppressed by resets or `outline-none`. This renders them invisible to keyboard users.
 **Action:** Explicitly add `focus-visible:ring-2` (and an appropriate color) to all interactive elements, especially those with custom styling or background colors, to ensure they are discoverable via keyboard.
+
+## 2025-03-06 - Rich Content Button Accessibility
+**Learning:** Using `aria-label` on complex buttons (e.g. style tiles) overrides all inner text, causing valuable secondary information (like descriptions) to be ignored by screen readers.
+**Action:** Use `aria-labelledby` and `aria-describedby` pointing to the inner elements' IDs to ensure both the primary label and supporting description are announced.
