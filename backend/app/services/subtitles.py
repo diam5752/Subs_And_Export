@@ -39,6 +39,7 @@ def extract_audio(
     check_cancelled: Callable[[], None] | None = None,
     progress_callback: Callable[[float], None] | None = None,
     total_duration: float | None = None,
+    timeout: float | None = None,
 ) -> Path:
     """
     Extract the audio track from a video file into a mono WAV for transcription.
@@ -73,12 +74,19 @@ def extract_audio(
     try:
         import select
 
+        start_time = time.monotonic()
         last_cancel_check = 0.0
 
         while True:
+            now = time.monotonic()
+
+            # Security: Enforce hard timeout
+            if timeout and (now - start_time) > timeout:
+                process.kill()
+                raise TimeoutError(f"Audio extraction exceeded timeout of {timeout}s")
+
             # 1. Periodic cancellation check
             if check_cancelled:
-                now = time.monotonic()
                 # Throttle check to avoid excessive DB overhead (every 0.5s)
                 if now - last_cancel_check > 0.5:
                     check_cancelled()

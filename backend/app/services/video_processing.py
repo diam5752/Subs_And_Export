@@ -218,7 +218,8 @@ def normalize_and_stub_subtitles(
                     output_dir=scratch,
                     check_cancelled=check_cancelled,
                     progress_callback=_extract_cb if total_duration else None,
-                    total_duration=total_duration
+                    total_duration=total_duration,
+                    timeout=3600.0, # 1 Hour timeout
                 )
 
             # Step 2: Transcribe
@@ -357,7 +358,8 @@ def normalize_and_stub_subtitles(
                         output_width=output_width,
                         output_height=output_height,
                         watermark_enabled=watermark_enabled,
-                        check_cancelled=check_cancelled
+                        check_cancelled=check_cancelled,
+                        timeout=3600.0, # 1 Hour timeout
                     )
                 except subprocess.CalledProcessError as exc:
                     if use_hw_accel:
@@ -375,7 +377,8 @@ def normalize_and_stub_subtitles(
                             output_width=output_width,
                             output_height=output_height,
                             watermark_enabled=watermark_enabled,
-                            check_cancelled=check_cancelled
+                            check_cancelled=check_cancelled,
+                            timeout=3600.0, # 1 Hour timeout
                         )
                     else:
                         raise
@@ -595,6 +598,7 @@ def generate_video_variant(
         output_width=width,
         output_height=height,
         watermark_enabled=watermark_enabled,
+        timeout=3600.0,
     )
 
     return destination
