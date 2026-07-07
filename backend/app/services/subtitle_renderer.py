@@ -6,27 +6,16 @@ import functools
 import logging
 import math
 import re
-import unicodedata
 from pathlib import Path
 from typing import Any, Callable, List, Sequence
 
 from backend.app.core.config import settings
 from backend.app.services.subtitle_types import Cue, TimeRange, WordTiming
+from backend.app.services.transcription.utils import normalize_text
 
 logger = logging.getLogger(__name__)
 
 TIME_PATTERN = re.compile(r"time=(\d{2}):(\d{2}):(\d{2}\.\d{2})")
-
-
-@functools.lru_cache(maxsize=4096)
-def normalize_text(text: str) -> str:
-    """
-    Uppercase + strip accents for consistent, bold subtitle styling.
-    """
-    # Remove diacritics
-    normalized = unicodedata.normalize("NFD", text)
-    stripped = "".join(ch for ch in normalized if not unicodedata.combining(ch))
-    return stripped.upper()
 
 
 def get_text_width(text: str, font_size: int) -> int:
