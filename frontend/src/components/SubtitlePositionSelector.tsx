@@ -480,6 +480,7 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
                                             }}
                                             onClick={(e) => e.stopPropagation()}
                                             className="w-full h-2 rounded-full appearance-none cursor-pointer bg-[var(--border)]
+                                                focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]
                                                 [&::-webkit-slider-thumb]:appearance-none
                                                 [&::-webkit-slider-thumb]:w-5
                                                 [&::-webkit-slider-thumb]:h-5
@@ -570,6 +571,7 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
                                                 }}
                                                 onClick={(e) => e.stopPropagation()}
                                                 className="w-full h-2 rounded-full appearance-none cursor-pointer bg-[var(--border)]
+                                                    focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]
                                                     [&::-webkit-slider-thumb]:appearance-none
                                                     [&::-webkit-slider-thumb]:w-5
                                                     [&::-webkit-slider-thumb]:h-5
@@ -653,7 +655,7 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
                                             role="radio"
                                             aria-checked={lines === opt.value}
                                             onClick={handleLineChange(opt.value)}
-                                            className={`p-3 rounded-xl border text-left transition-all flex items-center justify-between group ${lines === opt.value
+                                            className={`p-3 rounded-xl border text-left transition-all flex items-center justify-between group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] ${lines === opt.value
                                                 ? 'border-[var(--accent)] bg-[var(--accent)]/5 ring-1 ring-[var(--accent)] shadow-[0_0_15px_rgba(var(--accent-rgb),0.1)]'
                                                 : 'border-[var(--border)] hover:border-[var(--accent)]/40 hover:bg-[var(--surface-elevated)]'
                                                 }`}
@@ -707,7 +709,7 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
                                                 onChangeColor(c.value);
                                                 setShowColorGrid(false);
                                             }}
-                                            className="group relative p-1 transition-transform active:scale-95"
+                                            className="group relative p-1 transition-transform active:scale-95 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
                                             title={c.label}
                                             role="radio"
                                             aria-checked={subtitleColor === c.value}
@@ -730,7 +732,7 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
                                                 e.stopPropagation();
                                                 setShowColorGrid(!showColorGrid);
                                             }}
-                                            className="group relative p-1 transition-transform active:scale-95"
+                                            className="group relative p-1 transition-transform active:scale-95 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)]"
                                             title={t('moreColors') || "More Colors"}
                                             aria-expanded={showColorGrid}
                                             aria-haspopup="true"
@@ -837,7 +839,7 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
                                     role="switch"
                                     aria-checked={karaokeEnabled}
                                     aria-labelledby={karaokeLabelId}
-                                    className={`w-full p-4 rounded-xl border text-left transition-all duration-300 flex items-center justify-between group min-h-[88px] relative overflow-hidden ${karaokeEnabled
+                                    className={`w-full p-4 rounded-xl border text-left transition-all duration-300 flex items-center justify-between group min-h-[88px] relative overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] ${karaokeEnabled
                                         ? 'border-orange-500/50 bg-gradient-to-r from-orange-500/10 to-transparent shadow-[0_0_20px_rgba(249,115,22,0.1)]'
                                         : 'border-[var(--border)] hover:border-[var(--accent)]/50 hover:bg-[var(--surface-elevated)]'
                                         }`}
@@ -888,7 +890,7 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
                                     role="switch"
                                     aria-checked={watermarkEnabled}
                                     aria-labelledby={watermarkLabelId}
-                                    className={`w-full h-[88px] rounded-xl border text-left transition-all duration-300 flex items-center justify-between px-6 group relative overflow-hidden ${watermarkEnabled
+                                    className={`w-full h-[88px] rounded-xl border text-left transition-all duration-300 flex items-center justify-between px-6 group relative overflow-hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] ${watermarkEnabled
                                         ? 'border-[var(--accent)]/30 bg-[var(--accent)]/[0.03]'
                                         : 'border-[var(--border)] hover:border-[var(--foreground)]/20 hover:bg-white/[0.02]'
                                         }`}
