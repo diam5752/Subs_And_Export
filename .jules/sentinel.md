@@ -158,3 +158,7 @@
 **Vulnerability:** The `/auth/google/url` endpoint triggered database writes (issuing state tokens) without authentication or rate limiting, allowing attackers to fill the state store.
 **Learning:** Endpoints that initiate flows (like OAuth) are public by definition but still consume resources. They are often missed when auditing "login" or "register" endpoints.
 **Prevention:** Apply rate limits (e.g. `limiter_login`) to ALL public endpoints that trigger backend state creation, not just the final submission step.
+## 2025-07-22 - [Medium] FFmpeg Process Hangs via Missing Timeouts
+**Vulnerability:** The `extract_audio` and `run_ffmpeg_with_subs` functions in the video processing pipeline lacked hard timeouts for their subprocess calls. While they implemented cancellation polling, if the underlying `ffmpeg` process stalled (e.g., due to corrupt input) or entered an infinite loop without output, the worker thread would hang indefinitely, leading to resource exhaustion.
+**Learning:** `subprocess.poll()` and `select.select()` monitoring loops are robust for interactivity but do not inherently protect against zombie processes or hangs if the process stops communicating but stays alive. Relying solely on "user cancellation" or "output progress" is insufficient for availability.
+**Prevention:** Always wrap long-running subprocess loops with a monotonic time check against a hard timeout (`max_runtime`). If the timeout is exceeded, explicitly `kill()` the process and raise a `TimeoutError`.
