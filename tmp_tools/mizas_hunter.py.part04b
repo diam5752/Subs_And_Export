@@ -1,0 +1,110 @@
+        by_day[chain.date.date()].append(chain)
+    for day, day_chains in by_day.items():
+        if len(day_chains) < 3:
+            continue
+        total = sum(chain.amount or 0 for chain in day_chains)
+        amounts = {chain.amount for chain in day_chains if chain.amount is not None}
+        suppliers = set().union(*(chain.suppliers for chain in day_chains))
+        if total >= 30000 and (len(amounts) >= 2 or len(suppliers) >= 2):
+            families["same_day_parallel_awards"] = 24
+            facts.append(f"{len(day_chains)} διακριτές συναφείς αλυσίδες εμφανίζονται την {day.isoformat()}, συνολικά €{total:,.2f}.")
+            break
+
+    lagged = [chain for chain in chains if chain.publication_lag_days >= 30]
+    if len(lagged) >= 2 or any(chain.publication_lag_days >= 90 for chain in chains):
+        families["repeated_publication_lag"] = 22
+        facts.append(
+            f"{len(lagged)} διακριτές αλυσίδες εμφανίζουν καθυστέρηση δημοσίευσης ≥30 ημέρες· "
+            f"μέγιστη καθυστέρηση {max(chain.publication_lag_days for chain in chains)} ημέρες."
+        )
+
+    modification_chains = [chain for chain in chains if chain.modification_count]
+    if len(modification_chains) >= 3:
+        families["repeated_modification_pattern"] = 24
+        facts.append(f"{len(modification_chains)} διακριτές αλυσίδες του ίδιου αντικειμένου περιλαμβάνουν τροποποίηση ή παράταση.")
+
+    pair_scores = [
+        jaccard(left.subject, right.subject)
+        for index, left in enumerate(chains)
+        for right in chains[index + 1 :]
+    ]
+    median_similarity = statistics.median(pair_scores) if pair_scores else 0.0
+    distinct_amounts = {chain.amount for chain in chains if chain.amount is not None}
+    distinct_suppliers = set().union(*(chain.suppliers for chain in chains))
+    if len(chains) >= 4 and span_days <= 45 and median_similarity >= 0.84 and (len(distinct_amounts) >= 2 or len(distinct_suppliers) >= 2):
+        families["template_burst_support"] = 16
+        facts.append(f"{len(chains)} διακριτές αλυσίδες σε {span_days} ημέρες έχουν πολύ υψηλή ομοιότητα τίτλων (διάμεση Jaccard {median_similarity:.2f}).")
+
+    if len(families) < 2:
+        return 0, families, facts, {
+            "distinct_chains": len(chains), "span_days": span_days, "months": len(months), "kind": kind,
+        }
+    if set(families) <= {"repeated_limited_procedure", "template_burst_support"}:
+        return 0, families, facts, {
+            "distinct_chains": len(chains), "span_days": span_days, "months": len(months), "kind": kind,
+            "cap": "procedure_plus_template_only",
+        }
+    score = min(95, 28 + sum(families.values()))
+    return score, families, facts, {
+        "distinct_chains": len(chains), "span_days": span_days, "months": len(months),
+        "median_similarity": round(median_similarity, 3), "kind": kind,
+    }
+
+
+def score_chain(records: list[Record]) -> tuple[int, dict[str, int], list[str], dict[str, Any]]:
+    chains = chain_summaries(records)
+    if len(chains) != 1:
+        return 0, {}, [], {"distinct_chains": len(chains), "kind": "chain"}
+    docs = chains[0].docs
+    families: dict[str, int] = {}
+    facts: list[str] = []
+
+    modifications = [doc for doc in docs if doc.modification or doc.extension]
+    modification_amounts = {doc.amount for doc in modifications if doc.amount is not None}
+    if len(modifications) >= 2 and (len(modification_amounts) >= 2 or len(modifications) >= 3):
+        families["cumulative_modification_sequence"] = 30
+        facts.append(f"Η ίδια ρητά συνδεδεμένη αλυσίδα περιλαμβάνει {len(modifications)} έγγραφα τροποποίησης/παράτασης.")
+
+    references = [doc.amount for doc in docs if doc.stage in {"commitment", "award", "contract", "modification"} and doc.amount is not None]
+    payment_events: dict[tuple[Any, ...], float] = {}
+    for doc in docs:
+        if doc.stage != "payment" or doc.amount is None:
+            continue
+        key = (doc.ada, doc.amount, doc.supplier_afm, doc.issue_at.date().isoformat())
+        payment_events[key] = doc.amount
+    if references and payment_events:
+        reference = max(references)
+        payment_total = sum(payment_events.values())
+        gap = payment_total - reference
+        ratio = payment_total / reference if reference else 0
+        if ratio >= 1.10 and gap >= 1000:
+            families["explicit_chain_financial_consistency"] = 32
+            facts.append(
+                f"Στην ίδια ρητά συνδεδεμένη αλυσίδα οι μοναδικές πληρωμές είναι €{payment_total:,.2f} "
+                f"έναντι ποσού αναφοράς €{reference:,.2f} ({ratio:.2f}×)."
+            )
+
+    award_dates = [doc.issue_at for doc in docs if doc.stage in {"award", "contract"}]
+    payment_dates = [doc.issue_at for doc in docs if doc.stage == "payment"]
+    if award_dates and payment_dates and min(payment_dates) < min(award_dates):
+        families["temporal_order_contradiction"] = 28
+        facts.append("Η ρητά συνδεδεμένη αλυσίδα εμφανίζει πληρωμή πριν από την ανάθεση/σύμβαση.")
+
+    if any(doc.single_bid for doc in docs):
+        families["single_bid_in_chain"] = 26
+        facts.append("Επίσημο έγγραφο της αλυσίδας αναφέρει ρητά μία ή μοναδική προσφορά.")
+    elif any(doc.no_publication for doc in docs):
+        families["no_publication_in_chain"] = 20
+        facts.append("Η αλυσίδα περιλαμβάνει διαδικασία χωρίς προηγούμενη δημοσίευση.")
+
+    if len(families) < 2:
+        return 0, families, facts, {"distinct_chains": 1, "kind": "chain"}
+    score = min(96, 25 + sum(families.values()))
+    return score, families, facts, {"distinct_chains": 1, "kind": "chain"}
+
+
+def approximate_groups(records: list[Record]) -> list[tuple[str, list[Record]]]:
+    buckets: defaultdict[tuple[str, str, str], list[Record]] = defaultdict(list)
+    supplier_buckets: defaultdict[tuple[str, str, str], list[Record]] = defaultdict(list)
+    for record in records:
+        geo = record.geo if record.geo != "unspecified" else "any"
