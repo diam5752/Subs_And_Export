@@ -1,8 +1,8 @@
-Traceback (most recent call last):
-  File "/home/runner/work/Subs_And_Export/Subs_And_Export/tmp_tools/mizas_hunter_v6.py", line 21, in <module>
-    import diavgeia_blind_scan_v4 as base  # noqa: E402
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-  File "/home/runner/work/Subs_And_Export/Subs_And_Export/tmp_tools/diavgeia_blind_scan_v4.py", line 209
-    return {f"CONTRACT:{re.sub(r'\s+', '', value)}" for value in CONTRACT_REF_RE.findall(norm(text))}
-                                                    ^^^
-SyntaxError: f-string expression part cannot include a backslash
+/home/runner/work/Subs_And_Export/Subs_And_Export/tmp_tools/diavgeia_blind_scan_v4.py:125: UserWarning: Parsing dates in %Y-%m-%dT%H:%M:%S%z format when dayfirst=True was specified. Pass `dayfirst=False` or specify a format to silence this warning.
+  return pd.to_datetime(text, dayfirst=dayfirst, errors="raise", utc=True).to_pydatetime().replace(tzinfo=None)
+/home/runner/work/Subs_And_Export/Subs_And_Export/tmp_tools/diavgeia_blind_scan_v4.py:125: UserWarning: Parsing dates in %Y-%m-%dT%H:%M:%S.%f%z format when dayfirst=True was specified. Pass `dayfirst=False` or specify a format to silence this warning.
+  return pd.to_datetime(text, dayfirst=dayfirst, errors="raise", utc=True).to_pydatetime().replace(tzinfo=None)
+/home/runner/work/Subs_And_Export/Subs_And_Export/tmp_tools/diavgeia_blind_scan_v4.py:125: UserWarning: Parsing dates in %Y-%m-%d %H:%M:%S format when dayfirst=True was specified. Pass `dayfirst=False` or specify a format to silence this warning.
+  return pd.to_datetime(text, dayfirst=dayfirst, errors="raise", utc=True).to_pydatetime().replace(tzinfo=None)
+/home/runner/work/Subs_And_Export/Subs_And_Export/tmp_tools/diavgeia_blind_scan_v4.py:125: UserWarning: Parsing dates in %Y-%m-%d %H:%M:%S.%f format when dayfirst=True was specified. Pass `dayfirst=False` or specify a format to silence this warning.
+  return pd.to_datetime(text, dayfirst=dayfirst, errors="raise", utc=True).to_pydatetime().replace(tzinfo=None)
