@@ -1,0 +1,220 @@
+        topic_head = " ".join(record.topic.split()[:3])
+        buckets[(record.org_id, geo, topic_head)].append(record)
+        if record.supplier_afm:
+            supplier_buckets[(record.org_id, record.supplier_afm, topic_head)].append(record)
+    output: list[tuple[str, list[Record]]] = []
+    for key, docs in buckets.items():
+        if len(docs) >= 3:
+            output.append((f"ORG_TOPIC:{key}", docs))
+    for key, docs in supplier_buckets.items():
+        if len(docs) >= 3:
+            output.append((f"ORG_SUPPLIER:{key}", docs))
+    return output
+
+
+def build_candidates(records: list[Record]) -> list[Candidate]:
+    candidates: list[Candidate] = []
+    for key, docs in approximate_groups(records):
+        score, families, facts, diagnostics = score_group(docs, key.split(":", 1)[0])
+        if score:
+            candidates.append(Candidate(key, "group", docs, score, families, facts, diagnostics))
+    mapping = chain_map(records)
+    chain_docs: defaultdict[str, list[Record]] = defaultdict(list)
+    for record in records:
+        chain_docs[mapping[record.ada]].append(record)
+    for key, docs in chain_docs.items():
+        if len(docs) < 2:
+            continue
+        score, families, facts, diagnostics = score_chain(docs)
+        if score:
+            candidates.append(Candidate(f"CHAIN:{key}", "chain", docs, score, families, facts, diagnostics))
+    unique: dict[frozenset[str], Candidate] = {}
+    for candidate in candidates:
+        adas = frozenset(candidate.adas())
+        current = unique.get(adas)
+        if current is None or candidate.score > current.score:
+            unique[adas] = candidate
+    return sorted(unique.values(), key=lambda item: (-item.score, item.key))
+
+
+def collect_initial(session: HunterSession, seed: int) -> tuple[dict[str, Record], dict[str, int], list[dict[str, Any]]]:
+    records: dict[str, Record] = {}
+    lens_base = {name: base for name, _term, base in LENSES}
+    lens_stats: defaultdict[str, dict[str, Any]] = defaultdict(lambda: {"requests": 0, "records": 0, "new": 0, "errors": 0})
+    query_log: list[dict[str, Any]] = []
+    windows: list[tuple[date, date]] = []
+    current = START_DATE
+    while current <= TODAY:
+        end = min(TODAY, current + timedelta(days=WINDOW_DAYS - 1))
+        windows.append((current, end))
+        current = end + timedelta(days=1)
+    rng = random.Random(seed)
+    for lens_name, term, _base in LENSES:
+        shuffled_windows = windows.copy()
+        rng.shuffle(shuffled_windows)
+        for start, end in shuffled_windows[:3]:
+            if session.search_requests >= MAX_SEARCH_REQUESTS:
+                break
+            decisions, info = session.search(term, start, end, page=0)
+            lens_stats[lens_name]["requests"] += 1
+            query_log.append({"lens": lens_name, "term": term, "start": start.isoformat(), "end": end.isoformat(), "page": 0, "count": len(decisions)})
+            total = total_pages(info)
+            pages = []
+            if total and total > 1:
+                pages.append(rng.randint(1, min(total - 1, 80)))
+            elif lens_name in {"direct_award", "payment"}:
+                pages.append(rng.randint(1, 12))
+            for page in pages:
+                if session.search_requests >= MAX_SEARCH_REQUESTS:
+                    break
+                more, _ = session.search(term, start, end, page=page)
+                lens_stats[lens_name]["requests"] += 1
+                query_log.append({"lens": lens_name, "term": term, "start": start.isoformat(), "end": end.isoformat(), "page": page, "count": len(more)})
+                decisions.extend(more)
+            lens_stats[lens_name]["records"] += len(decisions)
+            for payload in decisions:
+                record = record_from_payload(payload, lens_text=term)
+                if record is None:
+                    continue
+                if record.ada in records:
+                    records[record.ada] = merge_record(records[record.ada], record)
+                else:
+                    records[record.ada] = record
+                    lens_stats[lens_name]["new"] += 1
+    return records, lens_base, query_log
+
+
+def enrich_top_seeds(session: HunterSession, records: dict[str, Record], lens_base: dict[str, int], seed: int) -> None:
+    # The lens base cannot be attributed perfectly after deduplication; record flags dominate the seed rank.
+    ranked = sorted(records.values(), key=lambda record: seed_score(record), reverse=True)
+    selected: list[Record] = []
+    group_counts: Counter[str] = Counter()
+    for record in ranked:
+        group = f"{record.org_id}:{record.topic}:{record.geo}"
+        if group_counts[group] >= 2:
+            continue
+        selected.append(record)
+        group_counts[group] += 1
+        if len(selected) >= MAX_EXPANSION_SEEDS:
+            break
+    rng = random.Random(seed + 1000)
+    for record in selected:
+        detail = session.detail(record.ada)
+        if detail:
+            refreshed = record_from_payload(detail)
+            if refreshed:
+                merge_record(record, refreshed)
+        terms: list[str] = []
+        if record.supplier_afm:
+            terms.append(record.supplier_afm)
+        phrase = expansion_term(record.subject)
+        if phrase:
+            terms.append(phrase)
+        if record.supplier_name:
+            supplier_tokens = meaningful_tokens(record.supplier_name)
+            if supplier_tokens:
+                terms.append(max(supplier_tokens, key=len))
+        terms = list(dict.fromkeys(term for term in terms if term))[:MAX_EXPANSION_QUERIES_PER_SEED]
+        start = max(START_DATE, record.issue_at.date() - timedelta(days=540))
+        end = min(TODAY, record.issue_at.date() + timedelta(days=540))
+        for term in terms:
+            decisions, info = session.search(term, start, end, page=0)
+            total = total_pages(info)
+            if total and total > 1 and session.search_requests < MAX_SEARCH_REQUESTS:
+                page = rng.randint(1, min(total - 1, 30))
+                more, _ = session.search(term, start, end, page=page)
+                decisions.extend(more)
+            for payload in decisions:
+                neighbor = record_from_payload(payload, lens_text=term)
+                if neighbor is None or neighbor.org_id != record.org_id:
+                    continue
+                same_supplier = bool(record.supplier_afm and neighbor.supplier_afm == record.supplier_afm)
+                same_topic = jaccard(record.subject, neighbor.subject) >= 0.35
+                if not same_supplier and not same_topic:
+                    continue
+                if neighbor.ada in records:
+                    records[neighbor.ada] = merge_record(records[neighbor.ada], neighbor)
+                else:
+                    records[neighbor.ada] = neighbor
+
+
+def deep_validate(session: HunterSession, candidate: Candidate) -> tuple[dict[str, Any] | None, dict[str, Any]]:
+    ordered = sorted(candidate.records, key=lambda record: (record.issue_at, record.ada))[:MAX_DEEP_DOCS]
+    valid: dict[str, Record] = {}
+    detail_errors: dict[str, str] = {}
+    pdf_errors: dict[str, str] = {}
+    pdf_count = 0
+    ordinary_terms: set[str] = set()
+
+    def load_record(record: Record) -> None:
+        nonlocal pdf_count
+        detail = session.detail(record.ada)
+        if not detail:
+            detail_errors[record.ada] = "detail_unavailable"
+            return
+        status = norm(detail.get("status"))
+        if status not in {"published", "αναρτημενη", "αναρτημενη αποφαση"} or detail.get("correctedVersionId") or detail.get("privateData") is True:
+            detail_errors[record.ada] = "corrected_private_or_stale"
+            return
+        refreshed = record_from_payload(detail)
+        if refreshed:
+            record = merge_record(record, refreshed)
+        pdf_text, pdf_error = session.pdf_text(record.ada)
+        if pdf_error:
+            pdf_errors[record.ada] = pdf_error
+        else:
+            pdf_count += 1
+        record.live_text = f"{json.dumps(detail, ensure_ascii=False, default=str)}\n{pdf_text}"
+        normalized = norm(record.live_text)
+        for term in ORDINARY_EXPLANATION_TERMS:
+            if norm(term) in normalized:
+                ordinary_terms.add(term)
+        valid[record.ada] = record
+
+    for record in ordered:
+        load_record(record)
+
+    related_to_load: list[str] = []
+    for record in list(valid.values()):
+        for ref in record.refreshed_refs():
+            if ref not in valid and ref not in related_to_load:
+                related_to_load.append(ref)
+    for ada in related_to_load[:MAX_RELATED_DOCS]:
+        detail = session.detail(ada)
+        if not detail:
+            continue
+        related = record_from_payload(detail)
+        if related is None:
+            continue
+        # Keep only same authority or explicit reference from a validated document.
+        if related.org_id not in {record.org_id for record in valid.values()}:
+            continue
+        load_record(related)
+
+    valid_records = list(valid.values())
+    min_docs = 2 if candidate.kind == "chain" else 3
+    if len(valid_records) < min_docs or pdf_count < 2:
+        return None, {
+            "reason": "insufficient_current_official_documents_or_pdf_text",
+            "valid_documents": len(valid_records), "pdf_text_count": pdf_count,
+            "detail_errors": detail_errors, "pdf_errors": pdf_errors,
+        }
+
+    if candidate.kind == "chain":
+        score, families, facts, diagnostics = score_chain(valid_records)
+    else:
+        score, families, facts, diagnostics = score_group(valid_records, candidate.diagnostics.get("kind", "group"))
+    if score < MIN_REVIEW_PRIORITY or len(families) < 2:
+        return None, {
+            "reason": "collapsed_below_gate_after_live_rebuild",
+            "score": score, "families": families, "facts": facts,
+            "diagnostics": diagnostics, "detail_errors": detail_errors, "pdf_errors": pdf_errors,
+        }
+
+    hard_families = {
+        "repeated_single_bid", "supplier_object_concentration", "cumulative_near_band_pattern",
+        "explicit_chain_financial_consistency", "temporal_order_contradiction",
+        "cumulative_modification_sequence", "same_day_parallel_awards",
+    }
+    caps: list[str] = []
+    if any(record.medical for record in valid_records) and not (set(families) & hard_families):
