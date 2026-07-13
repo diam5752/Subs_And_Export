@@ -70,20 +70,22 @@ jobs:
           echo "$run_status" > hunter-debug/run_status.txt
           printf '{"compile_status":%s,"run_status":%s}\n' "$compile_status" "$run_status" > hunter-debug/status.json
           exit 0
-      - name: Commit result and diagnostics
+      - name: Upload result and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mizas-hunter-result-${{ github.run_id }}
+          path: |
+            hunter-output
+            hunter-debug
+          if-no-files-found: error
+          retention-days: 1
+      - name: Best-effort commit of compact result
+        continue-on-error: true
         run: |
           git add -f hunter-output hunter-debug || true
           if git diff --cached --quiet; then
-            echo "No hunter output or diagnostics produced"
-            find hunter-output hunter-debug -maxdepth 2 -type f -print 2>/dev/null || true
-            exit 1
+            exit 0
           fi
           git commit -m "chore(tmp): record adaptive MIZAS Hunter execution"
-          for attempt in 1 2 3; do
-            if git push origin HEAD:tmp/mizas-hunter-20260713; then
-              exit 0
-            fi
-            git fetch origin tmp/mizas-hunter-20260713
-            git rebase origin/tmp/mizas-hunter-20260713 || exit 1
-          done
-          exit 1
+          git push origin HEAD:tmp/mizas-hunter-20260713 || true
