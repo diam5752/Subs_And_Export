@@ -1,0 +1,34 @@
+name: Temporary Fetch MizAI Case API Compact
+
+on:
+  push:
+    branches:
+      - tmp/diavgeia-blind-scan-20260713
+    paths:
+      - .github/workflows/tmp-fetch-mizai-case-api-compact.yml
+      - tmp_tools/fetch_mizai_case_api_compact.py
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: tmp/diavgeia-blind-scan-20260713
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install requests
+      - run: python tmp_tools/fetch_mizai_case_api_compact.py
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add case-fetch-output/case_api_compact.json
+          git commit -m "chore(tmp): record compact public MizAI case API details"
+          git push origin HEAD:tmp/diavgeia-blind-scan-20260713
