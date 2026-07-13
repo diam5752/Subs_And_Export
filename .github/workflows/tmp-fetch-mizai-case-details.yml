@@ -1,0 +1,40 @@
+name: Temporary Fetch MizAI Case Details
+
+on:
+  push:
+    branches:
+      - tmp/diavgeia-blind-scan-20260713
+    paths:
+      - .github/workflows/tmp-fetch-mizai-case-details.yml
+      - tmp_tools/fetch_mizai_case_details.py
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tmp-fetch-mizai-case-details
+  cancel-in-progress: true
+
+jobs:
+  fetch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: tmp/diavgeia-blind-scan-20260713
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install requests
+      - run: |
+          rm -rf case-fetch-output
+          python tmp_tools/fetch_mizai_case_details.py
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add case-fetch-output/case_details.json
+          git commit -m "chore(tmp): record public MizAI case details"
+          git push origin HEAD:tmp/diavgeia-blind-scan-20260713
