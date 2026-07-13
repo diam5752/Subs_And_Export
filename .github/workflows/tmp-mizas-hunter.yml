@@ -44,11 +44,17 @@ jobs:
         run: |
           base64 -d tmp_tools/mizas_hunter_v6.py.gz.b64 | gzip -dc > tmp_tools/mizas_hunter_v6.py
           python -m py_compile tmp_tools/mizas_hunter_v6.py
-      - name: Execute adaptive live Diavgeia hunter
+      - name: Execute adaptive live Diavgeia hunter and capture diagnostics
         run: |
           rm -rf hunter-output-v6
-          python tmp_tools/mizas_hunter_v6.py --out-dir hunter-output-v6
-      - name: Commit reproducible result
+          mkdir -p hunter-output-v6
+          set +e
+          python tmp_tools/mizas_hunter_v6.py --out-dir hunter-output-v6 > hunter-output-v6/action.log 2>&1
+          status=$?
+          set -e
+          printf '{"exit_code":%s}\n' "$status" > hunter-output-v6/action_status.json
+          cat hunter-output-v6/action.log
+      - name: Commit reproducible result or failure diagnostics
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -57,5 +63,5 @@ jobs:
             echo "No hunter output produced"
             exit 1
           fi
-          git commit -m "chore(tmp): record MIZAS Hunter result"
+          git commit -m "chore(tmp): record MIZAS Hunter result or diagnostics"
           git push origin HEAD:tmp/mizas-hunter-20260713-v2
