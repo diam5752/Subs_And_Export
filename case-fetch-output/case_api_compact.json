@@ -204,6 +204,282 @@
       }
     },
     {
+      "path": "/api/backend/api/cases/khmdhs-case-8e41d378652abb2f/scores",
+      "status": 200,
+      "content_type": "application/json",
+      "bytes": 210,
+      "final_url": "https://mizai.gr/api/backend/api/cases/khmdhs-case-8e41d378652abb2f/scores",
+      "json": {
+        "math_score": 100,
+        "math_label": "Υψηλό",
+        "ai_score": 26,
+        "ai_label": "Χαμηλό",
+        "ai_run_count": 2,
+        "ai_latest_run_at": "2026-05-26T16:48:38.850340",
+        "human_score": null,
+        "human_label": null,
+        "human_review_count": 0
+      }
+    },
+    {
+      "path": "/api/backend/api/cases/khmdhs-case-8e41d378652abb2f/ai-runs",
+      "status": 200,
+      "content_type": "application/json",
+      "bytes": 12920,
+      "final_url": "https://mizai.gr/api/backend/api/cases/khmdhs-case-8e41d378652abb2f/ai-runs",
+      "json": [
+        {
+          "id": "af6712c7-fde6-4cdf-898b-5e401414d03a",
+          "case_id": "khmdhs-case-8e41d378652abb2f",
+          "provider": "AI model",
+          "model_name": "AI model",
+          "model_weight": 1.0,
+          "model_weight_policy": "public-ai-model-v1",
+          "score": 26,
+          "user_id": null,
+          "user": null,
+          "public_explanation": {
+            "summary": "Σύμβαση για την απευθείας ανάθεση για το υπόγειο δίκτυο αποχέτευσης στην Αχαρνών 2. Η αξία είναι 24.056,00 ευρώ",
+            "reasons": [
+              {
+                "type": "direct_award_context",
+                "severity": "medium",
+                "explanation": "Δεν υπάρχει αρκετό αντικειμενικό ύποπτο στοιχείο από την απευθείας ανάθεση μόνη της. Είναι αγορά χωρίς πλήρη διαγωνισμό, άρα θέλει προσοχή, αλλά χωρίς ένδειξη σπασίματος, υπερτιμολόγησης, σύγκρουσης συμφερόντων ή ασυνέπειας στα έγγραφα δεν δικαιολογεί υψηλό AI score."
+              }
+            ],
+            "evidence": [],
+            "limitations": [
+              "Το score περιορίστηκε γιατί υπάρχουν μόνο 0 αντικειμενικά ύποπτα signals, ενώ για 80+ απαιτούνται τουλάχιστον 3.",
+              "Τα στοιχεία αναδόχου ή συσχέτισης προσώπων είναι μερικά και δεν στηρίζουν από μόνα τους υψηλό score."
+            ],
+            "follow_up_checks_performed": [],
+            "recommended_next_checks": [
+              "Να αναζητηθούν επιπλέον αντικειμενικά signals πριν θεωρηθεί υψηλής προτεραιότητας."
+            ],
+            "confidence": 0.55,
+            "confidence_percent": 55,
+            "case_fit": "procurement",
+            "lane_scores": {
+              "procurement_risk": 26,
+              "weird_public_spend": 0,
+              "admin_spend_review": 26,
+              "data_quality": 55
+            },
+            "structured_analysis": {
+              "score_justification": [
+                {
+                  "type": "direct_award_context",
+                  "severity": "medium",
+                  "explanation": "Δεν υπάρχει αρκετό αντικειμενικό ύποπτο στοιχείο από την απευθείας ανάθεση μόνη της. Είναι αγορά χωρίς πλήρη διαγωνισμό, άρα θέλει προσοχή, αλλά χωρίς ένδειξη σπασίματος, υπερτιμολόγησης, σύγκρουσης συμφερόντων ή ασυνέπειας στα έγγραφα δεν δικαιολογεί υψηλό AI score."
+                }
+              ],
+              "evidence": [],
+              "limitations": [
+                "Το score περιορίστηκε γιατί υπάρχουν μόνο 0 αντικειμενικά ύποπτα signals, ενώ για 80+ απαιτούνται τουλάχιστον 3.",
+                "Τα στοιχεία αναδόχου ή συσχέτισης προσώπων είναι μερικά και δεν στηρίζουν από μόνα τους υψηλό score."
+              ],
+              "follow_up_checks_performed": [],
+              "recommended_next_checks": [
+                "Να αναζητηθούν επιπλέον αντικειμενικά signals πριν θεωρηθεί υψηλής προτεραιότητας."
+              ],
+              "case_fit": "procurement",
+              "lane_scores": {
+                "procurement_risk": 26,
+                "weird_public_spend": 0,
+                "admin_spend_review": 26,
+                "data_quality": 55
+              }
+            },
+            "disclaimer": "AI Score is a review-priority signal, not a finding of wrongdoing or legal non-compliance."
+          },
+          "output_json": {
+            "summary": "Σύμβαση για την απευθείας ανάθεση για το υπόγειο δίκτυο αποχέτευσης στην Αχαρνών 2. Η αξία είναι 24.056,00 ευρώ",
+            "reasons": [
+              {
+                "type": "direct_award_context",
+                "severity": "medium",
+                "explanation": "Δεν υπάρχει αρκετό αντικειμενικό ύποπτο στοιχείο από την απευθείας ανάθεση μόνη της. Είναι αγορά χωρίς πλήρη διαγωνισμό, άρα θέλει προσοχή, αλλά χωρίς ένδειξη σπασίματος, υπερτιμολόγησης, σύγκρουσης συμφερόντων ή ασυνέπειας στα έγγραφα δεν δικαιολογεί υψηλό AI score."
+              }
+            ],
+            "evidence": [],
+            "limitations": [
+              "Το score περιορίστηκε γιατί υπάρχουν μόνο 0 αντικειμενικά ύποπτα signals, ενώ για 80+ απαιτούνται τουλάχιστον 3.",
+              "Τα στοιχεία αναδόχου ή συσχέτισης προσώπων είναι μερικά και δεν στηρίζουν από μόνα τους υψηλό score."
+            ],
+            "follow_up_checks_performed": [],
+            "recommended_next_checks": [
+              "Να αναζητηθούν επιπλέον αντικειμενικά signals πριν θεωρηθεί υψηλής προτεραιότητας."
+            ],
+            "confidence": 0.55,
+            "confidence_percent": 55,
+            "case_fit": "procurement",
+            "lane_scores": {
+              "procurement_risk": 26,
+              "weird_public_spend": 0,
+              "admin_spend_review": 26,
+              "data_quality": 55
+            },
+            "structured_analysis": {
+              "score_justification": [
+                {
+                  "type": "direct_award_context",
+                  "severity": "medium",
+                  "explanation": "Δεν υπάρχει αρκετό αντικειμενικό ύποπτο στοιχείο από την απευθείας ανάθεση μόνη της. Είναι αγορά χωρίς πλήρη διαγωνισμό, άρα θέλει προσοχή, αλλά χωρίς ένδειξη σπασίματος, υπερτιμολόγησης, σύγκρουσης συμφερόντων ή ασυνέπειας στα έγγραφα δεν δικαιολογεί υψηλό AI score."
+                }
+              ],
+              "evidence": [],
+              "limitations": [
+                "Το score περιορίστηκε γιατί υπάρχουν μόνο 0 αντικειμενικά ύποπτα signals, ενώ για 80+ απαιτούνται τουλάχιστον 3.",
+                "Τα στοιχεία αναδόχου ή συσχέτισης προσώπων είναι μερικά και δεν στηρίζουν από μόνα τους υψηλό score."
+              ],
+              "follow_up_checks_performed": [],
+              "recommended_next_checks": [
+                "Να αναζητηθούν επιπλέον αντικειμενικά signals πριν θεωρηθεί υψηλής προτεραιότητας."
+              ],
+              "case_fit": "procurement",
+              "lane_scores": {
+                "procurement_risk": 26,
+                "weird_public_spend": 0,
+                "admin_spend_review": 26,
+                "data_quality": 55
+              }
+            },
+            "disclaimer": "AI Score is a review-priority signal, not a finding of wrongdoing or legal non-compliance."
+          },
+          "credits_spent": 0,
+          "status": "completed",
+          "created_at": "2026-05-26T16:48:38.850911",
+          "completed_at": "2026-05-26T16:48:38.850340"
+        },
+        {
+          "id": "6d70117e-a5ef-433a-9066-6b5994ebfb38",
+          "case_id": "khmdhs-case-8e41d378652abb2f",
+          "provider": "AI model",
+          "model_name": "AI model",
+          "model_weight": 1.0,
+          "model_weight_policy": "public-ai-model-v1",
+          "score": 26,
+          "user_id": "user_21afeb7db43df231",
+          "user": {
+            "id": "user_21afeb7db43df231",
+            "username": "u_80694946e21f"
+          },
+          "public_explanation": {
+            "summary": "Σύμβαση για την απευθείας ανάθεση για το υπόγειο δίκτυο αποχέτευσης στην Αχαρνών 2. Η αξία είναι 24.056,00 ευρώ",
+            "reasons": [
+              {
+                "type": "direct_award_context",
+                "severity": "medium",
+                "explanation": "Δεν υπάρχει αρκετό αντικειμενικό ύποπτο στοιχείο από την απευθείας ανάθεση μόνη της. Είναι αγορά χωρίς πλήρη διαγωνισμό, άρα θέλει προσοχή, αλλά χωρίς ένδειξη σπασίματος, υπερτιμολόγησης, σύγκρουσης συμφερόντων ή ασυνέπειας στα έγγραφα δεν δικαιολογεί υψηλό AI score."
+              }
+            ],
+            "evidence": [],
+            "limitations": [
+              "Το score περιορίστηκε γιατί υπάρχουν μόνο 0 αντικειμενικά ύποπτα signals, ενώ για 80+ απαιτούνται τουλάχιστον 3.",
+              "Τα στοιχεία αναδόχου ή συσχέτισης προσώπων είναι μερικά και δεν στηρίζουν από μόνα τους υψηλό score."
+            ],
+            "follow_up_checks_performed": [],
+            "recommended_next_checks": [
+              "Να αναζητηθούν επιπλέον αντικειμενικά signals πριν θεωρηθεί υψηλής προτεραιότητας."
+            ],
+            "confidence": 0.55,
+            "confidence_percent": 55,
+            "case_fit": "procurement",
+            "lane_scores": {
+              "procurement_risk": 26,
+              "weird_public_spend": 0,
+              "admin_spend_review": 26,
+              "data_quality": 55
+            },
+            "structured_analysis": {
+              "score_justification": [
+                {
+                  "type": "direct_award_context",
+                  "severity": "medium",
+                  "explanation": "Δεν υπάρχει αρκετό αντικειμενικό ύποπτο στοιχείο από την απευθείας ανάθεση μόνη της. Είναι αγορά χωρίς πλήρη διαγωνισμό, άρα θέλει προσοχή, αλλά χωρίς ένδειξη σπασίματος, υπερτιμολόγησης, σύγκρουσης συμφερόντων ή ασυνέπειας στα έγγραφα δεν δικαιολογεί υψηλό AI score."
+                }
+              ],
+              "evidence": [],
+              "limitations": [
+                "Το score περιορίστηκε γιατί υπάρχουν μόνο 0 αντικειμενικά ύποπτα signals, ενώ για 80+ απαιτούνται τουλάχιστον 3.",
+                "Τα στοιχεία αναδόχου ή συσχέτισης προσώπων είναι μερικά και δεν στηρίζουν από μόνα τους υψηλό score."
+              ],
+              "follow_up_checks_performed": [],
+              "recommended_next_checks": [
+                "Να αναζητηθούν επιπλέον αντικειμενικά signals πριν θεωρηθεί υψηλής προτεραιότητας."
+              ],
+              "case_fit": "procurement",
+              "lane_scores": {
+                "procurement_risk": 26,
+                "weird_public_spend": 0,
+                "admin_spend_review": 26,
+                "data_quality": 55
+              }
+            },
+            "disclaimer": "AI Score is a review-priority signal, not a finding of wrongdoing or legal non-compliance."
+          },
+          "output_json": {
+            "summary": "Σύμβαση για την απευθείας ανάθεση για το υπόγειο δίκτυο αποχέτευσης στην Αχαρνών 2. Η αξία είναι 24.056,00 ευρώ",
+            "reasons": [
+              {
+                "type": "direct_award_context",
+                "severity": "medium",
+                "explanation": "Δεν υπάρχει αρκετό αντικειμενικό ύποπτο στοιχείο από την απευθείας ανάθεση μόνη της. Είναι αγορά χωρίς πλήρη διαγωνισμό, άρα θέλει προσοχή, αλλά χωρίς ένδειξη σπασίματος, υπερτιμολόγησης, σύγκρουσης συμφερόντων ή ασυνέπειας στα έγγραφα δεν δικαιολογεί υψηλό AI score."
+              }
+            ],
+            "evidence": [],
+            "limitations": [
+              "Το score περιορίστηκε γιατί υπάρχουν μόνο 0 αντικειμενικά ύποπτα signals, ενώ για 80+ απαιτούνται τουλάχιστον 3.",
+              "Τα στοιχεία αναδόχου ή συσχέτισης προσώπων είναι μερικά και δεν στηρίζουν από μόνα τους υψηλό score."
+            ],
+            "follow_up_checks_performed": [],
+            "recommended_next_checks": [
+              "Να αναζητηθούν επιπλέον αντικειμενικά signals πριν θεωρηθεί υψηλής προτεραιότητας."
+            ],
+            "confidence": 0.55,
+            "confidence_percent": 55,
+            "case_fit": "procurement",
+            "lane_scores": {
+              "procurement_risk": 26,
+              "weird_public_spend": 0,
+              "admin_spend_review": 26,
+              "data_quality": 55
+            },
+            "structured_analysis": {
+              "score_justification": [
+                {
+                  "type": "direct_award_context",
+                  "severity": "medium",
+                  "explanation": "Δεν υπάρχει αρκετό αντικειμενικό ύποπτο στοιχείο από την απευθείας ανάθεση μόνη της. Είναι αγορά χωρίς πλήρη διαγωνισμό, άρα θέλει προσοχή, αλλά χωρίς ένδειξη σπασίματος, υπερτιμολόγησης, σύγκρουσης συμφερόντων ή ασυνέπειας στα έγγραφα δεν δικαιολογεί υψηλό AI score."
+                }
+              ],
+              "evidence": [],
+              "limitations": [
+                "Το score περιορίστηκε γιατί υπάρχουν μόνο 0 αντικειμενικά ύποπτα signals, ενώ για 80+ απαιτούνται τουλάχιστον 3.",
+                "Τα στοιχεία αναδόχου ή συσχέτισης προσώπων είναι μερικά και δεν στηρίζουν από μόνα τους υψηλό score."
+              ],
+              "follow_up_checks_performed": [],
+              "recommended_next_checks": [
+                "Να αναζητηθούν επιπλέον αντικειμενικά signals πριν θεωρηθεί υψηλής προτεραιότητας."
+              ],
+              "case_fit": "procurement",
+              "lane_scores": {
+                "procurement_risk": 26,
+                "weird_public_spend": 0,
+                "admin_spend_review": 26,
+                "data_quality": 55
+              }
+            },
+            "disclaimer": "AI Score is a review-priority signal, not a finding of wrongdoing or legal non-compliance."
+          },
+          "credits_spent": 0,
+          "status": "completed",
+          "created_at": "2026-05-25T20:01:27.847724",
+          "completed_at": "2026-05-25T20:01:27.847193"
+        }
+      ]
+    },
+    {
       "path": "/api/backend/api/feed/khmdhs-case-8e41d378652abb2f",
       "status": 200,
       "content_type": "application/json",
@@ -267,22 +543,6 @@
         "comments_page": 1,
         "comments_page_size": 50
       }
-    },
-    {
-      "path": "/api/cases/khmdhs-case-8e41d378652abb2f",
-      "status": 404,
-      "content_type": "text/html; charset=utf-8",
-      "bytes": 9217,
-      "final_url": "https://mizai.gr/api/cases/khmdhs-case-8e41d378652abb2f",
-      "text_preview": "<!DOCTYPE html><html id=\"__next_error__\"><head><meta charSet=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/><link rel=\"preload\" as=\"script\" fetchPriority=\"low\" href=\"/_next/static/chunks/webpack-ca5f4f11f78f2453.js\"/><script src=\"/_next/static/chunks/87c73c54-17e922beefebcbb1.js\" async=\"\"></script><script src=\"/_next/static/chunks/1968-3aa9649df4e4c3ae.js\" async=\"\"></script><script src=\"/_next/static/chunks/main-app-ea7225f801d19a79.js\" async=\"\"></script><meta name=\"robots\" content=\"noindex\"/><title>MizAI</title><meta name=\"description\" content=\"Greek public procurement review-priority signals with official-source provenance.\"/><meta name=\"robots\" content=\"index, follow\"/><link rel=\"canonical\" href=\"https://mizai.gr\"/><link rel=\"icon\" href=\"/icon.svg?57e362b35089b6cc\" type=\"image/svg+xml\" sizes=\"any\"/><script src=\"/_next/static/chunks/polyfills-42372ed130431b0a.js\" noModule=\"\"></script></head><body><div hidden=\"\"><!--$--><!--/$--></div><script src=\"/_next"
-    },
-    {
-      "path": "/api/feed/khmdhs-case-8e41d378652abb2f",
-      "status": 404,
-      "content_type": "text/html; charset=utf-8",
-      "bytes": 9215,
-      "final_url": "https://mizai.gr/api/feed/khmdhs-case-8e41d378652abb2f",
-      "text_preview": "<!DOCTYPE html><html id=\"__next_error__\"><head><meta charSet=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/><link rel=\"preload\" as=\"script\" fetchPriority=\"low\" href=\"/_next/static/chunks/webpack-ca5f4f11f78f2453.js\"/><script src=\"/_next/static/chunks/87c73c54-17e922beefebcbb1.js\" async=\"\"></script><script src=\"/_next/static/chunks/1968-3aa9649df4e4c3ae.js\" async=\"\"></script><script src=\"/_next/static/chunks/main-app-ea7225f801d19a79.js\" async=\"\"></script><meta name=\"robots\" content=\"noindex\"/><title>MizAI</title><meta name=\"description\" content=\"Greek public procurement review-priority signals with official-source provenance.\"/><meta name=\"robots\" content=\"index, follow\"/><link rel=\"canonical\" href=\"https://mizai.gr\"/><link rel=\"icon\" href=\"/icon.svg?57e362b35089b6cc\" type=\"image/svg+xml\" sizes=\"any\"/><script src=\"/_next/static/chunks/polyfills-42372ed130431b0a.js\" noModule=\"\"></script></head><body><div hidden=\"\"><!--$--><!--/$--></div><script src=\"/_next"
     }
   ],
   "weekly-uoc-rethymno-cleaning-2026": [
@@ -435,6 +695,344 @@
       }
     },
     {
+      "path": "/api/backend/api/cases/weekly-uoc-rethymno-cleaning-2026/scores",
+      "status": 200,
+      "content_type": "application/json",
+      "bytes": 204,
+      "final_url": "https://mizai.gr/api/backend/api/cases/weekly-uoc-rethymno-cleaning-2026/scores",
+      "json": {
+        "math_score": 44,
+        "math_label": "Χαμηλό",
+        "ai_score": 58,
+        "ai_label": "Μεσαίο",
+        "ai_run_count": 1,
+        "ai_latest_run_at": "2026-06-08T13:20:00",
+        "human_score": null,
+        "human_label": null,
+        "human_review_count": 0
+      }
+    },
+    {
+      "path": "/api/backend/api/cases/weekly-uoc-rethymno-cleaning-2026/ai-runs",
+      "status": 200,
+      "content_type": "application/json",
+      "bytes": 24679,
+      "final_url": "https://mizai.gr/api/backend/api/cases/weekly-uoc-rethymno-cleaning-2026/ai-runs",
+      "json": [
+        {
+          "id": "weekly-uoc-rethymno-cleaning-2026-ai-review-20260608",
+          "case_id": "weekly-uoc-rethymno-cleaning-2026",
+          "provider": "AI model",
+          "model_name": "AI model",
+          "model_weight": 1.0,
+          "model_weight_policy": "public-ai-model-v1",
+          "score": 58,
+          "user_id": null,
+          "user": null,
+          "public_explanation": {
+            "summary": "Καθαρισμός πανεπιστημιακών χώρων στο Ρέθυμνο συνεχίστηκε προσωρινά με διαπραγμάτευση χωρίς δημοσίευση προς έναν μόνο οικονομικό φορέα, έπειτα από ανοικτό διαγωνισμό που είχε απορρίψεις προσφορών και προσφυγές, με αιτιολογία τη συνέχεια της υπηρεσίας.",
+            "reasons": [
+              {
+                "type": "procedural_limited_competition_cluster",
+                "severity": "medium",
+                "explanation": "Το κύριο ελέγξιμο σημείο είναι η ενιαία αλληλουχία: ανοικτός διαγωνισμός με ουσιαστικά περιορισμένο αποτέλεσμα, προσφυγές, ενδιάμεση διαπραγμάτευση και νέα πρόσκληση χωρίς δημοσίευση προς έναν μόνο φορέα.",
+                "evidence_refs": [
+                  "D93/2025_EADISY",
+                  "UOC_request_2026_03",
+                  "D27/2026_EADISY"
+                ]
+              },
+              {
+                "type": "why_not_70_plus",
+                "severity": "low",
+                "explanation": "Η υπόθεση ακούγεται διαισθητικά έντονη επειδή πολλά γεγονότα εμφανίζονται στη σειρά, όμως όλα ανήκουν στο ίδιο procedural/limited-competition cluster. Δεν υπάρχει δεύτερο ανεξάρτητο σήμα, όπως τεκμηριωμένη υπερτιμολόγηση, missing public step, split-threshold pattern, αντίφαση εγγράφων ή verified relationship finding.",
+                "evidence_refs": [
+                  "D93/2025_EADISY",
+                  "UOC_request_2026_03",
+                  "D27/2026_EADISY"
+                ]
+              },
+              {
+                "type": "older_competition_case_not_score_driver",
+                "severity": "low",
+                "explanation": "Η παλαιότερη υπόθεση ανταγωνισμού πρέπει να παραμείνει μόνο ως πλαίσιο. Χωρίς οριστική δημόσια αντιστοίχιση ταυτότητας στο brief και με διαφορετική αγορά/παλαιότερη περίοδο, δεν πρέπει να αυξήσει το objective signal count ή να οδηγήσει σε υπέρβαση του cap.",
+                "evidence_refs": [
+                  "Competition_721_2020"
+                ]
+              }
+            ],
+            "evidence": [
+              {
+                "ref": "D27/2026_EADISY",
+                "claim": "Γνώμη για υπηρεσίες καθαρισμού εγκαταστάσεων στο Ρέθυμνο, διάρκειας 6 μηνών, ποσού 162.500 ευρώ χωρίς ΦΠΑ / 201.500 ευρώ με ΦΠΑ και επιφάνειας 44.363,42 τ.μ."
+              },
+              {
+                "ref": "D93/2025_EADISY",
+                "claim": "Προηγήθηκε ανοικτός ηλεκτρονικός διαγωνισμός άνω των ορίων, αξίας 793.541,67 ευρώ χωρίς ΦΠΑ / 983.991,67 ευρώ με ΦΠΑ, με τρεις προσφορές, δύο προτεινόμενες απορρίψεις και μεταγενέστερες προσφυγές."
+              },
+              {
+                "ref": "UOC_request_2026_03",
+                "claim": "Η προσωρινή κάλυψη είχε ήδη ανατεθεί στον ίδιο οικονομικό φορέα μέσω προηγούμενης διαπραγμάτευσης χωρίς δημοσίευση, και εκδόθηκε νέα πρόσκληση προς μόνο αυτόν με προθεσμία 10 ημερολογιακών ημερών."
+              },
+              {
+                "ref": "UOC_request_2026_03",
+                "claim": "Η αιτιολόγηση είναι η αδιάλειπτη καθαριότητα και υγιεινή/ασφάλεια, με δυνατότητα μονομερούς λύσης της σύμβασης όταν επιλυθεί η εκκρεμότητα του μεγάλου διαγωνισμού."
+              },
+              {
+                "ref": "Competition_721_2020",
+                "claim": "Παλαιότερη απόφαση ανταγωνισμού αναφέρει ατομική επιχείρηση με ίδιο μοτίβο ονόματος/πατρωνύμου, αλλά το παρόν brief δεν παρέχει οριστική δημόσια αντιστοίχιση ταυτότητας."
+              }
+            ],
+            "limitations": [
+              "Τα γεγονότα του ανοικτού διαγωνισμού, των προσφυγών, της διαπραγμάτευσης χωρίς δημοσίευση και της μίας πρόσκλησης αποτελούν ένα ενιαίο procedural/limited-competition cluster και δεν πρέπει να μετρηθούν ως πολλαπλά ανεξάρτητα σήματα.",
+              "Δεν παρέχονται αναλυτικά οικονομικά στοιχεία κόστους, όπως εργατοώρες, προσωπικό, βάρδιες, κόστος ανά τ.μ. ή συγκρίσιμες συμβάσεις, άρα δεν τεκμηριώνεται ξεχωριστή ανωμαλία τιμής.",
+              "Δεν παρέχεται οριστική δημόσια αντιστοίχιση ταυτότητας με την παλαιότερη απόφαση ανταγωνισμού· τα φορολογικά στοιχεία έχουν σκόπιμα παραλειφθεί και δεν πρέπει να δημοσιευτούν."
+            ],
+            "follow_up_checks_performed": [],
+            "recommended_next_checks": [
+              "Να ελεγχθεί αν η αιτιολόγηση της διαπραγμάτευσης χωρίς δημοσίευση εξηγεί συγκεκριμένα γιατί δεν μπορούσε να γίνει ευρύτερη, ανταγωνιστικότερη ή συντομότερη προσωρινή διαδικασία.",
+              "Να συγκριθεί το κόστος ανά τ.μ., ανά μήνα και ανά εργατοώρα με τον μεγάλο διαγωνισμό και άλλες δημόσιες συμβάσεις καθαρισμού παρόμοιας κλίμακας.",
+              "Να επιβεβαιωθεί από επίσημα δημόσια έγγραφα, χωρίς δημοσίευση προσωπικών αναγνωριστικών, η ακριβής σχέση του προσκληθέντος φορέα με την προηγούμενη προσφυγή και την παραίτηση."
+            ],
+            "confidence": 0.76,
+            "confidence_percent": 76,
+            "case_fit": "procurement",
+            "lane_scores": {
+              "procurement_risk": 58,
+              "weird_public_spend": 16,
+              "admin_spend_review": 43,
+              "data_quality": 28
+            },
+            "structured_analysis": {
+              "score_justification": [
+                {
+                  "type": "procedural_limited_competition_cluster",
+                  "severity": "medium",
+                  "explanation": "Το κύριο ελέγξιμο σημείο είναι η ενιαία αλληλουχία: ανοικτός διαγωνισμός με ουσιαστικά περιορισμένο αποτέλεσμα, προσφυγές, ενδιάμεση διαπραγμάτευση και νέα πρόσκληση χωρίς δημοσίευση προς έναν μόνο φορέα.",
+                  "evidence_refs": [
+                    "D93/2025_EADISY",
+                    "UOC_request_2026_03",
+                    "D27/2026_EADISY"
+                  ]
+                },
+                {
+                  "type": "why_not_70_plus",
+                  "severity": "low",
+                  "explanation": "Η υπόθεση ακούγεται διαισθητικά έντονη επειδή πολλά γεγονότα εμφανίζονται στη σειρά, όμως όλα ανήκουν στο ίδιο procedural/limited-competition cluster. Δεν υπάρχει δεύτερο ανεξάρτητο σήμα, όπως τεκμηριωμένη υπερτιμολόγηση, missing public step, split-threshold pattern, αντίφαση εγγράφων ή verified relationship finding.",
+                  "evidence_refs": [
+                    "D93/2025_EADISY",
+                    "UOC_request_2026_03",
+                    "D27/2026_EADISY"
+                  ]
+                },
+                {
+                  "type": "older_competition_case_not_score_driver",
+                  "severity": "low",
+                  "explanation": "Η παλαιότερη υπόθεση ανταγωνισμού πρέπει να παραμείνει μόνο ως πλαίσιο. Χωρίς οριστική δημόσια αντιστοίχιση ταυτότητας στο brief και με διαφορετική αγορά/παλαιότερη περίοδο, δεν πρέπει να αυξήσει το objective signal count ή να οδηγήσει σε υπέρβαση του cap.",
+                  "evidence_refs": [
+                    "Competition_721_2020"
+                  ]
+                }
+              ],
+              "evidence": [
+                {
+                  "ref": "D27/2026_EADISY",
+                  "claim": "Γνώμη για υπηρεσίες καθαρισμού εγκαταστάσεων στο Ρέθυμνο, διάρκειας 6 μηνών, ποσού 162.500 ευρώ χωρίς ΦΠΑ / 201.500 ευρώ με ΦΠΑ και επιφάνειας 44.363,42 τ.μ."
+                },
+                {
+                  "ref": "D93/2025_EADISY",
+                  "claim": "Προηγήθηκε ανοικτός ηλεκτρονικός διαγωνισμός άνω των ορίων, αξίας 793.541,67 ευρώ χωρίς ΦΠΑ / 983.991,67 ευρώ με ΦΠΑ, με τρεις προσφορές, δύο προτεινόμενες απορρίψεις και μεταγενέστερες προσφυγές."
+                },
+                {
+                  "ref": "UOC_request_2026_03",
+                  "claim": "Η προσωρινή κάλυψη είχε ήδη ανατεθεί στον ίδιο οικονομικό φορέα μέσω προηγούμενης διαπραγμάτευσης χωρίς δημοσίευση, και εκδόθηκε νέα πρόσκληση προς μόνο αυτόν με προθεσμία 10 ημερολογιακών ημερών."
+                },
+                {
+                  "ref": "UOC_request_2026_03",
+                  "claim": "Η αιτιολόγηση είναι η αδιάλειπτη καθαριότητα και υγιεινή/ασφάλεια, με δυνατότητα μονομερούς λύσης της σύμβασης όταν επιλυθεί η εκκρεμότητα του μεγάλου διαγωνισμού."
+                },
+                {
+                  "ref": "Competition_721_2020",
+                  "claim": "Παλαιότερη απόφαση ανταγωνισμού αναφέρει ατομική επιχείρηση με ίδιο μοτίβο ονόματος/πατρωνύμου, αλλά το παρόν brief δεν παρέχει οριστική δημόσια αντιστοίχιση ταυτότητας."
+                }
+              ],
+              "limitations": [
+                "Τα γεγονότα του ανοικτού διαγωνισμού, των προσφυγών, της διαπραγμάτευσης χωρίς δημοσίευση και της μίας πρόσκλησης αποτελούν ένα ενιαίο procedural/limited-competition cluster και δεν πρέπει να μετρηθούν ως πολλαπλά ανεξάρτητα σήματα.",
+                "Δεν παρέχονται αναλυτικά οικονομικά στοιχεία κόστους, όπως εργατοώρες, προσωπικό, βάρδιες, κόστος ανά τ.μ. ή συγκρίσιμες συμβάσεις, άρα δεν τεκμηριώνεται ξεχωριστή ανωμαλία τιμής.",
+                "Δεν παρέχεται οριστική δημόσια αντιστοίχιση ταυτότητας με την παλαιότερη απόφαση ανταγωνισμού· τα φορολογικά στοιχεία έχουν σκόπιμα παραλειφθεί και δεν πρέπει να δημοσιευτούν."
+              ],
+              "follow_up_checks_performed": [],
+              "recommended_next_checks": [
+                "Να ελεγχθεί αν η αιτιολόγηση της διαπραγμάτευσης χωρίς δημοσίευση εξηγεί συγκεκριμένα γιατί δεν μπορούσε να γίνει ευρύτερη, ανταγωνιστικότερη ή συντομότερη προσωρινή διαδικασία.",
+                "Να συγκριθεί το κόστος ανά τ.μ., ανά μήνα και ανά εργατοώρα με τον μεγάλο διαγωνισμό και άλλες δημόσιες συμβάσεις καθαρισμού παρόμοιας κλίμακας.",
+                "Να επιβεβαιωθεί από επίσημα δημόσια έγγραφα, χωρίς δημοσίευση προσωπικών αναγνωριστικών, η ακριβής σχέση του προσκληθέντος φορέα με την προηγούμενη προσφυγή και την παραίτηση."
+              ],
+              "case_fit": "procurement",
+              "lane_scores": {
+                "procurement_risk": 58,
+                "weird_public_spend": 16,
+                "admin_spend_review": 43,
+                "data_quality": 28
+              }
+            },
+            "disclaimer": "AI Score is a review-priority signal, not a finding of wrongdoing or legal non-compliance."
+          },
+          "output_json": {
+            "summary": "Καθαρισμός πανεπιστημιακών χώρων στο Ρέθυμνο συνεχίστηκε προσωρινά με διαπραγμάτευση χωρίς δημοσίευση προς έναν μόνο οικονομικό φορέα, έπειτα από ανοικτό διαγωνισμό που είχε απορρίψεις προσφορών και προσφυγές, με αιτιολογία τη συνέχεια της υπηρεσίας.",
+            "reasons": [
+              {
+                "type": "procedural_limited_competition_cluster",
+                "severity": "medium",
+                "explanation": "Το κύριο ελέγξιμο σημείο είναι η ενιαία αλληλουχία: ανοικτός διαγωνισμός με ουσιαστικά περιορισμένο αποτέλεσμα, προσφυγές, ενδιάμεση διαπραγμάτευση και νέα πρόσκληση χωρίς δημοσίευση προς έναν μόνο φορέα.",
+                "evidence_refs": [
+                  "D93/2025_EADISY",
+                  "UOC_request_2026_03",
+                  "D27/2026_EADISY"
+                ]
+              },
+              {
+                "type": "why_not_70_plus",
+                "severity": "low",
+                "explanation": "Η υπόθεση ακούγεται διαισθητικά έντονη επειδή πολλά γεγονότα εμφανίζονται στη σειρά, όμως όλα ανήκουν στο ίδιο procedural/limited-competition cluster. Δεν υπάρχει δεύτερο ανεξάρτητο σήμα, όπως τεκμηριωμένη υπερτιμολόγηση, missing public step, split-threshold pattern, αντίφαση εγγράφων ή verified relationship finding.",
+                "evidence_refs": [
+                  "D93/2025_EADISY",
+                  "UOC_request_2026_03",
+                  "D27/2026_EADISY"
+                ]
+              },
+              {
+                "type": "older_competition_case_not_score_driver",
+                "severity": "low",
+                "explanation": "Η παλαιότερη υπόθεση ανταγωνισμού πρέπει να παραμείνει μόνο ως πλαίσιο. Χωρίς οριστική δημόσια αντιστοίχιση ταυτότητας στο brief και με διαφορετική αγορά/παλαιότερη περίοδο, δεν πρέπει να αυξήσει το objective signal count ή να οδηγήσει σε υπέρβαση του cap.",
+                "evidence_refs": [
+                  "Competition_721_2020"
+                ]
+              }
+            ],
+            "evidence": [
+              {
+                "ref": "D27/2026_EADISY",
+                "claim": "Γνώμη για υπηρεσίες καθαρισμού εγκαταστάσεων στο Ρέθυμνο, διάρκειας 6 μηνών, ποσού 162.500 ευρώ χωρίς ΦΠΑ / 201.500 ευρώ με ΦΠΑ και επιφάνειας 44.363,42 τ.μ."
+              },
+              {
+                "ref": "D93/2025_EADISY",
+                "claim": "Προηγήθηκε ανοικτός ηλεκτρονικός διαγωνισμός άνω των ορίων, αξίας 793.541,67 ευρώ χωρίς ΦΠΑ / 983.991,67 ευρώ με ΦΠΑ, με τρεις προσφορές, δύο προτεινόμενες απορρίψεις και μεταγενέστερες προσφυγές."
+              },
+              {
+                "ref": "UOC_request_2026_03",
+                "claim": "Η προσωρινή κάλυψη είχε ήδη ανατεθεί στον ίδιο οικονομικό φορέα μέσω προηγούμενης διαπραγμάτευσης χωρίς δημοσίευση, και εκδόθηκε νέα πρόσκληση προς μόνο αυτόν με προθεσμία 10 ημερολογιακών ημερών."
+              },
+              {
+                "ref": "UOC_request_2026_03",
+                "claim": "Η αιτιολόγηση είναι η αδιάλειπτη καθαριότητα και υγιεινή/ασφάλεια, με δυνατότητα μονομερούς λύσης της σύμβασης όταν επιλυθεί η εκκρεμότητα του μεγάλου διαγωνισμού."
+              },
+              {
+                "ref": "Competition_721_2020",
+                "claim": "Παλαιότερη απόφαση ανταγωνισμού αναφέρει ατομική επιχείρηση με ίδιο μοτίβο ονόματος/πατρωνύμου, αλλά το παρόν brief δεν παρέχει οριστική δημόσια αντιστοίχιση ταυτότητας."
+              }
+            ],
+            "limitations": [
+              "Τα γεγονότα του ανοικτού διαγωνισμού, των προσφυγών, της διαπραγμάτευσης χωρίς δημοσίευση και της μίας πρόσκλησης αποτελούν ένα ενιαίο procedural/limited-competition cluster και δεν πρέπει να μετρηθούν ως πολλαπλά ανεξάρτητα σήματα.",
+              "Δεν παρέχονται αναλυτικά οικονομικά στοιχεία κόστους, όπως εργατοώρες, προσωπικό, βάρδιες, κόστος ανά τ.μ. ή συγκρίσιμες συμβάσεις, άρα δεν τεκμηριώνεται ξεχωριστή ανωμαλία τιμής.",
+              "Δεν παρέχεται οριστική δημόσια αντιστοίχιση ταυτότητας με την παλαιότερη απόφαση ανταγωνισμού· τα φορολογικά στοιχεία έχουν σκόπιμα παραλειφθεί και δεν πρέπει να δημοσιευτούν."
+            ],
+            "follow_up_checks_performed": [],
+            "recommended_next_checks": [
+              "Να ελεγχθεί αν η αιτιολόγηση της διαπραγμάτευσης χωρίς δημοσίευση εξηγεί συγκεκριμένα γιατί δεν μπορούσε να γίνει ευρύτερη, ανταγωνιστικότερη ή συντομότερη προσωρινή διαδικασία.",
+              "Να συγκριθεί το κόστος ανά τ.μ., ανά μήνα και ανά εργατοώρα με τον μεγάλο διαγωνισμό και άλλες δημόσιες συμβάσεις καθαρισμού παρόμοιας κλίμακας.",
+              "Να επιβεβαιωθεί από επίσημα δημόσια έγγραφα, χωρίς δημοσίευση προσωπικών αναγνωριστικών, η ακριβής σχέση του προσκληθέντος φορέα με την προηγούμενη προσφυγή και την παραίτηση."
+            ],
+            "confidence": 0.76,
+            "confidence_percent": 76,
+            "case_fit": "procurement",
+            "lane_scores": {
+              "procurement_risk": 58,
+              "weird_public_spend": 16,
+              "admin_spend_review": 43,
+              "data_quality": 28
+            },
+            "structured_analysis": {
+              "score_justification": [
+                {
+                  "type": "procedural_limited_competition_cluster",
+                  "severity": "medium",
+                  "explanation": "Το κύριο ελέγξιμο σημείο είναι η ενιαία αλληλουχία: ανοικτός διαγωνισμός με ουσιαστικά περιορισμένο αποτέλεσμα, προσφυγές, ενδιάμεση διαπραγμάτευση και νέα πρόσκληση χωρίς δημοσίευση προς έναν μόνο φορέα.",
+                  "evidence_refs": [
+                    "D93/2025_EADISY",
+                    "UOC_request_2026_03",
+                    "D27/2026_EADISY"
+                  ]
+                },
+                {
+                  "type": "why_not_70_plus",
+                  "severity": "low",
+                  "explanation": "Η υπόθεση ακούγεται διαισθητικά έντονη επειδή πολλά γεγονότα εμφανίζονται στη σειρά, όμως όλα ανήκουν στο ίδιο procedural/limited-competition cluster. Δεν υπάρχει δεύτερο ανεξάρτητο σήμα, όπως τεκμηριωμένη υπερτιμολόγηση, missing public step, split-threshold pattern, αντίφαση εγγράφων ή verified relationship finding.",
+                  "evidence_refs": [
+                    "D93/2025_EADISY",
+                    "UOC_request_2026_03",
+                    "D27/2026_EADISY"
+                  ]
+                },
+                {
+                  "type": "older_competition_case_not_score_driver",
+                  "severity": "low",
+                  "explanation": "Η παλαιότερη υπόθεση ανταγωνισμού πρέπει να παραμείνει μόνο ως πλαίσιο. Χωρίς οριστική δημόσια αντιστοίχιση ταυτότητας στο brief και με διαφορετική αγορά/παλαιότερη περίοδο, δεν πρέπει να αυξήσει το objective signal count ή να οδηγήσει σε υπέρβαση του cap.",
+                  "evidence_refs": [
+                    "Competition_721_2020"
+                  ]
+                }
+              ],
+              "evidence": [
+                {
+                  "ref": "D27/2026_EADISY",
+                  "claim": "Γνώμη για υπηρεσίες καθαρισμού εγκαταστάσεων στο Ρέθυμνο, διάρκειας 6 μηνών, ποσού 162.500 ευρώ χωρίς ΦΠΑ / 201.500 ευρώ με ΦΠΑ και επιφάνειας 44.363,42 τ.μ."
+                },
+                {
+                  "ref": "D93/2025_EADISY",
+                  "claim": "Προηγήθηκε ανοικτός ηλεκτρονικός διαγωνισμός άνω των ορίων, αξίας 793.541,67 ευρώ χωρίς ΦΠΑ / 983.991,67 ευρώ με ΦΠΑ, με τρεις προσφορές, δύο προτεινόμενες απορρίψεις και μεταγενέστερες προσφυγές."
+                },
+                {
+                  "ref": "UOC_request_2026_03",
+                  "claim": "Η προσωρινή κάλυψη είχε ήδη ανατεθεί στον ίδιο οικονομικό φορέα μέσω προηγούμενης διαπραγμάτευσης χωρίς δημοσίευση, και εκδόθηκε νέα πρόσκληση προς μόνο αυτόν με προθεσμία 10 ημερολογιακών ημερών."
+                },
+                {
+                  "ref": "UOC_request_2026_03",
+                  "claim": "Η αιτιολόγηση είναι η αδιάλειπτη καθαριότητα και υγιεινή/ασφάλεια, με δυνατότητα μονομερούς λύσης της σύμβασης όταν επιλυθεί η εκκρεμότητα του μεγάλου διαγωνισμού."
+                },
+                {
+                  "ref": "Competition_721_2020",
+                  "claim": "Παλαιότερη απόφαση ανταγωνισμού αναφέρει ατομική επιχείρηση με ίδιο μοτίβο ονόματος/πατρωνύμου, αλλά το παρόν brief δεν παρέχει οριστική δημόσια αντιστοίχιση ταυτότητας."
+                }
+              ],
+              "limitations": [
+                "Τα γεγονότα του ανοικτού διαγωνισμού, των προσφυγών, της διαπραγμάτευσης χωρίς δημοσίευση και της μίας πρόσκλησης αποτελούν ένα ενιαίο procedural/limited-competition cluster και δεν πρέπει να μετρηθούν ως πολλαπλά ανεξάρτητα σήματα.",
+                "Δεν παρέχονται αναλυτικά οικονομικά στοιχεία κόστους, όπως εργατοώρες, προσωπικό, βάρδιες, κόστος ανά τ.μ. ή συγκρίσιμες συμβάσεις, άρα δεν τεκμηριώνεται ξεχωριστή ανωμαλία τιμής.",
+                "Δεν παρέχεται οριστική δημόσια αντιστοίχιση ταυτότητας με την παλαιότερη απόφαση ανταγωνισμού· τα φορολογικά στοιχεία έχουν σκόπιμα παραλειφθεί και δεν πρέπει να δημοσιευτούν."
+              ],
+              "follow_up_checks_performed": [],
+              "recommended_next_checks": [
+                "Να ελεγχθεί αν η αιτιολόγηση της διαπραγμάτευσης χωρίς δημοσίευση εξηγεί συγκεκριμένα γιατί δεν μπορούσε να γίνει ευρύτερη, ανταγωνιστικότερη ή συντομότερη προσωρινή διαδικασία.",
+                "Να συγκριθεί το κόστος ανά τ.μ., ανά μήνα και ανά εργατοώρα με τον μεγάλο διαγωνισμό και άλλες δημόσιες συμβάσεις καθαρισμού παρόμοιας κλίμακας.",
+                "Να επιβεβαιωθεί από επίσημα δημόσια έγγραφα, χωρίς δημοσίευση προσωπικών αναγνωριστικών, η ακριβής σχέση του προσκληθέντος φορέα με την προηγούμενη προσφυγή και την παραίτηση."
+              ],
+              "case_fit": "procurement",
+              "lane_scores": {
+                "procurement_risk": 58,
+                "weird_public_spend": 16,
+                "admin_spend_review": 43,
+                "data_quality": 28
+              }
+            },
+            "disclaimer": "AI Score is a review-priority signal, not a finding of wrongdoing or legal non-compliance."
+          },
+          "credits_spent": 0,
+          "status": "completed",
+          "created_at": "2026-06-08T13:20:00",
+          "completed_at": "2026-06-08T13:20:00"
+        }
+      ]
+    },
+    {
       "path": "/api/backend/api/feed/weekly-uoc-rethymno-cleaning-2026",
       "status": 200,
       "content_type": "application/json",
@@ -496,22 +1094,6 @@
         "comments_page": 1,
         "comments_page_size": 50
       }
-    },
-    {
-      "path": "/api/cases/weekly-uoc-rethymno-cleaning-2026",
-      "status": 404,
-      "content_type": "text/html; charset=utf-8",
-      "bytes": 9227,
-      "final_url": "https://mizai.gr/api/cases/weekly-uoc-rethymno-cleaning-2026",
-      "text_preview": "<!DOCTYPE html><html id=\"__next_error__\"><head><meta charSet=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/><link rel=\"preload\" as=\"script\" fetchPriority=\"low\" href=\"/_next/static/chunks/webpack-ca5f4f11f78f2453.js\"/><script src=\"/_next/static/chunks/87c73c54-17e922beefebcbb1.js\" async=\"\"></script><script src=\"/_next/static/chunks/1968-3aa9649df4e4c3ae.js\" async=\"\"></script><script src=\"/_next/static/chunks/main-app-ea7225f801d19a79.js\" async=\"\"></script><meta name=\"robots\" content=\"noindex\"/><title>MizAI</title><meta name=\"description\" content=\"Greek public procurement review-priority signals with official-source provenance.\"/><meta name=\"robots\" content=\"index, follow\"/><link rel=\"canonical\" href=\"https://mizai.gr\"/><link rel=\"icon\" href=\"/icon.svg?57e362b35089b6cc\" type=\"image/svg+xml\" sizes=\"any\"/><script src=\"/_next/static/chunks/polyfills-42372ed130431b0a.js\" noModule=\"\"></script></head><body><div hidden=\"\"><!--$--><!--/$--></div><script src=\"/_next"
-    },
-    {
-      "path": "/api/feed/weekly-uoc-rethymno-cleaning-2026",
-      "status": 404,
-      "content_type": "text/html; charset=utf-8",
-      "bytes": 9225,
-      "final_url": "https://mizai.gr/api/feed/weekly-uoc-rethymno-cleaning-2026",
-      "text_preview": "<!DOCTYPE html><html id=\"__next_error__\"><head><meta charSet=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/><link rel=\"preload\" as=\"script\" fetchPriority=\"low\" href=\"/_next/static/chunks/webpack-ca5f4f11f78f2453.js\"/><script src=\"/_next/static/chunks/87c73c54-17e922beefebcbb1.js\" async=\"\"></script><script src=\"/_next/static/chunks/1968-3aa9649df4e4c3ae.js\" async=\"\"></script><script src=\"/_next/static/chunks/main-app-ea7225f801d19a79.js\" async=\"\"></script><meta name=\"robots\" content=\"noindex\"/><title>MizAI</title><meta name=\"description\" content=\"Greek public procurement review-priority signals with official-source provenance.\"/><meta name=\"robots\" content=\"index, follow\"/><link rel=\"canonical\" href=\"https://mizai.gr\"/><link rel=\"icon\" href=\"/icon.svg?57e362b35089b6cc\" type=\"image/svg+xml\" sizes=\"any\"/><script src=\"/_next/static/chunks/polyfills-42372ed130431b0a.js\" noModule=\"\"></script></head><body><div hidden=\"\"><!--$--><!--/$--></div><script src=\"/_next"
     }
   ]
 }
