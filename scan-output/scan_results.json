@@ -1,13 +1,13 @@
 {
-  "status": "COMPLETED",
-  "executed_at_utc": "2026-07-13T16:23:41.342399Z",
+  "status": "COMPLETED_INSUFFICIENT_RESULTS",
+  "executed_at_utc": "2026-07-13T16:49:09.727297Z",
   "source": {
-    "kind": "temporary_frozen_mirror_of_official_diavgeia_records",
+    "kind": "temporary_fire_protection_focused_mirror_of_official_diavgeia_records",
     "url": "https://raw.githubusercontent.com/troboukis/2026_fire_protection/main/data/2026_diavgeia.csv",
     "sha256": "f7cecca30f30e18576857cb57d2274a7c57d95c4c49c501940b8c2a14766e1ce",
     "bytes": 14666682,
     "rows": 7849,
-    "scope": "available 2026 snapshot"
+    "scope": "available fire-protection-focused snapshot; not the entire Diavgeia corpus; shortlisted ADA and PDFs revalidated live"
   },
   "method": {
     "runs": 2,
@@ -20,17 +20,24 @@
     "persistent_raw_storage": false,
     "uses_outcome_labels_news_or_EAD": false,
     "score_is_probability_of_wrongdoing": false,
-    "chain_guards": [
-      "collapse_shared_ADAM_and_explicit_ADA_references",
-      "collapse_exact_same_day_same_amount_same_subject_events",
-      "partition_by_fiscal_year",
-      "partition_by_municipal_unit_or_geography",
-      "recompute_after_live_PDF_and_detail_references"
-    ]
+    "scanner_version": "diavgeia-blind-chain-aware-v6",
+    "same_adam_collapsed_to_one_chain": true,
+    "corrected_records_removed_before_rescore": true,
+    "different_geographies_require_common_supplier_for_near_band": true,
+    "payments_not_summed_for_financial_contradiction": true,
+    "financial_ratio_floor": 1.35,
+    "hard_family_required_for_80": true,
+    "self_tests": {
+      "same_adam_collapses_to_one_chain": true,
+      "different_geographies_do_not_reach_80": true,
+      "distinct_supplier_chains_can_enter_deep_gate": true,
+      "vat_difference_not_hard_contradiction": true,
+      "real_single_payment_gap_detected_but_not_delivered_alone": true
+    }
   },
   "coverage": {
-    "normalized_unique_decisions": 6935,
-    "generated_candidate_clusters": 2,
+    "normalized_unique_decisions": 7763,
+    "generated_candidate_clusters": 1474,
     "pre_gate_80_or_more": 0,
     "selected_count": 0
   },
@@ -42,9 +49,7 @@
       "pre_gate_candidates": 0,
       "deep_checked": 0,
       "rejected": [],
-      "status": "NO_QUALIFYING_CASE_WITHIN_SEARCH_BUDGET",
-      "selected_adas": [],
-      "selected_review_priority": null
+      "status": "NO_QUALIFYING_CASE_WITHIN_SNAPSHOT"
     },
     {
       "run": 2,
@@ -52,9 +57,7 @@
       "pre_gate_candidates": 0,
       "deep_checked": 0,
       "rejected": [],
-      "status": "NO_QUALIFYING_CASE_WITHIN_SEARCH_BUDGET",
-      "selected_adas": [],
-      "selected_review_priority": null
+      "status": "NO_QUALIFYING_CASE_WITHIN_SNAPSHOT"
     }
   ]
 }

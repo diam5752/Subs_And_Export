@@ -1,12 +1,19 @@
-# Diavgeia-only blind scan v4
+# Δύο ανεξάρτητα Diavgeia-only blind scans
 
-- Raw rows: **7849**
-- Normalized decisions: **6935**
-- Candidate clusters: **2**
-- Results ≥80: **0**
+**Κατάσταση:** `COMPLETED_INSUFFICIENT_RESULTS`
+**Raw αποφάσεις στο snapshot:** 7,849
+**Μοναδικές αποφάσεις:** 7,763
+**Candidate clusters:** 1,474
+**Candidates με pre-score ≥80:** 0
 
-> Scores are human-review priorities, not probabilities of wrongdoing.
+> Το score είναι προτεραιότητα ανθρώπινου ελέγχου και όχι πιθανότητα παρανομίας, απάτης ή διαφθοράς.
 
-## Honest outcome
+## Περιορισμός
 
-The strict mechanism did not produce two independently validated results within this search budget.
+Βρέθηκαν 0 αντί για 2 περιπτώσεις. Το όριο δεν μειώθηκε.
+
+**Scanner:** `diavgeia-blind-chain-aware-v6`
+
+**Διορθώσεις:** κοινό ΑΔΑΜ/ρητή σύμβαση = μία chain· διορθωμένα ΑΔΑ αφαιρούνται πριν το rescore· διαφορετικές Δ.Ε. χωρίς κοινό ανάδοχο δεν δημιουργούν near-band εύρημα· οι πληρωμές δεν αθροίζονται ως δόσεις.
+
+**Εύρος:** το προσωρινό snapshot είναι εστιασμένο στην πυροπροστασία και δεν αποτελεί ολόκληρη τη Διαύγεια. Τα shortlisted έγγραφα επανελέγχθηκαν live.
