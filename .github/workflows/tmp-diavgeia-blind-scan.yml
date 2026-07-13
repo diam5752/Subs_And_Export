@@ -6,7 +6,7 @@ on:
       - tmp/diavgeia-blind-scan-20260713
     paths:
       - .github/workflows/tmp-diavgeia-blind-scan.yml
-      - tmp_tools/diavgeia_blind_scan_v2.py
+      - tmp_tools/diavgeia_blind_scan_v3.py
 
 permissions:
   contents: write
@@ -35,7 +35,7 @@ jobs:
       - name: Execute two independent scans with explicit-chain validation
         run: |
           rm -rf scan-output
-          python tmp_tools/diavgeia_blind_scan_v2.py --out-dir scan-output
+          python tmp_tools/diavgeia_blind_scan_v3.py --out-dir scan-output
       - name: Commit results
         run: |
           git config user.name "github-actions[bot]"
