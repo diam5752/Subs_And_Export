@@ -165,7 +165,24 @@ def deep_validate(session: HunterSession, candidate: Candidate) -> tuple[dict[st
         else:
             pdf_count += 1
         record.live_text = f"{json.dumps(detail, ensure_ascii=False, default=str)}\n{pdf_text}"
-        normalized = norm(record.live_text)
+        record.amount = record.amount or amount_from_text(pdf_text)
+        evidence_text = record.combined_text()
+        normalized = norm(evidence_text)
+        # Discovery terms only nominate a seed. Every scoring flag is rebuilt from
+        # current official detail/PDF evidence so a lens cannot self-confirm itself.
+        record.direct = contains(normalized, DIRECT_TERMS)
+        record.no_publication = contains(normalized, NO_PUBLICATION_TERMS)
+        record.single_bid = contains(normalized, SINGLE_BID_TERMS)
+        record.emergency = contains(normalized, EMERGENCY_TERMS)
+        record.modification = contains(normalized, MODIFICATION_TERMS)
+        record.extension = contains(normalized, EXTENSION_TERMS)
+        record.cancelled = contains(normalized, CANCEL_TERMS)
+        record.medical = contains(normalized, MEDICAL_TERMS)
+        record.stage = stage_for(evidence_text, record.decision_type)
+        record.topic = topic_key(record.subject)
+        record.geo = geography(record.subject)
+        record.roots = {*adam_refs(evidence_text), *contract_refs(evidence_text)}
+        record.refs = ada_refs(evidence_text) - {record.ada}
         for term in ORDINARY_EXPLANATION_TERMS:
             if norm(term) in normalized:
                 ordinary_terms.add(term)
