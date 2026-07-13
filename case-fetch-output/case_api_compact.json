@@ -1,0 +1,517 @@
+{
+  "khmdhs-case-8e41d378652abb2f": [
+    {
+      "path": "/api/backend/api/cases/khmdhs-case-8e41d378652abb2f",
+      "status": 200,
+      "content_type": "application/json",
+      "bytes": 6681,
+      "final_url": "https://mizai.gr/api/backend/api/cases/khmdhs-case-8e41d378652abb2f",
+      "json": {
+        "id": "khmdhs-case-8e41d378652abb2f",
+        "title": "Σύμβαση για την απευθείας ανάθεση για το υπόγειο δίκτυο αποχέτευσης στην Αχαρνών 2.",
+        "slug": "khmdhs-case-8e41d378652abb2f",
+        "organization": "ΥΠΟΥΡΓΕΙΟ ΑΓΡΟΤΙΚΗΣ ΑΝΑΠΤΥΞΗΣ ΚΑΙ ΤΡΟΦΙΜΩΝ",
+        "source_summary": "Διαύγεια + ΚΗΜΔΗΣ",
+        "source_keys": [
+          "diavgeia",
+          "khmdhs"
+        ],
+        "source_labels": [
+          "Διαύγεια API",
+          "ΚΗΜΔΗΣ OpenData API"
+        ],
+        "supplier": "ΤΕΧΝΙΚΗ ΝΙΚΟΛΑΟΣ ΣΑΒΒΑΝΑΚΗΣ Μ.Ε.Π.Ε.",
+        "amount_total": "24056.00",
+        "currency": "EUR",
+        "status": "Υπό αξιολόγηση",
+        "procurement_category": "ΚΗΜΔΗΣ Σύμβαση",
+        "cpv": "50800000-3",
+        "published_at": "2026-05-21",
+        "summary": "Σύμβαση για την απευθείας ανάθεση για το υπόγειο δίκτυο αποχέτευσης στην Αχαρνών 2. Η αξία είναι 24.056,00 ευρώ",
+        "summary_source": "ai",
+        "math_score": 100,
+        "ai_score": 26,
+        "human_score": null,
+        "data_sources": [
+          {
+            "id": "115b4d42-4a10-4bf0-ad7e-86d376eecb60",
+            "system_key": "khmdhs",
+            "label": "ΚΗΜΔΗΣ OpenData API",
+            "base_url": "https://cerpp.eprocurement.gov.gr/khmdhs-opendata",
+            "enabled": true
+          },
+          {
+            "id": "18a57ed0-0ee9-4887-90a0-5619c222894b",
+            "system_key": "diavgeia",
+            "label": "Διαύγεια API",
+            "base_url": "https://diavgeia.gov.gr/luminapi/api",
+            "enabled": true
+          }
+        ],
+        "documents": [
+          {
+            "id": "khmdhs-doc-8e41d378652abb2f",
+            "case_id": "khmdhs-case-8e41d378652abb2f",
+            "source_id": "115b4d42-4a10-4bf0-ad7e-86d376eecb60",
+            "source_label": "ΚΗΜΔΗΣ OpenData API",
+            "filename": "ΚΗΜΔΗΣ-26SYMV019059400.pdf",
+            "file_type": "PDF",
+            "file_size_bytes": 519716,
+            "source_url": "https://cerpp.eprocurement.gov.gr/khmdhs-opendata/contract/attachment/26SYMV019059400",
+            "storage_path": null,
+            "has_local_file": false,
+            "has_official_preview_file": true,
+            "file_hash": "447c6a00197e76af087bd6b7caacd9b13982e796a84ddd2fb414063fb2107521",
+            "remote_id": "26SYMV019059400",
+            "ada": "686Φ4653ΠΓ-8ΜΓ",
+            "adam": "26SYMV019059400",
+            "organization_name": "ΥΠΟΥΡΓΕΙΟ ΑΓΡΟΤΙΚΗΣ ΑΝΑΠΤΥΞΗΣ ΚΑΙ ΤΡΟΦΙΜΩΝ",
+            "organization_uid": "[redacted AFM]",
+            "document_date": "2026-05-21",
+            "fetched_at": "2026-05-25T17:09:06.229759",
+            "parsed_text": null,
+            "raw_metadata_json": {}
+          },
+          {
+            "id": "diavgeia-doc-5bfeae8d6e34a085",
+            "case_id": "khmdhs-case-8e41d378652abb2f",
+            "source_id": "18a57ed0-0ee9-4887-90a0-5619c222894b",
+            "source_label": "Διαύγεια API",
+            "filename": "Διαύγεια-686Φ4653ΠΓ-8ΜΓ.pdf",
+            "file_type": "PDF",
+            "file_size_bytes": 474823,
+            "source_url": "https://diavgeia.gov.gr/doc/686%CE%A64653%CE%A0%CE%93-8%CE%9C%CE%93",
+            "storage_path": null,
+            "has_local_file": false,
+            "has_official_preview_file": true,
+            "file_hash": "0f1964009c628ba52e1ac11950dfe8084db4da730617e88c0c8e27af218cb128",
+            "remote_id": "686Φ4653ΠΓ-8ΜΓ",
+            "ada": "686Φ4653ΠΓ-8ΜΓ",
+            "adam": null,
+            "organization_name": "ΥΠΟΥΡΓΕΙΟ ΑΓΡΟΤΙΚΗΣ ΑΝΑΠΤΥΞΗΣ ΚΑΙ ΤΡΟΦΙΜΩΝ",
+            "organization_uid": "[redacted AFM]",
+            "document_date": "2026-04-23",
+            "fetched_at": "2026-05-25T17:09:06.829899",
+            "parsed_text": null,
+            "raw_metadata_json": {}
+          },
+          {
+            "id": "khmdhs-doc-7a6d79fcf9cafd4a",
+            "case_id": "khmdhs-case-8e41d378652abb2f",
+            "source_id": "115b4d42-4a10-4bf0-ad7e-86d376eecb60",
+            "source_label": "ΚΗΜΔΗΣ OpenData API",
+            "filename": "ΚΗΜΔΗΣ-26REQ018711832.pdf",
+            "file_type": "PDF",
+            "file_size_bytes": 1540129,
+            "source_url": "https://cerpp.eprocurement.gov.gr/khmdhs-opendata/request/attachment/26REQ018711832",
+            "storage_path": null,
+            "has_local_file": false,
+            "has_official_preview_file": true,
+            "file_hash": "816a6908dd8716e52230dc18e08a947f49b0d2dbe971e4d2fefa206a8b70d892",
+            "remote_id": "26REQ018711832",
+            "ada": null,
+            "adam": "26REQ018711832",
+            "organization_name": "ΥΠΟΥΡΓΕΙΟ ΑΓΡΟΤΙΚΗΣ ΑΝΑΠΤΥΞΗΣ ΚΑΙ ΤΡΟΦΙΜΩΝ",
+            "organization_uid": "[redacted AFM]",
+            "document_date": "2026-03-26",
+            "fetched_at": "2026-05-25T17:09:09.925508",
+            "parsed_text": null,
+            "raw_metadata_json": {}
+          },
+          {
+            "id": "khmdhs-doc-b50598e448803d44",
+            "case_id": "khmdhs-case-8e41d378652abb2f",
+            "source_id": "115b4d42-4a10-4bf0-ad7e-86d376eecb60",
+            "source_label": "ΚΗΜΔΗΣ OpenData API",
+            "filename": "ΚΗΜΔΗΣ-26REQ018937624.pdf",
+            "file_type": "PDF",
+            "file_size_bytes": 476173,
+            "source_url": "https://cerpp.eprocurement.gov.gr/khmdhs-opendata/request/attachment/26REQ018937624",
+            "storage_path": null,
+            "has_local_file": false,
+            "has_official_preview_file": true,
+            "file_hash": "894eb994d37a1ba3148b2e5730391b39512f18060cb07388825893cde680822e",
+            "remote_id": "26REQ018937624",
+            "ada": null,
+            "adam": "26REQ018937624",
+            "organization_name": "ΥΠΟΥΡΓΕΙΟ ΑΓΡΟΤΙΚΗΣ ΑΝΑΠΤΥΞΗΣ ΚΑΙ ΤΡΟΦΙΜΩΝ",
+            "organization_uid": "[redacted AFM]",
+            "document_date": "2026-05-04",
+            "fetched_at": "2026-05-25T17:09:12.577827",
+            "parsed_text": null,
+            "raw_metadata_json": {}
+          },
+          {
+            "id": "khmdhs-doc-14ab73801adc7820",
+            "case_id": "khmdhs-case-8e41d378652abb2f",
+            "source_id": "115b4d42-4a10-4bf0-ad7e-86d376eecb60",
+            "source_label": "ΚΗΜΔΗΣ OpenData API",
+            "filename": "ΚΗΜΔΗΣ-26PROC018937921.pdf",
+            "file_type": "PDF",
+            "file_size_bytes": 1872895,
+            "source_url": "https://cerpp.eprocurement.gov.gr/khmdhs-opendata/notice/attachment/26PROC018937921",
+            "storage_path": null,
+            "has_local_file": false,
+            "has_official_preview_file": true,
+            "file_hash": "a48dbbfc267882b8cdf1daaec57fe70ef2cb9b3c8e1baad404e641a26e99f795",
+            "remote_id": "26PROC018937921",
+            "ada": null,
+            "adam": "26PROC018937921",
+            "organization_name": "ΥΠΟΥΡΓΕΙΟ ΑΓΡΟΤΙΚΗΣ ΑΝΑΠΤΥΞΗΣ ΚΑΙ ΤΡΟΦΙΜΩΝ",
+            "organization_uid": "[redacted AFM]",
+            "document_date": "2026-05-04",
+            "fetched_at": "2026-05-25T17:09:15.882289",
+            "parsed_text": null,
+            "raw_metadata_json": {}
+          },
+          {
+            "id": "khmdhs-doc-4960fccf3099cd5f",
+            "case_id": "khmdhs-case-8e41d378652abb2f",
+            "source_id": "115b4d42-4a10-4bf0-ad7e-86d376eecb60",
+            "source_label": "ΚΗΜΔΗΣ OpenData API",
+            "filename": "ΚΗΜΔΗΣ-26AWRD019025316.pdf",
+            "file_type": "PDF",
+            "file_size_bytes": 1703167,
+            "source_url": "https://cerpp.eprocurement.gov.gr/khmdhs-opendata/auction/attachment/26AWRD019025316",
+            "storage_path": null,
+            "has_local_file": false,
+            "has_official_preview_file": true,
+            "file_hash": "78445169139937789d0460d2eba53c8076ba88851bc04fb8d07a5d2c9949e2f7",
+            "remote_id": "26AWRD019025316",
+            "ada": null,
+            "adam": "26AWRD019025316",
+            "organization_name": "ΥΠΟΥΡΓΕΙΟ ΑΓΡΟΤΙΚΗΣ ΑΝΑΠΤΥΞΗΣ ΚΑΙ ΤΡΟΦΙΜΩΝ",
+            "organization_uid": "[redacted AFM]",
+            "document_date": "2026-05-15",
+            "fetched_at": "2026-05-25T17:09:18.920144",
+            "parsed_text": null,
+            "raw_metadata_json": {}
+          }
+        ],
+        "scores": {
+          "math_score": 100,
+          "math_label": "Υψηλό",
+          "ai_score": 26,
+          "ai_label": "Χαμηλό",
+          "ai_run_count": 2,
+          "ai_latest_run_at": "2026-05-26T16:48:38.850340",
+          "human_score": null,
+          "human_label": null,
+          "human_review_count": 0
+        },
+        "risk_tags": [],
+        "risk_assessment": null
+      }
+    },
+    {
+      "path": "/api/backend/api/feed/khmdhs-case-8e41d378652abb2f",
+      "status": 200,
+      "content_type": "application/json",
+      "bytes": 1612,
+      "final_url": "https://mizai.gr/api/backend/api/feed/khmdhs-case-8e41d378652abb2f",
+      "json": {
+        "item": {
+          "case": {
+            "id": "khmdhs-case-8e41d378652abb2f",
+            "title": "Σύμβαση για την απευθείας ανάθεση για το υπόγειο δίκτυο αποχέτευσης στην Αχαρνών 2.",
+            "slug": "khmdhs-case-8e41d378652abb2f",
+            "organization": "ΥΠΟΥΡΓΕΙΟ ΑΓΡΟΤΙΚΗΣ ΑΝΑΠΤΥΞΗΣ ΚΑΙ ΤΡΟΦΙΜΩΝ",
+            "source_summary": "Διαύγεια + ΚΗΜΔΗΣ",
+            "source_keys": [
+              "diavgeia",
+              "khmdhs"
+            ],
+            "source_labels": [
+              "Διαύγεια API",
+              "ΚΗΜΔΗΣ OpenData API"
+            ],
+            "supplier": "ΤΕΧΝΙΚΗ ΝΙΚΟΛΑΟΣ ΣΑΒΒΑΝΑΚΗΣ Μ.Ε.Π.Ε.",
+            "amount_total": "24056.00",
+            "currency": "EUR",
+            "status": "Υπό αξιολόγηση",
+            "procurement_category": "ΚΗΜΔΗΣ Σύμβαση",
+            "cpv": "50800000-3",
+            "published_at": "2026-05-21",
+            "summary": "Σύμβαση για την απευθείας ανάθεση για το υπόγειο δίκτυο αποχέτευσης στην Αχαρνών 2. Η αξία είναι 24.056,00 ευρώ",
+            "summary_source": "ai",
+            "math_score": 100,
+            "ai_score": 26,
+            "human_score": null,
+            "created_at": "2026-05-25T17:09:03.184435"
+          },
+          "scores": {
+            "human_score": null,
+            "human_review_count": 0,
+            "ai_score": 26,
+            "ai_run_count": 2,
+            "review_score": 100,
+            "math_run_count": 1
+          },
+          "social": {
+            "comment_count": 0,
+            "like_count": 4,
+            "ai_run_enabled": true,
+            "comment_submission_enabled": true,
+            "human_review_submission_enabled": true,
+            "viewer_authenticated": false,
+            "viewer_liked": false,
+            "viewer_saved": false
+          },
+          "links": {
+            "feed_detail": "/feed/khmdhs-case-8e41d378652abb2f",
+            "case_detail": "/cases/khmdhs-case-8e41d378652abb2f"
+          }
+        },
+        "comments": [],
+        "comments_total": 0,
+        "comments_page": 1,
+        "comments_page_size": 50
+      }
+    },
+    {
+      "path": "/api/cases/khmdhs-case-8e41d378652abb2f",
+      "status": 404,
+      "content_type": "text/html; charset=utf-8",
+      "bytes": 9217,
+      "final_url": "https://mizai.gr/api/cases/khmdhs-case-8e41d378652abb2f",
+      "text_preview": "<!DOCTYPE html><html id=\"__next_error__\"><head><meta charSet=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/><link rel=\"preload\" as=\"script\" fetchPriority=\"low\" href=\"/_next/static/chunks/webpack-ca5f4f11f78f2453.js\"/><script src=\"/_next/static/chunks/87c73c54-17e922beefebcbb1.js\" async=\"\"></script><script src=\"/_next/static/chunks/1968-3aa9649df4e4c3ae.js\" async=\"\"></script><script src=\"/_next/static/chunks/main-app-ea7225f801d19a79.js\" async=\"\"></script><meta name=\"robots\" content=\"noindex\"/><title>MizAI</title><meta name=\"description\" content=\"Greek public procurement review-priority signals with official-source provenance.\"/><meta name=\"robots\" content=\"index, follow\"/><link rel=\"canonical\" href=\"https://mizai.gr\"/><link rel=\"icon\" href=\"/icon.svg?57e362b35089b6cc\" type=\"image/svg+xml\" sizes=\"any\"/><script src=\"/_next/static/chunks/polyfills-42372ed130431b0a.js\" noModule=\"\"></script></head><body><div hidden=\"\"><!--$--><!--/$--></div><script src=\"/_next"
+    },
+    {
+      "path": "/api/feed/khmdhs-case-8e41d378652abb2f",
+      "status": 404,
+      "content_type": "text/html; charset=utf-8",
+      "bytes": 9215,
+      "final_url": "https://mizai.gr/api/feed/khmdhs-case-8e41d378652abb2f",
+      "text_preview": "<!DOCTYPE html><html id=\"__next_error__\"><head><meta charSet=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/><link rel=\"preload\" as=\"script\" fetchPriority=\"low\" href=\"/_next/static/chunks/webpack-ca5f4f11f78f2453.js\"/><script src=\"/_next/static/chunks/87c73c54-17e922beefebcbb1.js\" async=\"\"></script><script src=\"/_next/static/chunks/1968-3aa9649df4e4c3ae.js\" async=\"\"></script><script src=\"/_next/static/chunks/main-app-ea7225f801d19a79.js\" async=\"\"></script><meta name=\"robots\" content=\"noindex\"/><title>MizAI</title><meta name=\"description\" content=\"Greek public procurement review-priority signals with official-source provenance.\"/><meta name=\"robots\" content=\"index, follow\"/><link rel=\"canonical\" href=\"https://mizai.gr\"/><link rel=\"icon\" href=\"/icon.svg?57e362b35089b6cc\" type=\"image/svg+xml\" sizes=\"any\"/><script src=\"/_next/static/chunks/polyfills-42372ed130431b0a.js\" noModule=\"\"></script></head><body><div hidden=\"\"><!--$--><!--/$--></div><script src=\"/_next"
+    }
+  ],
+  "weekly-uoc-rethymno-cleaning-2026": [
+    {
+      "path": "/api/backend/api/cases/weekly-uoc-rethymno-cleaning-2026",
+      "status": 200,
+      "content_type": "application/json",
+      "bytes": 5037,
+      "final_url": "https://mizai.gr/api/backend/api/cases/weekly-uoc-rethymno-cleaning-2026",
+      "json": {
+        "id": "weekly-uoc-rethymno-cleaning-2026",
+        "title": "Καθαριότητα Πανεπιστημίου Κρήτης στο Ρέθυμνο με διαπραγμάτευση χωρίς δημοσίευση",
+        "slug": "panepistimio-kritis-kathariotita-rethymno-2026",
+        "organization": "Πανεπιστήμιο Κρήτης",
+        "source_summary": "Δημόσια έγγραφα",
+        "source_keys": [
+          "curated_official_documents"
+        ],
+        "source_labels": [
+          "Δημόσια έγγραφα"
+        ],
+        "supplier": "Ανάδοχος (όνομα στο επίσημο έγγραφο)",
+        "amount_total": "201500.00",
+        "currency": "EUR",
+        "status": "Υπό αξιολόγηση",
+        "procurement_category": "Υπηρεσίες καθαρισμού",
+        "cpv": "90910000-9",
+        "published_at": null,
+        "summary": "Καθαρισμός πανεπιστημιακών χώρων στο Ρέθυμνο συνεχίστηκε προσωρινά με διαπραγμάτευση χωρίς δημοσίευση προς έναν μόνο οικονομικό φορέα, έπειτα από ανοικτό διαγωνισμό που είχε απορρίψεις προσφορών και προσφυγές, με αιτιολογία τη συνέχεια της υπηρεσίας.",
+        "summary_source": "ai",
+        "math_score": 44,
+        "ai_score": 58,
+        "human_score": null,
+        "data_sources": [
+          {
+            "id": "curated-official-documents",
+            "system_key": "curated_official_documents",
+            "label": "Δημόσια έγγραφα",
+            "base_url": null,
+            "enabled": true
+          }
+        ],
+        "documents": [
+          {
+            "id": "weekly-uoc-cleaning-d27-2026",
+            "case_id": "weekly-uoc-rethymno-cleaning-2026",
+            "source_id": "curated-official-documents",
+            "source_label": "Δημόσια έγγραφα",
+            "filename": "eadisy-d27-2026-cleaning-rethymno.pdf",
+            "file_type": "PDF",
+            "file_size_bytes": 453,
+            "source_url": "https://eadhsy.gr/pdf/aitimata/2026_D27_EADHSY.pdf",
+            "storage_path": null,
+            "has_local_file": false,
+            "has_official_preview_file": true,
+            "file_hash": "1cd1de3db23ca41bb42ed72bec0296a0874bafbe9b8eb3d50a4b0052b47127e2",
+            "remote_id": "D27/2026_EADISY",
+            "ada": null,
+            "adam": null,
+            "organization_name": "Πανεπιστήμιο Κρήτης",
+            "organization_uid": "university-of-crete",
+            "document_date": null,
+            "fetched_at": "2026-06-08T13:20:00",
+            "parsed_text": null,
+            "raw_metadata_json": {}
+          },
+          {
+            "id": "weekly-uoc-cleaning-competition-721-2020",
+            "case_id": "weekly-uoc-rethymno-cleaning-2026",
+            "source_id": "curated-official-documents",
+            "source_label": "Δημόσια έγγραφα",
+            "filename": "competition-commission-721-2020-context.html",
+            "file_type": "HTML",
+            "file_size_bytes": 502,
+            "source_url": "https://www.epant.gr/apofaseis-gnomodotiseis/item/1242-apofasi-721-2020.html",
+            "storage_path": null,
+            "has_local_file": false,
+            "has_official_preview_file": false,
+            "file_hash": "54f8cd5b4d616f8b8765354b45c4a3d393b18077fad3e4feaa56b84532221a17",
+            "remote_id": "Competition_721_2020",
+            "ada": null,
+            "adam": null,
+            "organization_name": "Πανεπιστήμιο Κρήτης",
+            "organization_uid": "university-of-crete",
+            "document_date": null,
+            "fetched_at": "2026-06-08T13:20:00",
+            "parsed_text": null,
+            "raw_metadata_json": {}
+          },
+          {
+            "id": "weekly-uoc-cleaning-d93-2025",
+            "case_id": "weekly-uoc-rethymno-cleaning-2026",
+            "source_id": "curated-official-documents",
+            "source_label": "Δημόσια έγγραφα",
+            "filename": "eadisy-d93-2025-cleaning-rethymno.pdf",
+            "file_type": "PDF",
+            "file_size_bytes": 411,
+            "source_url": "https://eadhsy.gr/pdf/aitimata/2025_D93_EADHSY.pdf",
+            "storage_path": null,
+            "has_local_file": false,
+            "has_official_preview_file": true,
+            "file_hash": "1d0ac0e7e6c22a0cc0096f60c60973aa7e7fdf8902b9232256b96050df1202aa",
+            "remote_id": "D93/2025_EADISY",
+            "ada": null,
+            "adam": null,
+            "organization_name": "Πανεπιστήμιο Κρήτης",
+            "organization_uid": "university-of-crete",
+            "document_date": null,
+            "fetched_at": "2026-06-08T13:20:00",
+            "parsed_text": null,
+            "raw_metadata_json": {}
+          },
+          {
+            "id": "weekly-uoc-cleaning-uoc-request-2026-03",
+            "case_id": "weekly-uoc-rethymno-cleaning-2026",
+            "source_id": "curated-official-documents",
+            "source_label": "Δημόσια έγγραφα",
+            "filename": "uoc-request-negotiation-cleaning-rethymno-2026-03.pdf",
+            "file_type": "PDF",
+            "file_size_bytes": 590,
+            "source_url": "https://proclamations.admin.uoc.gr/wp-content/uploads/2026/03/%CE%88%CE%B3%CE%B3%CF%81%CE%B1%CF%86%CE%BF-%CE%B1%CE%B9%CF%84%CE%AE%CE%BC%CE%B1%CF%84%CE%BF%CF%82-%CF%83%CF%8D%CE%BC%CF%86%CF%89%CE%BD%CE%B7%CF%82-%CE%B3%CE%BD%CF%8E%CE%BC%CE%B7%CF%82-%CE%B3%CE%B9%CE%B1-%CE%B4%CE%B9%CE%B1%CF%80%CF%81%CE%B1%CE%B3%CE%BC%CE%AC%CF%84%CE%B5%CF%85%CF%83%CE%B7.pdf",
+            "storage_path": null,
+            "has_local_file": false,
+            "has_official_preview_file": true,
+            "file_hash": "2655ba94aec061563d18f2c9d60d0bcbdc0fa229befda4d6acb45dce9a3e1ece",
+            "remote_id": "UOC_request_2026_03",
+            "ada": null,
+            "adam": null,
+            "organization_name": "Πανεπιστήμιο Κρήτης",
+            "organization_uid": "university-of-crete",
+            "document_date": null,
+            "fetched_at": "2026-06-08T13:20:00",
+            "parsed_text": null,
+            "raw_metadata_json": {}
+          }
+        ],
+        "scores": {
+          "math_score": 44,
+          "math_label": "Χαμηλό",
+          "ai_score": 58,
+          "ai_label": "Μεσαίο",
+          "ai_run_count": 1,
+          "ai_latest_run_at": "2026-06-08T13:20:00",
+          "human_score": null,
+          "human_label": null,
+          "human_review_count": 0
+        },
+        "risk_tags": [],
+        "risk_assessment": null
+      }
+    },
+    {
+      "path": "/api/backend/api/feed/weekly-uoc-rethymno-cleaning-2026",
+      "status": 200,
+      "content_type": "application/json",
+      "bytes": 1857,
+      "final_url": "https://mizai.gr/api/backend/api/feed/weekly-uoc-rethymno-cleaning-2026",
+      "json": {
+        "item": {
+          "case": {
+            "id": "weekly-uoc-rethymno-cleaning-2026",
+            "title": "Καθαριότητα Πανεπιστημίου Κρήτης στο Ρέθυμνο με διαπραγμάτευση χωρίς δημοσίευση",
+            "slug": "panepistimio-kritis-kathariotita-rethymno-2026",
+            "organization": "Πανεπιστήμιο Κρήτης",
+            "source_summary": "Δημόσια έγγραφα",
+            "source_keys": [
+              "curated_official_documents"
+            ],
+            "source_labels": [
+              "Δημόσια έγγραφα"
+            ],
+            "supplier": "Ανάδοχος (όνομα στο επίσημο έγγραφο)",
+            "amount_total": "201500.00",
+            "currency": "EUR",
+            "status": "Υπό αξιολόγηση",
+            "procurement_category": "Υπηρεσίες καθαρισμού",
+            "cpv": "90910000-9",
+            "published_at": null,
+            "summary": "Καθαρισμός πανεπιστημιακών χώρων στο Ρέθυμνο συνεχίστηκε προσωρινά με διαπραγμάτευση χωρίς δημοσίευση προς έναν μόνο οικονομικό φορέα, έπειτα από ανοικτό διαγωνισμό που είχε απορρίψεις προσφορών και προσφυγές, με αιτιολογία τη συνέχεια της υπηρεσίας.",
+            "summary_source": "ai",
+            "math_score": 44,
+            "ai_score": 58,
+            "human_score": null,
+            "created_at": "2026-06-08T13:20:00"
+          },
+          "scores": {
+            "human_score": null,
+            "human_review_count": 0,
+            "ai_score": 58,
+            "ai_run_count": 1,
+            "review_score": 44,
+            "math_run_count": 1
+          },
+          "social": {
+            "comment_count": 0,
+            "like_count": 3,
+            "ai_run_enabled": true,
+            "comment_submission_enabled": true,
+            "human_review_submission_enabled": true,
+            "viewer_authenticated": false,
+            "viewer_liked": false,
+            "viewer_saved": false
+          },
+          "links": {
+            "feed_detail": "/feed/weekly-uoc-rethymno-cleaning-2026",
+            "case_detail": "/cases/weekly-uoc-rethymno-cleaning-2026"
+          }
+        },
+        "comments": [],
+        "comments_total": 0,
+        "comments_page": 1,
+        "comments_page_size": 50
+      }
+    },
+    {
+      "path": "/api/cases/weekly-uoc-rethymno-cleaning-2026",
+      "status": 404,
+      "content_type": "text/html; charset=utf-8",
+      "bytes": 9227,
+      "final_url": "https://mizai.gr/api/cases/weekly-uoc-rethymno-cleaning-2026",
+      "text_preview": "<!DOCTYPE html><html id=\"__next_error__\"><head><meta charSet=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/><link rel=\"preload\" as=\"script\" fetchPriority=\"low\" href=\"/_next/static/chunks/webpack-ca5f4f11f78f2453.js\"/><script src=\"/_next/static/chunks/87c73c54-17e922beefebcbb1.js\" async=\"\"></script><script src=\"/_next/static/chunks/1968-3aa9649df4e4c3ae.js\" async=\"\"></script><script src=\"/_next/static/chunks/main-app-ea7225f801d19a79.js\" async=\"\"></script><meta name=\"robots\" content=\"noindex\"/><title>MizAI</title><meta name=\"description\" content=\"Greek public procurement review-priority signals with official-source provenance.\"/><meta name=\"robots\" content=\"index, follow\"/><link rel=\"canonical\" href=\"https://mizai.gr\"/><link rel=\"icon\" href=\"/icon.svg?57e362b35089b6cc\" type=\"image/svg+xml\" sizes=\"any\"/><script src=\"/_next/static/chunks/polyfills-42372ed130431b0a.js\" noModule=\"\"></script></head><body><div hidden=\"\"><!--$--><!--/$--></div><script src=\"/_next"
+    },
+    {
+      "path": "/api/feed/weekly-uoc-rethymno-cleaning-2026",
+      "status": 404,
+      "content_type": "text/html; charset=utf-8",
+      "bytes": 9225,
+      "final_url": "https://mizai.gr/api/feed/weekly-uoc-rethymno-cleaning-2026",
+      "text_preview": "<!DOCTYPE html><html id=\"__next_error__\"><head><meta charSet=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/><link rel=\"preload\" as=\"script\" fetchPriority=\"low\" href=\"/_next/static/chunks/webpack-ca5f4f11f78f2453.js\"/><script src=\"/_next/static/chunks/87c73c54-17e922beefebcbb1.js\" async=\"\"></script><script src=\"/_next/static/chunks/1968-3aa9649df4e4c3ae.js\" async=\"\"></script><script src=\"/_next/static/chunks/main-app-ea7225f801d19a79.js\" async=\"\"></script><meta name=\"robots\" content=\"noindex\"/><title>MizAI</title><meta name=\"description\" content=\"Greek public procurement review-priority signals with official-source provenance.\"/><meta name=\"robots\" content=\"index, follow\"/><link rel=\"canonical\" href=\"https://mizai.gr\"/><link rel=\"icon\" href=\"/icon.svg?57e362b35089b6cc\" type=\"image/svg+xml\" sizes=\"any\"/><script src=\"/_next/static/chunks/polyfills-42372ed130431b0a.js\" noModule=\"\"></script></head><body><div hidden=\"\"><!--$--><!--/$--></div><script src=\"/_next"
+    }
+  ]
+}
