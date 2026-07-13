@@ -1,0 +1,220 @@
+{
+  "status": "COMPLETED",
+  "executed_at_utc": "2026-07-13T16:01:22.535347Z",
+  "source": {
+    "kind": "temporary_frozen_mirror_of_official_diavgeia_records",
+    "url": "https://raw.githubusercontent.com/troboukis/2026_fire_protection/main/data/2026_diavgeia.csv",
+    "sha256": "f7cecca30f30e18576857cb57d2274a7c57d95c4c49c501940b8c2a14766e1ce",
+    "bytes": 14666682,
+    "rows": 7849,
+    "scope": "available 2026 snapshot"
+  },
+  "method": {
+    "runs": 2,
+    "seeds": [
+      5601,
+      5602
+    ],
+    "minimum_review_priority": 80,
+    "stop_each_run_at_first_passing_candidate": true,
+    "persistent_raw_storage": false,
+    "uses_outcome_labels_news_or_EAD": false,
+    "score_is_probability_of_wrongdoing": false
+  },
+  "coverage": {
+    "normalized_unique_decisions": 7763,
+    "generated_candidate_clusters": 880,
+    "pre_gate_80_or_more": 14,
+    "selected_count": 2
+  },
+  "selected": [
+    {
+      "run": 1,
+      "seed": 5601,
+      "review_priority": 87,
+      "score_meaning": "human_review_priority_not_probability_of_wrongdoing",
+      "families": {
+        "supplier_object_pattern": 25,
+        "linked_financial_consistency": 32
+      },
+      "evidence_facts": [
+        "3 διαφορετικά ΑΔΑ του ίδιου φορέα προς το ίδιο ΑΦΜ, με άθροισμα €52,445.80 και συναφείς τίτλους.",
+        "Οι συνδεδεμένες πληρωμές είναι €32,822.80 έναντι ποσού αναφοράς €19,623.00 (1.67×)."
+      ],
+      "strongest_ordinary_explanation": "Οι πράξεις μπορεί να είναι νόμιμες, διακριτές ανάγκες ή διαφορετικά στάδια της ίδιας διαδικασίας.",
+      "validation": {
+        "official_detail_current_count": 3,
+        "official_detail_checked_count": 3,
+        "official_detail_errors": {},
+        "pdf_text_count": 3,
+        "pdf_checked_count": 3,
+        "pdf_errors": {},
+        "ordinary_explanation_terms_found": [],
+        "validation_caps": [],
+        "evidence_complete_for_prioritisation": true
+      },
+      "candidate_source": "authority_supplier_365d",
+      "documents": [
+        {
+          "ada": "6ΑΕ6ΩΞ5-7ΤΘ",
+          "subject": "ΧΕΠ26Α/2025-Μίσθωση μηχανημάτων για τον καθαρισμό περιαστικών δασών - αντιπυρικών δρόμων - ζωνών - οικοπεδικών και λοιπών ακάλυπτων χώρων ΔE Βουκολιών βάσει της υπ΄αρ.7556/2024 σύμβασης",
+          "organization": "ΔΗΜΟΣ ΠΛΑΤΑΝΙΑ",
+          "decision_type": "ΟΡΙΣΤΙΚΟΠΟΙΗΣΗ ΠΛΗΡΩΜΗΣ",
+          "stage": "payment",
+          "amount_eur": 13199.8,
+          "supplier_name": "ΞΑΝΘΟΥΔΑΚΗΣ,,ΙΩΑΝΝΗΣ,ΔΙΟΜΑΤΑΡΗΣ",
+          "supplier_afm_redacted": "******564",
+          "observed_at": "2025-01-27T02:00:00",
+          "official_url": "https://diavgeia.gov.gr/doc/6ΑΕ6ΩΞ5-7ΤΘ"
+        },
+        {
+          "ada": "ΡΞΒ1ΩΞ5-3ΗΓ",
+          "subject": "ΑΠΟΦΑΣΗ ΔΗΜΑΡΧΟΥ 592/2025_ Απευθείας ανάθεση υπηρεσίας\n«Μίσθωση ΜΕ για τον καθαρισμό περιαστικών δασών - αντιπυρικών δρόμων & ζωνών Δ.Ε. Βουκολιών»",
+          "organization": "ΔΗΜΟΣ ΠΛΑΤΑΝΙΑ",
+          "decision_type": "ΑΝΑΘΕΣΗ ΕΡΓΩΝ / ΠΡΟΜΗΘΕΙΩΝ / ΥΠΗΡΕΣΙΩΝ / ΜΕΛΕΤΩΝ",
+          "stage": "award",
+          "amount_eur": 19623.0,
+          "supplier_name": "ΞΑΝΘΟΥΔΑΚΗΣ,,ΙΩΑΝΝΗΣ,ΔΙΟΜΑΤΑΡΗΣ",
+          "supplier_afm_redacted": "******564",
+          "observed_at": "2025-05-20T03:00:00",
+          "official_url": "https://diavgeia.gov.gr/doc/ΡΞΒ1ΩΞ5-3ΗΓ"
+        },
+        {
+          "ada": "6254ΩΞ5-ΧΦΕ",
+          "subject": "(ΣΑΤΑ πυροπρ.) Καθαρισμός περιαστικών δασών - αντιπυρικών δρόμων - αντιπυρικών ζωνών Δ.Ε. Βουκολιών, βάσει της υπ΄αριθμ. 9830/22-5-2025 σύμβασης (1η και τελική επιμέτρηση)",
+          "organization": "ΔΗΜΟΣ ΠΛΑΤΑΝΙΑ",
+          "decision_type": "ΟΡΙΣΤΙΚΟΠΟΙΗΣΗ ΠΛΗΡΩΜΗΣ",
+          "stage": "payment",
+          "amount_eur": 19623.0,
+          "supplier_name": "ΞΑΝΘΟΥΔΑΚΗΣ,,ΙΩΑΝΝΗΣ,ΔΙΟΜΑΤΑΡΗΣ",
+          "supplier_afm_redacted": "******564",
+          "observed_at": "2025-12-29T02:00:00",
+          "official_url": "https://diavgeia.gov.gr/doc/6254ΩΞ5-ΧΦΕ"
+        }
+      ]
+    },
+    {
+      "run": 2,
+      "seed": 5602,
+      "review_priority": 89,
+      "score_meaning": "human_review_priority_not_probability_of_wrongdoing",
+      "families": {
+        "supplier_object_pattern": 27,
+        "linked_financial_consistency": 32
+      },
+      "evidence_facts": [
+        "5 διαφορετικά ΑΔΑ του ίδιου φορέα προς το ίδιο ΑΦΜ, με άθροισμα €38,812.00 και συναφείς τίτλους.",
+        "Οι συνδεδεμένες πληρωμές είναι €14,929.60 έναντι ποσού αναφοράς €7,960.80 (1.88×)."
+      ],
+      "strongest_ordinary_explanation": "Οι πράξεις μπορεί να είναι νόμιμες, διακριτές ανάγκες ή διαφορετικά στάδια της ίδιας διαδικασίας.",
+      "validation": {
+        "official_detail_current_count": 4,
+        "official_detail_checked_count": 5,
+        "official_detail_errors": {
+          "9Φ1ΧΩΚΧ-Φ68": "corrected_or_private"
+        },
+        "pdf_text_count": 4,
+        "pdf_checked_count": 4,
+        "pdf_errors": {},
+        "ordinary_explanation_terms_found": [],
+        "validation_caps": [],
+        "evidence_complete_for_prioritisation": true
+      },
+      "candidate_source": "authority_topic_365d",
+      "documents": [
+        {
+          "ada": "9Φ1ΧΩΚΧ-Φ68",
+          "subject": "Μίσθωση μηχανημάτων για εργασίες συντήρησης αντιπυρικών ζωνών Δ.Ε. Αργαλαστής.",
+          "organization": "ΔΗΜΟΣ ΝΟΤΙΟΥ ΠΗΛΙΟΥ",
+          "decision_type": "ΟΡΙΣΤΙΚΟΠΟΙΗΣΗ ΠΛΗΡΩΜΗΣ",
+          "stage": "payment",
+          "amount_eur": 6968.8,
+          "supplier_name": "ΚΑΤΑΣΚΕΥΑΣΤΙΚΗ ΠΗΛΙΟΥ ΙΚΕ",
+          "supplier_afm_redacted": "******559",
+          "observed_at": "2025-03-20T02:00:00",
+          "official_url": "https://diavgeia.gov.gr/doc/9Φ1ΧΩΚΧ-Φ68"
+        },
+        {
+          "ada": "ΡΧ3ΞΩΚΧ-Ο9Ψ",
+          "subject": "Μίσθωση μηχανημάτων για εργασίες συντήρησης αντιπυρικών ζωνών Δ.Ε. Αργαλαστής",
+          "organization": "ΔΗΜΟΣ ΝΟΤΙΟΥ ΠΗΛΙΟΥ",
+          "decision_type": "ΑΝΑΛΗΨΗ ΥΠΟΧΡΕΩΣΗΣ",
+          "stage": "commitment",
+          "amount_eur": 7960.8,
+          "supplier_name": "",
+          "supplier_afm_redacted": "",
+          "observed_at": "2025-05-05T03:00:00",
+          "official_url": "https://diavgeia.gov.gr/doc/ΡΧ3ΞΩΚΧ-Ο9Ψ"
+        },
+        {
+          "ada": "ΨΔ4ΕΩΚΧ-0Ω3",
+          "subject": "Μίσθωση μηχανημάτων για εργασίες συντήρησης αντιπυρικών ζωνών Δ.Ε. Αργαλαστής του Δήμου Νοτίου Πηλίου",
+          "organization": "ΔΗΜΟΣ ΝΟΤΙΟΥ ΠΗΛΙΟΥ",
+          "decision_type": "ΑΝΑΘΕΣΗ ΕΡΓΩΝ / ΠΡΟΜΗΘΕΙΩΝ / ΥΠΗΡΕΣΙΩΝ / ΜΕΛΕΤΩΝ",
+          "stage": "award",
+          "amount_eur": 7960.8,
+          "supplier_name": "",
+          "supplier_afm_redacted": "",
+          "observed_at": "2025-06-03T03:00:00",
+          "official_url": "https://diavgeia.gov.gr/doc/ΨΔ4ΕΩΚΧ-0Ω3"
+        },
+        {
+          "ada": "ΨΨΙΘΩΚΧ-Λ19",
+          "subject": "Μίσθωση μηχανημάτων για εργασίες συντήρησης αντιπυρικών ζωνών Δ.Ε. Αργαλαστής",
+          "organization": "ΔΗΜΟΣ ΝΟΤΙΟΥ ΠΗΛΙΟΥ",
+          "decision_type": "ΑΝΑΛΗΨΗ ΥΠΟΧΡΕΩΣΗΣ",
+          "stage": "commitment",
+          "amount_eur": 7960.8,
+          "supplier_name": "",
+          "supplier_afm_redacted": "",
+          "observed_at": "2026-03-04T02:00:00",
+          "official_url": "https://diavgeia.gov.gr/doc/ΨΨΙΘΩΚΧ-Λ19"
+        },
+        {
+          "ada": "92ΗΙΩΚΧ-ΩΙΓ",
+          "subject": "Μίσθωση μηχανημάτων για εργασίες συντήρησης αντιπυρικών ζωνών Δ.Ε. Αργαλαστής",
+          "organization": "ΔΗΜΟΣ ΝΟΤΙΟΥ ΠΗΛΙΟΥ",
+          "decision_type": "ΟΡΙΣΤΙΚΟΠΟΙΗΣΗ ΠΛΗΡΩΜΗΣ",
+          "stage": "payment",
+          "amount_eur": 7960.8,
+          "supplier_name": "ΚΑΤΑΣΚΕΥΑΣΤΙΚΗ ΠΗΛΙΟΥ ΙΚΕ",
+          "supplier_afm_redacted": "******559",
+          "observed_at": "2026-03-04T02:00:00",
+          "official_url": "https://diavgeia.gov.gr/doc/92ΗΙΩΚΧ-ΩΙΓ"
+        }
+      ]
+    }
+  ],
+  "run_diagnostics": [
+    {
+      "run": 1,
+      "seed": 5601,
+      "pre_gate_candidates": 14,
+      "deep_checked": 1,
+      "rejected": [],
+      "status": "FOUND",
+      "selected_adas": [
+        "6ΑΕ6ΩΞ5-7ΤΘ",
+        "ΡΞΒ1ΩΞ5-3ΗΓ",
+        "6254ΩΞ5-ΧΦΕ"
+      ],
+      "selected_review_priority": 87
+    },
+    {
+      "run": 2,
+      "seed": 5602,
+      "pre_gate_candidates": 14,
+      "deep_checked": 1,
+      "rejected": [],
+      "status": "FOUND",
+      "selected_adas": [
+        "9Φ1ΧΩΚΧ-Φ68",
+        "ΡΧ3ΞΩΚΧ-Ο9Ψ",
+        "ΨΔ4ΕΩΚΧ-0Ω3",
+        "ΨΨΙΘΩΚΧ-Λ19",
+        "92ΗΙΩΚΧ-ΩΙΓ"
+      ],
+      "selected_review_priority": 89
+    }
+  ]
+}

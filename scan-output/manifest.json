@@ -1,0 +1,9 @@
+{
+  "source_sha256": "f7cecca30f30e18576857cb57d2274a7c57d95c4c49c501940b8c2a14766e1ce",
+  "source_size": 14666682,
+  "rows": 7849,
+  "normalized_records": 7763,
+  "candidate_count": 880,
+  "selected_count": 2,
+  "raw_deleted_after_scan": true
+}
