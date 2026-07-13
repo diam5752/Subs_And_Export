@@ -6,12 +6,14 @@ on:
       - tmp/mizas-hunter-20260713-v2
     paths:
       - tmp_tools/mizas_hunter_v6.py.gz.b64
+      - tmp_tools/mizas_hunter_v7.py
       - .github/workflows/tmp-mizas-hunter.yml
   pull_request:
     branches:
       - master
     paths:
       - tmp_tools/mizas_hunter_v6.py.gz.b64
+      - tmp_tools/mizas_hunter_v7.py
       - .github/workflows/tmp-mizas-hunter.yml
 
 permissions:
@@ -47,31 +49,31 @@ jobs:
           from pathlib import Path
           path = Path('tmp_tools/diavgeia_blind_scan_v4.py')
           text = path.read_text(encoding='utf-8')
-          old = '''return {f"CONTRACT:{re.sub(r'\\s+', '', value)}" for value in CONTRACT_REF_RE.findall(norm(text))}'''
-          new = '''return {"CONTRACT:" + re.sub(r"\\s+", "", value) for value in CONTRACT_REF_RE.findall(norm(text))}'''
+          old = '''return {f"CONTRACT:{re.sub(r'\s+', '', value)}" for value in CONTRACT_REF_RE.findall(norm(text))}'''
+          new = '''return {"CONTRACT:" + re.sub(r"\s+", "", value) for value in CONTRACT_REF_RE.findall(norm(text))}'''
           if old not in text:
               raise SystemExit('Expected inherited f-string syntax was not found')
           path.write_text(text.replace(old, new), encoding='utf-8')
           PY
-          python -m py_compile tmp_tools/diavgeia_blind_scan_v4.py tmp_tools/mizas_hunter_v6.py
-      - name: Execute adaptive live Diavgeia hunter and capture diagnostics
+          python -m py_compile tmp_tools/diavgeia_blind_scan_v4.py tmp_tools/mizas_hunter_v6.py tmp_tools/mizas_hunter_v7.py
+      - name: Execute hardened adaptive live Diavgeia hunter and capture diagnostics
         run: |
-          rm -rf hunter-output-v6
-          mkdir -p hunter-output-v6
+          rm -rf hunter-output-v7
+          mkdir -p hunter-output-v7
           set +e
-          python tmp_tools/mizas_hunter_v6.py --out-dir hunter-output-v6 > hunter-output-v6/action.log 2>&1
+          python tmp_tools/mizas_hunter_v7.py --out-dir hunter-output-v7 > hunter-output-v7/action.log 2>&1
           status=$?
           set -e
-          printf '{"exit_code":%s}\n' "$status" > hunter-output-v6/action_status.json
-          cat hunter-output-v6/action.log
+          printf '{"exit_code":%s}\n' "$status" > hunter-output-v7/action_status.json
+          cat hunter-output-v7/action.log
       - name: Commit reproducible result or failure diagnostics
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add hunter-output-v6
+          git add hunter-output-v7
           if git diff --cached --quiet; then
             echo "No hunter output produced"
             exit 1
           fi
-          git commit -m "chore(tmp): record MIZAS Hunter result or diagnostics"
+          git commit -m "chore(tmp): record hardened MIZAS Hunter result or diagnostics"
           git push origin HEAD:tmp/mizas-hunter-20260713-v2
