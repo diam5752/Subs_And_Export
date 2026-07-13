@@ -1,0 +1,47 @@
+name: Temporary Diavgeia blind scan v5
+
+on:
+  push:
+    branches:
+      - tmp/diavgeia-blind-scan-20260713
+    paths:
+      - .github/workflows/tmp-diavgeia-blind-scan-v5.yml
+      - tmp_tools/diavgeia_blind_scan_v4.py
+      - tmp_tools/diavgeia_blind_scan_v5.py
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: tmp/diavgeia-blind-scan-20260713
+          fetch-depth: 1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install dependencies
+        run: python -m pip install --disable-pip-version-check pandas requests pypdf
+
+      - name: Run two final blind scans
+        run: python tmp_tools/diavgeia_blind_scan_v5.py --out-dir scan-output-v5
+
+      - name: Persist only final results
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add scan-output-v5/scan_results.json scan-output-v5/manifest.json scan-output-v5/scan_report.md
+          if git diff --cached --quiet; then
+            echo 'No output changes.'
+          else
+            git commit -m 'chore(tmp): record final Diavgeia blind scan v5'
+            git push origin HEAD:tmp/diavgeia-blind-scan-20260713
+          fi
