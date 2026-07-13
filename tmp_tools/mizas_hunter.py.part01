@@ -1,0 +1,219 @@
+#!/usr/bin/env python3
+from __future__ import annotations
+
+import argparse
+import hashlib
+import io
+import json
+import math
+import random
+import re
+import statistics
+import subprocess
+import tempfile
+import time
+import unicodedata
+from collections import Counter, defaultdict
+from dataclasses import dataclass, field
+from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
+from typing import Any, Iterable
+
+import requests
+from pypdf import PdfReader
+
+SEARCH_URL = "https://diavgeia.gov.gr/luminapi/opendata/search"
+DETAIL_URL = "https://diavgeia.gov.gr/luminapi/api/decisions/{ada}"
+PDF_URL = "https://diavgeia.gov.gr/doc/{ada}"
+ORG_URL = "https://diavgeia.gov.gr/luminapi/api/organizations/{org_id}"
+USER_AGENT = "MizAI-Hunter/0.1 (read-only research validation)"
+TODAY = date(2026, 7, 13)
+START_DATE = date(2024, 1, 1)
+WINDOW_DAYS = 180
+SEARCH_PAGE_SIZE = 100
+MAX_SEARCH_REQUESTS = 180
+MAX_EXPANSION_SEEDS = 18
+MAX_EXPANSION_QUERIES_PER_SEED = 2
+MAX_DEEP_CANDIDATES = 32
+MAX_DEEP_DOCS = 12
+MAX_RELATED_DOCS = 6
+MAX_PDF_BYTES = 16 * 1024 * 1024
+MIN_REVIEW_PRIORITY = 80
+RUN_SEEDS = (7311, 7312, 7313)
+
+LENSES: tuple[tuple[str, str, int], ...] = (
+    ("single_offer", "μοναδική προσφορά", 36),
+    ("one_offer", "μία προσφορά", 34),
+    ("no_prior_publication", "χωρίς προηγούμενη δημοσίευση", 34),
+    ("negotiation_no_publication", "διαπραγμάτευση χωρίς προηγούμενη δημοσίευση", 36),
+    ("third_ape", "3ος ΑΠΕ", 30),
+    ("second_ape", "2ος ΑΠΕ", 26),
+    ("supplementary_contract", "συμπληρωματική σύμβαση", 30),
+    ("economic_increase", "αύξηση οικονομικού αντικειμένου", 32),
+    ("contract_extension", "παράταση σύμβασης", 22),
+    ("direct_award", "απευθείας ανάθεση", 16),
+    ("urgent_need", "κατεπείγουσα ανάγκη", 16),
+    ("payment", "οριστικοποίηση πληρωμής", 10),
+    ("failed_tender", "άγονος διαγωνισμός", 22),
+)
+
+DIRECT_TERMS = (
+    "απευθειας αναθεση", "απ ευθειας αναθεση", "αρθρο 118",
+    "διαπραγματευση χωρις προηγουμενη δημοσιευση", "χωρις προηγουμενη δημοσιευση",
+)
+NO_PUBLICATION_TERMS = (
+    "χωρις προηγουμενη δημοσιευση", "χωρις δημοσιευση προκηρυξης",
+    "διαπραγματευση χωρις προηγουμενη δημοσιευση",
+)
+SINGLE_BID_TERMS = (
+    "μοναδικη προσφορα", "μια προσφορα", "μια μονο προσφορα", "ενας προσφερων",
+    "μονο μια προσφορα", "δεν υποβληθηκε αλλη προσφορα",
+)
+EMERGENCY_TERMS = (
+    "κατεπειγον", "κατεπειγουσα", "εκτακτη αναγκη", "εξαιρετικα επειγον",
+    "απροβλεπτ", "red code", "θεομηνια",
+)
+MODIFICATION_TERMS = (
+    "τροποποιηση συμβασης", "τροποποιηση συμφωνητικ", "συμπληρωματικη συμβαση",
+    "συμπληρωμα νο", "ανακεφαλαιωτικ", "3ος απε", "2ος απε", "1ος απε",
+    "α π ε", "αυξηση οικονομικου αντικειμενου",
+)
+EXTENSION_TERMS = ("παραταση συμβασης", "παραταση συμφωνητικ", "παραταση χρονου")
+PAYMENT_TERMS = ("οριστικοποιηση πληρωμης", "χρηματικο ενταλμα", "εξοφληση", "πληρωμη")
+COMMITMENT_TERMS = ("αναληψη υποχρεωσης", "δεσμευση πιστωσης")
+AWARD_TERMS = ("απευθειας αναθεση", "αναθεση εργων", "κατακυρωση", "εγκριση αποτελεσματος")
+CONTRACT_TERMS = ("συμβαση", "συμφωνητικ")
+CANCEL_TERMS = ("ανακληση", "ακυρωση", "ματαιωση", "διορθωση")
+ORDINARY_EXPLANATION_TERMS = (
+    "προηγουμενη ανοικτη διαδικασια", "ανοιχτη διαδικασια", "ανοικτος διαγωνισμος",
+    "αγονος διαγωνισμος", "αποβηκε αγονος", "προσφυγη", "αναστολη",
+    "μονο ως προς τη διαρκεια", "χωρις αυξηση του οικονομικου αντικειμενου",
+    "δεν μεταβαλλεται το οικονομικο αντικειμενο", "διαφορετικο τμημα", "διαφορετικη ομαδα",
+    "λογοι ασφαλειας", "διασφαλιση της υγειας", "φυσικη καταστροφη",
+    "κηρυξη σε κατασταση εκτακτης αναγκης", "προσωρινη καλυψη", "μονομερης λυση",
+)
+MEDICAL_TERMS = ("ασθεν", "χειρουργ", "φαρμακ", "κλινικη", "νοσοκομ")
+ROUTINE_EXCLUSIONS = (
+    "μισθοδοσια", "υπερωρια", "εκτος εδρας", "μετακινηση υπαλληλ", "οδοιπορικα",
+    "παγια προκαταβολη", "αποδοση κρατησεων", "φορος μισθωτων", "ασφαλιστικες εισφορες",
+    "επιχορηγηση", "αναμορφωση προυπολογισμου", "εγκριση προυπολογισμου",
+    "κυκλοφοριακες ρυθμισεις", "διορισμος", "προσληψη προσωπικου",
+)
+GENERIC_TOKENS = {
+    "αποφαση", "εγκριση", "δαπανη", "δαπανης", "αναληψη", "υποχρεωσης", "αναθεση",
+    "απευθειας", "συμβαση", "συμβασης", "συμφωνητικο", "συμφωνητικου", "προμηθεια",
+    "προμηθειας", "παροχη", "υπηρεσια", "υπηρεσιων", "εργασια", "εργασιων", "εργο",
+    "εργου", "για", "την", "των", "του", "της", "και", "με", "στο", "στη", "στις",
+    "στους", "απο", "σε", "περι", "αρ", "αριθ", "ετους", "οικονομικου", "φορεα",
+    "αναδοχου", "δημου", "δημος", "περιφερειας", "τροποποιηση", "παραταση",
+    "συμπληρωματικη", "πρωτη", "δευτερη", "τριτη", "1η", "2η", "3η", "απε",
+    "οριστικοποιηση", "πληρωμης", "κατακυρωση", "συνοπτικου", "διαγωνισμου",
+}
+ADA_RE = re.compile(r"(?<![0-9A-ZΑ-Ω])([0-9A-ZΑ-Ω]{4,14}-[0-9A-ZΑ-Ω]{3})(?![0-9A-ZΑ-Ω])")
+ADAM_RE = re.compile(r"\b(?:1[3-9]|2[0-9])(?:REQ|PROC|AWRD|SYMV|PAY)\d{9,12}\b", re.I)
+CONTRACT_REF_RE = re.compile(
+    r"(?:συμβασ(?:η|ης)|συμφωνητικ(?:ο|ου)|αρ\.?\s*πρωτ\.?)\D{0,50}(\d{1,8}\s*/\s*20\d{2})",
+    re.I,
+)
+GEO_RE = re.compile(r"\b(?:δ\.?\s*ε\.?|δημοτικ(?:η|ης)\s+ενοτητα(?:ς)?)\s+([α-ωa-zάέήίόύώϊϋΐΰ\- ]{3,55})", re.I)
+AMOUNT_RE = re.compile(r"(?:€\s*)?((?:\d{1,3}(?:[.\s]\d{3})+|\d+)(?:[,\.]\d{1,2})?)\s*(?:€|ευρω|eur)\b", re.I)
+
+
+def norm(value: Any) -> str:
+    text = unicodedata.normalize("NFKC", str(value or "")).casefold()
+    text = unicodedata.normalize("NFD", text)
+    text = "".join(ch for ch in text if unicodedata.category(ch) != "Mn")
+    text = text.replace("ς", "σ")
+    text = re.sub(r"[^0-9a-zα-ω]+", " ", text)
+    return " ".join(text.split())
+
+
+def contains(text: str, terms: Iterable[str]) -> bool:
+    return any(norm(term) in text for term in terms)
+
+
+def parse_amount(value: Any) -> float | None:
+    if value is None or isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        result = float(value)
+        return round(result, 2) if math.isfinite(result) and result > 0 else None
+    text = str(value).strip().replace("\u00a0", " ")
+    if not text or text.casefold() in {"nan", "none", "null", "[]", "{}"}:
+        return None
+    text = re.sub(r"[^\d,.\- ]", "", text).replace(" ", "")
+    if not text or text.startswith("-") or not re.search(r"\d", text):
+        return None
+    if "," in text and "." in text:
+        text = text.replace(".", "").replace(",", ".") if text.rfind(",") > text.rfind(".") else text.replace(",", "")
+    elif "," in text:
+        parts = text.split(",")
+        text = text.replace(".", "").replace(",", "." if len(parts[-1]) in {1, 2} else "")
+    elif "." in text:
+        parts = text.split(".")
+        if (len(parts) > 2 and all(len(part) == 3 for part in parts[1:])) or (len(parts) > 1 and len(parts[-1]) == 3):
+            text = text.replace(".", "")
+    try:
+        result = float(text)
+    except ValueError:
+        return None
+    return round(result, 2) if math.isfinite(result) and result > 0 else None
+
+
+def ms_datetime(value: Any) -> datetime | None:
+    try:
+        return datetime.fromtimestamp(int(value) / 1000, tz=timezone.utc).replace(tzinfo=None)
+    except (TypeError, ValueError, OSError):
+        return None
+
+
+def recursive_items(value: Any, path: tuple[str, ...] = ()):
+    if isinstance(value, dict):
+        for key, item in value.items():
+            yield from recursive_items(item, (*path, str(key)))
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            yield from recursive_items(item, (*path, str(index)))
+    else:
+        yield path, value
+
+
+def amount_from_extra(extra: Any) -> float | None:
+    if not isinstance(extra, dict):
+        return None
+    priority = (
+        "awardamount", "amountwithvat", "totalamountwithvat", "totalcostwithvat",
+        "approvedamount", "budgetamount", "paymentamount", "paidamount", "directvalue",
+    )
+    found: dict[str, list[float]] = defaultdict(list)
+    sponsor_amounts: list[float] = []
+    kae_amounts: list[float] = []
+    for path, value in recursive_items(extra):
+        key = norm(path[-1]) if path else ""
+        amount = parse_amount(value)
+        if amount is None:
+            continue
+        compact_path = ".".join(norm(part) for part in path)
+        found[key].append(amount)
+        if "sponsor" in compact_path and any(token in key for token in ("expenseamount", "amount", "cost")):
+            sponsor_amounts.append(amount)
+        if "amountwithkae" in compact_path and any(token in key for token in ("amountwithvat", "amount")):
+            kae_amounts.append(amount)
+    for key in priority:
+        if found.get(key):
+            return max(found[key])
+    if sponsor_amounts:
+        return round(sum(sponsor_amounts), 2)
+    if kae_amounts:
+        return round(sum(kae_amounts), 2)
+    monetary = []
+    for key, values in found.items():
+        if any(token in key for token in ("amount", "cost", "expense", "budget", "ποσο", "δαπαν")):
+            monetary.extend(values)
+    return max(monetary) if monetary else None
+
+
+def amount_from_text(text: str) -> float | None:
+    values = [parse_amount(match.group(1)) for match in AMOUNT_RE.finditer(str(text or ""))]
+    clean = [value for value in values if value is not None and value >= 10]
+    return max(clean) if clean else None
