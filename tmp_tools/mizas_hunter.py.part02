@@ -1,4 +1,13 @@
 
+# Procedural boilerplate must never become the semantic object of a cluster.
+GENERIC_TOKENS.update({
+    "αξιολογησ", "αποτελεσμ", "επιτροπησ", "επιτροπη", "πρακτικου", "πρακτικο",
+    "διενεργει", "δημοσιων", "συμβασεων", "συναψης", "κατακυρωσ", "υλοποιηση",
+    "σχετικων", "τεχνικων", "προδιαγρα", "διαθεση", "πιστωσης", "εγκριση",
+    "παροχης", "τιτλο", "τιτλος", "εργασιες", "υπηρεσιασ", "υπηρεσια",
+})
+
+
 def supplier_from_extra(extra: Any) -> tuple[str, str]:
     if not isinstance(extra, dict):
         return "", ""
@@ -28,6 +37,22 @@ def supplier_from_extra(extra: Any) -> tuple[str, str]:
     return afm, name[:255]
 
 
+def object_text(subject: str) -> str:
+    text = str(subject or "")
+    quoted = re.findall(r"«([^»]{8,700})»", text, flags=re.S)
+    quoted.extend(re.findall(r'"([^"\n]{12,700})"', text))
+    if quoted:
+        return max(quoted, key=len)
+    normalized = norm(text)
+    # Remove common administrative lead-ins when no quoted title exists.
+    normalized = re.sub(
+        r"^(?:εγκριση|αποφαση|πρακτικο|κατακυρωση|αναθεση|δαπανη|αναληψη υποχρεωσης)\b.{0,120}?\b(?:τιτλο|για)\b",
+        "",
+        normalized,
+    ).strip()
+    return normalized or text
+
+
 def meaningful_tokens(text: str) -> list[str]:
     tokens: list[str] = []
     for token in norm(text).split():
@@ -42,12 +67,12 @@ def meaningful_tokens(text: str) -> list[str]:
 
 
 def topic_key(subject: str) -> str:
-    tokens = meaningful_tokens(subject)
-    return " ".join(sorted(tokens[:5])) or norm(subject)[:90]
+    tokens = meaningful_tokens(object_text(subject))
+    return " ".join(sorted(tokens[:5])) or norm(object_text(subject))[:90]
 
 
 def expansion_term(subject: str) -> str | None:
-    tokens = meaningful_tokens(subject)
+    tokens = meaningful_tokens(object_text(subject))
     if not tokens:
         return None
     ranked = sorted(tokens, key=lambda token: (-len(token), token))
@@ -76,7 +101,8 @@ def contract_refs(text: str) -> set[str]:
 
 
 def jaccard(left: str, right: str) -> float:
-    a, b = set(meaningful_tokens(left)), set(meaningful_tokens(right))
+    a = set(meaningful_tokens(object_text(left)))
+    b = set(meaningful_tokens(object_text(right)))
     return len(a & b) / len(a | b) if a and b else 0.0
 
 
