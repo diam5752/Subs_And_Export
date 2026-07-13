@@ -1,0 +1,110 @@
+        )
+        owner = duplicate_owner.get(duplicate_key)
+        if owner:
+            dsu.union(record.ada, owner)
+        else:
+            duplicate_owner[duplicate_key] = record.ada
+    return {ada: dsu.find(ada) for ada in by_ada}
+
+
+def chain_summaries(records: list[Record]) -> list[Chain]:
+    mapping = chain_map(records)
+    grouped: dict[str, list[Record]] = defaultdict(list)
+    for record in records:
+        grouped[mapping[record.ada]].append(record)
+    chains: list[Chain] = []
+    for key, docs in grouped.items():
+        nonpayment = [doc.amount for doc in docs if doc.stage != "payment" and doc.amount is not None]
+        all_amounts = [doc.amount for doc in docs if doc.amount is not None]
+        lags = [
+            max(0, (doc.publish_at - doc.issue_at).days)
+            for doc in docs
+            if doc.publish_at is not None
+        ]
+        chains.append(
+            Chain(
+                key=key,
+                docs=docs,
+                amount=max(nonpayment or all_amounts) if (nonpayment or all_amounts) else None,
+                suppliers={doc.supplier_afm for doc in docs if doc.supplier_afm},
+                date=min(doc.issue_at for doc in docs),
+                subject=max((doc.subject for doc in docs), key=len),
+                direct=any(doc.direct for doc in docs),
+                no_publication=any(doc.no_publication for doc in docs),
+                single_bid=any(doc.single_bid for doc in docs),
+                emergency=any(doc.emergency for doc in docs),
+                modification_count=sum(doc.modification or doc.extension for doc in docs),
+                publication_lag_days=max(lags or [0]),
+            )
+        )
+    return chains
+
+
+def band_for(amount: float) -> float | None:
+    for band in (30000.0, 60000.0):
+        if 0.82 * band <= amount <= band:
+            return band
+    return None
+
+
+def score_group(records: list[Record], kind: str) -> tuple[int, dict[str, int], list[str], dict[str, Any]]:
+    chains = chain_summaries(records)
+    if len(chains) < 3:
+        return 0, {}, [], {"distinct_chains": len(chains), "kind": kind}
+    families: dict[str, int] = {}
+    facts: list[str] = []
+    dates = [chain.date for chain in chains]
+    span_days = (max(dates) - min(dates)).days
+    months = {(value.year, value.month) for value in dates}
+
+    single_bid_count = sum(chain.single_bid for chain in chains)
+    no_pub_count = sum(chain.no_publication for chain in chains)
+    direct_count = sum(chain.direct for chain in chains)
+    emergency_count = sum(chain.emergency for chain in chains)
+    if single_bid_count >= 2:
+        families["repeated_single_bid"] = 32
+        facts.append(f"{single_bid_count} διακριτές αλυσίδες αναφέρουν ρητά μία/μοναδική προσφορά.")
+    elif no_pub_count >= 2 and span_days >= 30:
+        families["repeated_no_publication"] = 28
+        facts.append(f"{no_pub_count} διακριτές αλυσίδες σε {len(months)} μήνες χρησιμοποιούν διαδικασία χωρίς προηγούμενη δημοσίευση.")
+    elif direct_count >= 3 and (span_days >= 60 or len(months) >= 3):
+        families["repeated_limited_procedure"] = 22
+        facts.append(
+            f"{direct_count} διακριτές αλυσίδες σε {len(months)} μήνες αναφέρουν απευθείας/περιορισμένη διαδικασία"
+            + ("· το επείγον μετρήθηκε στην ίδια family." if emergency_count else ".")
+        )
+
+    supplier_counts: Counter[str] = Counter()
+    supplier_totals: defaultdict[str, float] = defaultdict(float)
+    supplier_dates: defaultdict[str, list[datetime]] = defaultdict(list)
+    for chain in chains:
+        for supplier in chain.suppliers:
+            supplier_counts[supplier] += 1
+            supplier_totals[supplier] += chain.amount or 0.0
+            supplier_dates[supplier].append(chain.date)
+    if supplier_counts:
+        supplier, count = max(supplier_counts.items(), key=lambda item: (item[1], supplier_totals[item[0]]))
+        s_dates = supplier_dates[supplier]
+        s_span = (max(s_dates) - min(s_dates)).days if len(s_dates) > 1 else 0
+        if count >= 3 and supplier_totals[supplier] >= 30000 and s_span >= 60 and count / len(chains) >= 0.5:
+            families["supplier_object_concentration"] = 30
+            facts.append(
+                f"Το ίδιο ΑΦΜ εμφανίζεται σε {count} από {len(chains)} διακριτές αλυσίδες του ίδιου φορέα/αντικειμένου, "
+                f"σε διάστημα {s_span} ημερών και συνολικό ποσό €{supplier_totals[supplier]:,.2f}."
+            )
+
+    by_year_band: defaultdict[tuple[int, float], list[float]] = defaultdict(list)
+    for chain in chains:
+        if chain.amount is not None and (band := band_for(chain.amount)) is not None:
+            by_year_band[(chain.date.year, band)].append(chain.amount)
+    for (year, band), values in by_year_band.items():
+        if len(values) >= 3 and sum(values) >= 1.5 * band:
+            families["cumulative_near_band_pattern"] = 28
+            facts.append(
+                f"Το {year}, {len(values)} διακριτές αλυσίδες έχουν ποσά κοντά στο εσωτερικό review band "
+                f"€{band:,.0f}, με άθροισμα €{sum(values):,.2f}."
+            )
+            break
+
+    by_day: defaultdict[date, list[Chain]] = defaultdict(list)
+    for chain in chains:
