@@ -1,0 +1,29 @@
+name: Temporary Action Smoke
+
+on:
+  push:
+    branches:
+      - tmp/diavgeia-blind-scan-20260713
+    paths:
+      - .github/workflows/tmp-action-smoke.yml
+
+permissions:
+  contents: write
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: tmp/diavgeia-blind-scan-20260713
+          fetch-depth: 0
+      - run: |
+          mkdir -p scan-output
+          printf 'actions-smoke-ok\n' > scan-output/actions-smoke.txt
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scan-output/actions-smoke.txt
+          git commit -m "chore(tmp): actions smoke marker"
+          git push origin HEAD:tmp/diavgeia-blind-scan-20260713
