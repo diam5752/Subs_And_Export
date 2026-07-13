@@ -1,0 +1,207 @@
+[
+  {
+    "params": {
+      "page": 0,
+      "size": 5,
+      "term": "μοναδική προσφορά",
+      "from_issue_date": "2025-01-01",
+      "to_issue_date": "2025-12-31"
+    },
+    "url": "https://diavgeia.gov.gr/luminapi/opendata/search?page=0&size=5&term=%CE%BC%CE%BF%CE%BD%CE%B1%CE%B4%CE%B9%CE%BA%CE%AE+%CF%80%CF%81%CE%BF%CF%83%CF%86%CE%BF%CF%81%CE%AC&from_issue_date=2025-01-01&to_issue_date=2025-12-31",
+    "status": 200,
+    "content_type": "application/json; charset=UTF-8",
+    "bytes": 6329,
+    "final_url": "https://diavgeia.gov.gr/luminapi/opendata/search?page=0&size=5&term=%CE%BC%CE%BF%CE%BD%CE%B1%CE%B4%CE%B9%CE%BA%CE%AE+%CF%80%CF%81%CE%BF%CF%83%CF%86%CE%BF%CF%81%CE%AC&from_issue_date=2025-01-01&to_issue_date=2025-12-31",
+    "text_preview": "{\"decisions\":[{\"protocolNumber\":\"11149\",\"subject\":\"ΑΠΟΦΑΣΗ     278 η\\n\\n Κατακύρωση της αριθ. 23/9548/19-05-2025 κατάθεσης προσφοράς για την προμήθεια του είδους «Φαρμακευτικό-Υγρό Οξυγόνο με Συνοδό Εξοπλισμό»\",\"issueDate\":1749168000000,\"organizationId\":\"99221934\",\"signerIds\":[\"100079359\"],\"unitIds\":[\"10858\"],\"decisionTypeId\":\"Δ.2.2\",\"thematicCategoryIds\":[\"20\"],\"extraFieldValues\":{\"person\":[],\"awardAmount\":{\"amount\":25296.0,\"currency\":\"EUR\"},\"textRelatedADA\":null,\"relatedDecisions\":[],\"document",
+    "json_type": "dict",
+    "keys": [
+      "decisions",
+      "info"
+    ],
+    "decisions_count": 5,
+    "first_decision": {
+      "protocolNumber": "11149",
+      "subject": "ΑΠΟΦΑΣΗ     278 η\n\n Κατακύρωση της αριθ. 23/9548/19-05-2025 κατάθεσης προσφοράς για την προμήθεια του είδους «Φαρμακευτικό-Υγρό Οξυγόνο με Συνοδό Εξοπλισμό»",
+      "issueDate": 1749168000000,
+      "organizationId": "99221934",
+      "signerIds": [
+        "100079359"
+      ],
+      "unitIds": [
+        "10858"
+      ],
+      "decisionTypeId": "Δ.2.2",
+      "thematicCategoryIds": [
+        "20"
+      ],
+      "extraFieldValues": {
+        "person": [],
+        "awardAmount": {
+          "amount": 25296.0,
+          "currency": "EUR"
+        },
+        "textRelatedADA": null,
+        "relatedDecisions": [],
+        "documentType": "ΠΡΑΞΗ"
+      },
+      "privateData": false,
+      "ada": "9ΕΥΠ469076-Λ1Ψ",
+      "publishTimestamp": 1767868297580,
+      "submissionTimestamp": 1767868297580,
+      "versionId": "5a6e8f31-6322-41b4-9227-0c8b196029bc",
+      "status": "PUBLISHED",
+      "url": "https://diavgeia.gov.gr/luminapi/api/decisions/9ΕΥΠ469076-Λ1Ψ",
+      "documentUrl": "https://diavgeia.gov.gr/doc/9ΕΥΠ469076-Λ1Ψ",
+      "documentChecksum": null,
+      "attachments": [],
+      "warnings": null,
+      "correctedVersionId": null
+    }
+  },
+  {
+    "params": {
+      "page": 0,
+      "size": 5,
+      "term": "απευθείας ανάθεση",
+      "from_issue_date": "2026-01-01",
+      "to_issue_date": "2026-07-13"
+    },
+    "url": "https://diavgeia.gov.gr/luminapi/opendata/search?page=0&size=5&term=%CE%B1%CF%80%CE%B5%CF%85%CE%B8%CE%B5%CE%AF%CE%B1%CF%82+%CE%B1%CE%BD%CE%AC%CE%B8%CE%B5%CF%83%CE%B7&from_issue_date=2026-01-01&to_issue_date=2026-07-13",
+    "status": 200,
+    "content_type": "application/json; charset=UTF-8",
+    "bytes": 6456,
+    "final_url": "https://diavgeia.gov.gr/luminapi/opendata/search?page=0&size=5&term=%CE%B1%CF%80%CE%B5%CF%85%CE%B8%CE%B5%CE%AF%CE%B1%CF%82+%CE%B1%CE%BD%CE%AC%CE%B8%CE%B5%CF%83%CE%B7&from_issue_date=2026-01-01&to_issue_date=2026-07-13",
+    "text_preview": "{\"decisions\":[{\"protocolNumber\":\"7076\",\"subject\":\"Αναμόρφωση των χώρων του κτιρίου επί των οδών Αγίας Άννης και Παλαιολόγου \",\"issueDate\":1781049600000,\"organizationId\":\"100013141\",\"signerIds\":[\"100061521\"],\"unitIds\":[\"100013181\"],\"decisionTypeId\":\"Β.2.2\",\"thematicCategoryIds\":[\"24\"],\"extraFieldValues\":{\"org\":{\"afm\":\"997181327\",\"afmType\":\"EL\",\"enterName\":true,\"name\":\"ΕΔΕΥΕΠ Α.Ε.\"},\"skipVatReason\":null,\"sponsor\":[{\"sponsorAFMName\":{\"afm\":\"106011772\",\"afmType\":\"EL\",\"enterName\":true,\"name\":\"ΜΑΣΤΑΚΑ",
+    "json_type": "dict",
+    "keys": [
+      "decisions",
+      "info"
+    ],
+    "decisions_count": 5,
+    "first_decision": {
+      "protocolNumber": "7076",
+      "subject": "Αναμόρφωση των χώρων του κτιρίου επί των οδών Αγίας Άννης και Παλαιολόγου ",
+      "issueDate": 1781049600000,
+      "organizationId": "100013141",
+      "signerIds": [
+        "100061521"
+      ],
+      "unitIds": [
+        "100013181"
+      ],
+      "decisionTypeId": "Β.2.2",
+      "thematicCategoryIds": [
+        "24"
+      ],
+      "extraFieldValues": {
+        "org": {
+          "afm": "997181327",
+          "afmType": "EL",
+          "enterName": true,
+          "name": "ΕΔΕΥΕΠ Α.Ε."
+        },
+        "skipVatReason": null,
+        "sponsor": [
+          {
+            "sponsorAFMName": {
+              "afm": "106011772",
+              "afmType": "EL",
+              "enterName": true,
+              "name": "ΜΑΣΤΑΚΑΣ ΒΑΣΙΛΗΣ"
+            },
+            "expenseAmount": {
+              "amount": 15000.0,
+              "currency": "EUR"
+            },
+            "kae": "14"
+          },
+          {
+            "sponsorAFMName": {
+              "afm": "106011772",
+              "afmType": "EL",
+              "enterName": true,
+              "name": "ΜΑΣΤΑΚΑΣ ΒΑΣΙΛΗΣ"
+            },
+            "expenseAmount": {
+              "amount": 3600.0,
+              "currency": "EUR"
+            },
+            "kae": "99.00"
+          }
+        ],
+        "relatedEkgrisiDapanis": null,
+        "relatedDecisions": null,
+        "documentType": "ΠΡΑΞΗ"
+      },
+      "privateData": false,
+      "ada": "ΡΛΖΘ465ΘΦΖ-ΙΡΓ",
+      "publishTimestamp": 1783946093365,
+      "submissionTimestamp": 1783946093365,
+      "versionId": "3a5ad1e1-5856-45d3-b854-681bf8aa5c61",
+      "status": "PUBLISHED",
+      "url": "https://diavgeia.gov.gr/luminapi/api/decisions/ΡΛΖΘ465ΘΦΖ-ΙΡΓ",
+      "documentUrl": "https://diavgeia.gov.gr/doc/ΡΛΖΘ465ΘΦΖ-ΙΡΓ",
+      "documentChecksum": null,
+      "attachments": [],
+      "warnings": null,
+      "correctedVersionId": null
+    }
+  },
+  {
+    "params": {
+      "page": 0,
+      "size": 5,
+      "term": "3ος ΑΠΕ",
+      "from_issue_date": "2024-01-01",
+      "to_issue_date": "2026-07-13"
+    },
+    "url": "https://diavgeia.gov.gr/luminapi/opendata/search?page=0&size=5&term=3%CE%BF%CF%82+%CE%91%CE%A0%CE%95&from_issue_date=2024-01-01&to_issue_date=2026-07-13",
+    "status": 200,
+    "content_type": "application/json; charset=UTF-8",
+    "bytes": 6233,
+    "final_url": "https://diavgeia.gov.gr/luminapi/opendata/search?page=0&size=5&term=3%CE%BF%CF%82+%CE%91%CE%A0%CE%95&from_issue_date=2024-01-01&to_issue_date=2026-07-13",
+    "text_preview": "{\"decisions\":[{\"protocolNumber\":\"-\",\"subject\":\"Έγκριση 3ου ΑΠΕ (Τελικός) του ΕΠΕΜΒΑΣΕΙΣ ΕΞΟΙΚ. ΕΝΕΡΓΕΙΑΣ ΣΤΟ ΓΥΜΝΑΣΙΟ-ΛΥΚΕΙΟ ΓΟΝΝΩΝ\",\"issueDate\":1714089600000,\"organizationId\":\"6294\",\"signerIds\":[\"100085362\"],\"unitIds\":[\"81319\"],\"decisionTypeId\":\"Α.2\",\"thematicCategoryIds\":[\"10004\"],\"extraFieldValues\":{\"fek\":{},\"kanonistikipraxiaa\":\"84\",\"kanonistikipraxitype\":\"Πράξη Οργάνου Διοίκησης ΟΤΑ Α’ και Β’ Βαθμού (και εποπτευόμενων φορέων τους)\",\"co_competent\":null,\"relatedDecisions\":[],\"documentType\":\"Π",
+    "json_type": "dict",
+    "keys": [
+      "decisions",
+      "info"
+    ],
+    "decisions_count": 5,
+    "first_decision": {
+      "protocolNumber": "-",
+      "subject": "Έγκριση 3ου ΑΠΕ (Τελικός) του ΕΠΕΜΒΑΣΕΙΣ ΕΞΟΙΚ. ΕΝΕΡΓΕΙΑΣ ΣΤΟ ΓΥΜΝΑΣΙΟ-ΛΥΚΕΙΟ ΓΟΝΝΩΝ",
+      "issueDate": 1714089600000,
+      "organizationId": "6294",
+      "signerIds": [
+        "100085362"
+      ],
+      "unitIds": [
+        "81319"
+      ],
+      "decisionTypeId": "Α.2",
+      "thematicCategoryIds": [
+        "10004"
+      ],
+      "extraFieldValues": {
+        "fek": {},
+        "kanonistikipraxiaa": "84",
+        "kanonistikipraxitype": "Πράξη Οργάνου Διοίκησης ΟΤΑ Α’ και Β’ Βαθμού (και εποπτευόμενων φορέων τους)",
+        "co_competent": null,
+        "relatedDecisions": [],
+        "documentType": "ΠΡΑΞΗ"
+      },
+      "privateData": false,
+      "ada": "6Κ9ΨΩΗ7-ΤΟΡ",
+      "publishTimestamp": 1714119708610,
+      "submissionTimestamp": 1721123552915,
+      "versionId": "a6b7b365-7622-45a4-9be5-5a49ebbef3b3",
+      "status": "PUBLISHED",
+      "url": "https://diavgeia.gov.gr/luminapi/api/decisions/6Κ9ΨΩΗ7-ΤΟΡ",
+      "documentUrl": "https://diavgeia.gov.gr/doc/6Κ9ΨΩΗ7-ΤΟΡ",
+      "documentChecksum": null,
+      "attachments": [],
+      "warnings": null,
+      "correctedVersionId": "5eb2185d-4149-4695-bc01-804d3649f1c4"
+    }
+  }
+]
