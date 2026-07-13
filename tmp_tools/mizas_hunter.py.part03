@@ -1,0 +1,220 @@
+
+    def search(self, term: str, start: date, end: date, page: int = 0) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+        if self.search_requests >= MAX_SEARCH_REQUESTS:
+            return [], {}
+        params = {
+            "page": page,
+            "size": SEARCH_PAGE_SIZE,
+            "term": term,
+            "from_issue_date": start.isoformat(),
+            "to_issue_date": end.isoformat(),
+        }
+        self.search_requests += 1
+        payload = self.get_json(SEARCH_URL, params=params, purpose="search")
+        time.sleep(0.12)
+        if not payload:
+            return [], {}
+        decisions = payload.get("decisions") or []
+        return ([item for item in decisions if isinstance(item, dict)], payload.get("info") or {})
+
+    def detail(self, ada: str) -> dict[str, Any] | None:
+        self.detail_requests += 1
+        return self.get_json(DETAIL_URL.format(ada=ada), purpose="detail")
+
+    def organization_label(self, org_id: str) -> str:
+        if not org_id:
+            return "Άγνωστος φορέας"
+        if org_id in self.org_cache:
+            return self.org_cache[org_id]
+        payload = self.get_json(ORG_URL.format(org_id=org_id), purpose="organization")
+        label = ""
+        if payload:
+            label = str(payload.get("label") or payload.get("name") or "").strip()
+        self.org_cache[org_id] = label or f"Φορέας Διαύγειας {org_id}"
+        return self.org_cache[org_id]
+
+    def pdf_text(self, ada: str) -> tuple[str, str | None]:
+        self.pdf_requests += 1
+        for attempt in range(2):
+            try:
+                response = self.session.get(PDF_URL.format(ada=ada), timeout=(10, 50), stream=True)
+                response.raise_for_status()
+                content = bytearray()
+                for chunk in response.iter_content(65536):
+                    content.extend(chunk)
+                    if len(content) > MAX_PDF_BYTES:
+                        return "", "pdf_too_large"
+                data = bytes(content)
+                text = ""
+                try:
+                    completed = subprocess.run(
+                        ["pdftotext", "-enc", "UTF-8", "-layout", "-", "-"],
+                        input=data,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.DEVNULL,
+                        timeout=25,
+                        check=False,
+                    )
+                    if completed.returncode == 0:
+                        text = completed.stdout.decode("utf-8", "replace")
+                except Exception:
+                    text = ""
+                if not text.strip():
+                    reader = PdfReader(io.BytesIO(data))
+                    text = "\f".join((page.extract_text() or "") for page in reader.pages[:60])
+                return text[:700000], None if text.strip() else "no_extractable_text"
+            except Exception as exc:
+                if attempt == 1:
+                    return "", f"{type(exc).__name__}: {exc}"
+                time.sleep(1.5)
+        return "", "pdf_failed"
+
+
+def total_pages(info: dict[str, Any]) -> int | None:
+    if not isinstance(info, dict):
+        return None
+    for key in ("totalPages", "total_pages", "pages", "pageCount"):
+        value = info.get(key)
+        if isinstance(value, int) and value > 0:
+            return value
+    total = None
+    size = None
+    for key in ("total", "totalCount", "totalElements", "count"):
+        value = info.get(key)
+        if isinstance(value, int) and value >= 0:
+            total = value
+            break
+    for key in ("size", "pageSize", "page_size"):
+        value = info.get(key)
+        if isinstance(value, int) and value > 0:
+            size = value
+            break
+    if total is not None and size:
+        return max(1, math.ceil(total / size))
+    return None
+
+
+def record_from_payload(payload: dict[str, Any], *, lens_text: str = "") -> Record | None:
+    ada = str(payload.get("ada") or "").strip()
+    subject = str(payload.get("subject") or "").strip()
+    org_id = str(payload.get("organizationId") or "").strip()
+    org_label = str(payload.get("organizationLabel") or "").strip()
+    issue_at = ms_datetime(payload.get("issueDate"))
+    publish_at = ms_datetime(payload.get("publishTimestamp")) or ms_datetime(payload.get("submissionTimestamp"))
+    status = norm(payload.get("status"))
+    if not ada or not subject or not org_id or issue_at is None:
+        return None
+    if status not in {"published", "αναρτημενη", "αναρτημενη αποφαση"}:
+        return None
+    if payload.get("privateData") is True or payload.get("correctedVersionId"):
+        return None
+    extra = payload.get("extraFieldValues") if isinstance(payload.get("extraFieldValues"), dict) else {}
+    raw_text = json.dumps(payload, ensure_ascii=False, default=str)
+    normalized = norm(f"{subject} {raw_text} {lens_text}")
+    if contains(normalized, ROUTINE_EXCLUSIONS):
+        return None
+    amount = amount_from_extra(extra) or amount_from_text(subject)
+    supplier_afm, supplier_name = supplier_from_extra(extra)
+    decision_type = str(payload.get("decisionTypeId") or extra.get("documentType") or "").strip()
+    roots = {*adam_refs(raw_text), *contract_refs(raw_text)}
+    refs = ada_refs(raw_text) - {ada}
+    return Record(
+        ada=ada,
+        subject=subject,
+        org_id=org_id,
+        org_label=org_label,
+        decision_type=decision_type,
+        issue_at=issue_at,
+        publish_at=publish_at,
+        amount=amount,
+        supplier_afm=supplier_afm,
+        supplier_name=supplier_name,
+        raw_text=raw_text,
+        stage=stage_for(raw_text, decision_type),
+        topic=topic_key(subject),
+        geo=geography(subject),
+        direct=contains(normalized, DIRECT_TERMS),
+        no_publication=contains(normalized, NO_PUBLICATION_TERMS),
+        single_bid=contains(normalized, SINGLE_BID_TERMS),
+        emergency=contains(normalized, EMERGENCY_TERMS),
+        modification=contains(normalized, MODIFICATION_TERMS),
+        extension=contains(normalized, EXTENSION_TERMS),
+        cancelled=contains(normalized, CANCEL_TERMS),
+        medical=contains(normalized, MEDICAL_TERMS),
+        roots=roots,
+        refs=refs,
+    )
+
+
+def merge_record(existing: Record, incoming: Record) -> Record:
+    if not existing.org_label and incoming.org_label:
+        existing.org_label = incoming.org_label
+    if existing.amount is None and incoming.amount is not None:
+        existing.amount = incoming.amount
+    if not existing.supplier_afm and incoming.supplier_afm:
+        existing.supplier_afm = incoming.supplier_afm
+        existing.supplier_name = incoming.supplier_name
+    existing.raw_text = existing.raw_text if len(existing.raw_text) >= len(incoming.raw_text) else incoming.raw_text
+    existing.roots.update(incoming.roots)
+    existing.refs.update(incoming.refs)
+    existing.direct = existing.direct or incoming.direct
+    existing.no_publication = existing.no_publication or incoming.no_publication
+    existing.single_bid = existing.single_bid or incoming.single_bid
+    existing.emergency = existing.emergency or incoming.emergency
+    existing.modification = existing.modification or incoming.modification
+    existing.extension = existing.extension or incoming.extension
+    existing.cancelled = existing.cancelled or incoming.cancelled
+    existing.medical = existing.medical or incoming.medical
+    return existing
+
+
+def seed_score(record: Record, lens_base: int = 0) -> int:
+    score = lens_base
+    if record.single_bid:
+        score += 18
+    if record.no_publication:
+        score += 16
+    if record.modification:
+        score += 13
+    if record.extension:
+        score += 7
+    if record.direct:
+        score += 6
+    if record.emergency:
+        score += 4
+    if record.amount:
+        if record.amount >= 100000:
+            score += 8
+        for band in (30000.0, 60000.0):
+            if 0.82 * band <= record.amount <= band:
+                score += 12
+                break
+    if record.roots or record.refs:
+        score += 5
+    if len(meaningful_tokens(record.subject)) <= 3 and (record.amount or 0) >= 100000:
+        score += 8
+    return score
+
+
+def chain_map(records: list[Record]) -> dict[str, str]:
+    by_ada = {record.ada: record for record in records}
+    dsu = DSU(by_ada)
+    root_owner: dict[str, str] = {}
+    duplicate_owner: dict[tuple[Any, ...], str] = {}
+    for record in records:
+        for ref in record.refreshed_refs():
+            if ref in by_ada:
+                dsu.union(record.ada, ref)
+        for root in record.refreshed_roots():
+            owner = root_owner.get(root)
+            if owner:
+                dsu.union(record.ada, owner)
+            else:
+                root_owner[root] = record.ada
+        duplicate_key = (
+            record.org_id,
+            record.issue_at.date().isoformat(),
+            record.stage,
+            norm(record.subject),
+            record.amount,
+            record.supplier_afm,
