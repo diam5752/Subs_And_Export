@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/home/runner/work/Subs_And_Export/Subs_And_Export/tmp_tools/mizas_hunter_v6.py", line 21, in <module>
+    import diavgeia_blind_scan_v4 as base  # noqa: E402
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/Subs_And_Export/Subs_And_Export/tmp_tools/diavgeia_blind_scan_v4.py", line 209
+    return {f"CONTRACT:{re.sub(r'\s+', '', value)}" for value in CONTRACT_REF_RE.findall(norm(text))}
+                                                    ^^^
+SyntaxError: f-string expression part cannot include a backslash
