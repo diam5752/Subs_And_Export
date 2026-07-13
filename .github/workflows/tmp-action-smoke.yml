@@ -27,3 +27,5 @@ jobs:
           git add scan-output/actions-smoke.txt
           git commit -m "chore(tmp): actions smoke marker"
           git push origin HEAD:tmp/diavgeia-blind-scan-20260713
+
+# second push after workflow registration
