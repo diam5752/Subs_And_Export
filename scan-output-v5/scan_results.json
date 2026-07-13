@@ -1,0 +1,60 @@
+{
+  "status": "COMPLETED",
+  "executed_at_utc": "2026-07-13T16:31:09.451651Z",
+  "source": {
+    "kind": "temporary_frozen_mirror_of_official_diavgeia_records",
+    "url": "https://raw.githubusercontent.com/troboukis/2026_fire_protection/main/data/2026_diavgeia.csv",
+    "sha256": "f7cecca30f30e18576857cb57d2274a7c57d95c4c49c501940b8c2a14766e1ce",
+    "bytes": 14666682,
+    "rows": 7849,
+    "scope": "available 2026 snapshot"
+  },
+  "method": {
+    "runs": 2,
+    "seeds": [
+      5601,
+      5602
+    ],
+    "minimum_review_priority": 80,
+    "stop_each_run_at_first_passing_candidate": true,
+    "persistent_raw_storage": false,
+    "uses_outcome_labels_news_or_EAD": false,
+    "score_is_probability_of_wrongdoing": false,
+    "chain_guards": [
+      "collapse_shared_ADAM_and_explicit_ADA_references",
+      "collapse_exact_same_day_same_amount_same_subject_events",
+      "partition_by_fiscal_year",
+      "partition_by_municipal_unit_or_geography",
+      "recompute_after_live_PDF_and_detail_references"
+    ]
+  },
+  "coverage": {
+    "normalized_unique_decisions": 6935,
+    "generated_candidate_clusters": 1,
+    "pre_gate_80_or_more": 0,
+    "selected_count": 0
+  },
+  "selected": [],
+  "run_diagnostics": [
+    {
+      "run": 1,
+      "seed": 5601,
+      "pre_gate_candidates": 0,
+      "deep_checked": 0,
+      "rejected": [],
+      "status": "NO_QUALIFYING_CASE_WITHIN_SEARCH_BUDGET",
+      "selected_adas": [],
+      "selected_review_priority": null
+    },
+    {
+      "run": 2,
+      "seed": 5602,
+      "pre_gate_candidates": 0,
+      "deep_checked": 0,
+      "rejected": [],
+      "status": "NO_QUALIFYING_CASE_WITHIN_SEARCH_BUDGET",
+      "selected_adas": [],
+      "selected_review_priority": null
+    }
+  ]
+}
