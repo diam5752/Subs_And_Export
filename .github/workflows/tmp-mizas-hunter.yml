@@ -37,6 +37,7 @@ jobs:
             tmp_tools/mizas_hunter.py.part04a \
             tmp_tools/mizas_hunter.py.part04b \
             tmp_tools/mizas_hunter.py.part05 \
+            tmp_tools/mizas_hunter.py.part05x \
             tmp_tools/mizas_hunter.py.part06 \
             > tmp_tools/mizas_hunter.py
           python -m py_compile tmp_tools/mizas_hunter.py
