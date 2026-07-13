@@ -1,0 +1,50 @@
+name: Temporary Adaptive MIZAS Hunter
+
+on:
+  push:
+    branches:
+      - tmp/mizas-hunter-20260713
+    paths:
+      - tmp_tools/mizas_hunter.py
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tmp-mizas-hunter-20260713
+  cancel-in-progress: true
+
+jobs:
+  hunter:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: tmp/mizas-hunter-20260713
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install PDF and Python dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y poppler-utils
+          python -m pip install --upgrade pip
+          pip install requests pypdf
+      - name: Execute adaptive Diavgeia-only hunter
+        run: |
+          rm -rf hunter-output
+          python tmp_tools/mizas_hunter.py --out-dir hunter-output
+      - name: Commit compact reproducible result
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add hunter-output
+          if git diff --cached --quiet; then
+            echo "No hunter output produced"
+            exit 1
+          fi
+          git commit -m "chore(tmp): record adaptive MIZAS Hunter result"
+          git push origin HEAD:tmp/mizas-hunter-20260713
