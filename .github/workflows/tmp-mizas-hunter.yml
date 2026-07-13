@@ -28,8 +28,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - name: Assemble scanner and verify syntax
+      - name: Install dependencies
         run: |
+          sudo apt-get update
+          sudo apt-get install -y poppler-utils
+          python -m pip install --upgrade pip
+          pip install requests pypdf
+      - name: Assemble and execute with durable diagnostics
+        run: |
+          set +e
+          rm -rf hunter-output hunter-debug
+          mkdir -p hunter-debug
           cat \
             tmp_tools/mizas_hunter.py.part01 \
             tmp_tools/mizas_hunter.py.part02 \
@@ -40,25 +49,26 @@ jobs:
             tmp_tools/mizas_hunter.py.part05x \
             tmp_tools/mizas_hunter.py.part06 \
             > tmp_tools/mizas_hunter.py
-          python -m py_compile tmp_tools/mizas_hunter.py
-      - name: Install PDF and Python dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y poppler-utils
-          python -m pip install --upgrade pip
-          pip install requests pypdf
-      - name: Execute adaptive Diavgeia-only hunter
-        run: |
-          rm -rf hunter-output
-          python tmp_tools/mizas_hunter.py --out-dir hunter-output
-      - name: Commit compact reproducible result
+          python -m py_compile tmp_tools/mizas_hunter.py > hunter-debug/compile.log 2>&1
+          compile_status=$?
+          echo "$compile_status" > hunter-debug/compile_status.txt
+          if [ "$compile_status" -eq 0 ]; then
+            python tmp_tools/mizas_hunter.py --out-dir hunter-output > hunter-debug/run.log 2>&1
+            run_status=$?
+          else
+            run_status=99
+          fi
+          echo "$run_status" > hunter-debug/run_status.txt
+          printf '{"compile_status":%s,"run_status":%s}\n' "$compile_status" "$run_status" > hunter-debug/status.json
+          exit 0
+      - name: Commit result and diagnostics
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add hunter-output
+          git add hunter-output hunter-debug || true
           if git diff --cached --quiet; then
-            echo "No hunter output produced"
+            echo "No hunter output or diagnostics produced"
             exit 1
           fi
-          git commit -m "chore(tmp): record adaptive MIZAS Hunter result"
+          git commit -m "chore(tmp): record adaptive MIZAS Hunter execution"
           git push origin HEAD:tmp/mizas-hunter-20260713
