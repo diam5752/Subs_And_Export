@@ -7,6 +7,12 @@ on:
     paths:
       - tmp_tools/mizas_hunter_v6.py.gz.b64
       - .github/workflows/tmp-mizas-hunter.yml
+  pull_request:
+    branches:
+      - master
+    paths:
+      - tmp_tools/mizas_hunter_v6.py.gz.b64
+      - .github/workflows/tmp-mizas-hunter.yml
 
 permissions:
   contents: write
