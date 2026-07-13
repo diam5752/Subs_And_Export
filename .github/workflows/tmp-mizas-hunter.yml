@@ -1,0 +1,51 @@
+name: Temporary MIZAS Hunter
+
+on:
+  push:
+    branches:
+      - tmp/mizas-hunter-20260713-v2
+    paths:
+      - tmp_tools/mizas_hunter_v6.py
+      - .github/workflows/tmp-mizas-hunter.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tmp-mizas-hunter-20260713-v2
+  cancel-in-progress: true
+
+jobs:
+  hunter:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: tmp/mizas-hunter-20260713-v2
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y poppler-utils
+          python -m pip install --upgrade pip
+          pip install pandas requests pypdf
+      - name: Execute adaptive live Diavgeia hunter
+        run: |
+          rm -rf hunter-output-v6
+          python tmp_tools/mizas_hunter_v6.py --out-dir hunter-output-v6
+      - name: Commit reproducible result
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add hunter-output-v6
+          if git diff --cached --quiet; then
+            echo "No hunter output produced"
+            exit 1
+          fi
+          git commit -m "chore(tmp): record MIZAS Hunter result"
+          git push origin HEAD:tmp/mizas-hunter-20260713-v2
