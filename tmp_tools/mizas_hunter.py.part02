@@ -1,0 +1,220 @@
+
+def supplier_from_extra(extra: Any) -> tuple[str, str]:
+    if not isinstance(extra, dict):
+        return "", ""
+    candidates: list[tuple[int, str, str]] = []
+
+    def walk(value: Any, path: tuple[str, ...] = ()) -> None:
+        if isinstance(value, dict):
+            afm = str(value.get("afm") or value.get("vatNumber") or value.get("taxId") or "").strip()
+            name = str(value.get("name") or value.get("label") or value.get("value") or "").strip()
+            path_text = norm(" ".join(path))
+            if re.fullmatch(r"\d{8,10}", re.sub(r"\D", "", afm)) and name and "org" not in path_text:
+                score = 0
+                if any(token in path_text for token in ("sponsor", "contract", "beneficiar", "person", "recipient", "αναδοχ")):
+                    score += 5
+                candidates.append((score, re.sub(r"\D", "", afm)[-9:], name))
+            for key, item in value.items():
+                walk(item, (*path, str(key)))
+        elif isinstance(value, list):
+            for index, item in enumerate(value):
+                walk(item, (*path, str(index)))
+
+    walk(extra)
+    if not candidates:
+        return "", ""
+    candidates.sort(key=lambda item: (item[0], len(item[2])), reverse=True)
+    _, afm, name = candidates[0]
+    return afm, name[:255]
+
+
+def meaningful_tokens(text: str) -> list[str]:
+    tokens: list[str] = []
+    for token in norm(text).split():
+        if token in GENERIC_TOKENS or token.isdigit() or len(token) < 4:
+            continue
+        if re.fullmatch(r"\d+[a-zα-ω]*", token):
+            continue
+        stem = token[:9]
+        if stem not in tokens:
+            tokens.append(stem)
+    return tokens
+
+
+def topic_key(subject: str) -> str:
+    tokens = meaningful_tokens(subject)
+    return " ".join(sorted(tokens[:5])) or norm(subject)[:90]
+
+
+def expansion_term(subject: str) -> str | None:
+    tokens = meaningful_tokens(subject)
+    if not tokens:
+        return None
+    ranked = sorted(tokens, key=lambda token: (-len(token), token))
+    return " ".join(ranked[:2])
+
+
+def geography(subject: str) -> str:
+    match = GEO_RE.search(norm(subject))
+    if not match:
+        return "unspecified"
+    value = norm(match.group(1))
+    value = re.split(r"\b(?:του|της|για|βασει|ετους|δημου|στο|στη|και)\b", value)[0].strip()
+    return " ".join(value.split()[:5]) or "unspecified"
+
+
+def ada_refs(text: str) -> set[str]:
+    return set(ADA_RE.findall(str(text or "").upper()))
+
+
+def adam_refs(text: str) -> set[str]:
+    return set(match.upper() for match in ADAM_RE.findall(str(text or "")))
+
+
+def contract_refs(text: str) -> set[str]:
+    return {f"CONTRACT:{re.sub(r'\s+', '', value)}" for value in CONTRACT_REF_RE.findall(norm(text))}
+
+
+def jaccard(left: str, right: str) -> float:
+    a, b = set(meaningful_tokens(left)), set(meaningful_tokens(right))
+    return len(a & b) / len(a | b) if a and b else 0.0
+
+
+def stage_for(text: str, decision_type: str) -> str:
+    hay = norm(f"{decision_type} {text}")
+    if contains(hay, MODIFICATION_TERMS) or contains(hay, EXTENSION_TERMS):
+        return "modification"
+    if contains(hay, PAYMENT_TERMS):
+        return "payment"
+    if contains(hay, COMMITMENT_TERMS):
+        return "commitment"
+    if contains(hay, AWARD_TERMS):
+        return "award"
+    if contains(hay, CONTRACT_TERMS):
+        return "contract"
+    return "other"
+
+
+@dataclass
+class Record:
+    ada: str
+    subject: str
+    org_id: str
+    org_label: str
+    decision_type: str
+    issue_at: datetime
+    publish_at: datetime | None
+    amount: float | None
+    supplier_afm: str
+    supplier_name: str
+    raw_text: str
+    stage: str
+    topic: str
+    geo: str
+    direct: bool
+    no_publication: bool
+    single_bid: bool
+    emergency: bool
+    modification: bool
+    extension: bool
+    cancelled: bool
+    medical: bool
+    roots: set[str] = field(default_factory=set)
+    refs: set[str] = field(default_factory=set)
+    live_text: str = ""
+    current: bool = True
+
+    @property
+    def official_url(self) -> str:
+        return PDF_URL.format(ada=self.ada)
+
+    @property
+    def year(self) -> int:
+        return self.issue_at.year
+
+    def combined_text(self) -> str:
+        return f"{self.raw_text}\n{self.live_text}"
+
+    def refreshed_roots(self) -> set[str]:
+        text = self.combined_text()
+        return {*self.roots, *adam_refs(text), *contract_refs(text)}
+
+    def refreshed_refs(self) -> set[str]:
+        return {*self.refs, *(ada_refs(self.combined_text()) - {self.ada})}
+
+
+@dataclass
+class Chain:
+    key: str
+    docs: list[Record]
+    amount: float | None
+    suppliers: set[str]
+    date: datetime
+    subject: str
+    direct: bool
+    no_publication: bool
+    single_bid: bool
+    emergency: bool
+    modification_count: int
+    publication_lag_days: int
+
+
+@dataclass
+class Candidate:
+    key: str
+    kind: str
+    records: list[Record]
+    score: int
+    families: dict[str, int]
+    facts: list[str]
+    diagnostics: dict[str, Any]
+
+    def adas(self) -> set[str]:
+        return {record.ada for record in self.records}
+
+
+class DSU:
+    def __init__(self, values: Iterable[str]):
+        self.parent = {value: value for value in values}
+
+    def find(self, value: str) -> str:
+        parent = self.parent[value]
+        if parent != value:
+            self.parent[value] = self.find(parent)
+        return self.parent[value]
+
+    def union(self, left: str, right: str) -> None:
+        a, b = self.find(left), self.find(right)
+        if a != b:
+            self.parent[b] = a
+
+
+class HunterSession:
+    def __init__(self, seed: int, diagnostics: dict[str, Any]):
+        self.random = random.Random(seed)
+        self.session = requests.Session()
+        self.session.headers.update({"Accept": "application/json", "User-Agent": USER_AGENT})
+        self.diagnostics = diagnostics
+        self.search_requests = 0
+        self.detail_requests = 0
+        self.pdf_requests = 0
+        self.org_cache: dict[str, str] = {}
+
+    def get_json(self, url: str, *, params: dict[str, Any] | None = None, purpose: str) -> dict[str, Any] | None:
+        for attempt in range(3):
+            try:
+                response = self.session.get(url, params=params, timeout=(10, 45), allow_redirects=True)
+                response.raise_for_status()
+                payload = response.json()
+                return payload if isinstance(payload, dict) else None
+            except Exception as exc:
+                if attempt == 2:
+                    self.diagnostics.setdefault("network_errors", []).append({
+                        "purpose": purpose,
+                        "url": url,
+                        "params": params,
+                        "error": f"{type(exc).__name__}: {exc}",
+                    })
+                    return None
+                time.sleep(1.0 * (2 ** attempt))
+        return None
