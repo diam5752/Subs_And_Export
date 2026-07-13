@@ -1,29 +1,23 @@
 # MIZAS Hunter — adaptive Diavgeia-only execution
 
-**Status:** FOUND
+**Status:** NO_QUALIFYING_CASE_WITHIN_SEARCH_BUDGET
 
 > The score is a human-review priority, not a probability of illegality, fraud or corruption.
 
-## Selected case — priority 88/100
+## Honest outcome
 
-**Families:** repeated_single_bid, cumulative_near_band_pattern
-
-- 2 διακριτές συμβατικές αλυσίδες αναφέρουν ρητά μία/μοναδική προσφορά.
-- Το 2024, 3 διακριτές συμβατικές αλυσίδες έχουν αγκυρωμένα ποσά κοντά στο εσωτερικό review band €30,000, με άθροισμα €80,314.00.
-
-### Official Diavgeia documents
-
-- [9Ε2ΔΟΕΤΔ-Μ7Λ](https://diavgeia.gov.gr/doc/9Ε2ΔΟΕΤΔ-Μ7Λ) — Έγκριση υλοποίησης, έγκριση των σχετικών τεχνικών προδιαγραφών της υπηρεσίας με τίτλο: «ΠΑΡΟΧΗ ΝΟΜΙΚΩΝ ΥΠΗΡΕΣΙΩΝ ΓΙΑ ΤΗ ΣΥΣΤΑΣΗ ΔΟΥΛΕΙΑΣ ΔΙΟΔΟΥ ΣΤΙΣ ΚΤΗΜΑΤΙΚΕΣ ΠΕΡΙΟΧΕΣ ΠΤΟΛΕΜΑΪΔΑΣ-ΑΝΑΤΟΛΙΚΟΥ-ΠΕΝΤΑΒΡΥΣΟΥ ΚΑΙ ΦΙΛΩΤΑ» και διάθεση της σχετικής πίστωσης.
-- [ΡΟΚ0ΟΕΤΔ-ΥΧ9](https://diavgeia.gov.gr/doc/ΡΟΚ0ΟΕΤΔ-ΥΧ9) — Έγκριση υλοποίησης, έγκριση των σχετικών τεχνικών προδιαγραφών της υπηρεσίας με τίτλο: «ΕΡΓΑΣΙΕΣ ΑΠΟΚΑΤΑΣΤΑΣΗΣ ΒΛΑΒΩΝ ΣΥΣΤΗΜΑΤΟΣ ΑΝΙΧΝΕΥΣΗΣ ΔΙΑΡΡΟΩΝ (ΣΑΔ) ΤΗΣ ΤΗΛΕΘΕΡΜΑΝΣΗΣ ΣΤΑ Δ.Δ. ΑΜΥΝΤΑΙΟΥ, ΛΕΒΑΙΑΣ ΚΑΙ ΦΙΛΩΤΑ» και διάθεση της σχετικής πίστωσης
-- [9ΧΣΚΟΕΤΔ-Λ03](https://diavgeia.gov.gr/doc/9ΧΣΚΟΕΤΔ-Λ03) — Έγκριση υλοποίησης, έγκριση των σχετικών τεχνικών προδιαγραφών της υπηρεσίας με τίτλο «ΥΠΗΡΕΣΙΑ ΜΕΤΑΦΟΡΑΣ ΒΙΟΜΑΖΑΣ ΑΠΟ ΠΕΡΙΟΧΗ ΤΗΣ ΘΕΣΣΑΛΟΝΙΚΗΣ ΓΙΑ ΤΗ ΛΕΙΤΟΥΡΓΙΑ ΤΩΝ ΜΟΝΑΔΩΝ ΘΕΡΜΙΚΗΣ ΙΣΧΥΟΣ 30 MW ΤΗΣ ΤΗΛΕΘΕΡΜΑΝΣΗΣ ΑΜΥΝΤΑΙΟΥ, ΓΙΑ ΤΟ ΕΤΟΣ 2025» και διάθεση της σχετικής πίστωσης.
-- [65ΞΩΟΕΤΔ-ΗΨ1](https://diavgeia.gov.gr/doc/65ΞΩΟΕΤΔ-ΗΨ1) — Έγκριση πρακτικού της επιτροπής διενέργειας και αξιολόγησης αποτελεσμάτων δημοσίων συμβάσεων υπηρεσιών, κατακύρωση και ανάθεση της υπηρεσίας με τίτλο «ΥΠΗΡΕΣΙΑ ΜΕΤΑΦΟΡΑΣ ΒΙΟΜΑΖΑΣ ΑΠΟ ΠΕΡΙΟΧΗ ΤΗΣ ΘΕΣΣΑΛΟΝΙΚΗΣ ΓΙΑ ΤΗ ΛΕΙΤΟΥΡΓΙΑ ΤΩΝ ΜΟΝΑΔΩΝ ΘΕΡΜΙΚΗΣ ΙΣΧΥΟΣ 30 MW ΤΗΣ ΤΗΛΕΘΕΡΜΑΝΣΗΣ ΑΜΥΝΤΑΙΟΥ, ΓΙΑ ΤΟ ΕΤΟΣ 2025»
-- [6ΨΖ3ΟΕΤΔ-Γ5Π](https://diavgeia.gov.gr/doc/6ΨΖ3ΟΕΤΔ-Γ5Π) — Έγκριση πρακτικού της επιτροπής διενέργειας και αξιολόγησης αποτελεσμάτων σύναψης δημοσίων συμβάσεων υπηρεσιών, κατακύρωση και ανάθεση της υπηρεσίας με τίτλο «ΠΑΡΟΧΗ ΝΟΜΙΚΩΝ ΥΠΗΡΕΣΙΩΝ ΓΙΑ ΤΗ ΣΥΣΤΑΣΗ ΔΟΥΛΕΙΑΣ ΔΙΟΔΟΥ ΣΤΙΣ ΚΤΗΜΑΤΙΚΕΣ ΠΕΡΙΟΧΕΣ ΠΤΟΛΕΜΑΪΔΑΣ-ΑΝΑΤΟΛΙΚΟΥ-ΠΕΝΤΑΒΡΥΣΟΥ ΚΑΙ ΦΙΛΩΤΑ»
-- [ΨΤΘ7ΟΕΤΔ-ΛΤΕ](https://diavgeia.gov.gr/doc/ΨΤΘ7ΟΕΤΔ-ΛΤΕ) — Έγκριση πρακτικού της επιτροπής διενέργειας και αξιολόγησης αποτελεσμάτων σύναψης δημοσίων συμβάσεων υπηρεσιών, κατακύρωση και ανάθεση της υπηρεσίας με τίτλο «ΕΡΓΑΣΙΕΣ ΑΠΟΚΑΤΑΣΤΑΣΗΣ ΒΛΑΒΩΝ ΣΥΣΤΗΜΑΤΟΣ ΑΝΙΧΝΕΥΣΗΣ ΔΙΑΡΡΟΩΝ (ΣΑΔ) ΤΗΣ ΤΗΛΕΘΕΡΜΑΝΣΗΣ ΣΤΑ Δ.Δ. ΑΜΥΝΤΑΙΟΥ, ΛΕΒΑΙΑΣ ΚΑΙ ΦΙΛΩΤΑ»
+No candidate survived the strict live-PDF gate within this search budget.
 
 ## Run diagnostics
 
-- Run 1 / seed 7311: **FOUND**, records 5613, candidates 7, pre-gate≥80 4, search requests 98
+- Run 1 / seed 7311: **NO_QUALIFYING_CASE_WITHIN_SEARCH_BUDGET**, records 5613, candidates 7, pre-gate≥80 3, search requests 98
+- Run 2 / seed 7312: **NO_QUALIFYING_CASE_WITHIN_SEARCH_BUDGET**, records 5700, candidates 8, pre-gate≥80 2, search requests 96
+- Run 3 / seed 7313: **NO_QUALIFYING_CASE_WITHIN_SEARCH_BUDGET**, records 5337, candidates 3, pre-gate≥80 1, search requests 96
 
 ## Strongest rejected/pre-gate leads
 
-- 95/100 — ORG_TOPIC:('51636', 'any', 'αξιολογησ αποτελεσμ') — repeated_single_bid, cumulative_near_band_pattern, same_day_parallel_awards
+- 95/100 — ORG_TOPIC:('5004', 'any', 'διεθνουσ δρασεισ') — repeated_single_bid, same_day_parallel_awards, template_burst_support
+- 92/100 — ORG_TOPIC:('100054489', 'any', 'αναγκων ευβοιασ') — same_day_parallel_awards, repeated_modification_pattern, template_burst_support
+- 92/100 — ORG_TOPIC:('99222007', 'any', 'ορθοπεδικ προμηθεια') — same_day_parallel_awards, repeated_modification_pattern, template_burst_support
+- 92/100 — ORG_TOPIC:('99206911', 'any', 'αιγαιου αριστειασ') — same_day_parallel_awards, repeated_modification_pattern, template_burst_support
+- 84/100 — ORG_TOPIC:('99221567', 'any', 'εκδηλωσησ ενδιαφερο') — repeated_single_bid, same_day_parallel_awards

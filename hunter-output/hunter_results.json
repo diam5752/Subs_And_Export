@@ -1,6 +1,6 @@
 {
-  "status": "FOUND",
-  "executed_at_utc": "2026-07-13T18:57:28.423106+00:00",
+  "status": "NO_QUALIFYING_CASE_WITHIN_SEARCH_BUDGET",
+  "executed_at_utc": "2026-07-13T19:12:01.544096+00:00",
   "method": {
     "name": "MIZAS Hunter adaptive Diavgeia-only scan",
     "minimum_review_priority": 80,
@@ -20,121 +20,7 @@
       "stop at first validated candidate >=80"
     ]
   },
-  "selected": {
-    "review_priority": 88,
-    "score_meaning": "human_review_priority_not_probability_of_wrongdoing",
-    "families": {
-      "repeated_single_bid": 32,
-      "cumulative_near_band_pattern": 28
-    },
-    "evidence_facts": [
-      "2 διακριτές συμβατικές αλυσίδες αναφέρουν ρητά μία/μοναδική προσφορά.",
-      "Το 2024, 3 διακριτές συμβατικές αλυσίδες έχουν αγκυρωμένα ποσά κοντά στο εσωτερικό review band €30,000, με άθροισμα €80,314.00."
-    ],
-    "strongest_ordinary_explanation": "Οι πράξεις μπορεί να είναι νόμιμες, διακριτές ανάγκες ή διαφορετικά στάδια της ίδιας διαδικασίας. Ο έλεγχος αναζήτησε ρητές τεκμηριώσεις αυτής της εξήγησης στα επίσημα PDF.",
-    "validation": {
-      "official_current_documents": 6,
-      "pdf_text_count": 6,
-      "ordinary_explanation_terms_found": [],
-      "validation_caps": [],
-      "distinct_chains_after_live_rebuild": 3,
-      "evidence_complete_for_prioritisation": true,
-      "detail_errors": {},
-      "pdf_errors": {}
-    },
-    "organization_labels": [
-      "ΔΕΤΕΠΑ"
-    ],
-    "candidate_kind": "group",
-    "documents": [
-      {
-        "ada": "9Ε2ΔΟΕΤΔ-Μ7Λ",
-        "subject": "Έγκριση υλοποίησης, έγκριση των σχετικών τεχνικών προδιαγραφών της υπηρεσίας με τίτλο: «ΠΑΡΟΧΗ ΝΟΜΙΚΩΝ ΥΠΗΡΕΣΙΩΝ ΓΙΑ ΤΗ ΣΥΣΤΑΣΗ ΔΟΥΛΕΙΑΣ ΔΙΟΔΟΥ ΣΤΙΣ ΚΤΗΜΑΤΙΚΕΣ ΠΕΡΙΟΧΕΣ ΠΤΟΛΕΜΑΪΔΑΣ-ΑΝΑΤΟΛΙΚΟΥ-ΠΕΝΤΑΒΡΥΣΟΥ ΚΑΙ ΦΙΛΩΤΑ» και διάθεση της σχετικής πίστωσης.",
-        "organization_id": "51636",
-        "organization": "ΔΕΤΕΠΑ",
-        "decision_type": "Β.1.3",
-        "stage": "award",
-        "amount_eur": 22050.0,
-        "supplier_name": "",
-        "supplier_afm_redacted": "",
-        "issue_at": "2024-11-29T00:00:00",
-        "publish_at": "2024-12-02T11:18:40.141000",
-        "official_url": "https://diavgeia.gov.gr/doc/9Ε2ΔΟΕΤΔ-Μ7Λ"
-      },
-      {
-        "ada": "ΡΟΚ0ΟΕΤΔ-ΥΧ9",
-        "subject": "Έγκριση υλοποίησης, έγκριση των σχετικών τεχνικών προδιαγραφών της υπηρεσίας με τίτλο: «ΕΡΓΑΣΙΕΣ ΑΠΟΚΑΤΑΣΤΑΣΗΣ ΒΛΑΒΩΝ ΣΥΣΤΗΜΑΤΟΣ ΑΝΙΧΝΕΥΣΗΣ ΔΙΑΡΡΟΩΝ (ΣΑΔ) ΤΗΣ ΤΗΛΕΘΕΡΜΑΝΣΗΣ ΣΤΑ Δ.Δ. ΑΜΥΝΤΑΙΟΥ, ΛΕΒΑΙΑΣ ΚΑΙ ΦΙΛΩΤΑ» και διάθεση της σχετικής πίστωσης",
-        "organization_id": "51636",
-        "organization": "ΔΕΤΕΠΑ",
-        "decision_type": "Β.1.3",
-        "stage": "award",
-        "amount_eur": 24700.0,
-        "supplier_name": "",
-        "supplier_afm_redacted": "",
-        "issue_at": "2024-11-29T00:00:00",
-        "publish_at": "2024-12-02T10:49:09.082000",
-        "official_url": "https://diavgeia.gov.gr/doc/ΡΟΚ0ΟΕΤΔ-ΥΧ9"
-      },
-      {
-        "ada": "9ΧΣΚΟΕΤΔ-Λ03",
-        "subject": "Έγκριση υλοποίησης, έγκριση των σχετικών τεχνικών προδιαγραφών της υπηρεσίας με τίτλο «ΥΠΗΡΕΣΙΑ ΜΕΤΑΦΟΡΑΣ ΒΙΟΜΑΖΑΣ ΑΠΟ ΠΕΡΙΟΧΗ ΤΗΣ ΘΕΣΣΑΛΟΝΙΚΗΣ ΓΙΑ ΤΗ ΛΕΙΤΟΥΡΓΙΑ ΤΩΝ ΜΟΝΑΔΩΝ ΘΕΡΜΙΚΗΣ ΙΣΧΥΟΣ 30 MW ΤΗΣ ΤΗΛΕΘΕΡΜΑΝΣΗΣ ΑΜΥΝΤΑΙΟΥ, ΓΙΑ ΤΟ ΕΤΟΣ 2025» και διάθεση της σχετικής πίστωσης.",
-        "organization_id": "51636",
-        "organization": "ΔΕΤΕΠΑ",
-        "decision_type": "Β.1.3",
-        "stage": "award",
-        "amount_eur": 28272.0,
-        "supplier_name": "",
-        "supplier_afm_redacted": "",
-        "issue_at": "2024-12-10T00:00:00",
-        "publish_at": "2024-12-10T12:09:38.886000",
-        "official_url": "https://diavgeia.gov.gr/doc/9ΧΣΚΟΕΤΔ-Λ03"
-      },
-      {
-        "ada": "65ΞΩΟΕΤΔ-ΗΨ1",
-        "subject": "Έγκριση πρακτικού της επιτροπής διενέργειας και αξιολόγησης αποτελεσμάτων δημοσίων συμβάσεων υπηρεσιών, κατακύρωση και ανάθεση της υπηρεσίας με τίτλο «ΥΠΗΡΕΣΙΑ ΜΕΤΑΦΟΡΑΣ ΒΙΟΜΑΖΑΣ ΑΠΟ ΠΕΡΙΟΧΗ ΤΗΣ ΘΕΣΣΑΛΟΝΙΚΗΣ ΓΙΑ ΤΗ ΛΕΙΤΟΥΡΓΙΑ ΤΩΝ ΜΟΝΑΔΩΝ ΘΕΡΜΙΚΗΣ ΙΣΧΥΟΣ 30 MW ΤΗΣ ΤΗΛΕΘΕΡΜΑΝΣΗΣ ΑΜΥΝΤΑΙΟΥ, ΓΙΑ ΤΟ ΕΤΟΣ 2025»",
-        "organization_id": "51636",
-        "organization": "ΔΕΤΕΠΑ",
-        "decision_type": "Δ.1",
-        "stage": "award",
-        "amount_eur": 28272.0,
-        "supplier_name": "ΧΑΤΖΗΣ,,ΔΗΜΗΤΡΙΟΣ,ΓΕΩΡΓΙΟΣ",
-        "supplier_afm_redacted": "******692",
-        "issue_at": "2024-12-17T00:00:00",
-        "publish_at": "2024-12-27T08:36:24.243000",
-        "official_url": "https://diavgeia.gov.gr/doc/65ΞΩΟΕΤΔ-ΗΨ1"
-      },
-      {
-        "ada": "6ΨΖ3ΟΕΤΔ-Γ5Π",
-        "subject": "Έγκριση πρακτικού της επιτροπής διενέργειας και αξιολόγησης αποτελεσμάτων σύναψης δημοσίων συμβάσεων υπηρεσιών, κατακύρωση και ανάθεση της υπηρεσίας με τίτλο «ΠΑΡΟΧΗ ΝΟΜΙΚΩΝ ΥΠΗΡΕΣΙΩΝ ΓΙΑ ΤΗ ΣΥΣΤΑΣΗ ΔΟΥΛΕΙΑΣ ΔΙΟΔΟΥ ΣΤΙΣ ΚΤΗΜΑΤΙΚΕΣ ΠΕΡΙΟΧΕΣ ΠΤΟΛΕΜΑΪΔΑΣ-ΑΝΑΤΟΛΙΚΟΥ-ΠΕΝΤΑΒΡΥΣΟΥ ΚΑΙ ΦΙΛΩΤΑ»",
-        "organization_id": "51636",
-        "organization": "ΔΕΤΕΠΑ",
-        "decision_type": "Δ.1",
-        "stage": "award",
-        "amount_eur": 27342.0,
-        "supplier_name": "ΤΖΙΤΖΙΡΟΓΛΟΥ,,ΛΟΥΚΙΑ,ΒΑΣΙΛΕΙΟΣ",
-        "supplier_afm_redacted": "******870",
-        "issue_at": "2024-12-17T00:00:00",
-        "publish_at": "2024-12-19T05:50:20.667000",
-        "official_url": "https://diavgeia.gov.gr/doc/6ΨΖ3ΟΕΤΔ-Γ5Π"
-      },
-      {
-        "ada": "ΨΤΘ7ΟΕΤΔ-ΛΤΕ",
-        "subject": "Έγκριση πρακτικού της επιτροπής διενέργειας και αξιολόγησης αποτελεσμάτων σύναψης δημοσίων συμβάσεων υπηρεσιών, κατακύρωση και ανάθεση της υπηρεσίας με τίτλο «ΕΡΓΑΣΙΕΣ ΑΠΟΚΑΤΑΣΤΑΣΗΣ ΒΛΑΒΩΝ ΣΥΣΤΗΜΑΤΟΣ ΑΝΙΧΝΕΥΣΗΣ ΔΙΑΡΡΟΩΝ (ΣΑΔ) ΤΗΣ ΤΗΛΕΘΕΡΜΑΝΣΗΣ ΣΤΑ Δ.Δ. ΑΜΥΝΤΑΙΟΥ, ΛΕΒΑΙΑΣ ΚΑΙ ΦΙΛΩΤΑ»",
-        "organization_id": "51636",
-        "organization": "ΔΕΤΕΠΑ",
-        "decision_type": "Δ.1",
-        "stage": "award",
-        "amount_eur": 24700.0,
-        "supplier_name": "NEW GENERATION PIPING ΕΤΕΡΟΡΡΥΘΜΗ ΕΤΑΙΡΙΑ",
-        "supplier_afm_redacted": "******889",
-        "issue_at": "2024-12-17T00:00:00",
-        "publish_at": "2024-12-18T09:39:28.433000",
-        "official_url": "https://diavgeia.gov.gr/doc/ΨΤΘ7ΟΕΤΔ-ΛΤΕ"
-      }
-    ],
-    "run": 1,
-    "seed": 7311
-  },
+  "selected": null,
   "runs": [
     {
       "run": 1,
@@ -752,50 +638,1891 @@
       ],
       "expanded_unique_records": 5613,
       "candidate_count": 7,
-      "pre_gate_80_or_more": 4,
+      "pre_gate_80_or_more": 3,
       "search_requests": 98,
       "detail_requests_before_validation": 18,
-      "status": "FOUND",
-      "selected_score": 88,
-      "selected_adas": [
-        "9Ε2ΔΟΕΤΔ-Μ7Λ",
-        "ΡΟΚ0ΟΕΤΔ-ΥΧ9",
-        "9ΧΣΚΟΕΤΔ-Λ03",
-        "65ΞΩΟΕΤΔ-ΗΨ1",
-        "6ΨΖ3ΟΕΤΔ-Γ5Π",
-        "ΨΤΘ7ΟΕΤΔ-ΛΤΕ"
+      "network_errors": [
+        {
+          "purpose": "detail",
+          "url": "https://diavgeia.gov.gr/luminapi/api/decisions/1057-201",
+          "params": null,
+          "error": "HTTPError: 404 Client Error: Not Found for url: https://diavgeia.gov.gr/luminapi/api/decisions/1057-201"
+        },
+        {
+          "purpose": "detail",
+          "url": "https://diavgeia.gov.gr/luminapi/api/decisions/ΨΤΩΓ46ΜΤΛB-Χ18",
+          "params": null,
+          "error": "HTTPError: 404 Client Error: Not Found for url: https://diavgeia.gov.gr/luminapi/api/decisions/%CE%A8%CE%A4%CE%A9%CE%9346%CE%9C%CE%A4%CE%9BB-%CE%A718"
+        },
+        {
+          "purpose": "detail",
+          "url": "https://diavgeia.gov.gr/luminapi/api/decisions/ΑΔΑ9ΙΟΠ46906Λ-ΖΧΙ",
+          "params": null,
+          "error": "HTTPError: 404 Client Error: Not Found for url: https://diavgeia.gov.gr/luminapi/api/decisions/%CE%91%CE%94%CE%919%CE%99%CE%9F%CE%A046906%CE%9B-%CE%96%CE%A7%CE%99"
+        },
+        {
+          "purpose": "detail",
+          "url": "https://diavgeia.gov.gr/luminapi/api/decisions/ΑΔΑ684Ρ46906Λ-9ΥΞ",
+          "params": null,
+          "error": "HTTPError: 404 Client Error: Not Found for url: https://diavgeia.gov.gr/luminapi/api/decisions/%CE%91%CE%94%CE%91684%CE%A146906%CE%9B-9%CE%A5%CE%9E"
+        },
+        {
+          "purpose": "detail",
+          "url": "https://diavgeia.gov.gr/luminapi/api/decisions/ΑΔΑ91ΙΦ46906Λ-2Ω1",
+          "params": null,
+          "error": "HTTPError: 404 Client Error: Not Found for url: https://diavgeia.gov.gr/luminapi/api/decisions/%CE%91%CE%94%CE%9191%CE%99%CE%A646906%CE%9B-2%CE%A91"
+        }
       ],
-      "detail_requests": 27,
-      "pdf_requests": 6
+      "status": "NO_QUALIFYING_CASE_WITHIN_SEARCH_BUDGET",
+      "rejected": [
+        {
+          "candidate": "ORG_TOPIC:('5004', 'any', 'διεθνουσ δρασεισ')",
+          "pre_score": 95,
+          "reason": "collapsed_below_gate_after_live_rebuild",
+          "score": 0,
+          "families": {},
+          "facts": [],
+          "diagnostics": {
+            "distinct_chains": 1,
+            "anchored_chains": 1,
+            "payment_only_chains": 0,
+            "kind": "ORG_TOPIC",
+            "cap": "insufficient_distinct_procurement_anchors"
+          },
+          "detail_errors": {},
+          "pdf_errors": {}
+        },
+        {
+          "candidate": "ORG_TOPIC:('100054489', 'any', 'αναγκων ευβοιασ')",
+          "pre_score": 92,
+          "reason": "collapsed_below_gate_after_live_rebuild",
+          "score": 0,
+          "families": {},
+          "facts": [],
+          "diagnostics": {
+            "distinct_chains": 1,
+            "anchored_chains": 1,
+            "payment_only_chains": 0,
+            "kind": "ORG_TOPIC",
+            "cap": "insufficient_distinct_procurement_anchors"
+          },
+          "detail_errors": {},
+          "pdf_errors": {}
+        },
+        {
+          "candidate": "ORG_TOPIC:('99222007', 'any', 'ορθοπεδικ προμηθεια')",
+          "pre_score": 92,
+          "reason": "collapsed_below_gate_after_live_rebuild",
+          "score": 0,
+          "families": {},
+          "facts": [],
+          "diagnostics": {
+            "distinct_chains": 6,
+            "anchored_chains": 0,
+            "payment_only_chains": 6,
+            "kind": "ORG_TOPIC",
+            "cap": "insufficient_distinct_procurement_anchors"
+          },
+          "detail_errors": {},
+          "pdf_errors": {}
+        }
+      ],
+      "detail_requests": 67,
+      "pdf_requests": 32
+    },
+    {
+      "run": 2,
+      "seed": 7312,
+      "initial_unique_records": 5699,
+      "query_log": [
+        {
+          "lens": "single_offer",
+          "term": "μοναδική προσφορά",
+          "start": "2024-12-26",
+          "end": "2025-06-23",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "single_offer",
+          "term": "μοναδική προσφορά",
+          "start": "2024-12-26",
+          "end": "2025-06-23",
+          "page": 10,
+          "count": 100
+        },
+        {
+          "lens": "single_offer",
+          "term": "μοναδική προσφορά",
+          "start": "2025-06-24",
+          "end": "2025-12-20",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "single_offer",
+          "term": "μοναδική προσφορά",
+          "start": "2025-06-24",
+          "end": "2025-12-20",
+          "page": 12,
+          "count": 100
+        },
+        {
+          "lens": "single_offer",
+          "term": "μοναδική προσφορά",
+          "start": "2024-06-29",
+          "end": "2024-12-25",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "single_offer",
+          "term": "μοναδική προσφορά",
+          "start": "2024-06-29",
+          "end": "2024-12-25",
+          "page": 21,
+          "count": 100
+        },
+        {
+          "lens": "one_offer",
+          "term": "μία προσφορά",
+          "start": "2024-01-01",
+          "end": "2024-06-28",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "one_offer",
+          "term": "μία προσφορά",
+          "start": "2024-01-01",
+          "end": "2024-06-28",
+          "page": 15,
+          "count": 100
+        },
+        {
+          "lens": "one_offer",
+          "term": "μία προσφορά",
+          "start": "2025-12-21",
+          "end": "2026-06-18",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "one_offer",
+          "term": "μία προσφορά",
+          "start": "2025-12-21",
+          "end": "2026-06-18",
+          "page": 17,
+          "count": 100
+        },
+        {
+          "lens": "one_offer",
+          "term": "μία προσφορά",
+          "start": "2024-06-29",
+          "end": "2024-12-25",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "one_offer",
+          "term": "μία προσφορά",
+          "start": "2024-06-29",
+          "end": "2024-12-25",
+          "page": 1,
+          "count": 100
+        },
+        {
+          "lens": "no_prior_publication",
+          "term": "χωρίς προηγούμενη δημοσίευση",
+          "start": "2025-12-21",
+          "end": "2026-06-18",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "no_prior_publication",
+          "term": "χωρίς προηγούμενη δημοσίευση",
+          "start": "2025-12-21",
+          "end": "2026-06-18",
+          "page": 35,
+          "count": 100
+        },
+        {
+          "lens": "no_prior_publication",
+          "term": "χωρίς προηγούμενη δημοσίευση",
+          "start": "2025-06-24",
+          "end": "2025-12-20",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "no_prior_publication",
+          "term": "χωρίς προηγούμενη δημοσίευση",
+          "start": "2025-06-24",
+          "end": "2025-12-20",
+          "page": 8,
+          "count": 100
+        },
+        {
+          "lens": "no_prior_publication",
+          "term": "χωρίς προηγούμενη δημοσίευση",
+          "start": "2024-01-01",
+          "end": "2024-06-28",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "no_prior_publication",
+          "term": "χωρίς προηγούμενη δημοσίευση",
+          "start": "2024-01-01",
+          "end": "2024-06-28",
+          "page": 27,
+          "count": 100
+        },
+        {
+          "lens": "negotiation_no_publication",
+          "term": "διαπραγμάτευση χωρίς προηγούμενη δημοσίευση",
+          "start": "2024-06-29",
+          "end": "2024-12-25",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "negotiation_no_publication",
+          "term": "διαπραγμάτευση χωρίς προηγούμενη δημοσίευση",
+          "start": "2024-06-29",
+          "end": "2024-12-25",
+          "page": 15,
+          "count": 100
+        },
+        {
+          "lens": "negotiation_no_publication",
+          "term": "διαπραγμάτευση χωρίς προηγούμενη δημοσίευση",
+          "start": "2026-06-19",
+          "end": "2026-07-13",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "negotiation_no_publication",
+          "term": "διαπραγμάτευση χωρίς προηγούμενη δημοσίευση",
+          "start": "2026-06-19",
+          "end": "2026-07-13",
+          "page": 1,
+          "count": 100
+        },
+        {
+          "lens": "negotiation_no_publication",
+          "term": "διαπραγμάτευση χωρίς προηγούμενη δημοσίευση",
+          "start": "2024-01-01",
+          "end": "2024-06-28",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "negotiation_no_publication",
+          "term": "διαπραγμάτευση χωρίς προηγούμενη δημοσίευση",
+          "start": "2024-01-01",
+          "end": "2024-06-28",
+          "page": 61,
+          "count": 100
+        },
+        {
+          "lens": "third_ape",
+          "term": "3ος ΑΠΕ",
+          "start": "2024-01-01",
+          "end": "2024-06-28",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "third_ape",
+          "term": "3ος ΑΠΕ",
+          "start": "2024-01-01",
+          "end": "2024-06-28",
+          "page": 2,
+          "count": 100
+        },
+        {
+          "lens": "third_ape",
+          "term": "3ος ΑΠΕ",
+          "start": "2025-12-21",
+          "end": "2026-06-18",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "third_ape",
+          "term": "3ος ΑΠΕ",
+          "start": "2025-12-21",
+          "end": "2026-06-18",
+          "page": 2,
+          "count": 100
+        },
+        {
+          "lens": "third_ape",
+          "term": "3ος ΑΠΕ",
+          "start": "2024-12-26",
+          "end": "2025-06-23",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "third_ape",
+          "term": "3ος ΑΠΕ",
+          "start": "2024-12-26",
+          "end": "2025-06-23",
+          "page": 1,
+          "count": 100
+        },
+        {
+          "lens": "second_ape",
+          "term": "2ος ΑΠΕ",
+          "start": "2024-06-29",
+          "end": "2024-12-25",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "second_ape",
+          "term": "2ος ΑΠΕ",
+          "start": "2024-06-29",
+          "end": "2024-12-25",
+          "page": 4,
+          "count": 100
+        },
+        {
+          "lens": "second_ape",
+          "term": "2ος ΑΠΕ",
+          "start": "2026-06-19",
+          "end": "2026-07-13",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "second_ape",
+          "term": "2ος ΑΠΕ",
+          "start": "2026-06-19",
+          "end": "2026-07-13",
+          "page": 1,
+          "count": 43
+        },
+        {
+          "lens": "second_ape",
+          "term": "2ος ΑΠΕ",
+          "start": "2024-12-26",
+          "end": "2025-06-23",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "second_ape",
+          "term": "2ος ΑΠΕ",
+          "start": "2024-12-26",
+          "end": "2025-06-23",
+          "page": 3,
+          "count": 100
+        },
+        {
+          "lens": "supplementary_contract",
+          "term": "συμπληρωματική σύμβαση",
+          "start": "2025-12-21",
+          "end": "2026-06-18",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "supplementary_contract",
+          "term": "συμπληρωματική σύμβαση",
+          "start": "2025-12-21",
+          "end": "2026-06-18",
+          "page": 3,
+          "count": 100
+        },
+        {
+          "lens": "supplementary_contract",
+          "term": "συμπληρωματική σύμβαση",
+          "start": "2025-06-24",
+          "end": "2025-12-20",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "supplementary_contract",
+          "term": "συμπληρωματική σύμβαση",
+          "start": "2025-06-24",
+          "end": "2025-12-20",
+          "page": 61,
+          "count": 100
+        },
+        {
+          "lens": "supplementary_contract",
+          "term": "συμπληρωματική σύμβαση",
+          "start": "2024-12-26",
+          "end": "2025-06-23",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "supplementary_contract",
+          "term": "συμπληρωματική σύμβαση",
+          "start": "2024-12-26",
+          "end": "2025-06-23",
+          "page": 42,
+          "count": 100
+        },
+        {
+          "lens": "economic_increase",
+          "term": "αύξηση οικονομικού αντικειμένου",
+          "start": "2025-12-21",
+          "end": "2026-06-18",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "economic_increase",
+          "term": "αύξηση οικονομικού αντικειμένου",
+          "start": "2025-12-21",
+          "end": "2026-06-18",
+          "page": 1,
+          "count": 70
+        },
+        {
+          "lens": "economic_increase",
+          "term": "αύξηση οικονομικού αντικειμένου",
+          "start": "2024-01-01",
+          "end": "2024-06-28",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "economic_increase",
+          "term": "αύξηση οικονομικού αντικειμένου",
+          "start": "2024-01-01",
+          "end": "2024-06-28",
+          "page": 1,
+          "count": 49
+        },
+        {
+          "lens": "economic_increase",
+          "term": "αύξηση οικονομικού αντικειμένου",
+          "start": "2026-06-19",
+          "end": "2026-07-13",
+          "page": 0,
+          "count": 35
+        },
+        {
+          "lens": "contract_extension",
+          "term": "παράταση σύμβασης",
+          "start": "2026-06-19",
+          "end": "2026-07-13",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "contract_extension",
+          "term": "παράταση σύμβασης",
+          "start": "2026-06-19",
+          "end": "2026-07-13",
+          "page": 14,
+          "count": 31
+        },
+        {
+          "lens": "contract_extension",
+          "term": "παράταση σύμβασης",
+          "start": "2025-06-24",
+          "end": "2025-12-20",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "contract_extension",
+          "term": "παράταση σύμβασης",
+          "start": "2025-06-24",
+          "end": "2025-12-20",
+          "page": 23,
+          "count": 100
+        },
+        {
+          "lens": "contract_extension",
+          "term": "παράταση σύμβασης",
+          "start": "2024-06-29",
+          "end": "2024-12-25",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "contract_extension",
+          "term": "παράταση σύμβασης",
+          "start": "2024-06-29",
+          "end": "2024-12-25",
+          "page": 12,
+          "count": 100
+        },
+        {
+          "lens": "direct_award",
+          "term": "απευθείας ανάθεση",
+          "start": "2024-06-29",
+          "end": "2024-12-25",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "direct_award",
+          "term": "απευθείας ανάθεση",
+          "start": "2024-06-29",
+          "end": "2024-12-25",
+          "page": 68,
+          "count": 100
+        },
+        {
+          "lens": "direct_award",
+          "term": "απευθείας ανάθεση",
+          "start": "2026-06-19",
+          "end": "2026-07-13",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "direct_award",
+          "term": "απευθείας ανάθεση",
+          "start": "2026-06-19",
+          "end": "2026-07-13",
+          "page": 62,
+          "count": 100
+        },
+        {
+          "lens": "direct_award",
+          "term": "απευθείας ανάθεση",
+          "start": "2024-12-26",
+          "end": "2025-06-23",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "direct_award",
+          "term": "απευθείας ανάθεση",
+          "start": "2024-12-26",
+          "end": "2025-06-23",
+          "page": 3,
+          "count": 100
+        },
+        {
+          "lens": "urgent_need",
+          "term": "κατεπείγουσα ανάγκη",
+          "start": "2024-06-29",
+          "end": "2024-12-25",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "urgent_need",
+          "term": "κατεπείγουσα ανάγκη",
+          "start": "2024-06-29",
+          "end": "2024-12-25",
+          "page": 13,
+          "count": 100
+        },
+        {
+          "lens": "urgent_need",
+          "term": "κατεπείγουσα ανάγκη",
+          "start": "2025-12-21",
+          "end": "2026-06-18",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "urgent_need",
+          "term": "κατεπείγουσα ανάγκη",
+          "start": "2025-12-21",
+          "end": "2026-06-18",
+          "page": 27,
+          "count": 100
+        },
+        {
+          "lens": "urgent_need",
+          "term": "κατεπείγουσα ανάγκη",
+          "start": "2024-12-26",
+          "end": "2025-06-23",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "urgent_need",
+          "term": "κατεπείγουσα ανάγκη",
+          "start": "2024-12-26",
+          "end": "2025-06-23",
+          "page": 6,
+          "count": 100
+        },
+        {
+          "lens": "payment",
+          "term": "οριστικοποίηση πληρωμής",
+          "start": "2025-06-24",
+          "end": "2025-12-20",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "payment",
+          "term": "οριστικοποίηση πληρωμής",
+          "start": "2025-06-24",
+          "end": "2025-12-20",
+          "page": 69,
+          "count": 100
+        },
+        {
+          "lens": "payment",
+          "term": "οριστικοποίηση πληρωμής",
+          "start": "2024-01-01",
+          "end": "2024-06-28",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "payment",
+          "term": "οριστικοποίηση πληρωμής",
+          "start": "2024-01-01",
+          "end": "2024-06-28",
+          "page": 80,
+          "count": 100
+        },
+        {
+          "lens": "payment",
+          "term": "οριστικοποίηση πληρωμής",
+          "start": "2026-06-19",
+          "end": "2026-07-13",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "payment",
+          "term": "οριστικοποίηση πληρωμής",
+          "start": "2026-06-19",
+          "end": "2026-07-13",
+          "page": 39,
+          "count": 100
+        },
+        {
+          "lens": "failed_tender",
+          "term": "άγονος διαγωνισμός",
+          "start": "2024-06-29",
+          "end": "2024-12-25",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "failed_tender",
+          "term": "άγονος διαγωνισμός",
+          "start": "2024-06-29",
+          "end": "2024-12-25",
+          "page": 1,
+          "count": 100
+        },
+        {
+          "lens": "failed_tender",
+          "term": "άγονος διαγωνισμός",
+          "start": "2025-12-21",
+          "end": "2026-06-18",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "failed_tender",
+          "term": "άγονος διαγωνισμός",
+          "start": "2025-12-21",
+          "end": "2026-06-18",
+          "page": 1,
+          "count": 100
+        },
+        {
+          "lens": "failed_tender",
+          "term": "άγονος διαγωνισμός",
+          "start": "2025-06-24",
+          "end": "2025-12-20",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "failed_tender",
+          "term": "άγονος διαγωνισμός",
+          "start": "2025-06-24",
+          "end": "2025-12-20",
+          "page": 3,
+          "count": 100
+        }
+      ],
+      "expanded_unique_records": 5700,
+      "candidate_count": 8,
+      "pre_gate_80_or_more": 2,
+      "search_requests": 96,
+      "detail_requests_before_validation": 18,
+      "network_errors": [
+        {
+          "purpose": "detail",
+          "url": "https://diavgeia.gov.gr/luminapi/api/decisions/FIFTY-SIX",
+          "params": null,
+          "error": "HTTPError: 404 Client Error: Not Found for url: https://diavgeia.gov.gr/luminapi/api/decisions/FIFTY-SIX"
+        }
+      ],
+      "status": "NO_QUALIFYING_CASE_WITHIN_SEARCH_BUDGET",
+      "rejected": [
+        {
+          "candidate": "ORG_TOPIC:('99221567', 'any', 'εκδηλωσησ ενδιαφερο')",
+          "pre_score": 84,
+          "reason": "collapsed_below_gate_after_live_rebuild",
+          "score": 0,
+          "families": {},
+          "facts": [],
+          "diagnostics": {
+            "distinct_chains": 1,
+            "anchored_chains": 1,
+            "payment_only_chains": 0,
+            "kind": "ORG_TOPIC",
+            "cap": "insufficient_distinct_procurement_anchors"
+          },
+          "detail_errors": {},
+          "pdf_errors": {}
+        },
+        {
+          "candidate": "ORG_TOPIC:('99206920', 'any', 'διαγωνισμ προμηθειω')",
+          "pre_score": 80,
+          "reason": "collapsed_below_gate_after_live_rebuild",
+          "score": 0,
+          "families": {
+            "repeated_no_publication": 28
+          },
+          "facts": [
+            "3 διακριτές συμβατικές αλυσίδες σε 3 μήνες χρησιμοποιούν διαδικασία χωρίς προηγούμενη δημοσίευση."
+          ],
+          "diagnostics": {
+            "distinct_chains": 3,
+            "span_days": 790,
+            "months": 3,
+            "kind": "ORG_TOPIC",
+            "publication_lagged_chains": 0,
+            "max_publication_lag_days": 23
+          },
+          "detail_errors": {},
+          "pdf_errors": {}
+        }
+      ],
+      "detail_requests": 45,
+      "pdf_requests": 20
+    },
+    {
+      "run": 3,
+      "seed": 7313,
+      "initial_unique_records": 5247,
+      "query_log": [
+        {
+          "lens": "single_offer",
+          "term": "μοναδική προσφορά",
+          "start": "2025-06-24",
+          "end": "2025-12-20",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "single_offer",
+          "term": "μοναδική προσφορά",
+          "start": "2025-06-24",
+          "end": "2025-12-20",
+          "page": 11,
+          "count": 100
+        },
+        {
+          "lens": "single_offer",
+          "term": "μοναδική προσφορά",
+          "start": "2026-06-19",
+          "end": "2026-07-13",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "single_offer",
+          "term": "μοναδική προσφορά",
+          "start": "2026-06-19",
+          "end": "2026-07-13",
+          "page": 3,
+          "count": 14
+        },
+        {
+          "lens": "single_offer",
+          "term": "μοναδική προσφορά",
+          "start": "2024-12-26",
+          "end": "2025-06-23",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "single_offer",
+          "term": "μοναδική προσφορά",
+          "start": "2024-12-26",
+          "end": "2025-06-23",
+          "page": 22,
+          "count": 7
+        },
+        {
+          "lens": "one_offer",
+          "term": "μία προσφορά",
+          "start": "2024-01-01",
+          "end": "2024-06-28",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "one_offer",
+          "term": "μία προσφορά",
+          "start": "2024-01-01",
+          "end": "2024-06-28",
+          "page": 3,
+          "count": 100
+        },
+        {
+          "lens": "one_offer",
+          "term": "μία προσφορά",
+          "start": "2026-06-19",
+          "end": "2026-07-13",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "one_offer",
+          "term": "μία προσφορά",
+          "start": "2026-06-19",
+          "end": "2026-07-13",
+          "page": 1,
+          "count": 100
+        },
+        {
+          "lens": "one_offer",
+          "term": "μία προσφορά",
+          "start": "2025-12-21",
+          "end": "2026-06-18",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "one_offer",
+          "term": "μία προσφορά",
+          "start": "2025-12-21",
+          "end": "2026-06-18",
+          "page": 11,
+          "count": 100
+        },
+        {
+          "lens": "no_prior_publication",
+          "term": "χωρίς προηγούμενη δημοσίευση",
+          "start": "2024-06-29",
+          "end": "2024-12-25",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "no_prior_publication",
+          "term": "χωρίς προηγούμενη δημοσίευση",
+          "start": "2024-06-29",
+          "end": "2024-12-25",
+          "page": 40,
+          "count": 100
+        },
+        {
+          "lens": "no_prior_publication",
+          "term": "χωρίς προηγούμενη δημοσίευση",
+          "start": "2025-12-21",
+          "end": "2026-06-18",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "no_prior_publication",
+          "term": "χωρίς προηγούμενη δημοσίευση",
+          "start": "2025-12-21",
+          "end": "2026-06-18",
+          "page": 20,
+          "count": 100
+        },
+        {
+          "lens": "no_prior_publication",
+          "term": "χωρίς προηγούμενη δημοσίευση",
+          "start": "2024-12-26",
+          "end": "2025-06-23",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "no_prior_publication",
+          "term": "χωρίς προηγούμενη δημοσίευση",
+          "start": "2024-12-26",
+          "end": "2025-06-23",
+          "page": 33,
+          "count": 100
+        },
+        {
+          "lens": "negotiation_no_publication",
+          "term": "διαπραγμάτευση χωρίς προηγούμενη δημοσίευση",
+          "start": "2024-01-01",
+          "end": "2024-06-28",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "negotiation_no_publication",
+          "term": "διαπραγμάτευση χωρίς προηγούμενη δημοσίευση",
+          "start": "2024-01-01",
+          "end": "2024-06-28",
+          "page": 18,
+          "count": 100
+        },
+        {
+          "lens": "negotiation_no_publication",
+          "term": "διαπραγμάτευση χωρίς προηγούμενη δημοσίευση",
+          "start": "2025-06-24",
+          "end": "2025-12-20",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "negotiation_no_publication",
+          "term": "διαπραγμάτευση χωρίς προηγούμενη δημοσίευση",
+          "start": "2025-06-24",
+          "end": "2025-12-20",
+          "page": 21,
+          "count": 100
+        },
+        {
+          "lens": "negotiation_no_publication",
+          "term": "διαπραγμάτευση χωρίς προηγούμενη δημοσίευση",
+          "start": "2025-12-21",
+          "end": "2026-06-18",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "negotiation_no_publication",
+          "term": "διαπραγμάτευση χωρίς προηγούμενη δημοσίευση",
+          "start": "2025-12-21",
+          "end": "2026-06-18",
+          "page": 75,
+          "count": 100
+        },
+        {
+          "lens": "third_ape",
+          "term": "3ος ΑΠΕ",
+          "start": "2024-06-29",
+          "end": "2024-12-25",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "third_ape",
+          "term": "3ος ΑΠΕ",
+          "start": "2024-06-29",
+          "end": "2024-12-25",
+          "page": 1,
+          "count": 100
+        },
+        {
+          "lens": "third_ape",
+          "term": "3ος ΑΠΕ",
+          "start": "2024-12-26",
+          "end": "2025-06-23",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "third_ape",
+          "term": "3ος ΑΠΕ",
+          "start": "2024-12-26",
+          "end": "2025-06-23",
+          "page": 3,
+          "count": 56
+        },
+        {
+          "lens": "third_ape",
+          "term": "3ος ΑΠΕ",
+          "start": "2026-06-19",
+          "end": "2026-07-13",
+          "page": 0,
+          "count": 68
+        },
+        {
+          "lens": "second_ape",
+          "term": "2ος ΑΠΕ",
+          "start": "2026-06-19",
+          "end": "2026-07-13",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "second_ape",
+          "term": "2ος ΑΠΕ",
+          "start": "2026-06-19",
+          "end": "2026-07-13",
+          "page": 1,
+          "count": 43
+        },
+        {
+          "lens": "second_ape",
+          "term": "2ος ΑΠΕ",
+          "start": "2024-06-29",
+          "end": "2024-12-25",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "second_ape",
+          "term": "2ος ΑΠΕ",
+          "start": "2024-06-29",
+          "end": "2024-12-25",
+          "page": 4,
+          "count": 100
+        },
+        {
+          "lens": "second_ape",
+          "term": "2ος ΑΠΕ",
+          "start": "2025-06-24",
+          "end": "2025-12-20",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "second_ape",
+          "term": "2ος ΑΠΕ",
+          "start": "2025-06-24",
+          "end": "2025-12-20",
+          "page": 6,
+          "count": 100
+        },
+        {
+          "lens": "supplementary_contract",
+          "term": "συμπληρωματική σύμβαση",
+          "start": "2024-01-01",
+          "end": "2024-06-28",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "supplementary_contract",
+          "term": "συμπληρωματική σύμβαση",
+          "start": "2024-01-01",
+          "end": "2024-06-28",
+          "page": 26,
+          "count": 100
+        },
+        {
+          "lens": "supplementary_contract",
+          "term": "συμπληρωματική σύμβαση",
+          "start": "2024-12-26",
+          "end": "2025-06-23",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "supplementary_contract",
+          "term": "συμπληρωματική σύμβαση",
+          "start": "2024-12-26",
+          "end": "2025-06-23",
+          "page": 72,
+          "count": 100
+        },
+        {
+          "lens": "supplementary_contract",
+          "term": "συμπληρωματική σύμβαση",
+          "start": "2025-06-24",
+          "end": "2025-12-20",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "supplementary_contract",
+          "term": "συμπληρωματική σύμβαση",
+          "start": "2025-06-24",
+          "end": "2025-12-20",
+          "page": 32,
+          "count": 100
+        },
+        {
+          "lens": "economic_increase",
+          "term": "αύξηση οικονομικού αντικειμένου",
+          "start": "2026-06-19",
+          "end": "2026-07-13",
+          "page": 0,
+          "count": 35
+        },
+        {
+          "lens": "economic_increase",
+          "term": "αύξηση οικονομικού αντικειμένου",
+          "start": "2024-06-29",
+          "end": "2024-12-25",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "economic_increase",
+          "term": "αύξηση οικονομικού αντικειμένου",
+          "start": "2024-06-29",
+          "end": "2024-12-25",
+          "page": 2,
+          "count": 12
+        },
+        {
+          "lens": "economic_increase",
+          "term": "αύξηση οικονομικού αντικειμένου",
+          "start": "2025-06-24",
+          "end": "2025-12-20",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "economic_increase",
+          "term": "αύξηση οικονομικού αντικειμένου",
+          "start": "2025-06-24",
+          "end": "2025-12-20",
+          "page": 1,
+          "count": 89
+        },
+        {
+          "lens": "contract_extension",
+          "term": "παράταση σύμβασης",
+          "start": "2025-06-24",
+          "end": "2025-12-20",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "contract_extension",
+          "term": "παράταση σύμβασης",
+          "start": "2025-06-24",
+          "end": "2025-12-20",
+          "page": 77,
+          "count": 100
+        },
+        {
+          "lens": "contract_extension",
+          "term": "παράταση σύμβασης",
+          "start": "2024-01-01",
+          "end": "2024-06-28",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "contract_extension",
+          "term": "παράταση σύμβασης",
+          "start": "2024-01-01",
+          "end": "2024-06-28",
+          "page": 40,
+          "count": 100
+        },
+        {
+          "lens": "contract_extension",
+          "term": "παράταση σύμβασης",
+          "start": "2024-06-29",
+          "end": "2024-12-25",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "contract_extension",
+          "term": "παράταση σύμβασης",
+          "start": "2024-06-29",
+          "end": "2024-12-25",
+          "page": 31,
+          "count": 100
+        },
+        {
+          "lens": "direct_award",
+          "term": "απευθείας ανάθεση",
+          "start": "2024-06-29",
+          "end": "2024-12-25",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "direct_award",
+          "term": "απευθείας ανάθεση",
+          "start": "2024-06-29",
+          "end": "2024-12-25",
+          "page": 40,
+          "count": 100
+        },
+        {
+          "lens": "direct_award",
+          "term": "απευθείας ανάθεση",
+          "start": "2026-06-19",
+          "end": "2026-07-13",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "direct_award",
+          "term": "απευθείας ανάθεση",
+          "start": "2026-06-19",
+          "end": "2026-07-13",
+          "page": 15,
+          "count": 100
+        },
+        {
+          "lens": "direct_award",
+          "term": "απευθείας ανάθεση",
+          "start": "2024-12-26",
+          "end": "2025-06-23",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "direct_award",
+          "term": "απευθείας ανάθεση",
+          "start": "2024-12-26",
+          "end": "2025-06-23",
+          "page": 59,
+          "count": 100
+        },
+        {
+          "lens": "urgent_need",
+          "term": "κατεπείγουσα ανάγκη",
+          "start": "2025-06-24",
+          "end": "2025-12-20",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "urgent_need",
+          "term": "κατεπείγουσα ανάγκη",
+          "start": "2025-06-24",
+          "end": "2025-12-20",
+          "page": 2,
+          "count": 100
+        },
+        {
+          "lens": "urgent_need",
+          "term": "κατεπείγουσα ανάγκη",
+          "start": "2024-12-26",
+          "end": "2025-06-23",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "urgent_need",
+          "term": "κατεπείγουσα ανάγκη",
+          "start": "2024-12-26",
+          "end": "2025-06-23",
+          "page": 2,
+          "count": 100
+        },
+        {
+          "lens": "urgent_need",
+          "term": "κατεπείγουσα ανάγκη",
+          "start": "2026-06-19",
+          "end": "2026-07-13",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "urgent_need",
+          "term": "κατεπείγουσα ανάγκη",
+          "start": "2026-06-19",
+          "end": "2026-07-13",
+          "page": 3,
+          "count": 54
+        },
+        {
+          "lens": "payment",
+          "term": "οριστικοποίηση πληρωμής",
+          "start": "2025-12-21",
+          "end": "2026-06-18",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "payment",
+          "term": "οριστικοποίηση πληρωμής",
+          "start": "2025-12-21",
+          "end": "2026-06-18",
+          "page": 2,
+          "count": 100
+        },
+        {
+          "lens": "payment",
+          "term": "οριστικοποίηση πληρωμής",
+          "start": "2024-01-01",
+          "end": "2024-06-28",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "payment",
+          "term": "οριστικοποίηση πληρωμής",
+          "start": "2024-01-01",
+          "end": "2024-06-28",
+          "page": 62,
+          "count": 100
+        },
+        {
+          "lens": "payment",
+          "term": "οριστικοποίηση πληρωμής",
+          "start": "2026-06-19",
+          "end": "2026-07-13",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "payment",
+          "term": "οριστικοποίηση πληρωμής",
+          "start": "2026-06-19",
+          "end": "2026-07-13",
+          "page": 16,
+          "count": 100
+        },
+        {
+          "lens": "failed_tender",
+          "term": "άγονος διαγωνισμός",
+          "start": "2024-06-29",
+          "end": "2024-12-25",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "failed_tender",
+          "term": "άγονος διαγωνισμός",
+          "start": "2024-06-29",
+          "end": "2024-12-25",
+          "page": 1,
+          "count": 100
+        },
+        {
+          "lens": "failed_tender",
+          "term": "άγονος διαγωνισμός",
+          "start": "2026-06-19",
+          "end": "2026-07-13",
+          "page": 0,
+          "count": 60
+        },
+        {
+          "lens": "failed_tender",
+          "term": "άγονος διαγωνισμός",
+          "start": "2025-06-24",
+          "end": "2025-12-20",
+          "page": 0,
+          "count": 100
+        },
+        {
+          "lens": "failed_tender",
+          "term": "άγονος διαγωνισμός",
+          "start": "2025-06-24",
+          "end": "2025-12-20",
+          "page": 3,
+          "count": 100
+        }
+      ],
+      "expanded_unique_records": 5337,
+      "candidate_count": 3,
+      "pre_gate_80_or_more": 1,
+      "search_requests": 96,
+      "detail_requests_before_validation": 18,
+      "status": "NO_QUALIFYING_CASE_WITHIN_SEARCH_BUDGET",
+      "rejected": [
+        {
+          "candidate": "ORG_TOPIC:('99206911', 'any', 'αιγαιου αριστειασ')",
+          "pre_score": 92,
+          "reason": "collapsed_below_gate_after_live_rebuild",
+          "score": 0,
+          "families": {},
+          "facts": [],
+          "diagnostics": {
+            "distinct_chains": 1,
+            "anchored_chains": 1,
+            "payment_only_chains": 0,
+            "kind": "ORG_TOPIC",
+            "cap": "insufficient_distinct_procurement_anchors"
+          },
+          "detail_errors": {},
+          "pdf_errors": {}
+        }
+      ],
+      "detail_requests": 39,
+      "pdf_requests": 15
     }
   ],
   "best_leads": [
     {
-      "key": "ORG_TOPIC:('51636', 'any', 'αξιολογησ αποτελεσμ')",
+      "key": "ORG_TOPIC:('5004', 'any', 'διεθνουσ δρασεισ')",
       "pre_score": 95,
       "families": {
         "repeated_single_bid": 32,
-        "cumulative_near_band_pattern": 28,
+        "same_day_parallel_awards": 24,
+        "template_burst_support": 16
+      },
+      "facts": [
+        "4 διακριτές συμβατικές αλυσίδες αναφέρουν ρητά μία/μοναδική προσφορά.",
+        "4 διακριτές αγκυρωμένες αλυσίδες εμφανίζονται την 2026-02-13, συνολικά €54,070.00.",
+        "4 διακριτές συμβατικές αλυσίδες σε 0 ημέρες έχουν πολύ υψηλή ομοιότητα τίτλων (διάμεση Jaccard 1.00)."
+      ],
+      "adas": [
+        "6ΥΘ17Λ6-ΒΝΒ",
+        "9ΙΨΩ7Λ6-Ι4Β",
+        "ΡΠ4Υ7Λ6-ΙΡΟ",
+        "ΨΛΘΥ7Λ6-ΝΞ6"
+      ],
+      "diagnostics": {
+        "distinct_chains": 4,
+        "span_days": 0,
+        "months": 1,
+        "median_similarity": 1.0,
+        "kind": "ORG_TOPIC",
+        "publication_lagged_chains": 0,
+        "max_publication_lag_days": 3
+      }
+    },
+    {
+      "key": "ORG_TOPIC:('100054489', 'any', 'αναγκων ευβοιασ')",
+      "pre_score": 92,
+      "families": {
+        "same_day_parallel_awards": 24,
+        "repeated_modification_pattern": 24,
+        "template_burst_support": 16
+      },
+      "facts": [
+        "5 διακριτές αγκυρωμένες αλυσίδες εμφανίζονται την 2025-12-08, συνολικά €305,000.00.",
+        "5 διακριτές συμβατικές αλυσίδες του ίδιου αντικειμένου περιλαμβάνουν τροποποίηση ή παράταση.",
+        "5 διακριτές συμβατικές αλυσίδες σε 0 ημέρες έχουν πολύ υψηλή ομοιότητα τίτλων (διάμεση Jaccard 1.00)."
+      ],
+      "adas": [
+        "6Μ7446ΜΤΛΒ-2ΝΓ",
+        "90Κ946ΜΤΛΒ-230",
+        "9ΚΥ146ΜΤΛΒ-ΡΓ7",
+        "ΡΧΗΠ46ΜΤΛΒ-961",
+        "ΨΖΓΡ46ΜΤΛΒ-ΝΧ1"
+      ],
+      "diagnostics": {
+        "distinct_chains": 5,
+        "span_days": 0,
+        "months": 1,
+        "median_similarity": 1.0,
+        "kind": "ORG_TOPIC",
+        "publication_lagged_chains": 0,
+        "max_publication_lag_days": 0
+      }
+    },
+    {
+      "key": "ORG_TOPIC:('99222007', 'any', 'ορθοπεδικ προμηθεια')",
+      "pre_score": 92,
+      "families": {
+        "same_day_parallel_awards": 24,
+        "repeated_modification_pattern": 24,
+        "template_burst_support": 16
+      },
+      "facts": [
+        "8 διακριτές αγκυρωμένες αλυσίδες εμφανίζονται την 2026-07-11, συνολικά €81,765.70.",
+        "8 διακριτές συμβατικές αλυσίδες του ίδιου αντικειμένου περιλαμβάνουν τροποποίηση ή παράταση.",
+        "8 διακριτές συμβατικές αλυσίδες σε 0 ημέρες έχουν πολύ υψηλή ομοιότητα τίτλων (διάμεση Jaccard 1.00)."
+      ],
+      "adas": [
+        "62ΥΤ46906Λ-ΔΑ2",
+        "6Σ9Μ46906Λ-Π3Μ",
+        "9ΒΞΨ46906Λ-Ω9Μ",
+        "9Η2346906Λ-ΒΔΟ",
+        "9Η5546906Λ-ΒΣ2",
+        "9Κ3Ρ46906Λ-ΗΙ0",
+        "9ΛΟΒ46906Λ-ΔΜΟ",
+        "Ψ0Β146906Λ-35Ψ",
+        "Ψ5ΟΕ46906Λ-ΝΓΟ",
+        "ΨΞΔΨ46906Λ-ΒΗΛ",
+        "ΨΠΓΝ46906Λ-ΙΒ1",
+        "ΨΩΥΗ46906Λ-ΝΣΧ"
+      ],
+      "diagnostics": {
+        "distinct_chains": 8,
+        "span_days": 0,
+        "months": 1,
+        "median_similarity": 1.0,
+        "kind": "ORG_TOPIC",
+        "publication_lagged_chains": 0,
+        "max_publication_lag_days": 0
+      }
+    },
+    {
+      "key": "ORG_TOPIC:('99206911', 'any', 'αιγαιου αριστειασ')",
+      "pre_score": 92,
+      "families": {
+        "same_day_parallel_awards": 24,
+        "repeated_modification_pattern": 24,
+        "template_burst_support": 16
+      },
+      "facts": [
+        "9 διακριτές αγκυρωμένες αλυσίδες εμφανίζονται την 2025-03-10, συνολικά €556,205.05.",
+        "9 διακριτές συμβατικές αλυσίδες του ίδιου αντικειμένου περιλαμβάνουν τροποποίηση ή παράταση.",
+        "9 διακριτές συμβατικές αλυσίδες σε 0 ημέρες έχουν πολύ υψηλή ομοιότητα τίτλων (διάμεση Jaccard 1.00)."
+      ],
+      "adas": [
+        "6ΖΩ6469Β7Λ-ΙΔΟ",
+        "6ΤΤΚ469Β7Λ-Α1Ν",
+        "96Ξ1469Β7Λ-2ΣΘ",
+        "9ΙΖΔ469Β7Λ-ΙΞΤ",
+        "Ρ177469Β7Λ-3ΒΝ",
+        "ΡΝΤΛ469Β7Λ-ΞΣΗ",
+        "ΡΠΩΨ469Β7Λ-5Ο9",
+        "ΡΣ85469Β7Λ-Κ5Σ",
+        "ΨΚΧΟ469Β7Λ-5ΧΧ"
+      ],
+      "diagnostics": {
+        "distinct_chains": 9,
+        "span_days": 0,
+        "months": 1,
+        "median_similarity": 1.0,
+        "kind": "ORG_TOPIC",
+        "publication_lagged_chains": 0,
+        "max_publication_lag_days": 0
+      }
+    },
+    {
+      "key": "ORG_TOPIC:('99221567', 'any', 'εκδηλωσησ ενδιαφερο')",
+      "pre_score": 84,
+      "families": {
+        "repeated_single_bid": 32,
         "same_day_parallel_awards": 24
       },
       "facts": [
-        "2 διακριτές συμβατικές αλυσίδες αναφέρουν ρητά μία/μοναδική προσφορά.",
-        "Το 2024, 3 διακριτές συμβατικές αλυσίδες έχουν αγκυρωμένα ποσά κοντά στο εσωτερικό review band €30,000, με άθροισμα €80,314.00.",
-        "3 διακριτές αγκυρωμένες αλυσίδες εμφανίζονται την 2024-12-17, συνολικά €80,314.00."
+        "3 διακριτές συμβατικές αλυσίδες αναφέρουν ρητά μία/μοναδική προσφορά.",
+        "3 διακριτές αγκυρωμένες αλυσίδες εμφανίζονται την 2024-08-07, συνολικά €48,000.00."
       ],
       "adas": [
-        "65ΞΩΟΕΤΔ-ΗΨ1",
-        "6ΨΖ3ΟΕΤΔ-Γ5Π",
-        "ΨΤΘ7ΟΕΤΔ-ΛΤΕ"
+        "6Λ0Α469ΗΑΞ-ΤΙ5",
+        "97ΙΙ469ΗΑΞ-Κ5Ζ",
+        "ΨΚΒ5469ΗΑΞ-ΑΘ1"
       ],
       "diagnostics": {
         "distinct_chains": 3,
         "span_days": 0,
         "months": 1,
-        "median_similarity": 0.367,
+        "median_similarity": 1.0,
         "kind": "ORG_TOPIC",
         "publication_lagged_chains": 0,
-        "max_publication_lag_days": 10
+        "max_publication_lag_days": 0
+      }
+    },
+    {
+      "key": "ORG_TOPIC:('99206920', 'any', 'διαγωνισμ προμηθειω')",
+      "pre_score": 80,
+      "families": {
+        "repeated_no_publication": 28,
+        "repeated_modification_pattern": 24
+      },
+      "facts": [
+        "7 διακριτές συμβατικές αλυσίδες σε 4 μήνες χρησιμοποιούν διαδικασία χωρίς προηγούμενη δημοσίευση.",
+        "9 διακριτές συμβατικές αλυσίδες του ίδιου αντικειμένου περιλαμβάνουν τροποποίηση ή παράταση."
+      ],
+      "adas": [
+        "6178469Β7Θ-3ΡΖ",
+        "65ΘΔ469Β7Θ-ΜΡΥ",
+        "65ΜΚ469Β7Θ-Ω05",
+        "946Θ469Β7Θ-ΥΝΟ",
+        "98ΤΛ469Β7Θ-9ΨΩ",
+        "98Ω0469Β7Θ-2ΣΝ",
+        "9ΑΑΑ469Β7Θ-ΩΤΞ",
+        "Ρ208469Β7Θ-6Β7",
+        "Ρ6ΝΣ469Β7Θ-ΣΛ4",
+        "ΡΣΦΩ469Β7Θ-ΣΞ3",
+        "Ψ366469Β7Θ-9ΜΑ"
+      ],
+      "diagnostics": {
+        "distinct_chains": 11,
+        "span_days": 902,
+        "months": 4,
+        "median_similarity": 1.0,
+        "kind": "ORG_TOPIC",
+        "publication_lagged_chains": 0,
+        "max_publication_lag_days": 23
+      }
+    },
+    {
+      "key": "ORG_TOPIC:('6194', 'any', 'επισκευη μηχανηματ')",
+      "pre_score": 76,
+      "families": {
+        "same_day_parallel_awards": 24,
+        "repeated_modification_pattern": 24
+      },
+      "facts": [
+        "5 διακριτές αγκυρωμένες αλυσίδες εμφανίζονται την 2024-06-05, συνολικά €36,366.58.",
+        "5 διακριτές συμβατικές αλυσίδες του ίδιου αντικειμένου περιλαμβάνουν τροποποίηση ή παράταση."
+      ],
+      "adas": [
+        "9ΑΖΕΩΚ6-Μ3Ο",
+        "9ΥΖΡΩΚ6-2ΧΑ",
+        "Ψ47ΩΩΚ6-ΓΓΦ",
+        "ΨΕΞΙΩΚ6-49Σ",
+        "ΨΣΖΟΩΚ6-ΥΜ2"
+      ],
+      "diagnostics": {
+        "distinct_chains": 5,
+        "span_days": 0,
+        "months": 1,
+        "median_similarity": 0.727,
+        "kind": "ORG_TOPIC",
+        "publication_lagged_chains": 0,
+        "max_publication_lag_days": 0
+      }
+    },
+    {
+      "key": "ORG_TOPIC:('100054489', 'any', 'αμολυβδησ βενζινησ')",
+      "pre_score": 76,
+      "families": {
+        "same_day_parallel_awards": 24,
+        "repeated_modification_pattern": 24
+      },
+      "facts": [
+        "4 διακριτές αγκυρωμένες αλυσίδες εμφανίζονται την 2025-11-24, συνολικά €66,000.00.",
+        "4 διακριτές συμβατικές αλυσίδες του ίδιου αντικειμένου περιλαμβάνουν τροποποίηση ή παράταση."
+      ],
+      "adas": [
+        "62ΛΡ46ΜΤΛΒ-65Μ",
+        "906Μ46ΜΤΛΒ-3ΣΖ",
+        "9ΗΛΦ46ΜΤΛΒ-5ΩΔ",
+        "9ΣΞΟ46ΜΤΛΒ-1ΓΜ"
+      ],
+      "diagnostics": {
+        "distinct_chains": 4,
+        "span_days": 0,
+        "months": 1,
+        "median_similarity": 0.598,
+        "kind": "ORG_TOPIC",
+        "publication_lagged_chains": 0,
+        "max_publication_lag_days": 0
+      }
+    },
+    {
+      "key": "CHAIN:ΡΜΨΔΩ6Τ-3Ξ5",
+      "pre_score": 75,
+      "families": {
+        "cumulative_modification_sequence": 30,
+        "no_publication_in_chain": 20
+      },
+      "facts": [
+        "Η ίδια ρητά συνδεδεμένη αλυσίδα περιλαμβάνει 3 έγγραφα τροποποίησης/παράτασης.",
+        "Η αλυσίδα περιλαμβάνει διαδικασία χωρίς προηγούμενη δημοσίευση."
+      ],
+      "adas": [
+        "9ΑΕ5Ω6Τ-5Β7",
+        "9Β9ΕΩ6Τ-ΗΣ4",
+        "ΡΜΨΔΩ6Τ-3Ξ5"
+      ],
+      "diagnostics": {
+        "distinct_chains": 1,
+        "kind": "chain",
+        "reference_amount_count": 1,
+        "payment_amount_count": 0,
+        "payment_semantics_verified": false
+      }
+    },
+    {
+      "key": "ORG_TOPIC:('99221888', 'any', 'αγορασ εκδηλωσησ')",
+      "pre_score": 74,
+      "families": {
+        "repeated_limited_procedure": 22,
+        "repeated_modification_pattern": 24
+      },
+      "facts": [
+        "3 διακριτές συμβατικές αλυσίδες σε 2 μήνες αναφέρουν απευθείας/περιορισμένη διαδικασία.",
+        "3 διακριτές συμβατικές αλυσίδες του ίδιου αντικειμένου περιλαμβάνουν τροποποίηση ή παράταση."
+      ],
+      "adas": [
+        "Ψ2ΕΥ469045-ΦΛΜ",
+        "Ψ86Τ469045-68Β",
+        "ΨΩΡΞ469045-9ΗΩ"
+      ],
+      "diagnostics": {
+        "distinct_chains": 3,
+        "span_days": 202,
+        "months": 2,
+        "median_similarity": 0.778,
+        "kind": "ORG_TOPIC",
+        "publication_lagged_chains": 0,
+        "max_publication_lag_days": 0
+      }
+    },
+    {
+      "key": "ORG_TOPIC:('99221888', 'any', 'αγορασ εκδηλωσησ')",
+      "pre_score": 74,
+      "families": {
+        "repeated_limited_procedure": 22,
+        "repeated_modification_pattern": 24
+      },
+      "facts": [
+        "5 διακριτές συμβατικές αλυσίδες σε 2 μήνες αναφέρουν απευθείας/περιορισμένη διαδικασία.",
+        "5 διακριτές συμβατικές αλυσίδες του ίδιου αντικειμένου περιλαμβάνουν τροποποίηση ή παράταση."
+      ],
+      "adas": [
+        "61ΡΠ469045-9ΘΝ",
+        "901Γ469045-Π31",
+        "920Ρ469045-ΤΝΧ",
+        "9Ρ08469045-2ΛΑ",
+        "9Σ5Δ469045-Ρ62",
+        "Ρ14Λ469045-82Ε",
+        "ΡΡΥ1469045-ΔΗΞ",
+        "ΡΨΚΝ469045-ΡΞΑ",
+        "Ψ0Β0469045-ΔΦ0",
+        "Ψ124469045-19Κ",
+        "ΨΙΤ6469045-Θ70"
+      ],
+      "diagnostics": {
+        "distinct_chains": 5,
+        "span_days": 237,
+        "months": 2,
+        "median_similarity": 0.778,
+        "kind": "ORG_TOPIC",
+        "publication_lagged_chains": 0,
+        "max_publication_lag_days": 0
+      }
+    },
+    {
+      "key": "ORG_TOPIC:('100068650', 'any', 'διαπορθμε οχηματων')",
+      "pre_score": 72,
+      "families": {
+        "repeated_no_publication": 28,
+        "template_burst_support": 16
+      },
+      "facts": [
+        "4 διακριτές συμβατικές αλυσίδες σε 2 μήνες χρησιμοποιούν διαδικασία χωρίς προηγούμενη δημοσίευση.",
+        "4 διακριτές συμβατικές αλυσίδες σε 43 ημέρες έχουν πολύ υψηλή ομοιότητα τίτλων (διάμεση Jaccard 1.00)."
+      ],
+      "adas": [
+        "9ΘΦΗ46ΝΠΙΘ-ΔΘΑ",
+        "ΕΩΗΡ46ΝΠΙΘ-ΑΥ2",
+        "ΨΔ8Η46ΝΠΙΘ-ΣΩΗ",
+        "ΨΡ6Β46ΝΠΙΘ-9ΜΟ"
+      ],
+      "diagnostics": {
+        "distinct_chains": 4,
+        "span_days": 43,
+        "months": 2,
+        "median_similarity": 1.0,
+        "kind": "ORG_TOPIC",
+        "publication_lagged_chains": 0,
+        "max_publication_lag_days": 0
+      }
+    },
+    {
+      "key": "ORG_TOPIC:('99206920', 'any', 'διαγωνισμ προμηθειω')",
+      "pre_score": 72,
+      "families": {
+        "repeated_no_publication": 28,
+        "template_burst_support": 16
+      },
+      "facts": [
+        "7 διακριτές συμβατικές αλυσίδες σε 3 μήνες χρησιμοποιούν διαδικασία χωρίς προηγούμενη δημοσίευση.",
+        "7 διακριτές συμβατικές αλυσίδες σε 35 ημέρες έχουν πολύ υψηλή ομοιότητα τίτλων (διάμεση Jaccard 1.00)."
+      ],
+      "adas": [
+        "65ΜΚ469Β7Θ-Ω05",
+        "946Θ469Β7Θ-ΥΝΟ",
+        "98ΤΛ469Β7Θ-9ΨΩ",
+        "9ΑΑΑ469Β7Θ-ΩΤΞ",
+        "ΡΜΣΗ469Β7Θ-Ξ4Τ",
+        "ΡΣΦΩ469Β7Θ-ΣΞ3",
+        "ΨΕ8Η469Β7Θ-239"
+      ],
+      "diagnostics": {
+        "distinct_chains": 7,
+        "span_days": 35,
+        "months": 3,
+        "median_similarity": 1.0,
+        "kind": "ORG_TOPIC",
+        "publication_lagged_chains": 0,
+        "max_publication_lag_days": 23
+      }
+    },
+    {
+      "key": "ORG_TOPIC:('5013', 'any', 'αναγκων εκτακτων')",
+      "pre_score": 68,
+      "families": {
+        "same_day_parallel_awards": 24,
+        "template_burst_support": 16
+      },
+      "facts": [
+        "10 διακριτές αγκυρωμένες αλυσίδες εμφανίζονται την 2025-01-13, συνολικά €39,145.00.",
+        "16 διακριτές συμβατικές αλυσίδες σε 26 ημέρες έχουν πολύ υψηλή ομοιότητα τίτλων (διάμεση Jaccard 1.00)."
+      ],
+      "adas": [
+        "62ΡΙ7ΛΗ-ΛΨΞ",
+        "65ΕΞ7ΛΗ-ΟΓ0",
+        "65ΩΝ7ΛΗ-9ΟΕ",
+        "90287ΛΗ-Ρ45",
+        "93ΟΜ7ΛΗ-Ο10",
+        "94ΓΚ7ΛΗ-4ΛΩ",
+        "99607ΛΗ-7ΔΟ",
+        "9ΔΔΩ7ΛΗ-ΒΒΔ",
+        "9Ε0Ψ7ΛΗ-ΚΝΝ",
+        "9ΡΞ77ΛΗ-ΤΩ3",
+        "Ψ2ΔΨ7ΛΗ-0ΤΑ",
+        "Ψ6Τ17ΛΗ-ΒΩΥ",
+        "Ψ7ΞΥ7ΛΗ-ΙΗΙ",
+        "Ψ9ΧΓ7ΛΗ-Α7Γ",
+        "ΨΓΠ77ΛΗ-ΕΟΟ",
+        "ΨΠΘΥ7ΛΗ-ΕΚΥ"
+      ],
+      "diagnostics": {
+        "distinct_chains": 16,
+        "span_days": 26,
+        "months": 2,
+        "median_similarity": 1.0,
+        "kind": "ORG_TOPIC",
+        "publication_lagged_chains": 16,
+        "max_publication_lag_days": 281
+      }
+    },
+    {
+      "key": "ORG_TOPIC:('99221499', 'any', 'εργασιεσ οδοντοτεχ')",
+      "pre_score": 68,
+      "families": {
+        "repeated_modification_pattern": 24,
+        "template_burst_support": 16
+      },
+      "facts": [
+        "4 διακριτές συμβατικές αλυσίδες του ίδιου αντικειμένου περιλαμβάνουν τροποποίηση ή παράταση.",
+        "4 διακριτές συμβατικές αλυσίδες σε 0 ημέρες έχουν πολύ υψηλή ομοιότητα τίτλων (διάμεση Jaccard 1.00)."
+      ],
+      "adas": [
+        "6ΔΟ4469Η2Ξ-ΤΔΒ",
+        "6ΥΑ4469Η2Ξ-0Τ1",
+        "9ΕΗΡ469Η2Ξ-ΥΡΦ",
+        "ΨΑΖΙ469Η2Ξ-5ΛΜ"
+      ],
+      "diagnostics": {
+        "distinct_chains": 4,
+        "span_days": 0,
+        "months": 1,
+        "median_similarity": 1.0,
+        "kind": "ORG_TOPIC",
+        "publication_lagged_chains": 0,
+        "max_publication_lag_days": 0
+      }
+    },
+    {
+      "key": "ORG_TOPIC:('99222002', 'any', 'αναισθησι ανανηψη')",
+      "pre_score": 68,
+      "families": {
+        "repeated_modification_pattern": 24,
+        "template_burst_support": 16
+      },
+      "facts": [
+        "4 διακριτές συμβατικές αλυσίδες του ίδιου αντικειμένου περιλαμβάνουν τροποποίηση ή παράταση.",
+        "4 διακριτές συμβατικές αλυσίδες σε 0 ημέρες έχουν πολύ υψηλή ομοιότητα τίτλων (διάμεση Jaccard 1.00)."
+      ],
+      "adas": [
+        "93ΝΓ469066-ΦΡΒ",
+        "94ΚΕ469066-1ΑΡ",
+        "99ΨΑ469066-ΛΣΚ",
+        "ΡΩΒΒ469066-1ΙΣ"
+      ],
+      "diagnostics": {
+        "distinct_chains": 4,
+        "span_days": 0,
+        "months": 1,
+        "median_similarity": 1.0,
+        "kind": "ORG_TOPIC",
+        "publication_lagged_chains": 0,
+        "max_publication_lag_days": 0
       }
     }
   ]
