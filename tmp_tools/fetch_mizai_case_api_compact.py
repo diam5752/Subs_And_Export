@@ -14,28 +14,28 @@ CASE_IDS = [
 ]
 ENDPOINTS = [
     "/api/backend/api/cases/{case_id}",
+    "/api/backend/api/cases/{case_id}/scores",
+    "/api/backend/api/cases/{case_id}/ai-runs",
     "/api/backend/api/feed/{case_id}",
-    "/api/cases/{case_id}",
-    "/api/feed/{case_id}",
 ]
 
 
 def compact(value: Any, depth: int = 0) -> Any:
-    if depth > 8:
+    if depth > 10:
         return "<depth-limit>"
     if isinstance(value, dict):
         return {str(k): compact(v, depth + 1) for k, v in value.items()}
     if isinstance(value, list):
         return [compact(v, depth + 1) for v in value[:100]]
-    if isinstance(value, str) and len(value) > 12000:
-        return value[:12000] + "…"
+    if isinstance(value, str) and len(value) > 20000:
+        return value[:20000] + "…"
     return value
 
 
 def main() -> None:
     session = requests.Session()
     session.headers.update({
-        "User-Agent": "MizAI-public-case-validation/1.1",
+        "User-Agent": "MizAI-public-case-validation/1.2",
         "Accept": "application/json",
     })
     result: dict[str, Any] = {}
