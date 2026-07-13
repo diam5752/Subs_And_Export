@@ -14,8 +14,14 @@ def chain_summaries(records: list[Record]) -> list[Chain]:
         grouped[mapping[record.ada]].append(record)
     chains: list[Chain] = []
     for key, docs in grouped.items():
-        nonpayment = [doc.amount for doc in docs if doc.stage != "payment" and doc.amount is not None]
-        all_amounts = [doc.amount for doc in docs if doc.amount is not None]
+        # Group-level financial and supplier patterns require an actual
+        # procurement anchor. A payment-only document often repeats the total
+        # contract value and must not be treated as a new contract or instalment.
+        anchor_docs = [
+            doc for doc in docs
+            if doc.stage in {"commitment", "award", "contract", "modification"}
+        ]
+        anchor_amounts = [doc.amount for doc in anchor_docs if doc.amount is not None]
         lags = [
             max(0, (doc.publish_at - doc.issue_at).days)
             for doc in docs
@@ -25,7 +31,7 @@ def chain_summaries(records: list[Record]) -> list[Chain]:
             Chain(
                 key=key,
                 docs=docs,
-                amount=max(nonpayment or all_amounts) if (nonpayment or all_amounts) else None,
+                amount=max(anchor_amounts) if anchor_amounts else None,
                 suppliers={doc.supplier_afm for doc in docs if doc.supplier_afm},
                 date=min(doc.issue_at for doc in docs),
                 subject=max((doc.subject for doc in docs), key=len),
@@ -48,9 +54,23 @@ def band_for(amount: float) -> float | None:
 
 
 def score_group(records: list[Record], kind: str) -> tuple[int, dict[str, int], list[str], dict[str, Any]]:
-    chains = chain_summaries(records)
-    if len(chains) < 3:
-        return 0, {}, [], {"distinct_chains": len(chains), "kind": kind}
+    all_chains = chain_summaries(records)
+    anchored_chains = [
+        chain for chain in all_chains
+        if any(doc.stage in {"commitment", "award", "contract", "modification"} for doc in chain.docs)
+    ]
+    # Repeated payments/invoices under one contract are execution documents,
+    # not independent procurement chains. They cannot create supplier
+    # concentration, threshold or repeated-procedure evidence by themselves.
+    if len(anchored_chains) < 3:
+        return 0, {}, [], {
+            "distinct_chains": len(all_chains),
+            "anchored_chains": len(anchored_chains),
+            "payment_only_chains": len(all_chains) - len(anchored_chains),
+            "kind": kind,
+            "cap": "insufficient_distinct_procurement_anchors",
+        }
+    chains = anchored_chains
     families: dict[str, int] = {}
     facts: list[str] = []
     dates = [chain.date for chain in chains]
@@ -63,14 +83,14 @@ def score_group(records: list[Record], kind: str) -> tuple[int, dict[str, int], 
     emergency_count = sum(chain.emergency for chain in chains)
     if single_bid_count >= 2:
         families["repeated_single_bid"] = 32
-        facts.append(f"{single_bid_count} διακριτές αλυσίδες αναφέρουν ρητά μία/μοναδική προσφορά.")
+        facts.append(f"{single_bid_count} διακριτές συμβατικές αλυσίδες αναφέρουν ρητά μία/μοναδική προσφορά.")
     elif no_pub_count >= 2 and span_days >= 30:
         families["repeated_no_publication"] = 28
-        facts.append(f"{no_pub_count} διακριτές αλυσίδες σε {len(months)} μήνες χρησιμοποιούν διαδικασία χωρίς προηγούμενη δημοσίευση.")
+        facts.append(f"{no_pub_count} διακριτές συμβατικές αλυσίδες σε {len(months)} μήνες χρησιμοποιούν διαδικασία χωρίς προηγούμενη δημοσίευση.")
     elif direct_count >= 3 and (span_days >= 60 or len(months) >= 3):
         families["repeated_limited_procedure"] = 22
         facts.append(
-            f"{direct_count} διακριτές αλυσίδες σε {len(months)} μήνες αναφέρουν απευθείας/περιορισμένη διαδικασία"
+            f"{direct_count} διακριτές συμβατικές αλυσίδες σε {len(months)} μήνες αναφέρουν απευθείας/περιορισμένη διαδικασία"
             + ("· το επείγον μετρήθηκε στην ίδια family." if emergency_count else ".")
         )
 
@@ -89,8 +109,8 @@ def score_group(records: list[Record], kind: str) -> tuple[int, dict[str, int], 
         if count >= 3 and supplier_totals[supplier] >= 30000 and s_span >= 60 and count / len(chains) >= 0.5:
             families["supplier_object_concentration"] = 30
             facts.append(
-                f"Το ίδιο ΑΦΜ εμφανίζεται σε {count} από {len(chains)} διακριτές αλυσίδες του ίδιου φορέα/αντικειμένου, "
-                f"σε διάστημα {s_span} ημερών και συνολικό ποσό €{supplier_totals[supplier]:,.2f}."
+                f"Το ίδιο ΑΦΜ εμφανίζεται σε {count} από {len(chains)} διακριτές συμβατικές αλυσίδες του ίδιου φορέα/αντικειμένου, "
+                f"σε διάστημα {s_span} ημερών και συνολική αγκυρωμένη αξία €{supplier_totals[supplier]:,.2f}."
             )
 
     by_year_band: defaultdict[tuple[int, float], list[float]] = defaultdict(list)
@@ -101,7 +121,7 @@ def score_group(records: list[Record], kind: str) -> tuple[int, dict[str, int], 
         if len(values) >= 3 and sum(values) >= 1.5 * band:
             families["cumulative_near_band_pattern"] = 28
             facts.append(
-                f"Το {year}, {len(values)} διακριτές αλυσίδες έχουν ποσά κοντά στο εσωτερικό review band "
+                f"Το {year}, {len(values)} διακριτές συμβατικές αλυσίδες έχουν αγκυρωμένα ποσά κοντά στο εσωτερικό review band "
                 f"€{band:,.0f}, με άθροισμα €{sum(values):,.2f}."
             )
             break
