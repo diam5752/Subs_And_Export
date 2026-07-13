@@ -28,6 +28,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - name: Persist start marker
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -rf hunter-debug hunter-output
+          mkdir -p hunter-debug
+          printf '{"status":"started","run_id":"%s","head_sha":"%s","started_at":"%s"}\n' \
+            "$GITHUB_RUN_ID" "$GITHUB_SHA" "$(date -u +%FT%TZ)" > hunter-debug/started.json
+          git add hunter-debug/started.json
+          git commit -m "chore(tmp): mark adaptive MIZAS Hunter started"
+          git push origin HEAD:tmp/mizas-hunter-20260713
       - name: Install dependencies
         run: |
           sudo apt-get update
@@ -37,8 +48,6 @@ jobs:
       - name: Assemble and execute with durable diagnostics
         run: |
           set +e
-          rm -rf hunter-output hunter-debug
-          mkdir -p hunter-debug
           cat \
             tmp_tools/mizas_hunter.py.part01 \
             tmp_tools/mizas_hunter.py.part02 \
@@ -63,8 +72,6 @@ jobs:
           exit 0
       - name: Commit result and diagnostics
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add hunter-output hunter-debug || true
           if git diff --cached --quiet; then
             echo "No hunter output or diagnostics produced"
