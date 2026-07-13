@@ -5,7 +5,8 @@ on:
     branches:
       - tmp/mizas-hunter-20260713
     paths:
-      - tmp_tools/mizas_hunter.py
+      - .github/workflows/tmp-mizas-hunter.yml
+      - tmp_tools/mizas_hunter.py.part*
 
 permissions:
   contents: write
@@ -27,6 +28,18 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - name: Assemble scanner and verify syntax
+        run: |
+          cat \
+            tmp_tools/mizas_hunter.py.part01 \
+            tmp_tools/mizas_hunter.py.part02 \
+            tmp_tools/mizas_hunter.py.part03 \
+            tmp_tools/mizas_hunter.py.part04a \
+            tmp_tools/mizas_hunter.py.part04b \
+            tmp_tools/mizas_hunter.py.part05 \
+            tmp_tools/mizas_hunter.py.part06 \
+            > tmp_tools/mizas_hunter.py
+          python -m py_compile tmp_tools/mizas_hunter.py
       - name: Install PDF and Python dependencies
         run: |
           sudo apt-get update
