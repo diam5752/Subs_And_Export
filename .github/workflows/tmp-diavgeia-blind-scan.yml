@@ -5,7 +5,8 @@ on:
     branches:
       - tmp/diavgeia-blind-scan-20260713
     paths:
-      - tmp_tools/diavgeia_blind_scan.py
+      - .github/workflows/tmp-diavgeia-blind-scan.yml
+      - tmp_tools/diavgeia_blind_scan_v2.py
 
 permissions:
   contents: write
@@ -31,10 +32,10 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install pandas requests pypdf
-      - name: Execute two independent scans
+      - name: Execute two independent scans with explicit-chain validation
         run: |
           rm -rf scan-output
-          python tmp_tools/diavgeia_blind_scan.py --out-dir scan-output
+          python tmp_tools/diavgeia_blind_scan_v2.py --out-dir scan-output
       - name: Commit results
         run: |
           git config user.name "github-actions[bot]"
@@ -44,5 +45,5 @@ jobs:
             echo "No scan output produced"
             exit 1
           fi
-          git commit -m "chore(tmp): record Diavgeia blind scan results"
+          git commit -m "chore(tmp): record corrected Diavgeia blind scan results"
           git push origin HEAD:tmp/diavgeia-blind-scan-20260713
