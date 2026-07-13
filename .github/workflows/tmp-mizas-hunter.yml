@@ -36,7 +36,7 @@ jobs:
           mkdir -p hunter-debug
           printf '{"status":"started","run_id":"%s","head_sha":"%s","started_at":"%s"}\n' \
             "$GITHUB_RUN_ID" "$GITHUB_SHA" "$(date -u +%FT%TZ)" > hunter-debug/started.json
-          git add hunter-debug/started.json
+          git add -f hunter-debug/started.json
           git commit -m "chore(tmp): mark adaptive MIZAS Hunter started"
           git push origin HEAD:tmp/mizas-hunter-20260713
       - name: Install dependencies
@@ -72,10 +72,18 @@ jobs:
           exit 0
       - name: Commit result and diagnostics
         run: |
-          git add hunter-output hunter-debug || true
+          git add -f hunter-output hunter-debug || true
           if git diff --cached --quiet; then
             echo "No hunter output or diagnostics produced"
+            find hunter-output hunter-debug -maxdepth 2 -type f -print 2>/dev/null || true
             exit 1
           fi
           git commit -m "chore(tmp): record adaptive MIZAS Hunter execution"
-          git push origin HEAD:tmp/mizas-hunter-20260713
+          for attempt in 1 2 3; do
+            if git push origin HEAD:tmp/mizas-hunter-20260713; then
+              exit 0
+            fi
+            git fetch origin tmp/mizas-hunter-20260713
+            git rebase origin/tmp/mizas-hunter-20260713 || exit 1
+          done
+          exit 1
