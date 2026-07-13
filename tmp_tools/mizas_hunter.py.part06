@@ -1,0 +1,183 @@
+        score = min(score, 59)
+        caps.append("documented_medical_context")
+    if ordinary_terms and len(set(families) & hard_families) < 2:
+        score = min(score, 69)
+        caps.append("documented_ordinary_explanation_without_two_hard_families")
+    if score < MIN_REVIEW_PRIORITY:
+        return None, {
+            "reason": "ordinary_explanation_cap", "score": score, "families": families,
+            "ordinary_terms": sorted(ordinary_terms), "caps": caps,
+        }
+
+    org_ids = {record.org_id for record in valid_records}
+    org_labels = {record.org_label for record in valid_records if record.org_label}
+    if not org_labels:
+        org_labels = {session.organization_label(org_id) for org_id in org_ids}
+    docs = [
+        {
+            "ada": record.ada,
+            "subject": record.subject,
+            "organization_id": record.org_id,
+            "organization": record.org_label or session.organization_label(record.org_id),
+            "decision_type": record.decision_type,
+            "stage": record.stage,
+            "amount_eur": record.amount,
+            "supplier_name": record.supplier_name,
+            "supplier_afm_redacted": ("******" + record.supplier_afm[-3:]) if record.supplier_afm else "",
+            "issue_at": record.issue_at.isoformat(),
+            "publish_at": record.publish_at.isoformat() if record.publish_at else None,
+            "official_url": record.official_url,
+        }
+        for record in sorted(valid_records, key=lambda item: (item.issue_at, item.ada))
+    ]
+    return {
+        "review_priority": score,
+        "score_meaning": "human_review_priority_not_probability_of_wrongdoing",
+        "families": families,
+        "evidence_facts": facts,
+        "strongest_ordinary_explanation": (
+            "Οι πράξεις μπορεί να είναι νόμιμες, διακριτές ανάγκες ή διαφορετικά στάδια της ίδιας διαδικασίας. "
+            "Ο έλεγχος αναζήτησε ρητές τεκμηριώσεις αυτής της εξήγησης στα επίσημα PDF."
+        ),
+        "validation": {
+            "official_current_documents": len(valid_records),
+            "pdf_text_count": pdf_count,
+            "ordinary_explanation_terms_found": sorted(ordinary_terms),
+            "validation_caps": caps,
+            "distinct_chains_after_live_rebuild": diagnostics.get("distinct_chains"),
+            "evidence_complete_for_prioritisation": True,
+            "detail_errors": detail_errors,
+            "pdf_errors": pdf_errors,
+        },
+        "organization_labels": sorted(org_labels),
+        "candidate_kind": candidate.kind,
+        "documents": docs,
+    }, {"reason": "passed"}
+
+
+def run_hunter(run_number: int, seed: int) -> tuple[dict[str, Any] | None, dict[str, Any], list[dict[str, Any]]]:
+    diagnostics: dict[str, Any] = {"run": run_number, "seed": seed}
+    session = HunterSession(seed, diagnostics)
+    records, lens_base, query_log = collect_initial(session, seed)
+    diagnostics["initial_unique_records"] = len(records)
+    diagnostics["query_log"] = query_log
+    enrich_top_seeds(session, records, lens_base, seed)
+    diagnostics["expanded_unique_records"] = len(records)
+    candidates = build_candidates(list(records.values()))
+    diagnostics["candidate_count"] = len(candidates)
+    diagnostics["pre_gate_80_or_more"] = sum(candidate.score >= MIN_REVIEW_PRIORITY for candidate in candidates)
+    diagnostics["search_requests"] = session.search_requests
+    diagnostics["detail_requests_before_validation"] = session.detail_requests
+    rejected: list[dict[str, Any]] = []
+    best_leads: list[dict[str, Any]] = []
+    for candidate in candidates[:MAX_DEEP_CANDIDATES]:
+        best_leads.append({
+            "key": candidate.key,
+            "pre_score": candidate.score,
+            "families": candidate.families,
+            "facts": candidate.facts,
+            "adas": sorted(candidate.adas()),
+            "diagnostics": candidate.diagnostics,
+        })
+        if candidate.score < MIN_REVIEW_PRIORITY:
+            continue
+        result, reason = deep_validate(session, candidate)
+        if result is not None:
+            result.update({"run": run_number, "seed": seed})
+            diagnostics.update({
+                "status": "FOUND", "selected_score": result["review_priority"],
+                "selected_adas": [doc["ada"] for doc in result["documents"]],
+                "detail_requests": session.detail_requests, "pdf_requests": session.pdf_requests,
+            })
+            return result, diagnostics, best_leads[:10]
+        rejected.append({"candidate": candidate.key, "pre_score": candidate.score, **reason})
+    diagnostics.update({
+        "status": "NO_QUALIFYING_CASE_WITHIN_SEARCH_BUDGET",
+        "rejected": rejected[:20], "detail_requests": session.detail_requests, "pdf_requests": session.pdf_requests,
+    })
+    return None, diagnostics, best_leads[:10]
+
+
+def write_outputs(out_dir: Path, selected: dict[str, Any] | None, runs: list[dict[str, Any]], best_leads: list[dict[str, Any]]) -> None:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "status": "FOUND" if selected else "NO_QUALIFYING_CASE_WITHIN_SEARCH_BUDGET",
+        "executed_at_utc": datetime.now(timezone.utc).isoformat(),
+        "method": {
+            "name": "MIZAS Hunter adaptive Diavgeia-only scan",
+            "minimum_review_priority": MIN_REVIEW_PRIORITY,
+            "search_window": {"from": START_DATE.isoformat(), "to": TODAY.isoformat()},
+            "persistent_raw_storage": False,
+            "uses_EAD_news_or_known_case_labels": False,
+            "search_logic": [
+                "high-yield official Diavgeia lenses",
+                "random page diversification",
+                "seed-neighbour expansion by authority/topic/supplier",
+                "explicit ADA/ADAM/contract chain collapse",
+                "live detail and PDF revalidation",
+                "ordinary-explanation falsification",
+                "stop at first validated candidate >=80",
+            ],
+        },
+        "selected": selected,
+        "runs": runs,
+        "best_leads": best_leads,
+    }
+    (out_dir / "hunter_results.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    lines = [
+        "# MIZAS Hunter — adaptive Diavgeia-only execution", "",
+        f"**Status:** {payload['status']}", "",
+        "> The score is a human-review priority, not a probability of illegality, fraud or corruption.", "",
+    ]
+    if selected:
+        lines.extend([
+            f"## Selected case — priority {selected['review_priority']}/100", "",
+            f"**Families:** {', '.join(selected['families'].keys())}", "",
+            *[f"- {fact}" for fact in selected["evidence_facts"]], "",
+            "### Official Diavgeia documents", "",
+            *[f"- [{doc['ada']}]({doc['official_url']}) — {doc['subject']}" for doc in selected["documents"]], "",
+        ])
+    else:
+        lines.extend(["## Honest outcome", "", "No candidate survived the strict live-PDF gate within this search budget.", ""])
+    lines.extend(["## Run diagnostics", ""])
+    for run in runs:
+        lines.append(
+            f"- Run {run.get('run')} / seed {run.get('seed')}: **{run.get('status')}**, "
+            f"records {run.get('expanded_unique_records')}, candidates {run.get('candidate_count')}, "
+            f"pre-gate≥80 {run.get('pre_gate_80_or_more')}, search requests {run.get('search_requests')}"
+        )
+    if best_leads:
+        lines.extend(["", "## Strongest rejected/pre-gate leads", ""])
+        for lead in best_leads[:5]:
+            lines.append(f"- {lead.get('pre_score')}/100 — {lead.get('key')} — {', '.join(lead.get('families', {}).keys())}")
+    (out_dir / "hunter_report.md").write_text("\n".join(lines), encoding="utf-8")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--out-dir", default="hunter-output")
+    args = parser.parse_args()
+    selected: dict[str, Any] | None = None
+    runs: list[dict[str, Any]] = []
+    best_leads: list[dict[str, Any]] = []
+    with tempfile.TemporaryDirectory(prefix="mizas-hunter-"):
+        for run_number, seed in enumerate(RUN_SEEDS, start=1):
+            result, diagnostics, leads = run_hunter(run_number, seed)
+            runs.append(diagnostics)
+            best_leads.extend(leads)
+            if result is not None:
+                selected = result
+                break
+    # Dedupe best leads by ADA set/key and keep highest scores.
+    unique: dict[str, dict[str, Any]] = {}
+    for lead in best_leads:
+        key = "|".join(lead.get("adas") or []) or str(lead.get("key"))
+        if key not in unique or lead.get("pre_score", 0) > unique[key].get("pre_score", 0):
+            unique[key] = lead
+    ordered_leads = sorted(unique.values(), key=lambda item: item.get("pre_score", 0), reverse=True)
+    write_outputs(Path(args.out_dir), selected, runs, ordered_leads[:20])
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
