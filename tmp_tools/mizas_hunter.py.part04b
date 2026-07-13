@@ -7,21 +7,19 @@
         suppliers = set().union(*(chain.suppliers for chain in day_chains))
         if total >= 30000 and (len(amounts) >= 2 or len(suppliers) >= 2):
             families["same_day_parallel_awards"] = 24
-            facts.append(f"{len(day_chains)} διακριτές συναφείς αλυσίδες εμφανίζονται την {day.isoformat()}, συνολικά €{total:,.2f}.")
+            facts.append(f"{len(day_chains)} διακριτές αγκυρωμένες αλυσίδες εμφανίζονται την {day.isoformat()}, συνολικά €{total:,.2f}.")
             break
 
-    lagged = [chain for chain in chains if chain.publication_lag_days >= 30]
-    if len(lagged) >= 2 or any(chain.publication_lag_days >= 90 for chain in chains):
-        families["repeated_publication_lag"] = 22
-        facts.append(
-            f"{len(lagged)} διακριτές αλυσίδες εμφανίζουν καθυστέρηση δημοσίευσης ≥30 ημέρες· "
-            f"μέγιστη καθυστέρηση {max(chain.publication_lag_days for chain in chains)} ημέρες."
-        )
+    # Publication lag is retained only as an audit/data-quality diagnostic. A
+    # late upload can reflect backfill, correction or source metadata semantics
+    # and cannot independently lift a case over the suspicious-case gate.
+    max_publication_lag = max((chain.publication_lag_days for chain in chains), default=0)
+    lagged_count = sum(chain.publication_lag_days >= 30 for chain in chains)
 
     modification_chains = [chain for chain in chains if chain.modification_count]
     if len(modification_chains) >= 3:
         families["repeated_modification_pattern"] = 24
-        facts.append(f"{len(modification_chains)} διακριτές αλυσίδες του ίδιου αντικειμένου περιλαμβάνουν τροποποίηση ή παράταση.")
+        facts.append(f"{len(modification_chains)} διακριτές συμβατικές αλυσίδες του ίδιου αντικειμένου περιλαμβάνουν τροποποίηση ή παράταση.")
 
     pair_scores = [
         jaccard(left.subject, right.subject)
@@ -33,21 +31,24 @@
     distinct_suppliers = set().union(*(chain.suppliers for chain in chains))
     if len(chains) >= 4 and span_days <= 45 and median_similarity >= 0.84 and (len(distinct_amounts) >= 2 or len(distinct_suppliers) >= 2):
         families["template_burst_support"] = 16
-        facts.append(f"{len(chains)} διακριτές αλυσίδες σε {span_days} ημέρες έχουν πολύ υψηλή ομοιότητα τίτλων (διάμεση Jaccard {median_similarity:.2f}).")
+        facts.append(f"{len(chains)} διακριτές συμβατικές αλυσίδες σε {span_days} ημέρες έχουν πολύ υψηλή ομοιότητα τίτλων (διάμεση Jaccard {median_similarity:.2f}).")
 
     if len(families) < 2:
         return 0, families, facts, {
             "distinct_chains": len(chains), "span_days": span_days, "months": len(months), "kind": kind,
+            "publication_lagged_chains": lagged_count, "max_publication_lag_days": max_publication_lag,
         }
     if set(families) <= {"repeated_limited_procedure", "template_burst_support"}:
         return 0, families, facts, {
             "distinct_chains": len(chains), "span_days": span_days, "months": len(months), "kind": kind,
             "cap": "procedure_plus_template_only",
+            "publication_lagged_chains": lagged_count, "max_publication_lag_days": max_publication_lag,
         }
     score = min(95, 28 + sum(families.values()))
     return score, families, facts, {
         "distinct_chains": len(chains), "span_days": span_days, "months": len(months),
         "median_similarity": round(median_similarity, 3), "kind": kind,
+        "publication_lagged_chains": lagged_count, "max_publication_lag_days": max_publication_lag,
     }
 
 
@@ -65,24 +66,19 @@ def score_chain(records: list[Record]) -> tuple[int, dict[str, int], list[str], 
         families["cumulative_modification_sequence"] = 30
         facts.append(f"Η ίδια ρητά συνδεδεμένη αλυσίδα περιλαμβάνει {len(modifications)} έγγραφα τροποποίησης/παράτασης.")
 
-    references = [doc.amount for doc in docs if doc.stage in {"commitment", "award", "contract", "modification"} and doc.amount is not None]
-    payment_events: dict[tuple[Any, ...], float] = {}
-    for doc in docs:
-        if doc.stage != "payment" or doc.amount is None:
-            continue
-        key = (doc.ada, doc.amount, doc.supplier_afm, doc.issue_at.date().isoformat())
-        payment_events[key] = doc.amount
-    if references and payment_events:
-        reference = max(references)
-        payment_total = sum(payment_events.values())
-        gap = payment_total - reference
-        ratio = payment_total / reference if reference else 0
-        if ratio >= 1.10 and gap >= 1000:
-            families["explicit_chain_financial_consistency"] = 32
-            facts.append(
-                f"Στην ίδια ρητά συνδεδεμένη αλυσίδα οι μοναδικές πληρωμές είναι €{payment_total:,.2f} "
-                f"έναντι ποσού αναφοράς €{reference:,.2f} ({ratio:.2f}×)."
-            )
+    # Diavgeia payment metadata frequently repeats a contract/expense total.
+    # Until the payment field and VAT basis are semantically verified, payment
+    # sums are audit context only and never create a hard financial family.
+    reference_amounts = [
+        doc.amount for doc in docs
+        if doc.stage in {"commitment", "award", "contract", "modification"} and doc.amount is not None
+    ]
+    payment_amounts = [doc.amount for doc in docs if doc.stage == "payment" and doc.amount is not None]
+    payment_context = {
+        "reference_amount_count": len(reference_amounts),
+        "payment_amount_count": len(payment_amounts),
+        "payment_semantics_verified": False,
+    }
 
     award_dates = [doc.issue_at for doc in docs if doc.stage in {"award", "contract"}]
     payment_dates = [doc.issue_at for doc in docs if doc.stage == "payment"]
@@ -98,9 +94,9 @@ def score_chain(records: list[Record]) -> tuple[int, dict[str, int], list[str], 
         facts.append("Η αλυσίδα περιλαμβάνει διαδικασία χωρίς προηγούμενη δημοσίευση.")
 
     if len(families) < 2:
-        return 0, families, facts, {"distinct_chains": 1, "kind": "chain"}
+        return 0, families, facts, {"distinct_chains": 1, "kind": "chain", **payment_context}
     score = min(96, 25 + sum(families.values()))
-    return score, families, facts, {"distinct_chains": 1, "kind": "chain"}
+    return score, families, facts, {"distinct_chains": 1, "kind": "chain", **payment_context}
 
 
 def approximate_groups(records: list[Record]) -> list[tuple[str, list[Record]]]:
