@@ -55,6 +55,27 @@
     }, {"reason": "passed"}
 
 
+# Use two distinctive topic stems to improve recall while keeping authority,
+# geography, supplier and live chain-rebuild constraints responsible for precision.
+def approximate_groups(records: list[Record]) -> list[tuple[str, list[Record]]]:
+    buckets: defaultdict[tuple[str, str, str], list[Record]] = defaultdict(list)
+    supplier_buckets: defaultdict[tuple[str, str, str], list[Record]] = defaultdict(list)
+    for record in records:
+        geo = record.geo if record.geo != "unspecified" else "any"
+        topic_head = " ".join(record.topic.split()[:2])
+        buckets[(record.org_id, geo, topic_head)].append(record)
+        if record.supplier_afm:
+            supplier_buckets[(record.org_id, record.supplier_afm, topic_head)].append(record)
+    output: list[tuple[str, list[Record]]] = []
+    for key, docs in buckets.items():
+        if len(docs) >= 3:
+            output.append((f"ORG_TOPIC:{key}", docs))
+    for key, docs in supplier_buckets.items():
+        if len(docs) >= 3:
+            output.append((f"ORG_SUPPLIER:{key}", docs))
+    return output
+
+
 def run_hunter(run_number: int, seed: int) -> tuple[dict[str, Any] | None, dict[str, Any], list[dict[str, Any]]]:
     diagnostics: dict[str, Any] = {"run": run_number, "seed": seed}
     session = HunterSession(seed, diagnostics)
