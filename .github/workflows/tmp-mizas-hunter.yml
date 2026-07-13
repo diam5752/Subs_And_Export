@@ -40,10 +40,20 @@ jobs:
           sudo apt-get install -y poppler-utils
           python -m pip install --upgrade pip
           pip install pandas requests pypdf
-      - name: Decode scanner
+      - name: Decode scanner and patch inherited Python 3.11 syntax
         run: |
           base64 -d tmp_tools/mizas_hunter_v6.py.gz.b64 | gzip -dc > tmp_tools/mizas_hunter_v6.py
-          python -m py_compile tmp_tools/mizas_hunter_v6.py
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('tmp_tools/diavgeia_blind_scan_v4.py')
+          text = path.read_text(encoding='utf-8')
+          old = '''return {f"CONTRACT:{re.sub(r'\\s+', '', value)}" for value in CONTRACT_REF_RE.findall(norm(text))}'''
+          new = '''return {"CONTRACT:" + re.sub(r"\\s+", "", value) for value in CONTRACT_REF_RE.findall(norm(text))}'''
+          if old not in text:
+              raise SystemExit('Expected inherited f-string syntax was not found')
+          path.write_text(text.replace(old, new), encoding='utf-8')
+          PY
+          python -m py_compile tmp_tools/diavgeia_blind_scan_v4.py tmp_tools/mizas_hunter_v6.py
       - name: Execute adaptive live Diavgeia hunter and capture diagnostics
         run: |
           rm -rf hunter-output-v6
