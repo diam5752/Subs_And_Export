@@ -1,0 +1,63 @@
+{
+  "status": "NO_QUALIFYING_CASE_WITHIN_SEARCH_BUDGET",
+  "executed_at_utc": "2026-07-13T19:22:52.400007+00:00",
+  "method": {
+    "name": "MIZAS Hunter adaptive live Diavgeia scan",
+    "date_from": "2024-01-01",
+    "date_to": "2026-07-13",
+    "minimum_review_priority": 80,
+    "persistent_raw_storage": false,
+    "uses_EAD_news_or_known_case_labels": false,
+    "steps": [
+      "high-yield official search lenses",
+      "random page diversification",
+      "seed-neighbour expansion",
+      "ADA/ADAM/contract chain collapse",
+      "live detail/PDF rebuild",
+      "ordinary-explanation falsification"
+    ]
+  },
+  "selected": [],
+  "runs": [
+    {
+      "run": 1,
+      "seed": 7411,
+      "status": "NO_QUALIFYING_CASE_WITHIN_SEARCH_BUDGET",
+      "records": 4567,
+      "candidates": 0,
+      "pre_gate": 0,
+      "search_requests": 96,
+      "network_errors": [],
+      "deep_checked": 0,
+      "selected_score": null,
+      "selected_adas": []
+    },
+    {
+      "run": 2,
+      "seed": 7412,
+      "status": "NO_QUALIFYING_CASE_WITHIN_SEARCH_BUDGET",
+      "records": 4444,
+      "candidates": 0,
+      "pre_gate": 0,
+      "search_requests": 92,
+      "network_errors": [],
+      "deep_checked": 0,
+      "selected_score": null,
+      "selected_adas": []
+    },
+    {
+      "run": 3,
+      "seed": 7413,
+      "status": "NO_QUALIFYING_CASE_WITHIN_SEARCH_BUDGET",
+      "records": 4358,
+      "candidates": 0,
+      "pre_gate": 0,
+      "search_requests": 98,
+      "network_errors": [],
+      "deep_checked": 0,
+      "selected_score": null,
+      "selected_adas": []
+    }
+  ],
+  "best_leads": []
+}
