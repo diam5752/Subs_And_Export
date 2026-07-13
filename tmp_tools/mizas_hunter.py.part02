@@ -72,7 +72,7 @@ def adam_refs(text: str) -> set[str]:
 
 
 def contract_refs(text: str) -> set[str]:
-    return {f"CONTRACT:{re.sub(r'\s+', '', value)}" for value in CONTRACT_REF_RE.findall(norm(text))}
+    return {"CONTRACT:" + re.sub(r"\s+", "", value) for value in CONTRACT_REF_RE.findall(norm(text))}
 
 
 def jaccard(left: str, right: str) -> float:
