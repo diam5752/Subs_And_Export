@@ -5,7 +5,7 @@ on:
     branches:
       - tmp/mizas-hunter-20260713-v2
     paths:
-      - tmp_tools/mizas_hunter_v6.py
+      - tmp_tools/mizas_hunter_v6.py.gz.b64
       - .github/workflows/tmp-mizas-hunter.yml
 
 permissions:
@@ -34,6 +34,10 @@ jobs:
           sudo apt-get install -y poppler-utils
           python -m pip install --upgrade pip
           pip install pandas requests pypdf
+      - name: Decode scanner
+        run: |
+          base64 -d tmp_tools/mizas_hunter_v6.py.gz.b64 | gzip -dc > tmp_tools/mizas_hunter_v6.py
+          python -m py_compile tmp_tools/mizas_hunter_v6.py
       - name: Execute adaptive live Diavgeia hunter
         run: |
           rm -rf hunter-output-v6
