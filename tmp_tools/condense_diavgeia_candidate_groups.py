@@ -17,6 +17,7 @@ def trim(value: Any, limit: int) -> str:
 def main() -> None:
     payload = json.loads(SOURCE.read_text(encoding="utf-8"))
     condensed: dict[str, Any] = {"status": payload.get("status"), "groups": {}}
+    subject_lines = ["group\tada\tissue_date\tpublish_date\tstatus\tcorrected\tsubject\tamounts\tafms\tadams\turl"]
     for group_name, raw_items in (payload.get("groups") or {}).items():
         items = [item for item in raw_items if isinstance(item, dict)]
         keyword_counts: Counter[str] = Counter()
@@ -75,6 +76,19 @@ def main() -> None:
                 "MATCHES=" + " || ".join(compact_matches),
                 "URL=" + str(decision.get("official_url") or ""),
             ]))
+            subject_lines.append("\t".join([
+                group_name,
+                str(decision.get("ada") or ""),
+                str(decision.get("issueDate") or ""),
+                str(decision.get("publishTimestamp") or ""),
+                str(decision.get("status") or ""),
+                str(decision.get("correctedVersionId") or ""),
+                trim(decision.get("subject"), 500),
+                ",".join(decision.get("amount_mentions") or []),
+                ",".join(decision.get("afm_mentions") or []),
+                ",".join(decision.get("adam_tokens") or []),
+                str(decision.get("official_url") or ""),
+            ]))
         condensed["groups"][group_name] = {
             "decision_count": len(decisions),
             "organization_ids": sorted({str(item.get("organizationId")) for item in items if item.get("organizationId")}),
@@ -84,6 +98,7 @@ def main() -> None:
             "decisions": decisions,
         }
         (ROOT / f"{group_name}.facts.txt").write_text("\n".join(fact_lines) + "\n", encoding="utf-8")
+    (ROOT / "subjects.tsv").write_text("\n".join(subject_lines) + "\n", encoding="utf-8")
     (ROOT / "condensed.json").write_text(json.dumps(condensed, ensure_ascii=False, indent=2), encoding="utf-8")
     for group_name, value in condensed["groups"].items():
         (ROOT / f"{group_name}.json").write_text(json.dumps(value, ensure_ascii=False, indent=2), encoding="utf-8")
