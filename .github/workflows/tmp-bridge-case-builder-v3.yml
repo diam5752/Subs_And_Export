@@ -6,12 +6,14 @@ on:
       - tmp/bridge-case-builder-v3b-20260714
     paths:
       - tmp_tools/run_targeted_bridge_wrapper.py
+      - tmp_tools/run_bridge_patch_launcher.py
       - .github/workflows/tmp-bridge-case-builder-v3.yml
   pull_request:
     branches:
       - master
     paths:
       - tmp_tools/run_targeted_bridge_wrapper.py
+      - tmp_tools/run_bridge_patch_launcher.py
       - .github/workflows/tmp-bridge-case-builder-v3.yml
 
 permissions:
@@ -48,19 +50,19 @@ jobs:
       - name: Independent run A — cleaning and facility-services bridges
         run: |
           rm -rf bridge-run-cleaning
-          python tmp_tools/run_targeted_bridge_wrapper.py \
+          python tmp_tools/run_bridge_patch_launcher.py \
             --mode cleaning \
-            --seed 88017 \
-            --max-deep 320 \
+            --seed 88019 \
+            --max-deep 520 \
             --output bridge-run-cleaning
           test -s bridge-run-cleaning/result.json
       - name: Independent run B — medical-waste bridges
         run: |
           rm -rf bridge-run-medical-waste
-          python tmp_tools/run_targeted_bridge_wrapper.py \
+          python tmp_tools/run_bridge_patch_launcher.py \
             --mode medical_waste \
-            --seed 99031 \
-            --max-deep 320 \
+            --seed 99037 \
+            --max-deep 520 \
             --output bridge-run-medical-waste
           test -s bridge-run-medical-waste/result.json
       - name: Build comparison summary
@@ -78,11 +80,11 @@ jobs:
                   'status': data.get('status'),
                   'coverage': data.get('coverage'),
                   'validated': data.get('diverse_top_results', []),
-                  'all_case_candidates': data.get('all_case_candidates', [])[:15],
+                  'all_case_candidates': data.get('all_case_candidates', [])[:20],
               }
           validated = []
           for run, data in outputs.items():
-              for case in data['validated']:
+              for case in data['all_case_candidates']:
                   if case.get('status') == 'FOUND_VALIDATED' and case.get('review_priority', 0) >= 80:
                       validated.append({'run': run, **case})
           summary = {
@@ -100,7 +102,7 @@ jobs:
           PY
       - uses: actions/upload-artifact@v4
         with:
-          name: bridge-case-builder-v3-results
+          name: bridge-case-builder-v3-fixed-results
           path: |
             bridge-run-cleaning
             bridge-run-medical-waste
