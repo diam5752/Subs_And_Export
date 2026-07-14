@@ -1,6 +1,6 @@
 {
   "status": "completed",
-  "executed_at": "2026-07-14T09:41:28.941685+00:00",
+  "executed_at": "2026-07-14T09:58:32.832854+00:00",
   "seed": 5600718,
   "coverage": {
     "metadata_records": 10519,
@@ -8,7 +8,7 @@
     "inspected": 72,
     "current_decisions": 49,
     "collapsed_chains": 49,
-    "candidate_cases_after_merge": 8,
+    "candidate_cases_after_merge": 4,
     "failures": [],
     "attempts": [
       {
@@ -1292,22 +1292,22 @@
   "evaluation": {
     "timeline_false_positive_regression_passed": true,
     "case_level_ekab_dedup_passed": true,
-    "page_provenance_ratio_all_facts": 0.6008,
-    "typed_scoring_fact_count": 247,
-    "candidate_case_count_after_merge": 8,
-    "distinct_primary_patterns_in_diverse_top": 3,
+    "page_provenance_ratio_all_facts": 0.5944,
+    "typed_scoring_fact_count": 243,
+    "candidate_case_count_after_merge": 4,
+    "distinct_primary_patterns_in_diverse_top": 2,
     "validated_80_plus_count": 0,
     "previously_seen_case_count_in_top": 1
   },
   "diverse_top_results": [
     {
-      "case_fingerprint": "aa7875b61f798068b2",
+      "case_fingerprint": "c2e6f5b02c57412d15",
       "primary_type": "advanced_or_repeated_extension",
       "detectors": [
         "advanced_or_repeated_extension"
       ],
       "chain_ids": [
-        "30e4d9c19c7b533e2d"
+        "5ef6a2879bdc264e4a"
       ],
       "families": [
         "contract_change"
@@ -1336,63 +1336,48 @@
       "status": "RESEARCH_LEAD",
       "records": [
         {
-          "ada": "ΕΚΒΗ46Ν7Λ2-5ΒΖ",
-          "official_url": "https://diavgeia.gov.gr/doc/ΕΚΒΗ46Ν7Λ2-5ΒΖ",
-          "organization_id": "100073007",
+          "ada": "ΡΛΤΩ4653Π8-3Ξ8",
+          "official_url": "https://diavgeia.gov.gr/doc/ΡΛΤΩ4653Π8-3Ξ8",
+          "organization_id": "100015996",
           "organization": "",
-          "subject": "5η τροποποίηση Σύμβασης Μίσθωσης Έργου στο πλαίσιο της Προγραμματικής Σύμβασης μεταξύ των Αναθετουσών Αρχών Ο.Τ.Α. Β’ βαθμού «Περιφέρεια Στερεάς Ελλάδας» και του Αναπτυξιακού Οργανισμού Ο.Τ.Α. «ΣΚΑΠΑΝΗ ΑΝΩΝΥΜΗ ΕΤΑΙΡΕΙΑ – ΑΝΑΠΤΥΞΙΑΚΟΣ ΟΡΓΑΝΙΣΜΟΣ ΠΕΡΙΦΕΡΕΙΑΣ ΣΤΕΡΕΑΣ ΕΛΑΔΑΣ» για την Παροχή Υπηρεσιών για το έργο «ΤΕΧΝΙΚΗ ΥΠΟΣΤΗΡΙΞΗ ΓΙΑ ΤΗΝ ΑΞΙΟΠΟΙΗΣΗ ΤΟΥ ΚΤΗΡΙΟΥ ΤΗΣ ΠΕ ΕΥΡΥΤΑΝΙΑΣ»",
-          "issue_date": "2026-01-08",
-          "publish_date": "2026-02-18",
-          "decision_type": "Γ.3.4",
+          "subject": "Έγκριση τροποποιημένου χρονοδιαγράμματος (5η τροποποίηση) Σύμβασης 20Α",
+          "issue_date": "2026-05-08",
+          "publish_date": "2026-05-08",
+          "decision_type": "Α.2",
           "category": "construction",
-          "signature": "construction:τροποποιηση:συμβασησ:μισθωσησ:εργου:πλαισιο:προγραμματικησ:μεταξυ:αναθετουσων:αρχων:βαθμου",
-          "supplier_name": "ΑΓΓΕΛΟΥ,,ΕΥΑΓΓΕΛΟΣ,ΣΩΤΗΡΙΟΣ",
-          "supplier_key_hash": "afm:7e79644577111b4a",
+          "signature": "construction:τροποποιημενου:χρονοδιαγραμματοσ:τροποποιηση:συμβασησ",
+          "supplier_name": "ΓΕΩΓΝΩΜΩΝ Ο",
+          "supplier_key_hash": "afm:6610d13360c203ad",
           "cpv": "",
-          "adams": [],
-          "contract_refs": [
-            "ΜΕΤΑΞ"
+          "adams": [
+            "25SYMV017073536"
           ],
+          "contract_refs": [],
           "focused_pages": [
             1,
-            2,
-            3,
-            4
+            2
           ],
           "facts": [
-            {
-              "fact_type": "amount",
-              "value": 43400.0,
-              "role": "contract_total",
-              "unit": "EUR",
-              "scope": "decision",
-              "source_ada": "ΕΚΒΗ46Ν7Λ2-5ΒΖ",
-              "source_page": null,
-              "source_excerpt": "extra.contractAmount=43400.0",
-              "confidence": 0.96,
-              "dependency_group": "financial",
-              "basis": "official_metadata"
-            },
             {
               "fact_type": "contract_change",
               "value": 5,
               "role": "modification_rank",
               "unit": "ordinal",
               "scope": "procurement_contract_chain",
-              "source_ada": "ΕΚΒΗ46Ν7Λ2-5ΒΖ",
+              "source_ada": "ΡΛΤΩ4653Π8-3Ξ8",
               "source_page": 1,
-              "source_excerpt": "5η τροποποίηση Σύμβασης Μίσθωσης Έργου στο πλαίσιο της Προγραμματικής Σύμβασης μεταξύ των Αναθετουσών Αρχών Ο.Τ.Α. Β’ βαθμού «Περιφέρεια Στερεάς Ελλάδας» και του Αναπτυξιακού Οργανισμού Ο.Τ.Α. «ΣΚΑΠΑΝΗ ΑΝΩΝΥΜΗ ΕΤΑΙΡΕΙΑ – ΑΝΑΠΤΥΞΙΑΚΟΣ ΟΡΓΑΝΙΣΜΟΣ ΠΕΡΙΦΕΡΕΙΑΣ ΣΤΕΡΕΑΣ ΕΛΑΔΑΣ» για την Παροχή Υπηρεσιών για το έργο «ΤΕΧΝΙΚΗ ΥΠΟΣΤΗΡΙΞΗ ΓΙΑ ΤΗΝ ΑΞΙΟΠΟΙΗΣΗ ΤΟΥ ΚΤΗΡΙΟΥ ΤΗΣ ΠΕ ΕΥΡΥΤΑΝΙΑΣ»",
+              "source_excerpt": "Έγκριση τροποποιημένου χρονοδιαγράμματος (5η τροποποίηση) Σύμβασης 20Α",
               "confidence": 0.98,
               "dependency_group": "contract_change",
               "basis": ""
             },
             {
               "fact_type": "date",
-              "value": "2026-01-08",
+              "value": "2026-05-08",
               "role": "decision_date",
               "unit": "date",
               "scope": "decision",
-              "source_ada": "ΕΚΒΗ46Ν7Λ2-5ΒΖ",
+              "source_ada": "ΡΛΤΩ4653Π8-3Ξ8",
               "source_page": null,
               "source_excerpt": "official metadata issueDate",
               "confidence": 0.99,
@@ -1401,158 +1386,11 @@
             },
             {
               "fact_type": "date",
-              "value": "2026-02-18",
+              "value": "2026-05-08",
               "role": "publication_date",
               "unit": "date",
               "scope": "decision",
-              "source_ada": "ΕΚΒΗ46Ν7Λ2-5ΒΖ",
-              "source_page": null,
-              "source_excerpt": "official metadata publishTimestamp",
-              "confidence": 0.99,
-              "dependency_group": "transparency",
-              "basis": "official_metadata"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "case_fingerprint": "a4058ed2b6ea6aa395",
-      "primary_type": "explicit_single_bid",
-      "detectors": [
-        "explicit_single_bid"
-      ],
-      "chain_ids": [
-        "fb032a96b45616b2a2"
-      ],
-      "families": [
-        "competition"
-      ],
-      "review_priority": 55,
-      "score_axes": {
-        "evidence_quality": 27,
-        "pattern_strength": 15,
-        "peer_deviation": 0,
-        "materiality": 6,
-        "falsification_survival": 7
-      },
-      "caps": [
-        "μία μόνο ανεξάρτητη evidence family"
-      ],
-      "reasons": [
-        "Το επίσημο PDF αναφέρει ρητά μία/μοναδική προσφορά στη σελίδα 24.",
-        "Typed επίσημο οικονομικό μέγεθος: €164,957.00 (budget_total, unknown)."
-      ],
-      "ordinary_explanations": [
-        "Η πράξη αναφέρει ανοικτή διαδικασία."
-      ],
-      "metrics": {},
-      "seen_in_previous_run": false,
-      "novelty_rank_score": 55,
-      "status": "RESEARCH_LEAD",
-      "records": [
-        {
-          "ada": "ΨΨ6ΟΩΛΠ-ΩΧΗ",
-          "official_url": "https://diavgeia.gov.gr/doc/ΨΨ6ΟΩΛΠ-ΩΧΗ",
-          "organization_id": "6154",
-          "organization": "",
-          "subject": "ΑΝΑΛΥΤΚΗ ΔΙΑΚΗΡΥΞΗ ΤΟΥ ΕΡΓΟΥ «ΣΥΝΤΗΡΗΣΗ ΔΗΜΟΤΙΚΟΥ ΟΔΙΚΟΥ ΔΙΚΤΥΟΥ ΔΕ. ΔΗΜ. ΥΨΗΛΑΝΤΗ »",
-          "issue_date": "2026-06-25",
-          "publish_date": "2026-07-01",
-          "decision_type": "Δ.2.1",
-          "category": "construction",
-          "signature": "construction:αναλυτκη:διακηρυξη:εργου:συντηρηση:δημοτικου:οδικου:δικτυου:υψηλαντη",
-          "supplier_name": "",
-          "supplier_key_hash": "",
-          "cpv": "45233141-9",
-          "adams": [
-            "26PROC019348434",
-            "26REQ018966632"
-          ],
-          "contract_refs": [
-            "..................................."
-          ],
-          "focused_pages": [
-            1,
-            2,
-            3,
-            22,
-            23,
-            24
-          ],
-          "facts": [
-            {
-              "fact_type": "amount",
-              "value": 164957.0,
-              "role": "budget_total",
-              "unit": "EUR",
-              "scope": "subject_section",
-              "source_ada": "ΨΨ6ΟΩΛΠ-ΩΧΗ",
-              "source_page": 23,
-              "source_excerpt": "ου έργου Ο τίτλος του έργου είναι: «ΣΥΝΤΗΡΗΣΗ ΔΗΜΟΤΙΚΟΥ ΟΔΙΚΟΥ ΔΙΚΤΥΟΥ ΔΕ ΔΗΜΗΤΡΙΟΥ ΥΨΗΛΑΝΤΗ». 11.1. Προϋπολογισμός Δημοπράτησης του έργου (εκτιμώμενη αξία της σύμβασης) Ο προϋπολογισμός δημοπράτησης του έργου ανέρχεται σε87300.000,00 Ευρώ και αναλύεται σε: Δαπάνη Εργασιών 164.957,00 € Γενικά έξοδα και Όφελος εργολάβου 29.692,26 (Γ.Ε.+Ο.Ε.) € Απρόβλεπτα88 (ποσοστού 15%. επί της δαπάνης εργασιών και του κονδυλίου Γ.Ε.+Ο.Ε.) 29.197,39 Ευρώ, που αναλώνονται σύμφωνα με τους όρους του άρθρου 156 παρ. 3.(α) του ν. 4412/2016. Στο ανωτέρω ποσό προβλέπετ",
-              "confidence": 0.9,
-              "dependency_group": "financial",
-              "basis": "unknown"
-            },
-            {
-              "fact_type": "amount",
-              "value": 29197.39,
-              "role": "budget_total",
-              "unit": "EUR",
-              "scope": "subject_section",
-              "source_ada": "ΨΨ6ΟΩΛΠ-ΩΧΗ",
-              "source_page": 23,
-              "source_excerpt": "Ο προϋπολογισμός δημοπράτησης του έργου ανέρχεται σε87300.000,00 Ευρώ και αναλύεται σε: Δαπάνη Εργασιών 164.957,00 € Γενικά έξοδα και Όφελος εργολάβου 29.692,26 (Γ.Ε.+Ο.Ε.) € Απρόβλεπτα88 (ποσοστού 15%. επί της δαπάνης εργασιών και του κονδυλίου Γ.Ε.+Ο.Ε.) 29.197,39 Ευρώ, που αναλώνονται σύμφωνα με τους όρους του άρθρου 156 παρ. 3.(α) του ν. 4412/2016. Στο ανωτέρω ποσό προβλέπεται αναθεώρηση στις τιμές ποσού 16.688,83 € σύμφωνα με το άρθρο 153 του ν. 4412/2016. Κόστος Υποδοχής ΑΕΕΚ 1.400,00 € (συμπεριλαμβάνεται ΓΕ & ΟΕ 18% ). Ρή",
-              "confidence": 0.9,
-              "dependency_group": "financial",
-              "basis": "unknown"
-            },
-            {
-              "fact_type": "competition",
-              "value": true,
-              "role": "single_bid",
-              "unit": "boolean",
-              "scope": "subject_section",
-              "source_ada": "ΨΨ6ΟΩΛΠ-ΩΧΗ",
-              "source_page": 24,
-              "source_excerpt": "ε την «ανοικτή διαδικασία» του άρθρου 27 του ν. 4412/2016 και υπό τις προϋποθέσεις του νόμου αυτού. 13.2 Η οικονομική προσφορά των διαγωνιζομένων θα συνταχθεί και υποβληθεί σύμφωνα με τα οριζόμενα στο άρθρο 95 παρ. 2.(α) του ν. 4412/2016 καθώς και στην παρ. 3.5 περ. γ έως στ της παρούσας. 13.3 Κάθε προσφέρων μπορεί να υποβάλει μόνο μία προσφορά 91. 13.4 Δεν επιτρέπεται η υποβολή εναλλακτικών προσφορών 92. 13.5 Δε γίνονται δεκτές προσφορές για μέρος του αντικειμένου της σύμβασης. Άρθρο 14: Κριτήριο Ανάθεσης Κριτήριο για την ανάθεση της σύμβασης είναι η πλέον συμφέρουσα από οικονομική άποψη προσφορά μόνο βάσει τιμής (χαμηλότερη τιμή).",
-              "confidence": 0.98,
-              "dependency_group": "competition",
-              "basis": ""
-            },
-            {
-              "fact_type": "ordinary_explanation",
-              "value": true,
-              "role": "open_tender",
-              "unit": "boolean",
-              "scope": "subject_section",
-              "source_ada": "ΨΨ6ΟΩΛΠ-ΩΧΗ",
-              "source_page": 2,
-              "source_excerpt": "ΑΔΑ: ΨΨ6ΟΩΛΠ-ΩΧΗ 26PROC019348434 2026-07-01 ΕΛΛΗΝΙΚΗ ΔΗΜOΚΡΑΤΙΑ ΕΡΓΟ: ΣΥΝΤΗΡΗΣΗ ΔΗΜΟΤΙΚΟΥ ΟΔΙΚΟΥ 2 ΔΗΜΟΣ ΚΟΖΑΝΗΣ ΔΙΚΤΥΟΥ ΔΕ. ΔΗΜ. ΥΨΗΛΑΝΤΗ ΔΙΕΥΘΥΝΣΗ ΤΕΧΝΙΚΩΝ ΥΠΗΡΕΣΙΩΝ ΠΛΑΤΕΙΑ 28ης ΟΚΤΩΒΡΙΟΥ 1 ΚΟΖΑΝΗ 50 131 Κοζάνη, 25-06-2026 ΧΡΗΜΑΤΟΔΟΤΗΣΗ:3 ΕΣΟΔΑ ΑΠΕ Αρ. Πρωτ.: 19732 Αρ. Μελ. : 24/2026 Α.Λ.Ε.: 02.030.2420301090 ΔΙΑΚΗΡΥΞΗ ΑΝΟΙΚΤΗΣ ΔΙΑΔΙΚΑΣΙΑΣ ΜΕ Σ Ω ΤΟΥ Ε Θ ΝΙΚΟΥ ΣΥ Σ Τ Η ΜΑΤΟΣ ΗΛΕΚΤΡΟΝΙΚΩΝ ΔΗΜΟΣΙΩΝ ΣΥΜΒΑΣΕΩΝ (Ε.Σ.Η.ΔΗ.Σ.) Γ Ι Α Τ Η Ν Ε Π Ι Λ Ο Γ Η Α Ν Α Δ ΟΧΟΥ Κ ΑΤΑ Σ Κ Ε Υ Η Σ ΕΡΓΟΥ 4 Ο Δήμος Κοζάνης Δ ι α κ η ρ ύ σ σ ε ι ανοικτή διαδικασία για την επιλογή αναδόχου κατασκευής του έργου: «ΣΥΝΤΗΡΗΣΗ ΔΗΜΟΤΙΚΟΥ ΟΔΙΚΟΥ ΔΙΚΤΥΟΥ ΔΕ. ΔΗΜ. ΥΨΗΛΑΝΤΗ»",
-              "confidence": 0.98,
-              "dependency_group": "falsification",
-              "basis": ""
-            },
-            {
-              "fact_type": "date",
-              "value": "2026-06-25",
-              "role": "decision_date",
-              "unit": "date",
-              "scope": "decision",
-              "source_ada": "ΨΨ6ΟΩΛΠ-ΩΧΗ",
-              "source_page": null,
-              "source_excerpt": "official metadata issueDate",
-              "confidence": 0.99,
-              "dependency_group": "timeline",
-              "basis": "official_metadata"
-            },
-            {
-              "fact_type": "date",
-              "value": "2026-07-01",
-              "role": "publication_date",
-              "unit": "date",
-              "scope": "decision",
-              "source_ada": "ΨΨ6ΟΩΛΠ-ΩΧΗ",
+              "source_ada": "ΡΛΤΩ4653Π8-3Ξ8",
               "source_page": null,
               "source_excerpt": "official metadata publishTimestamp",
               "confidence": 0.99,
@@ -1931,122 +1769,6 @@
   ],
   "all_case_candidates": [
     {
-      "case_fingerprint": "aa7875b61f798068b2",
-      "primary_type": "advanced_or_repeated_extension",
-      "detectors": [
-        "advanced_or_repeated_extension"
-      ],
-      "chain_ids": [
-        "30e4d9c19c7b533e2d"
-      ],
-      "families": [
-        "contract_change"
-      ],
-      "review_priority": 56,
-      "score_axes": {
-        "evidence_quality": 26,
-        "pattern_strength": 18,
-        "peer_deviation": 0,
-        "materiality": 2,
-        "falsification_survival": 10
-      },
-      "caps": [
-        "μία μόνο ανεξάρτητη evidence family"
-      ],
-      "reasons": [
-        "Η chain φτάνει τουλάχιστον σε 5η τροποποίηση/ΑΠΕ."
-      ],
-      "ordinary_explanations": [],
-      "metrics": {
-        "max_modification_rank": 5,
-        "modification_fact_count": 1
-      },
-      "seen_in_previous_run": false,
-      "novelty_rank_score": 56,
-      "status": "RESEARCH_LEAD",
-      "records": [
-        {
-          "ada": "ΕΚΒΗ46Ν7Λ2-5ΒΖ",
-          "official_url": "https://diavgeia.gov.gr/doc/ΕΚΒΗ46Ν7Λ2-5ΒΖ",
-          "organization_id": "100073007",
-          "organization": "",
-          "subject": "5η τροποποίηση Σύμβασης Μίσθωσης Έργου στο πλαίσιο της Προγραμματικής Σύμβασης μεταξύ των Αναθετουσών Αρχών Ο.Τ.Α. Β’ βαθμού «Περιφέρεια Στερεάς Ελλάδας» και του Αναπτυξιακού Οργανισμού Ο.Τ.Α. «ΣΚΑΠΑΝΗ ΑΝΩΝΥΜΗ ΕΤΑΙΡΕΙΑ – ΑΝΑΠΤΥΞΙΑΚΟΣ ΟΡΓΑΝΙΣΜΟΣ ΠΕΡΙΦΕΡΕΙΑΣ ΣΤΕΡΕΑΣ ΕΛΑΔΑΣ» για την Παροχή Υπηρεσιών για το έργο «ΤΕΧΝΙΚΗ ΥΠΟΣΤΗΡΙΞΗ ΓΙΑ ΤΗΝ ΑΞΙΟΠΟΙΗΣΗ ΤΟΥ ΚΤΗΡΙΟΥ ΤΗΣ ΠΕ ΕΥΡΥΤΑΝΙΑΣ»",
-          "issue_date": "2026-01-08",
-          "publish_date": "2026-02-18",
-          "decision_type": "Γ.3.4",
-          "category": "construction",
-          "signature": "construction:τροποποιηση:συμβασησ:μισθωσησ:εργου:πλαισιο:προγραμματικησ:μεταξυ:αναθετουσων:αρχων:βαθμου",
-          "supplier_name": "ΑΓΓΕΛΟΥ,,ΕΥΑΓΓΕΛΟΣ,ΣΩΤΗΡΙΟΣ",
-          "supplier_key_hash": "afm:7e79644577111b4a",
-          "cpv": "",
-          "adams": [],
-          "contract_refs": [
-            "ΜΕΤΑΞ"
-          ],
-          "focused_pages": [
-            1,
-            2,
-            3,
-            4
-          ],
-          "facts": [
-            {
-              "fact_type": "amount",
-              "value": 43400.0,
-              "role": "contract_total",
-              "unit": "EUR",
-              "scope": "decision",
-              "source_ada": "ΕΚΒΗ46Ν7Λ2-5ΒΖ",
-              "source_page": null,
-              "source_excerpt": "extra.contractAmount=43400.0",
-              "confidence": 0.96,
-              "dependency_group": "financial",
-              "basis": "official_metadata"
-            },
-            {
-              "fact_type": "contract_change",
-              "value": 5,
-              "role": "modification_rank",
-              "unit": "ordinal",
-              "scope": "procurement_contract_chain",
-              "source_ada": "ΕΚΒΗ46Ν7Λ2-5ΒΖ",
-              "source_page": 1,
-              "source_excerpt": "5η τροποποίηση Σύμβασης Μίσθωσης Έργου στο πλαίσιο της Προγραμματικής Σύμβασης μεταξύ των Αναθετουσών Αρχών Ο.Τ.Α. Β’ βαθμού «Περιφέρεια Στερεάς Ελλάδας» και του Αναπτυξιακού Οργανισμού Ο.Τ.Α. «ΣΚΑΠΑΝΗ ΑΝΩΝΥΜΗ ΕΤΑΙΡΕΙΑ – ΑΝΑΠΤΥΞΙΑΚΟΣ ΟΡΓΑΝΙΣΜΟΣ ΠΕΡΙΦΕΡΕΙΑΣ ΣΤΕΡΕΑΣ ΕΛΑΔΑΣ» για την Παροχή Υπηρεσιών για το έργο «ΤΕΧΝΙΚΗ ΥΠΟΣΤΗΡΙΞΗ ΓΙΑ ΤΗΝ ΑΞΙΟΠΟΙΗΣΗ ΤΟΥ ΚΤΗΡΙΟΥ ΤΗΣ ΠΕ ΕΥΡΥΤΑΝΙΑΣ»",
-              "confidence": 0.98,
-              "dependency_group": "contract_change",
-              "basis": ""
-            },
-            {
-              "fact_type": "date",
-              "value": "2026-01-08",
-              "role": "decision_date",
-              "unit": "date",
-              "scope": "decision",
-              "source_ada": "ΕΚΒΗ46Ν7Λ2-5ΒΖ",
-              "source_page": null,
-              "source_excerpt": "official metadata issueDate",
-              "confidence": 0.99,
-              "dependency_group": "timeline",
-              "basis": "official_metadata"
-            },
-            {
-              "fact_type": "date",
-              "value": "2026-02-18",
-              "role": "publication_date",
-              "unit": "date",
-              "scope": "decision",
-              "source_ada": "ΕΚΒΗ46Ν7Λ2-5ΒΖ",
-              "source_page": null,
-              "source_excerpt": "official metadata publishTimestamp",
-              "confidence": 0.99,
-              "dependency_group": "transparency",
-              "basis": "official_metadata"
-            }
-          ]
-        }
-      ]
-    },
-    {
       "case_fingerprint": "c2e6f5b02c57412d15",
       "primary_type": "advanced_or_repeated_extension",
       "detectors": [
@@ -2137,306 +1859,6 @@
               "unit": "date",
               "scope": "decision",
               "source_ada": "ΡΛΤΩ4653Π8-3Ξ8",
-              "source_page": null,
-              "source_excerpt": "official metadata publishTimestamp",
-              "confidence": 0.99,
-              "dependency_group": "transparency",
-              "basis": "official_metadata"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "case_fingerprint": "a4058ed2b6ea6aa395",
-      "primary_type": "explicit_single_bid",
-      "detectors": [
-        "explicit_single_bid"
-      ],
-      "chain_ids": [
-        "fb032a96b45616b2a2"
-      ],
-      "families": [
-        "competition"
-      ],
-      "review_priority": 55,
-      "score_axes": {
-        "evidence_quality": 27,
-        "pattern_strength": 15,
-        "peer_deviation": 0,
-        "materiality": 6,
-        "falsification_survival": 7
-      },
-      "caps": [
-        "μία μόνο ανεξάρτητη evidence family"
-      ],
-      "reasons": [
-        "Το επίσημο PDF αναφέρει ρητά μία/μοναδική προσφορά στη σελίδα 24.",
-        "Typed επίσημο οικονομικό μέγεθος: €164,957.00 (budget_total, unknown)."
-      ],
-      "ordinary_explanations": [
-        "Η πράξη αναφέρει ανοικτή διαδικασία."
-      ],
-      "metrics": {},
-      "seen_in_previous_run": false,
-      "novelty_rank_score": 55,
-      "status": "RESEARCH_LEAD",
-      "records": [
-        {
-          "ada": "ΨΨ6ΟΩΛΠ-ΩΧΗ",
-          "official_url": "https://diavgeia.gov.gr/doc/ΨΨ6ΟΩΛΠ-ΩΧΗ",
-          "organization_id": "6154",
-          "organization": "",
-          "subject": "ΑΝΑΛΥΤΚΗ ΔΙΑΚΗΡΥΞΗ ΤΟΥ ΕΡΓΟΥ «ΣΥΝΤΗΡΗΣΗ ΔΗΜΟΤΙΚΟΥ ΟΔΙΚΟΥ ΔΙΚΤΥΟΥ ΔΕ. ΔΗΜ. ΥΨΗΛΑΝΤΗ »",
-          "issue_date": "2026-06-25",
-          "publish_date": "2026-07-01",
-          "decision_type": "Δ.2.1",
-          "category": "construction",
-          "signature": "construction:αναλυτκη:διακηρυξη:εργου:συντηρηση:δημοτικου:οδικου:δικτυου:υψηλαντη",
-          "supplier_name": "",
-          "supplier_key_hash": "",
-          "cpv": "45233141-9",
-          "adams": [
-            "26PROC019348434",
-            "26REQ018966632"
-          ],
-          "contract_refs": [
-            "..................................."
-          ],
-          "focused_pages": [
-            1,
-            2,
-            3,
-            22,
-            23,
-            24
-          ],
-          "facts": [
-            {
-              "fact_type": "amount",
-              "value": 164957.0,
-              "role": "budget_total",
-              "unit": "EUR",
-              "scope": "subject_section",
-              "source_ada": "ΨΨ6ΟΩΛΠ-ΩΧΗ",
-              "source_page": 23,
-              "source_excerpt": "ου έργου Ο τίτλος του έργου είναι: «ΣΥΝΤΗΡΗΣΗ ΔΗΜΟΤΙΚΟΥ ΟΔΙΚΟΥ ΔΙΚΤΥΟΥ ΔΕ ΔΗΜΗΤΡΙΟΥ ΥΨΗΛΑΝΤΗ». 11.1. Προϋπολογισμός Δημοπράτησης του έργου (εκτιμώμενη αξία της σύμβασης) Ο προϋπολογισμός δημοπράτησης του έργου ανέρχεται σε87300.000,00 Ευρώ και αναλύεται σε: Δαπάνη Εργασιών 164.957,00 € Γενικά έξοδα και Όφελος εργολάβου 29.692,26 (Γ.Ε.+Ο.Ε.) € Απρόβλεπτα88 (ποσοστού 15%. επί της δαπάνης εργασιών και του κονδυλίου Γ.Ε.+Ο.Ε.) 29.197,39 Ευρώ, που αναλώνονται σύμφωνα με τους όρους του άρθρου 156 παρ. 3.(α) του ν. 4412/2016. Στο ανωτέρω ποσό προβλέπετ",
-              "confidence": 0.9,
-              "dependency_group": "financial",
-              "basis": "unknown"
-            },
-            {
-              "fact_type": "amount",
-              "value": 29197.39,
-              "role": "budget_total",
-              "unit": "EUR",
-              "scope": "subject_section",
-              "source_ada": "ΨΨ6ΟΩΛΠ-ΩΧΗ",
-              "source_page": 23,
-              "source_excerpt": "Ο προϋπολογισμός δημοπράτησης του έργου ανέρχεται σε87300.000,00 Ευρώ και αναλύεται σε: Δαπάνη Εργασιών 164.957,00 € Γενικά έξοδα και Όφελος εργολάβου 29.692,26 (Γ.Ε.+Ο.Ε.) € Απρόβλεπτα88 (ποσοστού 15%. επί της δαπάνης εργασιών και του κονδυλίου Γ.Ε.+Ο.Ε.) 29.197,39 Ευρώ, που αναλώνονται σύμφωνα με τους όρους του άρθρου 156 παρ. 3.(α) του ν. 4412/2016. Στο ανωτέρω ποσό προβλέπεται αναθεώρηση στις τιμές ποσού 16.688,83 € σύμφωνα με το άρθρο 153 του ν. 4412/2016. Κόστος Υποδοχής ΑΕΕΚ 1.400,00 € (συμπεριλαμβάνεται ΓΕ & ΟΕ 18% ). Ρή",
-              "confidence": 0.9,
-              "dependency_group": "financial",
-              "basis": "unknown"
-            },
-            {
-              "fact_type": "competition",
-              "value": true,
-              "role": "single_bid",
-              "unit": "boolean",
-              "scope": "subject_section",
-              "source_ada": "ΨΨ6ΟΩΛΠ-ΩΧΗ",
-              "source_page": 24,
-              "source_excerpt": "ε την «ανοικτή διαδικασία» του άρθρου 27 του ν. 4412/2016 και υπό τις προϋποθέσεις του νόμου αυτού. 13.2 Η οικονομική προσφορά των διαγωνιζομένων θα συνταχθεί και υποβληθεί σύμφωνα με τα οριζόμενα στο άρθρο 95 παρ. 2.(α) του ν. 4412/2016 καθώς και στην παρ. 3.5 περ. γ έως στ της παρούσας. 13.3 Κάθε προσφέρων μπορεί να υποβάλει μόνο μία προσφορά 91. 13.4 Δεν επιτρέπεται η υποβολή εναλλακτικών προσφορών 92. 13.5 Δε γίνονται δεκτές προσφορές για μέρος του αντικειμένου της σύμβασης. Άρθρο 14: Κριτήριο Ανάθεσης Κριτήριο για την ανάθεση της σύμβασης είναι η πλέον συμφέρουσα από οικονομική άποψη προσφορά μόνο βάσει τιμής (χαμηλότερη τιμή).",
-              "confidence": 0.98,
-              "dependency_group": "competition",
-              "basis": ""
-            },
-            {
-              "fact_type": "ordinary_explanation",
-              "value": true,
-              "role": "open_tender",
-              "unit": "boolean",
-              "scope": "subject_section",
-              "source_ada": "ΨΨ6ΟΩΛΠ-ΩΧΗ",
-              "source_page": 2,
-              "source_excerpt": "ΑΔΑ: ΨΨ6ΟΩΛΠ-ΩΧΗ 26PROC019348434 2026-07-01 ΕΛΛΗΝΙΚΗ ΔΗΜOΚΡΑΤΙΑ ΕΡΓΟ: ΣΥΝΤΗΡΗΣΗ ΔΗΜΟΤΙΚΟΥ ΟΔΙΚΟΥ 2 ΔΗΜΟΣ ΚΟΖΑΝΗΣ ΔΙΚΤΥΟΥ ΔΕ. ΔΗΜ. ΥΨΗΛΑΝΤΗ ΔΙΕΥΘΥΝΣΗ ΤΕΧΝΙΚΩΝ ΥΠΗΡΕΣΙΩΝ ΠΛΑΤΕΙΑ 28ης ΟΚΤΩΒΡΙΟΥ 1 ΚΟΖΑΝΗ 50 131 Κοζάνη, 25-06-2026 ΧΡΗΜΑΤΟΔΟΤΗΣΗ:3 ΕΣΟΔΑ ΑΠΕ Αρ. Πρωτ.: 19732 Αρ. Μελ. : 24/2026 Α.Λ.Ε.: 02.030.2420301090 ΔΙΑΚΗΡΥΞΗ ΑΝΟΙΚΤΗΣ ΔΙΑΔΙΚΑΣΙΑΣ ΜΕ Σ Ω ΤΟΥ Ε Θ ΝΙΚΟΥ ΣΥ Σ Τ Η ΜΑΤΟΣ ΗΛΕΚΤΡΟΝΙΚΩΝ ΔΗΜΟΣΙΩΝ ΣΥΜΒΑΣΕΩΝ (Ε.Σ.Η.ΔΗ.Σ.) Γ Ι Α Τ Η Ν Ε Π Ι Λ Ο Γ Η Α Ν Α Δ ΟΧΟΥ Κ ΑΤΑ Σ Κ Ε Υ Η Σ ΕΡΓΟΥ 4 Ο Δήμος Κοζάνης Δ ι α κ η ρ ύ σ σ ε ι ανοικτή διαδικασία για την επιλογή αναδόχου κατασκευής του έργου: «ΣΥΝΤΗΡΗΣΗ ΔΗΜΟΤΙΚΟΥ ΟΔΙΚΟΥ ΔΙΚΤΥΟΥ ΔΕ. ΔΗΜ. ΥΨΗΛΑΝΤΗ»",
-              "confidence": 0.98,
-              "dependency_group": "falsification",
-              "basis": ""
-            },
-            {
-              "fact_type": "date",
-              "value": "2026-06-25",
-              "role": "decision_date",
-              "unit": "date",
-              "scope": "decision",
-              "source_ada": "ΨΨ6ΟΩΛΠ-ΩΧΗ",
-              "source_page": null,
-              "source_excerpt": "official metadata issueDate",
-              "confidence": 0.99,
-              "dependency_group": "timeline",
-              "basis": "official_metadata"
-            },
-            {
-              "fact_type": "date",
-              "value": "2026-07-01",
-              "role": "publication_date",
-              "unit": "date",
-              "scope": "decision",
-              "source_ada": "ΨΨ6ΟΩΛΠ-ΩΧΗ",
-              "source_page": null,
-              "source_excerpt": "official metadata publishTimestamp",
-              "confidence": 0.99,
-              "dependency_group": "transparency",
-              "basis": "official_metadata"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "case_fingerprint": "fbc579701237b4e19d",
-      "primary_type": "explicit_single_bid",
-      "detectors": [
-        "explicit_single_bid"
-      ],
-      "chain_ids": [
-        "dbc17c5062b133ee05"
-      ],
-      "families": [
-        "competition"
-      ],
-      "review_priority": 52,
-      "score_axes": {
-        "evidence_quality": 27,
-        "pattern_strength": 15,
-        "peer_deviation": 0,
-        "materiality": 3,
-        "falsification_survival": 7
-      },
-      "caps": [
-        "μία μόνο ανεξάρτητη evidence family"
-      ],
-      "reasons": [
-        "Το επίσημο PDF αναφέρει ρητά μία/μοναδική προσφορά στη σελίδα 1.",
-        "Typed επίσημο οικονομικό μέγεθος: €54,997.97 (budget_total, unknown)."
-      ],
-      "ordinary_explanations": [
-        "Η πράξη αναφέρει ανοικτή διαδικασία."
-      ],
-      "metrics": {},
-      "seen_in_previous_run": false,
-      "novelty_rank_score": 52,
-      "status": "RESEARCH_LEAD",
-      "records": [
-        {
-          "ada": "ΨΨΞΕ4690ΒΥ-ΠΣΟ",
-          "official_url": "https://diavgeia.gov.gr/doc/ΨΨΞΕ4690ΒΥ-ΠΣΟ",
-          "organization_id": "99221915",
-          "organization": "",
-          "subject": "Λήψη απόφασης επί των πρακτικών της επιτροπής αξιολόγησης του με αριθμό διακήρυξης 5018/2025 διαγωνισμού προμήθειας ιατρικών αερίων (υγρό οξυγόνο) για τις ανάγκες του Γ.Ν. Καστοριάς (ΠΠΠΥ 2025), με ανοικτή διαδικασία κάτω των ορίων μέσω ΕΣΗΔΗΣ",
-          "issue_date": "2025-05-29",
-          "publish_date": "2025-06-24",
-          "decision_type": "Δ.2.2",
-          "category": "medical_gases",
-          "signature": "medical_gases:ληψη:αποφασησ:πρακτικων:επιτροπησ:αξιολογησησ:αριθμο:διακηρυξησ:διαγωνισμου:προμηθειασ:ιατρικων",
-          "supplier_name": "",
-          "supplier_key_hash": "",
-          "cpv": "",
-          "adams": [
-            "25AWRD017074488"
-          ],
-          "contract_refs": [],
-          "focused_pages": [
-            1,
-            2
-          ],
-          "facts": [
-            {
-              "fact_type": "amount",
-              "value": 54997.97,
-              "role": "budget_total",
-              "unit": "EUR",
-              "scope": "subject_section",
-              "source_ada": "ΨΨΞΕ4690ΒΥ-ΠΣΟ",
-              "source_page": 1,
-              "source_excerpt": "ια ιατρικών αερίων (υγρό οξυγόνο), με ανοικτή διαδικασία κάτω των ορίων μέσω ΕΣΗΔΗΣ για τις ανάγκες του Γ. Ν. Καστοριάς, από το ΠΠΠΥ 2025, με κωδικό CPV 24111500-0, με κριτήριο κατακύρωσης την πλέον συμφέρουσα από οικονομική άποψη προσφορά, αποκλειστικά βάσει τιμής (χαμηλότερη τιμή) και προϋπολογισμό 54.997,97€ με τον ΦΠΑ, καθώς και την έγκριση του τεύχους διακήρυξης του εν λόγω διαγωνισμού. 2. Το με αριθμό 5018/2025 τεύχος διακήρυξης διαγωνισμού για την προμήθεια ιατρικών Αερίων (Υγρό Οξυγόνο) του Γ. Ν. Καστοριάς (ΠΠΠΥ 2025), στο οποίο ορίζεται ως ημερομηνία ηλεκτρονικής αποσφράγισης των προσφορών η 29η",
-              "confidence": 0.9,
-              "dependency_group": "financial",
-              "basis": "unknown"
-            },
-            {
-              "fact_type": "amount",
-              "value": 44353.2,
-              "role": "award_total",
-              "unit": "EUR",
-              "scope": "subject_section",
-              "source_ada": "ΨΨΞΕ4690ΒΥ-ΠΣΟ",
-              "source_page": 1,
-              "source_excerpt": "αριθμό 372425 που αποτελεί αναπόσπαστο μέρος της παρούσης, σύμφωνα με το οποίο κατατέθηκε μία (1) προσφορά για την προμήθεια ιατρικών Αερίων (Υγρό Οξυγόνο), από την εταιρεία ΛΙΝΤΕ ΕΛΛΑΣ ΜΟΝ ΕΠΕ. Η επιτροπή εισηγείται την ανάδειξη της εν λόγω εταιρείας ως προσωρινό ανάδοχο με συνολική τιμή προσφοράς 44.353,20€ χωρίς ΦΠΑ (54.997,97€ με ΦΠΑ) για την προμήθεια 64.280m3 υγρού οξυγόνου, δεδομένου ότι η προσφορά της ως προς τα δικαιολογητικά συμμετοχής, την τεχνική και οικονομική της προσφορά ανταποκρίνεται στους όρους της διακήρυξης. 5. Το άρθρο 3.1 της διακήρυξης σύμφωνα με το οποίο: «..Σε κάθε περίπτωση, ό",
-              "confidence": 0.9,
-              "dependency_group": "financial",
-              "basis": "gross"
-            },
-            {
-              "fact_type": "amount",
-              "value": 54997.97,
-              "role": "award_total",
-              "unit": "EUR",
-              "scope": "subject_section",
-              "source_ada": "ΨΨΞΕ4690ΒΥ-ΠΣΟ",
-              "source_page": 1,
-              "source_excerpt": "οτελεί αναπόσπαστο μέρος της παρούσης, σύμφωνα με το οποίο κατατέθηκε μία (1) προσφορά για την προμήθεια ιατρικών Αερίων (Υγρό Οξυγόνο), από την εταιρεία ΛΙΝΤΕ ΕΛΛΑΣ ΜΟΝ ΕΠΕ. Η επιτροπή εισηγείται την ανάδειξη της εν λόγω εταιρείας ως προσωρινό ανάδοχο με συνολική τιμή προσφοράς 44.353,20€ χωρίς ΦΠΑ (54.997,97€ με ΦΠΑ) για την προμήθεια 64.280m3 υγρού οξυγόνου, δεδομένου ότι η προσφορά της ως προς τα δικαιολογητικά συμμετοχής, την τεχνική και οικονομική της προσφορά ανταποκρίνεται στους όρους της διακήρυξης. 5. Το άρθρο 3.1 της διακήρυξης σύμφωνα με το οποίο: «..Σε κάθε περίπτωση, όταν έχει υποβληθεί εξ",
-              "confidence": 0.9,
-              "dependency_group": "financial",
-              "basis": "gross"
-            },
-            {
-              "fact_type": "competition",
-              "value": true,
-              "role": "single_bid",
-              "unit": "boolean",
-              "scope": "subject_section",
-              "source_ada": "ΨΨΞΕ4690ΒΥ-ΠΣΟ",
-              "source_page": 1,
-              "source_excerpt": "τιμή προσφοράς 44.353,20€ χωρίς ΦΠΑ (54.997,97€ με ΦΠΑ) για την προμήθεια 64.280m3 υγρού οξυγόνου, δεδομένου ότι η προσφορά της ως προς τα δικαιολογητικά συμμετοχής, την τεχνική και οικονομική της προσφορά ανταποκρίνεται στους όρους της διακήρυξης. 5. Το άρθρο 3.1 της διακήρυξης σύμφωνα με το οποίο: «..Σε κάθε περίπτωση, όταν έχει υποβληθεί εξ αρχής μία προσφορά, τα αποτελέσματα όλων των σταδίων της διαδικασίας ανάθεσης, ήτοι Δικαιολογητικών Συμμετοχής, Τεχνικής Προσφοράς και Οικονομικής Προσφοράς, επικυρώνονται με την απόφαση κατακύρωσης του άρθρου 105 του ν. 4412/2016, σύμφωνα με την παράγραφο 3.3 της παρούσας, που εκδίδεται μετά το πέρας κ",
-              "confidence": 0.98,
-              "dependency_group": "competition",
-              "basis": ""
-            },
-            {
-              "fact_type": "ordinary_explanation",
-              "value": true,
-              "role": "open_tender",
-              "unit": "boolean",
-              "scope": "subject_section",
-              "source_ada": "ΨΨΞΕ4690ΒΥ-ΠΣΟ",
-              "source_page": 1,
-              "source_excerpt": "ΑΔΑ: ΨΨΞΕ4690ΒΥ-ΠΣΟ 25AWRD017074488 Ministry of2025-06-24 Digitally signed by Ministry of Digital Governance Date: 2025.06.24 Digital 11:14:56 EEST Reason: Governance Location: Athens ΑΚΡΙΒΕΣ ΑΠΟΣΠΑΣΜΑ ΠΡΑΚΤΙΚΩΝ Της 12ης τακτικής συνεδρίασης για το έτος 2025 του Διοικητικού Συμβουλίου του Γενικού Νοσοκομείου Καστοριάς, το οποίο συγκροτήθηκε με την αριθμ.Γ4β/οίκ.56295/30-10-2024 (ΦΕΚ 1242/Υ.Ο.Δ.Δ./6-11- 2024 και Διορθωτικό ΦΕΚ 1314/Υ.Ο.Δ.Δ./26-11-2024) απόφαση του Υπουργού Υγείας και του Υφυπουργού Υγείας. Στην Καστοριά σήμερα τη 16 Ιουνίου 2025, ημέρα Δευτέρα και ώρα 12:30 μ.μ συνεδρίασε το Δ.Σ. του Νοσοκομείου, υπό την Προεδρία του Αντιπροέδ",
-              "confidence": 0.98,
-              "dependency_group": "falsification",
-              "basis": ""
-            },
-            {
-              "fact_type": "date",
-              "value": "2025-05-29",
-              "role": "decision_date",
-              "unit": "date",
-              "scope": "decision",
-              "source_ada": "ΨΨΞΕ4690ΒΥ-ΠΣΟ",
-              "source_page": null,
-              "source_excerpt": "official metadata issueDate",
-              "confidence": 0.99,
-              "dependency_group": "timeline",
-              "basis": "official_metadata"
-            },
-            {
-              "fact_type": "date",
-              "value": "2025-06-24",
-              "role": "publication_date",
-              "unit": "date",
-              "scope": "decision",
-              "source_ada": "ΨΨΞΕ4690ΒΥ-ΠΣΟ",
               "source_page": null,
               "source_excerpt": "official metadata publishTimestamp",
               "confidence": 0.99,
@@ -2542,215 +1964,6 @@
               "unit": "date",
               "scope": "decision",
               "source_ada": "6ΔΡΙ46ΝΚΟΤ-ΩΤΧ",
-              "source_page": null,
-              "source_excerpt": "official metadata publishTimestamp",
-              "confidence": 0.99,
-              "dependency_group": "transparency",
-              "basis": "official_metadata"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "case_fingerprint": "cdc75b22f1d7396af8",
-      "primary_type": "explicit_single_bid",
-      "detectors": [
-        "explicit_single_bid"
-      ],
-      "chain_ids": [
-        "78608098811f27855c"
-      ],
-      "families": [
-        "competition"
-      ],
-      "review_priority": 49,
-      "score_axes": {
-        "evidence_quality": 27,
-        "pattern_strength": 15,
-        "peer_deviation": 0,
-        "materiality": 0,
-        "falsification_survival": 7
-      },
-      "caps": [
-        "μία μόνο ανεξάρτητη evidence family"
-      ],
-      "reasons": [
-        "Το επίσημο PDF αναφέρει ρητά μία/μοναδική προσφορά στη σελίδα 1."
-      ],
-      "ordinary_explanations": [
-        "Η πράξη αναφέρει ανοικτή διαδικασία."
-      ],
-      "metrics": {},
-      "seen_in_previous_run": false,
-      "novelty_rank_score": 49,
-      "status": "RESEARCH_LEAD",
-      "records": [
-        {
-          "ada": "Ψ4ΥΔΟΡΕΠ-ΜΔ1",
-          "official_url": "https://diavgeia.gov.gr/doc/Ψ4ΥΔΟΡΕΠ-ΜΔ1",
-          "organization_id": "50048",
-          "organization": "",
-          "subject": "«Έγκριση σκοπιμότητας και διενέργειας διαπραγμάτευσης χωρίς προηγούμενη δημοσίευση, κατ’ άρθρο 32 παρ.2 περ. γ’ του ν.4412/2016 (κατεπείγουσα ανάγκη οφειλόμενη σε απρόβλεπτη περίσταση), για Υπηρεσίες Καθαρισμού, για τις ανάγκες της Πολυδύναμης Νοσηλευτικής Μονάδας Ψυχικής Υγείας Θεσσαλονίκης και των υπαγόμενων σε αυτήν δομών, CPV (90910000-9), εκτιμώμενης αξίας 82.167,80€, πλέον Φ.Π.Α. 24%, ήτοι 101.888,07€ με την εταιρεία IPIROTIKI FACILITY SERVICES ΑΝΩΝΥΜΟΣ ΙΔΙΩΤΙΚΗ ΕΤΑΙΡΕΙΑ ΠΑΡΟΧΗΣ ΥΠΗΡΕΣΙΩΝ ΚΑΘΑΡΙΣΜΟΥ, ΕΜΠΟΡΙΚΗ ΚΑΙ ΑΝΤΙΠΡΟΣΩΠΕΙΩΝ»",
-          "issue_date": "2026-06-26",
-          "publish_date": "2026-06-26",
-          "decision_type": "2.4.7.1",
-          "category": "cleaning",
-          "signature": "cleaning:σκοπιμοτητασ:διενεργειασ:διαπραγματευσησ:χωρισ:αρθρο:κατεπειγουσα:αναγκη:οφειλομενη:απροβλεπτη:περισταση",
-          "supplier_name": "",
-          "supplier_key_hash": "",
-          "cpv": "",
-          "adams": [
-            "26SYMV018918521"
-          ],
-          "contract_refs": [
-            "2.352.000",
-            "2.898.800",
-            "ΜΕΤΑΞ"
-          ],
-          "focused_pages": [
-            1,
-            2,
-            3,
-            4
-          ],
-          "facts": [
-            {
-              "fact_type": "date_range",
-              "value": {
-                "start": "2026-01-01",
-                "end": "2027-12-31"
-              },
-              "role": "untyped_period",
-              "unit": "date",
-              "scope": "subject_section",
-              "source_ada": "Ψ4ΥΔΟΡΕΠ-ΜΔ1",
-              "source_page": 2,
-              "source_excerpt": "δα της. 9. Τα κατώτατα όρια των άρθρων 5 (Βιβλίο Ι) και 235 (Βίβλίο ΙΙ) του ν. 4412/2016, κατά τον Κανονισμό (ΕΕ) 2023/2495 της Επιτροπής της 15ης Νοεμβρίου 2023 (Επίσημη Εφημερίδα της ΕΕ Σειρά L της 16ης.11.2023) και τον Κανονισμό (ΕΕ) 2023/2496 της Επιτροπής της 15ης Νοεμβρίου 2023 (Επίσημη Εφημερίδα της ΕΕ Σειρά L της 16ης.11.2023) που εφαρμόζονται για τη διετία 1.1.2026-31.12.2027 ορίζονται για Δημόσιες συμβάσεις προμηθειών και υπηρεσιών σε 216.000,00 €. 10. Την υπ’ αριθ. 083/2025 σύμβαση μεταξύ της Πολυδύναμης Νοσηλευτικής Μονάδας Ψυχικής Υγείας Θεσσαλονίκης και της αναδόχου εταιρίας IPIROTIKI FACILITY SERVICES ΑΝΩΝΥΜΟΣ ΙΔΙΩΤΙΚΗ ΕΤΑΙΡΕΙΑ",
-              "confidence": 0.45,
-              "dependency_group": "audit",
-              "basis": ""
-            },
-            {
-              "fact_type": "date_range",
-              "value": {
-                "start": "2025-12-28",
-                "end": "2026-05-01"
-              },
-              "role": "untyped_period",
-              "unit": "date",
-              "scope": "subject_section",
-              "source_ada": "Ψ4ΥΔΟΡΕΠ-ΜΔ1",
-              "source_page": 2,
-              "source_excerpt": "ίζονται για Δημόσιες συμβάσεις προμηθειών και υπηρεσιών σε 216.000,00 €. 10. Την υπ’ αριθ. 083/2025 σύμβαση μεταξύ της Πολυδύναμης Νοσηλευτικής Μονάδας Ψυχικής Υγείας Θεσσαλονίκης και της αναδόχου εταιρίας IPIROTIKI FACILITY SERVICES ΑΝΩΝΥΜΟΣ ΙΔΙΩΤΙΚΗ ΕΤΑΙΡΕΙΑ ΠΑΡΟΧΗΣ ΥΠΗΡΕΣΙΩΝ ΚΑΘΑΡΙΣΜΟΥ κατόπιν διενέργειας διαπραγμάτευσης με τη σύμφωνη γνώμη της ΕΑΔΗΣΥ, διάρκειας από 28-12-2025 έως 01-05-2026 και συνολικής αξίας 377.332,00€ πλέον Φ.Π.Α., ήτοι 467.891,68€ με Φ.Π.Α. Δυνατότητα παράτασης της σύμβασης δεν προβλέπεται. 11. Την υπ’ αριθ. 29/θέμα 3ο/23-12-2024 απόφαση του Διοικητικού Συμβουλίου του Γ.Ν.Θ. «Γ. Παπανικολάου», με την οποία εκδόθηκε η",
-              "confidence": 0.45,
-              "dependency_group": "audit",
-              "basis": ""
-            },
-            {
-              "fact_type": "date_range",
-              "value": {
-                "start": "2026-05-02",
-                "end": "2026-07-08"
-              },
-              "role": "untyped_period",
-              "unit": "date",
-              "scope": "subject_section",
-              "source_ada": "Ψ4ΥΔΟΡΕΠ-ΜΔ1",
-              "source_page": 3,
-              "source_excerpt": "Α: 629ΠΟΡΕΠ-Δ6Ψ) Απόφαση Διοικητή της 3ης Υ.ΠΕ. Μακεδονίας. 21. Την υπ’ αριθ.046/2026 Σύμβαση (ΑΔΑΜ: 26SYMV018918521), για την Ανάθεση Υπηρεσιών Καθαρισμού Κτιρίων (CPV: 90910000-9 «Υπηρεσίες Καθαρισμού») για τις ανάγκες της Πολυδύναμης Νοσηλευτικής Μονάδας Ψυχικής Υγείας Θεσσαλονίκης, συνολικής δαπάνης 214.900,00€ πλέον ΦΠΑ, ήτοι 266.476,00€ με Φ.Π.Α. και διάρκεια από 02-05-2026 έως 08-07-2026. 22. Το γεγονός ότι έχει ξεκινήσει διαγωνιστική διαδικασία για διεθνή διαγωνισμό υπηρεσιών καθαρισμού, CPV: 90910000-9, για τις ανάγκες της Πολυδύναμης Νοσηλευτικής Μονάδας Ψυχικής Υγείας Διεύθυνση: Μίκη Θεοδωράκη 196 (Πρώην Λαγκαδά), ΤΚ Θεσσαλονίκη Σε",
-              "confidence": 0.45,
-              "dependency_group": "audit",
-              "basis": ""
-            },
-            {
-              "fact_type": "date_range",
-              "value": {
-                "start": "2026-07-09",
-                "end": "2026-08-03"
-              },
-              "role": "untyped_period",
-              "unit": "date",
-              "scope": "subject_section",
-              "source_ada": "Ψ4ΥΔΟΡΕΠ-ΜΔ1",
-              "source_page": 4,
-              "source_excerpt": "επικυρώθηκαν με την υπ’ αριθ. πρωτ. 16035/18-07-2025 (ΑΔΑ: 629ΠΟΡΕΠ-Δ6Ψ) Απόφαση Διοικητή της 3ης Υ.ΠΕ. Μακεδονίας. • Την προσφυγή στη διαδικασία της διαπραγμάτευσης χωρίς προηγούμενη δημοσίευση κατ’ άρθρο 32 παρ.2 περ. γ’ του ν. 4412/2016 (κατεπείγουσα ανάγκη οφειλόμενη σε απρόβλεπτη περίσταση), για χρονικό διάστημα είκοσι έξι (26) ημερών, ήτοι από 09-07-2026 έως 03-08-2026, εκτιμώμενης αξίας 82.167,80€, πλέον Φ.Π.Α. 24%, ήτοι 101.888,07€, με την εταιρεία IPIROTIKI FACILITY SERVICES ΑΝΩΝΥΜΟΣ ΙΔΙΩΤΙΚΗ ΕΤΑΙΡΕΙΑ ΠΑΡΟΧΗΣ ΥΠΗΡΕΣΙΩΝ ΚΑΘΑΡΙΣΜΟΥ, ΕΜΠΟΡΙΚΗ ΚΑΙ ΑΝΤΙΠΡΟΣΩΠΕΙΩΝ, σε βάρος του αντίστοιχου ΑΛΕ, με ρητή πρόβλεψη ότι η σύμβαση που θα συναφθε",
-              "confidence": 0.45,
-              "dependency_group": "audit",
-              "basis": ""
-            },
-            {
-              "fact_type": "competition",
-              "value": true,
-              "role": "single_bid",
-              "unit": "boolean",
-              "scope": "subject_section",
-              "source_ada": "Ψ4ΥΔΟΡΕΠ-ΜΔ1",
-              "source_page": 1,
-              "source_excerpt": "σφυγή στη διαδικασία με διαπραγμάτευση χωρίς προηγούμενη δημοσίευση (άρθρο 32 της Οδηγίας 2014/24/ΕΕ)», όπου αναφέρεται ότι: «η διαδικασία με διαπραγμάτευση χωρίς προηγούμενη δημοσίευση μπορεί να χρησιμοποιείται για δημόσιες συμβάσεις Έργων, προμηθειών και υπηρεσιών στις παρακάτω περιπτώσεις: α) εάν, ύστερα από ανοικτή ή κλειστή διαδικασία είτε δεν υποβλήθηκε καμία προσφορά ή αίτηση συμμετοχής είτε καμία από τις υποβληθείσες προσφορές ή αιτήσεις συμμετοχής δεν είναι κατάλληλη, εφόσον δεν έχουν τροποποιηθεί ουσιωδώς οι αρχικοί όροι της σύμβασης και με την προϋπόθεση ότι διαβιβάζεται σχετική έκθεση στην Επιτροπή μετά από αίτημά της. Μη κατάλληλ",
-              "confidence": 0.98,
-              "dependency_group": "competition",
-              "basis": ""
-            },
-            {
-              "fact_type": "procedure",
-              "value": true,
-              "role": "without_publication",
-              "unit": "boolean",
-              "scope": "subject_section",
-              "source_ada": "Ψ4ΥΔΟΡΕΠ-ΜΔ1",
-              "source_page": 4,
-              "source_excerpt": "Μακεδονίας και ήμαστε σε αναμονή υπογραφής πολυετούς δέσμευσης προκειμένου να προχωρήσουμε στην διακήρυξη. 23. Την υπ’ αριθ. πρωτ. 15066/26-6-2026 Εισήγηση του Γραφείου Προμηθειών της Πολυδύναμης Νοσηλευτικής Μονάδας Ψυχικής Υγείας Θεσσαλονίκης. ΑΠΟΦΑΣΙΖΟΥΜΕ • Την έγκριση σκοπιμότητας και διενέργειας διαπραγμάτευσης χωρίς προηγούμενη δημοσίευση, κατ’ άρθρο 32 παρ.2 περ. γ’ του ν.4412/2016 (κατεπείγουσα ανάγκη οφειλόμενη σε απρόβλεπτη περίσταση), για Υπηρεσίες Καθαρισμού (CPV: 90910000-9 «Υπηρεσίες Καθαρισμού») για τις ανάγκες της Πολυδύναμης Νοσηλευτικής Μονάδας Ψυχικής Υγείας Θεσσαλονίκης και των υπαγόμενων σ’ αυτή δομών. • Την διεξαγωγή της",
-              "confidence": 0.98,
-              "dependency_group": "procedure",
-              "basis": ""
-            },
-            {
-              "fact_type": "procedure",
-              "value": true,
-              "role": "emergency",
-              "unit": "boolean",
-              "scope": "subject_section",
-              "source_ada": "Ψ4ΥΔΟΡΕΠ-ΜΔ1",
-              "source_page": 4,
-              "source_excerpt": "προχωρήσουμε στην διακήρυξη. 23. Την υπ’ αριθ. πρωτ. 15066/26-6-2026 Εισήγηση του Γραφείου Προμηθειών της Πολυδύναμης Νοσηλευτικής Μονάδας Ψυχικής Υγείας Θεσσαλονίκης. ΑΠΟΦΑΣΙΖΟΥΜΕ • Την έγκριση σκοπιμότητας και διενέργειας διαπραγμάτευσης χωρίς προηγούμενη δημοσίευση, κατ’ άρθρο 32 παρ.2 περ. γ’ του ν.4412/2016 (κατεπείγουσα ανάγκη οφειλόμενη σε απρόβλεπτη περίσταση), για Υπηρεσίες Καθαρισμού (CPV: 90910000-9 «Υπηρεσίες Καθαρισμού») για τις ανάγκες της Πολυδύναμης Νοσηλευτικής Μονάδας Ψυχικής Υγείας Θεσσαλονίκης και των υπαγόμενων σ’ αυτή δομών. • Την διεξαγωγή της διαδικασίας με χρήση των τεχνικών προδιαγραφών που έχουν κατατεθεί από την αρ",
-              "confidence": 0.98,
-              "dependency_group": "procedure",
-              "basis": ""
-            },
-            {
-              "fact_type": "ordinary_explanation",
-              "value": true,
-              "role": "open_tender",
-              "unit": "boolean",
-              "scope": "subject_section",
-              "source_ada": "Ψ4ΥΔΟΡΕΠ-ΜΔ1",
-              "source_page": 2,
-              "source_excerpt": "ΑΔΑ: Ψ4ΥΔΟΡΕΠ-ΜΔ1 με το άρθρο 73 ή όταν αυτός δεν πληροί τα κριτήρια ποιοτικής επιλογής που έχει θέσει η αναθέτουσα αρχή, σύμφωνα με τα άρθρα 75, 76 και 77. β) εάν τα έργα, τα αγαθά ή οι υπηρεσίες μπορούν να παρασχεθούν μόνον από έναν συγκεκριμένο οικονομικό φορέα για οποιονδήποτε από τους κατωτέρω λόγους: αα) στόχος τη",
-              "confidence": 0.98,
-              "dependency_group": "falsification",
-              "basis": ""
-            },
-            {
-              "fact_type": "date",
-              "value": "2026-06-26",
-              "role": "decision_date",
-              "unit": "date",
-              "scope": "decision",
-              "source_ada": "Ψ4ΥΔΟΡΕΠ-ΜΔ1",
-              "source_page": null,
-              "source_excerpt": "official metadata issueDate",
-              "confidence": 0.99,
-              "dependency_group": "timeline",
-              "basis": "official_metadata"
-            },
-            {
-              "fact_type": "date",
-              "value": "2026-06-26",
-              "role": "publication_date",
-              "unit": "date",
-              "scope": "decision",
-              "source_ada": "Ψ4ΥΔΟΡΕΠ-ΜΔ1",
               "source_page": null,
               "source_excerpt": "official metadata publishTimestamp",
               "confidence": 0.99,
