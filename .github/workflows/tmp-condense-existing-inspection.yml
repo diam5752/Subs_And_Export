@@ -7,6 +7,12 @@ on:
     paths:
       - tmp_tools/condense_diavgeia_candidate_groups.py
       - .github/workflows/tmp-condense-existing-inspection.yml
+  pull_request:
+    branches:
+      - master
+    paths:
+      - tmp_tools/condense_diavgeia_candidate_groups.py
+      - .github/workflows/tmp-condense-existing-inspection.yml
 
 permissions:
   contents: write
