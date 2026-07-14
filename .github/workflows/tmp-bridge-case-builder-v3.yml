@@ -1,0 +1,102 @@
+name: Temporary Bridge Case Builder V3
+
+on:
+  push:
+    branches:
+      - tmp/bridge-case-builder-v3b-20260714
+    paths:
+      - tmp_tools/run_targeted_bridge_wrapper.py
+      - .github/workflows/tmp-bridge-case-builder-v3.yml
+
+permissions:
+  contents: read
+
+env:
+  PYTHONUNBUFFERED: '1'
+
+jobs:
+  two-independent-runs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: tmp/bridge-case-builder-v3b-20260714
+          fetch-depth: 0
+      - name: Fetch the hardened evidence-graph base
+        run: |
+          git fetch origin tmp/evidence-graph-hunter-v2c-fast-20260714
+          mkdir -p tmp_tools
+          git show origin/tmp/evidence-graph-hunter-v2c-fast-20260714:tmp_tools/run_evidence_graph_hunter_v2.py > tmp_tools/run_evidence_graph_hunter_v2.py
+          git show origin/tmp/evidence-graph-hunter-v2c-fast-20260714:tmp_tools/run_evidence_graph_hunter_v2b.py > tmp_tools/run_evidence_graph_hunter_v2b.py
+          touch tmp_tools/__init__.py
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y poppler-utils
+          python -m pip install --upgrade pip
+          pip install requests
+      - name: Independent run A — cleaning and facility-services bridges
+        run: |
+          rm -rf bridge-run-cleaning
+          python tmp_tools/run_targeted_bridge_wrapper.py \
+            --mode cleaning \
+            --seed 88017 \
+            --max-deep 320 \
+            --output bridge-run-cleaning
+          test -s bridge-run-cleaning/result.json
+      - name: Independent run B — medical-waste bridges
+        run: |
+          rm -rf bridge-run-medical-waste
+          python tmp_tools/run_targeted_bridge_wrapper.py \
+            --mode medical_waste \
+            --seed 99031 \
+            --max-deep 320 \
+            --output bridge-run-medical-waste
+          test -s bridge-run-medical-waste/result.json
+      - name: Build comparison summary
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          outputs = {}
+          for name, path in {
+              'run_a_cleaning': Path('bridge-run-cleaning/result.json'),
+              'run_b_medical_waste': Path('bridge-run-medical-waste/result.json'),
+          }.items():
+              data = json.loads(path.read_text(encoding='utf-8'))
+              outputs[name] = {
+                  'status': data.get('status'),
+                  'coverage': data.get('coverage'),
+                  'validated': data.get('diverse_top_results', []),
+                  'all_case_candidates': data.get('all_case_candidates', [])[:15],
+              }
+          validated = []
+          for run, data in outputs.items():
+              for case in data['validated']:
+                  if case.get('status') == 'FOUND_VALIDATED' and case.get('review_priority', 0) >= 80:
+                      validated.append({'run': run, **case})
+          summary = {
+              'two_separate_runs': True,
+              'validated_80_plus_total': len(validated),
+              'runs_with_at_least_one_80_plus': len({item['run'] for item in validated}),
+              'validated': validated,
+              'runs': outputs,
+          }
+          Path('bridge-comparison.json').write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding='utf-8')
+          print(json.dumps({
+              'validated_80_plus_total': summary['validated_80_plus_total'],
+              'runs_with_at_least_one_80_plus': summary['runs_with_at_least_one_80_plus'],
+          }, ensure_ascii=False))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bridge-case-builder-v3-results
+          path: |
+            bridge-run-cleaning
+            bridge-run-medical-waste
+            bridge-comparison.json
+          retention-days: 1
