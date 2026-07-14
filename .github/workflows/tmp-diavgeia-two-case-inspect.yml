@@ -6,12 +6,14 @@ on:
       - tmp/diavgeia-two-case-inspect-20260714
     paths:
       - tmp_tools/inspect_diavgeia_candidate_groups.py
+      - tmp_tools/condense_diavgeia_candidate_groups.py
       - .github/workflows/tmp-diavgeia-two-case-inspect.yml
   pull_request:
     branches:
       - master
     paths:
       - tmp_tools/inspect_diavgeia_candidate_groups.py
+      - tmp_tools/condense_diavgeia_candidate_groups.py
       - .github/workflows/tmp-diavgeia-two-case-inspect.yml
 
 permissions:
@@ -44,6 +46,7 @@ jobs:
         run: |
           rm -rf candidate-inspection-output
           python tmp_tools/inspect_diavgeia_candidate_groups.py
+          python tmp_tools/condense_diavgeia_candidate_groups.py
       - name: Commit compact result
         run: |
           git config user.name "github-actions[bot]"
