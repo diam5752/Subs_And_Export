@@ -1,6 +1,6 @@
 {
   "status": "completed",
-  "executed_at": "2026-07-14T09:59:09.608523+00:00",
+  "executed_at": "2026-07-14T10:49:16.314385+00:00",
   "seed": 5600717,
   "coverage": {
     "metadata_records": 18110,
@@ -2479,13 +2479,13 @@
       ]
     },
     {
-      "case_fingerprint": "8d497e50d0253f3b16",
+      "case_fingerprint": "2552efd354f3b22765",
       "primary_type": "advanced_or_repeated_extension",
       "detectors": [
         "advanced_or_repeated_extension"
       ],
       "chain_ids": [
-        "d8a32ee54702bbb88a"
+        "da42455e0b2feeb6ea"
       ],
       "families": [
         "contract_change"
@@ -2514,28 +2514,29 @@
       "status": "RESEARCH_LEAD",
       "records": [
         {
-          "ada": "6ΩΞ4Η-ΝΓΨ",
-          "official_url": "https://diavgeia.gov.gr/doc/6ΩΞ4Η-ΝΓΨ",
-          "organization_id": "15",
+          "ada": "ΨΠ3Α46Ν910-Ξ3Κ",
+          "official_url": "https://diavgeia.gov.gr/doc/ΨΠ3Α46Ν910-Ξ3Κ",
+          "organization_id": "100077724",
           "organization": "",
-          "subject": "5086615 - 5Η ΤΡΟΠΟΠΟΙΗΣΗ ΤΗΣ ΑΠΟΦΑΣΗΣ ΕΝΤΑΞΗΣ",
-          "issue_date": "2024-06-13",
-          "publish_date": "2024-06-19",
-          "decision_type": "Ζ.1",
-          "category": "medical_waste",
-          "signature": "medical_waste:τροποποιηση:αποφασησ:ενταξησ",
+          "subject": "5η Τροποποίηση Τεχνικού Δελτίου Πράξης με τίτλο «ΕΚΣΥΓΧΡΟΝΙΣΜΟΣ ΕΠΙΧΕΙΡΗΣΗΣ CAMPING ΣΤΗΝ ΘΕΣΗ ΑΓΙΟΣ ΙΩΑΝΝΗΣ ΡΑΧΩΝ»,του Μέτρου 19, Υπομέτρου 19.2, Υποδράση 19.2.2.3. του Προγράμματος «Αγροτική Ανάπτυξη της Ελλάδας 2014-2020» ΚΩΔΙΚΟΣ ΠΣΚΕ LD341-0052107, Ο.Π.Σ.Α.Α. : 0030339859",
+          "issue_date": "2025-06-25",
+          "publish_date": "2025-06-25",
+          "decision_type": "Ε.4",
+          "category": "food_service",
+          "signature": "food_service:τροποποιηση:τεχνικου:δελτιου:πραξησ:τιτλο:εκσυγχρονισμοσ:επιχειρησησ:camping:θεση:αγιοσ",
           "supplier_name": "",
           "supplier_key_hash": "",
           "cpv": "",
           "adams": [],
-          "contract_refs": [],
+          "contract_refs": [
+            "ΔΙΑΣΦ",
+            "ΜΕΤΑΞ"
+          ],
           "focused_pages": [
+            1,
             2,
             3,
-            4,
-            11,
-            12,
-            13
+            4
           ],
           "facts": [
             {
@@ -2544,20 +2545,20 @@
               "role": "modification_rank",
               "unit": "ordinal",
               "scope": "contract_chain",
-              "source_ada": "6ΩΞ4Η-ΝΓΨ",
-              "source_page": 2,
-              "source_excerpt": "5086615 - 5Η ΤΡΟΠΟΠΟΙΗΣΗ ΤΗΣ ΑΠΟΦΑΣΗΣ ΕΝΤΑΞΗΣ",
+              "source_ada": "ΨΠ3Α46Ν910-Ξ3Κ",
+              "source_page": 1,
+              "source_excerpt": "5η Τροποποίηση Τεχνικού Δελτίου Πράξης με τίτλο «ΕΚΣΥΓΧΡΟΝΙΣΜΟΣ ΕΠΙΧΕΙΡΗΣΗΣ CAMPING ΣΤΗΝ ΘΕΣΗ ΑΓΙΟΣ ΙΩΑΝΝΗΣ ΡΑΧΩΝ»,του Μέτρου 19, Υπομέτρου 19.2, Υποδράση 19.2.2.3. του Προγράμματος «Αγροτική Ανάπτυξη της Ελλάδας 2014-2020» ΚΩΔΙΚΟΣ ΠΣΚΕ LD341-0052107, Ο.Π.Σ.Α.Α. : 0030339859",
               "confidence": 0.95,
               "dependency_group": "contract_change",
               "basis": ""
             },
             {
               "fact_type": "date",
-              "value": "2024-06-13",
+              "value": "2025-06-25",
               "role": "decision_date",
               "unit": "date",
               "scope": "decision",
-              "source_ada": "6ΩΞ4Η-ΝΓΨ",
+              "source_ada": "ΨΠ3Α46Ν910-Ξ3Κ",
               "source_page": null,
               "source_excerpt": "official metadata issueDate",
               "confidence": 0.99,
@@ -2566,11 +2567,11 @@
             },
             {
               "fact_type": "date",
-              "value": "2024-06-19",
+              "value": "2025-06-25",
               "role": "publication_date",
               "unit": "date",
               "scope": "decision",
-              "source_ada": "6ΩΞ4Η-ΝΓΨ",
+              "source_ada": "ΨΠ3Α46Ν910-Ξ3Κ",
               "source_page": null,
               "source_excerpt": "official metadata publishTimestamp",
               "confidence": 0.99,
@@ -3683,109 +3684,6 @@
       ]
     },
     {
-      "case_fingerprint": "8d497e50d0253f3b16",
-      "primary_type": "advanced_or_repeated_extension",
-      "detectors": [
-        "advanced_or_repeated_extension"
-      ],
-      "chain_ids": [
-        "d8a32ee54702bbb88a"
-      ],
-      "families": [
-        "contract_change"
-      ],
-      "review_priority": 56,
-      "score_axes": {
-        "evidence_quality": 26,
-        "pattern_strength": 18,
-        "peer_deviation": 0,
-        "materiality": 2,
-        "falsification_survival": 10
-      },
-      "caps": [
-        "μία μόνο ανεξάρτητη evidence family"
-      ],
-      "reasons": [
-        "Η chain φτάνει τουλάχιστον σε 5η τροποποίηση/ΑΠΕ."
-      ],
-      "ordinary_explanations": [],
-      "metrics": {
-        "max_modification_rank": 5,
-        "modification_fact_count": 1
-      },
-      "seen_in_previous_run": false,
-      "novelty_rank_score": 56,
-      "status": "RESEARCH_LEAD",
-      "records": [
-        {
-          "ada": "6ΩΞ4Η-ΝΓΨ",
-          "official_url": "https://diavgeia.gov.gr/doc/6ΩΞ4Η-ΝΓΨ",
-          "organization_id": "15",
-          "organization": "",
-          "subject": "5086615 - 5Η ΤΡΟΠΟΠΟΙΗΣΗ ΤΗΣ ΑΠΟΦΑΣΗΣ ΕΝΤΑΞΗΣ",
-          "issue_date": "2024-06-13",
-          "publish_date": "2024-06-19",
-          "decision_type": "Ζ.1",
-          "category": "medical_waste",
-          "signature": "medical_waste:τροποποιηση:αποφασησ:ενταξησ",
-          "supplier_name": "",
-          "supplier_key_hash": "",
-          "cpv": "",
-          "adams": [],
-          "contract_refs": [],
-          "focused_pages": [
-            2,
-            3,
-            4,
-            11,
-            12,
-            13
-          ],
-          "facts": [
-            {
-              "fact_type": "contract_change",
-              "value": 5,
-              "role": "modification_rank",
-              "unit": "ordinal",
-              "scope": "contract_chain",
-              "source_ada": "6ΩΞ4Η-ΝΓΨ",
-              "source_page": 2,
-              "source_excerpt": "5086615 - 5Η ΤΡΟΠΟΠΟΙΗΣΗ ΤΗΣ ΑΠΟΦΑΣΗΣ ΕΝΤΑΞΗΣ",
-              "confidence": 0.95,
-              "dependency_group": "contract_change",
-              "basis": ""
-            },
-            {
-              "fact_type": "date",
-              "value": "2024-06-13",
-              "role": "decision_date",
-              "unit": "date",
-              "scope": "decision",
-              "source_ada": "6ΩΞ4Η-ΝΓΨ",
-              "source_page": null,
-              "source_excerpt": "official metadata issueDate",
-              "confidence": 0.99,
-              "dependency_group": "timeline",
-              "basis": "official_metadata"
-            },
-            {
-              "fact_type": "date",
-              "value": "2024-06-19",
-              "role": "publication_date",
-              "unit": "date",
-              "scope": "decision",
-              "source_ada": "6ΩΞ4Η-ΝΓΨ",
-              "source_page": null,
-              "source_excerpt": "official metadata publishTimestamp",
-              "confidence": 0.99,
-              "dependency_group": "transparency",
-              "basis": "official_metadata"
-            }
-          ]
-        }
-      ]
-    },
-    {
       "case_fingerprint": "2552efd354f3b22765",
       "primary_type": "advanced_or_repeated_extension",
       "detectors": [
@@ -3984,6 +3882,109 @@
               "unit": "date",
               "scope": "decision",
               "source_ada": "6Σ8Ψ469Η4Σ-362",
+              "source_page": null,
+              "source_excerpt": "official metadata publishTimestamp",
+              "confidence": 0.99,
+              "dependency_group": "transparency",
+              "basis": "official_metadata"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case_fingerprint": "8d497e50d0253f3b16",
+      "primary_type": "advanced_or_repeated_extension",
+      "detectors": [
+        "advanced_or_repeated_extension"
+      ],
+      "chain_ids": [
+        "d8a32ee54702bbb88a"
+      ],
+      "families": [
+        "contract_change"
+      ],
+      "review_priority": 56,
+      "score_axes": {
+        "evidence_quality": 26,
+        "pattern_strength": 18,
+        "peer_deviation": 0,
+        "materiality": 2,
+        "falsification_survival": 10
+      },
+      "caps": [
+        "μία μόνο ανεξάρτητη evidence family"
+      ],
+      "reasons": [
+        "Η chain φτάνει τουλάχιστον σε 5η τροποποίηση/ΑΠΕ."
+      ],
+      "ordinary_explanations": [],
+      "metrics": {
+        "max_modification_rank": 5,
+        "modification_fact_count": 1
+      },
+      "seen_in_previous_run": false,
+      "novelty_rank_score": 56,
+      "status": "RESEARCH_LEAD",
+      "records": [
+        {
+          "ada": "6ΩΞ4Η-ΝΓΨ",
+          "official_url": "https://diavgeia.gov.gr/doc/6ΩΞ4Η-ΝΓΨ",
+          "organization_id": "15",
+          "organization": "",
+          "subject": "5086615 - 5Η ΤΡΟΠΟΠΟΙΗΣΗ ΤΗΣ ΑΠΟΦΑΣΗΣ ΕΝΤΑΞΗΣ",
+          "issue_date": "2024-06-13",
+          "publish_date": "2024-06-19",
+          "decision_type": "Ζ.1",
+          "category": "medical_waste",
+          "signature": "medical_waste:τροποποιηση:αποφασησ:ενταξησ",
+          "supplier_name": "",
+          "supplier_key_hash": "",
+          "cpv": "",
+          "adams": [],
+          "contract_refs": [],
+          "focused_pages": [
+            2,
+            3,
+            4,
+            11,
+            12,
+            13
+          ],
+          "facts": [
+            {
+              "fact_type": "contract_change",
+              "value": 5,
+              "role": "modification_rank",
+              "unit": "ordinal",
+              "scope": "contract_chain",
+              "source_ada": "6ΩΞ4Η-ΝΓΨ",
+              "source_page": 2,
+              "source_excerpt": "5086615 - 5Η ΤΡΟΠΟΠΟΙΗΣΗ ΤΗΣ ΑΠΟΦΑΣΗΣ ΕΝΤΑΞΗΣ",
+              "confidence": 0.95,
+              "dependency_group": "contract_change",
+              "basis": ""
+            },
+            {
+              "fact_type": "date",
+              "value": "2024-06-13",
+              "role": "decision_date",
+              "unit": "date",
+              "scope": "decision",
+              "source_ada": "6ΩΞ4Η-ΝΓΨ",
+              "source_page": null,
+              "source_excerpt": "official metadata issueDate",
+              "confidence": 0.99,
+              "dependency_group": "timeline",
+              "basis": "official_metadata"
+            },
+            {
+              "fact_type": "date",
+              "value": "2024-06-19",
+              "role": "publication_date",
+              "unit": "date",
+              "scope": "decision",
+              "source_ada": "6ΩΞ4Η-ΝΓΨ",
               "source_page": null,
               "source_excerpt": "official metadata publishTimestamp",
               "confidence": 0.99,
@@ -5787,13 +5788,13 @@
       ]
     },
     {
-      "case_fingerprint": "76743f490bb1a63caf",
+      "case_fingerprint": "7637a501d778a24bb4",
       "primary_type": "advanced_or_repeated_extension",
       "detectors": [
         "advanced_or_repeated_extension"
       ],
       "chain_ids": [
-        "fbda49d4bf327a8c18"
+        "3e1a3a521238bc90a2"
       ],
       "families": [
         "contract_change"
@@ -5822,16 +5823,16 @@
       "status": "RESEARCH_LEAD",
       "records": [
         {
-          "ada": "6ΙΤΕ7Λ1-11Α",
-          "official_url": "https://diavgeia.gov.gr/doc/6ΙΤΕ7Λ1-11Α",
+          "ada": "ΨΥΨΣ7Λ1-ΧΩ2",
+          "official_url": "https://diavgeia.gov.gr/doc/ΨΥΨΣ7Λ1-ΧΩ2",
           "organization_id": "5012",
           "organization": "",
-          "subject": "4η Τροποποίηση της Πρόσκλησης για τη δράση 1.ii.2.1: «Ενίσχυση πολύ μικρών και μικρών επιχειρήσεων της Περιφέρειας Πελοποννήσου για τον εκσυγχρονισμό τους μέσω της χρήσης Τεχνολογιών Πληροφορικής και Επικοινωνίας (ΤΠΕ), καθώς και συστημάτων αυτοματισμού» στo πλαίσιo του Επιχειρησιακού Προγράμματος «ΠΕΛΟΠΟΝΝΗΣΟΣ» 2021-2027",
+          "subject": "4η Τροποποίηση της Πρόσκλησης για τη δράση 1.iii.4.1: «Ενίσχυση της ίδρυσης / εκσυγχρονισμού ΜΜΕ επιχειρήσεων στην Περιφέρεια Πελοποννήσου με έμφαση στην καινοτομία και την ανάπτυξη νέων προϊόντων και υπηρεσιών» στo πλαίσιo του Επιχειρησιακού Προγράμματος «ΠΕΛΟΠΟΝΝΗΣΟΣ» 2021- 2027.",
           "issue_date": "2025-05-23",
           "publish_date": "2025-05-23",
           "decision_type": "Ε.4",
           "category": "medical_waste",
-          "signature": "medical_waste:τροποποιηση:προσκλησησ:δραση:ενισχυση:πολυ:μικρων:επιχειρησεων:περιφερειασ:πελοποννησου:εκσυγχρονισμο",
+          "signature": "medical_waste:τροποποιηση:προσκλησησ:δραση:ενισχυση:ιδρυσησ:εκσυγχρονισμου:επιχειρησεων:περιφερεια:πελοποννησου:εμφαση",
           "supplier_name": "",
           "supplier_key_hash": "",
           "cpv": "",
@@ -5851,9 +5852,9 @@
               "role": "modification_rank",
               "unit": "ordinal",
               "scope": "contract_chain",
-              "source_ada": "6ΙΤΕ7Λ1-11Α",
+              "source_ada": "ΨΥΨΣ7Λ1-ΧΩ2",
               "source_page": 1,
-              "source_excerpt": "4η Τροποποίηση της Πρόσκλησης για τη δράση 1.ii.2.1: «Ενίσχυση πολύ μικρών και μικρών επιχειρήσεων της Περιφέρειας Πελοποννήσου για τον εκσυγχρονισμό τους μέσω της χρήσης Τεχνολογιών Πληροφορικής και Επικοινωνίας (ΤΠΕ), καθώς και συστημάτων αυτοματισμού» στo πλαίσιo του Επιχειρησιακού Προγράμματος «ΠΕΛΟΠΟΝΝΗΣΟΣ» 2021-2027",
+              "source_excerpt": "4η Τροποποίηση της Πρόσκλησης για τη δράση 1.iii.4.1: «Ενίσχυση της ίδρυσης / εκσυγχρονισμού ΜΜΕ επιχειρήσεων στην Περιφέρεια Πελοποννήσου με έμφαση στην καινοτομία και την ανάπτυξη νέων προϊόντων και υπηρεσιών» στo πλαίσιo του Επιχειρησιακού Προγράμματος «ΠΕΛΟΠΟΝΝΗΣΟΣ» 2021- 2027.",
               "confidence": 0.95,
               "dependency_group": "contract_change",
               "basis": ""
@@ -5864,7 +5865,7 @@
               "role": "decision_date",
               "unit": "date",
               "scope": "decision",
-              "source_ada": "6ΙΤΕ7Λ1-11Α",
+              "source_ada": "ΨΥΨΣ7Λ1-ΧΩ2",
               "source_page": null,
               "source_excerpt": "official metadata issueDate",
               "confidence": 0.99,
@@ -5877,7 +5878,7 @@
               "role": "publication_date",
               "unit": "date",
               "scope": "decision",
-              "source_ada": "6ΙΤΕ7Λ1-11Α",
+              "source_ada": "ΨΥΨΣ7Λ1-ΧΩ2",
               "source_page": null,
               "source_excerpt": "official metadata publishTimestamp",
               "confidence": 0.99,
@@ -6160,13 +6161,13 @@
       ]
     },
     {
-      "case_fingerprint": "7637a501d778a24bb4",
+      "case_fingerprint": "76743f490bb1a63caf",
       "primary_type": "advanced_or_repeated_extension",
       "detectors": [
         "advanced_or_repeated_extension"
       ],
       "chain_ids": [
-        "3e1a3a521238bc90a2"
+        "fbda49d4bf327a8c18"
       ],
       "families": [
         "contract_change"
@@ -6195,16 +6196,16 @@
       "status": "RESEARCH_LEAD",
       "records": [
         {
-          "ada": "ΨΥΨΣ7Λ1-ΧΩ2",
-          "official_url": "https://diavgeia.gov.gr/doc/ΨΥΨΣ7Λ1-ΧΩ2",
+          "ada": "6ΙΤΕ7Λ1-11Α",
+          "official_url": "https://diavgeia.gov.gr/doc/6ΙΤΕ7Λ1-11Α",
           "organization_id": "5012",
           "organization": "",
-          "subject": "4η Τροποποίηση της Πρόσκλησης για τη δράση 1.iii.4.1: «Ενίσχυση της ίδρυσης / εκσυγχρονισμού ΜΜΕ επιχειρήσεων στην Περιφέρεια Πελοποννήσου με έμφαση στην καινοτομία και την ανάπτυξη νέων προϊόντων και υπηρεσιών» στo πλαίσιo του Επιχειρησιακού Προγράμματος «ΠΕΛΟΠΟΝΝΗΣΟΣ» 2021- 2027.",
+          "subject": "4η Τροποποίηση της Πρόσκλησης για τη δράση 1.ii.2.1: «Ενίσχυση πολύ μικρών και μικρών επιχειρήσεων της Περιφέρειας Πελοποννήσου για τον εκσυγχρονισμό τους μέσω της χρήσης Τεχνολογιών Πληροφορικής και Επικοινωνίας (ΤΠΕ), καθώς και συστημάτων αυτοματισμού» στo πλαίσιo του Επιχειρησιακού Προγράμματος «ΠΕΛΟΠΟΝΝΗΣΟΣ» 2021-2027",
           "issue_date": "2025-05-23",
           "publish_date": "2025-05-23",
           "decision_type": "Ε.4",
           "category": "medical_waste",
-          "signature": "medical_waste:τροποποιηση:προσκλησησ:δραση:ενισχυση:ιδρυσησ:εκσυγχρονισμου:επιχειρησεων:περιφερεια:πελοποννησου:εμφαση",
+          "signature": "medical_waste:τροποποιηση:προσκλησησ:δραση:ενισχυση:πολυ:μικρων:επιχειρησεων:περιφερειασ:πελοποννησου:εκσυγχρονισμο",
           "supplier_name": "",
           "supplier_key_hash": "",
           "cpv": "",
@@ -6224,9 +6225,9 @@
               "role": "modification_rank",
               "unit": "ordinal",
               "scope": "contract_chain",
-              "source_ada": "ΨΥΨΣ7Λ1-ΧΩ2",
+              "source_ada": "6ΙΤΕ7Λ1-11Α",
               "source_page": 1,
-              "source_excerpt": "4η Τροποποίηση της Πρόσκλησης για τη δράση 1.iii.4.1: «Ενίσχυση της ίδρυσης / εκσυγχρονισμού ΜΜΕ επιχειρήσεων στην Περιφέρεια Πελοποννήσου με έμφαση στην καινοτομία και την ανάπτυξη νέων προϊόντων και υπηρεσιών» στo πλαίσιo του Επιχειρησιακού Προγράμματος «ΠΕΛΟΠΟΝΝΗΣΟΣ» 2021- 2027.",
+              "source_excerpt": "4η Τροποποίηση της Πρόσκλησης για τη δράση 1.ii.2.1: «Ενίσχυση πολύ μικρών και μικρών επιχειρήσεων της Περιφέρειας Πελοποννήσου για τον εκσυγχρονισμό τους μέσω της χρήσης Τεχνολογιών Πληροφορικής και Επικοινωνίας (ΤΠΕ), καθώς και συστημάτων αυτοματισμού» στo πλαίσιo του Επιχειρησιακού Προγράμματος «ΠΕΛΟΠΟΝΝΗΣΟΣ» 2021-2027",
               "confidence": 0.95,
               "dependency_group": "contract_change",
               "basis": ""
@@ -6237,7 +6238,7 @@
               "role": "decision_date",
               "unit": "date",
               "scope": "decision",
-              "source_ada": "ΨΥΨΣ7Λ1-ΧΩ2",
+              "source_ada": "6ΙΤΕ7Λ1-11Α",
               "source_page": null,
               "source_excerpt": "official metadata issueDate",
               "confidence": 0.99,
@@ -6250,7 +6251,7 @@
               "role": "publication_date",
               "unit": "date",
               "scope": "decision",
-              "source_ada": "ΨΥΨΣ7Λ1-ΧΩ2",
+              "source_ada": "6ΙΤΕ7Λ1-11Α",
               "source_page": null,
               "source_excerpt": "official metadata publishTimestamp",
               "confidence": 0.99,
