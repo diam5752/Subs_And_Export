@@ -7,6 +7,12 @@ on:
     paths:
       - tmp_tools/run_enriched_diavgeia_hunter.py
       - .github/workflows/tmp-enriched-diavgeia-hunter.yml
+  pull_request:
+    branches:
+      - master
+    paths:
+      - tmp_tools/run_enriched_diavgeia_hunter.py
+      - .github/workflows/tmp-enriched-diavgeia-hunter.yml
 
 permissions:
   contents: write
