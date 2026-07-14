@@ -1,11 +1,11 @@
 {
   "status": "completed",
-  "executed_at": "2026-07-14T09:46:56.717270+00:00",
+  "executed_at": "2026-07-14T09:59:20.041780+00:00",
   "seed": 5600715,
   "coverage": {
-    "metadata_records": 16060,
-    "selected_for_pdf": 230,
-    "inspected": 230,
+    "metadata_records": 16061,
+    "selected_for_pdf": 229,
+    "inspected": 229,
     "current_decisions": 158,
     "collapsed_chains": 155,
     "candidate_count": 25,
