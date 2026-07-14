@@ -1,0 +1,50 @@
+name: Temporary Strict Bridge Validation V4
+
+on:
+  pull_request:
+    branches:
+      - master
+    paths:
+      - tmp_tools/validate_bridge_candidates_v4.py
+      - .github/workflows/tmp-strict-bridge-validation-v4.yml
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - mode: cleaning
+            output: strict-cleaning-validation-v4
+          - mode: medical_waste
+            output: strict-medical-waste-validation-v4
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: tmp/bridge-case-builder-v3-20260714
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y poppler-utils
+          python -m pip install --upgrade pip
+          pip install requests
+      - name: Re-fetch and strictly validate official evidence
+        env:
+          VALIDATION_MODE: ${{ matrix.mode }}
+          VALIDATION_OUT: ${{ matrix.output }}
+        run: |
+          python tmp_tools/validate_bridge_candidates_v4.py
+          test -s "${VALIDATION_OUT}/validation.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.output }}
+          path: ${{ matrix.output }}
+          retention-days: 1
