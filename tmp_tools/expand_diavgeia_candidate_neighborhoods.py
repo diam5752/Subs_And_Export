@@ -24,18 +24,24 @@ DATE_FROM = "2023-01-01"
 DATE_TO = "2026-07-14"
 
 NEIGHBORHOODS = {
-    "ippokrateio_cleaning_and_food": [
-        "24SYMV014127327",
-        "24SYMV014612359",
-        "998309282",
-        "ΥΠΗΡΕΣΙΕΣ ΚΑΘΑΡΙΣΜΟΥ ΚΤΙΡΙΩΝ",
-        "Διανομής και Παρασκευής Φαγητού",
-    ],
-    "oak_apselemis_section_1": [
-        "24SYMV016040788",
-        "17350/19-12-2024",
-        "ΕΕΝ Αποσελέμη",
-    ],
+    "ippokrateio_cleaning_and_food": {
+        "organization_id": "99222000",
+        "terms": [
+            "24SYMV014127327",
+            "24SYMV014612359",
+            "998309282",
+            "ΥΠΗΡΕΣΙΕΣ ΚΑΘΑΡΙΣΜΟΥ ΚΤΙΡΙΩΝ",
+            "Διανομής και Παρασκευής Φαγητού",
+        ],
+    },
+    "oak_apselemis_section_1": {
+        "organization_id": "55291",
+        "terms": [
+            "24SYMV016040788",
+            "17350/19-12-2024",
+            "ΕΕΝ Αποσελέμη",
+        ],
+    },
 }
 
 ADAM_RE = re.compile(r"\b\d{2}(?:REQ|PROC|AWRD|SYMV|PAY)\d{9}\*?\b", re.I)
@@ -54,6 +60,7 @@ CONTEXT_TERMS = (
     "παράταση",
     "αρχικό ποσό",
     "συνολικό ποσό",
+    "συμβατικό ποσό",
     "αύξηση",
     "καθαρισμού",
     "παρασκευής φαγητού",
@@ -113,12 +120,12 @@ def contexts(text: str, terms: list[str]) -> list[dict[str, str]]:
         if len(needle) < 3:
             continue
         start = 0
-        while len(output) < 20:
+        while len(output) < 24:
             index = folded.find(needle, start)
             if index < 0:
                 break
-            left = max(0, index - 280)
-            right = min(len(compact), index + len(term) + 650)
+            left = max(0, index - 320)
+            right = min(len(compact), index + len(term) + 900)
             excerpt = compact[left:right]
             key = fold(excerpt)[:260]
             if key not in seen:
@@ -147,7 +154,7 @@ def search_term(session: requests.Session, term: str) -> list[dict[str, Any]]:
         found.extend(item for item in decisions if isinstance(item, dict))
         if len(decisions) < 100:
             break
-        time.sleep(0.3)
+        time.sleep(0.25)
     return found
 
 
@@ -177,14 +184,14 @@ def inspect(session: requests.Session, seed_terms: list[str], record: dict[str, 
         "privateData": detail.get("privateData"),
         "correctedVersionId": detail.get("correctedVersionId"),
         "organizationId": detail.get("organizationId"),
-        "subject": " ".join(str(detail.get("subject") or "").split())[:800],
+        "subject": " ".join(str(detail.get("subject") or "").split())[:900],
         "decisionTypeId": detail.get("decisionTypeId"),
         "issueDate": ms_iso(detail.get("issueDate")),
         "publishTimestamp": ms_iso(detail.get("publishTimestamp")),
         "protocolNumber": detail.get("protocolNumber"),
         "adam_tokens": sorted(set(match.group(0).upper() for match in ADAM_RE.finditer(joined))),
         "afm_tokens": sorted(set(AFM_RE.findall(joined)))[:50],
-        "amount_mentions": sorted(set(match.group(1) for match in AMOUNT_RE.finditer(joined)))[:80],
+        "amount_mentions": sorted(set(match.group(1) for match in AMOUNT_RE.finditer(joined)))[:100],
         "matched_search_terms": [term for term in seed_terms if fold(term) in fold(joined)],
         "contexts": contexts(joined, seed_terms),
         "pdf_text_length": len(text),
@@ -194,24 +201,32 @@ def inspect(session: requests.Session, seed_terms: list[str], record: dict[str, 
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     session = requests.Session()
-    session.headers.update({"User-Agent": "MizAI temporary official-source neighborhood validation/1.0"})
+    session.headers.update({"User-Agent": "MizAI temporary official-source neighborhood validation/1.1"})
     output: dict[str, Any] = {"status": "completed", "executed_at": datetime.now(timezone.utc).isoformat(), "neighborhoods": {}}
-    summary_lines = ["neighborhood\tada\tissue_date\tstatus\tsubject\tamounts\tafms\tadams\tmatched_terms\turl"]
-    for name, seed_terms in NEIGHBORHOODS.items():
+    summary_lines = ["neighborhood\tada\tissue_date\tstatus\torganization_id\tsubject\tamounts\tafms\tadams\tmatched_terms\turl"]
+    for name, config in NEIGHBORHOODS.items():
+        seed_terms = list(config["terms"])
+        organization_id = str(config["organization_id"])
         by_ada: dict[str, dict[str, Any]] = {}
         source_terms: dict[str, set[str]] = defaultdict(set)
+        raw_search_count = 0
         for term in seed_terms:
             for record in search_term(session, term):
+                raw_search_count += 1
+                if str(record.get("organizationId") or "") != organization_id:
+                    continue
                 ada = str(record.get("ada") or "")
                 if not ada:
                     continue
                 by_ada.setdefault(ada, record)
                 source_terms[ada].add(term)
-            time.sleep(0.4)
+            time.sleep(0.3)
         inspected = []
-        for ada, record in list(by_ada.items())[:60]:
+        for ada, record in sorted(by_ada.items()):
             try:
                 item = inspect(session, seed_terms, record)
+                if str(item.get("organizationId") or "") != organization_id:
+                    continue
                 item["retrieved_by"] = sorted(source_terms[ada])
                 inspected.append(item)
                 summary_lines.append("\t".join([
@@ -219,6 +234,7 @@ def main() -> None:
                     ada,
                     str(item.get("issueDate") or ""),
                     str(item.get("status") or ""),
+                    organization_id,
                     str(item.get("subject") or "").replace("\t", " "),
                     ",".join(item.get("amount_mentions") or []),
                     ",".join(item.get("afm_tokens") or []),
@@ -228,15 +244,17 @@ def main() -> None:
                 ]))
             except Exception as exc:
                 inspected.append({"ada": ada, "error": type(exc).__name__, "message": str(exc)[:500]})
-            time.sleep(0.35)
+            time.sleep(0.3)
         output["neighborhoods"][name] = {
+            "organization_id": organization_id,
             "seed_terms": seed_terms,
-            "search_record_count": len(by_ada),
+            "raw_search_record_count": raw_search_count,
+            "target_record_count": len(by_ada),
             "records": inspected,
         }
     (OUT / "neighborhoods.json").write_text(json.dumps(output, ensure_ascii=False, indent=2), encoding="utf-8")
     (OUT / "subjects.tsv").write_text("\n".join(summary_lines) + "\n", encoding="utf-8")
-    print(json.dumps({name: value["search_record_count"] for name, value in output["neighborhoods"].items()}, ensure_ascii=False))
+    print(json.dumps({name: value["target_record_count"] for name, value in output["neighborhoods"].items()}, ensure_ascii=False))
 
 
 if __name__ == "__main__":
