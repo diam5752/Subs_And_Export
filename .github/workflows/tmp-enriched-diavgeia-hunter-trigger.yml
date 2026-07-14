@@ -1,0 +1,38 @@
+name: Temporary Enriched Diavgeia Hunter Trigger
+
+on:
+  push:
+    branches:
+      - tmp/diavgeia-enriched-hunter-20260714
+    paths:
+      - .github/workflows/tmp-enriched-diavgeia-hunter-trigger.yml
+
+permissions:
+  contents: write
+
+jobs:
+  scan:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: tmp/diavgeia-enriched-hunter-20260714
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y poppler-utils
+          python -m pip install requests
+      - run: |
+          rm -rf enriched-hunter-output
+          python tmp_tools/run_enriched_diavgeia_hunter.py
+      - run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add enriched-hunter-output
+          git commit -m 'chore(tmp): record enriched Diavgeia Hunter results'
+          git push origin HEAD:tmp/diavgeia-enriched-hunter-20260714
