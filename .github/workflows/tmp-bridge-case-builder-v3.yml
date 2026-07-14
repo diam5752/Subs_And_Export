@@ -1,0 +1,53 @@
+name: Temporary Bridge Case Builder V3
+
+on:
+  pull_request:
+    branches:
+      - master
+    paths:
+      - tmp_tools/run_bridge_case_builder_v3.py
+      - .github/workflows/tmp-bridge-case-builder-v3.yml
+
+permissions:
+  contents: read
+
+jobs:
+  blind-run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - mode: cleaning
+            seed: 7801
+            output: bridge-cleaning-run-1
+          - mode: medical_waste
+            seed: 8902
+            output: bridge-medical-waste-run-2
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: tmp/bridge-case-builder-v3-20260714
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y poppler-utils
+          python -m pip install --upgrade pip
+          pip install requests
+      - name: Run independent official-source scan
+        env:
+          BRIDGE_MODE: ${{ matrix.mode }}
+          BRIDGE_SEED: ${{ matrix.seed }}
+          BRIDGE_OUT: ${{ matrix.output }}
+        run: |
+          python tmp_tools/run_bridge_case_builder_v3.py
+          test -s "${BRIDGE_OUT}/result.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.output }}
+          path: ${{ matrix.output }}
+          retention-days: 1
