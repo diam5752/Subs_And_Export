@@ -56,3 +56,5 @@ jobs:
           fi
           git commit -m 'chore(tmp): record enriched Diavgeia hunter results'
           git push origin HEAD:tmp/diavgeia-enriched-hunter-20260714
+
+# fresh-run-trigger: 2026-07-14-run-02
