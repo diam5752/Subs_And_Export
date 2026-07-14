@@ -1,0 +1,10 @@
+{
+  "timeline_false_positive_regression_passed": true,
+  "case_level_ekab_dedup_passed": true,
+  "page_provenance_ratio_all_facts": 0.577,
+  "typed_scoring_fact_count": 522,
+  "candidate_case_count_after_merge": 18,
+  "distinct_primary_patterns_in_diverse_top": 3,
+  "validated_80_plus_count": 0,
+  "previously_seen_case_count_in_top": 1
+}
