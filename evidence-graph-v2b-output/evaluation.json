@@ -1,8 +1,8 @@
 {
   "timeline_false_positive_regression_passed": true,
   "case_level_ekab_dedup_passed": true,
-  "page_provenance_ratio_all_facts": 0.5946,
-  "typed_scoring_fact_count": 578,
+  "page_provenance_ratio_all_facts": 0.5923,
+  "typed_scoring_fact_count": 582,
   "candidate_case_count_after_merge": 32,
   "distinct_primary_patterns_in_diverse_top": 4,
   "validated_80_plus_count": 0,

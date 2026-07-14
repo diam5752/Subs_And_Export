@@ -1,13 +1,13 @@
 {
   "status": "completed",
-  "executed_at": "2026-07-14T10:49:16.314385+00:00",
+  "executed_at": "2026-07-14T11:18:46.111886+00:00",
   "seed": 5600717,
   "coverage": {
-    "metadata_records": 18110,
+    "metadata_records": 18111,
     "selected_for_pdf": 159,
     "inspected": 159,
-    "current_decisions": 118,
-    "collapsed_chains": 117,
+    "current_decisions": 119,
+    "collapsed_chains": 118,
     "candidate_cases_after_merge": 32,
     "failures": [],
     "attempts": [
@@ -2315,8 +2315,8 @@
   "evaluation": {
     "timeline_false_positive_regression_passed": true,
     "case_level_ekab_dedup_passed": true,
-    "page_provenance_ratio_all_facts": 0.5946,
-    "typed_scoring_fact_count": 578,
+    "page_provenance_ratio_all_facts": 0.5923,
+    "typed_scoring_fact_count": 582,
     "candidate_case_count_after_merge": 32,
     "distinct_primary_patterns_in_diverse_top": 4,
     "validated_80_plus_count": 0,
@@ -4203,198 +4203,6 @@
       ]
     },
     {
-      "case_fingerprint": "9a9d578c739b9ac775",
-      "primary_type": "advanced_or_repeated_extension",
-      "detectors": [
-        "advanced_or_repeated_extension"
-      ],
-      "chain_ids": [
-        "e8ee5cc10ff6a40a6e"
-      ],
-      "families": [
-        "contract_change"
-      ],
-      "review_priority": 56,
-      "score_axes": {
-        "evidence_quality": 26,
-        "pattern_strength": 18,
-        "peer_deviation": 0,
-        "materiality": 2,
-        "falsification_survival": 10
-      },
-      "caps": [
-        "μία μόνο ανεξάρτητη evidence family"
-      ],
-      "reasons": [
-        "Η chain φτάνει τουλάχιστον σε 5η τροποποίηση/ΑΠΕ."
-      ],
-      "ordinary_explanations": [],
-      "metrics": {
-        "max_modification_rank": 5,
-        "modification_fact_count": 1
-      },
-      "seen_in_previous_run": false,
-      "novelty_rank_score": 56,
-      "status": "RESEARCH_LEAD",
-      "records": [
-        {
-          "ada": "6ΑΛΜΩΡΨ-32Κ",
-          "official_url": "https://diavgeia.gov.gr/doc/6ΑΛΜΩΡΨ-32Κ",
-          "organization_id": "6093",
-          "organization": "",
-          "subject": "5η Τροποποίηση Προϋπολογισμού έτους 2025.",
-          "issue_date": "2025-06-23",
-          "publish_date": "2025-07-10",
-          "decision_type": "2.4.7.1",
-          "category": "medical_waste",
-          "signature": "medical_waste:τροποποιηση:προυπολογισμου:ετουσ",
-          "supplier_name": "",
-          "supplier_key_hash": "",
-          "cpv": "",
-          "adams": [],
-          "contract_refs": [],
-          "focused_pages": [
-            2,
-            3,
-            4,
-            5
-          ],
-          "facts": [
-            {
-              "fact_type": "amount",
-              "value": 17602647.37,
-              "role": "budget_total",
-              "unit": "EUR",
-              "scope": "subject_section",
-              "source_ada": "6ΑΛΜΩΡΨ-32Κ",
-              "source_page": 5,
-              "source_excerpt": "ΑΔΑ: 6ΑΛΜΩΡΨ-32Κ Μετά την ανωτέρω αναμόρφωση ο προϋπολογισμός παρουσιάζει τα παρακάτω στοιχεία: ΠΡΙΝ ΤΗΝ ΜΕΤΑ ΤΗΝ ΠΡΟΫΠΟΛΟΓΙΣΜΟΣ ΤΡΟΠΟΠΟΙΗΣΗ ΜΕΤΑΒΟΛΗ ΤΡΟΠΟΠΟΙΗΣΗ ΕΣΟΔΑ 17.602.647,37 € -1.191.402,96 € 16.411.244,41 € ΕΞΟΔΑ 17.602.086,89 € -1.191.402,96 € 16.411.198,69 € ΑΠΟΘΕΜΑΤΙΚΟ 560,48 € -514,76 € 45, 72 € Καλείται το Δημοτικό Συμβούλιο να αποφασίσει σχετικά». Το Συμβούλιο μετά από διαλογική συζήτηση, α",
-              "confidence": 0.9,
-              "dependency_group": "financial",
-              "basis": "unknown"
-            },
-            {
-              "fact_type": "amount",
-              "value": 1191402.96,
-              "role": "budget_total",
-              "unit": "EUR",
-              "scope": "subject_section",
-              "source_ada": "6ΑΛΜΩΡΨ-32Κ",
-              "source_page": 5,
-              "source_excerpt": "ΔΑ: 6ΑΛΜΩΡΨ-32Κ Μετά την ανωτέρω αναμόρφωση ο προϋπολογισμός παρουσιάζει τα παρακάτω στοιχεία: ΠΡΙΝ ΤΗΝ ΜΕΤΑ ΤΗΝ ΠΡΟΫΠΟΛΟΓΙΣΜΟΣ ΤΡΟΠΟΠΟΙΗΣΗ ΜΕΤΑΒΟΛΗ ΤΡΟΠΟΠΟΙΗΣΗ ΕΣΟΔΑ 17.602.647,37 € -1.191.402,96 € 16.411.244,41 € ΕΞΟΔΑ 17.602.086,89 € -1.191.402,96 € 16.411.198,69 € ΑΠΟΘΕΜΑΤΙΚΟ 560,48 € -514,76 € 45, 72 € Καλείται το Δημοτικό Συμβούλιο να αποφασίσει σχετικά». Το Συμβούλιο μετά από διαλογική συζήτηση, αφού έλαβε υπόψη: 1",
-              "confidence": 0.9,
-              "dependency_group": "financial",
-              "basis": "unknown"
-            },
-            {
-              "fact_type": "amount",
-              "value": 16411244.41,
-              "role": "budget_total",
-              "unit": "EUR",
-              "scope": "subject_section",
-              "source_ada": "6ΑΛΜΩΡΨ-32Κ",
-              "source_page": 5,
-              "source_excerpt": "Μετά την ανωτέρω αναμόρφωση ο προϋπολογισμός παρουσιάζει τα παρακάτω στοιχεία: ΠΡΙΝ ΤΗΝ ΜΕΤΑ ΤΗΝ ΠΡΟΫΠΟΛΟΓΙΣΜΟΣ ΤΡΟΠΟΠΟΙΗΣΗ ΜΕΤΑΒΟΛΗ ΤΡΟΠΟΠΟΙΗΣΗ ΕΣΟΔΑ 17.602.647,37 € -1.191.402,96 € 16.411.244,41 € ΕΞΟΔΑ 17.602.086,89 € -1.191.402,96 € 16.411.198,69 € ΑΠΟΘΕΜΑΤΙΚΟ 560,48 € -514,76 € 45, 72 € Καλείται το Δημοτικό Συμβούλιο να αποφασίσει σχετικά». Το Συμβούλιο μετά από διαλογική συζήτηση, αφού έλαβε υπόψη: 1. Τις διατάξεις του",
-              "confidence": 0.9,
-              "dependency_group": "financial",
-              "basis": "unknown"
-            },
-            {
-              "fact_type": "amount",
-              "value": 17602086.89,
-              "role": "budget_total",
-              "unit": "EUR",
-              "scope": "subject_section",
-              "source_ada": "6ΑΛΜΩΡΨ-32Κ",
-              "source_page": 5,
-              "source_excerpt": "ουσιάζει τα παρακάτω στοιχεία: ΠΡΙΝ ΤΗΝ ΜΕΤΑ ΤΗΝ ΠΡΟΫΠΟΛΟΓΙΣΜΟΣ ΤΡΟΠΟΠΟΙΗΣΗ ΜΕΤΑΒΟΛΗ ΤΡΟΠΟΠΟΙΗΣΗ ΕΣΟΔΑ 17.602.647,37 € -1.191.402,96 € 16.411.244,41 € ΕΞΟΔΑ 17.602.086,89 € -1.191.402,96 € 16.411.198,69 € ΑΠΟΘΕΜΑΤΙΚΟ 560,48 € -514,76 € 45, 72 € Καλείται το Δημοτικό Συμβούλιο να αποφασίσει σχετικά». Το Συμβούλιο μετά από διαλογική συζήτηση, αφού έλαβε υπόψη: 1. Τις διατάξεις του Ν.4722/2020 «Κύρωση: της α) της από 10.8.2020 Π",
-              "confidence": 0.9,
-              "dependency_group": "financial",
-              "basis": "unknown"
-            },
-            {
-              "fact_type": "amount",
-              "value": 16411198.69,
-              "role": "budget_total",
-              "unit": "EUR",
-              "scope": "subject_section",
-              "source_ada": "6ΑΛΜΩΡΨ-32Κ",
-              "source_page": 5,
-              "source_excerpt": "ΠΡΙΝ ΤΗΝ ΜΕΤΑ ΤΗΝ ΠΡΟΫΠΟΛΟΓΙΣΜΟΣ ΤΡΟΠΟΠΟΙΗΣΗ ΜΕΤΑΒΟΛΗ ΤΡΟΠΟΠΟΙΗΣΗ ΕΣΟΔΑ 17.602.647,37 € -1.191.402,96 € 16.411.244,41 € ΕΞΟΔΑ 17.602.086,89 € -1.191.402,96 € 16.411.198,69 € ΑΠΟΘΕΜΑΤΙΚΟ 560,48 € -514,76 € 45, 72 € Καλείται το Δημοτικό Συμβούλιο να αποφασίσει σχετικά». Το Συμβούλιο μετά από διαλογική συζήτηση, αφού έλαβε υπόψη: 1. Τις διατάξεις του Ν.4722/2020 «Κύρωση: της α) της από 10.8.2020 Πράξης Νομοθετικού Περιεχομέ- νου",
-              "confidence": 0.9,
-              "dependency_group": "financial",
-              "basis": "unknown"
-            },
-            {
-              "fact_type": "amount",
-              "value": 560.48,
-              "role": "budget_total",
-              "unit": "EUR",
-              "scope": "subject_section",
-              "source_ada": "6ΑΛΜΩΡΨ-32Κ",
-              "source_page": 5,
-              "source_excerpt": "ΜΕΤΑ ΤΗΝ ΠΡΟΫΠΟΛΟΓΙΣΜΟΣ ΤΡΟΠΟΠΟΙΗΣΗ ΜΕΤΑΒΟΛΗ ΤΡΟΠΟΠΟΙΗΣΗ ΕΣΟΔΑ 17.602.647,37 € -1.191.402,96 € 16.411.244,41 € ΕΞΟΔΑ 17.602.086,89 € -1.191.402,96 € 16.411.198,69 € ΑΠΟΘΕΜΑΤΙΚΟ 560,48 € -514,76 € 45, 72 € Καλείται το Δημοτικό Συμβούλιο να αποφασίσει σχετικά». Το Συμβούλιο μετά από διαλογική συζήτηση, αφού έλαβε υπόψη: 1. Τις διατάξεις του Ν.4722/2020 «Κύρωση: της α) της από 10.8.2020 Πράξης Νομοθετικού Περιεχομέ- νου «Επείγουσες ρυθμίσεις αντιμετώπισης εκτάκτων",
-              "confidence": 0.9,
-              "dependency_group": "financial",
-              "basis": "unknown"
-            },
-            {
-              "fact_type": "amount",
-              "value": 514.76,
-              "role": "budget_total",
-              "unit": "EUR",
-              "scope": "subject_section",
-              "source_ada": "6ΑΛΜΩΡΨ-32Κ",
-              "source_page": 5,
-              "source_excerpt": "Ν ΠΡΟΫΠΟΛΟΓΙΣΜΟΣ ΤΡΟΠΟΠΟΙΗΣΗ ΜΕΤΑΒΟΛΗ ΤΡΟΠΟΠΟΙΗΣΗ ΕΣΟΔΑ 17.602.647,37 € -1.191.402,96 € 16.411.244,41 € ΕΞΟΔΑ 17.602.086,89 € -1.191.402,96 € 16.411.198,69 € ΑΠΟΘΕΜΑΤΙΚΟ 560,48 € -514,76 € 45, 72 € Καλείται το Δημοτικό Συμβούλιο να αποφασίσει σχετικά». Το Συμβούλιο μετά από διαλογική συζήτηση, αφού έλαβε υπόψη: 1. Τις διατάξεις του Ν.4722/2020 «Κύρωση: της α) της από 10.8.2020 Πράξης Νομοθετικού Περιεχομέ- νου «Επείγουσες ρυθμίσεις αντιμετώπισης εκτάκτων αναγκών του Εθνικού",
-              "confidence": 0.9,
-              "dependency_group": "financial",
-              "basis": "unknown"
-            },
-            {
-              "fact_type": "contract_change",
-              "value": 5,
-              "role": "modification_rank",
-              "unit": "ordinal",
-              "scope": "contract_chain",
-              "source_ada": "6ΑΛΜΩΡΨ-32Κ",
-              "source_page": 2,
-              "source_excerpt": "5η Τροποποίηση Προϋπολογισμού έτους 2025.",
-              "confidence": 0.95,
-              "dependency_group": "contract_change",
-              "basis": ""
-            },
-            {
-              "fact_type": "date",
-              "value": "2025-06-23",
-              "role": "decision_date",
-              "unit": "date",
-              "scope": "decision",
-              "source_ada": "6ΑΛΜΩΡΨ-32Κ",
-              "source_page": null,
-              "source_excerpt": "official metadata issueDate",
-              "confidence": 0.99,
-              "dependency_group": "timeline",
-              "basis": "official_metadata"
-            },
-            {
-              "fact_type": "date",
-              "value": "2025-07-10",
-              "role": "publication_date",
-              "unit": "date",
-              "scope": "decision",
-              "source_ada": "6ΑΛΜΩΡΨ-32Κ",
-              "source_page": null,
-              "source_excerpt": "official metadata publishTimestamp",
-              "confidence": 0.99,
-              "dependency_group": "transparency",
-              "basis": "official_metadata"
-            }
-          ]
-        }
-      ]
-    },
-    {
       "case_fingerprint": "95a8e84bf429dc1fbd",
       "primary_type": "advanced_or_repeated_extension",
       "detectors": [
@@ -4617,6 +4425,198 @@
               "unit": "date",
               "scope": "decision",
               "source_ada": "ΡΟ0ΞΩΡΨ-0ΣΚ",
+              "source_page": null,
+              "source_excerpt": "official metadata publishTimestamp",
+              "confidence": 0.99,
+              "dependency_group": "transparency",
+              "basis": "official_metadata"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case_fingerprint": "9a9d578c739b9ac775",
+      "primary_type": "advanced_or_repeated_extension",
+      "detectors": [
+        "advanced_or_repeated_extension"
+      ],
+      "chain_ids": [
+        "e8ee5cc10ff6a40a6e"
+      ],
+      "families": [
+        "contract_change"
+      ],
+      "review_priority": 56,
+      "score_axes": {
+        "evidence_quality": 26,
+        "pattern_strength": 18,
+        "peer_deviation": 0,
+        "materiality": 2,
+        "falsification_survival": 10
+      },
+      "caps": [
+        "μία μόνο ανεξάρτητη evidence family"
+      ],
+      "reasons": [
+        "Η chain φτάνει τουλάχιστον σε 5η τροποποίηση/ΑΠΕ."
+      ],
+      "ordinary_explanations": [],
+      "metrics": {
+        "max_modification_rank": 5,
+        "modification_fact_count": 1
+      },
+      "seen_in_previous_run": false,
+      "novelty_rank_score": 56,
+      "status": "RESEARCH_LEAD",
+      "records": [
+        {
+          "ada": "6ΑΛΜΩΡΨ-32Κ",
+          "official_url": "https://diavgeia.gov.gr/doc/6ΑΛΜΩΡΨ-32Κ",
+          "organization_id": "6093",
+          "organization": "",
+          "subject": "5η Τροποποίηση Προϋπολογισμού έτους 2025.",
+          "issue_date": "2025-06-23",
+          "publish_date": "2025-07-10",
+          "decision_type": "2.4.7.1",
+          "category": "medical_waste",
+          "signature": "medical_waste:τροποποιηση:προυπολογισμου:ετουσ",
+          "supplier_name": "",
+          "supplier_key_hash": "",
+          "cpv": "",
+          "adams": [],
+          "contract_refs": [],
+          "focused_pages": [
+            2,
+            3,
+            4,
+            5
+          ],
+          "facts": [
+            {
+              "fact_type": "amount",
+              "value": 17602647.37,
+              "role": "budget_total",
+              "unit": "EUR",
+              "scope": "subject_section",
+              "source_ada": "6ΑΛΜΩΡΨ-32Κ",
+              "source_page": 5,
+              "source_excerpt": "ΑΔΑ: 6ΑΛΜΩΡΨ-32Κ Μετά την ανωτέρω αναμόρφωση ο προϋπολογισμός παρουσιάζει τα παρακάτω στοιχεία: ΠΡΙΝ ΤΗΝ ΜΕΤΑ ΤΗΝ ΠΡΟΫΠΟΛΟΓΙΣΜΟΣ ΤΡΟΠΟΠΟΙΗΣΗ ΜΕΤΑΒΟΛΗ ΤΡΟΠΟΠΟΙΗΣΗ ΕΣΟΔΑ 17.602.647,37 € -1.191.402,96 € 16.411.244,41 € ΕΞΟΔΑ 17.602.086,89 € -1.191.402,96 € 16.411.198,69 € ΑΠΟΘΕΜΑΤΙΚΟ 560,48 € -514,76 € 45, 72 € Καλείται το Δημοτικό Συμβούλιο να αποφασίσει σχετικά». Το Συμβούλιο μετά από διαλογική συζήτηση, α",
+              "confidence": 0.9,
+              "dependency_group": "financial",
+              "basis": "unknown"
+            },
+            {
+              "fact_type": "amount",
+              "value": 1191402.96,
+              "role": "budget_total",
+              "unit": "EUR",
+              "scope": "subject_section",
+              "source_ada": "6ΑΛΜΩΡΨ-32Κ",
+              "source_page": 5,
+              "source_excerpt": "ΔΑ: 6ΑΛΜΩΡΨ-32Κ Μετά την ανωτέρω αναμόρφωση ο προϋπολογισμός παρουσιάζει τα παρακάτω στοιχεία: ΠΡΙΝ ΤΗΝ ΜΕΤΑ ΤΗΝ ΠΡΟΫΠΟΛΟΓΙΣΜΟΣ ΤΡΟΠΟΠΟΙΗΣΗ ΜΕΤΑΒΟΛΗ ΤΡΟΠΟΠΟΙΗΣΗ ΕΣΟΔΑ 17.602.647,37 € -1.191.402,96 € 16.411.244,41 € ΕΞΟΔΑ 17.602.086,89 € -1.191.402,96 € 16.411.198,69 € ΑΠΟΘΕΜΑΤΙΚΟ 560,48 € -514,76 € 45, 72 € Καλείται το Δημοτικό Συμβούλιο να αποφασίσει σχετικά». Το Συμβούλιο μετά από διαλογική συζήτηση, αφού έλαβε υπόψη: 1",
+              "confidence": 0.9,
+              "dependency_group": "financial",
+              "basis": "unknown"
+            },
+            {
+              "fact_type": "amount",
+              "value": 16411244.41,
+              "role": "budget_total",
+              "unit": "EUR",
+              "scope": "subject_section",
+              "source_ada": "6ΑΛΜΩΡΨ-32Κ",
+              "source_page": 5,
+              "source_excerpt": "Μετά την ανωτέρω αναμόρφωση ο προϋπολογισμός παρουσιάζει τα παρακάτω στοιχεία: ΠΡΙΝ ΤΗΝ ΜΕΤΑ ΤΗΝ ΠΡΟΫΠΟΛΟΓΙΣΜΟΣ ΤΡΟΠΟΠΟΙΗΣΗ ΜΕΤΑΒΟΛΗ ΤΡΟΠΟΠΟΙΗΣΗ ΕΣΟΔΑ 17.602.647,37 € -1.191.402,96 € 16.411.244,41 € ΕΞΟΔΑ 17.602.086,89 € -1.191.402,96 € 16.411.198,69 € ΑΠΟΘΕΜΑΤΙΚΟ 560,48 € -514,76 € 45, 72 € Καλείται το Δημοτικό Συμβούλιο να αποφασίσει σχετικά». Το Συμβούλιο μετά από διαλογική συζήτηση, αφού έλαβε υπόψη: 1. Τις διατάξεις του",
+              "confidence": 0.9,
+              "dependency_group": "financial",
+              "basis": "unknown"
+            },
+            {
+              "fact_type": "amount",
+              "value": 17602086.89,
+              "role": "budget_total",
+              "unit": "EUR",
+              "scope": "subject_section",
+              "source_ada": "6ΑΛΜΩΡΨ-32Κ",
+              "source_page": 5,
+              "source_excerpt": "ουσιάζει τα παρακάτω στοιχεία: ΠΡΙΝ ΤΗΝ ΜΕΤΑ ΤΗΝ ΠΡΟΫΠΟΛΟΓΙΣΜΟΣ ΤΡΟΠΟΠΟΙΗΣΗ ΜΕΤΑΒΟΛΗ ΤΡΟΠΟΠΟΙΗΣΗ ΕΣΟΔΑ 17.602.647,37 € -1.191.402,96 € 16.411.244,41 € ΕΞΟΔΑ 17.602.086,89 € -1.191.402,96 € 16.411.198,69 € ΑΠΟΘΕΜΑΤΙΚΟ 560,48 € -514,76 € 45, 72 € Καλείται το Δημοτικό Συμβούλιο να αποφασίσει σχετικά». Το Συμβούλιο μετά από διαλογική συζήτηση, αφού έλαβε υπόψη: 1. Τις διατάξεις του Ν.4722/2020 «Κύρωση: της α) της από 10.8.2020 Π",
+              "confidence": 0.9,
+              "dependency_group": "financial",
+              "basis": "unknown"
+            },
+            {
+              "fact_type": "amount",
+              "value": 16411198.69,
+              "role": "budget_total",
+              "unit": "EUR",
+              "scope": "subject_section",
+              "source_ada": "6ΑΛΜΩΡΨ-32Κ",
+              "source_page": 5,
+              "source_excerpt": "ΠΡΙΝ ΤΗΝ ΜΕΤΑ ΤΗΝ ΠΡΟΫΠΟΛΟΓΙΣΜΟΣ ΤΡΟΠΟΠΟΙΗΣΗ ΜΕΤΑΒΟΛΗ ΤΡΟΠΟΠΟΙΗΣΗ ΕΣΟΔΑ 17.602.647,37 € -1.191.402,96 € 16.411.244,41 € ΕΞΟΔΑ 17.602.086,89 € -1.191.402,96 € 16.411.198,69 € ΑΠΟΘΕΜΑΤΙΚΟ 560,48 € -514,76 € 45, 72 € Καλείται το Δημοτικό Συμβούλιο να αποφασίσει σχετικά». Το Συμβούλιο μετά από διαλογική συζήτηση, αφού έλαβε υπόψη: 1. Τις διατάξεις του Ν.4722/2020 «Κύρωση: της α) της από 10.8.2020 Πράξης Νομοθετικού Περιεχομέ- νου",
+              "confidence": 0.9,
+              "dependency_group": "financial",
+              "basis": "unknown"
+            },
+            {
+              "fact_type": "amount",
+              "value": 560.48,
+              "role": "budget_total",
+              "unit": "EUR",
+              "scope": "subject_section",
+              "source_ada": "6ΑΛΜΩΡΨ-32Κ",
+              "source_page": 5,
+              "source_excerpt": "ΜΕΤΑ ΤΗΝ ΠΡΟΫΠΟΛΟΓΙΣΜΟΣ ΤΡΟΠΟΠΟΙΗΣΗ ΜΕΤΑΒΟΛΗ ΤΡΟΠΟΠΟΙΗΣΗ ΕΣΟΔΑ 17.602.647,37 € -1.191.402,96 € 16.411.244,41 € ΕΞΟΔΑ 17.602.086,89 € -1.191.402,96 € 16.411.198,69 € ΑΠΟΘΕΜΑΤΙΚΟ 560,48 € -514,76 € 45, 72 € Καλείται το Δημοτικό Συμβούλιο να αποφασίσει σχετικά». Το Συμβούλιο μετά από διαλογική συζήτηση, αφού έλαβε υπόψη: 1. Τις διατάξεις του Ν.4722/2020 «Κύρωση: της α) της από 10.8.2020 Πράξης Νομοθετικού Περιεχομέ- νου «Επείγουσες ρυθμίσεις αντιμετώπισης εκτάκτων",
+              "confidence": 0.9,
+              "dependency_group": "financial",
+              "basis": "unknown"
+            },
+            {
+              "fact_type": "amount",
+              "value": 514.76,
+              "role": "budget_total",
+              "unit": "EUR",
+              "scope": "subject_section",
+              "source_ada": "6ΑΛΜΩΡΨ-32Κ",
+              "source_page": 5,
+              "source_excerpt": "Ν ΠΡΟΫΠΟΛΟΓΙΣΜΟΣ ΤΡΟΠΟΠΟΙΗΣΗ ΜΕΤΑΒΟΛΗ ΤΡΟΠΟΠΟΙΗΣΗ ΕΣΟΔΑ 17.602.647,37 € -1.191.402,96 € 16.411.244,41 € ΕΞΟΔΑ 17.602.086,89 € -1.191.402,96 € 16.411.198,69 € ΑΠΟΘΕΜΑΤΙΚΟ 560,48 € -514,76 € 45, 72 € Καλείται το Δημοτικό Συμβούλιο να αποφασίσει σχετικά». Το Συμβούλιο μετά από διαλογική συζήτηση, αφού έλαβε υπόψη: 1. Τις διατάξεις του Ν.4722/2020 «Κύρωση: της α) της από 10.8.2020 Πράξης Νομοθετικού Περιεχομέ- νου «Επείγουσες ρυθμίσεις αντιμετώπισης εκτάκτων αναγκών του Εθνικού",
+              "confidence": 0.9,
+              "dependency_group": "financial",
+              "basis": "unknown"
+            },
+            {
+              "fact_type": "contract_change",
+              "value": 5,
+              "role": "modification_rank",
+              "unit": "ordinal",
+              "scope": "contract_chain",
+              "source_ada": "6ΑΛΜΩΡΨ-32Κ",
+              "source_page": 2,
+              "source_excerpt": "5η Τροποποίηση Προϋπολογισμού έτους 2025.",
+              "confidence": 0.95,
+              "dependency_group": "contract_change",
+              "basis": ""
+            },
+            {
+              "fact_type": "date",
+              "value": "2025-06-23",
+              "role": "decision_date",
+              "unit": "date",
+              "scope": "decision",
+              "source_ada": "6ΑΛΜΩΡΨ-32Κ",
+              "source_page": null,
+              "source_excerpt": "official metadata issueDate",
+              "confidence": 0.99,
+              "dependency_group": "timeline",
+              "basis": "official_metadata"
+            },
+            {
+              "fact_type": "date",
+              "value": "2025-07-10",
+              "role": "publication_date",
+              "unit": "date",
+              "scope": "decision",
+              "source_ada": "6ΑΛΜΩΡΨ-32Κ",
               "source_page": null,
               "source_excerpt": "official metadata publishTimestamp",
               "confidence": 0.99,
