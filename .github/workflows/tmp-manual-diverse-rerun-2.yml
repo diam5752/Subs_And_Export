@@ -46,10 +46,19 @@ jobs:
             > /tmp/run_manual_diverse_rerun_2.py
           python /tmp/run_manual_diverse_rerun_2.py
           test -s manual-diverse-rerun-2-output/result.json
+      - name: Upload results artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: manual-diverse-rerun-2-output
+          path: manual-diverse-rerun-2-output
+          if-no-files-found: error
+          retention-days: 1
       - name: Commit compact results
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add manual-diverse-rerun-2-output
           git commit -m 'chore(tmp): record second diverse Diavgeia rerun'
+          git fetch origin tmp/manual-diverse-diavgeia-20260714
+          git rebase origin/tmp/manual-diverse-diavgeia-20260714
           git push origin HEAD:tmp/manual-diverse-diavgeia-20260714
