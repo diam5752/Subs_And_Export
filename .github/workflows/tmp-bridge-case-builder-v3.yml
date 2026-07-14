@@ -7,6 +7,12 @@ on:
     paths:
       - tmp_tools/run_targeted_bridge_wrapper.py
       - .github/workflows/tmp-bridge-case-builder-v3.yml
+  pull_request:
+    branches:
+      - master
+    paths:
+      - tmp_tools/run_targeted_bridge_wrapper.py
+      - .github/workflows/tmp-bridge-case-builder-v3.yml
 
 permissions:
   contents: read
