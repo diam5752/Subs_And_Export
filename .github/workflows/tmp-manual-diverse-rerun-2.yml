@@ -1,0 +1,50 @@
+name: Temporary Manual Diverse Diavgeia Rerun 2
+
+on:
+  push:
+    branches:
+      - tmp/manual-diverse-diavgeia-20260714
+    paths:
+      - .github/workflows/tmp-manual-diverse-rerun-2.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tmp-manual-diverse-rerun-2
+  cancel-in-progress: true
+
+jobs:
+  investigate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: tmp/manual-diverse-diavgeia-20260714
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y poppler-utils
+          python -m pip install --upgrade pip
+          pip install requests
+      - name: Run with a new random seed
+        run: |
+          rm -rf manual-diverse-rerun-2-output
+          sed 's/OUT = Path("manual-diverse-output")/OUT = Path("manual-diverse-rerun-2-output")/' tmp_tools/run_manual_diverse_diavgeia.py \
+            | sed 's/SEED = 5600714/SEED = 5600715/' \
+            > /tmp/run_manual_diverse_rerun_2.py
+          python /tmp/run_manual_diverse_rerun_2.py
+          test -s manual-diverse-rerun-2-output/result.json
+      - name: Commit compact results
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add manual-diverse-rerun-2-output
+          git commit -m 'chore(tmp): record second diverse Diavgeia rerun'
+          git push origin HEAD:tmp/manual-diverse-diavgeia-20260714
