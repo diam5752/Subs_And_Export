@@ -1,0 +1,53 @@
+name: Temporary Expand Diavgeia Neighborhoods
+
+on:
+  push:
+    branches:
+      - tmp/diavgeia-two-case-inspect-20260714
+    paths:
+      - tmp_tools/expand_diavgeia_candidate_neighborhoods.py
+      - .github/workflows/tmp-expand-diavgeia-neighborhoods.yml
+  pull_request:
+    branches:
+      - master
+    paths:
+      - tmp_tools/expand_diavgeia_candidate_neighborhoods.py
+      - .github/workflows/tmp-expand-diavgeia-neighborhoods.yml
+
+permissions:
+  contents: write
+
+jobs:
+  expand:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: tmp/diavgeia-two-case-inspect-20260714
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y poppler-utils
+          python -m pip install --upgrade pip
+          pip install requests
+      - name: Expand exact official neighborhoods
+        run: |
+          rm -rf candidate-neighborhood-output
+          python tmp_tools/expand_diavgeia_candidate_neighborhoods.py
+      - name: Commit compact result
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add candidate-neighborhood-output
+          if git diff --cached --quiet; then
+            echo "No neighborhood output produced"
+            exit 1
+          fi
+          git commit -m "chore(tmp): record Diavgeia neighborhoods"
+          git push origin HEAD:tmp/diavgeia-two-case-inspect-20260714
