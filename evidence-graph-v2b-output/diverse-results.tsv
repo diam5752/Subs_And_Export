@@ -1,0 +1,5 @@
+rank	status	score	novelty_rank	primary_type	detectors	families	adas	reasons
+1	RESEARCH_LEAD	58	58	explicit_single_bid	explicit_single_bid	competition	ΡΘ3ΚΩΗΜ-ΖΚΔ	Το επίσημο PDF αναφέρει ρητά μία/μοναδική προσφορά στη σελίδα 3. | Typed επίσημο οικονομικό μέγεθος: €3,742,938.00 (budget_total, unknown).
+2	RESEARCH_LEAD	56	56	advanced_or_repeated_extension	advanced_or_repeated_extension	contract_change	6ΩΞ4Η-ΝΓΨ	Η chain φτάνει τουλάχιστον σε 5η τροποποίηση/ΑΠΕ.
+3	RESEARCH_LEAD	48	48	typed_service_before_decision	typed_service_before_decision	timeline	ΨΦΩΞ46ΜΠ3Ζ-ΕΤΞ	Ρητά typed περίοδος εκτέλεσης αρχίζει 55 ημέρες πριν από την απόφαση. | Πηγή: σελίδα 1 του επίσημου PDF.
+4	RESEARCH_LEAD	56	46	repeated_emergency_supplier	explicit_single_bid,repeated_emergency_supplier	competition,procedure_pattern,supplier_pattern	ΨΔΘΔΟΡ1Π-Β28,97ΤΖΟΡ1Π-Η0Θ,Ρ6ΤΡΟΡ1Π-ΖΚΩ	3 διαφορετικές collapsed chains ίδιου φορέα, αναδόχου και κατηγορίας. | Το μοτίβο εκτείνεται σε 714 ημέρες. | 3 chains έχουν ρητή επίκληση επείγοντος. | Το επίσημο PDF αναφέρει ρητά μία/μοναδική προσφορά στη σελίδα 4. | Το επίσημο PDF αναφέρει ρητά μία/μοναδική προσφορά στη σελίδα 3.
