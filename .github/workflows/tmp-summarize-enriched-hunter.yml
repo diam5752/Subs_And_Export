@@ -1,0 +1,32 @@
+name: Temporary Summarize Enriched Hunter
+
+on:
+  push:
+    branches:
+      - tmp/diavgeia-enriched-hunter-20260714
+    paths:
+      - .github/workflows/tmp-summarize-enriched-hunter.yml
+      - tmp_tools/summarize_enriched_hunter_results.py
+
+permissions:
+  contents: write
+
+jobs:
+  summarize:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: tmp/diavgeia-enriched-hunter-20260714
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python tmp_tools/summarize_enriched_hunter_results.py
+      - run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add enriched-hunter-output/summary.txt
+          git commit -m 'chore(tmp): record compact enriched Hunter summary'
+          git push origin HEAD:tmp/diavgeia-enriched-hunter-20260714

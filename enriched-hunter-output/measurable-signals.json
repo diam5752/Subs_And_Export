@@ -1,0 +1,42 @@
+{
+  "repeated_noncompetitive_chains": {
+    "status": "measurable",
+    "requirements": "same authority + same object/CPV + distinct collapsed chains; same supplier strengthens the finding"
+  },
+  "repeated_short_bridge_contracts": {
+    "status": "measurable_when_dates_and_duration_exist",
+    "requirements": "two or more distinct short chains plus explicit pending/open-tender context"
+  },
+  "supplier_concentration_within_authority_object": {
+    "status": "measurable_when_supplier_identity_is_available",
+    "requirements": "stable supplier AFM/name across distinct chains"
+  },
+  "advanced_or_repeated_modifications": {
+    "status": "partly_measurable",
+    "requirements": "modification number and official chain are measurable; financial increase requires reliable original/intermediate/final amounts"
+  },
+  "unit_price_outliers": {
+    "status": "measurable_only_with_quantity_unit_scope_and_peers",
+    "requirements": "explicit quantity or unit price, compatible VAT/scope, and at least four genuinely comparable official records"
+  },
+  "publication_lag": {
+    "status": "measurable_as_transparency_signal_only",
+    "requirements": "typed issue and publication dates; not evidence of illegality"
+  },
+  "payment_vs_contract_mismatch": {
+    "status": "not_reliably_measured_in_this_run",
+    "requirements": "linked contract/payment identities, installment-vs-cumulative semantics, and compatible VAT basis"
+  },
+  "bid_rigging_or_cartel": {
+    "status": "not_measurable_from_standard_Diavgeia_metadata_alone",
+    "requirements": "bid-level participants, prices, withdrawals, submission metadata, or another authoritative source"
+  },
+  "conflict_of_interest_or_hidden_ownership": {
+    "status": "not_measurable_from_Diavgeia_alone",
+    "requirements": "authoritative company/ownership and public-official relationship data"
+  },
+  "market_overpricing_without_quantity": {
+    "status": "not_measurable",
+    "requirements": "a large total or an unusual item title alone is insufficient"
+  }
+}

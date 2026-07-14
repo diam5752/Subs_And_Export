@@ -1,0 +1,462 @@
+{
+  "status": "completed",
+  "executed_at": "2026-07-14T11:15:28.081895+00:00",
+  "date_from": "2023-01-01",
+  "date_to": "2026-07-14",
+  "search_attempts": [
+    {
+      "lens": "without_publication",
+      "term": "χωρίς προηγούμενη δημοσίευση",
+      "page": 0,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "without_publication",
+      "term": "χωρίς προηγούμενη δημοσίευση",
+      "page": 1,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "without_publication",
+      "term": "χωρίς προηγούμενη δημοσίευση",
+      "page": 2,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "without_publication",
+      "term": "χωρίς προηγούμενη δημοσίευση",
+      "page": 3,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "single_bid",
+      "term": "μοναδική προσφορά",
+      "page": 0,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "single_bid",
+      "term": "μοναδική προσφορά",
+      "page": 1,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "single_bid",
+      "term": "μοναδική προσφορά",
+      "page": 2,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "single_bid",
+      "term": "μοναδική προσφορά",
+      "page": 3,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "single_bid",
+      "term": "μία προσφορά",
+      "page": 0,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "single_bid",
+      "term": "μία προσφορά",
+      "page": 1,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "single_bid",
+      "term": "μία προσφορά",
+      "page": 2,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "emergency",
+      "term": "κατεπείγουσα ανάγκη",
+      "page": 0,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "emergency",
+      "term": "κατεπείγουσα ανάγκη",
+      "page": 1,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "emergency",
+      "term": "κατεπείγουσα ανάγκη",
+      "page": 2,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "direct_award",
+      "term": "απευθείας ανάθεση",
+      "page": 0,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "direct_award",
+      "term": "απευθείας ανάθεση",
+      "page": 1,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "direct_award",
+      "term": "απευθείας ανάθεση",
+      "page": 2,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "modification",
+      "term": "2η τροποποίηση σύμβασης",
+      "page": 0,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "modification",
+      "term": "2η τροποποίηση σύμβασης",
+      "page": 1,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "modification",
+      "term": "2η τροποποίηση σύμβασης",
+      "page": 2,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "modification",
+      "term": "2η τροποποίηση σύμβασης",
+      "page": 3,
+      "status": 200,
+      "returned": 9
+    },
+    {
+      "lens": "modification",
+      "term": "3η τροποποίηση σύμβασης",
+      "page": 0,
+      "status": 200,
+      "returned": 98
+    },
+    {
+      "lens": "modification",
+      "term": "συμπληρωματική σύμβαση",
+      "page": 0,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "modification",
+      "term": "συμπληρωματική σύμβαση",
+      "page": 1,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "modification",
+      "term": "συμπληρωματική σύμβαση",
+      "page": 2,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "modification",
+      "term": "συμπληρωματική σύμβαση",
+      "page": 3,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "modification",
+      "term": "3ος ΑΠΕ",
+      "page": 0,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "modification",
+      "term": "3ος ΑΠΕ",
+      "page": 1,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "modification",
+      "term": "3ος ΑΠΕ",
+      "page": 2,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "modification",
+      "term": "3ος ΑΠΕ",
+      "page": 3,
+      "status": 200,
+      "returned": 43
+    },
+    {
+      "lens": "modification",
+      "term": "3ου ΑΠΕ",
+      "page": 0,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "modification",
+      "term": "3ου ΑΠΕ",
+      "page": 1,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "modification",
+      "term": "3ου ΑΠΕ",
+      "page": 2,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "modification",
+      "term": "3ου ΑΠΕ",
+      "page": 3,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "unit_price",
+      "term": "γραβάτες",
+      "page": 0,
+      "status": 200,
+      "returned": 80
+    },
+    {
+      "lens": "unit_price",
+      "term": "γραβάτα",
+      "page": 0,
+      "status": 200,
+      "returned": 80
+    },
+    {
+      "lens": "unit_price",
+      "term": "φουλάρια",
+      "page": 0,
+      "status": 200,
+      "returned": 33
+    },
+    {
+      "lens": "unit_price",
+      "term": "φουλάρι",
+      "page": 0,
+      "status": 200,
+      "returned": 33
+    },
+    {
+      "lens": "unit_price",
+      "term": "κλιματιστικά",
+      "page": 0,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "unit_price",
+      "term": "κλιματιστικά",
+      "page": 1,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "unit_price",
+      "term": "κλιματιστικά",
+      "page": 2,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "unit_price",
+      "term": "κλιματιστικά",
+      "page": 3,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "unit_price",
+      "term": "κλιματιστικό",
+      "page": 0,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "unit_price",
+      "term": "κλιματιστικό",
+      "page": 1,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "unit_price",
+      "term": "κλιματιστικό",
+      "page": 2,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "unit_price",
+      "term": "κλιματιστικό",
+      "page": 3,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "unit_price",
+      "term": "air condition",
+      "page": 0,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "unit_price",
+      "term": "air condition",
+      "page": 1,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "unit_price",
+      "term": "air condition",
+      "page": 2,
+      "status": 200,
+      "returned": 39
+    },
+    {
+      "lens": "unit_price",
+      "term": "φορητοί υπολογιστές",
+      "page": 0,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "unit_price",
+      "term": "φορητοί υπολογιστές",
+      "page": 1,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "unit_price",
+      "term": "φορητοί υπολογιστές",
+      "page": 2,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "unit_price",
+      "term": "laptop",
+      "page": 0,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "unit_price",
+      "term": "laptop",
+      "page": 1,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "unit_price",
+      "term": "laptop",
+      "page": 2,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "unit_price",
+      "term": "τιμή μονάδας",
+      "page": 0,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "unit_price",
+      "term": "τιμή μονάδας",
+      "page": 1,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "unit_price",
+      "term": "τιμή μονάδας",
+      "page": 2,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "unusual_spend",
+      "term": "αναμνηστικά δώρα",
+      "page": 0,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "unusual_spend",
+      "term": "αναμνηστικά δώρα",
+      "page": 1,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "unusual_spend",
+      "term": "αναμνηστικά δώρα",
+      "page": 2,
+      "status": 200,
+      "returned": 100
+    },
+    {
+      "lens": "unusual_spend",
+      "term": "διαφημιστικά δώρα",
+      "page": 0,
+      "status": 200,
+      "returned": 83
+    }
+  ],
+  "unique_metadata_records": 4804,
+  "selected_for_pdf_inspection": 180,
+  "successful_inspections": 180,
+  "current_official_decisions": 139,
+  "collapsed_chain_count": 127,
+  "candidate_count": 92,
+  "validated_80_plus_count": 0,
+  "failures": [],
+  "publication_lag": {
+    "count": 127,
+    "median_days": 3,
+    "over_30_days": 34,
+    "note": "Publication lag is measurable as a transparency/administrative signal only; it is not treated as proof of procurement misconduct."
+  },
+  "notes": [
+    "Discovery terms are not treated as evidence.",
+    "Records sharing ADA/ADAM identifiers or exact administrative duplicates are collapsed before scoring.",
+    "A unit-price candidate cannot pass 80 without a second independent family.",
+    "The run is bounded and not an exhaustive census of Diavgeia."
+  ]
+}

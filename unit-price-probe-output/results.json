@@ -1,0 +1,827 @@
+{
+  "status": "completed",
+  "executed_at": "2026-07-14T04:51:27.417825+00:00",
+  "coverage": {
+    "search_records": 1960,
+    "deep_records": 160,
+    "readable_pdfs": 126
+  },
+  "validated": [],
+  "leads": [
+    {
+      "score": 67,
+      "spec": "souvenir:unknown-spec",
+      "ratio": 1594.9731543624162,
+      "peer_count": 3,
+      "reasons": [
+        "unit price €2376.51",
+        "1595.0x peer median across 3 peers"
+      ],
+      "record": {
+        "ada": "Ω0ΘΓ46Μ4ΨΒ-ΙΔΙ",
+        "url": "https://diavgeia.gov.gr/doc/Ω0ΘΓ46Μ4ΨΒ-ΙΔΙ",
+        "status": "PUBLISHED",
+        "private": false,
+        "corrected": null,
+        "organization_id": "100031233",
+        "subject": "«Έγκριση ενεργειών περί ετήσιας προμήθειας γραφικής ύλης, για την κάλυψη αναγκών των σχολικών μονάδων πρωτοβάθμιας εκπαίδευσης Δήμου Μεταμόρφωσης, έγκριση σχετικής δαπάνης και διαμόρφωση τεχνικών προδιαγραφών».",
+        "category": "souvenir",
+        "retrieved_by": [
+          "αναμνηστικά"
+        ],
+        "structured_total": 23765.07,
+        "amounts": [
+          1.25,
+          1.8,
+          2.1,
+          2.35,
+          2.4,
+          2.55,
+          2.76,
+          2.8,
+          3.0,
+          3.16,
+          3.2,
+          3.78,
+          3.8,
+          4.03,
+          4.76,
+          5.37,
+          6.0,
+          6.2,
+          6.38,
+          6.4,
+          6.75,
+          6.96,
+          7.25,
+          7.65,
+          7.8,
+          8.1,
+          8.75,
+          9.0,
+          9.25,
+          9.6,
+          9.8,
+          9.9,
+          10.5,
+          10.97,
+          11.0,
+          11.55,
+          11.89,
+          12.0,
+          12.5,
+          13.05,
+          13.2,
+          13.64,
+          14.0,
+          14.4,
+          14.55,
+          14.7,
+          15.6,
+          16.74,
+          17.15,
+          20.21,
+          20.35,
+          21.6,
+          22.0,
+          23.1,
+          23.7,
+          25.5,
+          27.0,
+          28.8,
+          29.25,
+          29.5,
+          30.68,
+          32.0,
+          32.89,
+          33.15,
+          33.6,
+          35.0,
+          35.04,
+          35.7,
+          36.25,
+          36.5,
+          37.2,
+          37.8,
+          38.2,
+          38.39,
+          38.4,
+          40.0,
+          40.85,
+          41.36,
+          42.68,
+          43.6
+        ],
+        "quantities": [
+          10,
+          11,
+          12,
+          16,
+          20,
+          36,
+          50,
+          100
+        ],
+        "explicit_unit_prices": [],
+        "derived_unit_prices": [
+          237.65,
+          475.3,
+          660.14,
+          1188.25,
+          1485.32,
+          1980.42,
+          2160.46,
+          2376.51
+        ],
+        "btu": [],
+        "evidence_lines": [
+          "81 ΑΝΑΜΝΗΣΤΙΚΑ ΝΗΠ/ΓΕΙΟΥ 150 0,60 90,00 €"
+        ],
+        "pdf_text_length": 33583
+      }
+    },
+    {
+      "score": 67,
+      "spec": "tie:unknown-spec",
+      "ratio": 3.2800030134853473,
+      "peer_count": 4,
+      "reasons": [
+        "unit price €1306.13",
+        "3.3x peer median across 4 peers"
+      ],
+      "record": {
+        "ada": "ΩΤ7ΚΟΚ1Θ-Ε5Σ",
+        "url": "https://diavgeia.gov.gr/doc/ΩΤ7ΚΟΚ1Θ-Ε5Σ",
+        "status": "PUBLISHED",
+        "private": false,
+        "corrected": null,
+        "organization_id": "53672",
+        "subject": "ΠΡΟΜΗΘΕΙΑ ΣΤΟΛΩΝ ΦΙΛΑΡΜΟΝΙΚΗΣ ΞΥΛΟΚΑΣΤΡΟΥ",
+        "category": "tie",
+        "retrieved_by": [
+          "γραβάτα",
+          "γραβάτες"
+        ],
+        "structured_total": 3918.4,
+        "amounts": [
+          3918.4
+        ],
+        "quantities": [
+          3
+        ],
+        "explicit_unit_prices": [],
+        "derived_unit_prices": [
+          1306.13
+        ],
+        "btu": [],
+        "evidence_lines": [
+          "Γραβάτα μαύρη από τεχνητό μετάξι 18400003-3 τεμ 15 10,00 150,00"
+        ],
+        "pdf_text_length": 5467
+      }
+    },
+    {
+      "score": 55,
+      "spec": "souvenir:unknown-spec",
+      "ratio": 2.5503355704697985,
+      "peer_count": 3,
+      "reasons": [
+        "unit price €3.80",
+        "2.6x peer median across 3 peers"
+      ],
+      "record": {
+        "ada": "9Ω6ΦΩΛΠ-2Τ5",
+        "url": "https://diavgeia.gov.gr/doc/9Ω6ΦΩΛΠ-2Τ5",
+        "status": "PUBLISHED",
+        "private": false,
+        "corrected": null,
+        "organization_id": "6154",
+        "subject": "Τιμητικές διακρίσεις , αναμνηστικά δώρα και έξοδα φιλοξενίας φυσικών προσώπων και έξοδα φιλοξενίας και αντιπροσωπειών.( Βιολογικό αιθέριο έλαιο λεβάντας 100τμχ)",
+        "category": "souvenir",
+        "retrieved_by": [
+          "αναμνηστικά"
+        ],
+        "structured_total": 380.0,
+        "amounts": [],
+        "quantities": [
+          100
+        ],
+        "explicit_unit_prices": [],
+        "derived_unit_prices": [
+          3.8
+        ],
+        "btu": [],
+        "evidence_lines": [],
+        "pdf_text_length": 3656
+      }
+    },
+    {
+      "score": 35,
+      "spec": "souvenir:unknown-spec",
+      "ratio": 0.39210526315789473,
+      "peer_count": 3,
+      "reasons": [
+        "unit price €1.49",
+        "insufficient same-spec comparator cohort"
+      ],
+      "record": {
+        "ada": "9ΧΠΜΩΛΠ-ΠΒΝ",
+        "url": "https://diavgeia.gov.gr/doc/9ΧΠΜΩΛΠ-ΠΒΝ",
+        "status": "PUBLISHED",
+        "private": false,
+        "corrected": null,
+        "organization_id": "6154",
+        "subject": "Τιμητικές διακρίσεις , αναμνηστικά δώρα και έξοδα φιλοξενίας φυσικών προσώπων και έξοδα φιλοξενίας και αντιπροσωπειών.(Προμήθεια 100 τεμαχίων Λικέρ Ρόδι)",
+        "category": "souvenir",
+        "retrieved_by": [
+          "αναμνηστικά"
+        ],
+        "structured_total": 148.8,
+        "amounts": [
+          148.8
+        ],
+        "quantities": [
+          100
+        ],
+        "explicit_unit_prices": [],
+        "derived_unit_prices": [
+          1.49
+        ],
+        "btu": [],
+        "evidence_lines": [],
+        "pdf_text_length": 3611
+      }
+    },
+    {
+      "score": 35,
+      "spec": "souvenir:unknown-spec",
+      "ratio": 0.27631578947368424,
+      "peer_count": 3,
+      "reasons": [
+        "unit price €1.05",
+        "insufficient same-spec comparator cohort"
+      ],
+      "record": {
+        "ada": "6ΟΤ5ΩΛΠ-5ΚΘ",
+        "url": "https://diavgeia.gov.gr/doc/6ΟΤ5ΩΛΠ-5ΚΘ",
+        "status": "PUBLISHED",
+        "private": false,
+        "corrected": null,
+        "organization_id": "6154",
+        "subject": "Τιμητικές διακρίσεις , αναμνηστικά δώρα και έξοδα φιλοξενίας φυσικών προσώπων και έξοδα φιλοξενίας και αντιπροσωπειών.( Προμήθειας 100 τεμαχίων τσίπουρο σε συσκευασία 50ml)",
+        "category": "souvenir",
+        "retrieved_by": [
+          "αναμνηστικά"
+        ],
+        "structured_total": 105.4,
+        "amounts": [
+          105.4
+        ],
+        "quantities": [
+          100
+        ],
+        "explicit_unit_prices": [],
+        "derived_unit_prices": [
+          1.05
+        ],
+        "btu": [],
+        "evidence_lines": [],
+        "pdf_text_length": 3645
+      }
+    },
+    {
+      "score": 35,
+      "spec": "tie:unknown-spec",
+      "ratio": 0.27799161748353435,
+      "peer_count": 4,
+      "reasons": [
+        "unit price €130.00",
+        "insufficient same-spec comparator cohort"
+      ],
+      "record": {
+        "ada": "ΩΥΡΕΟΚ6Υ-Λ35",
+        "url": "https://diavgeia.gov.gr/doc/ΩΥΡΕΟΚ6Υ-Λ35",
+        "status": "PUBLISHED",
+        "private": false,
+        "corrected": null,
+        "organization_id": "53401",
+        "subject": "ΑΠΟΦΑΣΗ ΠΡΟΕΔΡΟΥ ΜΕ ΑΡΙΘΜΟ 74/2020 - Καθαρισμός κοστουμιών της τρέχουσας παραγωγής του ΔΗ.ΠΕ.ΘΕ. «Το σακάκι που βελάζει» του συγγραφέα Στανισλάβ Στρατίεφ στο θέατρο της Παλαιάς Ηλεκτρικής της Διεύθυνσης Πολιτισμού του Δ.Ο.Ε.Π.Α.Π - ΔΗ.ΠΕ.ΘΕ Δήμου Βόλου",
+        "category": "tie",
+        "retrieved_by": [
+          "γραβάτα",
+          "γραβάτες",
+          "φουλάρι",
+          "φουλάρια"
+        ],
+        "structured_total": 390.0,
+        "amounts": [
+          314.52,
+          390.0
+        ],
+        "quantities": [
+          3,
+          5,
+          8,
+          10,
+          12,
+          18
+        ],
+        "explicit_unit_prices": [],
+        "derived_unit_prices": [
+          21.67,
+          32.5,
+          39.0,
+          48.75,
+          78.0,
+          130.0
+        ],
+        "btu": [],
+        "evidence_lines": [
+          "- Φουλάρια (3 τεμάχια)",
+          "- Γραβάτες (5 τεμάχια)"
+        ],
+        "pdf_text_length": 5709
+      }
+    },
+    {
+      "score": 35,
+      "spec": "tie:unknown-spec",
+      "ratio": 0.3440253186211616,
+      "peer_count": 4,
+      "reasons": [
+        "unit price €160.88",
+        "insufficient same-spec comparator cohort"
+      ],
+      "record": {
+        "ada": "ΩΤΦ6ΟΚ6Υ-ΠΙΙ",
+        "url": "https://diavgeia.gov.gr/doc/ΩΤΦ6ΟΚ6Υ-ΠΙΙ",
+        "status": "PUBLISHED",
+        "private": false,
+        "corrected": null,
+        "organization_id": "53401",
+        "subject": "184-ΑΠΟΦΑΣΗ ΠΡΟΕΔΡΟΥ-\" Καθαρισμός κοστουμιών που δόθηκαν προσφάτως ως δωρεά στο βεστιάριο του ΔΗ.ΠΕ.ΘΕ. Βόλου και ήταν ανάγκη να καθαριστούν στην κατάσταση που παραδόθηκαν, για να αποθηκευτούν καταλλήλως \".",
+        "category": "tie",
+        "retrieved_by": [
+          "γραβάτα",
+          "γραβάτες",
+          "φουλάρι",
+          "φουλάρια"
+        ],
+        "structured_total": 321.77,
+        "amounts": [
+          321.77,
+          399.0
+        ],
+        "quantities": [
+          2,
+          3,
+          5,
+          10,
+          15,
+          20
+        ],
+        "explicit_unit_prices": [],
+        "derived_unit_prices": [
+          16.09,
+          21.45,
+          32.18,
+          64.35,
+          107.26,
+          160.88
+        ],
+        "btu": [],
+        "evidence_lines": [
+          "•Φουλάρια, 3 τεµάχια",
+          "•Γραβάτες, 2 τεµάχια"
+        ],
+        "pdf_text_length": 4945
+      }
+    },
+    {
+      "score": 35,
+      "spec": "tie:unknown-spec",
+      "ratio": 1.174355239697647,
+      "peer_count": 4,
+      "reasons": [
+        "unit price €467.64",
+        "insufficient same-spec comparator cohort"
+      ],
+      "record": {
+        "ada": "ΩΔΨΕΩΕΒ-ΘΨΑ",
+        "url": "https://diavgeia.gov.gr/doc/ΩΔΨΕΩΕΒ-ΘΨΑ",
+        "status": "PUBLISHED",
+        "private": false,
+        "corrected": null,
+        "organization_id": "6123",
+        "subject": "Προμήθεια στολών για το ειδικό ένστολο προσωπικό της Δημοτικής Αστυνομία του Δήμου Ιλίου - ΚΜ19/20",
+        "category": "tie",
+        "retrieved_by": [
+          "γραβάτα",
+          "γραβάτες",
+          "φουλάρι",
+          "φουλάρια"
+        ],
+        "structured_total": 10755.62,
+        "amounts": [
+          2.7,
+          4.31,
+          6.47,
+          8.1,
+          9.7,
+          10.8,
+          12.93,
+          12.94,
+          15.09,
+          15.1,
+          16.17,
+          17.24,
+          19.4,
+          19.41,
+          21.56,
+          26.95,
+          29.1,
+          30.18,
+          31.05,
+          32.34,
+          32.4,
+          35.06,
+          38.8,
+          38.82,
+          43.12,
+          43.2,
+          45.27,
+          48.51,
+          53.9,
+          58.2,
+          59.77,
+          64.68,
+          67.4,
+          75.46,
+          80.85,
+          86.24,
+          90.54,
+          93.4,
+          107.8,
+          116.4,
+          120.77,
+          129.36,
+          131.56,
+          145.53,
+          146.07,
+          160.41,
+          161.7,
+          164.16,
+          172.48,
+          181.13,
+          194.04,
+          199.75,
+          232.86,
+          249.03,
+          258.72,
+          280.83,
+          301.84,
+          308.8,
+          323.4,
+          339.19,
+          341.51,
+          344.96,
+          348.23,
+          386.03,
+          389.18,
+          398.18,
+          431.2,
+          482.58,
+          548.16,
+          585.78,
+          603.68,
+          679.72,
+          684.0,
+          725.22,
+          832.31,
+          848.16,
+          970.23,
+          1032.06,
+          1203.09,
+          1413.3
+        ],
+        "quantities": [
+          23,
+          26,
+          30,
+          32,
+          33,
+          34,
+          43,
+          54,
+          56,
+          59,
+          60,
+          64,
+          66,
+          67,
+          68,
+          72,
+          76,
+          80,
+          86,
+          87
+        ],
+        "explicit_unit_prices": [],
+        "derived_unit_prices": [
+          123.63,
+          125.07,
+          134.45,
+          141.52,
+          149.38,
+          158.17,
+          160.53,
+          162.96,
+          168.06,
+          179.26,
+          182.3,
+          192.06,
+          199.18,
+          250.13,
+          316.34,
+          325.93,
+          336.11,
+          358.52,
+          413.68,
+          467.64
+        ],
+        "btu": [],
+        "evidence_lines": [
+          "4 Λαιμοδέτης (γραβάτα) χρώματος γκρι - γαλάζιου τεμάχιο 1 12,94 € 12,94 €",
+          "20 Φουλάρι χρώματος γαλάζιου τεμάχιο 3 9,70 € 29,10 €"
+        ],
+        "pdf_text_length": 30961
+      }
+    },
+    {
+      "score": 35,
+      "spec": "tie:unknown-spec",
+      "ratio": 0.851531092293217,
+      "peer_count": 4,
+      "reasons": [
+        "unit price €398.21",
+        "insufficient same-spec comparator cohort"
+      ],
+      "record": {
+        "ada": "ΨΤΤΓΩΚΗ-4ΜΥ",
+        "url": "https://diavgeia.gov.gr/doc/ΨΤΤΓΩΚΗ-4ΜΥ",
+        "status": "PUBLISHED",
+        "private": false,
+        "corrected": null,
+        "organization_id": "6203",
+        "subject": "Προμήθεια στολών του Ειδικού Ένστολου προσωπικού της Δημοτικής Αστυνομίας για το έτος 2020",
+        "category": "tie",
+        "retrieved_by": [
+          "γραβάτα",
+          "γραβάτες"
+        ],
+        "structured_total": 9955.25,
+        "amounts": [
+          9955.28,
+          10380.04
+        ],
+        "quantities": [
+          25
+        ],
+        "explicit_unit_prices": [],
+        "derived_unit_prices": [
+          398.21
+        ],
+        "btu": [],
+        "evidence_lines": [],
+        "pdf_text_length": 14163
+      }
+    },
+    {
+      "score": 35,
+      "spec": "other:unknown-spec",
+      "ratio": null,
+      "peer_count": 0,
+      "reasons": [
+        "unit price €3.07",
+        "insufficient same-spec comparator cohort"
+      ],
+      "record": {
+        "ada": "ΩΔΥΔΟΡ1Π-88Ε",
+        "url": "https://diavgeia.gov.gr/doc/ΩΔΥΔΟΡ1Π-88Ε",
+        "status": "PUBLISHED",
+        "private": false,
+        "corrected": null,
+        "organization_id": "50184",
+        "subject": "ΣΥΝ 14 ΘΕΜΑ 47",
+        "category": "other",
+        "retrieved_by": [
+          "air condition"
+        ],
+        "structured_total": 3835.6,
+        "amounts": [
+          3.31,
+          4.13,
+          5.12,
+          6.2,
+          6.9,
+          7.0,
+          8.0,
+          8.56,
+          9.92,
+          10.0,
+          12.0,
+          12.4,
+          15.0,
+          18.6,
+          22.0,
+          23.0,
+          24.0,
+          24.8,
+          27.28,
+          28.0,
+          29.76,
+          33.1,
+          34.72,
+          41.04,
+          44.0,
+          53.0,
+          54.56,
+          59.52,
+          65.72,
+          115.0,
+          122.58,
+          142.6,
+          152.0,
+          158.06,
+          185.48,
+          196.0,
+          219.0,
+          223.2,
+          232.0,
+          235.6,
+          368.13,
+          416.94,
+          456.48,
+          485.0,
+          517.0,
+          538.0,
+          545.6,
+          620.0,
+          650.0,
+          669.0,
+          675.8,
+          806.0,
+          843.2,
+          3835.6,
+          172340.19,
+          173480.99,
+          173716.59,
+          174032.79,
+          174138.19,
+          175229.39,
+          524571.35,
+          526220.66
+        ],
+        "quantities": [
+          1250,
+          2955,
+          2957,
+          2984
+        ],
+        "explicit_unit_prices": [],
+        "derived_unit_prices": [
+          1.29,
+          1.3,
+          3.07
+        ],
+        "btu": [],
+        "evidence_lines": [],
+        "pdf_text_length": 27423
+      }
+    },
+    {
+      "score": 35,
+      "spec": "air_conditioner:unknown-spec",
+      "ratio": null,
+      "peer_count": 0,
+      "reasons": [
+        "unit price €564.20",
+        "insufficient same-spec comparator cohort",
+        "BTU/model/installation scope not confirmed"
+      ],
+      "record": {
+        "ada": "ΨΣΟΓ469ΗΚΧ-ΝΑΠ",
+        "url": "https://diavgeia.gov.gr/doc/ΨΣΟΓ469ΗΚΧ-ΝΑΠ",
+        "status": "PUBLISHED",
+        "private": false,
+        "corrected": null,
+        "organization_id": "99221075",
+        "subject": "ΑΠΟΦΑΣΗ ΑΝΑΘΕΣΗΣ (27911)",
+        "category": "air_conditioner",
+        "retrieved_by": [
+          "κλιματιστικά",
+          "κλιματιστικό"
+        ],
+        "structured_total": 1128.4,
+        "amounts": [
+          1128.4
+        ],
+        "quantities": [
+          2,
+          12
+        ],
+        "explicit_unit_prices": [],
+        "derived_unit_prices": [
+          94.03,
+          564.2
+        ],
+        "btu": [],
+        "evidence_lines": [],
+        "pdf_text_length": 4034
+      }
+    },
+    {
+      "score": 35,
+      "spec": "scarf:unknown-spec",
+      "ratio": null,
+      "peer_count": 0,
+      "reasons": [
+        "unit price €57.40",
+        "insufficient same-spec comparator cohort"
+      ],
+      "record": {
+        "ada": "ΨΚ0ΨΟΡ9Υ-ΩΥ1",
+        "url": "https://diavgeia.gov.gr/doc/ΨΚ0ΨΟΡ9Υ-ΩΥ1",
+        "status": "PUBLISHED",
+        "private": false,
+        "corrected": null,
+        "organization_id": "50001",
+        "subject": "Απόφαση ανάθεσης προμήθειας (30) μεταξωτών μαντιλιών για τη δραστηριότητα των εικαστικών στο ΚΕΘΕΑ ΠΙΛΟΤΟΣ",
+        "category": "scarf",
+        "retrieved_by": [
+          "φουλάρι",
+          "φουλάρια"
+        ],
+        "structured_total": 287.0,
+        "amounts": [
+          231.49,
+          287.0,
+          287.05
+        ],
+        "quantities": [
+          5
+        ],
+        "explicit_unit_prices": [],
+        "derived_unit_prices": [
+          57.4
+        ],
+        "btu": [],
+        "evidence_lines": [
+          "1 Φουλάρι μεταξωτό 150 χ 40 cm ponge 5 Τμχ. 14 6,86 96,04",
+          "2 Φουλάρι μεταξωτό 180 χ 90 cm ponge 5 Τμχ. 4 14,18 56,72"
+        ],
+        "pdf_text_length": 6401
+      }
+    },
+    {
+      "score": 35,
+      "spec": "plaque:unknown-spec",
+      "ratio": null,
+      "peer_count": 0,
+      "reasons": [
+        "unit price €148.80",
+        "insufficient same-spec comparator cohort"
+      ],
+      "record": {
+        "ada": "6ΣΡΑΩΡΥ-2ΛΛ",
+        "url": "https://diavgeia.gov.gr/doc/6ΣΡΑΩΡΥ-2ΛΛ",
+        "status": "PUBLISHED",
+        "private": false,
+        "corrected": null,
+        "organization_id": "6107",
+        "subject": "ΑΠΟΦΑΣΗ ΑΝΑΘΕΣΗΣ ΠΡΟΜΗΘΕΙΑΣ ΑΝΑΜΝΗΣΤΙΚΩΝ ΚΑΣΕΤΙΝΩΝ ΚΑΙ ΤΙΜΗΤΙΚΩΝ ΠΛΑΚΕΤΩΝ ΓΙΑ ΔΙΑΦΟΡΕΣ ΕΚΔΗΛΩΣΕΙΣ ΤΟΥ ΔΗΜΟΥ ΤΟ ΕΤΟΣ 2020 ΑΜ 7/2020",
+        "category": "plaque",
+        "retrieved_by": [
+          "αναμνηστικά",
+          "τιμητικές πλακέτες"
+        ],
+        "structured_total": 2976.0,
+        "amounts": [
+          2976.0
+        ],
+        "quantities": [
+          20,
+          200
+        ],
+        "explicit_unit_prices": [],
+        "derived_unit_prices": [
+          14.88,
+          148.8
+        ],
+        "btu": [],
+        "evidence_lines": [],
+        "pdf_text_length": 5990
+      }
+    }
+  ]
+}

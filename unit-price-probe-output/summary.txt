@@ -1,0 +1,15 @@
+SEARCH|1960
+DEEP|160
+PDFS|126
+VALIDATED|0
+LEADS|13
+TOP1|67|souvenir:unknown-spec|Ω0ΘΓ46Μ4ΨΒ-ΙΔΙ
+TOP2|67|tie:unknown-spec|ΩΤ7ΚΟΚ1Θ-Ε5Σ
+TOP3|55|souvenir:unknown-spec|9Ω6ΦΩΛΠ-2Τ5
+TOP4|35|souvenir:unknown-spec|9ΧΠΜΩΛΠ-ΠΒΝ
+TOP5|35|souvenir:unknown-spec|6ΟΤ5ΩΛΠ-5ΚΘ
+TOP6|35|tie:unknown-spec|ΩΥΡΕΟΚ6Υ-Λ35
+TOP7|35|tie:unknown-spec|ΩΤΦ6ΟΚ6Υ-ΠΙΙ
+TOP8|35|tie:unknown-spec|ΩΔΨΕΩΕΒ-ΘΨΑ
+TOP9|35|tie:unknown-spec|ΨΤΤΓΩΚΗ-4ΜΥ
+TOP10|35|other:unknown-spec|ΩΔΥΔΟΡ1Π-88Ε

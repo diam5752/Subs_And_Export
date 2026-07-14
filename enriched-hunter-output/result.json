@@ -1,0 +1,1787 @@
+{
+  "coverage": {
+    "status": "completed",
+    "executed_at": "2026-07-14T11:15:28.081895+00:00",
+    "date_from": "2023-01-01",
+    "date_to": "2026-07-14",
+    "search_attempts": [
+      {
+        "lens": "without_publication",
+        "term": "χωρίς προηγούμενη δημοσίευση",
+        "page": 0,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "without_publication",
+        "term": "χωρίς προηγούμενη δημοσίευση",
+        "page": 1,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "without_publication",
+        "term": "χωρίς προηγούμενη δημοσίευση",
+        "page": 2,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "without_publication",
+        "term": "χωρίς προηγούμενη δημοσίευση",
+        "page": 3,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "single_bid",
+        "term": "μοναδική προσφορά",
+        "page": 0,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "single_bid",
+        "term": "μοναδική προσφορά",
+        "page": 1,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "single_bid",
+        "term": "μοναδική προσφορά",
+        "page": 2,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "single_bid",
+        "term": "μοναδική προσφορά",
+        "page": 3,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "single_bid",
+        "term": "μία προσφορά",
+        "page": 0,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "single_bid",
+        "term": "μία προσφορά",
+        "page": 1,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "single_bid",
+        "term": "μία προσφορά",
+        "page": 2,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "emergency",
+        "term": "κατεπείγουσα ανάγκη",
+        "page": 0,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "emergency",
+        "term": "κατεπείγουσα ανάγκη",
+        "page": 1,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "emergency",
+        "term": "κατεπείγουσα ανάγκη",
+        "page": 2,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "direct_award",
+        "term": "απευθείας ανάθεση",
+        "page": 0,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "direct_award",
+        "term": "απευθείας ανάθεση",
+        "page": 1,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "direct_award",
+        "term": "απευθείας ανάθεση",
+        "page": 2,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "modification",
+        "term": "2η τροποποίηση σύμβασης",
+        "page": 0,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "modification",
+        "term": "2η τροποποίηση σύμβασης",
+        "page": 1,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "modification",
+        "term": "2η τροποποίηση σύμβασης",
+        "page": 2,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "modification",
+        "term": "2η τροποποίηση σύμβασης",
+        "page": 3,
+        "status": 200,
+        "returned": 9
+      },
+      {
+        "lens": "modification",
+        "term": "3η τροποποίηση σύμβασης",
+        "page": 0,
+        "status": 200,
+        "returned": 98
+      },
+      {
+        "lens": "modification",
+        "term": "συμπληρωματική σύμβαση",
+        "page": 0,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "modification",
+        "term": "συμπληρωματική σύμβαση",
+        "page": 1,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "modification",
+        "term": "συμπληρωματική σύμβαση",
+        "page": 2,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "modification",
+        "term": "συμπληρωματική σύμβαση",
+        "page": 3,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "modification",
+        "term": "3ος ΑΠΕ",
+        "page": 0,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "modification",
+        "term": "3ος ΑΠΕ",
+        "page": 1,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "modification",
+        "term": "3ος ΑΠΕ",
+        "page": 2,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "modification",
+        "term": "3ος ΑΠΕ",
+        "page": 3,
+        "status": 200,
+        "returned": 43
+      },
+      {
+        "lens": "modification",
+        "term": "3ου ΑΠΕ",
+        "page": 0,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "modification",
+        "term": "3ου ΑΠΕ",
+        "page": 1,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "modification",
+        "term": "3ου ΑΠΕ",
+        "page": 2,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "modification",
+        "term": "3ου ΑΠΕ",
+        "page": 3,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "unit_price",
+        "term": "γραβάτες",
+        "page": 0,
+        "status": 200,
+        "returned": 80
+      },
+      {
+        "lens": "unit_price",
+        "term": "γραβάτα",
+        "page": 0,
+        "status": 200,
+        "returned": 80
+      },
+      {
+        "lens": "unit_price",
+        "term": "φουλάρια",
+        "page": 0,
+        "status": 200,
+        "returned": 33
+      },
+      {
+        "lens": "unit_price",
+        "term": "φουλάρι",
+        "page": 0,
+        "status": 200,
+        "returned": 33
+      },
+      {
+        "lens": "unit_price",
+        "term": "κλιματιστικά",
+        "page": 0,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "unit_price",
+        "term": "κλιματιστικά",
+        "page": 1,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "unit_price",
+        "term": "κλιματιστικά",
+        "page": 2,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "unit_price",
+        "term": "κλιματιστικά",
+        "page": 3,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "unit_price",
+        "term": "κλιματιστικό",
+        "page": 0,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "unit_price",
+        "term": "κλιματιστικό",
+        "page": 1,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "unit_price",
+        "term": "κλιματιστικό",
+        "page": 2,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "unit_price",
+        "term": "κλιματιστικό",
+        "page": 3,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "unit_price",
+        "term": "air condition",
+        "page": 0,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "unit_price",
+        "term": "air condition",
+        "page": 1,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "unit_price",
+        "term": "air condition",
+        "page": 2,
+        "status": 200,
+        "returned": 39
+      },
+      {
+        "lens": "unit_price",
+        "term": "φορητοί υπολογιστές",
+        "page": 0,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "unit_price",
+        "term": "φορητοί υπολογιστές",
+        "page": 1,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "unit_price",
+        "term": "φορητοί υπολογιστές",
+        "page": 2,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "unit_price",
+        "term": "laptop",
+        "page": 0,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "unit_price",
+        "term": "laptop",
+        "page": 1,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "unit_price",
+        "term": "laptop",
+        "page": 2,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "unit_price",
+        "term": "τιμή μονάδας",
+        "page": 0,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "unit_price",
+        "term": "τιμή μονάδας",
+        "page": 1,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "unit_price",
+        "term": "τιμή μονάδας",
+        "page": 2,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "unusual_spend",
+        "term": "αναμνηστικά δώρα",
+        "page": 0,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "unusual_spend",
+        "term": "αναμνηστικά δώρα",
+        "page": 1,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "unusual_spend",
+        "term": "αναμνηστικά δώρα",
+        "page": 2,
+        "status": 200,
+        "returned": 100
+      },
+      {
+        "lens": "unusual_spend",
+        "term": "διαφημιστικά δώρα",
+        "page": 0,
+        "status": 200,
+        "returned": 83
+      }
+    ],
+    "unique_metadata_records": 4804,
+    "selected_for_pdf_inspection": 180,
+    "successful_inspections": 180,
+    "current_official_decisions": 139,
+    "collapsed_chain_count": 127,
+    "candidate_count": 92,
+    "validated_80_plus_count": 0,
+    "failures": [],
+    "publication_lag": {
+      "count": 127,
+      "median_days": 3,
+      "over_30_days": 34,
+      "note": "Publication lag is measurable as a transparency/administrative signal only; it is not treated as proof of procurement misconduct."
+    },
+    "notes": [
+      "Discovery terms are not treated as evidence.",
+      "Records sharing ADA/ADAM identifiers or exact administrative duplicates are collapsed before scoring.",
+      "A unit-price candidate cannot pass 80 without a second independent family.",
+      "The run is bounded and not an exhaustive census of Diavgeia."
+    ]
+  },
+  "measurable_signal_matrix": {
+    "repeated_noncompetitive_chains": {
+      "status": "measurable",
+      "requirements": "same authority + same object/CPV + distinct collapsed chains; same supplier strengthens the finding"
+    },
+    "repeated_short_bridge_contracts": {
+      "status": "measurable_when_dates_and_duration_exist",
+      "requirements": "two or more distinct short chains plus explicit pending/open-tender context"
+    },
+    "supplier_concentration_within_authority_object": {
+      "status": "measurable_when_supplier_identity_is_available",
+      "requirements": "stable supplier AFM/name across distinct chains"
+    },
+    "advanced_or_repeated_modifications": {
+      "status": "partly_measurable",
+      "requirements": "modification number and official chain are measurable; financial increase requires reliable original/intermediate/final amounts"
+    },
+    "unit_price_outliers": {
+      "status": "measurable_only_with_quantity_unit_scope_and_peers",
+      "requirements": "explicit quantity or unit price, compatible VAT/scope, and at least four genuinely comparable official records"
+    },
+    "publication_lag": {
+      "status": "measurable_as_transparency_signal_only",
+      "requirements": "typed issue and publication dates; not evidence of illegality"
+    },
+    "payment_vs_contract_mismatch": {
+      "status": "not_reliably_measured_in_this_run",
+      "requirements": "linked contract/payment identities, installment-vs-cumulative semantics, and compatible VAT basis"
+    },
+    "bid_rigging_or_cartel": {
+      "status": "not_measurable_from_standard_Diavgeia_metadata_alone",
+      "requirements": "bid-level participants, prices, withdrawals, submission metadata, or another authoritative source"
+    },
+    "conflict_of_interest_or_hidden_ownership": {
+      "status": "not_measurable_from_Diavgeia_alone",
+      "requirements": "authoritative company/ownership and public-official relationship data"
+    },
+    "market_overpricing_without_quantity": {
+      "status": "not_measurable",
+      "requirements": "a large total or an unusual item title alone is insufficient"
+    }
+  },
+  "top_candidates": [
+    {
+      "type": "cumulative_or_advanced_modification",
+      "review_priority": 78,
+      "organization_id": "6166",
+      "object_category": "food_service",
+      "independent_families": [
+        "contract_modification",
+        "linked_contract_chain"
+      ],
+      "distinct_chain_count": 1,
+      "known_cumulative_value_eur": 699998.28,
+      "strongest_ordinary_explanation": "A later APE or modification may only redistribute quantities or implement a legally permitted minor change. The original and every intermediate value must be reconstructed before calling it a financial increase.",
+      "documents": [
+        {
+          "ada": "6Ο0ΜΩΛΚ-ΞΧΤ",
+          "official_url": "https://diavgeia.gov.gr/doc/6Ο0ΜΩΛΚ-ΞΧΤ",
+          "organization_id": "6166",
+          "organization": "",
+          "subject": "Εγκριση γνωμοδότησης για 3η τροποποίηση της με αρ. πρωτ.: 44858/03-11-2021 σύμβασης για την προμήθεια: ««προμήθεια τροφίμων & ειδών βασικής υλικής συνδρομής στο πλαίσιο του επιχειρησιακού προγράμματος επισιτιστικής και βασικής υλικής συνδρομής του ταμείου ευρωπαϊκής βοήθειας προς τους άπορους (ΤΕΒΑ), για τις ανάγκες της κοινωνικής σύμπραξης ΠΕ Φθιώτιδας με επικεφαλής εταίρο/δικαιούχε τον Δήμο Λαμιέων -τμήμα 1: τρόφιμα.»",
+          "issue_date": "2023-06-20",
+          "publish_date": "2023-06-21",
+          "amount_eur": 699998.28,
+          "amount_basis": "pdf_max_unknown",
+          "supplier_name": "ς «ΑΝΩΝΥΜΗ ΜΟΝΟΜΕΤΟΧΙΚΗ ΕΜΠΟΡΙΚΗ ΕΤΑΙΡΕΙΑ ΠΑΡΑΓΩΓΗΣ ΚΑΙ ΕΜΠΟΡΙΑΣ ΕΤΟΙΜΩΝ ΓΕΥΜΑΤΩΝ»",
+          "supplier_key_hash": "70c3334ecea09c42",
+          "cpv": "",
+          "object_category": "food_service",
+          "object_signature": "food_service:γνωμοδοτησησ:τροποποιηση:πρωτ:συμβασησ:τροφιμων:ειδων:βασικησ:υλικησ",
+          "adams": [
+            "21SYMV009471510",
+            "22PROC005528791",
+            "22SYMV011834257",
+            "23SYMV012530162"
+          ],
+          "procedure_flags": [],
+          "modification_flags": [
+            "3η_τροποποιηση",
+            "τροποποιηση_συμβασησ"
+          ],
+          "ordinary_explanations": [],
+          "duration_months": null,
+          "quantity": null,
+          "unit_price_eur": null,
+          "unit_price_source": "",
+          "product_spec": "",
+          "evidence": [
+            "Μεταβολές: 3η_τροποποιηση, τροποποιηση_συμβασησ",
+            "Δηλωμένο/εξαγόμενο ποσό: €699,998.28 (pdf_max_unknown)",
+            "Ανάδοχος/προμηθευτής αναγνωρίστηκε στα επίσημα στοιχεία."
+          ]
+        }
+      ],
+      "delivery_status": "BEST_RESEARCH_LEAD"
+    },
+    {
+      "type": "cumulative_or_advanced_modification",
+      "review_priority": 78,
+      "organization_id": "99221412",
+      "object_category": "construction",
+      "independent_families": [
+        "contract_modification",
+        "linked_contract_chain"
+      ],
+      "distinct_chain_count": 1,
+      "known_cumulative_value_eur": 684116.63,
+      "strongest_ordinary_explanation": "A later APE or modification may only redistribute quantities or implement a legally permitted minor change. The original and every intermediate value must be reconstructed before calling it a financial increase.",
+      "documents": [
+        {
+          "ada": "675Υ469ΗΤ5-ΧΑΚ",
+          "official_url": "https://diavgeia.gov.gr/doc/675Υ469ΗΤ5-ΧΑΚ",
+          "organization_id": "99221412",
+          "organization": "",
+          "subject": "2η Τροποποίηση Σύμβασης (χρονική παράταση)",
+          "issue_date": "2023-05-10",
+          "publish_date": "2023-05-10",
+          "amount_eur": 684116.63,
+          "amount_basis": "unknown",
+          "supplier_name": "ΠΡΑΞΙΣ ΑΝΩΝΥΜΗ ΤΕΧΝΙΚΗ ΕΤΑΙΡΕΙΑ",
+          "supplier_key_hash": "1b88f62e9c4391cb",
+          "cpv": "45262640-9",
+          "object_category": "construction",
+          "object_signature": "construction:τροποποιηση:συμβασησ:χρονικη:παραταση:675υ469ητ5:ministry:digital:digitally",
+          "adams": [
+            "21PROC008668031",
+            "22SYMV009911345"
+          ],
+          "procedure_flags": [],
+          "modification_flags": [
+            "2η_τροποποιηση",
+            "τροποποιηση_συμβασησ"
+          ],
+          "ordinary_explanations": [],
+          "duration_months": null,
+          "quantity": null,
+          "unit_price_eur": null,
+          "unit_price_source": "",
+          "product_spec": "",
+          "evidence": [
+            "Μεταβολές: 2η_τροποποιηση, τροποποιηση_συμβασησ",
+            "Δηλωμένο/εξαγόμενο ποσό: €684,116.63 (unknown)",
+            "Ανάδοχος/προμηθευτής αναγνωρίστηκε στα επίσημα στοιχεία."
+          ]
+        }
+      ],
+      "delivery_status": "BEST_RESEARCH_LEAD"
+    },
+    {
+      "type": "cumulative_or_advanced_modification",
+      "review_priority": 78,
+      "organization_id": "6287",
+      "object_category": "cleaning",
+      "independent_families": [
+        "contract_modification",
+        "linked_contract_chain"
+      ],
+      "distinct_chain_count": 1,
+      "known_cumulative_value_eur": 613038.64,
+      "strongest_ordinary_explanation": "A later APE or modification may only redistribute quantities or implement a legally permitted minor change. The original and every intermediate value must be reconstructed before calling it a financial increase.",
+      "documents": [
+        {
+          "ada": "ΨΛ5ΣΩ1Χ-8ΙΙ",
+          "official_url": "https://diavgeia.gov.gr/doc/ΨΛ5ΣΩ1Χ-8ΙΙ",
+          "organization_id": "6287",
+          "organization": "",
+          "subject": "ΑΡ. Α.Ο.Ε.151/2023_Λήψη απόφασης για: α) Έγκριση της υπ’ αριθ. 58/2023 μελέτης της Διεύθυνσης Προγραμματισμού, Ανάπτυξής , Πληροφορικής και Διαφάνειας για την προμήθεια με τίτλο «Προμήθεια εξοπλισμού για τον εκσυγχρονισμό της υποδομής», β) Επιλογή του τρόπου εκτέλεσης της προμήθειας, γ) Κατάρτιση των όρων διακήρυξης και δ) Επιλογή του κριτηρίου ανάθεσης.",
+          "issue_date": "2023-06-28",
+          "publish_date": "2023-06-28",
+          "amount_eur": 613038.64,
+          "amount_basis": "pdf_max_unknown",
+          "supplier_name": "",
+          "supplier_key_hash": "",
+          "cpv": "",
+          "object_category": "cleaning",
+          "object_signature": "cleaning:ληψη:αποφασησ:αριθ:μελετησ:διευθυνσησ:προγραμματισμου:αναπτυξησ:πληροφορικησ",
+          "adams": [
+            "23REQ012859224",
+            "23REQ012864198"
+          ],
+          "procedure_flags": [],
+          "modification_flags": [
+            "2η_τροποποιηση",
+            "τροποποιηση_συμβασησ"
+          ],
+          "ordinary_explanations": [
+            "δημόσιας υγείας"
+          ],
+          "duration_months": null,
+          "quantity": 8,
+          "unit_price_eur": 76629.83,
+          "unit_price_source": "headline_amount_divided_by_quantity",
+          "product_spec": "",
+          "evidence": [
+            "Μεταβολές: 2η_τροποποιηση, τροποποιηση_συμβασησ",
+            "Δηλωμένο/εξαγόμενο ποσό: €613,038.64 (pdf_max_unknown)",
+            "Ποσότητα 8, τιμή μονάδας περίπου €76,629.83 (headline_amount_divided_by_quantity)."
+          ]
+        }
+      ],
+      "delivery_status": "BEST_RESEARCH_LEAD"
+    },
+    {
+      "type": "cumulative_or_advanced_modification",
+      "review_priority": 78,
+      "organization_id": "5012",
+      "object_category": "food_service",
+      "independent_families": [
+        "contract_modification",
+        "linked_contract_chain"
+      ],
+      "distinct_chain_count": 1,
+      "known_cumulative_value_eur": 182661.67,
+      "strongest_ordinary_explanation": "A later APE or modification may only redistribute quantities or implement a legally permitted minor change. The original and every intermediate value must be reconstructed before calling it a financial increase.",
+      "documents": [
+        {
+          "ada": "97ΤΖ7Λ1-ΖΥΧ",
+          "official_url": "https://diavgeia.gov.gr/doc/97ΤΖ7Λ1-ΖΥΧ",
+          "organization_id": "5012",
+          "organization": "",
+          "subject": "Α Π Ο Σ Π Α Σ Μ Α ΤΟΥ ΠΡΑΚΤΙΚΟΥ 13 ΤΗΣ ΣΥΝΕΔΡΙΑΣΗΣ ΤΗΣ 30 - 05 - 2023 ΤΟΥ ΠΕΡΙΦΕΡΕ ΙΑΚΟΥ ΣΥΜΒΟΥΛΙΟΥ ΠΕΛΟΠΟΝΝΗΣΟΥ ΑΡΙΘΜΟΣ ΑΠΟΦΑΣΗΣ 231 ΘΕΜΑ 6ο ΗΔ: 2η τροποποίηση συμβάσεων ψεκασμού ελαιοδένδρων Π.Ε. Αργολίδας.",
+          "issue_date": "2023-05-30",
+          "publish_date": "2023-06-06",
+          "amount_eur": 182661.67,
+          "amount_basis": "pdf_max_unknown",
+          "supplier_name": "",
+          "supplier_key_hash": "5fb8f13c797daf28",
+          "cpv": "",
+          "object_category": "food_service",
+          "object_signature": "food_service:συνεδριασησ:περιφερε:ιακου:συμβουλιου:πελοποννησου:αριθμοσ:αποφασησ:τροποποιηση",
+          "adams": [
+            "22PROC010020011",
+            "22REQ009960334",
+            "22REQ010922860",
+            "22REQ010953324",
+            "22REQ010981449",
+            "22REQ011011068",
+            "22SYMV010816313",
+            "22SYMV010817364",
+            "22SYMV010818189",
+            "22SYMV011007713",
+            "22SYMV011008630",
+            "22SYMV011123765"
+          ],
+          "procedure_flags": [],
+          "modification_flags": [
+            "2η_τροποποιηση",
+            "τροποποιηση_συμβασησ"
+          ],
+          "ordinary_explanations": [],
+          "duration_months": null,
+          "quantity": null,
+          "unit_price_eur": null,
+          "unit_price_source": "",
+          "product_spec": "",
+          "evidence": [
+            "Μεταβολές: 2η_τροποποιηση, τροποποιηση_συμβασησ",
+            "Δηλωμένο/εξαγόμενο ποσό: €182,661.67 (pdf_max_unknown)",
+            "Ανάδοχος/προμηθευτής αναγνωρίστηκε στα επίσημα στοιχεία."
+          ]
+        }
+      ],
+      "delivery_status": "BEST_RESEARCH_LEAD"
+    },
+    {
+      "type": "cumulative_or_advanced_modification",
+      "review_priority": 78,
+      "organization_id": "99206911",
+      "object_category": "food_service",
+      "independent_families": [
+        "contract_modification",
+        "linked_contract_chain"
+      ],
+      "distinct_chain_count": 1,
+      "known_cumulative_value_eur": 120150.0,
+      "strongest_ordinary_explanation": "A later APE or modification may only redistribute quantities or implement a legally permitted minor change. The original and every intermediate value must be reconstructed before calling it a financial increase.",
+      "documents": [
+        {
+          "ada": "ΡΛ0Ζ469Β7Λ-ΞΒΝ",
+          "official_url": "https://diavgeia.gov.gr/doc/ΡΛ0Ζ469Β7Λ-ΞΒΝ",
+          "organization_id": "99206911",
+          "organization": "",
+          "subject": "2η ΤΡΟΠΟΠΟΙΗΣΗ ΣΥΜΒΑΣΗΣ ΓΙΑ ΤΗ ΣΙΤΙΣΗ ΤΩΝ ΦΟΙΤΗΤΩΝ/ΤΡΙΩΝ ΤΟΥ ΠΑΝΕΠΙΣΤΗΜΙΟΥ ΑΙΓΑΙΟΥ ΑΠΟ 01.01.2022 ΕΩΣ 31.12.2024",
+          "issue_date": "2023-03-17",
+          "publish_date": "2023-03-17",
+          "amount_eur": 120150.0,
+          "amount_basis": "pdf_max_unknown",
+          "supplier_name": "",
+          "supplier_key_hash": "e0c48c5ecad3daba",
+          "cpv": "",
+          "object_category": "food_service",
+          "object_signature": "food_service:τροποποιηση:συμβασησ:σιτιση:φοιτητων:τριων:πανεπιστημιου:αιγαιου:ρλ0ζ469β7λ",
+          "adams": [
+            "21SYMV009787776",
+            "22SYMV011891700",
+            "23SYMV012318143"
+          ],
+          "procedure_flags": [],
+          "modification_flags": [
+            "2η_τροποποιηση",
+            "τροποποιηση_συμβασησ"
+          ],
+          "ordinary_explanations": [],
+          "duration_months": null,
+          "quantity": null,
+          "unit_price_eur": null,
+          "unit_price_source": "",
+          "product_spec": "",
+          "evidence": [
+            "Μεταβολές: 2η_τροποποιηση, τροποποιηση_συμβασησ",
+            "Δηλωμένο/εξαγόμενο ποσό: €120,150.00 (pdf_max_unknown)",
+            "Ανάδοχος/προμηθευτής αναγνωρίστηκε στα επίσημα στοιχεία."
+          ]
+        }
+      ],
+      "delivery_status": "BEST_RESEARCH_LEAD"
+    },
+    {
+      "type": "cumulative_or_advanced_modification",
+      "review_priority": 73,
+      "organization_id": "100081912",
+      "object_category": "software_maintenance",
+      "independent_families": [
+        "contract_modification",
+        "linked_contract_chain"
+      ],
+      "distinct_chain_count": 1,
+      "known_cumulative_value_eur": 3348.0,
+      "strongest_ordinary_explanation": "A later APE or modification may only redistribute quantities or implement a legally permitted minor change. The original and every intermediate value must be reconstructed before calling it a financial increase.",
+      "documents": [
+        {
+          "ada": "9ΨΙΕ4653Π4-81Θ",
+          "official_url": "https://diavgeia.gov.gr/doc/9ΨΙΕ4653Π4-81Θ",
+          "organization_id": "100081912",
+          "organization": "",
+          "subject": "3η Τροποποίηση Σύμβασης (χρονική παράταση) για την μετάφραση των κειμένων της έκθεσης για την παραγωγή γραφιστικών πινακίδων και ψηφιακών εφαρμογών του Μουσείου Ρητίνης Αμπελικού Λέσβου, στο πλαίσιο του έργου «Εκσυγχρονισμός και επέκταση έκθεσης του Μουσείου Ρητίνης Αμπελικού» ενταγμένου στο Ε.Π. «ΠΠΑ Περιφέρειας Β. Αιγαίου 2021-2025» (πρώην 2017ΕΠ08800007) (ΠΔΕ 2022ΝΠ58800005) (MIS 5190064).",
+          "issue_date": "2023-06-29",
+          "publish_date": "2023-06-29",
+          "amount_eur": 3348.0,
+          "amount_basis": "unknown",
+          "supplier_name": "ΣΤΕΦΑΝΟΥ,,ΕΛΕΝΗ,ΚΩΝΣΤΑΝΤΙΝΟΣ",
+          "supplier_key_hash": "6fe0d007371bac5e",
+          "cpv": "",
+          "object_category": "software_maintenance",
+          "object_signature": "software_maintenance:τροποποιηση:συμβασησ:χρονικη:παραταση:μεταφραση:κειμενων:εκθεσησ:παραγωγη",
+          "adams": [
+            "21AWRD009769575",
+            "21SYMV009771915",
+            "23REQ011960932",
+            "23SYMV011994838",
+            "23SYMV012409010",
+            "23SYMV012979906"
+          ],
+          "procedure_flags": [],
+          "modification_flags": [
+            "2η_τροποποιηση",
+            "3η_τροποποιηση",
+            "τροποποιηση_συμβασησ"
+          ],
+          "ordinary_explanations": [],
+          "duration_months": null,
+          "quantity": null,
+          "unit_price_eur": null,
+          "unit_price_source": "",
+          "product_spec": "",
+          "evidence": [
+            "Μεταβολές: 2η_τροποποιηση, 3η_τροποποιηση, τροποποιηση_συμβασησ",
+            "Δηλωμένο/εξαγόμενο ποσό: €3,348.00 (unknown)",
+            "Ανάδοχος/προμηθευτής αναγνωρίστηκε στα επίσημα στοιχεία."
+          ]
+        }
+      ],
+      "delivery_status": "BEST_RESEARCH_LEAD"
+    },
+    {
+      "type": "cumulative_or_advanced_modification",
+      "review_priority": 73,
+      "organization_id": "100015966",
+      "object_category": "construction",
+      "independent_families": [
+        "contract_modification",
+        "linked_contract_chain"
+      ],
+      "distinct_chain_count": 1,
+      "known_cumulative_value_eur": 2223.0,
+      "strongest_ordinary_explanation": "A later APE or modification may only redistribute quantities or implement a legally permitted minor change. The original and every intermediate value must be reconstructed before calling it a financial increase.",
+      "documents": [
+        {
+          "ada": "ΨΖ024653Π4-97Μ",
+          "official_url": "https://diavgeia.gov.gr/doc/ΨΖ024653Π4-97Μ",
+          "organization_id": "100015966",
+          "organization": "",
+          "subject": "2η ΤΡΟΠΟΠΟΙΗΣΗ ΣΥΜΒΑΣΗΣ (χρονική παράταση) για την εκπόνηση ηλεκτρολογικής τεχνικής έκθεσης και σύνδεσης εργοταξιακού ρεύματος στο πλαίσιο του έργου: «Συντήρηση, Αποκατάσταση και Ανάδειξη του Φρουρίου Σιγρίου, νήσου Λέσβου».",
+          "issue_date": "2023-05-03",
+          "publish_date": "2023-05-03",
+          "amount_eur": 2223.0,
+          "amount_basis": "pdf_max_unknown",
+          "supplier_name": "",
+          "supplier_key_hash": "3f9fba25b99a75a3",
+          "cpv": "",
+          "object_category": "construction",
+          "object_signature": "construction:τροποποιηση:συμβασησ:χρονικη:παραταση:εκπονηση:ηλεκτρολογικησ:τεχνικησ:εκθεσησ",
+          "adams": [
+            "23SYMV012065801",
+            "23SYMV012409118"
+          ],
+          "procedure_flags": [],
+          "modification_flags": [
+            "2η_τροποποιηση",
+            "τροποποιηση_συμβασησ"
+          ],
+          "ordinary_explanations": [],
+          "duration_months": null,
+          "quantity": null,
+          "unit_price_eur": null,
+          "unit_price_source": "",
+          "product_spec": "",
+          "evidence": [
+            "Μεταβολές: 2η_τροποποιηση, τροποποιηση_συμβασησ",
+            "Δηλωμένο/εξαγόμενο ποσό: €2,223.00 (pdf_max_unknown)",
+            "Ανάδοχος/προμηθευτής αναγνωρίστηκε στα επίσημα στοιχεία."
+          ]
+        }
+      ],
+      "delivery_status": "BEST_RESEARCH_LEAD"
+    },
+    {
+      "type": "cumulative_or_advanced_modification",
+      "review_priority": 73,
+      "organization_id": "100015966",
+      "object_category": "construction",
+      "independent_families": [
+        "contract_modification",
+        "linked_contract_chain"
+      ],
+      "distinct_chain_count": 1,
+      "known_cumulative_value_eur": 1315.0,
+      "strongest_ordinary_explanation": "A later APE or modification may only redistribute quantities or implement a legally permitted minor change. The original and every intermediate value must be reconstructed before calling it a financial increase.",
+      "documents": [
+        {
+          "ada": "6Ψ7Η4653Π4-Ν1Σ",
+          "official_url": "https://diavgeia.gov.gr/doc/6Ψ7Η4653Π4-Ν1Σ",
+          "organization_id": "100015966",
+          "organization": "",
+          "subject": "2Η ΤΡΟΠΟΠΟΙΗΣΗ ΣΥΜΒΑΣΗΣ (ΩΣ ΠΡΟΣ ΤΟ ΤΙΜΗΜΑ) ΓΙΑ ΤΗΝ ΠΡΟΜΗΘΕΙΑ ΜΗΧΑΝΗΜΑΤΩΝ ΣΤΟΝ Ι.Ν. ΑΓ. ΓΕΩΡΓΙΟΥ ΣΤΗΝ ΠΟΛΗ ΤΗΣ ΛΕΥΚΑΔΑΣ (CPV: 42995000-7) ΓΙΑ ΤΙΣ ΑΝΑΓΚΕΣ ΤΟΥ ΕΡΓΟΥ «ΣΤΕΡΕΩΣΗ & ΑΠΟΚΑΤΑΣΤΑΣΗ ΤΟΥ Ι.Ν. ΑΓ. ΓΕΩΡΓΙΟΥ ΣΤΗΝ ΠΟΛΗ ΤΗΣ ΛΕΥΚΑΔΑΣ», με MIS 5050841 KAI K.E.2020EΠ02210028",
+          "issue_date": "2023-05-30",
+          "publish_date": "2023-05-31",
+          "amount_eur": 1315.0,
+          "amount_basis": "pdf_max_unknown",
+          "supplier_name": "",
+          "supplier_key_hash": "e7d43e0fb06c043c",
+          "cpv": "",
+          "object_category": "construction",
+          "object_signature": "construction:τροποποιηση:συμβασησ:προσ:τιμημα:μηχανηματων:στον:γεωργιου:πολη",
+          "adams": [
+            "22SYMV010621773",
+            "23SYMV012783458"
+          ],
+          "procedure_flags": [],
+          "modification_flags": [
+            "2η_τροποποιηση",
+            "τροποποιηση_συμβασησ"
+          ],
+          "ordinary_explanations": [],
+          "duration_months": null,
+          "quantity": null,
+          "unit_price_eur": null,
+          "unit_price_source": "",
+          "product_spec": "",
+          "evidence": [
+            "Μεταβολές: 2η_τροποποιηση, τροποποιηση_συμβασησ",
+            "Δηλωμένο/εξαγόμενο ποσό: €1,315.00 (pdf_max_unknown)",
+            "Ανάδοχος/προμηθευτής αναγνωρίστηκε στα επίσημα στοιχεία."
+          ]
+        }
+      ],
+      "delivery_status": "BEST_RESEARCH_LEAD"
+    },
+    {
+      "type": "cumulative_or_advanced_modification",
+      "review_priority": 73,
+      "organization_id": "99221012",
+      "object_category": "construction",
+      "independent_families": [
+        "contract_modification",
+        "linked_contract_chain"
+      ],
+      "distinct_chain_count": 1,
+      "known_cumulative_value_eur": 0,
+      "strongest_ordinary_explanation": "A later APE or modification may only redistribute quantities or implement a legally permitted minor change. The original and every intermediate value must be reconstructed before calling it a financial increase.",
+      "documents": [
+        {
+          "ada": "9ΕΤ3469ΗΛ4-1ΧΔ",
+          "official_url": "https://diavgeia.gov.gr/doc/9ΕΤ3469ΗΛ4-1ΧΔ",
+          "organization_id": "99221012",
+          "organization": "",
+          "subject": "2η ΤΡΟΠΟΠΟΙΗΣΗ ΣΥΜΒΑΣΗ ΠΑΡΟΧΗΣ ΥΠΗΡΕΣΙΩΝ ΕΚΔΟΣΗΣ ΠΙΣΤΟΠΟΙΗΤΙΚΩΝ ΕΝΕΡΓΕΙΑΚΗΣ ΑΠΟΔΟΣΗΣ SMENSWICT",
+          "issue_date": "2023-05-31",
+          "publish_date": "2023-05-31",
+          "amount_eur": null,
+          "amount_basis": "unknown",
+          "supplier_name": "",
+          "supplier_key_hash": "3c9facac39456b92",
+          "cpv": "",
+          "object_category": "construction",
+          "object_signature": "construction:τροποποιηση:παροχησ:εκδοσησ:πιστοποιητικων:ενεργειακησ:αποδοσησ:smenswict:9ετ3469ηλ4",
+          "adams": [
+            "21PROC009530828",
+            "21REQ009511026",
+            "21REQ009517119",
+            "21SYMV009705964",
+            "22SYMV011151255"
+          ],
+          "procedure_flags": [],
+          "modification_flags": [
+            "2η_τροποποιηση",
+            "τροποποιηση_συμβασησ"
+          ],
+          "ordinary_explanations": [],
+          "duration_months": null,
+          "quantity": null,
+          "unit_price_eur": null,
+          "unit_price_source": "",
+          "product_spec": "",
+          "evidence": [
+            "Μεταβολές: 2η_τροποποιηση, τροποποιηση_συμβασησ",
+            "Ανάδοχος/προμηθευτής αναγνωρίστηκε στα επίσημα στοιχεία."
+          ]
+        }
+      ],
+      "delivery_status": "BEST_RESEARCH_LEAD"
+    },
+    {
+      "type": "cumulative_or_advanced_modification",
+      "review_priority": 73,
+      "organization_id": "99206920",
+      "object_category": "medical_waste",
+      "independent_families": [
+        "contract_modification",
+        "linked_contract_chain"
+      ],
+      "distinct_chain_count": 1,
+      "known_cumulative_value_eur": 0,
+      "strongest_ordinary_explanation": "A later APE or modification may only redistribute quantities or implement a legally permitted minor change. The original and every intermediate value must be reconstructed before calling it a financial increase.",
+      "documents": [
+        {
+          "ada": "9ΘΗΜ469Β7Θ-ΛΩΦ",
+          "official_url": "https://diavgeia.gov.gr/doc/9ΘΗΜ469Β7Θ-ΛΩΦ",
+          "organization_id": "99206920",
+          "organization": "",
+          "subject": "2Η ΤΡΟΠΟΠΟΙΗΣΗ ΣΥΜΒΑΣΗΣ ΜΕ ΑΔΑΜ: 22SYMV011274697",
+          "issue_date": "2023-05-19",
+          "publish_date": "2023-05-19",
+          "amount_eur": null,
+          "amount_basis": "unknown",
+          "supplier_name": "",
+          "supplier_key_hash": "c7638a561ca51b68",
+          "cpv": "",
+          "object_category": "medical_waste",
+          "object_signature": "medical_waste:τροποποιηση:συμβασησ:αδαμ:22symv011274697:9θημ469β7θ:ministry:digital:digitally",
+          "adams": [
+            "21PROC009309386",
+            "22AWRD011203166",
+            "22SYMV011274697"
+          ],
+          "procedure_flags": [],
+          "modification_flags": [
+            "2η_τροποποιηση",
+            "τροποποιηση_συμβασησ"
+          ],
+          "ordinary_explanations": [],
+          "duration_months": null,
+          "quantity": null,
+          "unit_price_eur": null,
+          "unit_price_source": "",
+          "product_spec": "",
+          "evidence": [
+            "Μεταβολές: 2η_τροποποιηση, τροποποιηση_συμβασησ",
+            "Ανάδοχος/προμηθευτής αναγνωρίστηκε στα επίσημα στοιχεία."
+          ]
+        }
+      ],
+      "delivery_status": "BEST_RESEARCH_LEAD"
+    },
+    {
+      "type": "cumulative_or_advanced_modification",
+      "review_priority": 73,
+      "organization_id": "100015966",
+      "object_category": "construction",
+      "independent_families": [
+        "contract_modification",
+        "linked_contract_chain"
+      ],
+      "distinct_chain_count": 1,
+      "known_cumulative_value_eur": 0,
+      "strongest_ordinary_explanation": "A later APE or modification may only redistribute quantities or implement a legally permitted minor change. The original and every intermediate value must be reconstructed before calling it a financial increase.",
+      "documents": [
+        {
+          "ada": "634Γ4653Π4-ΩΝΨ",
+          "official_url": "https://diavgeia.gov.gr/doc/634Γ4653Π4-ΩΝΨ",
+          "organization_id": "100015966",
+          "organization": "",
+          "subject": "2Η ΤΡΟΠΟΠΟΙΗΣΗ ΣΥΜΒΑΣΗΣ (ΩΣ ΠΡΟΣ ΤΟ ΤΙΜΗΜΑ) ΓΙΑ ΤΗΝ ΠΡΟΜΗΘΕΙΑ ΕΡΓΑΛΕΙΩΝ ΣΤΗΝ Ι.Μ. ΑΓ. ΓΕΩΡΓΙΟΥ ΣΤΟΥΣ ΣΚΑΡΟΥΣ ΛΕΥΚΑΔΑΣ (CPV: 44500000-5) ΓΙΑ ΤΙΣ ΑΝΑΓΚΕΣ ΤΟΥ ΕΡΓΟΥ «ΣΤΕΡΕΩΣΗ & ΑΠΟΚΑΤΑΣΤΑΣΗ ΤΟΥ ΚΑΘΟΛΙΚΟΥ ΤΗΣ Ι.Μ. ΑΓ. ΓΕΩΡΓΙΟΥ ΣΤΟΥΣ ΣΚΑΡΟΥΣ ΛΕΥΚΑΔΑΣ», με MIS 5052417 KAI K.E.2020EΠ02210033",
+          "issue_date": "2023-05-19",
+          "publish_date": "2023-05-19",
+          "amount_eur": null,
+          "amount_basis": "unknown",
+          "supplier_name": "",
+          "supplier_key_hash": "e7d43e0fb06c043c",
+          "cpv": "",
+          "object_category": "construction",
+          "object_signature": "construction:τροποποιηση:συμβασησ:προσ:τιμημα:εργαλειων:γεωργιου:στουσ:σκαρουσ",
+          "adams": [
+            "21SYMV008444643",
+            "22SYMV011841519",
+            "23SYMV012714743"
+          ],
+          "procedure_flags": [],
+          "modification_flags": [
+            "2η_τροποποιηση",
+            "τροποποιηση_συμβασησ"
+          ],
+          "ordinary_explanations": [],
+          "duration_months": null,
+          "quantity": null,
+          "unit_price_eur": null,
+          "unit_price_source": "",
+          "product_spec": "",
+          "evidence": [
+            "Μεταβολές: 2η_τροποποιηση, τροποποιηση_συμβασησ",
+            "Ανάδοχος/προμηθευτής αναγνωρίστηκε στα επίσημα στοιχεία."
+          ]
+        }
+      ],
+      "delivery_status": "BEST_RESEARCH_LEAD"
+    },
+    {
+      "type": "cumulative_or_advanced_modification",
+      "review_priority": 73,
+      "organization_id": "100056663",
+      "object_category": "food_service",
+      "independent_families": [
+        "contract_modification",
+        "linked_contract_chain"
+      ],
+      "distinct_chain_count": 1,
+      "known_cumulative_value_eur": 0,
+      "strongest_ordinary_explanation": "A later APE or modification may only redistribute quantities or implement a legally permitted minor change. The original and every intermediate value must be reconstructed before calling it a financial increase.",
+      "documents": [
+        {
+          "ada": "94ΗΣ46ΜΔΨΟ-Ν0Ω",
+          "official_url": "https://diavgeia.gov.gr/doc/94ΗΣ46ΜΔΨΟ-Ν0Ω",
+          "organization_id": "100056663",
+          "organization": "",
+          "subject": "Απόφαση έγκρισης πρακτικού της Επιτροπής Παρακολούθησης και Παραλαβής για την 3η τροποποίηση της υπ’ αριθ. πρωτ. 279803/29.09.2021 και με αύξοντα αριθμό 32/2021 Σύμβασης, για την υλοποίηση του 3ου τμήματος του έργου «Ολοκληρωμένο ψηφιακό σύστημα διαχείρισης Ηλεκτρονικής και Φυσικής Ασφάλειας με υποστήριξη Κυβερνοασφάλειας για την προστασία της ανθρώπινης ζωής, της περιουσίας και των λειτουργιών των δομών υποδοχής και φιλοξενίας πολιτών τρίτων χωρών».",
+          "issue_date": "2023-05-10",
+          "publish_date": "2023-05-10",
+          "amount_eur": null,
+          "amount_basis": "unknown",
+          "supplier_name": "",
+          "supplier_key_hash": "",
+          "cpv": "",
+          "object_category": "food_service",
+          "object_signature": "food_service:εγκρισησ:επιτροπησ:παρακολουθησησ:παραλαβησ:τροποποιηση:αριθ:πρωτ:αυξοντα",
+          "adams": [
+            "21AWRD009058449",
+            "21PROC008515389",
+            "21PROC008804561",
+            "23AWRD012647509"
+          ],
+          "procedure_flags": [],
+          "modification_flags": [
+            "2η_τροποποιηση",
+            "3η_τροποποιηση",
+            "δευτερη_τροποποιηση",
+            "τριτη_τροποποιηση",
+            "τροποποιηση_συμβασησ"
+          ],
+          "ordinary_explanations": [],
+          "duration_months": null,
+          "quantity": null,
+          "unit_price_eur": null,
+          "unit_price_source": "",
+          "product_spec": "",
+          "evidence": [
+            "Μεταβολές: 2η_τροποποιηση, 3η_τροποποιηση, δευτερη_τροποποιηση, τριτη_τροποποιηση, τροποποιηση_συμβασησ"
+          ]
+        }
+      ],
+      "delivery_status": "BEST_RESEARCH_LEAD"
+    },
+    {
+      "type": "cumulative_or_advanced_modification",
+      "review_priority": 73,
+      "organization_id": "99221315",
+      "object_category": "other",
+      "independent_families": [
+        "contract_modification",
+        "linked_contract_chain"
+      ],
+      "distinct_chain_count": 1,
+      "known_cumulative_value_eur": 0,
+      "strongest_ordinary_explanation": "A later APE or modification may only redistribute quantities or implement a legally permitted minor change. The original and every intermediate value must be reconstructed before calling it a financial increase.",
+      "documents": [
+        {
+          "ada": "ΨΤΠΞ469ΗΙΖ-ΙΛ7",
+          "official_url": "https://diavgeia.gov.gr/doc/ΨΤΠΞ469ΗΙΖ-ΙΛ7",
+          "organization_id": "99221315",
+          "organization": "",
+          "subject": "ΕΞΟΦΛΗΣΗ ΤΙΜΟΛΟΓΙΩΝ ΓΙΑ ΣΥΣΚΕΥΑΣΙΑ & ΜΕΤΑΦΟΡΑ ΣΤΟ ΕΞΩΤΕΡΙΚΟ & ΣΤΟ ΕΣΩΤΕΡΙΚΟ ΤΟΥ ΠΑΣΗΣ ΦΥΣΕΩΣ ΥΛΙΚΟΥ ΤΟΥ ΕΟΤ ΑΠ ΓΓ ΕΟΤ 11608 / 08-10-2019 ΑΠ ΕΠΑΝΑΔΕΣΜΕΥΣΗΣ 687/ 24-01-2022 ΑΔΑΜ ΣΥΜΒΑΣΗΣ: 19SYMV005751950 2019-10-24 & 2η ΤΡΟΠΟΠΟΙΗΣΗ ΣΥΜΒΑΣΗΣ 21SYMV009387727 2021-10-19.",
+          "issue_date": "2023-03-28",
+          "publish_date": "2023-03-28",
+          "amount_eur": null,
+          "amount_basis": "unknown",
+          "supplier_name": "",
+          "supplier_key_hash": "f5f50b3d7c2d7c2d",
+          "cpv": "",
+          "object_category": "other",
+          "object_signature": "other:εξοφληση:τιμολογιων:συσκευασια:μεταφορα:εξωτερικο:εσωτερικο:πασησ:φυσεωσ",
+          "adams": [
+            "19SYMV005751950",
+            "21SYMV009387727"
+          ],
+          "procedure_flags": [],
+          "modification_flags": [
+            "2η_τροποποιηση",
+            "τροποποιηση_συμβασησ"
+          ],
+          "ordinary_explanations": [],
+          "duration_months": null,
+          "quantity": null,
+          "unit_price_eur": null,
+          "unit_price_source": "",
+          "product_spec": "",
+          "evidence": [
+            "Μεταβολές: 2η_τροποποιηση, τροποποιηση_συμβασησ",
+            "Ανάδοχος/προμηθευτής αναγνωρίστηκε στα επίσημα στοιχεία."
+          ]
+        }
+      ],
+      "delivery_status": "BEST_RESEARCH_LEAD"
+    },
+    {
+      "type": "cumulative_or_advanced_modification",
+      "review_priority": 73,
+      "organization_id": "100015966",
+      "object_category": "food_service",
+      "independent_families": [
+        "contract_modification",
+        "linked_contract_chain"
+      ],
+      "distinct_chain_count": 1,
+      "known_cumulative_value_eur": 0,
+      "strongest_ordinary_explanation": "A later APE or modification may only redistribute quantities or implement a legally permitted minor change. The original and every intermediate value must be reconstructed before calling it a financial increase.",
+      "documents": [
+        {
+          "ada": "9ΒΧΠ4653Π4-ΥΡΡ",
+          "official_url": "https://diavgeia.gov.gr/doc/9ΒΧΠ4653Π4-ΥΡΡ",
+          "organization_id": "100015966",
+          "organization": "",
+          "subject": "2Η ΤΡΟΠΟΠΟΙΗΣΗ ΣΥΜΒΑΣΗΣ (ΠΑΡΑΤΑΣΗ ΧΡΟΝΟΥ ΛΗΞΗΣ) ΓΙΑ ΤΗΝ «ΠΡΟΜΗΘΕΙΑ ΟΙΚΟΔΟΜΙΚΩΝ ΥΛΙΚΩΝ» στο πλαίσιο του έργου «Αναβάθμιση Αρχαιολογικού Χώρου Φιλίππων»",
+          "issue_date": "2023-03-24",
+          "publish_date": "2023-03-24",
+          "amount_eur": null,
+          "amount_basis": "unknown",
+          "supplier_name": "ς με την επωνυμία ΕΚΑΤ ΜΠΕΤΟΝ Α",
+          "supplier_key_hash": "eab820fc55a3fe06",
+          "cpv": "",
+          "object_category": "food_service",
+          "object_signature": "food_service:τροποποιηση:συμβασησ:παραταση:χρονου:ληξησ:οικοδομικων:υλικων:πλαισιο",
+          "adams": [
+            "21PROC008480243",
+            "21SYMV009222278",
+            "23SYMV012056087",
+            "23SYMV012365235"
+          ],
+          "procedure_flags": [],
+          "modification_flags": [
+            "2η_τροποποιηση",
+            "τροποποιηση_συμβασησ"
+          ],
+          "ordinary_explanations": [],
+          "duration_months": null,
+          "quantity": null,
+          "unit_price_eur": null,
+          "unit_price_source": "",
+          "product_spec": "",
+          "evidence": [
+            "Μεταβολές: 2η_τροποποιηση, τροποποιηση_συμβασησ",
+            "Ανάδοχος/προμηθευτής αναγνωρίστηκε στα επίσημα στοιχεία."
+          ]
+        }
+      ],
+      "delivery_status": "BEST_RESEARCH_LEAD"
+    },
+    {
+      "type": "cumulative_or_advanced_modification",
+      "review_priority": 69,
+      "organization_id": "100054495",
+      "object_category": "food_service",
+      "independent_families": [
+        "contract_modification"
+      ],
+      "distinct_chain_count": 1,
+      "known_cumulative_value_eur": 11568736.62,
+      "strongest_ordinary_explanation": "A later APE or modification may only redistribute quantities or implement a legally permitted minor change. The original and every intermediate value must be reconstructed before calling it a financial increase.",
+      "documents": [
+        {
+          "ada": "ΨΒΧ746ΜΤΛΡ-ΥΝΠ",
+          "official_url": "https://diavgeia.gov.gr/doc/ΨΒΧ746ΜΤΛΡ-ΥΝΠ",
+          "organization_id": "100054495",
+          "organization": "",
+          "subject": "3η Τροποποίηση της Πράξης «Υποστήριξη της εκπαιδευτικής διαδικασίας με την παροχή ηλεκτρονικού φορητού εξοπλισμού» με Κωδικό ΟΠΣ 5072593 στο Επιχειρησιακό Πρόγραμμα «Ανάπτυξη Ανθρώπινου Δυναμικού, Εκπαίδευση και Δια Βίου Μάθηση 2014-2020»",
+          "issue_date": "2023-06-13",
+          "publish_date": "2023-06-13",
+          "amount_eur": 11568736.62,
+          "amount_basis": "pdf_max_unknown",
+          "supplier_name": "",
+          "supplier_key_hash": "",
+          "cpv": "",
+          "object_category": "food_service",
+          "object_signature": "food_service:τροποποιηση:πραξησ:υποστηριξη:εκπαιδευτικησ:διαδικασιασ:ηλεκτρονικου:φορητου:εξοπλισμου",
+          "adams": [],
+          "procedure_flags": [],
+          "modification_flags": [
+            "3η_τροποποιηση"
+          ],
+          "ordinary_explanations": [],
+          "duration_months": null,
+          "quantity": 413,
+          "unit_price_eur": 28011.47,
+          "unit_price_source": "headline_amount_divided_by_quantity",
+          "product_spec": "",
+          "evidence": [
+            "Μεταβολές: 3η_τροποποιηση",
+            "Δηλωμένο/εξαγόμενο ποσό: €11,568,736.62 (pdf_max_unknown)",
+            "Ποσότητα 413, τιμή μονάδας περίπου €28,011.47 (headline_amount_divided_by_quantity)."
+          ]
+        }
+      ],
+      "delivery_status": "BEST_RESEARCH_LEAD"
+    },
+    {
+      "type": "cumulative_or_advanced_modification",
+      "review_priority": 69,
+      "organization_id": "14915",
+      "object_category": "food_service",
+      "independent_families": [
+        "contract_modification"
+      ],
+      "distinct_chain_count": 1,
+      "known_cumulative_value_eur": 960500.0,
+      "strongest_ordinary_explanation": "A later APE or modification may only redistribute quantities or implement a legally permitted minor change. The original and every intermediate value must be reconstructed before calling it a financial increase.",
+      "documents": [
+        {
+          "ada": "65ΔΓΚΝ3-ΜΔ9",
+          "official_url": "https://diavgeia.gov.gr/doc/65ΔΓΚΝ3-ΜΔ9",
+          "organization_id": "14915",
+          "organization": "",
+          "subject": "2η Τροποποίηση Απόφασης υλοποίησης με ίδια μέσα της Πράξης «Κέντρο Καινοτομίας Περιφέρειας Αττικής (ΚΕ.Κ.Π.Α.) - Συντονισμός Πράξης» με κωδικό ΟΠΣ (MIS) 5089140 του Ε.Π. «Αττική 2014 – 2020»",
+          "issue_date": "2023-06-28",
+          "publish_date": "2023-11-02",
+          "amount_eur": 960500.0,
+          "amount_basis": "pdf_max_unknown",
+          "supplier_name": "",
+          "supplier_key_hash": "",
+          "cpv": "",
+          "object_category": "food_service",
+          "object_signature": "food_service:τροποποιηση:αποφασησ:υλοποιησησ:ιδια:μεσα:πραξησ:κεντρο:καινοτομιασ",
+          "adams": [],
+          "procedure_flags": [],
+          "modification_flags": [
+            "2η_τροποποιηση"
+          ],
+          "ordinary_explanations": [],
+          "duration_months": null,
+          "quantity": 1,
+          "unit_price_eur": 960500.0,
+          "unit_price_source": "headline_amount_divided_by_quantity",
+          "product_spec": "",
+          "evidence": [
+            "Μεταβολές: 2η_τροποποιηση",
+            "Δηλωμένο/εξαγόμενο ποσό: €960,500.00 (pdf_max_unknown)",
+            "Ποσότητα 1, τιμή μονάδας περίπου €960,500.00 (headline_amount_divided_by_quantity)."
+          ]
+        }
+      ],
+      "delivery_status": "BEST_RESEARCH_LEAD"
+    },
+    {
+      "type": "cumulative_or_advanced_modification",
+      "review_priority": 69,
+      "organization_id": "100063383",
+      "object_category": "software_maintenance",
+      "independent_families": [
+        "contract_modification"
+      ],
+      "distinct_chain_count": 1,
+      "known_cumulative_value_eur": 599940.0,
+      "strongest_ordinary_explanation": "A later APE or modification may only redistribute quantities or implement a legally permitted minor change. The original and every intermediate value must be reconstructed before calling it a financial increase.",
+      "documents": [
+        {
+          "ada": "ΨΩ6Α46ΜΝΠ3-Ψ51",
+          "official_url": "https://diavgeia.gov.gr/doc/ΨΩ6Α46ΜΝΠ3-Ψ51",
+          "organization_id": "100063383",
+          "organization": "",
+          "subject": "2η ΤΡΟΠΟΠΟΙΗΣΗ ΣΥΜΒΑΣΗΣ ΜΕΤΑΞΥ ΟΤΔ ΚΑΙ ΔΙΚΑΙΟΥΧΟΥ ΓΙΑ ΤΗΝ ΥΛΟΠΟΙΗΣΗ ΠΡΑΞΗΣ ΣΤΑ ΠΛΑΙΣΙΑ ΤΟΥ ΥΠΟΜΕΤΡΟΥ 19.2, του ΜΕΤΡΟΥ 19, Τοπική Ανάπτυξη με Πρωτοβουλία Τοπικών Κοινοτήτων, (ΤΑΠΤοΚ) του ΠΡΟΓΡΑΜΜΑΤΟΣ ΑΓΡΟΤΙΚΗΣ ΑΝΑΠΤΥΞΗΣ (Π.Α.Α.) 2014-2020 για παρεμβάσεις Ιδιωτικού χαρακτήρα",
+          "issue_date": "2023-06-07",
+          "publish_date": "2023-06-09",
+          "amount_eur": 599940.0,
+          "amount_basis": "pdf_max_unknown",
+          "supplier_name": "ς με την επωνυμία Αναπτυξιακή Πάρνωνα Ανώνυμη Εταιρεία",
+          "supplier_key_hash": "071dde26afa66c92",
+          "cpv": "",
+          "object_category": "software_maintenance",
+          "object_signature": "software_maintenance:τροποποιηση:συμβασησ:μεταξυ:δικαιουχου:υλοποιηση:πραξησ:πλαισια:υπομετρου",
+          "adams": [],
+          "procedure_flags": [],
+          "modification_flags": [
+            "2η_τροποποιηση",
+            "τροποποιηση_συμβασησ"
+          ],
+          "ordinary_explanations": [],
+          "duration_months": null,
+          "quantity": null,
+          "unit_price_eur": null,
+          "unit_price_source": "",
+          "product_spec": "",
+          "evidence": [
+            "Μεταβολές: 2η_τροποποιηση, τροποποιηση_συμβασησ",
+            "Δηλωμένο/εξαγόμενο ποσό: €599,940.00 (pdf_max_unknown)",
+            "Ανάδοχος/προμηθευτής αναγνωρίστηκε στα επίσημα στοιχεία."
+          ]
+        }
+      ],
+      "delivery_status": "BEST_RESEARCH_LEAD"
+    },
+    {
+      "type": "cumulative_or_advanced_modification",
+      "review_priority": 69,
+      "organization_id": "100063383",
+      "object_category": "software_maintenance",
+      "independent_families": [
+        "contract_modification"
+      ],
+      "distinct_chain_count": 1,
+      "known_cumulative_value_eur": 599407.0,
+      "strongest_ordinary_explanation": "A later APE or modification may only redistribute quantities or implement a legally permitted minor change. The original and every intermediate value must be reconstructed before calling it a financial increase.",
+      "documents": [
+        {
+          "ada": "Ψ6ΟΞ46ΜΝΠ3-ΣΒΛ",
+          "official_url": "https://diavgeia.gov.gr/doc/Ψ6ΟΞ46ΜΝΠ3-ΣΒΛ",
+          "organization_id": "100063383",
+          "organization": "",
+          "subject": "2η ΤΡΟΠΟΠΟΙΗΣΗ ΣΥΜΒΑΣΗΣ ΜΕΤΑΞΥ ΟΤΔ ΚΑΙ ΔΙΚΑΙΟΥΧΟΥ ΓΙΑ ΤΗΝ ΥΛΟΠΟΙΗΣΗ ΠΡΑΞΗΣ ΣΤΑ ΠΛΑΙΣΙΑ ΤΟΥ ΥΠΟΜΕΤΡΟΥ 19.2, του ΜΕΤΡΟΥ 19, Τοπική Ανάπτυξη με Πρωτοβουλία Τοπικών Κοινοτήτων, (ΤΑΠΤοΚ) του ΠΡΟΓΡΑΜΜΑΤΟΣ ΑΓΡΟΤΙΚΗΣ ΑΝΑΠΤΥΞΗΣ (Π.Α.Α.) 2014-2020 για παρεμβάσεις Ιδιωτικού χαρακτήρα",
+          "issue_date": "2023-06-12",
+          "publish_date": "2023-06-26",
+          "amount_eur": 599407.0,
+          "amount_basis": "pdf_max_unknown",
+          "supplier_name": "ς με την επωνυμία Αναπτυξιακή Πάρνωνα Ανώνυμη Εταιρεία",
+          "supplier_key_hash": "071dde26afa66c92",
+          "cpv": "",
+          "object_category": "software_maintenance",
+          "object_signature": "software_maintenance:τροποποιηση:συμβασησ:μεταξυ:δικαιουχου:υλοποιηση:πραξησ:πλαισια:υπομετρου",
+          "adams": [],
+          "procedure_flags": [],
+          "modification_flags": [
+            "2η_τροποποιηση",
+            "τροποποιηση_συμβασησ"
+          ],
+          "ordinary_explanations": [],
+          "duration_months": null,
+          "quantity": null,
+          "unit_price_eur": null,
+          "unit_price_source": "",
+          "product_spec": "",
+          "evidence": [
+            "Μεταβολές: 2η_τροποποιηση, τροποποιηση_συμβασησ",
+            "Δηλωμένο/εξαγόμενο ποσό: €599,407.00 (pdf_max_unknown)",
+            "Ανάδοχος/προμηθευτής αναγνωρίστηκε στα επίσημα στοιχεία."
+          ]
+        }
+      ],
+      "delivery_status": "BEST_RESEARCH_LEAD"
+    },
+    {
+      "type": "cumulative_or_advanced_modification",
+      "review_priority": 69,
+      "organization_id": "99206922",
+      "object_category": "cleaning",
+      "independent_families": [
+        "contract_modification"
+      ],
+      "distinct_chain_count": 1,
+      "known_cumulative_value_eur": 524623.96,
+      "strongest_ordinary_explanation": "A later APE or modification may only redistribute quantities or implement a legally permitted minor change. The original and every intermediate value must be reconstructed before calling it a financial increase.",
+      "documents": [
+        {
+          "ada": "ΡΡ70469Β7Τ-Γ5Ν",
+          "official_url": "https://diavgeia.gov.gr/doc/ΡΡ70469Β7Τ-Γ5Ν",
+          "organization_id": "99206922",
+          "organization": "",
+          "subject": "2η Τροποποίηση Απόφασης υλοποίησης με ίδια μέσα του Υποέργου 1 «Πλανήτης Γη – Η Αριθμητική της Καθημερινότητας» του έργου Επιχορήγηση του ΕΛΚΕ του Πανεπιστημίου Πειραιώς για την υλοποίηση του έργου «Ανοικτές Ψηφιακές Δεξιότητες / Παίζω – Δημιουργώ – Μαθαίνω / Kidedu» (2019ΣΕ06300000) με κωδικό συνεχιζόμενου έργου 2023ΝΑ16300009/MIS 5214784",
+          "issue_date": "2023-05-19",
+          "publish_date": "2023-05-19",
+          "amount_eur": 524623.96,
+          "amount_basis": "pdf_max_unknown",
+          "supplier_name": "",
+          "supplier_key_hash": "",
+          "cpv": "",
+          "object_category": "cleaning",
+          "object_signature": "cleaning:τροποποιηση:αποφασησ:υλοποιησησ:ιδια:μεσα:υποεργου:πλανητησ:αριθμητικη",
+          "adams": [],
+          "procedure_flags": [],
+          "modification_flags": [
+            "2η_τροποποιηση"
+          ],
+          "ordinary_explanations": [],
+          "duration_months": null,
+          "quantity": null,
+          "unit_price_eur": null,
+          "unit_price_source": "",
+          "product_spec": "",
+          "evidence": [
+            "Μεταβολές: 2η_τροποποιηση",
+            "Δηλωμένο/εξαγόμενο ποσό: €524,623.96 (pdf_max_unknown)"
+          ]
+        }
+      ],
+      "delivery_status": "BEST_RESEARCH_LEAD"
+    },
+    {
+      "type": "cumulative_or_advanced_modification",
+      "review_priority": 69,
+      "organization_id": "100063383",
+      "object_category": "medical_waste",
+      "independent_families": [
+        "contract_modification"
+      ],
+      "distinct_chain_count": 1,
+      "known_cumulative_value_eur": 524352.0,
+      "strongest_ordinary_explanation": "A later APE or modification may only redistribute quantities or implement a legally permitted minor change. The original and every intermediate value must be reconstructed before calling it a financial increase.",
+      "documents": [
+        {
+          "ada": "9ΡΣ446ΜΝΠ3-ΧΤ1",
+          "official_url": "https://diavgeia.gov.gr/doc/9ΡΣ446ΜΝΠ3-ΧΤ1",
+          "organization_id": "100063383",
+          "organization": "",
+          "subject": "2η ΤΡΟΠΟΠΟΙΗΣΗ ΣΥΜΒΑΣΗΣ ΜΕΤΑΞΥ ΟΤΔ ΚΑΙ ΔΙΚΑΙΟΥΧΟΥ ΓΙΑ ΤΗΝ ΥΛΟΠΟΙΗΣΗ ΠΡΑΞΗΣ ΣΤΑ ΠΛΑΙΣΙΑ ΤΟΥ ΥΠΟΜΕΤΡΟΥ 19.2, του ΜΕΤΡΟΥ 19, Τοπική Ανάπτυξη με Πρωτοβουλία Τοπικών Κοινοτήτων, (ΤΑΠΤοΚ) του ΠΡΟΓΡΑΜΜΑΤΟΣ ΑΓΡΟΤΙΚΗΣ ΑΝΑΠΤΥΞΗΣ (Π.Α.Α.) 2014-2020 για παρεμβάσεις Ιδιωτικού χαρακτήρα",
+          "issue_date": "2023-03-01",
+          "publish_date": "2023-03-02",
+          "amount_eur": 524352.0,
+          "amount_basis": "pdf_max_unknown",
+          "supplier_name": "ς με την επωνυμία Αναπτυξιακή Πάρνωνα Ανώνυμη Εταιρεία",
+          "supplier_key_hash": "071dde26afa66c92",
+          "cpv": "",
+          "object_category": "medical_waste",
+          "object_signature": "medical_waste:τροποποιηση:συμβασησ:μεταξυ:δικαιουχου:υλοποιηση:πραξησ:πλαισια:υπομετρου",
+          "adams": [],
+          "procedure_flags": [],
+          "modification_flags": [
+            "2η_τροποποιηση",
+            "τροποποιηση_συμβασησ"
+          ],
+          "ordinary_explanations": [],
+          "duration_months": null,
+          "quantity": null,
+          "unit_price_eur": null,
+          "unit_price_source": "",
+          "product_spec": "",
+          "evidence": [
+            "Μεταβολές: 2η_τροποποιηση, τροποποιηση_συμβασησ",
+            "Δηλωμένο/εξαγόμενο ποσό: €524,352.00 (pdf_max_unknown)",
+            "Ανάδοχος/προμηθευτής αναγνωρίστηκε στα επίσημα στοιχεία."
+          ]
+        }
+      ],
+      "delivery_status": "BEST_RESEARCH_LEAD"
+    },
+    {
+      "type": "cumulative_or_advanced_modification",
+      "review_priority": 69,
+      "organization_id": "100055968",
+      "object_category": "medical_waste",
+      "independent_families": [
+        "contract_modification"
+      ],
+      "distinct_chain_count": 1,
+      "known_cumulative_value_eur": 432250.74,
+      "strongest_ordinary_explanation": "A later APE or modification may only redistribute quantities or implement a legally permitted minor change. The original and every intermediate value must be reconstructed before calling it a financial increase.",
+      "documents": [
+        {
+          "ada": "6ΒΜ546Μ3ΘΘ-4Τ1",
+          "official_url": "https://diavgeia.gov.gr/doc/6ΒΜ546Μ3ΘΘ-4Τ1",
+          "organization_id": "100055968",
+          "organization": "",
+          "subject": "2η Τροποποίηση Σύμβασης 01/2021 -Υποέργο 2, Πράξη 5041861 με ΑΔΑΜ: 21SYMV008528101",
+          "issue_date": "2023-03-13",
+          "publish_date": "2023-04-07",
+          "amount_eur": 432250.74,
+          "amount_basis": "pdf_max_unknown",
+          "supplier_name": "",
+          "supplier_key_hash": "642c72ae86bcef18",
+          "cpv": "",
+          "object_category": "medical_waste",
+          "object_signature": "medical_waste:τροποποιηση:συμβασησ:υποεργο:πραξη:αδαμ:21symv008528101:6βμ546μ3θθ:ministry",
+          "adams": [
+            "21SYMV008528101"
+          ],
+          "procedure_flags": [],
+          "modification_flags": [
+            "2η_τροποποιηση",
+            "τροποποιηση_συμβασησ"
+          ],
+          "ordinary_explanations": [],
+          "duration_months": null,
+          "quantity": null,
+          "unit_price_eur": null,
+          "unit_price_source": "",
+          "product_spec": "",
+          "evidence": [
+            "Μεταβολές: 2η_τροποποιηση, τροποποιηση_συμβασησ",
+            "Δηλωμένο/εξαγόμενο ποσό: €432,250.74 (pdf_max_unknown)",
+            "Ανάδοχος/προμηθευτής αναγνωρίστηκε στα επίσημα στοιχεία."
+          ]
+        }
+      ],
+      "delivery_status": "BEST_RESEARCH_LEAD"
+    },
+    {
+      "type": "cumulative_or_advanced_modification",
+      "review_priority": 69,
+      "organization_id": "100063383",
+      "object_category": "software_maintenance",
+      "independent_families": [
+        "contract_modification"
+      ],
+      "distinct_chain_count": 1,
+      "known_cumulative_value_eur": 429989.0,
+      "strongest_ordinary_explanation": "A later APE or modification may only redistribute quantities or implement a legally permitted minor change. The original and every intermediate value must be reconstructed before calling it a financial increase.",
+      "documents": [
+        {
+          "ada": "9ΡΚ946ΜΝΠ3-ΛΔ0",
+          "official_url": "https://diavgeia.gov.gr/doc/9ΡΚ946ΜΝΠ3-ΛΔ0",
+          "organization_id": "100063383",
+          "organization": "",
+          "subject": "2η ΤΡΟΠΟΠΟΙΗΣΗ ΣΥΜΒΑΣΗΣ ΜΕΤΑΞΥ ΟΤΔ ΚΑΙ ΔΙΚΑΙΟΥΧΟΥ ΓΙΑ ΤΗΝ ΥΛΟΠΟΙΗΣΗ ΠΡΑΞΗΣ ΣΤΑ ΠΛΑΙΣΙΑ ΤΟΥ ΥΠΟΜΕΤΡΟΥ 19.2, του ΜΕΤΡΟΥ 19, Τοπική Ανάπτυξη με Πρωτοβουλία Τοπικών Κοινοτήτων, (ΤΑΠΤοΚ) του ΠΡΟΓΡΑΜΜΑΤΟΣ ΑΓΡΟΤΙΚΗΣ ΑΝΑΠΤΥΞΗΣ (Π.Α.Α.) 2014-2020 για παρεμβάσεις Ιδιωτικού χαρακτήρα",
+          "issue_date": "2023-06-06",
+          "publish_date": "2023-06-09",
+          "amount_eur": 429989.0,
+          "amount_basis": "pdf_max_unknown",
+          "supplier_name": "ς με την επωνυμία Αναπτυξιακή Πάρνωνα Ανώνυμη Εταιρεία",
+          "supplier_key_hash": "071dde26afa66c92",
+          "cpv": "",
+          "object_category": "software_maintenance",
+          "object_signature": "software_maintenance:τροποποιηση:συμβασησ:μεταξυ:δικαιουχου:υλοποιηση:πραξησ:πλαισια:υπομετρου",
+          "adams": [],
+          "procedure_flags": [],
+          "modification_flags": [
+            "2η_τροποποιηση",
+            "τροποποιηση_συμβασησ"
+          ],
+          "ordinary_explanations": [],
+          "duration_months": null,
+          "quantity": null,
+          "unit_price_eur": null,
+          "unit_price_source": "",
+          "product_spec": "",
+          "evidence": [
+            "Μεταβολές: 2η_τροποποιηση, τροποποιηση_συμβασησ",
+            "Δηλωμένο/εξαγόμενο ποσό: €429,989.00 (pdf_max_unknown)",
+            "Ανάδοχος/προμηθευτής αναγνωρίστηκε στα επίσημα στοιχεία."
+          ]
+        }
+      ],
+      "delivery_status": "BEST_RESEARCH_LEAD"
+    },
+    {
+      "type": "cumulative_or_advanced_modification",
+      "review_priority": 69,
+      "organization_id": "100063383",
+      "object_category": "medical_waste",
+      "independent_families": [
+        "contract_modification"
+      ],
+      "distinct_chain_count": 1,
+      "known_cumulative_value_eur": 427333.0,
+      "strongest_ordinary_explanation": "A later APE or modification may only redistribute quantities or implement a legally permitted minor change. The original and every intermediate value must be reconstructed before calling it a financial increase.",
+      "documents": [
+        {
+          "ada": "65ΔΠ46ΜΝΠ3-243",
+          "official_url": "https://diavgeia.gov.gr/doc/65ΔΠ46ΜΝΠ3-243",
+          "organization_id": "100063383",
+          "organization": "",
+          "subject": "2η ΤΡΟΠΟΠΟΙΗΣΗ ΣΥΜΒΑΣΗΣ ΜΕΤΑΞΥ ΟΤΔ ΚΑΙ ΔΙΚΑΙΟΥΧΟΥ ΓΙΑ ΤΗΝ ΥΛΟΠΟΙΗΣΗ ΠΡΑΞΗΣ ΣΤΑ ΠΛΑΙΣΙΑ ΤΟΥ ΥΠΟΜΕΤΡΟΥ 19.2, του ΜΕΤΡΟΥ 19, Τοπική Ανάπτυξη με Πρωτοβουλία Τοπικών Κοινοτήτων, (ΤΑΠΤοΚ) του ΠΡΟΓΡΑΜΜΑΤΟΣ ΑΓΡΟΤΙΚΗΣ ΑΝΑΠΤΥΞΗΣ (Π.Α.Α.) 2014-2020 για παρεμβάσεις Ιδιωτικού χαρακτήρα",
+          "issue_date": "2023-06-12",
+          "publish_date": "2023-06-26",
+          "amount_eur": 427333.0,
+          "amount_basis": "pdf_max_unknown",
+          "supplier_name": "ς με την επωνυμία Αναπτυξιακή Πάρνωνα Ανώνυμη Εταιρεία",
+          "supplier_key_hash": "071dde26afa66c92",
+          "cpv": "",
+          "object_category": "medical_waste",
+          "object_signature": "medical_waste:τροποποιηση:συμβασησ:μεταξυ:δικαιουχου:υλοποιηση:πραξησ:πλαισια:υπομετρου",
+          "adams": [],
+          "procedure_flags": [],
+          "modification_flags": [
+            "2η_τροποποιηση",
+            "τροποποιηση_συμβασησ"
+          ],
+          "ordinary_explanations": [],
+          "duration_months": null,
+          "quantity": null,
+          "unit_price_eur": null,
+          "unit_price_source": "",
+          "product_spec": "",
+          "evidence": [
+            "Μεταβολές: 2η_τροποποιηση, τροποποιηση_συμβασησ",
+            "Δηλωμένο/εξαγόμενο ποσό: €427,333.00 (pdf_max_unknown)",
+            "Ανάδοχος/προμηθευτής αναγνωρίστηκε στα επίσημα στοιχεία."
+          ]
+        }
+      ],
+      "delivery_status": "BEST_RESEARCH_LEAD"
+    },
+    {
+      "type": "cumulative_or_advanced_modification",
+      "review_priority": 69,
+      "organization_id": "100063383",
+      "object_category": "medical_waste",
+      "independent_families": [
+        "contract_modification"
+      ],
+      "distinct_chain_count": 1,
+      "known_cumulative_value_eur": 399133.0,
+      "strongest_ordinary_explanation": "A later APE or modification may only redistribute quantities or implement a legally permitted minor change. The original and every intermediate value must be reconstructed before calling it a financial increase.",
+      "documents": [
+        {
+          "ada": "694Σ46ΜΝΠ3-59Δ",
+          "official_url": "https://diavgeia.gov.gr/doc/694Σ46ΜΝΠ3-59Δ",
+          "organization_id": "100063383",
+          "organization": "",
+          "subject": "2η ΤΡΟΠΟΠΟΙΗΣΗ ΣΥΜΒΑΣΗΣ ΜΕΤΑΞΥ ΟΤΔ ΚΑΙ ΔΙΚΑΙΟΥΧΟΥ ΓΙΑ ΤΗΝ ΥΛΟΠΟΙΗΣΗ ΠΡΑΞΗΣ ΣΤΑ ΠΛΑΙΣΙΑ ΤΟΥ ΥΠΟΜΕΤΡΟΥ 19.2, του ΜΕΤΡΟΥ 19, Τοπική Ανάπτυξη με Πρωτοβουλία Τοπικών Κοινοτήτων, (ΤΑΠΤοΚ) του ΠΡΟΓΡΑΜΜΑΤΟΣ ΑΓΡΟΤΙΚΗΣ ΑΝΑΠΤΥΞΗΣ (Π.Α.Α.) 2014-2020 για παρεμβάσεις Ιδιωτικού χαρακτήρα",
+          "issue_date": "2023-06-07",
+          "publish_date": "2023-06-09",
+          "amount_eur": 399133.0,
+          "amount_basis": "pdf_max_unknown",
+          "supplier_name": "ς με την επωνυμία Αναπτυξιακή Πάρνωνα Ανώνυμη Εταιρεία",
+          "supplier_key_hash": "071dde26afa66c92",
+          "cpv": "",
+          "object_category": "medical_waste",
+          "object_signature": "medical_waste:τροποποιηση:συμβασησ:μεταξυ:δικαιουχου:υλοποιηση:πραξησ:πλαισια:υπομετρου",
+          "adams": [],
+          "procedure_flags": [],
+          "modification_flags": [
+            "2η_τροποποιηση",
+            "τροποποιηση_συμβασησ"
+          ],
+          "ordinary_explanations": [],
+          "duration_months": null,
+          "quantity": null,
+          "unit_price_eur": null,
+          "unit_price_source": "",
+          "product_spec": "",
+          "evidence": [
+            "Μεταβολές: 2η_τροποποιηση, τροποποιηση_συμβασησ",
+            "Δηλωμένο/εξαγόμενο ποσό: €399,133.00 (pdf_max_unknown)",
+            "Ανάδοχος/προμηθευτής αναγνωρίστηκε στα επίσημα στοιχεία."
+          ]
+        }
+      ],
+      "delivery_status": "BEST_RESEARCH_LEAD"
+    },
+    {
+      "type": "cumulative_or_advanced_modification",
+      "review_priority": 69,
+      "organization_id": "100063383",
+      "object_category": "medical_waste",
+      "independent_families": [
+        "contract_modification"
+      ],
+      "distinct_chain_count": 1,
+      "known_cumulative_value_eur": 354890.0,
+      "strongest_ordinary_explanation": "A later APE or modification may only redistribute quantities or implement a legally permitted minor change. The original and every intermediate value must be reconstructed before calling it a financial increase.",
+      "documents": [
+        {
+          "ada": "665Υ46ΜΝΠ3-57Θ",
+          "official_url": "https://diavgeia.gov.gr/doc/665Υ46ΜΝΠ3-57Θ",
+          "organization_id": "100063383",
+          "organization": "",
+          "subject": "2η ΤΡΟΠΟΠΟΙΗΣΗ ΣΥΜΒΑΣΗΣ ΜΕΤΑΞΥ ΟΤΔ ΚΑΙ ΔΙΚΑΙΟΥΧΟΥ ΓΙΑ ΤΗΝ ΥΛΟΠΟΙΗΣΗ ΠΡΑΞΗΣ ΣΤΑ ΠΛΑΙΣΙΑ ΤΟΥ ΥΠΟΜΕΤΡΟΥ 19.2, του ΜΕΤΡΟΥ 19, Τοπική Ανάπτυξη με Πρωτοβουλία Τοπικών Κοινοτήτων, (ΤΑΠΤοΚ) του ΠΡΟΓΡΑΜΜΑΤΟΣ ΑΓΡΟΤΙΚΗΣ ΑΝΑΠΤΥΞΗΣ (Π.Α.Α.) 2014-2020 για παρεμβάσεις Ιδιωτικού χαρακτήρα",
+          "issue_date": "2023-06-07",
+          "publish_date": "2023-06-09",
+          "amount_eur": 354890.0,
+          "amount_basis": "pdf_max_unknown",
+          "supplier_name": "ς με την επωνυμία Αναπτυξιακή Πάρνωνα Ανώνυμη Εταιρεία",
+          "supplier_key_hash": "071dde26afa66c92",
+          "cpv": "",
+          "object_category": "medical_waste",
+          "object_signature": "medical_waste:τροποποιηση:συμβασησ:μεταξυ:δικαιουχου:υλοποιηση:πραξησ:πλαισια:υπομετρου",
+          "adams": [],
+          "procedure_flags": [],
+          "modification_flags": [
+            "2η_τροποποιηση",
+            "τροποποιηση_συμβασησ"
+          ],
+          "ordinary_explanations": [],
+          "duration_months": null,
+          "quantity": null,
+          "unit_price_eur": null,
+          "unit_price_source": "",
+          "product_spec": "",
+          "evidence": [
+            "Μεταβολές: 2η_τροποποιηση, τροποποιηση_συμβασησ",
+            "Δηλωμένο/εξαγόμενο ποσό: €354,890.00 (pdf_max_unknown)",
+            "Ανάδοχος/προμηθευτής αναγνωρίστηκε στα επίσημα στοιχεία."
+          ]
+        }
+      ],
+      "delivery_status": "BEST_RESEARCH_LEAD"
+    }
+  ]
+}
