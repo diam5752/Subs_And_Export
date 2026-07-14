@@ -90,14 +90,16 @@ def collapse_chains(records: list[base.EvidenceRecord]) -> list[base.Chain]:
 
 
 # Only real procurement-contract changes may activate the detector. Programme
-# calls, budget amendments, ministerial decisions and other generic numbered
-# modifications are explicitly excluded.
+# calls, budget amendments, employment-like contracts and generic agreements are
+# excluded unless the subject section contains a real procurement identity.
 def modification_facts(
     ada: str,
     subject: str,
     focused_pages: list[tuple[int, str]],
 ) -> list[base.Fact]:
     value = base.fold(subject)
+    joined = subject + "\n" + "\n".join(page for _, page in focused_pages)
+    joined_folded = base.fold(joined)
     excluded = (
         "τροποποιηση προκηρυξησ προγραμματοσ",
         "τροποποιηση προϋπολογισμου",
@@ -106,20 +108,50 @@ def modification_facts(
         "τροποποιηση υπουργικησ αποφασησ",
         "συμβασησ μεταξυ οτδ και δικαιουχου",
         "εργα που δεν υλοποιουνται με τισ διαδικασιεσ των δημοσιων συμβασεων",
+        "συμβαση μισθωσησ εργου",
+        "τροποποιηση συμβασησ μισθωσησ εργου",
     )
     if any(term in value for term in excluded):
         return []
+
+    procurement_identity = (
+        any("SYMV" in match.group(0).upper() for match in base.ADAM_RE.finditer(joined))
+        or "cpv" in joined_folded
+        or any(
+            term in joined_folded
+            for term in (
+                "δημοσια συμβαση",
+                "οικονομικοσ φορεασ",
+                "αναδοχοσ",
+                "προμηθευτησ",
+                "συμβατικο τιμημα",
+                "διαγωνισμοσ",
+            )
+        )
+    )
+    if "προγραμματικη συμβαση" in joined_folded and not procurement_identity:
+        return []
+
     is_contract_change = (
         "τροποποιηση συμβασησ" in value
-        or "τροποποιημενου χρονοδιαγραμματοσ" in value and "συμβαση" in value
+        or ("τροποποιημενου χρονοδιαγραμματοσ" in value and "συμβαση" in value)
         or "τροποποιηση) συμβασησ" in value
         or "απε" in value
     )
-    if not is_contract_change:
+    if not is_contract_change or not procurement_identity:
         return []
+
     patterns = (
         (15, ("15η τροποποιηση",)),
         (14, ("14η τροποποιηση",)),
+        (13, ("13η τροποποιηση",)),
+        (12, ("12η τροποποιηση",)),
+        (11, ("11η τροποποιηση",)),
+        (10, ("10η τροποποιηση",)),
+        (9, ("9η τροποποιηση",)),
+        (8, ("8η τροποποιηση",)),
+        (7, ("7η τροποποιηση",)),
+        (6, ("6η τροποποιηση",)),
         (5, ("5η τροποποιηση", "πεμπτη τροποποιηση")),
         (4, ("4η τροποποιηση", "τεταρτη τροποποιηση")),
         (3, ("3η τροποποιηση", "τριτη τροποποιηση", "3ος απε", "3ου απε")),
@@ -151,39 +183,75 @@ def modification_facts(
 _original_procedure_facts = base.procedure_and_context_facts
 
 
+def _is_actual_single_bid_event(excerpt: str) -> bool:
+    value = base.fold(excerpt)
+    normative_phrases = (
+        "καθε προσφερων μπορει να υποβαλει μονο μια προσφορα",
+        "καθε οικονομικοσ φορεασ μπορει να υποβαλει μονο μια προσφορα",
+        "μια προσφορα ανα οικονομικο φορεα",
+        "δεν επιτρεπεται η υποβολη περισσοτερων προσφορων",
+        "εναλλακτικεσ προσφορεσ δεν γινονται δεκτεσ",
+    )
+    if any(phrase in value for phrase in normative_phrases):
+        return False
+    event_phrases = (
+        "υποβληθηκε μια προσφορα",
+        "υποβληθηκε μονο μια προσφορα",
+        "υποβληθηκε μοναδικη προσφορα",
+        "κατατεθηκε μια προσφορα",
+        "κατατεθηκε μονο μια προσφορα",
+        "κατατεθηκε μοναδικη προσφορα",
+        "μοναδικη συμμετεχουσα",
+        "μοναδικοσ συμμετεχων",
+        "τη μοναδικη προσφορα",
+        "την μοναδικη προσφορα",
+        "παρελαβε τη μοναδικη προσφορα",
+        "παρελαβε την μοναδικη προσφορα",
+        "μονο μια προσφορα κατατεθηκε",
+        "μονο μια προσφορα υποβληθηκε",
+        "μια μονο προσφορα",
+    )
+    return any(phrase in value for phrase in event_phrases)
+
+
 def procedure_and_context_facts(
     ada: str,
     focused_pages: list[tuple[int, str]],
 ) -> list[base.Fact]:
     facts = _original_procedure_facts(ada, focused_pages)
-    if any(fact.role == "open_tender" for fact in facts):
-        return facts
-    for page_number, page in focused_pages:
-        folded = base.fold(page)
-        if any(
-            phrase in folded
-            for phrase in (
-                "ανοικτη διαδικασια",
-                "ανοικτοσ διαγωνισμοσ",
-                "ανοικτου διαγωνισμου",
-                "διαγωνισμου με ανοικτη διαδικασια",
-            )
-        ):
-            facts.append(
-                base.Fact(
-                    fact_type="ordinary_explanation",
-                    value=True,
-                    role="open_tender",
-                    unit="boolean",
-                    scope="subject_section",
-                    source_ada=ada,
-                    source_page=page_number,
-                    source_excerpt=base.compact(page, 650),
-                    confidence=0.98,
-                    dependency_group="falsification",
+    facts = [
+        fact
+        for fact in facts
+        if fact.role != "single_bid" or _is_actual_single_bid_event(fact.source_excerpt)
+    ]
+
+    if not any(fact.role == "open_tender" for fact in facts):
+        for page_number, page in focused_pages:
+            folded = base.fold(page)
+            if any(
+                phrase in folded
+                for phrase in (
+                    "ανοικτη διαδικασια",
+                    "ανοικτοσ διαγωνισμοσ",
+                    "ανοικτου διαγωνισμου",
+                    "διαγωνισμου με ανοικτη διαδικασια",
                 )
-            )
-            break
+            ):
+                facts.append(
+                    base.Fact(
+                        fact_type="ordinary_explanation",
+                        value=True,
+                        role="open_tender",
+                        unit="boolean",
+                        scope="subject_section",
+                        source_ada=ada,
+                        source_page=page_number,
+                        source_excerpt=base.compact(page, 650),
+                        confidence=0.98,
+                        dependency_group="falsification",
+                    )
+                )
+                break
     return facts
 
 
