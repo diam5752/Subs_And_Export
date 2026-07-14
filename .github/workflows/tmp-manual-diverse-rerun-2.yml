@@ -6,6 +6,11 @@ on:
       - tmp/manual-diverse-diavgeia-20260714
     paths:
       - .github/workflows/tmp-manual-diverse-rerun-2.yml
+  pull_request:
+    branches:
+      - master
+    paths:
+      - .github/workflows/tmp-manual-diverse-rerun-2.yml
 
 permissions:
   contents: write
