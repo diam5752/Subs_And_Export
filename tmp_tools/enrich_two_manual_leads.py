@@ -64,7 +64,6 @@ def main():
  results={}
  for lane,rows in found.items():
   out=[]
-  # prioritize records whose title contains target concepts
   ranked=sorted(rows.items(),key=lambda kv:sum(t.casefold() in str(kv[1].get('subject') or '').casefold() for t in QUERIES[lane]),reverse=True)[:70]
   for ada,seed in ranked:
    d=req(s,DETAIL.format(ada=quote(ada,safe='')))
@@ -93,3 +92,4 @@ def main():
  (OUT/'targeted-enrichment.md').write_text('\n'.join(lines),encoding='utf-8')
  print({k:len(v) for k,v in results.items()})
 if __name__=='__main__':main()
+# trigger 2026-07-14
