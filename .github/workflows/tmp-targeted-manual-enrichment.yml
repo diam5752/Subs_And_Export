@@ -1,0 +1,42 @@
+name: Temporary Targeted Manual Enrichment
+
+on:
+  push:
+    branches:
+      - tmp/manual-diverse-diavgeia-20260714
+    paths:
+      - tmp_tools/enrich_two_manual_leads.py
+      - .github/workflows/tmp-targeted-manual-enrichment.yml
+
+permissions:
+  contents: write
+
+jobs:
+  enrich:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: tmp/manual-diverse-diavgeia-20260714
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y poppler-utils
+          pip install requests
+      - name: Enrich the two independent leads
+        run: |
+          python tmp_tools/enrich_two_manual_leads.py
+          test -s manual-diverse-output/targeted-enrichment.json
+      - name: Commit compact enrichment
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add manual-diverse-output/targeted-enrichment.*
+          git commit -m 'chore(tmp): record targeted official enrichment'
+          git push origin HEAD:tmp/manual-diverse-diavgeia-20260714
