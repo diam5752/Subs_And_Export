@@ -7,6 +7,12 @@ on:
     paths:
       - tmp_tools/enrich_two_manual_leads.py
       - .github/workflows/tmp-targeted-manual-enrichment.yml
+  pull_request:
+    branches:
+      - master
+    paths:
+      - tmp_tools/enrich_two_manual_leads.py
+      - .github/workflows/tmp-targeted-manual-enrichment.yml
 
 permissions:
   contents: write
