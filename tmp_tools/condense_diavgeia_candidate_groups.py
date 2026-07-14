@@ -21,8 +21,10 @@ def main() -> None:
         items = [item for item in raw_items if isinstance(item, dict)]
         keyword_counts: Counter[str] = Counter()
         decisions = []
+        fact_lines = [f"GROUP\t{group_name}\tCOUNT\t{len(items)}"]
         for item in items:
             excerpts = []
+            compact_matches = []
             for excerpt in list(item.get("keyword_excerpts") or []):
                 if not isinstance(excerpt, dict):
                     continue
@@ -33,8 +35,10 @@ def main() -> None:
                         "keyword": keyword,
                         "excerpt": trim(excerpt.get("excerpt"), 900),
                     })
+                if len(compact_matches) < 3 and keyword not in {value.split("=", 1)[0] for value in compact_matches}:
+                    compact_matches.append(f"{keyword}={trim(excerpt.get('excerpt'), 320)}")
             extra = item.get("extraFieldValues") if isinstance(item.get("extraFieldValues"), dict) else {}
-            decisions.append({
+            decision = {
                 "ada": item.get("ada"),
                 "official_url": item.get("documentUrl"),
                 "status": item.get("status"),
@@ -55,7 +59,22 @@ def main() -> None:
                 "keyword_excerpts": excerpts,
                 "text_preview": trim(item.get("text_preview"), 1800),
                 "error": item.get("error"),
-            })
+            }
+            decisions.append(decision)
+            fact_lines.append("\t".join([
+                "DECISION",
+                str(decision.get("ada") or ""),
+                str(decision.get("issueDate") or ""),
+                str(decision.get("publishTimestamp") or ""),
+                "STATUS=" + str(decision.get("status") or ""),
+                "CORRECTED=" + str(decision.get("correctedVersionId") or ""),
+                "SUBJECT=" + trim(decision.get("subject"), 600),
+                "AMOUNTS=" + ",".join(decision.get("amount_mentions") or []),
+                "AFMS=" + ",".join(decision.get("afm_mentions") or []),
+                "ADAMS=" + ",".join(decision.get("adam_tokens") or []),
+                "MATCHES=" + " || ".join(compact_matches),
+                "URL=" + str(decision.get("official_url") or ""),
+            ]))
         condensed["groups"][group_name] = {
             "decision_count": len(decisions),
             "organization_ids": sorted({str(item.get("organizationId")) for item in items if item.get("organizationId")}),
@@ -64,6 +83,7 @@ def main() -> None:
             "keyword_document_counts": dict(keyword_counts.most_common()),
             "decisions": decisions,
         }
+        (ROOT / f"{group_name}.facts.txt").write_text("\n".join(fact_lines) + "\n", encoding="utf-8")
     (ROOT / "condensed.json").write_text(json.dumps(condensed, ensure_ascii=False, indent=2), encoding="utf-8")
     for group_name, value in condensed["groups"].items():
         (ROOT / f"{group_name}.json").write_text(json.dumps(value, ensure_ascii=False, indent=2), encoding="utf-8")
