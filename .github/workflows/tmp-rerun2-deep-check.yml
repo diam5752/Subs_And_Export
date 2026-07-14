@@ -1,0 +1,85 @@
+name: Temporary Rerun 2 Deep Check
+
+on:
+  pull_request:
+    branches:
+      - master
+    paths:
+      - .github/workflows/tmp-rerun2-deep-check.yml
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: tmp/manual-diverse-diavgeia-20260714
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y poppler-utils
+          pip install requests
+      - name: Extract exact official context
+        run: |
+          python - <<'PY'
+          import json, subprocess, tempfile, time
+          from pathlib import Path
+          from urllib.parse import quote
+          import requests
+
+          BASE='https://diavgeia.gov.gr'
+          ADAS={
+            'single_bid':'6Η23469076-Υ9Ο',
+            'fifth_extension':'Ρ145469ΗΤ5-ΖΨ5',
+          }
+          TERMS={
+            'single_bid':['μοναδική προσφορά','μία προσφορά','δεύτερης πρόσκλησης','πρώτης πρόσκλησης','κατακύρωση'],
+            'fifth_extension':['5η Τροποποίηση','χρονική παράταση','ΑΠΟΦΑΣΙΖΟΥΜΕ','παρατείνεται','άνευ πρόσθετης','έως'],
+          }
+          session=requests.Session(); session.headers['User-Agent']='MizAI rerun2 deep check/1.0'
+          out={}
+          for key,ada in ADAS.items():
+            encoded=quote(ada,safe='')
+            detail=session.get(f'{BASE}/luminapi/api/decisions/{encoded}',timeout=45).json()
+            url=str(detail.get('documentUrl') or f'{BASE}/doc/{encoded}')
+            pdf=session.get(url,timeout=60)
+            with tempfile.TemporaryDirectory() as tmp:
+              p=Path(tmp)/'d.pdf'; t=Path(tmp)/'d.txt'; p.write_bytes(pdf.content)
+              done=subprocess.run(['pdftotext','-enc','UTF-8','-layout',str(p),str(t)],capture_output=True,timeout=60)
+              text=t.read_text(encoding='utf-8',errors='replace') if done.returncode==0 and t.exists() else ''
+            excerpts=[]; low=text.casefold()
+            for term in TERMS[key]:
+              pos=low.find(term.casefold())
+              if pos>=0:
+                excerpt=' '.join(text[max(0,pos-700):pos+6000].split())
+                if excerpt not in excerpts: excerpts.append(excerpt)
+            out[key]={
+              'ada':ada,
+              'official_url':url,
+              'subject':' '.join(str(detail.get('subject') or '').split()),
+              'status':detail.get('status'),
+              'corrected':bool(detail.get('correctedVersionId')),
+              'private':bool(detail.get('privateData')),
+              'excerpts':excerpts,
+            }
+            time.sleep(.2)
+          Path('rerun2-deep-check').mkdir(exist_ok=True)
+          Path('rerun2-deep-check/result.json').write_text(json.dumps(out,ensure_ascii=False,indent=2),encoding='utf-8')
+          lines=['# Rerun 2 deep check','']
+          for key,item in out.items():
+            lines += [f'## {key}',f"- ADA: {item['ada']}",f"- URL: {item['official_url']}",f"- Subject: {item['subject']}",f"- Status: {item['status']} corrected={item['corrected']} private={item['private']}",'']
+            for index,excerpt in enumerate(item['excerpts'],1): lines += [f'### Excerpt {index}',excerpt,'']
+          Path('rerun2-deep-check/report.md').write_text('\n'.join(lines),encoding='utf-8')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rerun2-deep-check
+          path: rerun2-deep-check
+          retention-days: 1
