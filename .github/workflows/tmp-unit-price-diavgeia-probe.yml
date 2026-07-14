@@ -1,0 +1,39 @@
+name: Temporary Unit Price Diavgeia Probe
+
+on:
+  push:
+    branches:
+      - tmp/diavgeia-enriched-hunter-20260714
+    paths:
+      - tmp_tools/run_unit_price_diavgeia_probe.py
+      - .github/workflows/tmp-unit-price-diavgeia-probe.yml
+
+permissions:
+  contents: write
+
+jobs:
+  probe:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: tmp/diavgeia-enriched-hunter-20260714
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: |
+          sudo apt-get update
+          sudo apt-get install -y poppler-utils
+          python -m pip install requests
+      - run: |
+          rm -rf unit-price-probe-output
+          python tmp_tools/run_unit_price_diavgeia_probe.py
+      - run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add unit-price-probe-output
+          git commit -m 'chore(tmp): record official unit-price probe'
+          git push origin HEAD:tmp/diavgeia-enriched-hunter-20260714
