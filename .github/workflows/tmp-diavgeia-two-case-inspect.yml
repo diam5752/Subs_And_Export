@@ -1,0 +1,60 @@
+name: Temporary Diavgeia Candidate Inspection
+
+on:
+  push:
+    branches:
+      - tmp/diavgeia-two-case-inspect-20260714
+    paths:
+      - tmp_tools/inspect_diavgeia_candidate_groups.py
+      - tmp_tools/condense_diavgeia_candidate_groups.py
+      - .github/workflows/tmp-diavgeia-two-case-inspect.yml
+  pull_request:
+    branches:
+      - master
+    paths:
+      - tmp_tools/inspect_diavgeia_candidate_groups.py
+      - tmp_tools/condense_diavgeia_candidate_groups.py
+      - .github/workflows/tmp-diavgeia-two-case-inspect.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tmp-diavgeia-two-case-inspect-20260714
+  cancel-in-progress: true
+
+jobs:
+  inspect:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: tmp/diavgeia-two-case-inspect-20260714
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y poppler-utils
+          python -m pip install --upgrade pip
+          pip install requests
+      - name: Inspect official candidate groups
+        run: |
+          rm -rf candidate-inspection-output
+          python tmp_tools/inspect_diavgeia_candidate_groups.py
+          python tmp_tools/condense_diavgeia_candidate_groups.py
+      - name: Commit compact result
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add candidate-inspection-output
+          if git diff --cached --quiet; then
+            echo "No inspection output produced"
+            exit 1
+          fi
+          git commit -m "chore(tmp): record official Diavgeia inspection"
+          git push origin HEAD:tmp/diavgeia-two-case-inspect-20260714
