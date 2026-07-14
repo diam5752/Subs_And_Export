@@ -1,4 +1,4 @@
-name: Temporary Strict Bridge Validation V4
+name: Temporary Strict Bridge Validation V5
 
 on:
   pull_request:
@@ -6,6 +6,7 @@ on:
       - master
     paths:
       - tmp_tools/validate_bridge_candidates_v4.py
+      - tmp_tools/validate_bridge_candidates_v5.py
       - .github/workflows/tmp-strict-bridge-validation-v4.yml
 
 permissions:
@@ -20,9 +21,9 @@ jobs:
       matrix:
         include:
           - mode: cleaning
-            output: strict-cleaning-validation-v4
+            output: strict-cleaning-validation-v5
           - mode: medical_waste
-            output: strict-medical-waste-validation-v4
+            output: strict-medical-waste-validation-v5
     steps:
       - uses: actions/checkout@v4
         with:
@@ -43,7 +44,7 @@ jobs:
           VALIDATION_MODE: ${{ matrix.mode }}
           VALIDATION_OUT: ${{ matrix.output }}
         run: |
-          python tmp_tools/validate_bridge_candidates_v4.py
+          python tmp_tools/validate_bridge_candidates_v5.py
       - name: Require diagnostic output
         if: always()
         env:
