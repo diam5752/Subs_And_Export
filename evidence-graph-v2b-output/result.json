@@ -1,14 +1,14 @@
 {
   "status": "completed",
-  "executed_at": "2026-07-14T09:46:49.533904+00:00",
+  "executed_at": "2026-07-14T09:59:09.608523+00:00",
   "seed": 5600717,
   "coverage": {
-    "metadata_records": 18109,
+    "metadata_records": 18110,
     "selected_for_pdf": 159,
     "inspected": 159,
-    "current_decisions": 119,
-    "collapsed_chains": 118,
-    "candidate_cases_after_merge": 33,
+    "current_decisions": 118,
+    "collapsed_chains": 117,
+    "candidate_cases_after_merge": 32,
     "failures": [],
     "attempts": [
       {
@@ -2315,9 +2315,9 @@
   "evaluation": {
     "timeline_false_positive_regression_passed": true,
     "case_level_ekab_dedup_passed": true,
-    "page_provenance_ratio_all_facts": 0.592,
-    "typed_scoring_fact_count": 579,
-    "candidate_case_count_after_merge": 33,
+    "page_provenance_ratio_all_facts": 0.5946,
+    "typed_scoring_fact_count": 578,
+    "candidate_case_count_after_merge": 32,
     "distinct_primary_patterns_in_diverse_top": 4,
     "validated_80_plus_count": 0,
     "previously_seen_case_count_in_top": 1
@@ -3246,149 +3246,6 @@
               "unit": "date",
               "scope": "decision",
               "source_ada": "ΡΘ3ΚΩΗΜ-ΖΚΔ",
-              "source_page": null,
-              "source_excerpt": "official metadata publishTimestamp",
-              "confidence": 0.99,
-              "dependency_group": "transparency",
-              "basis": "official_metadata"
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "case_fingerprint": "279dc2b9c79909e7be",
-      "primary_type": "explicit_single_bid",
-      "detectors": [
-        "explicit_single_bid"
-      ],
-      "chain_ids": [
-        "bc571dcd1c29695643"
-      ],
-      "families": [
-        "competition"
-      ],
-      "review_priority": 58,
-      "score_axes": {
-        "evidence_quality": 27,
-        "pattern_strength": 15,
-        "peer_deviation": 0,
-        "materiality": 6,
-        "falsification_survival": 10
-      },
-      "caps": [
-        "μία μόνο ανεξάρτητη evidence family"
-      ],
-      "reasons": [
-        "Το επίσημο PDF αναφέρει ρητά μία/μοναδική προσφορά στη σελίδα 2.",
-        "Typed επίσημο οικονομικό μέγεθος: €201,500.00 (budget_total, net)."
-      ],
-      "ordinary_explanations": [],
-      "metrics": {},
-      "seen_in_previous_run": false,
-      "novelty_rank_score": 58,
-      "status": "RESEARCH_LEAD",
-      "records": [
-        {
-          "ada": "92Τ446ΜΤΛΒ-ΗΘΖ",
-          "official_url": "https://diavgeia.gov.gr/doc/92Τ446ΜΤΛΒ-ΗΘΖ",
-          "organization_id": "100054489",
-          "organization": "",
-          "subject": "«Προκήρυξη ανοιχτού ηλεκτρονικού διαγωνισμού για την προμήθεια ατομικών εφοδίων, παρασήμων, μεταλλίων και μέσων ατομικής προστασίας για τις ανάγκες της Διεύθυνσης Αστυνομίας Βορειοανατολικής Αττικής, για το έτος 2025».",
-          "issue_date": "2025-02-04",
-          "publish_date": "2025-02-04",
-          "decision_type": "Δ.2.1",
-          "category": "medical_waste",
-          "signature": "medical_waste:προκηρυξη:ανοιχτου:ηλεκτρονικου:διαγωνισμου:ατομικων:εφοδιων:παρασημων:μεταλλιων:μεσων:ατομικησ",
-          "supplier_name": "",
-          "supplier_key_hash": "",
-          "cpv": "18423000-0,18424000-7,18221100-5,18235100-6,18425000-4,18800000-7,18512200-3,18331000-8,18142000-6",
-          "adams": [],
-          "contract_refs": [
-            "HTTPS",
-            "ΕΛΛΗΝΙΚ",
-            "ΠΑΡΑΧ"
-          ],
-          "focused_pages": [
-            1,
-            2,
-            14,
-            15,
-            16
-          ],
-          "facts": [
-            {
-              "fact_type": "amount",
-              "value": 201500.0,
-              "role": "budget_total",
-              "unit": "EUR",
-              "scope": "subject_section",
-              "source_ada": "92Τ446ΜΤΛΒ-ΗΘΖ",
-              "source_page": 2,
-              "source_excerpt": "ΑΔΑ: 92Τ446ΜΤΛΒ-ΗΘΖ Χώρα: Ελλάδα 2.1.3. Αξία Εκτιμώμενη αξία χωρίς ΦΠΑ: 201 500,00 EUR 2.1.4. Γενικές πληροφορίες Πρόσθετες πληροφορίες: Για το Τμήμα 9 θα εφαρμοστεί η παρέκκλιση της παρ.10 του άρθρου 5 της Οδηγίας 2014/24/ΕΕ. Πρόσθετες πληροφορίες θα είναι διαθέσιμες στο ΕΣΗΔΗΣ (www. promitheus.gov.gr), με α/α διαγωνισμού 366966. Νομική βάση:",
-              "confidence": 0.9,
-              "dependency_group": "financial",
-              "basis": "net"
-            },
-            {
-              "fact_type": "amount",
-              "value": 40000.0,
-              "role": "budget_total",
-              "unit": "EUR",
-              "scope": "subject_section",
-              "source_ada": "92Τ446ΜΤΛΒ-ΗΘΖ",
-              "source_page": 2,
-              "source_excerpt": "00 τεμάχια 5.1.2. Τόπος εκτέλεσης Πόλη: Αμαρούσιο Αττικής Υποδιαίρεση χώρας (NUTS): Βόρειος Τομέας Αθηνών (Voreios Tomeas Athinon) (EL301) Χώρα: Ελλάδα 5.1.3. Εκτιμώμενη διάρκεια Άλλη διάρκεια: Αγνωστος 5.1.5. Αξία Εκτιμώμενη αξία χωρίς ΦΠΑ: 40 000,00 EUR 5.1.6. Γενικές πληροφορίες Κατ’ αποκλειστικότητα συμμετοχή: Δεν παραχωρείται συμμετοχή. Έργο δημόσιων συμβάσεων που δεν χρηματοδοτείται από τα ταμεία της ΕΕ Η δημόσια σύμβαση καλύπτεται από τη συμφωνία για τις δημόσιες συμβάσεις (ΣΔΣ): ναι 75139-2025",
-              "confidence": 0.9,
-              "dependency_group": "financial",
-              "basis": "net"
-            },
-            {
-              "fact_type": "amount",
-              "value": 7500.0,
-              "role": "budget_total",
-              "unit": "EUR",
-              "scope": "subject_section",
-              "source_ada": "92Τ446ΜΤΛΒ-ΗΘΖ",
-              "source_page": 14,
-              "source_excerpt": "00 τεμάχια 5.1.2. Τόπος εκτέλεσης Πόλη: Αμαρούσιο Αττικής Υποδιαίρεση χώρας (NUTS): Βόρειος Τομέας Αθηνών (Voreios Tomeas Athinon) (EL301) Χώρα: Ελλάδα 5.1.3. Εκτιμώμενη διάρκεια Άλλη διάρκεια: Αγνωστος 5.1.5. Αξία Εκτιμώμενη αξία χωρίς ΦΠΑ: 7 500,00 EUR 5.1.6. Γενικές πληροφορίες Κατ’ αποκλειστικότητα συμμετοχή: Δεν παραχωρείται συμμετοχή. Έργο δημόσιων συμβάσεων που δεν χρηματοδοτείται από τα ταμεία της ΕΕ Η δημόσια σύμβαση καλύπτεται από τη συμφωνία για τις δημόσιες συμβάσεις (ΣΔΣ): ναι 5.1.9. Κριτήρια επιλογής",
-              "confidence": 0.9,
-              "dependency_group": "financial",
-              "basis": "net"
-            },
-            {
-              "fact_type": "competition",
-              "value": true,
-              "role": "single_bid",
-              "unit": "boolean",
-              "scope": "subject_section",
-              "source_ada": "92Τ446ΜΤΛΒ-ΗΘΖ",
-              "source_page": 2,
-              "source_excerpt": "9 θα εφαρμοστεί η παρέκκλιση της παρ.10 του άρθρου 5 της Οδηγίας 2014/24/ΕΕ. Πρόσθετες πληροφορίες θα είναι διαθέσιμες στο ΕΣΗΔΗΣ (www. promitheus.gov.gr), με α/α διαγωνισμού 366966. Νομική βάση: Οδηγία 2014/24/ΕΕ 2.1.5. Όροι δημοσίων συμβάσεων Όροι υποβολής: Μέγιστος αριθμός παρτίδων για τις οποίες ένας προσφέρων μπορεί να υποβάλει προσφορές: 9 Όροι της σύμβασης: Μέγιστος αριθμός παρτίδων για τις οποίες μπορούν να ανατεθούν συμβάσεις σε έναν προσφέροντα: 9 2.1.6. Λόγοι αποκλεισμού Πηγές των λόγων αποκλεισμού: Ευρωπαϊκό Ενιαίο Έγγραφο Σύμβασης (ΕΕΕΣ) 5. Παρτίδα 5.1. Παρτίδα: LOT-0001 Τίτλος: Πουλόβ",
-              "confidence": 0.98,
-              "dependency_group": "competition",
-              "basis": ""
-            },
-            {
-              "fact_type": "date",
-              "value": "2025-02-04",
-              "role": "decision_date",
-              "unit": "date",
-              "scope": "decision",
-              "source_ada": "92Τ446ΜΤΛΒ-ΗΘΖ",
-              "source_page": null,
-              "source_excerpt": "official metadata issueDate",
-              "confidence": 0.99,
-              "dependency_group": "timeline",
-              "basis": "official_metadata"
-            },
-            {
-              "fact_type": "date",
-              "value": "2025-02-04",
-              "role": "publication_date",
-              "unit": "date",
-              "scope": "decision",
-              "source_ada": "92Τ446ΜΤΛΒ-ΗΘΖ",
               "source_page": null,
               "source_excerpt": "official metadata publishTimestamp",
               "confidence": 0.99,
