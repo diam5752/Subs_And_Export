@@ -3,7 +3,7 @@ name: Temporary Expand Diavgeia Neighborhoods
 on:
   push:
     branches:
-      - tmp/diavgeia-two-case-inspect-20260714
+      - tmp/diavgeia-neighborhood-expansion-20260714
     paths:
       - tmp_tools/expand_diavgeia_candidate_neighborhoods.py
       - .github/workflows/tmp-expand-diavgeia-neighborhoods.yml
@@ -17,6 +17,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: tmp-diavgeia-neighborhood-expansion-20260714
+  cancel-in-progress: true
+
 jobs:
   expand:
     if: github.actor != 'github-actions[bot]'
@@ -25,7 +29,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: tmp/diavgeia-two-case-inspect-20260714
+          ref: tmp/diavgeia-neighborhood-expansion-20260714
           fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
@@ -50,4 +54,4 @@ jobs:
             exit 1
           fi
           git commit -m "chore(tmp): record Diavgeia neighborhoods"
-          git push origin HEAD:tmp/diavgeia-two-case-inspect-20260714
+          git push origin HEAD:tmp/diavgeia-neighborhood-expansion-20260714
