@@ -31,16 +31,17 @@ def gross_amount(subject: str, text: str) -> tuple[float | None, str]:
         gross_values = []
         for match in AMOUNT_TOKEN.finditer(value):
             context = _nearby(value, match.start(), match.end())
-            explicitly_net = any(term in context for term in (
-                "χωρισ φ", "ανευ φ", "πλεον φ", "μη συμπεριλαμβανομενου φ",
-            )) and not any(term in context for term in (
-                "ητοι", "διαμορφωνεται στα", "συμπεριλαμβανομενου φ", "με φ",
+            negative_gross_marker = any(term in context for term in (
+                "μη συμπεριλαμβανομενου φ", "χωρισ φ", "ανευ φ", "πλεον φ",
             ))
             explicitly_gross = any(term in context for term in (
-                "συμπεριλαμβανομενου φ", "συμπ/νου φ", "με φ.π.α", "με φπα",
-                "ητοι", "διαμορφωνεται στα", "συνολο με φ",
-            ))
-            if explicitly_gross and not explicitly_net:
+                "συμπ/νου φ", "με φ.π.α", "με φπα", "ητοι",
+                "διαμορφωνεται στα", "συνολο με φ",
+            )) or (
+                "συμπεριλαμβανομενου φ" in context
+                and "μη συμπεριλαμβανομενου φ" not in context
+            )
+            if explicitly_gross and not negative_gross_marker:
                 amount = base.money(match.group(0))
                 if 1000 <= amount <= 5_000_000:
                     gross_values.append(amount)
