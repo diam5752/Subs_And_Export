@@ -1,9 +1,9 @@
 {
   "status": "completed",
-  "executed_at": "2026-07-14T09:59:20.041780+00:00",
+  "executed_at": "2026-07-14T10:49:50.175459+00:00",
   "seed": 5600715,
   "coverage": {
-    "metadata_records": 16061,
+    "metadata_records": 16062,
     "selected_for_pdf": 229,
     "inspected": 229,
     "current_decisions": 158,
