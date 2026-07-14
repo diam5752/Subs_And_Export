@@ -2,8 +2,15 @@
 from __future__ import annotations
 
 import hashlib
+import sys
 from collections import defaultdict
 from pathlib import Path
+
+# Running a file under tmp_tools/ makes that directory sys.path[0]. Add the
+# repository root explicitly so the sibling module can be imported as a package.
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from tmp_tools import run_evidence_graph_hunter_v2 as base
 
