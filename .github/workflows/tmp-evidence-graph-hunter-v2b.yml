@@ -1,0 +1,62 @@
+name: Temporary Evidence Graph Hunter V2B
+
+on:
+  push:
+    branches:
+      - tmp/evidence-graph-hunter-v2b-20260714
+    paths:
+      - tmp_tools/run_evidence_graph_hunter_v2.py
+      - tmp_tools/run_evidence_graph_hunter_v2b.py
+      - .github/workflows/tmp-evidence-graph-hunter-v2b.yml
+  pull_request:
+    branches:
+      - master
+    paths:
+      - tmp_tools/run_evidence_graph_hunter_v2.py
+      - tmp_tools/run_evidence_graph_hunter_v2b.py
+      - .github/workflows/tmp-evidence-graph-hunter-v2b.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tmp-evidence-graph-hunter-v2b-20260714
+  cancel-in-progress: true
+
+jobs:
+  investigate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: tmp/evidence-graph-hunter-v2b-20260714
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y poppler-utils
+          python -m pip install --upgrade pip
+          pip install requests
+      - name: Run hardened typed evidence-graph investigation
+        run: |
+          rm -rf evidence-graph-v2b-output
+          python tmp_tools/run_evidence_graph_hunter_v2b.py
+          test -s evidence-graph-v2b-output/result.json
+          test -s evidence-graph-v2b-output/evaluation.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: evidence-graph-v2b-output
+          path: evidence-graph-v2b-output
+          retention-days: 1
+      - name: Commit compact results
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add evidence-graph-v2b-output
+          git commit -m 'chore(tmp): record hardened evidence-graph results'
+          git push origin HEAD:tmp/evidence-graph-hunter-v2b-20260714
