@@ -1,0 +1,66 @@
+name: Temporary Condense Manual Diverse Results
+
+on:
+  push:
+    branches:
+      - tmp/manual-diverse-diavgeia-20260714
+    paths:
+      - .github/workflows/tmp-condense-manual-results.yml
+  pull_request:
+    branches:
+      - master
+    paths:
+      - .github/workflows/tmp-condense-manual-results.yml
+
+permissions:
+  contents: write
+
+jobs:
+  condense:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: tmp/manual-diverse-diavgeia-20260714
+          fetch-depth: 0
+      - name: Write compact review file
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          data = json.loads(Path('manual-diverse-output/result.json').read_text())
+          selected = list(data.get('diverse_top_results') or [])
+          timeline = [x for x in data.get('all_candidates') or [] if x.get('type') == 'service_before_decision'][:8]
+          unit = [x for x in data.get('all_candidates') or [] if x.get('type') == 'official_unit_price_outlier'][:8]
+          lines = ['# Compact manual review', '']
+          for heading, items in [('DIVERSE', selected), ('TIMELINE', timeline), ('UNIT PRICE', unit)]:
+              lines += [f'## {heading}', '']
+              for item in items:
+                  lines += [f"### {item.get('type')} — {item.get('score')} — {item.get('status')}"]
+                  lines += [f"- {reason}" for reason in item.get('reasons') or []]
+                  for record in item.get('records') or []:
+                      lines += [
+                          f"- ADA: {record.get('ada')}",
+                          f"- URL: {record.get('official_url')}",
+                          f"- Subject: {record.get('subject')}",
+                          f"- Dates: issue={record.get('issue_date')} publish={record.get('publish_date')} service={record.get('service_start')}..{record.get('service_end')}",
+                          f"- Amount: {record.get('amount_eur')} ({record.get('amount_basis')})",
+                          f"- Supplier: {record.get('supplier_name')} / {record.get('supplier_key_hash')}",
+                          f"- Flags: single_bid={record.get('single_bid')} no_publication={record.get('without_publication')} direct={record.get('direct_award')} emergency={record.get('emergency')}",
+                          f"- ADAMs: {', '.join(record.get('adams') or [])}",
+                          f"- Excerpt: {record.get('focused_excerpt')}",
+                          '',
+                      ]
+                  for record in item.get('peer_records') or []:
+                      lines += [f"- Peer {record.get('ada')}: {record.get('unit_price_eur')} / {record.get('spec')} / {record.get('subject')}"]
+                  lines.append('')
+          Path('manual-diverse-output/selected-details.md').write_text('\n'.join(lines), encoding='utf-8')
+          PY
+      - name: Commit compact review
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add manual-diverse-output/selected-details.md
+          git commit -m 'chore(tmp): record compact manual review'
+          git push origin HEAD:tmp/manual-diverse-diavgeia-20260714
