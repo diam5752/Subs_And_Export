@@ -1,0 +1,52 @@
+name: Temporary Manual Diverse Diavgeia Investigation
+
+on:
+  push:
+    branches:
+      - tmp/manual-diverse-diavgeia-20260714
+    paths:
+      - tmp_tools/run_manual_diverse_diavgeia.py
+      - .github/workflows/tmp-manual-diverse-diavgeia.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tmp-manual-diverse-diavgeia-20260714
+  cancel-in-progress: true
+
+jobs:
+  investigate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: tmp/manual-diverse-diavgeia-20260714
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y poppler-utils
+          python -m pip install --upgrade pip
+          pip install requests
+      - name: Run independent diverse investigation
+        run: |
+          rm -rf manual-diverse-output
+          python tmp_tools/run_manual_diverse_diavgeia.py
+          test -s manual-diverse-output/result.json
+      - name: Commit compact results
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add manual-diverse-output
+          if git diff --cached --quiet; then
+            echo 'No results produced'
+            exit 1
+          fi
+          git commit -m 'chore(tmp): record manual diverse Diavgeia results'
+          git push origin HEAD:tmp/manual-diverse-diavgeia-20260714
