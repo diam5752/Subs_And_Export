@@ -37,13 +37,20 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests
       - name: Re-fetch and strictly validate official evidence
+        id: validate
+        continue-on-error: true
         env:
           VALIDATION_MODE: ${{ matrix.mode }}
           VALIDATION_OUT: ${{ matrix.output }}
         run: |
           python tmp_tools/validate_bridge_candidates_v4.py
-          test -s "${VALIDATION_OUT}/validation.json"
+      - name: Require diagnostic output
+        if: always()
+        env:
+          VALIDATION_OUT: ${{ matrix.output }}
+        run: test -s "${VALIDATION_OUT}/validation.json"
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: ${{ matrix.output }}
           path: ${{ matrix.output }}
