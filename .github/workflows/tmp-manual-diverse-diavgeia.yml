@@ -7,6 +7,12 @@ on:
     paths:
       - tmp_tools/run_manual_diverse_diavgeia.py
       - .github/workflows/tmp-manual-diverse-diavgeia.yml
+  pull_request:
+    branches:
+      - master
+    paths:
+      - tmp_tools/run_manual_diverse_diavgeia.py
+      - .github/workflows/tmp-manual-diverse-diavgeia.yml
 
 permissions:
   contents: write
