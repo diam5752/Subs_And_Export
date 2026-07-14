@@ -1,0 +1,27 @@
+{
+  "hospital_group_99221950": {
+    "requested": 4,
+    "successful_details": 4,
+    "readable_pdfs": 4
+  },
+  "hospital_group_99222005": {
+    "requested": 3,
+    "successful_details": 3,
+    "readable_pdfs": 3
+  },
+  "hospital_group_99222000": {
+    "requested": 15,
+    "successful_details": 15,
+    "readable_pdfs": 15
+  },
+  "ape_group_100049029": {
+    "requested": 3,
+    "successful_details": 3,
+    "readable_pdfs": 3
+  },
+  "modification_group_55291": {
+    "requested": 11,
+    "successful_details": 11,
+    "readable_pdfs": 11
+  }
+}
