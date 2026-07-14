@@ -1,0 +1,39 @@
+name: Temporary Condense Existing Inspection
+
+on:
+  push:
+    branches:
+      - tmp/diavgeia-two-case-inspect-20260714
+    paths:
+      - tmp_tools/condense_diavgeia_candidate_groups.py
+      - .github/workflows/tmp-condense-existing-inspection.yml
+
+permissions:
+  contents: write
+
+jobs:
+  condense:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: tmp/diavgeia-two-case-inspect-20260714
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Build compact index from existing official inspection
+        run: python tmp_tools/condense_diavgeia_candidate_groups.py
+      - name: Commit compact index
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add candidate-inspection-output/subjects.tsv candidate-inspection-output/*.facts.txt candidate-inspection-output/*.json
+          if git diff --cached --quiet; then
+            echo "No compact output produced"
+            exit 1
+          fi
+          git commit -m "chore(tmp): record compact Diavgeia facts"
+          git push origin HEAD:tmp/diavgeia-two-case-inspect-20260714
