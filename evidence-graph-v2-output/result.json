@@ -1,13 +1,13 @@
 {
   "status": "completed",
-  "executed_at": "2026-07-14T10:49:27.779166+00:00",
+  "executed_at": "2026-07-14T11:19:04.851285+00:00",
   "seed": 5600716,
   "coverage": {
     "metadata_records": 18132,
     "selected_for_pdf": 157,
     "inspected": 157,
     "current_decisions": 113,
-    "collapsed_chains": 59,
+    "collapsed_chains": 58,
     "candidate_cases_after_merge": 18,
     "failures": [],
     "attempts": [
@@ -2315,8 +2315,8 @@
   "evaluation": {
     "timeline_false_positive_regression_passed": true,
     "case_level_ekab_dedup_passed": true,
-    "page_provenance_ratio_all_facts": 0.5746,
-    "typed_scoring_fact_count": 526,
+    "page_provenance_ratio_all_facts": 0.5808,
+    "typed_scoring_fact_count": 534,
     "candidate_case_count_after_merge": 18,
     "distinct_primary_patterns_in_diverse_top": 3,
     "validated_80_plus_count": 0,
@@ -3490,14 +3490,14 @@
       ]
     },
     {
-      "case_fingerprint": "fa5625cb1d865ffea8",
+      "case_fingerprint": "65f53d6e64edf68d6c",
       "primary_type": "advanced_or_repeated_extension",
       "detectors": [
         "advanced_or_repeated_extension",
         "typed_service_before_decision"
       ],
       "chain_ids": [
-        "9b2955be7f767cc905"
+        "f8be62cbe33b8fefac"
       ],
       "families": [
         "contract_change",
@@ -3526,7 +3526,7 @@
       ],
       "metrics": {
         "max_modification_rank": 5,
-        "modification_fact_count": 11
+        "modification_fact_count": 12
       },
       "seen_in_previous_run": false,
       "novelty_rank_score": 55,
