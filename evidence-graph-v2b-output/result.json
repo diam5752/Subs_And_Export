@@ -1,14 +1,14 @@
 {
   "status": "completed",
-  "executed_at": "2026-07-14T09:34:53.962158+00:00",
+  "executed_at": "2026-07-14T09:46:49.533904+00:00",
   "seed": 5600717,
   "coverage": {
-    "metadata_records": 18108,
-    "selected_for_pdf": 158,
-    "inspected": 158,
-    "current_decisions": 117,
-    "collapsed_chains": 116,
-    "candidate_cases_after_merge": 31,
+    "metadata_records": 18109,
+    "selected_for_pdf": 159,
+    "inspected": 159,
+    "current_decisions": 119,
+    "collapsed_chains": 118,
+    "candidate_cases_after_merge": 33,
     "failures": [],
     "attempts": [
       {
@@ -2315,9 +2315,9 @@
   "evaluation": {
     "timeline_false_positive_regression_passed": true,
     "case_level_ekab_dedup_passed": true,
-    "page_provenance_ratio_all_facts": 0.5862,
-    "typed_scoring_fact_count": 561,
-    "candidate_case_count_after_merge": 31,
+    "page_provenance_ratio_all_facts": 0.592,
+    "typed_scoring_fact_count": 579,
+    "candidate_case_count_after_merge": 33,
     "distinct_primary_patterns_in_diverse_top": 4,
     "validated_80_plus_count": 0,
     "previously_seen_case_count_in_top": 1
@@ -3544,6 +3544,122 @@
               "unit": "date",
               "scope": "decision",
               "source_ada": "ΨΔΡΦΟΛΚ8-4ΤΛ",
+              "source_page": null,
+              "source_excerpt": "official metadata publishTimestamp",
+              "confidence": 0.99,
+              "dependency_group": "transparency",
+              "basis": "official_metadata"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case_fingerprint": "117e6ee33ed599cb37",
+      "primary_type": "explicit_single_bid",
+      "detectors": [
+        "explicit_single_bid"
+      ],
+      "chain_ids": [
+        "23c0e3876f16d28f0b"
+      ],
+      "families": [
+        "competition"
+      ],
+      "review_priority": 58,
+      "score_axes": {
+        "evidence_quality": 27,
+        "pattern_strength": 15,
+        "peer_deviation": 0,
+        "materiality": 6,
+        "falsification_survival": 10
+      },
+      "caps": [
+        "μία μόνο ανεξάρτητη evidence family"
+      ],
+      "reasons": [
+        "Το επίσημο PDF αναφέρει ρητά μία/μοναδική προσφορά στη σελίδα 37.",
+        "Typed επίσημο οικονομικό μέγεθος: €265,742.35 (budget_total, unknown)."
+      ],
+      "ordinary_explanations": [],
+      "metrics": {},
+      "seen_in_previous_run": false,
+      "novelty_rank_score": 58,
+      "status": "RESEARCH_LEAD",
+      "records": [
+        {
+          "ada": "68ΓΑΩ19-ΚΥΓ",
+          "official_url": "https://diavgeia.gov.gr/doc/68ΓΑΩ19-ΚΥΓ",
+          "organization_id": "6264",
+          "organization": "",
+          "subject": "ΔΙΑΚΗΡΥΞΗ ΗΛΕΚΤΡΟΝΙΚΟΥ ΑΝΟΙΚΤΟΥ ΔΙΑΓΩΝΙΣΜΟΥ",
+          "issue_date": "2026-06-26",
+          "publish_date": "2026-06-26",
+          "decision_type": "Δ.2.1",
+          "category": "construction",
+          "signature": "construction:διακηρυξη:ηλεκτρονικου:ανοικτου:διαγωνισμου",
+          "supplier_name": "",
+          "supplier_key_hash": "",
+          "cpv": "09100000-0",
+          "adams": [],
+          "contract_refs": [
+            ".............................................",
+            "ΘΕΩΡΕ"
+          ],
+          "focused_pages": [
+            1,
+            2,
+            37,
+            38,
+            39
+          ],
+          "facts": [
+            {
+              "fact_type": "amount",
+              "value": 265742.35,
+              "role": "budget_total",
+              "unit": "EUR",
+              "scope": "subject_section",
+              "source_ada": "68ΓΑΩ19-ΚΥΓ",
+              "source_page": 1,
+              "source_excerpt": "ΔΙΕΥΘΥΝΣΗ ΔΙΟΙΚΗΤΙΚΟΥ - ΟΙΚΟΝΟΜΙΚΟΥ ΤΜΗΜΑ ΟΙΚΟΝΟΜΙΚΩΝ ΥΠΗΡΕΣΙΩΝ ΓΡΑΦΕΙΟ ΠΡΟΜΗΘΕΙΩΝ ΔΙΑΚΗΡΥΞΗ ΗΛΕΚΤΡΟΝΙΚΟΥ ΑΝΟΙΚΤΟΥ ΔΙΑΓΩΝΙΣΜΟΥ ‘’ΠΡΟΜΗΘΕΙΑ ΚΑΥΣΙΜΩΝ-ΛΙΠΑΝΤΙΚΩΝ ΔΗΜΟΥ ΡΗΓΑ ΦΕΡΑΙΟΥ, ΕΤΟΥΣ 2026-2027’’ Προϋπολογισμού Δαπάνης 265.742,35 Ευρώ με το Φ.Π.Α. ΒΕΛΕΣΤΙΝΟ 26 /06/2026 Σελίδα 1",
+              "confidence": 0.9,
+              "dependency_group": "financial",
+              "basis": "unknown"
+            },
+            {
+              "fact_type": "competition",
+              "value": true,
+              "role": "single_bid",
+              "unit": "boolean",
+              "scope": "subject_section",
+              "source_ada": "68ΓΑΩ19-ΚΥΓ",
+              "source_page": 37,
+              "source_excerpt": "ΑΔΑ: 68ΓΑΩ19-ΚΥΓ Η απόφαση έγκρισης του πρακτικού κατάταξης προσφορών δεν κοινοποιείται στους προσφέροντες και ενσωματώνεται στην απόφαση κατακύρωσης105. Σε κάθε περίπτωση, όταν εξ αρχής έχει υποβληθεί μία προσφορά, τα αποτελέσματα όλων των σταδίων της διαδικασίας ανάθεσης, ήτοι Δικαιολογητικών Συμμετοχής, Τεχνικής Προσφοράς και Οικονομικής Προσφοράς, επικυρώνονται με την απόφαση κατακύρωσης του άρθρου 105 του ν. 4412/2016, σύμφωνα με την παράγραφο 3.3 της παρούσας, που εκδίδεται μετά το πέρας και του τελευταίου σταδίου της διαδικασίας. Κατά της ανωτέρω απόφασης χωρεί προδικαστική προσφυ",
+              "confidence": 0.98,
+              "dependency_group": "competition",
+              "basis": ""
+            },
+            {
+              "fact_type": "date",
+              "value": "2026-06-26",
+              "role": "decision_date",
+              "unit": "date",
+              "scope": "decision",
+              "source_ada": "68ΓΑΩ19-ΚΥΓ",
+              "source_page": null,
+              "source_excerpt": "official metadata issueDate",
+              "confidence": 0.99,
+              "dependency_group": "timeline",
+              "basis": "official_metadata"
+            },
+            {
+              "fact_type": "date",
+              "value": "2026-06-26",
+              "role": "publication_date",
+              "unit": "date",
+              "scope": "decision",
+              "source_ada": "68ΓΑΩ19-ΚΥΓ",
               "source_page": null,
               "source_excerpt": "official metadata publishTimestamp",
               "confidence": 0.99,
@@ -4935,6 +5051,137 @@
               "unit": "date",
               "scope": "decision",
               "source_ada": "Ψ8ΞΜ4651Μ6-ΥΕΨ",
+              "source_page": null,
+              "source_excerpt": "official metadata publishTimestamp",
+              "confidence": 0.99,
+              "dependency_group": "transparency",
+              "basis": "official_metadata"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "case_fingerprint": "d95ddec22ef8ae4b5f",
+      "primary_type": "explicit_single_bid",
+      "detectors": [
+        "explicit_single_bid"
+      ],
+      "chain_ids": [
+        "4e61d513ea9f71483f"
+      ],
+      "families": [
+        "competition"
+      ],
+      "review_priority": 55,
+      "score_axes": {
+        "evidence_quality": 27,
+        "pattern_strength": 15,
+        "peer_deviation": 0,
+        "materiality": 3,
+        "falsification_survival": 10
+      },
+      "caps": [
+        "μία μόνο ανεξάρτητη evidence family"
+      ],
+      "reasons": [
+        "Το επίσημο PDF αναφέρει ρητά μία/μοναδική προσφορά στη σελίδα 39.",
+        "Typed επίσημο οικονομικό μέγεθος: €71,610.00 (budget_total, gross)."
+      ],
+      "ordinary_explanations": [],
+      "metrics": {},
+      "seen_in_previous_run": false,
+      "novelty_rank_score": 55,
+      "status": "RESEARCH_LEAD",
+      "records": [
+        {
+          "ada": "ΕΠ8ΕΩΞΒ-Υ3Ν",
+          "official_url": "https://diavgeia.gov.gr/doc/ΕΠ8ΕΩΞΒ-Υ3Ν",
+          "organization_id": "6225",
+          "organization": "",
+          "subject": "ΔΙΑΚΗΡΥΞΗ ΑΝΟΙΚΤΟΥ ΗΛΕΚΤΡΟΝΙΚΟΥ ΔΙΑΓΩΝΙΣΜΟΥ ΓΙΑ ΤΗΝ: «ΠΡΟΜΗΘΕΙΑ ΚΑΔΩΝ ΑΠΟΡΡΙΜΜΑΤΩΝ»",
+          "issue_date": "2026-06-26",
+          "publish_date": "2026-06-26",
+          "decision_type": "Δ.2.1",
+          "category": "construction",
+          "signature": "construction:διακηρυξη:ανοικτου:ηλεκτρονικου:διαγωνισμου:καδων:απορριμματων",
+          "supplier_name": "",
+          "supplier_key_hash": "",
+          "cpv": "44613700-7",
+          "adams": [
+            "26PROC019323736"
+          ],
+          "contract_refs": [
+            ".............................................",
+            "3.3.1."
+          ],
+          "focused_pages": [
+            1,
+            2,
+            39,
+            40,
+            41
+          ],
+          "facts": [
+            {
+              "fact_type": "amount",
+              "value": 71610.0,
+              "role": "budget_total",
+              "unit": "EUR",
+              "scope": "subject_section",
+              "source_ada": "ΕΠ8ΕΩΞΒ-Υ3Ν",
+              "source_page": 1,
+              "source_excerpt": "Ορεστιάδα: 24/06/2026 ΠΕΡΙΦΕΡΕΙΑΚΗ ΕΝΟΤΗΤΑ ΕΒΡΟΥ Αρ. Πρωτ. : 13001 ΔΗΜΟΣ ΟΡΕΣΤΙΑΔΑΣ ΔΙΑΚΗΡΥΞΗ ΑΝΟΙΚΤΟΥ ΗΛΕΚΤΡΟΝΙΚΟΥ ΔΙΑΓΩΝΙΣΜΟΥ ΓΙΑ ΤΗΝ: «ΠΡΟΜΗΘΕΙΑ ΚΑΔΩΝ ΑΠΟΡΡΙΜΜΑΤΩΝ» Ενδεικτικός Προϋπολογισμός (συμπεριλαμβανομένου ΦΠΑ): 71.610,00 € Ενδεικτικός Προϋπολογισμός (ΧΩΡΙΣ ΦΠΑ) : 57.750,00 € Καταληκτική Ημερομηνία υποβολής προσφορών: 15/07/2026 & ώρα 23:59:59 ΧΡΗΜΑΤΟΔΟΤΗΣΗ: ΙΔΙΟΙ ΠΟΡΟΙ 1",
+              "confidence": 0.9,
+              "dependency_group": "financial",
+              "basis": "gross"
+            },
+            {
+              "fact_type": "amount",
+              "value": 57750.0,
+              "role": "budget_total",
+              "unit": "EUR",
+              "scope": "subject_section",
+              "source_ada": "ΕΠ8ΕΩΞΒ-Υ3Ν",
+              "source_page": 1,
+              "source_excerpt": "ΑΚΗ ΕΝΟΤΗΤΑ ΕΒΡΟΥ Αρ. Πρωτ. : 13001 ΔΗΜΟΣ ΟΡΕΣΤΙΑΔΑΣ ΔΙΑΚΗΡΥΞΗ ΑΝΟΙΚΤΟΥ ΗΛΕΚΤΡΟΝΙΚΟΥ ΔΙΑΓΩΝΙΣΜΟΥ ΓΙΑ ΤΗΝ: «ΠΡΟΜΗΘΕΙΑ ΚΑΔΩΝ ΑΠΟΡΡΙΜΜΑΤΩΝ» Ενδεικτικός Προϋπολογισμός (συμπεριλαμβανομένου ΦΠΑ): 71.610,00 € Ενδεικτικός Προϋπολογισμός (ΧΩΡΙΣ ΦΠΑ) : 57.750,00 € Καταληκτική Ημερομηνία υποβολής προσφορών: 15/07/2026 & ώρα 23:59:59 ΧΡΗΜΑΤΟΔΟΤΗΣΗ: ΙΔΙΟΙ ΠΟΡΟΙ 1",
+              "confidence": 0.9,
+              "dependency_group": "financial",
+              "basis": "gross"
+            },
+            {
+              "fact_type": "competition",
+              "value": true,
+              "role": "single_bid",
+              "unit": "boolean",
+              "scope": "subject_section",
+              "source_ada": "ΕΠ8ΕΩΞΒ-Υ3Ν",
+              "source_page": 39,
+              "source_excerpt": "ροσωρινός ανάδοχος») να υποβάλει τα δικαιολογητικά κατακύρωσης, σύμφωνα με όσα ορίζονται στο άρθρο 103 και την παράγραφο 3.2 της παρούσας, περί πρόσκλησης για υποβολή δικαιολογητικών. Η απόφαση έγκρισης των πρακτικών δεν κοινοποιείται στους προσφέροντες και ενσωματώνεται στην απόφαση κατακύρωσης (άρθρο 100, παρ. 2 ν. 4412/2016). Σε κάθε περίπτωση, όταν εξ αρχής έχει υποβληθεί μία προσφορά, τα αποτελέσματα όλων των σταδίων της διαδικασίας ανάθεσης, ήτοι Δικαιολογητικών Συμμετοχής, Τεχνικής Προσφοράς και Οικονομικής Προσφοράς, επικυρώνονται με την απόφαση κατακύρωσης του άρθρου 105 του N. 4412/2016, σύμφωνα με την παράγραφο 3.3 της παρούσας, πο",
+              "confidence": 0.98,
+              "dependency_group": "competition",
+              "basis": ""
+            },
+            {
+              "fact_type": "date",
+              "value": "2026-06-26",
+              "role": "decision_date",
+              "unit": "date",
+              "scope": "decision",
+              "source_ada": "ΕΠ8ΕΩΞΒ-Υ3Ν",
+              "source_page": null,
+              "source_excerpt": "official metadata issueDate",
+              "confidence": 0.99,
+              "dependency_group": "timeline",
+              "basis": "official_metadata"
+            },
+            {
+              "fact_type": "date",
+              "value": "2026-06-26",
+              "role": "publication_date",
+              "unit": "date",
+              "scope": "decision",
+              "source_ada": "ΕΠ8ΕΩΞΒ-Υ3Ν",
               "source_page": null,
               "source_excerpt": "official metadata publishTimestamp",
               "confidence": 0.99,
