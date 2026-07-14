@@ -1,13 +1,13 @@
 {
   "status": "completed",
-  "executed_at": "2026-07-14T09:58:52.396927+00:00",
+  "executed_at": "2026-07-14T10:49:27.779166+00:00",
   "seed": 5600716,
   "coverage": {
-    "metadata_records": 18130,
+    "metadata_records": 18132,
     "selected_for_pdf": 157,
     "inspected": 157,
-    "current_decisions": 112,
-    "collapsed_chains": 58,
+    "current_decisions": 113,
+    "collapsed_chains": 59,
     "candidate_cases_after_merge": 18,
     "failures": [],
     "attempts": [
@@ -2315,8 +2315,8 @@
   "evaluation": {
     "timeline_false_positive_regression_passed": true,
     "case_level_ekab_dedup_passed": true,
-    "page_provenance_ratio_all_facts": 0.577,
-    "typed_scoring_fact_count": 522,
+    "page_provenance_ratio_all_facts": 0.5746,
+    "typed_scoring_fact_count": 526,
     "candidate_case_count_after_merge": 18,
     "distinct_primary_patterns_in_diverse_top": 3,
     "validated_80_plus_count": 0,
