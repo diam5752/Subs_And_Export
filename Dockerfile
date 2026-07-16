@@ -1,11 +1,5 @@
 FROM python:3.11-slim AS builder
 
-# Install build dependencies for native packages (faster-whisper, etc.)
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    git \
-    && rm -rf /var/lib/apt/lists/*
-
 WORKDIR /build
 ARG REQUIREMENTS_FILE=backend/requirements.mock.txt
 COPY ${REQUIREMENTS_FILE} requirements.txt
@@ -22,7 +16,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     libgl1 \
     fonts-dejavu-core \
-    fonts-noto \
+    fonts-noto-core \
     fonts-freefont-ttf \
     && rm -rf /var/lib/apt/lists/* \
     && fc-cache -fv
@@ -37,7 +31,7 @@ RUN pip install --no-cache-dir /wheels/* && rm -rf /wheels
 COPY backend/ .
 
 # Create directories for data and logs
-RUN mkdir -p /logs /app/logs /app/data/uploads /app/data/artifacts
+RUN mkdir -p /data/uploads /data/artifacts /logs /app/logs
 
 # Whisper model cache directory (mount as volume for persistence)
 ENV HF_HOME=/models
@@ -63,7 +57,7 @@ RUN rm -rf /app/backend && ln -s /app /app/backend
 # Drop root privileges for runtime.
 # Cloud Run runs containers as root by default; use a dedicated unprivileged user instead.
 RUN useradd --create-home --uid 10001 --user-group --shell /usr/sbin/nologin appuser \
-    && chown -R appuser:appuser /logs /models /app/logs /app/data
+    && chown -R appuser:appuser /data /logs /models /app/logs
 USER appuser
 
 # Default environment (override via Cloud Run env vars)

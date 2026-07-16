@@ -40,7 +40,7 @@ services:
       GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD: "0"
       GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD: "0"
     volumes:
-      - app_data:/app/data
+      - app_data:/data
       - app_logs:/app/logs
     networks:
       - private

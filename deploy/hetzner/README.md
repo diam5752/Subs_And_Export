@@ -15,6 +15,9 @@ SUBFRAME_ENV_FILE=/home/mizai/subframe/.env.production \
 The tracked production compose forces mock services and zero external-provider
 budgets. It exposes no host ports. Cloudflare Tunnel should route
 `subframe.mizai.gr` to `http://subframe-edge:8080`.
+The deploy script removes BuildKit cache after a successful image build so the
+small shared VM retains enough free space for PostgreSQL; images and volumes are
+not pruned.
 
 Before every release, back up MizAI and copy that encrypted backup off-server.
 After SUBFRAME has user data, run `deploy/hetzner/backup.sh` and copy its output
