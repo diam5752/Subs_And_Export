@@ -161,6 +161,17 @@ def test_resolve_runtime_transcribe_provider_treats_empty_secret_as_missing(monk
     assert video_processing.resolve_runtime_transcribe_provider("groq") == "local"
 
 
+def test_resolve_runtime_transcribe_provider_forces_mock_mode(monkeypatch):
+    monkeypatch.setattr(video_processing.settings, "mock_external_services", True)
+    monkeypatch.setattr(
+        video_processing.llm_utils,
+        "resolve_groq_api_key",
+        lambda: "would-have-been-live",
+    )
+
+    assert video_processing.resolve_runtime_transcribe_provider("groq") == "mock"
+
+
 def test_active_graphics_maps_to_ass_active(monkeypatch, tmp_path: Path):
     """
     Test that if UI sends 'active-graphics' highlight style,

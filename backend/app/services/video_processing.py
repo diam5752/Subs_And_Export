@@ -25,14 +25,15 @@ from backend.app.services import (
 from backend.app.services.styles import SubtitleStyle
 from backend.app.services.transcription.groq_cloud import GroqTranscriber
 from backend.app.services.transcription.local_whisper import LocalWhisperTranscriber
+from backend.app.services.transcription.mock_service import MockTranscriber
 from backend.app.services.transcription.openai_cloud import OpenAITranscriber
 from backend.app.services.usage_ledger import ChargePlan, UsageLedgerStore
 
 logger = logging.getLogger(__name__)
 
 ALLOWED_TIER_PROVIDER_OVERRIDES: dict[str, set[str]] = {
-    "standard": {"groq", "local"},
-    "pro": {"groq", "openai", "local"},
+    "standard": {"mock", "groq", "local"},
+    "pro": {"mock", "groq", "openai", "local"},
 }
 
 
@@ -41,6 +42,9 @@ def resolve_runtime_transcribe_provider(
     *,
     openai_api_key: str | None = None,
 ) -> str:
+    if settings.mock_external_services:
+        return "mock"
+
     normalized_provider = requested_provider.strip().lower()
 
     if normalized_provider == "groq" and not llm_utils.resolve_groq_api_key():
@@ -167,7 +171,9 @@ def normalize_and_stub_subtitles(
 
     # Instantiate Transcriber (The Ear)
     transcriber = None
-    if provider_name == "groq":
+    if provider_name == "mock":
+        transcriber = MockTranscriber()
+    elif provider_name == "groq":
         transcriber = GroqTranscriber()
     elif provider_name == "openai":
         transcriber = OpenAITranscriber(api_key=openai_api_key)
@@ -302,7 +308,7 @@ def normalize_and_stub_subtitles(
             with ThreadPoolExecutor() as executor:
                 if generate_social_copy:
                     if progress_callback: progress_callback("Social Copy...", 70.0)
-                    if use_llm_social_copy:
+                    if use_llm_social_copy and not settings.mock_external_services:
                         def _run_social_with_session(text, model, temp, api_key, reservation):
                             if db:
                                 with db.session() as session:

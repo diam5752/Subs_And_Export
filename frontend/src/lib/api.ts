@@ -224,7 +224,7 @@ class ApiClient {
         const formData = new FormData();
         formData.append('file', file);
         formData.append('transcribe_model', settings.transcribe_model || 'standard');
-        formData.append('transcribe_provider', settings.transcribe_provider || 'groq');
+        formData.append('transcribe_provider', settings.transcribe_provider || 'mock');
         formData.append('openai_model', settings.openai_model || '');
         formData.append('video_quality', settings.video_quality || 'balanced');
         formData.append('video_resolution', settings.video_resolution || '');
@@ -315,7 +315,7 @@ class ApiClient {
             body: JSON.stringify({
                 upload_id: uploadId,
                 transcribe_model: settings.transcribe_model || 'standard',
-                transcribe_provider: settings.transcribe_provider || 'groq',
+                transcribe_provider: settings.transcribe_provider || 'mock',
                 openai_model: settings.openai_model || '',
                 source_duration_seconds: settings.source_duration_seconds ?? null,
                 video_quality: settings.video_quality || 'balanced',
@@ -475,7 +475,7 @@ class ApiClient {
             method: 'POST',
             body: JSON.stringify({
                 transcribe_model: settings.transcribe_model || 'standard',
-                transcribe_provider: settings.transcribe_provider || 'groq',
+                transcribe_provider: settings.transcribe_provider || 'mock',
                 openai_model: settings.openai_model || '',
                 video_quality: settings.video_quality || 'balanced',
                 video_resolution: settings.video_resolution || '',

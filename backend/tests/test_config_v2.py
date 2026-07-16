@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from backend.app.core.config import AppEnv, Settings
 
 
@@ -23,6 +25,7 @@ def test_settings_toml_override(tmp_path: Path, monkeypatch) -> None:
     toml_path.write_text(
         """
 [ai]
+mock_external_services = false
 enable_by_default = true
 model = "gpt-toml-test"
 temperature = 0.42
@@ -36,6 +39,7 @@ max_upload_mb = 123
 
     settings = Settings(_env_file=None)
 
+    assert settings.mock_external_services is False
     assert settings.use_llm_by_default is True
     assert settings.llm_model == "gpt-toml-test"
     assert settings.llm_temperature == 0.42
@@ -45,4 +49,4 @@ max_upload_mb = 123
 def test_settings_pricing_integration() -> None:
     settings = Settings()
     assert "gpt-5.1-mini" in settings.llm_pricing
-    assert settings.stt_price_per_minute["standard"] == 0.003
+    assert settings.stt_price_per_minute["standard"] == pytest.approx(0.04 / 60)

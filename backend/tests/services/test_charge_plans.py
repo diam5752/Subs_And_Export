@@ -5,11 +5,15 @@ from __future__ import annotations
 import time
 import uuid
 
+import pytest
+
 from backend.app.core import config
 from backend.app.core.database import Database
+from backend.app.core.errors import ProviderBudgetExceededError
 from backend.app.db.models import DbJob, DbUser
 from backend.app.services import pricing
 from backend.app.services.charge_plans import (
+    assert_external_provider_budget,
     reserve_llm_charge,
     reserve_processing_charges,
     reserve_transcription_charge,
@@ -195,3 +199,44 @@ class TestReserveProcessingCharges:
         assert charge_plan.social_copy is None
         # Only transcription charge
         assert balance == starting_balance - 25  # min credits
+
+
+class TestExternalProviderBudget:
+    """The app budget is enforced before any provider reservation."""
+
+    class _Ledger:
+        def __init__(self, spent: float) -> None:
+            self.spent = spent
+
+        def total_cost_usd(self, *, start_ts: int, end_ts: int) -> float:
+            assert start_ts <= end_ts
+            return self.spent
+
+    def test_rejects_monthly_overage(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(config.settings, "external_provider_monthly_budget_usd", 1.0)
+        monkeypatch.setattr(config.settings, "external_provider_per_request_budget_usd", 0.5)
+
+        with pytest.raises(ProviderBudgetExceededError, match="Monthly"):
+            assert_external_provider_budget(
+                ledger_store=self._Ledger(0.9),  # type: ignore[arg-type]
+                estimated_cost_usd=0.11,
+            )
+
+    def test_rejects_single_expensive_request(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(config.settings, "external_provider_monthly_budget_usd", 1.0)
+        monkeypatch.setattr(config.settings, "external_provider_per_request_budget_usd", 0.25)
+
+        with pytest.raises(ProviderBudgetExceededError, match="Per-request"):
+            assert_external_provider_budget(
+                ledger_store=self._Ledger(0.0),  # type: ignore[arg-type]
+                estimated_cost_usd=0.26,
+            )
+
+    def test_local_zero_cost_bypasses_closed_budget(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(config.settings, "external_provider_monthly_budget_usd", 0.0)
+        monkeypatch.setattr(config.settings, "external_provider_per_request_budget_usd", 0.0)
+
+        assert_external_provider_budget(
+            ledger_store=self._Ledger(100.0),  # type: ignore[arg-type]
+            estimated_cost_usd=0.0,
+        )

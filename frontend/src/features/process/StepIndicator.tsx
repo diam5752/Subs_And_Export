@@ -59,6 +59,11 @@ export const StepIndicator = React.memo(function StepIndicator({ currentStep, st
                     };
 
                     const isClickable = onStepClick && isUnlocked;
+                    const labelPosition = step.id === steps[0]?.id
+                        ? 'left-0 translate-x-0'
+                        : step.id === steps.at(-1)?.id
+                            ? 'right-0 left-auto translate-x-0'
+                            : 'left-1/2 -translate-x-1/2';
 
                     return (
                         <div
@@ -84,11 +89,11 @@ export const StepIndicator = React.memo(function StepIndicator({ currentStep, st
                             </div>
 
                             {/* Label */}
-                            <div className={`absolute top-full mt-3 px-1 text-center transition-all duration-500 w-24 sm:w-32 md:w-40 left-1/2 -translate-x-1/2 ${isActive
+                            <div className={`absolute top-full mt-3 px-1 text-center transition-all duration-500 w-24 sm:w-32 md:w-40 ${labelPosition} ${isActive
                                 ? 'opacity-100 transform translate-y-0'
                                 : 'opacity-50 transform -translate-y-1'
                                 }`}>
-                                <span className={`text-xs font-bold tracking-wider uppercase block mb-0.5 ${isActive ? 'text-[var(--accent)] scale-110' : shouldShowAccent ? 'text-[var(--accent)] opacity-80' : 'text-[var(--muted)]'}`}>
+                                <span className={`text-xs font-bold tracking-wider uppercase block mb-0.5 ${isActive ? 'text-[var(--accent)]' : shouldShowAccent ? 'text-[var(--accent)] opacity-80' : 'text-[var(--muted)]'}`}>
                                     {t('stepLabel', { n: step.id }) || `Step ${step.id}`}
                                 </span>
                                 <span className={`block text-[11px] sm:text-sm font-semibold leading-snug text-balance ${isActive ? 'text-[var(--foreground)]' : 'text-[var(--muted)]'}`}>

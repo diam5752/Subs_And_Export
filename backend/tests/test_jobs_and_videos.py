@@ -423,14 +423,44 @@ def test_process_video_accepts_openai_provider_override(client: TestClient, monk
         data={
             "transcribe_model": "pro",
             "transcribe_provider": "openai",
-            "openai_model": "gpt-4o-mini-transcribe",
+            "openai_model": "whisper-1",
         },
         files={"file": ("clip.mp4", io.BytesIO(b"123"), "video/mp4")},
     )
 
     assert resp.status_code == 200
     assert captured["provider"] == "openai"
-    assert captured["stt_model"] == "gpt-4o-mini-transcribe"
+    assert captured["stt_model"] == "whisper-1"
+
+
+def test_process_video_forces_mock_before_charge_planning(client: TestClient, monkeypatch):
+    headers = _auth_header(client, email="process-forced-mock@example.com")
+    captured: dict[str, object] = {}
+    monkeypatch.setattr(videos.settings, "mock_external_services", True)
+    monkeypatch.setattr(videos, "run_video_processing", lambda *args, **kwargs: None)
+
+    def fake_reserve_processing_charges(*args, **kwargs):
+        captured.update(kwargs)
+        return None, 5000
+
+    monkeypatch.setattr(videos, "reserve_processing_charges", fake_reserve_processing_charges)
+
+    response = client.post(
+        "/videos/process",
+        headers=headers,
+        data={
+            "transcribe_model": "pro",
+            "transcribe_provider": "openai",
+            "openai_model": "gpt-4o-transcribe",
+            "use_llm": "true",
+        },
+        files={"file": ("clip.mp4", io.BytesIO(b"123"), "video/mp4")},
+    )
+
+    assert response.status_code == 200
+    assert captured["provider"] == "mock"
+    assert captured["stt_model"] == "mock-caption-v1"
+    assert captured["use_llm"] is False
 
 
 def test_process_video_accepts_local_provider_override(client: TestClient, monkeypatch):

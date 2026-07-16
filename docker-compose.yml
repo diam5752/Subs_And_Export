@@ -2,7 +2,7 @@ services:
   db:
     image: postgres:16-alpine
     env_file:
-      - .env
+      - .env.docker
     ports:
       - "5432:5432"
     volumes:
@@ -27,10 +27,13 @@ services:
       # Whisper model cache (avoids re-downloading)
       - whisper_models:/models
     env_file:
-      - .env
+      - .env.docker
     environment:
       - APP_ENV=${APP_ENV:-dev}
-      - GSP_ALLOWED_ORIGINS=http://localhost:3000,http://frontend:3000
+      - GSP_MOCK_EXTERNAL_SERVICES=1
+      - GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD=0
+      - GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD=0
+      - GSP_ALLOWED_ORIGINS=${GSP_ALLOWED_ORIGINS:-http://localhost:3000,http://frontend:3000}
     depends_on:
       db:
         condition: service_healthy
@@ -51,7 +54,7 @@ services:
       dockerfile: Dockerfile
       args:
         # API URL used during build (for static generation)
-        NEXT_PUBLIC_API_URL: http://localhost:8080
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8080}
     ports:
       - "3000:3000"
     environment:

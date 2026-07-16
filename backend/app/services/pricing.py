@@ -47,8 +47,13 @@ def resolve_requested_transcribe_model(
     normalized_tier = normalize_tier(tier)
     normalized_provider = (provider or resolve_transcribe_provider(normalized_tier)).strip().lower()
 
+    if normalized_provider == "mock":
+        return "mock-caption-v1"
     if normalized_provider == "openai":
-        return (openai_model or settings.openai_transcribe_model).strip()
+        selected_model = (openai_model or settings.openai_transcribe_model).strip()
+        if selected_model.lower() != "whisper-1":
+            raise ValueError("OpenAI caption processing requires the word-timed whisper-1 model")
+        return selected_model
 
     return settings.transcribe_tier_model[normalized_tier]
 
@@ -127,9 +132,47 @@ def credits_for_minutes(
 
 
 def stt_cost_usd(*, tier: str, duration_seconds: float) -> float:
+    return stt_provider_cost_usd(tier=tier, duration_seconds=duration_seconds)
+
+
+def stt_provider_cost_usd(
+    *,
+    tier: str,
+    duration_seconds: float,
+    provider: str | None = None,
+    model: str | None = None,
+) -> float:
     normalized = normalize_tier(tier)
     minutes = max(0.0, float(duration_seconds)) / 60.0
-    return minutes * float(settings.stt_price_per_minute.get(normalized, 0.003))
+    normalized_provider = (provider or "").strip().lower()
+    normalized_model = (model or "").strip().lower()
+
+    if normalized_provider in {"local", "mock"}:
+        return 0.0
+    if normalized_provider == "openai":
+        # whisper-1 is the OpenAI caption-compatible model with word timestamps.
+        return minutes * 0.006
+    if normalized_provider == "groq":
+        price_per_minute = 0.04 / 60 if "turbo" in normalized_model else 0.111 / 60
+        return minutes * price_per_minute
+
+    return minutes * float(settings.stt_price_per_minute.get(normalized, 0.04 / 60))
+
+
+def llm_cost_estimate_usd(
+    *,
+    model_name: str,
+    prompt_tokens: int,
+    completion_tokens: int,
+) -> float:
+    """Estimate a worst-case LLM call cost without requiring a database session."""
+    model_pricing = settings.llm_pricing.get(model_name, {})
+    input_price = float(model_pricing.get("input", settings.default_llm_input_price))
+    output_price = float(model_pricing.get("output", settings.default_llm_output_price))
+    return float(
+        (max(0, prompt_tokens) / 1_000_000) * input_price
+        + (max(0, completion_tokens) / 1_000_000) * output_price
+    )
 
 
 def llm_cost_usd(

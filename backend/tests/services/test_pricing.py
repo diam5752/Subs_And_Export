@@ -81,9 +81,17 @@ class TestModelResolution:
         model = pricing.resolve_requested_transcribe_model(
             tier="pro",
             provider="openai",
-            openai_model="gpt-4o-mini-transcribe",
+            openai_model="whisper-1",
         )
-        assert model == "gpt-4o-mini-transcribe"
+        assert model == "whisper-1"
+
+    def test_rejects_openai_model_without_word_timestamps(self) -> None:
+        with pytest.raises(ValueError, match="requires the word-timed whisper-1"):
+            pricing.resolve_requested_transcribe_model(
+                tier="pro",
+                provider="openai",
+                openai_model="gpt-4o-transcribe",
+            )
 
     def test_resolve_requested_model_for_openai_default(self) -> None:
         model = pricing.resolve_requested_transcribe_model(
@@ -164,13 +172,41 @@ class TestCostEstimation:
 
     def test_stt_cost_usd_standard(self) -> None:
         cost = pricing.stt_cost_usd(tier="standard", duration_seconds=180.0)
-        # 3 minutes at $0.003/min = $0.009
-        assert 0.008 < cost < 0.01
+        # Groq turbo: 3 minutes at $0.04/hour = $0.002
+        assert cost == pytest.approx(0.002)
 
     def test_stt_cost_usd_pro(self) -> None:
         cost = pricing.stt_cost_usd(tier="pro", duration_seconds=180.0)
-        # 3 minutes at $0.006/min = $0.018
-        assert 0.017 < cost < 0.02
+        # Groq large-v3: 3 minutes at $0.111/hour = $0.00555
+        assert cost == pytest.approx(0.00555)
+
+    def test_provider_specific_stt_costs(self) -> None:
+        assert pricing.stt_provider_cost_usd(
+            tier="standard",
+            duration_seconds=3600,
+            provider="groq",
+            model="whisper-large-v3-turbo",
+        ) == pytest.approx(0.04)
+        assert pricing.stt_provider_cost_usd(
+            tier="pro",
+            duration_seconds=3600,
+            provider="groq",
+            model="whisper-large-v3",
+        ) == pytest.approx(0.111)
+        assert pricing.stt_provider_cost_usd(
+            tier="standard",
+            duration_seconds=3600,
+            provider="local",
+            model="large-v3-turbo",
+        ) == 0.0
+
+    def test_llm_cost_estimate_uses_configured_model_pricing(self) -> None:
+        cost = pricing.llm_cost_estimate_usd(
+            model_name="gpt-5.1-mini",
+            prompt_tokens=1_000_000,
+            completion_tokens=1_000_000,
+        )
+        assert cost == pytest.approx(2.25)
 
 
 class TestTokenEstimation:

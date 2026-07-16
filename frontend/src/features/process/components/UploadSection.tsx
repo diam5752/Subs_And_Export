@@ -184,7 +184,7 @@ export function UploadSection() {
                 onFileSelect(null);
 
                 const safeMode = transcribeMode || 'standard';
-                const safeProvider = transcribeProvider || 'groq';
+                const safeProvider = transcribeProvider || 'mock';
 
                 const job = await api.loadDevSampleJob(safeProvider, safeMode);
 
@@ -358,7 +358,7 @@ export function UploadSection() {
                         </div>
                         {/* Collapsible content with smooth animation */}
                         <div className={`transition-all duration-300 ease-in-out overflow-hidden ${isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}>
-                            <div className="card flex items-center gap-4 py-3 px-4 animate-fade-in border-emerald-500/20 bg-emerald-500/5 transition-all hover:bg-emerald-500/10">
+                            <div className="card flex flex-col gap-4 py-3 px-4 animate-fade-in border-emerald-500/20 bg-emerald-500/5 transition-all hover:bg-emerald-500/10 sm:flex-row sm:items-center">
                                 {/* Thumbnail with Tick Overlay */}
                                 <div className="relative h-16 w-16 shrink-0 rounded-lg overflow-hidden bg-black/20 border border-emerald-500/20 group">
                                     {videoInfo?.thumbnailUrl ? (
@@ -401,7 +401,7 @@ export function UploadSection() {
                                 </div>
 
                                 {/* File Info */}
-                                <div className="flex-1 min-w-0">
+                                <div className="w-full min-w-0 flex-1">
                                     <h4 className="text-sm font-semibold text-[var(--foreground)] truncate" title={fileName}>
                                         {fileName}
                                     </h4>
@@ -425,7 +425,7 @@ export function UploadSection() {
                                 </div>
 
                                 {/* Actions Group */}
-                                <div className="flex items-center gap-2">
+                                <div className="flex w-full items-center gap-2 sm:w-auto">
                                     {/* Action Button Logic */}
                                     {!isProcessing && (
                                         <>

@@ -52,6 +52,8 @@ class LegacyTomlSettingsSource(PydanticBaseSettingsSource):
         # [ai] section
         ai = data.get("ai", {})
         if isinstance(ai, dict):
+            if "mock_external_services" in ai:
+                flattened["mock_external_services"] = ai["mock_external_services"]
             if "enable_by_default" in ai:
                 flattened["use_llm_by_default"] = ai["enable_by_default"]
             if "model" in ai:
@@ -171,6 +173,10 @@ class Settings(BaseSettings):
     default_highlight_color: str = "&H0000FFFF"
 
     # --- STT (Local) ---
+    mock_external_services: bool = Field(
+        default=True,
+        validation_alias="GSP_MOCK_EXTERNAL_SERVICES",
+    )
     whisper_model: str = "large-v3-turbo"
     whisper_language: str = "el"
     whisper_device: str = "auto"
@@ -181,7 +187,10 @@ class Settings(BaseSettings):
     whispercpp_language: str = "el"
 
     # --- STT (Cloud) ---
-    openai_transcribe_model: str = "gpt-4o-transcribe"
+    # The caption renderer requires word timings. OpenAI's newer transcription
+    # models are kept in the discovery catalog for text-only workflows, while
+    # whisper-1 remains the caption-compatible OpenAI engine.
+    openai_transcribe_model: str = "whisper-1"
     groq_transcribe_model: str = "whisper-large-v3"
     groq_model_enhanced: str = "whisper-large-v3-turbo"
     groq_model_ultimate: str = "whisper-large-v3"
@@ -206,8 +215,9 @@ class Settings(BaseSettings):
 
     # --- Pricing (USD) ---
     stt_price_per_minute: dict[str, float] = {
-        "standard": 0.003,
-        "pro": 0.006,
+        # Groq list prices: $0.04/hour (turbo), $0.111/hour (large-v3).
+        "standard": 0.04 / 60,
+        "pro": 0.111 / 60,
     }
     # Pricing per 1M tokens
     llm_pricing: dict[str, dict[str, float]] = {
@@ -219,6 +229,16 @@ class Settings(BaseSettings):
     default_llm_output_price: float = 2.00
 
     # --- Safety Limits ---
+    external_provider_monthly_budget_usd: float = Field(
+        default=0.0,
+        ge=0.0,
+        validation_alias="GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD",
+    )
+    external_provider_per_request_budget_usd: float = Field(
+        default=0.0,
+        ge=0.0,
+        validation_alias="GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD",
+    )
     max_llm_input_chars: int = 15000
     max_llm_output_tokens_social: int = 3000
     max_llm_output_tokens_factcheck: int = 6000

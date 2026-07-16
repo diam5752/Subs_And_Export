@@ -1,117 +1,83 @@
-# Greek Sub Publisher
+# SUBFRAME
 
-Local-first tooling for Greek subtitles and vertical video prep.
+Mock-first subtitle studio for turning a raw vertical clip into editable,
+word-timed captions and an export-ready video. The current mode is deliberately
+zero-cost: it performs the complete workflow with deterministic mock transcript
+and intelligence services and never calls OpenAI, Groq, or another AI provider.
 
-## Project Structure
+## What is included
 
-This project follows a local-first hybrid monorepo structure:
+- Next.js 16, React 19 and Tailwind CSS 4 responsive PWA.
+- FastAPI processing API with authenticated jobs, history and exports.
+- FFmpeg/libass rendering for 9:16 video, SRT and animated subtitles.
+- Deterministic Greek mock transcription with per-word timing.
+- Honest mock fact-check cards and local social-copy preview.
+- Provider capability catalog for a later opt-in live mode.
+- Hard provider budgets defaulting to `$0.00` per request and per month.
+- PostgreSQL persistence and Docker Compose packaging.
+- Java 25 compatibility surface for the gradual Spring migration.
 
-- **`backend/`**: FastAPI backend service.
-    - `app/core`: Configuration, Auth, Database.
-    - `app/services`: Business logic (Video Processing, Subtitles).
-    - `app/api`: REST Endpoints.
-- **`frontend/`**: Next.js frontend application.
-- **`src/main/java/`**: Java 25 Spring migration/compatibility surface for auth, jobs, history, static serving, and data contracts.
-- **`docker-compose.yml`**: orchestration for the full stack.
+## Run with Docker
 
-## Quick Start (Docker)
-
-The easiest way to run the project is with Docker:
-
-### 1. Configure Environment
 ```bash
 cp .env.docker.example .env.docker
-# Edit .env.docker with your API keys (OPENAI_API_KEY, GROQ_API_KEY, etc.)
+docker compose --env-file .env.docker up --build
 ```
 
-### 1.5 Environments (Dev vs Production)
+Open:
 
-This repo uses a single environment variable across backend + frontend:
+- Web app: <http://localhost:3000>
+- API health: <http://localhost:8080/health>
 
-- `APP_ENV=dev` (default): orange dev vibe + visible environment badge + Dev Tools (sample video loader).
-- `APP_ENV=production`: normal production vibe.
+The tracked Compose configuration forces mock mode and zero provider budgets,
+even if a client submits `groq` or `openai` as its preferred engine. API keys do
+not belong in this repository and are not needed for the current product.
 
-For Docker:
-```bash
-# Default (dev)
-docker-compose up --build
+## Local development
 
-# Production-like
-APP_ENV=production docker-compose up --build
-```
-
-For Google Cloud Run: set `APP_ENV` as a service environment variable on both the backend and frontend services.
-
-### 2. Build & Run
-```bash
-docker-compose up --build
-```
-
-This starts:
-- **Backend**: http://localhost:8080 (API + static files)
-- **Frontend**: http://localhost:3000 (Web UI)
-
-### 3. Verify
-```bash
-curl http://localhost:8080/health  # Should return {"status": "ok"}
-```
-
-> **Note**: First transcription may take longer as Whisper models are downloaded.
-> Models are cached in a Docker volume (`gsp_whisper_models`) for subsequent runs.
-
-## Local Development
-
-### Prerequisites
-- Python 3.11+
-- Node.js 20+
-- JDK 25 for Java/Spring migration checks
-- FFmpeg installed (`brew install ffmpeg`)
-
-### Setup
+Requirements: Python 3.11+, Node.js 20+, FFmpeg with libass, PostgreSQL, and JDK
+25 only when running the Java compatibility checks.
 
 ```bash
 make install
-```
-
-### Running
-
-To run the backend locally:
-```bash
 make run
 ```
 
-If port `8080` is already in use, run:
+In another terminal:
+
 ```bash
-make PORT=8081 run
+cd frontend
+npm run dev
 ```
 
-To run the frontend:
-```bash
-cd frontend && npm run dev
-```
+The installable PWA manifest is available at `/manifest.webmanifest`; production
+browsers register the local service worker automatically.
 
-### Testing
+## Quality gates
 
-Run the full backend test suite:
-```bash
-make test
-```
-
-Run the Java/Spring compatibility surface:
-```bash
-make check-java
-```
-
-Run the shared quality gates:
 ```bash
 make check-fast
 make check-all
 ```
 
-## Docs
-- Credits and usage ledger: `docs/credits-usage.md`
+Individual checks:
 
-## Features
-- **Auto-Subtitles**: Generates Greek subtitles using Faster-Whisper.
-- **Vertical Crop**: Intelligently crops videos for vertical formats.
-- **Viral Intelligence**: Generates viral hooks and captions/hashtags.
+```bash
+make test-backend
+make test-frontend
+make check-java
+cd frontend && npm run build && npm run e2e
+```
+
+## Architecture
+
+- `backend/`: FastAPI API and media pipeline.
+- `frontend/`: Next.js PWA and editing workflow.
+- `src/main/java/`: Java 25/Spring compatibility surface.
+- `docs/architecture.md`: runtime boundaries and mock/live engine policy.
+- `docs/credits-usage.md`: points and usage-ledger semantics.
+
+Live providers remain disabled until credentials and non-zero app budgets are
+explicitly configured. The caption pipeline only exposes engines that can
+produce the timestamps required by the renderer; newer text-only transcription
+models are catalogued separately instead of being presented as caption-ready.

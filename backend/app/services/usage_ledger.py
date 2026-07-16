@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
 from backend.app.core.database import Database
@@ -331,3 +331,16 @@ class UsageLedgerStore:
                 )
 
         return sorted(summary.values(), key=lambda item: item.bucket)
+
+    def total_cost_usd(self, *, start_ts: int, end_ts: int) -> float:
+        """Return reserved/finalized provider cost for a closed time range."""
+        if start_ts > end_ts:
+            raise ValueError("start_ts must be <= end_ts")
+        with self.db.session() as session:
+            value = session.scalar(
+                select(func.coalesce(func.sum(DbUsageLedger.cost_usd), 0.0)).where(
+                    DbUsageLedger.created_at >= start_ts,
+                    DbUsageLedger.created_at <= end_ts,
+                )
+            )
+        return float(value or 0.0)

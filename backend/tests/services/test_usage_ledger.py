@@ -3,6 +3,8 @@ from __future__ import annotations
 import time
 import uuid
 
+import pytest
+
 from backend.app.core.database import Database
 from backend.app.db.models import DbJob, DbUsageLedger, DbUser
 from backend.app.services.points import PointsStore
@@ -221,3 +223,14 @@ def test_usage_ledger_summarize_groups(monkeypatch) -> None:
     assert user_id in user_map
     # Our test user should have 25 + 10 = 35 credits charged
     assert user_map[user_id].credits_charged == 35
+
+    total_cost = ledger_store.total_cost_usd(start_ts=day_one - 1, end_ts=day_two + 1)
+    assert total_cost >= 0.03
+
+
+def test_usage_ledger_total_cost_rejects_inverted_range() -> None:
+    db = Database()
+    ledger_store = UsageLedgerStore(db=db, points_store=PointsStore(db=db))
+
+    with pytest.raises(ValueError, match="start_ts must be <= end_ts"):
+        ledger_store.total_cost_usd(start_ts=2, end_ts=1)

@@ -149,8 +149,8 @@ describe('ProcessView', () => {
             </I18nProvider>
         );
         expect(screen.getAllByText(/Step 1/i).length).toBeGreaterThan(0);
-        expect(screen.getByRole('heading', { name: /select a model/i })).toBeInTheDocument();
-        expect(screen.getByText(/choose the engine before uploading/i)).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: /choose how this studio should hear your video/i })).toBeInTheDocument();
+        expect(screen.getByText(/no media or money reaches an AI provider/i)).toBeInTheDocument();
     });
 
     it('allows selecting a model', () => {
@@ -290,7 +290,7 @@ describe('ProcessView', () => {
         expect(progressBar).toHaveAttribute('aria-valuemax', '100');
     });
 
-    it('shows chevron arrow in both Step 1 and Step 2 headers', () => {
+    it('shows the mock safety badge and upload section control', () => {
         (useProcessContext as jest.Mock).mockReturnValue({
             ...mockContextValue,
             currentStep: 2,
@@ -305,9 +305,7 @@ describe('ProcessView', () => {
             </I18nProvider>
         );
 
-        // Verify Step 1 chevron
-        expect(screen.getByTestId('step-1-chevron')).toBeInTheDocument();
-        // Verify Step 2 chevron
+        expect(screen.getByTestId('mock-mode-badge')).toBeInTheDocument();
         expect(screen.getByTestId('step-2-chevron')).toBeInTheDocument();
     });
 

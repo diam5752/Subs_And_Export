@@ -8,19 +8,34 @@ import { AppEnvProvider } from "@/context/AppEnvContext";
 import { normalizeAppEnv } from "@/lib/appEnv";
 import { AppEnvBadge } from "@/components/AppEnvBadge";
 import { PointsProvider } from "@/context/PointsContext";
+import { PwaRegistration } from "@/components/PwaRegistration";
 
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Ascentia Subs",
-  description: "AI subtitle workflow for Greek video",
+  applicationName: "Subframe",
+  title: {
+    default: "Subframe · Subtitle Studio",
+    template: "%s · Subframe",
+  },
+  description: "Mobile-first subtitle studio for Greek and multilingual short-form video.",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Subframe",
+  },
+  icons: {
+    icon: "/icon.png",
+    apple: "/icon.png",
+  },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
+  themeColor: "#08090c",
 };
 
 export const dynamic = "force-dynamic";
@@ -33,13 +48,14 @@ export default function RootLayout({
   const appEnv = normalizeAppEnv(process.env.APP_ENV ?? process.env.ENV);
 
   return (
-    <html lang="el" suppressHydrationWarning data-app-env={appEnv}>
+    <html lang="el" suppressHydrationWarning data-app-env={appEnv} data-scroll-behavior="smooth">
       <body className={inter.className}>
         <I18nProvider>
           <AppEnvProvider appEnv={appEnv}>
             <AuthProvider>
               <PointsProvider>
                 <AppEnvBadge />
+                <PwaRegistration />
                 {children}
                 <CookieConsent />
               </PointsProvider>

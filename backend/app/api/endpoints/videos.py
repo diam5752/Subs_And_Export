@@ -92,6 +92,7 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 # Include sub-routers
+from .engine_routes import router as engine_router
 from .export_routes import router as export_router
 from .gcs_routes import router as gcs_router
 from .intelligence_routes import router as intelligence_router
@@ -99,6 +100,7 @@ from .job_routes import router as job_router
 from .reprocess_routes import router as reprocess_router
 
 router.include_router(job_router)
+router.include_router(engine_router)
 router.include_router(gcs_router)
 router.include_router(intelligence_router)
 router.include_router(export_router)
@@ -250,7 +252,7 @@ async def process_video(
             job_id=job_id,
             tier=proc_settings.transcribe_model,
             duration_seconds=float(probe.duration_s),
-            use_llm=use_llm,
+            use_llm=proc_settings.use_llm,
             llm_model=llm_models.social,
             provider=proc_settings.transcribe_provider,
             stt_model=pricing.resolve_requested_transcribe_model(
@@ -280,7 +282,7 @@ async def process_video(
                 "provider": proc_settings.transcribe_provider or settings.transcribe_tier_provider[settings.default_transcribe_tier],
                 "video_quality": proc_settings.video_quality,
                 "video_resolution": video_resolution,
-                "use_llm": use_llm,
+                "use_llm": proc_settings.use_llm,
             },
         )
 

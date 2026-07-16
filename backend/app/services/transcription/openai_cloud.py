@@ -26,6 +26,13 @@ class OpenAITranscriber(Transcriber):
         """
         Transcribe using OpenAI API.
         """
+        selected_model = (model or "whisper-1").strip()
+        if selected_model.lower() != "whisper-1":
+            raise ValueError(
+                "OpenAI caption transcription requires whisper-1 because the selected model "
+                "does not provide the word timestamps used by animated subtitles."
+            )
+
         prompt = kwargs.get("initial_prompt")
         progress_callback = kwargs.get("progress_callback")
         check_cancelled = kwargs.get("check_cancelled")
@@ -51,7 +58,7 @@ class OpenAITranscriber(Transcriber):
         try:
             with open(audio_path, "rb") as audio_file:
                 transcript = client.audio.transcriptions.create(
-                    model=model or "whisper-1",
+                    model=selected_model,
                     file=audio_file,
                     language=language or "el",
                     prompt=prompt,

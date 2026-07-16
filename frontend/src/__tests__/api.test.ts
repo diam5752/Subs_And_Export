@@ -151,7 +151,7 @@ describe('API Client', () => {
 
             // Check defaults
             expect(formData.get('transcribe_model')).toBe('standard');
-            expect(formData.get('transcribe_provider')).toBe('groq');
+            expect(formData.get('transcribe_provider')).toBe('mock');
             expect(formData.get('video_quality')).toBe('balanced');
             expect(formData.get('subtitle_position')).toBe('16');
             expect(formData.get('max_subtitle_lines')).toBe('2');

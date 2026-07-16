@@ -176,7 +176,7 @@ export default function DashboardPage() {
     setSelectedJob(null);
     setStatusMessage(t('statusUploading'));
 
-    const provider = options.transcribeProvider || 'groq';
+    const provider = options.transcribeProvider || 'mock';
     const selectedModel = options.transcribeMode || 'standard';
 
     try {
@@ -235,7 +235,7 @@ export default function DashboardPage() {
     setProgress(0);
     setStatusMessage(t('statusProcessing'));
 
-    const provider = options.transcribeProvider || 'groq';
+    const provider = options.transcribeProvider || 'mock';
     const selectedModel = options.transcribeMode || 'standard';
 
     try {
@@ -340,68 +340,75 @@ export default function DashboardPage() {
   if (!user) return null;
 
   return (
-    <div className="min-h-dvh relative overflow-hidden">
-      <div className="pointer-events-none absolute -left-16 -top-10 h-80 w-80 rounded-full bg-[var(--accent)]/12 blur-3xl" />
-      <div className="pointer-events-none absolute right-4 top-40 h-72 w-72 rounded-full bg-[var(--accent-secondary)]/14 blur-3xl" />
-      <div className="pointer-events-none absolute -right-10 bottom-0 h-96 w-96 rounded-full bg-[#6aa4ff]/10 blur-3xl" />
+    <div className="app-shell min-h-dvh relative overflow-x-hidden">
+      <div className="ambient-orb ambient-orb-lime" />
+      <div className="ambient-orb ambient-orb-violet" />
 
-      <nav className="sticky top-0 z-20 backdrop-blur-2xl bg-[var(--background)]/75 border-b border-[var(--border)]/60 px-4 py-3 sm:px-6 sm:py-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
-          {/* Left spacer for centering */}
-          <div className="flex-1" />
-
-          {/* Centered Logo */}
-          <button
-            onClick={handleReloadPage}
-            className="flex items-center justify-center -my-4 rounded-xl transition-all duration-300 cursor-pointer group hover:scale-105"
-            aria-label="Reload page"
-          >
-            <div className="relative">
-              <div className="absolute inset-0 -m-6 bg-[var(--accent)]/15 blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-500 rounded-full" />
-              <Image
-                src="/ascentia-subs.png"
-                alt="Ascentia Subs"
-                width={300}
-                height={300}
-                priority
-                className="relative h-16 w-auto object-contain drop-shadow-[0_4px_20px_rgba(0,0,0,0.5)] transition-all duration-300 group-hover:drop-shadow-[0_0_30px_rgba(141,247,223,0.6)] sm:h-20 md:h-24"
-              />
-            </div>
+      <nav className="studio-topbar">
+        <div className="studio-topbar-inner">
+          <button onClick={handleReloadPage} className="studio-brand" aria-label="Reload page">
+            <span className="studio-brand-mark" aria-hidden="true">S</span>
+            <span>
+              <strong>SUBFRAME</strong>
+              <small>by Ascentia</small>
+            </span>
           </button>
 
-          {/* Right: Profile Icon Only */}
-          <div className="flex-1 flex items-center justify-end gap-3">
+          <div className="studio-topbar-actions">
+            <span className="topbar-mode"><i /> MOCK SAFE</span>
             <CreditsBadge />
             <button
               onClick={() => {
                 setActiveAccountTab('profile');
                 setShowAccountPanel(!showAccountPanel);
               }}
-              className="h-12 w-12 rounded-full bg-white/5 border border-[var(--border)] hover:bg-white/10 hover:border-[var(--accent)]/50 transition-all cursor-pointer flex items-center justify-center text-xl"
+              className="profile-trigger"
               aria-label={t('accountSettingsTitle')}
             >
-              👤
+              {user.name?.trim().charAt(0).toUpperCase() || 'A'}
             </button>
           </div>
         </div>
       </nav>
 
-      <main className="relative max-w-6xl mx-auto px-4 py-8 space-y-8 sm:px-6 sm:py-10">
-        <section className="card border-[var(--border)]/70 bg-white/[0.02] flex flex-col gap-8">
-          <div className="space-y-4 w-full">
-            <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border)]/70 bg-white/[0.03] px-3 py-1 text-xs uppercase tracking-[0.3em] text-[var(--muted)]">
-              <span className="h-2 w-2 rounded-full bg-[var(--accent)] shadow-[0_0_0_3px_rgba(141,247,223,0.25)]" />
-              {t('brandBadge')}
+      <main className="studio-main">
+        <section className="studio-hero">
+          <div className="studio-hero-copy">
+            <div className="hero-eyebrow">
+              <span>{t('brandBadge')}</span>
+              <span className="hero-version">2026 REMAKE</span>
             </div>
-            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-semibold leading-tight">
-              {t('heroTitle')}
-            </h1>
-            <p className="text-[var(--muted)] text-base sm:text-lg">
-              {t('heroSubtitle')}
-            </p>
+            <h1>{t('heroTitle')}</h1>
+            <p>{t('heroSubtitle')}</p>
+            <div className="hero-chips" aria-label="Workflow capabilities">
+              <span>WORD TIMELINE</span>
+              <span>9:16 SAFE ZONE</span>
+              <span>SRT · MP4 · 4K</span>
+              <span>PWA READY</span>
+            </div>
           </div>
 
-          {/* Tab Navigation Removed */}
+          <div className="hero-console" aria-label="Mock mode status">
+            <div className="hero-console-head">
+              <span>SESSION / LOCAL</span>
+              <span className="console-live"><i /> READY</span>
+            </div>
+            <div className="console-wave" aria-hidden="true">
+              {[18, 42, 28, 62, 88, 50, 72, 34, 58, 92, 64, 40, 76, 48, 24].map((height, index) => (
+                <span key={`${height}-${index}`} className={`wave-${Math.round(height / 10)}`} />
+              ))}
+            </div>
+            <div className="console-steps">
+              <span><b>01</b> Upload</span>
+              <span><b>02</b> Caption</span>
+              <span><b>03</b> Style</span>
+              <span><b>04</b> Export</span>
+            </div>
+            <div className="console-zero">
+              <span>Provider spend</span>
+              <strong>€0.00</strong>
+            </div>
+          </div>
         </section>
 
         <ProcessView
@@ -423,47 +430,15 @@ export default function DashboardPage() {
         />
       </main>
 
-      {/* Ascentia Branding */}
-      <footer className="relative z-10 mt-16 pb-8">
-        <div className="max-w-6xl mx-auto px-6">
-          <div className="flex flex-col items-center justify-center gap-4 py-8 border-t border-[var(--border)]/40">
-            <a
-              href="https://ascentia-gp.com/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="group flex flex-col items-center gap-3 transition-all duration-300 hover:scale-105"
-            >
-              <div className="relative">
-                <div className="absolute inset-0 rounded-full bg-[var(--accent)]/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                <Image
-                  src="/ascentia-logo.png"
-                  alt="Ascentia Logo"
-                  width={150}
-                  height={150}
-                  loading="eager"
-                  className="relative h-16 w-auto object-contain drop-shadow-lg group-hover:drop-shadow-[0_0_15px_rgba(141,247,223,0.4)] transition-all duration-300"
-                />
-              </div>
-              <div className="text-center">
-                <p className="text-xs uppercase tracking-[0.3em] text-[var(--muted)] group-hover:text-[var(--foreground)] transition-colors duration-300">
-                  Brought to you by
-                </p>
-                <p className="text-lg font-semibold bg-gradient-to-r from-[var(--accent)] to-[var(--accent-secondary)] bg-clip-text text-transparent group-hover:opacity-90 transition-opacity">
-                  Ascentia
-                </p>
-              </div>
-            </a>
-
-            {/* Legal Links */}
-            <div className="flex items-center gap-6 mt-4 text-sm text-[var(--muted)]">
-              <a href="/privacy" className="hover:text-[var(--foreground)] transition-colors hover:underline">
-                {t('cookieLearnMore') || 'Privacy Policy'}
-              </a>
-              <a href="/terms" className="hover:text-[var(--foreground)] transition-colors hover:underline">
-                {t('cookieTerms') || 'Terms of Service'}
-              </a>
-            </div>
-          </div>
+      <footer className="studio-footer">
+        <a href="https://ascentia-gp.com/" target="_blank" rel="noopener noreferrer" className="footer-brand">
+          <Image src="/ascentia-logo.png" alt="Ascentia Logo" width={48} height={48} loading="eager" />
+          <span><strong>Ascentia</strong><small>Built for creators</small></span>
+        </a>
+        <div className="footer-status"><i /> No external AI calls in mock mode</div>
+        <div className="footer-links">
+          <a href="/privacy">{t('cookieLearnMore') || 'Privacy Policy'}</a>
+          <a href="/terms">{t('cookieTerms') || 'Terms of Service'}</a>
         </div>
       </footer>
 

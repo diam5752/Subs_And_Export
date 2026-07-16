@@ -1,8 +1,10 @@
 # Deployment defaults for the FastAPI + Next.js stack
 [ai]
-# Toggle AI social copy generation by default in the UI/back-end
+# Mock mode keeps every AI provider call local and deterministic.
+mock_external_services = true
+# Toggle social copy generation by default in the UI/back-end.
 enable_by_default = false
-model = "gpt-4o-mini"
+model = "mock-social-v1"
 temperature = 0.6
 
 [uploads]

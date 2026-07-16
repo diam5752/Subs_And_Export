@@ -153,3 +153,15 @@ def test_openai_transcriber_delegates(tmp_path):
             timestamp_granularities=["word", "segment"],
             timeout=300.0,
         )
+
+
+def test_openai_transcriber_rejects_models_without_word_timestamps(tmp_path):
+    audio_path = tmp_path / "in.wav"
+    audio_path.touch()
+
+    with pytest.raises(ValueError, match="requires whisper-1"):
+        OpenAITranscriber(api_key="unused").transcribe(
+            audio_path,
+            tmp_path,
+            model="gpt-4o-transcribe",
+        )

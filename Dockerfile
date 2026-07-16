@@ -42,13 +42,19 @@ RUN mkdir -p /data/uploads /data/artifacts /logs /app/logs /app/data/uploads /ap
 ENV HF_HOME=/models
 RUN mkdir -p /models
 
-# Pre-download the Whisper model during build (eliminates first-run delay)
-# This downloads the large-v3-turbo model (~3GB) and caches it in /models
-RUN python -c "from faster_whisper import WhisperModel; WhisperModel('large-v3-turbo', device='cpu', compute_type='int8')"
+# Mock-first images stay small and make no model download. A later local-only
+# deployment can opt in with --build-arg PRELOAD_WHISPER_MODEL=large-v3-turbo.
+ARG PRELOAD_WHISPER_MODEL=""
+RUN if [ -n "$PRELOAD_WHISPER_MODEL" ]; then \
+      python -c "import os; from faster_whisper import WhisperModel; WhisperModel(os.environ['PRELOAD_WHISPER_MODEL'], device='cpu', compute_type='int8')"; \
+    fi
 
 # Set environment variables
 ENV PYTHONPATH=/app
 ENV PYTHONUNBUFFERED=1
+ENV GSP_MOCK_EXTERNAL_SERVICES=1
+ENV GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD=0
+ENV GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD=0
 
 # Create symlink so 'backend.app' imports work (codebase uses mixed import styles)
 RUN rm -rf /app/backend && ln -s /app /app/backend

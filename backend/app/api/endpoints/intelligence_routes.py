@@ -51,6 +51,18 @@ def fact_check_video(
 
     try:
         transcript_text = transcript_path.read_text(encoding="utf-8")
+        if settings.mock_external_services:
+            from ...services.mock_intelligence import build_mock_fact_check
+
+            result = build_mock_fact_check(transcript_text)
+            return FactCheckResponse(
+                items=[item.__dict__ for item in result.items],
+                truth_score=result.truth_score,
+                supported_claims_pct=result.supported_claims_pct,
+                claims_checked=result.claims_checked,
+                balance=ledger_store.points_store.get_balance(current_user.id),
+            )
+
         tier = pricing.resolve_tier_from_model((job.result_data or {}).get("model_size"))
         llm_models = pricing.resolve_llm_models(tier)
         reservation, _ = reserve_llm_charge(
@@ -137,6 +149,26 @@ def generate_social_copy_video(
 
     try:
         transcript_text = transcript_path.read_text(encoding="utf-8")
+        if settings.mock_external_services:
+            from ...services.social_intelligence import build_social_copy
+
+            social_copy = build_social_copy(transcript_text)
+            social_data = {
+                "title_el": social_copy.generic.title_el,
+                "title_en": social_copy.generic.title_en,
+                "description_el": social_copy.generic.description_el,
+                "description_en": social_copy.generic.description_en,
+                "hashtags": social_copy.generic.hashtags,
+            }
+            (artifact_dir / "social.json").write_text(
+                json.dumps(social_data, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            return SocialCopyResponse(
+                social_copy=social_data,
+                balance=ledger_store.points_store.get_balance(current_user.id),
+            )
+
         tier = pricing.resolve_tier_from_model((job.result_data or {}).get("model_size"))
         llm_models = pricing.resolve_llm_models(tier)
         reservation, _ = reserve_llm_charge(

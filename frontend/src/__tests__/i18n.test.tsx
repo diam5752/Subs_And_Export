@@ -184,7 +184,7 @@ describe('localized pages', () => {
         renderWithI18n(<DashboardPage />);
 
         // Check for Greek hero title text instead of removed tabs
-        expect(await screen.findByText(/Φτιάξτε shorts έτοιμα/i)).toBeInTheDocument();
+        expect(await screen.findByText(/subtitle studio σου/i)).toBeInTheDocument();
 
         // Select a model to show upload section
         fireEvent.click(screen.getByTestId('model-standard'));
@@ -207,7 +207,7 @@ describe('localized pages', () => {
             );
 
             // Check for English hero and UI elements instead of removed 'Workspace' tab
-            expect(await screen.findByText(/Build export-ready shorts/i)).toBeInTheDocument();
+            expect(await screen.findByText(/short-form subtitle studio/i)).toBeInTheDocument();
 
             // Select a model to show upload section
             fireEvent.click(screen.getByTestId('model-standard'));

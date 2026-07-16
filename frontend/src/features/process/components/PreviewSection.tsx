@@ -117,11 +117,11 @@ const PreviewSectionLayout = memo(({
                             </div>
 
                             {!isProcessing && selectedJob && selectedJob.status === 'completed' ? (
-                                <div className="animate-fade-in relative">
-                                    <div className="absolute -inset-[2px] rounded-2xl bg-gradient-to-r from-[var(--accent)] via-[var(--accent-secondary)] to-[var(--accent)] bg-[length:200%_100%] animate-shimmer opacity-80" />
+                                <div className="animate-fade-in relative overflow-hidden rounded-2xl p-[2px]">
+                                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-[var(--accent)] via-[var(--accent-secondary)] to-[var(--accent)] bg-[length:200%_100%] animate-shimmer opacity-80" />
                                     <div className="preview-card-glow absolute inset-0 rounded-2xl" />
 
-                                    <div className="relative rounded-2xl border border-white/10 bg-[var(--surface-elevated)] overflow-hidden">
+                                    <div className="relative rounded-[14px] border border-white/10 bg-[var(--surface-elevated)] overflow-hidden">
                                         <div className="flex flex-col lg:flex-row gap-6 transition-all duration-500 ease-in-out lg:h-[850px]">
                                             {/* Preview Player Area */}
                                             <div className="flex-1 flex flex-col items-center min-w-0">

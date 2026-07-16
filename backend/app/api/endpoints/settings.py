@@ -51,8 +51,8 @@ class ProcessingSettings(BaseModel):
 
 
 ALLOWED_TIER_PROVIDER_OVERRIDES: dict[str, set[str]] = {
-    "standard": {"groq", "local"},
-    "pro": {"groq", "openai", "local"},
+    "standard": {"mock", "groq", "local"},
+    "pro": {"mock", "groq", "openai", "local"},
 }
 
 
@@ -129,6 +129,11 @@ def build_processing_settings(
     openai_model_value = validate_model_name(openai_model, allow_empty=True, field_name="openai_model")
     if openai_model_value and provider != "openai":
         raise HTTPException(status_code=400, detail="openai_model requires transcribe_provider=openai")
+
+    if settings.mock_external_services:
+        provider = "mock"
+        openai_model_value = None
+        use_llm = False
 
     quality = validate_video_quality(video_quality)
     subtitle_position = validate_subtitle_position(subtitle_position)

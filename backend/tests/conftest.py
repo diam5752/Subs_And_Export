@@ -16,6 +16,9 @@ os.environ.setdefault("GSP_DATABASE_URL", "postgresql+psycopg://gsp:gsp@localhos
 os.environ["GSP_USE_MEMORY_RATELIMIT"] = "1"
 # COMPLETELY DISABLE rate limiting to prevent tests from blocking each other (shared IP)
 os.environ["GSP_DISABLE_RATELIMIT"] = "1"
+os.environ.setdefault("GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD", "1000")
+os.environ.setdefault("GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD", "1000")
+os.environ.setdefault("GSP_MOCK_EXTERNAL_SERVICES", "0")
 
 # Mock modules that require compilation/heavy install
 sys.modules["faster_whisper"] = MagicMock()

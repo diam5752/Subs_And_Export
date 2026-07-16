@@ -132,7 +132,9 @@ test.describe('Video Processing Flow', () => {
 
         // 5. Verify Progress Mode
         // Assuming el.progressLabel or just text regex
-        await expect(page.getByText(/Processing...|Επεξεργασία.../)).toBeVisible();
+        await expect(
+            page.getByRole('progressbar', { name: /Processing...|Επεξεργασία.../ }),
+        ).toBeVisible();
 
         // 6. Wait for Completion
         // Poll mock should switch to completed eventually.

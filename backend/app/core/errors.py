@@ -12,6 +12,10 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 logger = logging.getLogger(__name__)
 
+
+class ProviderBudgetExceededError(RuntimeError):
+    """Raised before an external provider call would exceed the app budget."""
+
 # Regex to detect internal paths (Unix/Linux focus for container env)
 _PATH_PATTERN = re.compile(r"(\/(?:app|home|var|tmp|usr|etc|opt)\/[\w\-\.\/]+)")
 
@@ -95,6 +99,16 @@ async def database_exception_handler(request: Request, exc: SQLAlchemyError):
         "DB_ERROR"
     )
 
+
+async def provider_budget_exception_handler(request: Request, exc: ProviderBudgetExceededError):
+    """Return a stable, non-sensitive response when the provider budget is closed."""
+    logger.warning("External provider budget blocked request", extra={"path": request.url.path})
+    return create_error_response(
+        status.HTTP_503_SERVICE_UNAVAILABLE,
+        "Cloud processing is temporarily unavailable because the safety budget was reached. Choose Private mode or try again later.",
+        "PROVIDER_BUDGET_REACHED",
+    )
+
 async def global_exception_handler(request: Request, exc: Exception):
     """
     Catch-all for unhandled exceptions.
@@ -112,5 +126,6 @@ def register_exception_handlers(app: FastAPI):
     """
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
+    app.add_exception_handler(ProviderBudgetExceededError, provider_budget_exception_handler)
     app.add_exception_handler(SQLAlchemyError, database_exception_handler)
     app.add_exception_handler(Exception, global_exception_handler)
