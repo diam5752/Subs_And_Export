@@ -1,0 +1,120 @@
+name: subframe
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "5"
+
+services:
+  db:
+    image: ${POSTGRES_IMAGE:-postgres:16-alpine}
+    env_file:
+      - ${SUBFRAME_ENV_FILE:?SUBFRAME_ENV_FILE is required}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - private
+    restart: unless-stopped
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    image: subframe-backend:${SUBFRAME_RELEASE_SHA:?SUBFRAME_RELEASE_SHA is required}
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+      args:
+        REQUIREMENTS_FILE: backend/requirements.mock.txt
+    env_file:
+      - ${SUBFRAME_ENV_FILE:?SUBFRAME_ENV_FILE is required}
+    environment:
+      APP_ENV: production
+      PORT: "8080"
+      GSP_MOCK_EXTERNAL_SERVICES: "1"
+      GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD: "0"
+      GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD: "0"
+    volumes:
+      - app_data:/app/data
+      - app_logs:/app/logs
+    networks:
+      - private
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 20s
+      timeout: 10s
+      retries: 6
+      start_period: 45s
+
+  frontend:
+    image: subframe-frontend:${SUBFRAME_RELEASE_SHA:?SUBFRAME_RELEASE_SHA is required}
+    build:
+      context: ../../frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: https://${SUBFRAME_HOSTNAME:?SUBFRAME_HOSTNAME is required}
+        NEXT_PUBLIC_MAX_UPLOAD_MB: ${SUBFRAME_MAX_UPLOAD_MB:-95}
+    environment:
+      NODE_ENV: production
+      APP_ENV: production
+    networks:
+      - private
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+      interval: 20s
+      timeout: 10s
+      retries: 6
+      start_period: 30s
+
+  edge:
+    image: ${CADDY_IMAGE:-caddy:2-alpine}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    networks:
+      private: {}
+      mizai_edge:
+        aliases:
+          - subframe-edge
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend:
+        condition: service_healthy
+    restart: unless-stopped
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080"]
+      interval: 20s
+      timeout: 10s
+      retries: 6
+      start_period: 15s
+
+networks:
+  private:
+    name: subframe-private
+    internal: true
+  mizai_edge:
+    external: true
+    name: mizai_mizai-private
+
+volumes:
+  postgres_data:
+    name: subframe-postgres-data
+  app_data:
+    name: subframe-app-data
+  app_logs:
+    name: subframe-app-logs

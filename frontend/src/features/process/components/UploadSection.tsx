@@ -10,7 +10,11 @@ import { Spinner } from '@/components/Spinner';
 import { formatPoints, processVideoCostForSelection } from '@/lib/points';
 import { resolveTranscriptionTier } from '@/lib/transcription';
 
-const MAX_UPLOAD_BYTES = 1024 * 1024 * 1024; // 1GiB
+const parsedMaxUploadMb = Number(process.env.NEXT_PUBLIC_MAX_UPLOAD_MB ?? '1024');
+const MAX_UPLOAD_MB = Number.isFinite(parsedMaxUploadMb) && parsedMaxUploadMb > 0
+    ? Math.floor(parsedMaxUploadMb)
+    : 1024;
+const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
 const MAX_VIDEO_DURATION_SECONDS = 3 * 60 + 30;
 const ALLOWED_VIDEO_EXT = /\.(mp4|mov|mkv)$/i;
 
@@ -96,7 +100,7 @@ export function UploadSection() {
                 return;
             }
             if (file.size > MAX_UPLOAD_BYTES) {
-                setFileValidationError('File too large. Maximum allowed size is 1GB.');
+                setFileValidationError(`File too large. Maximum allowed size is ${MAX_UPLOAD_MB}MB.`);
                 return;
             }
             setPendingAutoStart(true);
@@ -154,7 +158,7 @@ export function UploadSection() {
                 return;
             }
             if (file.size > MAX_UPLOAD_BYTES) {
-                setFileValidationError('File too large. Maximum allowed size is 1GB.');
+                setFileValidationError(`File too large. Maximum allowed size is ${MAX_UPLOAD_MB}MB.`);
                 return;
             }
             setPendingAutoStart(true);
@@ -661,6 +665,11 @@ export function UploadSection() {
                         </div>
                     )}
                 </div>
+                {fileValidationError && (
+                    <div className="rounded-xl border border-[var(--danger)]/30 bg-[var(--danger)]/10 px-4 py-3 text-sm text-[var(--danger)] animate-fade-in">
+                        {fileValidationError}
+                    </div>
+                )}
                 {showDevTools && (
                     <div
                         className={`card relative overflow-hidden border border-[var(--accent)]/35 ${!hasChosenModel ? 'grayscale' : ''}`}

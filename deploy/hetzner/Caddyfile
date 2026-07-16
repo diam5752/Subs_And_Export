@@ -1,0 +1,23 @@
+{
+	auto_https off
+	admin off
+}
+
+:8080 {
+	encode zstd gzip
+
+	@backend path /auth /auth/* /videos /videos/* /history /history/* /static/* /health
+	handle @backend {
+		reverse_proxy backend:8080
+	}
+
+	handle {
+		reverse_proxy frontend:3000
+	}
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+}

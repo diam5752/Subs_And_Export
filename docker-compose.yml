@@ -22,7 +22,7 @@ services:
       - "8080:8080"
     volumes:
       # Persistent data storage
-      - ./data:/data
+      - ./data:/app/data
       - ./backend/logs:/app/logs
       # Whisper model cache (avoids re-downloading)
       - whisper_models:/models

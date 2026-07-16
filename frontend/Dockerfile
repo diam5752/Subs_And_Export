@@ -14,7 +14,9 @@ COPY . .
 
 # Build-time env vars
 ARG NEXT_PUBLIC_API_URL=http://localhost:8080
+ARG NEXT_PUBLIC_MAX_UPLOAD_MB=1024
 ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+ENV NEXT_PUBLIC_MAX_UPLOAD_MB=${NEXT_PUBLIC_MAX_UPLOAD_MB}
 
 RUN npm run build
 
@@ -25,7 +27,7 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 ENV PORT=3000
-ENV APP_ENV=dev
+ENV APP_ENV=production
 
 # Create non-root user for security
 RUN addgroup --system --gid 1001 nodejs \

@@ -232,6 +232,18 @@ describe('UploadSection', () => {
         expect(contextValue.setOverrideStep).toHaveBeenCalledWith(null);
     });
 
+    it('rejects files above the configured upload ceiling before processing', () => {
+        const oversized = new File(['video'], 'oversized.mp4', { type: 'video/mp4' });
+        Object.defineProperty(oversized, 'size', { value: 1024 * 1024 * 1024 + 1 });
+        const { container } = renderUpload();
+        const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+
+        fireEvent.change(input, { target: { files: [oversized] } });
+
+        expect(screen.getByText('File too large. Maximum allowed size is 1024MB.')).toBeInTheDocument();
+        expect(contextValue.onFileSelect).not.toHaveBeenCalled();
+    });
+
     it('loads a dev sample and surfaces backend detail errors', async () => {
         const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
         (useAppEnv as jest.Mock).mockReturnValue({ appEnv: 'dev' });
