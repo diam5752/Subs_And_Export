@@ -62,7 +62,7 @@ services:
       context: ../../frontend
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: https://${SUBFRAME_HOSTNAME:?SUBFRAME_HOSTNAME is required}
+        NEXT_PUBLIC_API_URL: ""
         NEXT_PUBLIC_MAX_UPLOAD_MB: ${SUBFRAME_MAX_UPLOAD_MB:-95}
     environment:
       NODE_ENV: production

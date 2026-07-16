@@ -1,4 +1,9 @@
-export const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+// An explicitly empty production value keeps every API request same-origin.
+// That makes the standalone image portable across verified hostnames without
+// rebuilding it for each public URL. Development still keeps its local API
+// fallback when the variable is completely absent.
+export const API_BASE = process.env.NEXT_PUBLIC_API_URL
+    ?? (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:8080');
 
 interface TokenResponse {
     access_token: string;

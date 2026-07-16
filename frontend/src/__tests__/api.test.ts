@@ -3,12 +3,32 @@ global.fetch = jest.fn();
 
 describe('API Client', () => {
     const originalXMLHttpRequest = global.XMLHttpRequest;
+    const originalApiBase = process.env.NEXT_PUBLIC_API_URL;
 
     beforeEach(() => {
         (fetch as jest.Mock).mockClear();
         localStorage.clear();
         jest.resetModules();
         global.XMLHttpRequest = originalXMLHttpRequest;
+        if (originalApiBase === undefined) {
+            delete process.env.NEXT_PUBLIC_API_URL;
+        } else {
+            process.env.NEXT_PUBLIC_API_URL = originalApiBase;
+        }
+    });
+
+    it('uses relative same-origin endpoints when the production base is explicitly empty', async () => {
+        process.env.NEXT_PUBLIC_API_URL = '';
+        (fetch as jest.Mock).mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({ access_token: 'token', token_type: 'bearer', user_id: '1', name: 'QA' }),
+        });
+
+        const { API_BASE, api } = await import('@/lib/api');
+        await api.login('qa@example.com', 'password123');
+
+        expect(API_BASE).toBe('');
+        expect(fetch).toHaveBeenCalledWith('/auth/token', expect.any(Object));
     });
 
     describe('login', () => {

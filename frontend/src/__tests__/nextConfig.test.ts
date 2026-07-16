@@ -33,6 +33,17 @@ describe('next.config', () => {
     expect(csp).toContain("connect-src 'self' http://localhost:8080");
   });
 
+  it('keeps production API access same-origin when configured with an empty base', async () => {
+    process.env.NEXT_PUBLIC_API_URL = '';
+
+    const nextConfigModule = await import('../../next.config');
+    const headers = await nextConfigModule.default.headers?.();
+    const csp = headers?.[0]?.headers?.find((header) => header.key === 'Content-Security-Policy')?.value;
+
+    expect(csp).toContain("connect-src 'self' https://accounts.google.com");
+    expect(csp).not.toContain('localhost:8080');
+  });
+
   it('allows Google Identity Services in the production CSP', async () => {
     process.env.NEXT_PUBLIC_API_URL = 'https://api.example.test';
 
