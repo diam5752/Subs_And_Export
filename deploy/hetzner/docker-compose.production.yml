@@ -66,6 +66,7 @@ services:
         NEXT_PUBLIC_MAX_UPLOAD_MB: ${SUBFRAME_MAX_UPLOAD_MB:-95}
     environment:
       NODE_ENV: production
+      HOSTNAME: 0.0.0.0
       APP_ENV: production
     networks:
       - private
@@ -75,7 +76,7 @@ services:
     restart: unless-stopped
     logging: *default-logging
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000"]
       interval: 20s
       timeout: 10s
       retries: 6
