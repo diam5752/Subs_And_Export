@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { useJobs } from '@/hooks/useJobs';
 import { useRouter } from 'next/navigation';
+import { useAppEnv } from '@/context/AppEnvContext';
 
 // Mocks
 jest.mock('@/lib/api', () => ({
@@ -47,6 +48,10 @@ jest.mock('@/context/I18nContext', () => ({
     useI18n: () => ({ t: (key: string) => key }),
 }));
 
+jest.mock('@/context/AppEnvContext', () => ({
+    useAppEnv: jest.fn(),
+}));
+
 jest.mock('@/hooks/useJobs', () => ({
     useJobs: jest.fn(),
 }));
@@ -74,7 +79,7 @@ jest.mock('@/features/process/ProcessView', () => ({
                 <button onClick={() => onFileSelect(new File(['dummy'], 'test.mp4', { type: 'video/mp4' }))}>Select File</button>
                 <button onClick={() => onStartProcessing({
                     transcribeMode: 'standard',
-                    transcribeProvider: 'groq',
+                    transcribeProvider: 'mock',
                     outputQuality: 'balanced',
                     outputResolution: '1080x1920',
                     width: 1920,
@@ -128,6 +133,7 @@ describe('DashboardPage', () => {
         jest.clearAllMocks();
         capturedOnReset = null;
         (useRouter as jest.Mock).mockReturnValue({ push: mockPush });
+        (useAppEnv as jest.Mock).mockReturnValue({ appEnv: 'dev' });
         (useAuth as jest.Mock).mockReturnValue({
             user: mockUser,
             isLoading: false,
@@ -226,6 +232,25 @@ describe('DashboardPage', () => {
             }),
         );
         expect(__setBalanceMock).toHaveBeenCalledWith(800);
+    });
+
+    it('keeps production mock uploads on the local processing endpoint', async () => {
+        (useAppEnv as jest.Mock).mockReturnValue({ appEnv: 'production' });
+        (api.processVideo as jest.Mock).mockResolvedValue({ id: 'job123', status: 'pending' });
+        render(<DashboardPage />);
+
+        fireEvent.click(screen.getByText('Select File'));
+        fireEvent.click(screen.getByText('Start Process'));
+
+        await waitFor(() => {
+            expect(api.processVideo).toHaveBeenCalledWith(
+                expect.any(File),
+                expect.objectContaining({ transcribe_provider: 'mock' }),
+            );
+        });
+        expect(api.createGcsUploadUrl).not.toHaveBeenCalled();
+        expect(api.uploadToSignedUrl).not.toHaveBeenCalled();
+        expect(api.processVideoFromGcs).not.toHaveBeenCalled();
     });
 
     it('refreshes balance when process response has no balance', async () => {

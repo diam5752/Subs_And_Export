@@ -198,7 +198,10 @@ export default function DashboardPage() {
         watermark_enabled: options.watermark_enabled,
       };
 
-      const result = appEnv === 'production'
+      // Mock processing is deliberately local-only, including in production.
+      // GCS is reserved for real providers so a mock deployment never depends
+      // on (or accidentally sends media to) an external storage service.
+      const result = appEnv === 'production' && provider !== 'mock'
         ? await (async () => {
           const upload = await api.createGcsUploadUrl(selectedFile);
           setStatusMessage(t('statusUploading'));
