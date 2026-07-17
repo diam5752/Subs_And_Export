@@ -163,6 +163,25 @@ describe('DashboardPage', () => {
         expect(mockLoadJobs).not.toHaveBeenCalled();
     });
 
+    it('renders the compact studio shell and opens history from its sidebar', () => {
+        render(<DashboardPage />);
+
+        const studioSidebar = screen.getByRole('complementary', { name: 'Subframe studio' });
+        expect(studioSidebar).toBeInTheDocument();
+        expect(screen.getByRole('navigation', { name: 'Workspace navigation' })).toBeInTheDocument();
+        expect(screen.getByTestId('studio-intro')).toHaveClass('studio-intro');
+        expect(screen.getByTestId('studio-sidebar-credits')).toBeInTheDocument();
+        expect(screen.getByLabelText('Local mock session with zero provider spend')).toHaveTextContent('€0.00');
+        expect(screen.queryByText('2026 REMAKE')).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'switchLanguage' })).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'historyTitle' }));
+        expect(screen.getByTestId('account-view')).toBeInTheDocument();
+        expect(studioSidebar).toHaveAttribute('aria-hidden', 'true');
+        expect(studioSidebar).toHaveAttribute('inert');
+        expect(screen.queryByRole('button', { name: 'switchLanguage' })).not.toBeInTheDocument();
+    });
+
     it('renders footer with privacy and terms links', () => {
         render(<DashboardPage />);
 

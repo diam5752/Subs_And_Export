@@ -2,6 +2,7 @@ import json
 import select
 import shutil
 import subprocess
+import types
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -100,6 +101,59 @@ def test_normalize_and_stub_subtitles_runs_pipeline(monkeypatch, tmp_path: Path)
 
     assert res == output_path
     assert output_path.exists()
+
+
+def test_mock_transcription_finalizes_with_zero_provider_cost(monkeypatch, tmp_path: Path):
+    # REGRESSION: The final ledger update used tier pricing without the resolved
+    # provider, so a local mock run looked like billable external usage.
+    input_video = tmp_path / "input.mp4"
+    input_video.touch()
+
+    def fake_extract(_input_video: Path, output_dir: Path, **_kwargs: object) -> Path:
+        audio_path = output_dir / "audio.wav"
+        audio_path.touch()
+        return audio_path
+
+    def fake_style(transcript_path: Path, **_kwargs: object) -> Path:
+        ass_path = transcript_path.with_suffix(".ass")
+        ass_path.touch()
+        return ass_path
+
+    def fake_burn(
+        _input_path: Path,
+        _ass_path: Path,
+        output_path: Path,
+        **_kwargs: object,
+    ) -> None:
+        output_path.touch()
+
+    monkeypatch.setattr(subtitles, "extract_audio", fake_extract)
+    monkeypatch.setattr(subtitles, "create_styled_subtitle_file", fake_style)
+    monkeypatch.setattr(ffmpeg_utils, "run_ffmpeg_with_subs", fake_burn)
+    monkeypatch.setattr(
+        ffmpeg_utils,
+        "probe_media",
+        lambda _path: ffmpeg_utils.MediaProbe(12.0, "aac"),
+    )
+
+    ledger_store = MagicMock()
+    reservation = types.SimpleNamespace(tier="standard", min_credits=25)
+    charge_plan = types.SimpleNamespace(transcription=reservation, social_copy=None)
+
+    video_processing.normalize_and_stub_subtitles(
+        input_video,
+        tmp_path / "out.mp4",
+        transcribe_provider="mock",
+        model_size="standard",
+        ledger_store=ledger_store,
+        charge_plan=charge_plan,
+    )
+
+    ledger_store.finalize.assert_called_once()
+    finalize_kwargs = ledger_store.finalize.call_args.kwargs
+    assert finalize_kwargs["cost_usd"] == 0.0
+    assert finalize_kwargs["units"]["provider"] == "mock"
+    assert finalize_kwargs["units"]["model"] == "mock-caption-v1"
 
 
 def test_normalize_and_stub_subtitles_falls_back_to_local_when_groq_key_missing(monkeypatch, tmp_path: Path):

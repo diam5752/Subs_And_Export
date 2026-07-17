@@ -78,6 +78,7 @@ temp_repro
 
 # Local browser automation traces
 .playwright-cli/
+output/playwright/
 
 # Temporary QA scratch space
 tmp/

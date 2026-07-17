@@ -344,111 +344,126 @@ export default function DashboardPage() {
 
   return (
     <div className="app-shell min-h-dvh relative overflow-x-hidden">
-      <div className="ambient-orb ambient-orb-lime" />
-      <div className="ambient-orb ambient-orb-violet" />
+      <aside
+        className="studio-sidebar"
+        aria-label="Subframe studio"
+        aria-hidden={showAccountPanel || undefined}
+        inert={showAccountPanel ? true : undefined}
+      >
+        <button onClick={handleReloadPage} className="studio-brand" aria-label="Reload page">
+          <span className="studio-brand-mark" aria-hidden="true">S</span>
+          <span className="studio-brand-copy">
+            <strong>SUBFRAME</strong>
+            <small>Subtitle studio</small>
+          </span>
+        </button>
 
-      <nav className="studio-topbar">
-        <div className="studio-topbar-inner">
-          <button onClick={handleReloadPage} className="studio-brand" aria-label="Reload page">
-            <span className="studio-brand-mark" aria-hidden="true">S</span>
-            <span>
-              <strong>SUBFRAME</strong>
-              <small>by Ascentia</small>
-            </span>
+        <nav className="studio-nav" aria-label="Workspace navigation">
+          <a href="#model-selection-step" className="studio-nav-item studio-nav-item-active" aria-current="page">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path d="M12 5v14M5 12h14" strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
+            <span>{t('modelSelectTitle')}</span>
+          </a>
+          <button
+            type="button"
+            className="studio-nav-item"
+            onClick={() => {
+              setActiveAccountTab('history');
+              setShowAccountPanel(true);
+            }}
+          >
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path d="M4 7h16M6 4h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" strokeWidth="1.6" strokeLinecap="round" />
+              <path d="M9 11h6M9 15h4" strokeWidth="1.6" strokeLinecap="round" />
+            </svg>
+            <span>{t('historyTitle') || 'History'}</span>
           </button>
+        </nav>
 
-          <div className="studio-topbar-actions">
-            <span className="topbar-mode"><i /> MOCK SAFE</span>
+        <div className="studio-sidebar-account">
+          <div className="studio-safe-state" title={t('mockModeActive')}>
+            <i />
+            <span>MOCK</span>
+            <strong>€0</strong>
+          </div>
+          <div className="studio-sidebar-credits" data-testid="studio-sidebar-credits">
             <CreditsBadge />
-            <button
-              onClick={() => {
-                setActiveAccountTab('profile');
-                setShowAccountPanel(!showAccountPanel);
-              }}
-              className="profile-trigger"
-              aria-label={t('accountSettingsTitle')}
-            >
-              {user.name?.trim().charAt(0).toUpperCase() || 'A'}
-            </button>
           </div>
+          <button
+            onClick={() => {
+              setActiveAccountTab('profile');
+              setShowAccountPanel(!showAccountPanel);
+            }}
+            className="profile-trigger"
+            aria-label={t('accountSettingsTitle')}
+          >
+            {user.name?.trim().charAt(0).toUpperCase() || 'A'}
+          </button>
         </div>
-      </nav>
+      </aside>
 
-      <main className="studio-main">
-        <section className="studio-hero">
-          <div className="studio-hero-copy">
-            <div className="hero-eyebrow">
-              <span>{t('brandBadge')}</span>
-              <span className="hero-version">2026 REMAKE</span>
+      <div
+        className="studio-stage"
+        aria-hidden={showAccountPanel || undefined}
+        inert={showAccountPanel ? true : undefined}
+      >
+        <main className="studio-main">
+          <section className="studio-intro" data-testid="studio-intro">
+            <div className="studio-intro-copy">
+              <span className="studio-kicker">{t('brandBadge')}</span>
+              <h1>{t('heroTitle')}</h1>
+              <p>{t('heroSubtitle')}</p>
             </div>
-            <h1>{t('heroTitle')}</h1>
-            <p>{t('heroSubtitle')}</p>
-            <div className="hero-chips" aria-label="Workflow capabilities">
-              <span>WORD TIMELINE</span>
-              <span>9:16 SAFE ZONE</span>
-              <span>SRT · MP4 · 4K</span>
-              <span>PWA READY</span>
+            <div className="studio-signal" aria-label="Local mock session with zero provider spend">
+              <div className="studio-signal-bars" aria-hidden="true">
+                {[3, 6, 4, 9, 12, 7, 10, 5, 8, 4, 7, 3].map((height, index) => (
+                  <i key={`${height}-${index}`} className={`signal-${height}`} />
+                ))}
+              </div>
+              <div>
+                <span><i /> LOCAL MOCK</span>
+                <strong>€0.00</strong>
+              </div>
             </div>
+          </section>
+
+          <ProcessView
+            selectedFile={selectedFile}
+            onFileSelect={handleFileSelect}
+            isProcessing={isProcessing}
+            progress={progress}
+            statusMessage={statusMessage}
+            error={processError}
+            onStartProcessing={handleStartProcessing}
+            onReprocessJob={handleReprocessJob}
+            onReset={resetProcessing}
+            onCancelProcessing={handleCancelProcessing}
+            selectedJob={selectedJob}
+            onJobSelect={setSelectedJob}
+            statusStyles={statusStyles}
+            buildStaticUrl={buildStaticUrl}
+            totalJobs={totalJobs}
+          />
+        </main>
+
+        <footer className="studio-footer">
+          <a href="https://ascentia-gp.com/" target="_blank" rel="noopener noreferrer" className="footer-brand">
+            <Image src="/ascentia-logo.png" alt="Ascentia Logo" width={48} height={48} loading="eager" />
+            <span><strong>Ascentia</strong><small>Built for creators</small></span>
+          </a>
+          <div className="footer-links">
+            <a href="/privacy">{t('cookieLearnMore') || 'Privacy Policy'}</a>
+            <a href="/terms">{t('cookieTerms') || 'Terms of Service'}</a>
           </div>
-
-          <div className="hero-console" aria-label="Mock mode status">
-            <div className="hero-console-head">
-              <span>SESSION / LOCAL</span>
-              <span className="console-live"><i /> READY</span>
-            </div>
-            <div className="console-wave" aria-hidden="true">
-              {[18, 42, 28, 62, 88, 50, 72, 34, 58, 92, 64, 40, 76, 48, 24].map((height, index) => (
-                <span key={`${height}-${index}`} className={`wave-${Math.round(height / 10)}`} />
-              ))}
-            </div>
-            <div className="console-steps">
-              <span><b>01</b> Upload</span>
-              <span><b>02</b> Caption</span>
-              <span><b>03</b> Style</span>
-              <span><b>04</b> Export</span>
-            </div>
-            <div className="console-zero">
-              <span>Provider spend</span>
-              <strong>€0.00</strong>
-            </div>
-          </div>
-        </section>
-
-        <ProcessView
-          selectedFile={selectedFile}
-          onFileSelect={handleFileSelect}
-          isProcessing={isProcessing}
-          progress={progress}
-          statusMessage={statusMessage}
-          error={processError}
-          onStartProcessing={handleStartProcessing}
-          onReprocessJob={handleReprocessJob}
-          onReset={resetProcessing}
-          onCancelProcessing={handleCancelProcessing}
-          selectedJob={selectedJob}
-          onJobSelect={setSelectedJob}
-          statusStyles={statusStyles}
-          buildStaticUrl={buildStaticUrl}
-          totalJobs={totalJobs}
-        />
-      </main>
-
-      <footer className="studio-footer">
-        <a href="https://ascentia-gp.com/" target="_blank" rel="noopener noreferrer" className="footer-brand">
-          <Image src="/ascentia-logo.png" alt="Ascentia Logo" width={48} height={48} loading="eager" />
-          <span><strong>Ascentia</strong><small>Built for creators</small></span>
-        </a>
-        <div className="footer-status"><i /> No external AI calls in mock mode</div>
-        <div className="footer-links">
-          <a href="/privacy">{t('cookieLearnMore') || 'Privacy Policy'}</a>
-          <a href="/terms">{t('cookieTerms') || 'Terms of Service'}</a>
-        </div>
-      </footer>
-
-      {/* Language Toggle */}
-      <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] right-[calc(env(safe-area-inset-right)+1rem)] z-20">
-        <LanguageToggle />
+        </footer>
       </div>
+
+      {!showAccountPanel && (
+        <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] right-[calc(env(safe-area-inset-right)+1rem)] z-20">
+          <LanguageToggle />
+        </div>
+      )}
 
       {showAccountPanel && (
         <div className="fixed inset-0 z-50 flex items-end justify-center px-4 pt-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:items-start sm:pt-20">

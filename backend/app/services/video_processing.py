@@ -264,7 +264,12 @@ def normalize_and_stub_subtitles(
                     duration_seconds=duration_seconds,
                     min_credits=charge_plan.transcription.min_credits,
                 )
-                cost_usd = pricing.stt_cost_usd(tier=tier, duration_seconds=duration_seconds)
+                cost_usd = pricing.stt_provider_cost_usd(
+                    tier=tier,
+                    duration_seconds=duration_seconds,
+                    provider=provider_name,
+                    model=selected_model,
+                )
                 units = {
                     "audio_seconds": duration_seconds,
                     "model": selected_model,
