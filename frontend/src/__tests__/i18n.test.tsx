@@ -186,6 +186,11 @@ describe('localized pages', () => {
         // Check for Greek hero title text instead of removed tabs
         expect(await screen.findByText(/subtitle studio σου/i)).toBeInTheDocument();
 
+        const scribeCard = screen.getByTestId('model-scribe');
+        expect(scribeCard).toBeDisabled();
+        expect(scribeCard).toHaveTextContent('Scribe v2');
+        expect(scribeCard).toHaveTextContent('Κλειστό προσωρινά');
+
         // Select a model to show upload section
         fireEvent.click(screen.getByTestId('model-standard'));
 

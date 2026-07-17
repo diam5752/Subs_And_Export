@@ -23,6 +23,7 @@ from backend.app.services import (
     subtitles,
 )
 from backend.app.services.styles import SubtitleStyle
+from backend.app.services.transcription.elevenlabs_scribe import ElevenLabsScribeTranscriber
 from backend.app.services.transcription.groq_cloud import GroqTranscriber
 from backend.app.services.transcription.local_whisper import LocalWhisperTranscriber
 from backend.app.services.transcription.mock_service import MockTranscriber
@@ -33,7 +34,7 @@ logger = logging.getLogger(__name__)
 
 ALLOWED_TIER_PROVIDER_OVERRIDES: dict[str, set[str]] = {
     "standard": {"mock", "groq", "local"},
-    "pro": {"mock", "groq", "openai", "local"},
+    "pro": {"mock", "elevenlabs", "groq", "openai", "local"},
 }
 
 
@@ -46,6 +47,17 @@ def resolve_runtime_transcribe_provider(
         return "mock"
 
     normalized_provider = requested_provider.strip().lower()
+
+    if normalized_provider == "elevenlabs":
+        if not settings.elevenlabs_enabled:
+            raise RuntimeError("ElevenLabs Scribe v2 is disabled.")
+        if (
+            settings.external_provider_monthly_budget_usd <= 0
+            or settings.external_provider_per_request_budget_usd <= 0
+        ):
+            raise RuntimeError("ElevenLabs Scribe v2 safety budgets are closed.")
+        if not llm_utils.resolve_elevenlabs_api_key():
+            raise RuntimeError("ElevenLabs API key is missing.")
 
     if normalized_provider == "groq" and not llm_utils.resolve_groq_api_key():
         logger.warning("GROQ_API_KEY is missing; falling back to local faster-whisper transcription.")
@@ -177,6 +189,8 @@ def normalize_and_stub_subtitles(
         transcriber = GroqTranscriber()
     elif provider_name == "openai":
         transcriber = OpenAITranscriber(api_key=openai_api_key)
+    elif provider_name == "elevenlabs":
+        transcriber = ElevenLabsScribeTranscriber()
     elif provider_name == "local":
         transcriber = LocalWhisperTranscriber(
             device=device,

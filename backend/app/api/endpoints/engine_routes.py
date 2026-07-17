@@ -7,7 +7,11 @@ from pydantic import BaseModel
 
 from ...core.auth import User
 from ...core.config import settings
-from ...services.llm_utils import resolve_groq_api_key, resolve_openai_api_key
+from ...services.llm_utils import (
+    resolve_elevenlabs_api_key,
+    resolve_groq_api_key,
+    resolve_openai_api_key,
+)
 from ...services.transcription.catalog import TranscriptionEngine, list_transcription_engines
 from ..deps import get_current_user
 
@@ -41,6 +45,12 @@ def _provider_available(engine: TranscriptionEngine) -> bool:
         return True
     if engine.provider == "groq":
         return bool(resolve_groq_api_key())
+    if engine.provider == "elevenlabs":
+        budgets_open = (
+            settings.external_provider_monthly_budget_usd > 0
+            and settings.external_provider_per_request_budget_usd > 0
+        )
+        return settings.elevenlabs_enabled and budgets_open and bool(resolve_elevenlabs_api_key())
     return bool(resolve_openai_api_key())
 
 

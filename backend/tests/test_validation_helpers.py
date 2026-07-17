@@ -23,6 +23,7 @@ from backend.app.services.styles import SubtitleStyle
 
 def test_validation_helpers_accept_valid_inputs() -> None:
     assert validate_transcribe_provider(" LOCAL ") == "local"
+    assert validate_transcribe_provider(" ELEVENLABS ") == "elevenlabs"
     assert validate_transcribe_tier(" PRO ") == "pro"
     assert validate_model_name(" whisper-large-v3 ", allow_empty=False, field_name="model") == "whisper-large-v3"
     assert validate_video_quality(" HIGH QUALITY ") == "high quality"

@@ -22,50 +22,44 @@ def model_uses_openai(model_name: str | None) -> bool:
     return should_use_openai(model_name)
 
 
-def resolve_openai_api_key(explicit_key: str | None = None) -> str | None:
-    """Resolve OpenAI API key from arguments, env, or secrets file."""
+def _resolve_provider_api_key(
+    env_name: str,
+    explicit_key: str | None = None,
+) -> str | None:
+    """Resolve one provider key without logging or exposing its value."""
     if explicit_key:
         return explicit_key
 
-    # 1. Environment variable
-    env_key = os.getenv("OPENAI_API_KEY")
+    env_key = os.getenv(env_name)
     if env_key:
         return env_key
 
-    # 2. Config/Secrets file
     secrets_path = settings.project_root / "config" / "secrets.toml"
     if secrets_path.exists():
         try:
-            with open(secrets_path, "rb") as f:
+            with secrets_path.open("rb") as f:
                 secrets = tomllib.load(f)
-                return secrets.get("OPENAI_API_KEY")
-        except Exception as e:
-            logger.warning(f"Failed to read secrets for OPENAI_API_KEY: {e}")
+                value = secrets.get(env_name)
+                return value if isinstance(value, str) and value else None
+        except Exception as exc:
+            logger.warning("Failed to read provider secrets for %s: %s", env_name, exc)
 
     return None
+
+
+def resolve_openai_api_key(explicit_key: str | None = None) -> str | None:
+    """Resolve the OpenAI API key from arguments, environment, or secrets."""
+    return _resolve_provider_api_key("OPENAI_API_KEY", explicit_key)
 
 
 def resolve_groq_api_key(explicit_key: str | None = None) -> str | None:
-    """Resolve Groq API key from arguments, env, or secrets file."""
-    if explicit_key:
-        return explicit_key
+    """Resolve the Groq API key from arguments, environment, or secrets."""
+    return _resolve_provider_api_key("GROQ_API_KEY", explicit_key)
 
-    # 1. Environment variable
-    env_key = os.getenv("GROQ_API_KEY")
-    if env_key:
-        return env_key
 
-    # 2. Config/Secrets file
-    secrets_path = settings.project_root / "config" / "secrets.toml"
-    if secrets_path.exists():
-        try:
-            with open(secrets_path, "rb") as f:
-                secrets = tomllib.load(f)
-                return secrets.get("GROQ_API_KEY")
-        except Exception as e:
-            logger.warning(f"Failed to read secrets for GROQ_API_KEY: {e}")
-
-    return None
+def resolve_elevenlabs_api_key(explicit_key: str | None = None) -> str | None:
+    """Resolve the ElevenLabs API key without activating the provider."""
+    return _resolve_provider_api_key("ELEVENLABS_API_KEY", explicit_key)
 
 
 def load_openai_client(

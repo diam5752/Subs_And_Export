@@ -54,6 +54,8 @@ def resolve_requested_transcribe_model(
         if selected_model.lower() != "whisper-1":
             raise ValueError("OpenAI caption processing requires the word-timed whisper-1 model")
         return selected_model
+    if normalized_provider == "elevenlabs":
+        return settings.elevenlabs_transcribe_model
 
     return settings.transcribe_tier_model[normalized_tier]
 
@@ -80,6 +82,8 @@ def resolve_tier_from_model(value: str | None) -> str:
     if normalized in settings.transcribe_tier_provider:
         return normalized
     if "transcribe" in normalized and normalized.startswith("gpt-4o"):
+        return "pro"
+    if normalized == "scribe_v2" or "scribe" in normalized:
         return "pro"
     if "turbo" in normalized or normalized == "enhanced":
         return "standard"
@@ -155,6 +159,8 @@ def stt_provider_cost_usd(
     if normalized_provider == "groq":
         price_per_minute = 0.04 / 60 if "turbo" in normalized_model else 0.111 / 60
         return minutes * price_per_minute
+    if normalized_provider == "elevenlabs":
+        return minutes * (0.22 / 60)
 
     return minutes * float(settings.stt_price_per_minute.get(normalized, 0.04 / 60))
 

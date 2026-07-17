@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable, Literal
 
-TranscriptionProvider = Literal["mock", "groq", "local", "openai"]
+TranscriptionProvider = Literal["mock", "elevenlabs", "groq", "local", "openai"]
 TranscriptionTier = Literal["standard", "pro"]
 ProcessingPrivacy = Literal["cloud", "local"]
 
@@ -52,6 +52,24 @@ def list_transcription_engines(*, caption_ready_only: bool = False) -> tuple[Tra
             recommended=True,
             cost_usd_per_hour=0.0,
             limitations=("Transcript text is simulated while mock mode is enabled.",),
+        ),
+        TranscriptionEngine(
+            id="elevenlabs-scribe-v2",
+            tier="pro",
+            provider="elevenlabs",
+            model="scribe_v2",
+            label="Scribe v2",
+            description="Greek-first cloud transcription with native word timings for animated captions.",
+            privacy="cloud",
+            supports_word_timestamps=True,
+            supports_diarization=True,
+            supports_realtime=False,
+            caption_ready=True,
+            recommended=True,
+            cost_usd_per_hour=0.22,
+            limitations=(
+                "Prepared but disabled until mock mode, the feature flag, credentials, and safety budgets are explicitly changed.",
+            ),
         ),
         TranscriptionEngine(
             id="groq-accurate",

@@ -194,6 +194,11 @@ class Settings(BaseSettings):
     groq_transcribe_model: str = "whisper-large-v3"
     groq_model_enhanced: str = "whisper-large-v3-turbo"
     groq_model_ultimate: str = "whisper-large-v3"
+    elevenlabs_enabled: bool = Field(
+        default=False,
+        validation_alias="GSP_ELEVENLABS_ENABLED",
+    )
+    elevenlabs_transcribe_model: str = "scribe_v2"
 
     # --- LLM ---
     social_llm_model: str = "gpt-5.1-mini"

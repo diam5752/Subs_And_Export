@@ -7,7 +7,7 @@ import { resolveTranscriptionTier } from '@/lib/transcription';
 import { PreviewPlayerHandle } from '@/components/PreviewPlayer';
 
 export type TranscribeMode = 'standard' | 'pro';
-export type TranscribeProvider = 'mock' | 'groq' | 'local';
+export type TranscribeProvider = 'mock' | 'elevenlabs' | 'groq' | 'local';
 
 export interface ProcessingOptions {
     transcribeMode: TranscribeMode;
@@ -455,17 +455,17 @@ export function ProcessProvider({
             ),
         },
         {
-            id: 'groq-accurate',
-            testId: 'model-pro',
-            name: t('modelProName'),
-            description: t('modelProDesc'),
-            badge: t('modelProBadge'),
+            id: 'elevenlabs-scribe-v2',
+            testId: 'model-scribe',
+            name: t('modelScribeName'),
+            description: t('modelScribeDesc'),
+            badge: t('modelScribeBadge'),
             badgeColor: 'text-violet-300 bg-violet-400/10',
-            provider: 'groq',
+            provider: 'elevenlabs',
             mode: 'pro',
             available: false,
             recommended: false,
-            costLabel: '$0.111 / hour',
+            costLabel: '$0.22 / hour',
             stats: { speed: 4, accuracy: 5, karaoke: true, linesControl: true },
             icon: (selected: boolean) => (
                 <div className={`p-2 rounded-lg ${selected ? 'bg-violet-400/20 text-violet-200' : 'bg-violet-400/10 text-violet-300'} `}>

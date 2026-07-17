@@ -52,7 +52,7 @@ class ProcessingSettings(BaseModel):
 
 ALLOWED_TIER_PROVIDER_OVERRIDES: dict[str, set[str]] = {
     "standard": {"mock", "groq", "local"},
-    "pro": {"mock", "groq", "openai", "local"},
+    "pro": {"mock", "elevenlabs", "groq", "openai", "local"},
 }
 
 

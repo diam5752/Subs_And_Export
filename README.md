@@ -12,7 +12,7 @@ and intelligence services and never calls OpenAI, Groq, or another AI provider.
 - FFmpeg/libass rendering for 9:16 video, SRT and animated subtitles.
 - Deterministic Greek mock transcription with per-word timing.
 - Honest mock fact-check cards and local social-copy preview.
-- Provider capability catalog for a later opt-in live mode.
+- Provider capability catalog with Scribe v2 staged for a later opt-in live mode.
 - Hard provider budgets defaulting to `$0.00` per request and per month.
 - PostgreSQL persistence and Docker Compose packaging.
 - Java 25 compatibility surface for the gradual Spring migration.
@@ -30,7 +30,7 @@ Open:
 - API health: <http://localhost:8080/health>
 
 The tracked Compose configuration forces mock mode and zero provider budgets,
-even if a client submits `groq` or `openai` as its preferred engine. API keys do
+even if a client submits `elevenlabs`, `groq`, or `openai` as its preferred engine. API keys do
 not belong in this repository and are not needed for the current product.
 
 ## Local development

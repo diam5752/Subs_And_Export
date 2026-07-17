@@ -13,6 +13,9 @@ export function resolveTranscriptionTier(
     if (normalizedModel.startsWith('gpt-4o') && normalizedModel.includes('transcribe')) {
         return 'pro';
     }
+    if (normalizedProvider === 'elevenlabs' || normalizedModel.includes('scribe')) {
+        return 'pro';
+    }
     if (normalizedModel.includes('turbo') || normalizedModel.includes('enhanced')) {
         return 'standard';
     }

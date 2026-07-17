@@ -31,6 +31,11 @@ The mock services still exercise the real product boundaries:
 The API catalog is capability-first:
 
 - `mock-caption-v1`: current and recommended; word-timed; zero external cost.
+- ElevenLabs `scribe_v2`: staged as the preferred future Greek cloud engine
+  with native word timestamps and diarization capability. It remains unavailable
+  unless mock mode is deliberately disabled, `GSP_ELEVENLABS_ENABLED=1`, a
+  credential is supplied outside the repository, and both safety budgets are
+  opened explicitly.
 - Groq Whisper Large v3 / Turbo: caption-ready because they expose word timing;
   unavailable until live mode and a credential are explicitly enabled.
 - Local faster-whisper `large-v3-turbo`: private and provider-free; retained for a

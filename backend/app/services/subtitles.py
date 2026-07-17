@@ -207,6 +207,7 @@ def generate_subtitles_from_audio(
     DEPRECATED: Use the Transcriber classes directly.
     Legacy wrapper to maintain backward compatibility during refactoring.
     """
+    from backend.app.services.transcription.elevenlabs_scribe import ElevenLabsScribeTranscriber
     from backend.app.services.transcription.groq_cloud import GroqTranscriber
     from backend.app.services.transcription.local_whisper import LocalWhisperTranscriber
     from backend.app.services.transcription.openai_cloud import OpenAITranscriber
@@ -235,6 +236,17 @@ def generate_subtitles_from_audio(
         return transcriber.transcribe(
             audio_path, output_dir, language=language, model=settings.groq_transcribe_model,
             initial_prompt=initial_prompt, progress_callback=progress_callback
+        )
+
+    if provider == "elevenlabs":
+        transcriber = ElevenLabsScribeTranscriber()
+        return transcriber.transcribe(
+            audio_path,
+            output_dir,
+            language=language,
+            model=settings.elevenlabs_transcribe_model,
+            progress_callback=progress_callback,
+            initial_prompt=initial_prompt,
         )
 
     if provider == "local":

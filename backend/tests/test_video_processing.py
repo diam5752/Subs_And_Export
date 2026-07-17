@@ -226,6 +226,30 @@ def test_resolve_runtime_transcribe_provider_forces_mock_mode(monkeypatch):
     assert video_processing.resolve_runtime_transcribe_provider("groq") == "mock"
 
 
+def test_mock_mode_forces_scribe_without_resolving_a_key(monkeypatch):
+    """REGRESSION: selecting the staged Scribe card must never escape mock mode."""
+    monkeypatch.setattr(video_processing.settings, "mock_external_services", True)
+
+    def fail_if_key_is_resolved():
+        raise AssertionError("No ElevenLabs credential should be resolved in mock mode")
+
+    monkeypatch.setattr(
+        video_processing.llm_utils,
+        "resolve_elevenlabs_api_key",
+        fail_if_key_is_resolved,
+    )
+
+    assert video_processing.resolve_runtime_transcribe_provider("elevenlabs") == "mock"
+
+
+def test_scribe_stays_disabled_outside_mock_until_explicitly_enabled(monkeypatch):
+    monkeypatch.setattr(video_processing.settings, "mock_external_services", False)
+    monkeypatch.setattr(video_processing.settings, "elevenlabs_enabled", False)
+
+    with pytest.raises(RuntimeError, match="disabled"):
+        video_processing.resolve_runtime_transcribe_provider("elevenlabs")
+
+
 def test_active_graphics_maps_to_ass_active(monkeypatch, tmp_path: Path):
     """
     Test that if UI sends 'active-graphics' highlight style,

@@ -663,7 +663,7 @@ select:focus-visible,
 
 .engine-card:disabled {
   cursor: not-allowed;
-  opacity: 0.36;
+  opacity: 0.62;
 }
 
 .engine-card-selected {

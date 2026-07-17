@@ -10,6 +10,10 @@ describe('resolveTranscriptionTier', () => {
         expect(resolveTranscriptionTier('openai', 'gpt-4o-mini-transcribe')).toBe('pro');
     });
 
+    it('maps ElevenLabs Scribe v2 to pro', () => {
+        expect(resolveTranscriptionTier('elevenlabs', 'scribe_v2')).toBe('pro');
+    });
+
     it('falls back to provider when model name is absent', () => {
         expect(resolveTranscriptionTier('openai', null)).toBe('pro');
         expect(resolveTranscriptionTier('groq', null)).toBe('standard');

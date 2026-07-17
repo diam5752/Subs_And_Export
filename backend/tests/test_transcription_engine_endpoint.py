@@ -42,3 +42,11 @@ def test_transcription_engine_catalog_exposes_capabilities(
         and item["caption_ready"] is False
         for item in payload
     )
+    assert any(
+        item["id"] == "elevenlabs-scribe-v2"
+        and item["model"] == "scribe_v2"
+        and item["available"] is False
+        and item["recommended"] is False
+        and item["cost_usd_per_hour"] == 0.22
+        for item in payload
+    )

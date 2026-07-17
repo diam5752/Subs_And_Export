@@ -199,6 +199,12 @@ class TestCostEstimation:
             provider="local",
             model="large-v3-turbo",
         ) == 0.0
+        assert pricing.stt_provider_cost_usd(
+            tier="pro",
+            duration_seconds=3600,
+            provider="elevenlabs",
+            model="scribe_v2",
+        ) == pytest.approx(0.22)
 
     def test_llm_cost_estimate_uses_configured_model_pricing(self) -> None:
         cost = pricing.llm_cost_estimate_usd(

@@ -9,6 +9,7 @@ def test_caption_ready_catalog_prioritizes_zero_cost_mock_mode() -> None:
 
     assert [engine.id for engine in engines] == [
         "mock-studio",
+        "elevenlabs-scribe-v2",
         "groq-accurate",
         "groq-fast",
         "local-private",
@@ -18,6 +19,13 @@ def test_caption_ready_catalog_prioritizes_zero_cost_mock_mode() -> None:
     assert engines[0].recommended is True
     assert engines[0].model == "mock-caption-v1"
     assert engines[0].cost_usd_per_hour == 0.0
+
+    scribe = engines[1]
+    assert scribe.provider == "elevenlabs"
+    assert scribe.model == "scribe_v2"
+    assert scribe.supports_word_timestamps is True
+    assert scribe.supports_diarization is True
+    assert scribe.cost_usd_per_hour == 0.22
 
 
 def test_catalog_keeps_text_only_and_diarization_models_out_of_caption_flow() -> None:
