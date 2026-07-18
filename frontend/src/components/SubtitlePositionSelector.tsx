@@ -329,7 +329,7 @@ const SubtitlePreview = memo(({
 });
 SubtitlePreview.displayName = 'SubtitlePreview';
 
-export interface SubtitlePositionSelectorProps {
+interface SubtitlePositionSelectorProps {
     value: number;  // 5-35 (percentage from bottom)
     onChange: (value: number) => void;
     lines: number;

@@ -20,15 +20,13 @@ export function useJobs() {
     const [totalJobs, setTotalJobs] = useState(0);
     const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 
-    const loadJobs = useCallback(async (autoSelectLatest = false, page?: number) => {
+    const fetchJobsPage = useCallback(async (autoSelectLatest: boolean, page: number) => {
         if (!user) return;
         setJobsLoading(true);
         setJobsError('');
 
-        const targetPage = page ?? currentPage;
-
         try {
-            const response = await api.getJobsPaginated(targetPage, pageSize);
+            const response = await api.getJobsPaginated(page, pageSize);
             setRecentJobs(response.items);
             setCurrentPage(response.page);
             setTotalPages(response.total_pages);
@@ -49,7 +47,11 @@ export function useJobs() {
         } finally {
             setJobsLoading(false);
         }
-    }, [user, t, currentPage, pageSize]);
+    }, [pageSize, t, user]);
+
+    const loadJobs = useCallback(async (autoSelectLatest = false, page?: number) => {
+        await fetchJobsPage(autoSelectLatest, page ?? currentPage);
+    }, [currentPage, fetchJobsPage]);
 
     const nextPage = useCallback(() => {
         if (currentPage < totalPages) {
@@ -83,10 +85,9 @@ export function useJobs() {
     // Initial load
     useEffect(() => {
         if (user) {
-            loadJobs(false, 1);
+            void fetchJobsPage(false, 1);
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [user, pageSize]);
+    }, [fetchJobsPage, user]);
 
     return {
         selectedJob,

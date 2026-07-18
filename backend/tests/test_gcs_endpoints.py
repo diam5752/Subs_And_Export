@@ -80,7 +80,6 @@ def test_gcs_process_consumes_upload_id(client: TestClient, user_auth_headers: d
     assert process_again.status_code == 404
 
 
-@pytest.mark.skipif(True, reason="Requires GCS credentials at runtime - skip in CI")
 def test_export_falls_back_to_gcs_when_input_missing(client: TestClient, user_auth_headers: dict[str, str], monkeypatch, tmp_path) -> None:
     monkeypatch.setenv("GSP_GCS_BUCKET", "test-bucket")
     dummy_settings = videos.get_gcs_settings()
@@ -93,7 +92,7 @@ def test_export_falls_back_to_gcs_when_input_missing(client: TestClient, user_au
     artifacts_dir.mkdir(parents=True)
 
     # Patch data_roots in all modules that use it
-    monkeypatch.setattr(videos, "_data_roots", lambda: (data_dir, uploads_dir, artifacts_dir))
+    monkeypatch.setattr(videos, "data_roots", lambda: (data_dir, uploads_dir, artifacts_dir))
     monkeypatch.setattr(export_routes, "data_roots", lambda: (data_dir, uploads_dir, artifacts_dir))
 
     called = {"download": 0}
@@ -107,6 +106,7 @@ def test_export_falls_back_to_gcs_when_input_missing(client: TestClient, user_au
     monkeypatch.setattr(export_routes, "download_object", fake_download)
     monkeypatch.setattr(export_routes, "upload_object", lambda **_kwargs: None)
     monkeypatch.setattr(export_routes, "get_gcs_settings", lambda: dummy_settings)
+    monkeypatch.setattr(videos, "upload_object", lambda **_kwargs: None)
 
     def fake_run_processing(
         job_id: str,
@@ -160,11 +160,11 @@ def test_export_falls_back_to_gcs_when_input_missing(client: TestClient, user_au
     export_resp = client.post(
         f"/videos/jobs/{job_id}/export",
         headers=user_auth_headers,
-        json={"resolution": "1080p"},
+        json={"resolution": "1080x1920"},
     )
     assert export_resp.status_code == 200
     assert called["download"] == 1
-    assert export_resp.json()["result_data"]["variants"]["1080p"].startswith("/static/")
+    assert export_resp.json()["result_data"]["variants"]["1080x1920"].startswith("/static/")
 
 
 def test_static_redirects_to_gcs_when_missing(monkeypatch) -> None:

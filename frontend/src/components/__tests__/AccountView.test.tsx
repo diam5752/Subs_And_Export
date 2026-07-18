@@ -131,9 +131,11 @@ describe('AccountView', () => {
     it('handles data export', async () => {
         (api.exportData as jest.Mock).mockResolvedValue({ profile: {}, jobs: [], history: [] });
 
-        // Mock URL methods
         const mockCreateObjectURL = jest.fn(() => 'blob:test');
         const mockRevokeObjectURL = jest.fn();
+        const anchorClick = jest
+            .spyOn(HTMLAnchorElement.prototype, 'click')
+            .mockImplementation(() => undefined);
         global.URL.createObjectURL = mockCreateObjectURL;
         global.URL.revokeObjectURL = mockRevokeObjectURL;
 
@@ -147,7 +149,10 @@ describe('AccountView', () => {
 
         await waitFor(() => expect(api.exportData).toHaveBeenCalled());
         await waitFor(() => expect(mockCreateObjectURL).toHaveBeenCalled());
+        expect(anchorClick).toHaveBeenCalledTimes(1);
         await waitFor(() => expect(mockRevokeObjectURL).toHaveBeenCalled());
+
+        anchorClick.mockRestore();
     });
 
     it('handles data export error', async () => {

@@ -163,7 +163,7 @@
       "id": "mutation",
       "requirement": "Mutation kill rate above 95% for critical logic or the full repo where practical.",
       "status": "enabled",
-      "suggested_command": "Run Java PIT mutation testing under the nightly JDK 25 workflow.",
+      "suggested_command": "Run PIT against the Java authentication and request-safety boundary under the nightly JDK 25 workflow.",
       "command_id": "check:mutation"
     },
     {
@@ -186,7 +186,7 @@
     "Fast/static/security/integration/E2E enforcement is executable today.",
     "Real-media export compatibility and golden-frame regression checks run locally without external providers.",
     "Java/Spring enforcement is executable through check:java and CI configures JDK 25; local runs require a JDK 25 installation.",
-    "Java PIT mutation testing and subtitle export performance smoke are executable nightly gates.",
+    "Java PIT mutation testing covers the authentication and request-safety boundary; subtitle export performance smoke is also executable nightly.",
     "DAST remains blocked until the repo has a stable deployable preview target for OWASP ZAP."
   ],
   "generated_at": "2026-04-19T11:38:30.278215+00:00",
@@ -218,7 +218,7 @@
     },
     "check:static": {
       "kind": "shell",
-      "shell": "ruff check backend && cd frontend && npm run lint && npx tsc --noEmit",
+      "shell": "ruff check backend && cd frontend && npm run lint && npm run lint:dead-code && npx tsc --noEmit",
       "status": "enabled"
     },
     "check:unit:backend": {
@@ -271,7 +271,7 @@
     },
     "check:mutation": {
       "kind": "shell",
-      "shell": "python3 .codex/scripts/run_java_gate.py ./mvnw -B org.pitest:pitest-maven:mutationCoverage",
+      "shell": "python3 .codex/scripts/run_java_gate.py ./mvnw -B test-compile org.pitest:pitest-maven:mutationCoverage",
       "status": "enabled"
     },
     "check:performance": {

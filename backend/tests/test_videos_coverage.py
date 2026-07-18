@@ -1,5 +1,3 @@
-from pathlib import Path
-
 from fastapi.testclient import TestClient
 
 from backend.main import app
@@ -52,7 +50,7 @@ def test_process_video_content_length_error(client: TestClient, user_auth_header
 
 def test_record_event_safe_exception(monkeypatch):
     """Verify that _record_event_safe suppresses exceptions."""
-    from backend.app.api.endpoints.videos import _record_event_safe
+    from backend.app.api.endpoints.processing_tasks import record_event_safe
     from backend.app.core.auth import User
 
     def mock_record(*args, **kwargs):
@@ -64,23 +62,23 @@ def test_record_event_safe_exception(monkeypatch):
     user = User(id="1", email="test@test.com", name="Test", provider="local")
 
     # Should not raise
-    _record_event_safe(MockHistoryStore(), user, "test", "summary", {})
+    record_event_safe(MockHistoryStore(), user, "test", "summary", {})
 
 def test_parse_resolution():
     """Unit tests for _parse_resolution helper."""
-    from backend.app.api.endpoints.videos import _parse_resolution
+    from backend.app.api.endpoints.settings import parse_resolution
 
-    assert _parse_resolution(None) == (None, None)
-    assert _parse_resolution("") == (None, None)
-    assert _parse_resolution("1080x1920") == (1080, 1920)
-    assert _parse_resolution("2160×3840") == (2160, 3840) # Mixed char
-    assert _parse_resolution("invalid") == (None, None)
-    assert _parse_resolution("-100x100") == (None, None)
+    assert parse_resolution(None) == (None, None)
+    assert parse_resolution("") == (None, None)
+    assert parse_resolution("1080x1920") == (1080, 1920)
+    assert parse_resolution("2160×3840") == (2160, 3840) # Mixed char
+    assert parse_resolution("invalid") == (None, None)
+    assert parse_resolution("-100x100") == (None, None)
 
 def test_ensure_job_size_logic():
     """Test _ensure_job_size backfill logic."""
 
-    from backend.app.api.endpoints.videos import _ensure_job_size
+    from backend.app.api.endpoints.export_routes import _ensure_job_size
     from backend.app.services.jobs import Job
 
     # Case 1: Already has size
@@ -111,64 +109,6 @@ def test_ensure_job_size_logic():
     )
     res = _ensure_job_size(job_bad_data)
     assert "output_size" not in res.result_data
-
-def test_create_viral_metadata_error(client: TestClient, user_auth_headers: dict, monkeypatch):
-    """Test error handling in viral metadata generation."""
-    # 1. Job not completed
-    # Mock job store to return a processing job
-    from backend.app.services.jobs import Job, JobStore
-
-    def mock_get_job(self, job_id):
-        # Ensure we return the job even if it thinks it's not found
-        # (Though logic relies on job_id)
-        return Job(
-            id=job_id, user_id="test_user_id", status="processing", progress=50,
-            message="...", created_at=0, updated_at=0, result_data={}
-        )
-
-    monkeypatch.setattr(JobStore, "get_job", mock_get_job)
-
-    # Check if dependency overrides are needed.
-    # The endpoint calls get_current_user. If we use user_auth_headers, we get a real user.
-    # But job.user_id must match current_user.id.
-    # `user_auth_headers` creates "Test User" with email "test@example.com".
-    # We need to know the ID of that user.
-    # Easier: Mock get_current_user to return a user with known ID "test_user_id".
-    from backend.app.api import deps
-    from backend.app.core.auth import User
-
-    # Mock current user dependency
-    async def mock_get_current_user():
-        return User(id="test_user_id", email="test@example.com", name="Test", provider="local")
-
-    app.dependency_overrides[deps.get_current_user] = mock_get_current_user
-
-    import pytest
-    pytest.skip("viral_metadata endpoint removed")
-    return # Unreachable but keeps indent checker happy
-
-    # 2. Transcript not found
-    def mock_get_job_completed(self, job_id):
-        return Job(
-            id=job_id, user_id="test_user_id", status="completed", progress=100,
-            message="...", created_at=0, updated_at=0, result_data={}
-        )
-    monkeypatch.setattr(JobStore, "get_job", mock_get_job_completed)
-
-    # Mock _data_roots to point to temp
-    import tempfile
-    with tempfile.TemporaryDirectory() as td:
-        tpath = Path(td)
-        monkeypatch.setattr("backend.app.api.endpoints.videos._data_roots", lambda: (tpath, tpath, tpath))
-
-        # Override dependency again just to be safe (it was cleared)
-        app.dependency_overrides[deps.get_current_user] = mock_get_current_user
-        try:
-            response = client.post("/videos/jobs/fake_id/viral-metadata", headers=user_auth_headers)
-            assert response.status_code == 404
-            assert "Transcript not found" in response.json()["detail"]
-        finally:
-             app.dependency_overrides = {}
 
 def test_delete_job(client: TestClient, user_auth_headers: dict, monkeypatch):
     """Test deleting a job and its artifacts."""
@@ -210,7 +150,7 @@ def test_delete_job(client: TestClient, user_auth_headers: dict, monkeypatch):
             for p in [data_root, uploads_root, artifacts_root]:
                 p.mkdir()
 
-            monkeypatch.setattr("backend.app.api.endpoints.videos._data_roots", lambda: (data_root, uploads_root, artifacts_root))
+            monkeypatch.setattr("backend.app.api.endpoints.job_routes.data_roots", lambda: (data_root, uploads_root, artifacts_root))
             monkeypatch.setattr("backend.app.api.endpoints.job_routes.data_roots", lambda: (data_root, uploads_root, artifacts_root))
 
             # Create dummy artifacts
@@ -231,63 +171,6 @@ def test_delete_job(client: TestClient, user_auth_headers: dict, monkeypatch):
 
     finally:
         app.dependency_overrides = {}
-
-def test_create_viral_metadata_success(client: TestClient, user_auth_headers: dict, monkeypatch):
-    """Test successful generation of viral metadata."""
-    import pytest
-    pytest.skip("viral_metadata endpoint removed")
-    from backend.app.api import deps
-    from backend.app.core.auth import User
-    from backend.app.services.jobs import Job
-    from backend.app.services.subtitles import ViralMetadata
-
-    async def mock_get_current_user():
-        return User(id="test_user_id", email="test@example.com", name="Test", provider="local")
-    app.dependency_overrides[deps.get_current_user] = mock_get_current_user
-
-    try:
-        # Mock JobStore
-        class MockJobStore:
-            def get_job(self, job_id):
-                return Job(
-                    id="job1", user_id="test_user_id", status="completed", progress=100,
-                    message="done", created_at=0, updated_at=0, result_data={}
-                )
-
-        app.dependency_overrides[deps.get_job_store] = lambda: MockJobStore()
-
-        # Mock generate_viral_metadata
-        def mock_gen(*args, **kwargs):
-            return ViralMetadata(
-                hooks=["Hook 1"],
-                caption_hook="Caption Hook",
-                caption_body="Caption Body",
-                cta="Follow",
-                hashtags=["#tag"]
-            )
-        monkeypatch.setattr("backend.app.api.endpoints.videos.generate_viral_metadata", mock_gen)
-
-        # Mock file system
-        import tempfile
-        from pathlib import Path
-        with tempfile.TemporaryDirectory() as td:
-            tpath = Path(td)
-            artifacts_root = tpath / "artifacts"
-            artifacts_root.mkdir()
-            job_dir = artifacts_root / "job1"
-            job_dir.mkdir()
-            (job_dir / "transcript.txt").write_text("transcript")
-
-            monkeypatch.setattr("backend.app.api.endpoints.videos._data_roots", lambda: (tpath, tpath, artifacts_root))
-
-            response = client.post("/videos/jobs/job1/viral-metadata", headers=user_auth_headers)
-            assert response.status_code == 200
-            data = response.json()
-            assert data["hooks"] == ["Hook 1"]
-            assert data["caption_hook"] == "Caption Hook"
-    finally:
-        app.dependency_overrides = {}
-
 
 def test_list_jobs_paginated(client: TestClient, user_auth_headers: dict, monkeypatch):
     """Test paginated jobs endpoint."""
@@ -423,7 +306,7 @@ def test_batch_delete_jobs(client: TestClient, user_auth_headers: dict, monkeypa
                 job_dir.mkdir()
                 (job_dir / "file.txt").touch()
 
-            monkeypatch.setattr("backend.app.api.endpoints.videos._data_roots", lambda: (tpath, uploads_root, artifacts_root))
+            monkeypatch.setattr("backend.app.api.endpoints.job_routes.data_roots", lambda: (tpath, uploads_root, artifacts_root))
             monkeypatch.setattr("backend.app.api.endpoints.job_routes.data_roots", lambda: (tpath, uploads_root, artifacts_root))
 
             # Test batch delete

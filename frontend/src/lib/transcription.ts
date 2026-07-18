@@ -1,4 +1,4 @@
-export type TranscriptionTier = 'standard' | 'pro';
+type TranscriptionTier = 'standard' | 'pro';
 
 export function resolveTranscriptionTier(
     provider: string | null | undefined,

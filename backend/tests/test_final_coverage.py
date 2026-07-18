@@ -1,9 +1,8 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from starlette.testclient import TestClient
-
-from backend.app.api.endpoints import videos
+from backend.app.api.endpoints import export_routes, file_utils
+from backend.app.api.endpoints.settings import parse_resolution
 from backend.app.core import auth, cleanup
 from backend.app.services import llm_utils, subtitles
 
@@ -13,7 +12,7 @@ from backend.app.services import llm_utils, subtitles
 
 def test_parse_resolution_error():
     """Cover exception path in _parse_resolution (lines 106-107)."""
-    assert videos._parse_resolution("100xInvalid") == (None, None)
+    assert parse_resolution("100xInvalid") == (None, None)
 
 def test_ensure_job_size_exception():
     """Cover exception path in _ensure_job_size (lines 328-329)."""
@@ -25,52 +24,7 @@ def test_ensure_job_size_exception():
     with patch("pathlib.Path.exists", return_value=True):
         with patch("pathlib.Path.stat", side_effect=Exception("Stat failed")):
              # Should safe catch
-             videos._ensure_job_size(mock_job)
-
-def test_create_viral_metadata_generic_exception(client: TestClient, user_auth_headers: dict, monkeypatch):
-    """Cover generic exception in create_viral_metadata - SKIPPED: viral_metadata feature removed."""
-    import pytest
-    pytest.skip("viral_metadata feature removed")
-    from backend.app.api import deps
-    from backend.app.core.auth import User
-    from backend.app.services.jobs import Job
-
-    async def mock_get_current_user():
-        return User(id="u1", email="e@e.com", name="u", provider="local")
-    app_overrides = {deps.get_current_user: mock_get_current_user}
-
-    class MockJobStore:
-        def get_job(self, jid):
-            return Job(id=jid, user_id="u1", status="completed", progress=100,
-                       message="d", created_at=0, updated_at=0, result_data={})
-
-    app_overrides[deps.get_job_store] = lambda: MockJobStore()
-
-    # Stub file existence
-    import tempfile
-    with tempfile.TemporaryDirectory() as td:
-        tpath = Path(td)
-        art_root = tpath / "artifacts"
-        job_dir = art_root / "j1"
-        job_dir.mkdir(parents=True)
-        (job_dir / "transcript.txt").write_text("content")
-
-        monkeypatch.setattr("backend.app.api.endpoints.videos._data_roots", lambda: (tpath, tpath, art_root))
-
-        # Force exception in generate_viral_metadata
-        def mock_gen(*args):
-            raise ValueError("Boom")
-        monkeypatch.setattr("backend.app.api.endpoints.videos.generate_viral_metadata", mock_gen)
-
-        from backend.main import app
-        app.dependency_overrides = app_overrides
-        try:
-            resp = client.post("/videos/jobs/j1/viral-metadata", headers=user_auth_headers)
-            assert resp.status_code == 500
-            assert "Boom" in resp.json()["detail"]
-        finally:
-            app.dependency_overrides = {}
-
+             export_routes._ensure_job_size(mock_job)
 
 # ==========================================
 # Cleanup Coverage (app/core/cleanup.py)
@@ -121,95 +75,6 @@ def test_cleanup_skip_gitkeep_explicit():
     cleanup.cleanup_old_jobs(mock_uploads, mock_dir)
     # properly skipped if no error/delete call on it
     mock_gitkeep.unlink.assert_not_called()
-
-def test_process_video_content_length_invalid(client: TestClient, user_auth_headers: dict, monkeypatch):
-    """Cover invalid content-length header (line 253)."""
-    import pytest
-    pytest.skip("TestClient overrides Content-Length header, validation mocked out")
-    # If content-length is not an int, it passes (ValueError caught)
-    headers = user_auth_headers.copy()
-    headers["content-length"] = "invalid"
-
-    files = {"file": ("test.mp4", b"data", "video/mp4")}
-
-    # Needs to pass deps
-    from backend.app.api import deps
-    from backend.app.core.auth import User
-    from backend.app.services.jobs import Job
-
-    async def mock_user():
-        return User(id="u1", email="e", name="n", provider="local")
-
-    class MockStore:
-        def create_job(self, *args, **_kwargs):
-            return Job(
-                id="j1", user_id="u1", status="queued", progress=0,
-                message="queued", created_at=0, updated_at=0, result_data={}
-            )
-
-        def count_active_jobs_for_user(self, user_id):
-            return 0
-
-    class MockPointsStore:
-        def spend(self, *_args, **_kwargs):
-            return 999
-
-    class MockLedgerStore:
-        pass
-
-    app_overrides = {
-        deps.get_current_user: mock_user,
-        deps.get_job_store: lambda: MockStore(),
-        deps.get_points_store: lambda: MockPointsStore(),
-        deps.get_usage_ledger_store: lambda: MockLedgerStore(),
-    }
-
-    # Mock save to avoid disk I/O
-    monkeypatch.setattr("backend.app.api.endpoints.videos._save_upload_with_limit", lambda *args: None)
-    monkeypatch.setattr("backend.app.api.endpoints.videos.reserve_processing_charges", lambda *args, **kwargs: (None, 999))
-    # Mock background task add to avoid running processing
-    monkeypatch.setattr("starlette.background.BackgroundTasks.add_task", lambda *args, **kwargs: None)
-
-    # Mock dirs
-    import tempfile
-    with tempfile.TemporaryDirectory() as td:
-        tpath = Path(td)
-        monkeypatch.setattr("backend.app.api.endpoints.videos._data_roots", lambda: (tpath, tpath, tpath))
-
-        from backend.main import app
-        app.dependency_overrides = app_overrides
-        try:
-            resp = client.post("/videos/process", headers=headers, files=files)
-            assert resp.status_code == 422
-        finally:
-            app.dependency_overrides = {}
-
-def test_create_viral_metadata_job_not_found(client: TestClient, user_auth_headers: dict):
-    """Cover Job not found - SKIPPED: viral_metadata feature removed."""
-    import pytest
-    pytest.skip("viral_metadata feature removed")
-    from backend.app.api import deps
-    from backend.app.core.auth import User
-
-    async def mock_user():
-        return User(id="u1", email="e", name="n", provider="local")
-
-    class MockStore:
-        def get_job(self, jid):
-            return None # Job not found
-
-    app_overrides = {
-        deps.get_current_user: mock_user,
-        deps.get_job_store: lambda: MockStore()
-    }
-
-    from backend.main import app
-    app.dependency_overrides = app_overrides
-    try:
-        resp = client.post("/videos/jobs/missing/viral-metadata", headers=user_auth_headers)
-        assert resp.status_code == 404
-    finally:
-         app.dependency_overrides = {}
 
 def test_get_secret_path_not_exists(monkeypatch):
     """Cover path not exists in secret search (lines 328-329)."""
@@ -281,8 +146,6 @@ def test_save_upload_limit_boundary(monkeypatch):
 
     from fastapi import HTTPException, UploadFile
 
-    from backend.app.api.endpoints import videos
-
     # Mock settings
     monkeypatch.setattr("backend.app.api.endpoints.file_utils.MAX_UPLOAD_BYTES", 10) # 10 bytes limit
 
@@ -299,7 +162,7 @@ def test_save_upload_limit_boundary(monkeypatch):
     dest.open.return_value.__enter__.return_value = mock_buffer
 
     try:
-        videos._save_upload_with_limit(upload, dest)
+        file_utils.save_upload_with_limit(upload, dest)
         assert False, "Should have raised HTTPException"
     except HTTPException as e:
         assert e.status_code == 413
@@ -344,95 +207,6 @@ def test_load_openai_client_no_key(monkeypatch):
         assert False
     except Exception as e:
         assert "api_key" in str(e) or "required" in str(e)
-
-def test_generate_viral_metadata_no_key(monkeypatch):
-    """Cover generate_viral_metadata missing key - SKIPPED: feature removed."""
-    import pytest
-    pytest.skip("generate_viral_metadata feature removed")
-    from backend.app.services import subtitles
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
-    monkeypatch.setattr(subtitles, "_resolve_openai_api_key", lambda *a: None)
-
-    try:
-        subtitles.generate_viral_metadata("transcript")
-        assert False
-    except RuntimeError as e:
-        assert "OpenAI API key is required" in str(e)
-
-def test_generate_viral_metadata_empty_response(monkeypatch):
-    """Cover empty LLM response - SKIPPED: feature removed."""
-    import pytest
-    pytest.skip("generate_viral_metadata feature removed")
-    from backend.app.services import subtitles
-
-    monkeypatch.setenv("OPENAI_API_KEY", "key")
-
-    class MockClient:
-        class chat:
-            class completions:
-                @staticmethod
-                def create(*args, **kwargs):
-                    class Choice:
-                        class Message:
-                            content = ""
-                        message = Message()
-                    class Resp:
-                        choices = [Choice()]
-                    return Resp()
-
-    monkeypatch.setattr(subtitles, "_load_openai_client", lambda k: MockClient())
-
-    try:
-        subtitles.generate_viral_metadata("transcript")
-        assert False
-    except ValueError as e:
-        assert "Empty response" in str(e) or "Failed to generate" in str(e)
-
-def test_video_processing_turbo_alias(monkeypatch):
-    """Cover turbo model alias (line 254-255)."""
-    import pytest
-    pytest.skip("Local whisper support replaced by Groq")
-    from backend.app.core import config
-    from backend.app.services import video_processing
-
-    # Track what model was passed to the transcriber
-    captured_model = {}
-
-    class MockTranscriber:
-        def transcribe(self, audio_path, output_dir, language, model, **kwargs):
-            captured_model["model"] = model
-            srt_path = output_dir / "test.srt"
-            srt_path.write_text("1\n00:00:00,000 --> 00:00:01,000\nTest\n")
-            return srt_path, []
-
-    # Patch the LocalWhisperTranscriber (default provider for turbo model)
-    monkeypatch.setattr(video_processing, "LocalWhisperTranscriber", lambda **kw: MockTranscriber())
-
-    # Mock other pipeline steps
-    monkeypatch.setattr(video_processing.subtitles, "extract_audio", lambda *a, **k: Path("a.wav"))
-    monkeypatch.setattr(video_processing.subtitles, "create_styled_subtitle_file", lambda *a, **k: Path("a.ass"))
-    monkeypatch.setattr(video_processing, "_run_ffmpeg_with_subs", lambda *a, **k: "")
-    monkeypatch.setattr(video_processing, "_persist_artifacts", lambda *a: None)
-    monkeypatch.setattr(video_processing.subtitles, "get_video_duration", lambda *a: 10.0)
-    # Patch probe_media because normalize now calls it
-    monkeypatch.setattr(video_processing, "probe_media", lambda p: video_processing.MediaProbe(duration_s=10.0, audio_codec="aac"))
-
-    import tempfile
-    with tempfile.TemporaryDirectory() as td:
-        p = Path(td)
-        in_p = p / "in.mp4"
-        in_p.touch()
-        out_p = p / "out.mp4"
-
-        # We need to ensure out_p exists after "ffmpeg"
-        out_p.touch()
-
-        video_processing.normalize_and_stub_subtitles(
-            in_p, out_p, model_size="turbo"
-        )
-
-        # Verify the turbo alias was resolved to config.WHISPER_MODEL
-        assert captured_model["model"] == config.WHISPER_MODEL
 
 def test_video_processing_artifact_same_path(monkeypatch):
     """Cover output path == artifact output path (line 480)."""

@@ -10,20 +10,10 @@ function PositionReader() {
 }
 
 function StartHarness() {
-  const { fileInputRef, handleStart, setHasChosenModel, setTranscribeMode, setTranscribeProvider, setVideoInfo } = useProcessContext();
+  const { fileInputRef, handleStart, setVideoInfo } = useProcessContext();
   return (
     <div>
       <input ref={fileInputRef} data-testid="file-input" type="file" />
-      <button
-        type="button"
-        onClick={() => {
-          setTranscribeProvider('groq');
-          setTranscribeMode('standard');
-          setHasChosenModel(true);
-        }}
-      >
-        select-model
-      </button>
       <button
         type="button"
         onClick={() => {
@@ -44,16 +34,13 @@ function StartHarness() {
 }
 
 function StepHarness() {
-  const { currentStep, setHasChosenModel, setOverrideStep, setTranscribeMode, setTranscribeProvider } = useProcessContext();
+  const { currentStep, setOverrideStep } = useProcessContext();
   return (
     <div>
       <div data-testid="step">{currentStep}</div>
       <button
         type="button"
         onClick={() => {
-          setTranscribeProvider('groq');
-          setTranscribeMode('standard');
-          setHasChosenModel(true);
           setOverrideStep(2);
         }}
       >
@@ -123,7 +110,6 @@ describe('ProcessProvider', () => {
     const input = screen.getByTestId('file-input') as HTMLInputElement;
     const clickSpy = jest.spyOn(input, 'click');
 
-    fireEvent.click(screen.getByRole('button', { name: 'select-model' }));
     fireEvent.click(screen.getByRole('button', { name: 'start' }));
 
     expect(clickSpy).toHaveBeenCalled();
@@ -148,7 +134,6 @@ describe('ProcessProvider', () => {
       </I18nProvider>,
     );
 
-    fireEvent.click(screen.getByRole('button', { name: 'select-model' }));
     fireEvent.click(screen.getByRole('button', { name: 'set-video-info' }));
     fireEvent.click(screen.getByRole('button', { name: 'start' }));
 
@@ -161,7 +146,7 @@ describe('ProcessProvider', () => {
 
   it('reprocesses a completed job instead of opening the picker', () => {
     /**
-     * REGRESSION: When a completed job is selected (thumbnail/preview available) and the user picks a new model,
+     * REGRESSION: When a completed job is selected (thumbnail/preview available),
      * clicking "Start Processing" must re-render the existing source video (create a reprocess job) instead of
      * opening the upload picker.
      */
@@ -193,20 +178,19 @@ describe('ProcessProvider', () => {
     const input = screen.getByTestId('file-input') as HTMLInputElement;
     const clickSpy = jest.spyOn(input, 'click');
 
-    fireEvent.click(screen.getByRole('button', { name: 'select-model' }));
     fireEvent.click(screen.getByRole('button', { name: 'start' }));
 
     expect(clickSpy).not.toHaveBeenCalled();
     expect(onReprocessJob).toHaveBeenCalledWith(
       'job-1',
       expect.objectContaining({
-        transcribeProvider: 'groq',
+        transcribeProvider: 'mock',
         transcribeMode: 'standard',
       }),
     );
   });
 
-  it('stays on the captions step after selecting a model on a completed job', async () => {
+  it('stays on the captions step when revisiting a completed job', async () => {
     const completedJob = {
       id: 'job-1',
       status: 'completed',
@@ -234,35 +218,4 @@ describe('ProcessProvider', () => {
     await waitFor(() => expect(screen.getByTestId('step')).toHaveTextContent('2'));
   });
 
-  it('automatically sets hasChosenModel when a job is restored (refresh handling)', () => {
-    const activeJob = {
-      id: 'job-1',
-      status: 'processing',
-      progress: 50,
-      message: 'Processing...',
-      created_at: Date.now(),
-      updated_at: Date.now(),
-      result_data: {
-        transcribe_provider: 'groq',
-        model_size: 'standard',
-        video_path: '/videos/test.mp4',
-        artifacts_dir: '/tmp/artifacts'
-      },
-    };
-
-    function ModelSyncHarness() {
-      const { hasChosenModel } = useProcessContext();
-      return <div data-testid="has-model">{hasChosenModel ? 'yes' : 'no'}</div>;
-    }
-
-    render(
-      <I18nProvider initialLocale="en">
-        <ProcessProvider {...baseProps} selectedJob={activeJob}>
-          <ModelSyncHarness />
-        </ProcessProvider>
-      </I18nProvider>,
-    );
-
-    expect(screen.getByTestId('has-model')).toHaveTextContent('yes');
-  });
 });

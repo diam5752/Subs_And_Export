@@ -35,22 +35,6 @@ const mockContextValue = {
     selectedJob: null,
     activeSidebarTab: 'transcript',
     setActiveSidebarTab: jest.fn(),
-    transcribeProvider: 'groq',
-    transcribeMode: 'standard',
-    AVAILABLE_MODELS: [
-        {
-            id: 'standard',
-            provider: 'groq',
-            mode: 'standard',
-            name: 'Standard',
-            icon: () => <span>Standard</span>,
-            description: 'Standard model',
-            badge: 'Standard',
-            badgeColor: 'text-gray-500 bg-gray-100',
-            stats: { speed: 100, accuracy: 90, karaoke: false, lines: 'auto' },
-            colorClass: (selected: boolean) => selected ? 'selected-class' : 'unselected-class',
-        }
-    ],
     STYLE_PRESETS: [
         {
             id: 'tiktok',
@@ -66,8 +50,6 @@ const mockContextValue = {
     cues: [],
     currentTime: 0,
     videoUrl: null,
-    setTranscribeProvider: jest.fn(),
-    setTranscribeMode: jest.fn(),
     handleFileSelect: jest.fn(),
     handleSubmit: jest.fn(),
     onCancelProcessing: jest.fn(),
@@ -107,8 +89,6 @@ const mockContextValue = {
     onJobSelect: jest.fn(),
     statusStyles: {},
     buildStaticUrl: jest.fn(),
-    hasChosenModel: true,
-    setHasChosenModel: jest.fn(),
     setVideoInfo: jest.fn(),
     setPreviewVideoUrl: jest.fn(),
     setCues: jest.fn(),
@@ -158,7 +138,6 @@ describe('ProcessView', () => {
         (useProcessContext as jest.Mock).mockReturnValue({
             ...mockContextValue,
             currentStep: 2,
-            transcribeProvider: 'groq'
         });
 
         render(
@@ -257,7 +236,6 @@ describe('ProcessView', () => {
             progress: 45,
             statusMessage: 'Processing...',
             selectedFile: new File([''], 'video.mp4', { type: 'video/mp4' }),
-            hasChosenModel: true
         });
 
         render(
@@ -279,7 +257,6 @@ describe('ProcessView', () => {
         (useProcessContext as jest.Mock).mockReturnValue({
             ...mockContextValue,
             currentStep: 2,
-            hasChosenModel: true
         });
 
         render(
@@ -300,7 +277,6 @@ describe('ProcessView', () => {
         (useProcessContext as jest.Mock).mockReturnValue({
             ...mockContextValue,
             currentStep: 3, // Step 3 active, Step 2 collapsed
-            hasChosenModel: true,
             selectedFile: new File([''], 'test.mp4', { type: 'video/mp4' }),
             selectedJob: mockJob,
             cues: [{ start: 0, end: 1, text: 'Test' }],
@@ -323,7 +299,6 @@ describe('ProcessView', () => {
         (useProcessContext as jest.Mock).mockReturnValue({
             ...mockContextValue,
             currentStep: 3,
-            hasChosenModel: true,
             selectedFile: null, // Critical for refresh case
             selectedJob: mockJob, // completed job
             videoInfo: { thumbnailUrl: 'http://example.com/thumb.jpg' }

@@ -84,17 +84,3 @@ def test_social_copy_truncates_input(mock_client):
 
     assert len(user_content) <= config.settings.max_llm_input_chars
     assert len(user_content) < len(long_text)
-
-def test_calculate_cost():
-    """Verify cost calculation logic - SKIPPED: _calculate_cost function removed."""
-    import pytest
-    pytest.skip("_calculate_cost function removed from subtitles.py")
-    # Test known model
-    cost = subtitles._calculate_cost("gpt-4o-mini", 1_000_000, 1_000_000)
-    expected = 0.15 + 0.60
-    assert abs(cost - expected) < 0.0001
-
-    # Test fallback
-    cost = subtitles._calculate_cost("unknown-model", 1_000_000, 1_000_000)
-    expected_default = 2.50 + 10.00
-    assert abs(cost - expected_default) < 0.0001

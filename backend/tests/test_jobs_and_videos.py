@@ -6,6 +6,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from backend.app.api.endpoints import export_routes, processing_tasks, videos
+from backend.app.api.endpoints.settings import ProcessingSettings
 from backend.app.core import auth as backend_auth
 from backend.app.core import config
 from backend.app.core.database import Database
@@ -102,8 +103,8 @@ def test_run_video_processing_success(monkeypatch, tmp_path: Path):
         return output_path, social
 
     monkeypatch.setattr(processing_tasks, "normalize_and_stub_subtitles", fake_normalize)
-    settings = videos.ProcessingSettings()
-    videos.run_video_processing(job.id, input_path, output_path, output_path.parent, settings, store)
+    settings = ProcessingSettings()
+    processing_tasks.run_video_processing(job.id, input_path, output_path, output_path.parent, settings, store)
 
     finished = store.get_job(job.id)
     assert finished and finished.status == "completed"
@@ -130,8 +131,8 @@ def test_run_video_processing_failure(monkeypatch, tmp_path: Path):
         raise RuntimeError("explode")
 
     monkeypatch.setattr(processing_tasks, "normalize_and_stub_subtitles", boom)
-    settings = videos.ProcessingSettings()
-    videos.run_video_processing(job.id, input_path, output_path, tmp_path / "artifacts2", settings, store)
+    settings = ProcessingSettings()
+    processing_tasks.run_video_processing(job.id, input_path, output_path, tmp_path / "artifacts2", settings, store)
 
     failed = store.get_job(job.id)
     assert failed and failed.status == "failed"
@@ -158,8 +159,8 @@ def test_run_video_processing_handles_path_only(monkeypatch, tmp_path: Path):
         return output_path
 
     monkeypatch.setattr(processing_tasks, "normalize_and_stub_subtitles", fake_normalize)
-    settings = videos.ProcessingSettings()
-    videos.run_video_processing(job.id, input_path, output_path, output_path.parent, settings, store)
+    settings = ProcessingSettings()
+    processing_tasks.run_video_processing(job.id, input_path, output_path, output_path.parent, settings, store)
 
     finished = store.get_job(job.id)
     assert finished and finished.status == "completed"
@@ -190,8 +191,8 @@ def test_run_video_processing_records_duration_and_empty_resolution(monkeypatch,
         return output_path
 
     monkeypatch.setattr(processing_tasks, "normalize_and_stub_subtitles", fake_normalize)
-    settings = videos.ProcessingSettings()
-    videos.run_video_processing(job.id, input_path, output_path, output_path.parent, settings, store)
+    settings = ProcessingSettings()
+    processing_tasks.run_video_processing(job.id, input_path, output_path, output_path.parent, settings, store)
 
     finished = store.get_job(job.id)
     assert finished and finished.status == "completed"
@@ -245,8 +246,8 @@ def test_run_video_processing_does_not_restart_cancelled_job_and_refunds(monkeyp
         lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("should not process cancelled jobs")),
     )
 
-    settings = videos.ProcessingSettings()
-    videos.run_video_processing(
+    settings = ProcessingSettings()
+    processing_tasks.run_video_processing(
         job.id,
         input_path,
         output_path,
@@ -307,8 +308,8 @@ def test_run_gcs_video_processing_does_not_restart_cancelled_job_and_refunds(mon
 
     job_store.update_job(job.id, status="cancelled", message="Cancelled by user")
 
-    settings = videos.ProcessingSettings()
-    videos.run_gcs_video_processing(
+    settings = ProcessingSettings()
+    processing_tasks.run_gcs_video_processing(
         job_id=job.id,
         gcs_object_name="uploads/test.mp4",
         input_path=tmp_path / "in.mp4",
@@ -358,13 +359,13 @@ def test_run_gcs_video_processing_uses_app_settings_for_duration_limit(monkeypat
         lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("should fail before processing")),
     )
 
-    videos.run_gcs_video_processing(
+    processing_tasks.run_gcs_video_processing(
         job_id=job.id,
         gcs_object_name="uploads/test.mp4",
         input_path=tmp_path / "gcs-input.mp4",
         output_path=tmp_path / "gcs-output.mp4",
         artifact_dir=tmp_path / "gcs-artifacts",
-        settings=videos.ProcessingSettings(),
+        settings=ProcessingSettings(),
         job_store=job_store,
     )
 

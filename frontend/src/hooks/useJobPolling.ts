@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import { api, JobResponse } from '@/lib/api';
+import type { MessageKey } from '@/context/i18nMessages';
 
 export interface JobPollingCallbacks {
     onProgress: (progress: number, message: string) => void;
@@ -8,14 +9,14 @@ export interface JobPollingCallbacks {
     onError: (errorMessage: string) => void;
 }
 
-export interface UseJobPollingOptions {
+interface UseJobPollingOptions {
     jobId: string | null;
     callbacks: JobPollingCallbacks;
     pollingInterval?: number;
-    t: (key: string) => string;
+    t: (key: MessageKey) => string;
 }
 
-export interface UseJobPollingResult {
+interface UseJobPollingResult {
     isPolling: boolean;
     stopPolling: () => void;
 }

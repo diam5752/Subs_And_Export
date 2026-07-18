@@ -42,51 +42,14 @@ from ..deps import (
     get_job_store,
     get_usage_ledger_store,
 )
-from .file_utils import (
-    DATA_DIR,
-    MAX_UPLOAD_BYTES,
-    data_roots,
-    link_or_copy_file,
-    relpath_safe,
-    save_upload_with_limit,
-)
+from .file_utils import MAX_UPLOAD_BYTES, data_roots, save_upload_with_limit
 from .processing_tasks import (
     record_event_safe,
     refund_charge_best_effort,
     run_video_processing,
 )
-from .settings import (
-    build_processing_settings,
-    parse_resolution,
-)
-
-# Import from extracted modules
-from .validation import (
-    ALLOWED_VIDEO_EXTENSIONS,
-    validate_highlight_style,
-    validate_max_subtitle_lines,
-    validate_shadow_strength,
-    validate_subtitle_position,
-    validate_subtitle_size,
-    validate_upload_content_type,
-)
-
-# Re-export for backward compatibility
-_data_roots = data_roots
-_relpath_safe = relpath_safe
-_link_or_copy_file = link_or_copy_file
-_save_upload_with_limit = save_upload_with_limit
-_build_processing_settings = build_processing_settings
-_validate_subtitle_position = validate_subtitle_position
-_validate_max_subtitle_lines = validate_max_subtitle_lines
-_validate_shadow_strength = validate_shadow_strength
-_validate_subtitle_size = validate_subtitle_size
-_validate_highlight_style = validate_highlight_style
-_validate_upload_content_type = validate_upload_content_type
-_refund_charge_best_effort = refund_charge_best_effort
-_record_event_safe = record_event_safe
-_parse_resolution = parse_resolution
-
+from .settings import build_processing_settings
+from .validation import ALLOWED_VIDEO_EXTENSIONS
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -105,44 +68,6 @@ router.include_router(gcs_router)
 router.include_router(intelligence_router)
 router.include_router(export_router)
 router.include_router(reprocess_router)
-
-# Re-export models for backward compatibility with tests
-# Re-export GCS functions for backward compatibility with tests
-from ...core.gcs import download_object, generate_signed_upload_url  # noqa: F401
-from ...services.video_processing import generate_video_variant, normalize_and_stub_subtitles  # noqa: F401
-from .export_routes import ExportRequest  # noqa: F401
-from .gcs_routes import GcsProcessRequest, GcsUploadUrlRequest, GcsUploadUrlResponse  # noqa: F401
-
-# Re-export job-related functions that tests may patch
-from .job_routes import (  # noqa: F401  # noqa: F401
-    TranscriptionCueRequest,
-    TranscriptionWordRequest,
-    UpdateTranscriptionRequest,
-    delete_job,
-    get_job,
-)
-from .processing_tasks import run_gcs_video_processing  # noqa: F401
-from .reprocess_routes import ReprocessRequest  # noqa: F401
-from .settings import ProcessingSettings  # noqa: F401
-
-# Legacy reference removed - now using unified settings
-
-
-def _ensure_job_size(job):
-    """Helper to backfill output_size for legacy jobs."""
-    if job.status == "completed" and job.result_data:
-        if not job.result_data.get("output_size"):
-            video_path = job.result_data.get("video_path")
-            if video_path:
-                try:
-                    full_path = DATA_DIR / video_path
-                    if not full_path.exists():
-                        full_path = settings.project_root.parent / video_path
-                    if full_path.exists():
-                        job.result_data["output_size"] = full_path.stat().st_size
-                except Exception as e:
-                    logger.warning(f"Failed to ensure job size: {e}")
-    return job
 
 
 # ==================== Main Processing Route ====================

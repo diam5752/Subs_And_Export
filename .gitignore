@@ -4,6 +4,11 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.hypothesis/
+.nox/
+.pyright/
+.tox/
+.cache/
 .pytype/
 .pyre/
 .coverage
@@ -16,17 +21,18 @@ htmlcov/
 build/
 dist/
 target/
+.gradle/
+*.class
 
 # Virtualenv
 .venv/
+.venv-*/
 venv/
 env/
 .env
-.env.local
-.env.development
-.env.production
-.env.test
-.env.docker
+.env.*
+!.env.example
+!.env.*.example
 
 # Node/Next
 node_modules/
@@ -38,6 +44,11 @@ out/
 test-results/
 blob-report/
 coverage/
+.nyc_output/
+lcov.info
+*.tsbuildinfo
+.eslintcache
+.stylelintcache
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -51,27 +62,55 @@ config/app_settings.toml
 
 # OS/editor
 .DS_Store
+Thumbs.db
 .idea/
 .vscode/
 *.swp
+*.tmp
+*.temp
+*.bak
+*.orig
 
 # Local state/logs
 logs/
+*.log
+*.pid
 *.db
+*.sqlite
+*.sqlite3
+
+# Generated reports and one-off command captures
+coverage*.xml
+junit*.xml
+*_output.txt
+*_output_*.txt
+test_output*.txt
+lint_output*.txt
+e2e_output*.txt
+final_*_output*.txt
+
+# Local audit environments
+.audit-venv/
 
 # Generated media outputs
 tests/data/*_subbed*.mp4
 tests/data/*_output*.mp4
+backend/data/
 
 # Runtime data artifacts
 data/artifacts/
 data/uploads/
-backend/data/artifacts/
-backend/data/uploads/
 src/greek_sub_publisher/logs/
 
 # Test output
 test_output/
+dashboard.png
+
+# Private key material
+*.key
+*.pem
+*.p12
+*.pfx
 
 # Temp repro
 temp_repro

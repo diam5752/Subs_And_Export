@@ -458,6 +458,7 @@ describe('DashboardPage', () => {
      * Fix: Added setSelectedJob(null) to resetProcessing function.
      */
     it('handles reset processing and clears selectedJob', async () => {
+        window.localStorage.setItem('lastActiveJobId', 'previous-job');
         render(<DashboardPage />);
 
         // Trigger reset via captured callback
@@ -468,105 +469,7 @@ describe('DashboardPage', () => {
 
         // REGRESSION: Verify that setSelectedJob(null) is called to clear previous job
         expect(mockSetSelectedJob).toHaveBeenCalledWith(null);
-    });
-
-    it.skip('handles job polling with completion', async () => {
-        jest.useFakeTimers();
-        (api.processVideo as jest.Mock).mockResolvedValue({ id: 'job123', status: 'pending' });
-        (api.getJobStatus as jest.Mock)
-            .mockResolvedValueOnce({ id: 'job123', status: 'processing', progress: 50, message: 'Processing' })
-            .mockResolvedValueOnce({ id: 'job123', status: 'completed', progress: 100, result_data: { public_url: 'test' } });
-
-        render(<DashboardPage />);
-
-        fireEvent.click(screen.getByText('Select File'));
-        fireEvent.click(screen.getByText('Start Process'));
-        await confirmProcessingCost();
-
-        await waitFor(() => {
-            expect(api.processVideo).toHaveBeenCalled();
-        });
-
-        // Advance timers and flush promises
-        await act(async () => {
-            jest.advanceTimersByTime(1100);
-        });
-
-        await waitFor(() => {
-            expect(api.getJobStatus).toHaveBeenCalledWith('job123');
-        });
-
-        // Second poll for completion
-        await act(async () => {
-            jest.advanceTimersByTime(1100);
-        });
-
-        await waitFor(() => {
-            expect(api.getJobStatus).toHaveBeenCalledTimes(2);
-        });
-
-        jest.useRealTimers();
-    });
-
-    it.skip('handles job polling with failure', async () => {
-        jest.useFakeTimers();
-        (api.processVideo as jest.Mock).mockResolvedValue({ id: 'job123', status: 'pending' });
-        (api.getJobStatus as jest.Mock).mockResolvedValue({ id: 'job123', status: 'failed', message: 'Job failed' });
-
-        render(<DashboardPage />);
-
-        fireEvent.click(screen.getByText('Select File'));
-        fireEvent.click(screen.getByText('Start Process'));
-        await confirmProcessingCost();
-
-        await waitFor(() => {
-            expect(api.processVideo).toHaveBeenCalled();
-        });
-
-        await act(async () => {
-            jest.advanceTimersByTime(1100);
-        });
-
-        await waitFor(() => {
-            expect(api.getJobStatus).toHaveBeenCalledWith('job123');
-        });
-
-        jest.useRealTimers();
-    });
-
-    it.skip('handles job polling error', async () => {
-        jest.useFakeTimers();
-        (api.processVideo as jest.Mock).mockResolvedValue({ id: 'job123', status: 'pending' });
-        (api.getJobStatus as jest.Mock).mockRejectedValue(new Error('Network error'));
-
-        render(<DashboardPage />);
-
-        fireEvent.click(screen.getByText('Select File'));
-        fireEvent.click(screen.getByText('Start Process'));
-        await confirmProcessingCost();
-
-        await waitFor(() => {
-            expect(api.processVideo).toHaveBeenCalled();
-        });
-
-        await act(async () => {
-            jest.advanceTimersByTime(1100);
-            await Promise.resolve();
-        });
-
-        jest.useRealTimers();
-    });
-
-    it.skip('opens and closes account modal', () => {
-        render(<DashboardPage />);
-
-        fireEvent.click(screen.getByLabelText('profileLabel'));
-        expect(screen.getByTestId('account-view')).toBeInTheDocument();
-
-        // Click the actual modal close button (the ✕ in the modal header from page.tsx)
-        const closeButton = screen.getByRole('button', { name: '' });
-        fireEvent.click(closeButton);
-        expect(screen.queryByTestId('account-view')).not.toBeInTheDocument();
+        expect(window.localStorage.getItem('lastActiveJobId')).toBeNull();
     });
 
     it('calls refreshActivity via refresh button', async () => {

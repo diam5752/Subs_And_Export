@@ -136,9 +136,6 @@ def test_generate_fact_check_raises_on_failure(monkeypatch) -> None:
 
 
 def test_generate_fact_check_retries_on_empty_response(monkeypatch) -> None:
-    # SKIP: This test depends on specific retry implementation that may have changed
-    import pytest
-    pytest.skip("Retry implementation changed - test needs update")
     # REGRESSION: OpenAI can occasionally return empty message.content; we must retry instead of 500'ing.
     class FlakyChatCompletions:
         def __init__(self):
@@ -147,6 +144,27 @@ def test_generate_fact_check_retries_on_empty_response(monkeypatch) -> None:
         def create(self, **kwargs):
             self.attempts += 1
             if self.attempts == 1:
+                return type(
+                    "Response",
+                    (),
+                    {
+                        "choices": [
+                            type(
+                                "Choice",
+                                (),
+                                {
+                                    "message": type(
+                                        "Message",
+                                        (),
+                                        {"content": '{"claims":["a doubtful claim"]}'},
+                                    )
+                                },
+                            )
+                        ]
+                    },
+                )()
+
+            if self.attempts == 2:
                 return type(
                     "Response",
                     (),
@@ -170,13 +188,13 @@ def test_generate_fact_check_retries_on_empty_response(monkeypatch) -> None:
         def __init__(self):
             self.chat = type("Chat", (), {"completions": FlakyChatCompletions()})()
 
-    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setattr("backend.app.services.llm_utils.resolve_openai_api_key", lambda *a: "test-key")
     client = FlakyClient()
-    monkeypatch.setattr(subtitles, "_load_openai_client", lambda api_key: client)
+    monkeypatch.setattr("backend.app.services.llm_utils.load_openai_client", lambda api_key: client)
 
     result = subtitles.generate_fact_check("transcript")
 
-    assert client.chat.completions.attempts == 2
+    assert client.chat.completions.attempts == 3
     assert result.truth_score == 100
     assert result.items == []
 

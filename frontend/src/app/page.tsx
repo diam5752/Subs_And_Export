@@ -15,6 +15,7 @@ import { ProcessingGateModal, type ProcessingGateStage } from '@/components/Proc
 import { useJobs } from '@/hooks/useJobs';
 import { useJobPolling, JobPollingCallbacks } from '@/hooks/useJobPolling';
 import { processVideoCostForSelection } from '@/lib/points';
+import Link from 'next/link';
 
 const statusStyles: Record<string, string> = {
   completed: 'bg-green-500/15 text-green-300 border-green-500/30',
@@ -33,12 +34,6 @@ export default function DashboardPage() {
   const { t } = useI18n();
   const { appEnv } = useAppEnv();
   const didRestoreSession = useRef(false);
-
-  // Handler functions (extracted for testability)
-  /* istanbul ignore next -- browser reload not testable in JSDOM */
-  const handleReloadPage = useCallback(() => {
-    window.location.reload();
-  }, []);
 
   const handleCloseAccountPanel = useCallback(() => {
     setShowAccountPanel(false);
@@ -114,12 +109,8 @@ export default function DashboardPage() {
   useEffect(() => {
     if (selectedJob?.id) {
       localStorage.setItem('lastActiveJobId', selectedJob.id);
-    } else if (!isProcessing && !jobId) {
-      // Only clear if we explicitly cleared the job (and not just starting a new one)
-      // actually, we might want to keep it until a new one is set, but let's be safe
-      // If selectedJob became null, checking if it was intentional reset
     }
-  }, [selectedJob, isProcessing, jobId]);
+  }, [selectedJob]);
 
   const refreshActivity = useCallback(async () => {
     await loadJobs();
@@ -157,19 +148,19 @@ export default function DashboardPage() {
       await api.cancelJob(jobId);
       setIsProcessing(false);
       setJobId(null);
-      setProcessError('Processing cancelled');
+      setProcessError(t('processingCancelled'));
       refreshActivity();
     } catch (err) {
       // If cancel fails, just continue polling
       console.error('Cancel failed:', err);
     }
-  }, [jobId, refreshActivity]);
+  }, [jobId, refreshActivity, t]);
 
   // Use the polling hook
   useJobPolling({
     jobId,
     callbacks: pollingCallbacks,
-    t: t as (key: string) => string,
+    t,
   });
 
   const executeStartProcessing = useCallback(async (options: ProcessingOptions) => {
@@ -399,6 +390,7 @@ export default function DashboardPage() {
     setJobId(null);
     setStatusMessage('');
     setProcessError('');
+    localStorage.removeItem('lastActiveJobId');
   }, [setSelectedJob]);
 
   // Memoized to prevent unnecessary re-renders of ProcessView and its children
@@ -439,9 +431,9 @@ export default function DashboardPage() {
         aria-hidden={hasBlockingModal || undefined}
         inert={hasBlockingModal ? true : undefined}
       >
-        <button onClick={handleReloadPage} className="studio-brand" aria-label="Reload page">
+        <Link href="/" className="studio-brand" aria-label={t('brandHomeLabel')}>
           <strong>SUBFRAME</strong>
-        </button>
+        </Link>
 
         <nav className="studio-nav" aria-label="Workspace navigation">
           {user && (

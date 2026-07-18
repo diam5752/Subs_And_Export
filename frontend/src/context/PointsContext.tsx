@@ -4,7 +4,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 
-export interface PointsContextValue {
+interface PointsContextValue {
     balance: number | null;
     isLoading: boolean;
     error: string | null;
@@ -67,4 +67,3 @@ export function usePoints(): PointsContextValue {
     }
     return context;
 }
-

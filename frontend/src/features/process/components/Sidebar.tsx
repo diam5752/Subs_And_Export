@@ -8,7 +8,8 @@ import { Cue } from '@/components/SubtitleOverlay';
 import { findCueIndexAtTime } from '@/lib/subtitleUtils';
 import { SubtitlePositionSelector } from '@/components/SubtitlePositionSelector';
 import { ViralIntelligence } from '@/components/ViralIntelligence';
-import { StylePresetTiles, StylePreset } from './StylePresetTiles';
+import { StylePresetTiles } from './StylePresetTiles';
+import type { StylePreset } from '../processTypes';
 
 interface CueListProps {
     cues: Cue[];
@@ -211,9 +212,6 @@ export function Sidebar() {
         karaokeEnabled,
         watermarkEnabled,
         setWatermarkEnabled,
-        AVAILABLE_MODELS,
-        transcribeProvider,
-        transcribeMode,
         previewVideoUrl
     } = useProcessContext();
 
@@ -235,7 +233,8 @@ export function Sidebar() {
         setMaxSubtitleLines(lastUsedSettings.lines);
         setSubtitleColor(lastUsedSettings.color);
         setKaraokeEnabled(lastUsedSettings.karaoke);
-    }, [lastUsedSettings, setActivePreset, setSubtitlePosition, setSubtitleSize, setMaxSubtitleLines, setSubtitleColor, setKaraokeEnabled]);
+        setWatermarkEnabled(lastUsedSettings.watermark ?? false);
+    }, [lastUsedSettings, setActivePreset, setSubtitlePosition, setSubtitleSize, setMaxSubtitleLines, setSubtitleColor, setKaraokeEnabled, setWatermarkEnabled]);
 
     // Stable callbacks for SubtitlePositionSelector
     const handlePositionChange = useCallback((v: number) => { setSubtitlePosition(v); setActivePreset(null); }, [setSubtitlePosition, setActivePreset]);
@@ -253,9 +252,7 @@ export function Sidebar() {
     }, [setWatermarkEnabled, setActivePreset]);
 
     // Optimized: Calculate derived values outside render loop
-    const karaokeSupported = useMemo(() => {
-        return AVAILABLE_MODELS.find(m => m.provider === transcribeProvider && m.mode === transcribeMode)?.stats.karaoke || false;
-    }, [AVAILABLE_MODELS, transcribeProvider, transcribeMode]);
+    const karaokeSupported = true;
 
     const jobId = selectedJob?.id;
     const thumbnailUrl = videoInfo?.thumbnailUrl;

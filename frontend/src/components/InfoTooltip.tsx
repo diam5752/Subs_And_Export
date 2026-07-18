@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
-export interface InfoTooltipProps {
+interface InfoTooltipProps {
     ariaLabel: string;
     children: React.ReactNode;
 }

@@ -39,6 +39,7 @@ const mockContextValue = {
     setMaxSubtitleLines: jest.fn(),
     setSubtitleColor: jest.fn(),
     setKaraokeEnabled: jest.fn(),
+    setWatermarkEnabled: jest.fn(),
     lastUsedSettings: null,
     subtitlePosition: 16,
     maxSubtitleLines: 1,
@@ -47,9 +48,7 @@ const mockContextValue = {
     SUBTITLE_COLORS: [],
     subtitleSize: 100,
     karaokeEnabled: false,
-    AVAILABLE_MODELS: [],
-    transcribeProvider: 'groq',
-    transcribeMode: 'standard',
+    watermarkEnabled: false,
     previewVideoUrl: null,
     transcriptContainerRef: { current: null },
     isSavingTranscript: false,
@@ -118,5 +117,33 @@ describe('Sidebar Tabs', () => {
         );
 
         expect(screen.getByTestId('viral-intelligence')).toBeInTheDocument();
+    });
+
+    it('defaults legacy last-used settings without watermark to disabled', () => {
+        const setWatermarkEnabled = jest.fn();
+        (useProcessContext as jest.Mock).mockReturnValue({
+            ...mockContextValue,
+            activeSidebarTab: 'styles',
+            lastUsedSettings: {
+                position: 20,
+                size: 85,
+                lines: 2,
+                color: '#FFFF00',
+                karaoke: true,
+                timestamp: 1,
+            },
+            setWatermarkEnabled,
+        });
+
+        render(
+            <I18nProvider initialLocale="en">
+                <PlaybackProvider>
+                    <Sidebar />
+                </PlaybackProvider>
+            </I18nProvider>
+        );
+
+        fireEvent.click(screen.getByRole('radio', { name: /last used/i }));
+        expect(setWatermarkEnabled).toHaveBeenCalledWith(false);
     });
 });

@@ -32,14 +32,15 @@ export function I18nProvider({ children, initialLocale }: { children: React.Reac
   const [isHydrated, setIsHydrated] = useState(false);
 
   // After hydration, sync locale FROM localStorage (if different from default)
+  /* eslint-disable react-hooks/set-state-in-effect -- client storage is intentionally applied only after SSR hydration */
   useEffect(() => {
     const stored = getStoredLocale();
-    if (stored && stored !== locale) {
-      setLocaleState(stored);
+    if (stored) {
+      setLocaleState((currentLocale) => stored === currentLocale ? currentLocale : stored);
     }
     setIsHydrated(true);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Only run once on mount
+  }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Sync TO external systems (document.lang, localStorage) after hydration
   useEffect(() => {

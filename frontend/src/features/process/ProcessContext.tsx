@@ -4,9 +4,7 @@ import { useI18n } from '@/context/I18nContext';
 import { Cue } from '@/components/SubtitleOverlay';
 import { normalizeSubtitleText, resegmentCues } from '@/lib/subtitleUtils';
 import { PreviewPlayerHandle } from '@/components/PreviewPlayer';
-
-export type TranscribeMode = 'standard' | 'pro';
-export type TranscribeProvider = 'mock' | 'elevenlabs' | 'groq' | 'local';
+import type { LastUsedSettings, StylePreset, TranscribeMode, TranscribeProvider } from './processTypes';
 
 export interface ProcessingOptions {
     transcribeMode: TranscribeMode;
@@ -26,22 +24,12 @@ export interface ProcessingOptions {
     watermark_enabled: boolean;
 }
 
-export interface VideoInfo {
+interface VideoInfo {
     width: number;
     height: number;
     aspectWarning: boolean;
     thumbnailUrl: string | null;
     durationSeconds: number;
-}
-
-interface LastUsedSettings {
-    position: number;
-    size: number;
-    lines: number;
-    color: string;
-    karaoke: boolean;
-    watermark: boolean;
-    timestamp: number;
 }
 
 const LAST_USED_SETTINGS_KEY = 'lastUsedSubtitleSettings';
@@ -66,12 +54,6 @@ interface ProcessContextType {
     hasActiveJob: boolean;
 
     // Local state
-    hasChosenModel: boolean;
-    setHasChosenModel: (v: boolean) => void;
-    transcribeMode: TranscribeMode | null;
-    setTranscribeMode: (v: TranscribeMode | null) => void;
-    transcribeProvider: TranscribeProvider | null;
-    setTranscribeProvider: (v: TranscribeProvider | null) => void;
     subtitlePosition: number;
     setSubtitlePosition: (v: number) => void;
     maxSubtitleLines: number;
@@ -133,10 +115,7 @@ interface ProcessContextType {
 
     // Constants
     SUBTITLE_COLORS: Array<{ label: string; value: string; ass: string }>;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    STYLE_PRESETS: Array<any>;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    AVAILABLE_MODELS: Array<any>;
+    STYLE_PRESETS: StylePreset[];
 }
 
 const ProcessContext = createContext<ProcessContextType | undefined>(undefined);
@@ -246,10 +225,10 @@ export function ProcessProvider({
         return defaultValue;
     };
 
-    // Local deterministic processing is the safe default, so upload is the first action.
-    const [hasChosenModel, setHasChosenModel] = useState<boolean>(true);
-    const [transcribeMode, setTranscribeMode] = useState<TranscribeMode | null>('standard');
-    const [transcribeProvider, setTranscribeProvider] = useState<TranscribeProvider | null>('mock');
+    // The product is intentionally pinned to the deterministic mock engine until
+    // a live provider is explicitly enabled in both product policy and backend configuration.
+    const transcribeMode: TranscribeMode = 'standard';
+    const transcribeProvider: TranscribeProvider = 'mock';
 
     // Initial values with priority: LocalStorage > Defaults
     // Defaults: Position: 30 (Middle), Size: 85 (Medium), Lines: 2 (Double), Color: Yellow, Karaoke: True
@@ -349,7 +328,7 @@ export function ProcessProvider({
         { label: t('colorMagenta'), value: '#FF00FF', ass: '&H00FF00FF' },
     ], [t]);
 
-    const STYLE_PRESETS = useMemo(() => [
+    const STYLE_PRESETS = useMemo<StylePreset[]>(() => [
         {
             id: 'tiktok',
             name: t('styleTiktokName'),
@@ -397,51 +376,6 @@ export function ProcessProvider({
         },
     ], [t]);
 
-    const AVAILABLE_MODELS = useMemo(() => [
-        {
-            id: 'mock-studio',
-            name: t('modelStudioName'),
-            provider: 'mock',
-            mode: 'standard',
-            stats: { speed: 5, accuracy: 0, karaoke: true, linesControl: true },
-            icon: (selected: boolean) => (
-                <div className={`p-2 rounded-lg ${selected ? 'bg-lime-300/20 text-lime-200' : 'bg-lime-300/10 text-lime-300'} `}>
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9h8m-8 4h5m-8 7h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                </div>
-            ),
-        },
-        {
-            id: 'local-private',
-            name: t('modelLocalName'),
-            provider: 'local',
-            mode: 'standard',
-            stats: { speed: 2, accuracy: 4, karaoke: true, linesControl: true },
-            icon: (selected: boolean) => (
-                <div className={`p-2 rounded-lg ${selected ? 'bg-cyan-300/20 text-cyan-100' : 'bg-cyan-300/10 text-cyan-300'} `}>
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2V9a2 2 0 00-2-2h-1V5a5 5 0 00-10 0v2H6a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                    </svg>
-                </div>
-            ),
-        },
-        {
-            id: 'elevenlabs-scribe-v2',
-            name: t('modelScribeName'),
-            provider: 'elevenlabs',
-            mode: 'pro',
-            stats: { speed: 4, accuracy: 5, karaoke: true, linesControl: true },
-            icon: (selected: boolean) => (
-                <div className={`p-2 rounded-lg ${selected ? 'bg-violet-400/20 text-violet-200' : 'bg-violet-400/10 text-violet-300'} `}>
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3l2.5 5.5L20 9l-4 4.5L17 20l-5-2.5L7 20l1-6.5L4 9l5.5-.5L12 3z" />
-                    </svg>
-                </div>
-            ),
-        },
-    ], [t]);
-
     // Scroll to results when job completes, BUT only if we are not overriding navigation (e.g. user clicked Step 1/2)
     useEffect(() => {
         if (selectedJob?.status === 'completed' && overrideStep === null) {
@@ -456,15 +390,6 @@ export function ProcessProvider({
     }, [selectedJob?.status, overrideStep]);
 
     const handleStart = useCallback(() => {
-        if (!transcribeMode || !transcribeProvider) {
-            setOverrideStep(1);
-            try {
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-            } catch {
-            }
-            return;
-        }
-
         const colorObj = SUBTITLE_COLORS.find(c => c.value === subtitleColor) || SUBTITLE_COLORS[0];
 
         if (!selectedFile) {
@@ -727,12 +652,6 @@ export function ProcessProvider({
 
     // Effects
     useEffect(() => {
-        if (selectedFile || selectedJob) {
-            setHasChosenModel(true);
-        }
-    }, [selectedFile, selectedJob]);
-
-    useEffect(() => {
         setExportError(null);
         setTranscriptSaveError(null);
         setIsSavingTranscript(false);
@@ -801,9 +720,6 @@ export function ProcessProvider({
         buildStaticUrl,
         hasVideos,
         hasActiveJob,
-        hasChosenModel, setHasChosenModel,
-        transcribeMode, setTranscribeMode,
-        transcribeProvider, setTranscribeProvider,
         subtitlePosition, setSubtitlePosition,
         maxSubtitleLines, setMaxSubtitleLines,
         subtitleColor, setSubtitleColor,
@@ -827,7 +743,7 @@ export function ProcessProvider({
         editingCueDraft, setEditingCueDraft,
         isSavingTranscript, transcriptSaveError, setTranscriptSaveError,
         beginEditingCue, cancelEditingCue, saveEditingCue, updateCueText, handleUpdateDraft,
-        SUBTITLE_COLORS, STYLE_PRESETS, AVAILABLE_MODELS,
+        SUBTITLE_COLORS, STYLE_PRESETS,
     };
 
     return <ProcessContext.Provider value={value}>{children}</ProcessContext.Provider>;

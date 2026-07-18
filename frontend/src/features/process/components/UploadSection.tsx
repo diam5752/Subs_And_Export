@@ -26,13 +26,8 @@ export function UploadSection() {
         selectedFile,
         onFileSelect,
         isProcessing,
-        hasChosenModel,
-        transcribeProvider,
-        transcribeMode,
-        AVAILABLE_MODELS,
         currentStep,
         setOverrideStep,
-        setHasChosenModel,
         onJobSelect,
         handleStart,
         fileInputRef,
@@ -63,10 +58,6 @@ export function UploadSection() {
     useEffect(() => {
         setLocalCollapsed(currentStep === 1);
     }, [currentStep]);
-
-    const selectedModel = useMemo(() =>
-        AVAILABLE_MODELS.find(m => m.provider === transcribeProvider && m.mode === transcribeMode),
-        [AVAILABLE_MODELS, transcribeProvider, transcribeMode]);
 
     const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0] || null;
@@ -185,9 +176,7 @@ export function UploadSection() {
     }, [isProcessing]);
 
     return useMemo(() => {
-        const selectedCost = selectedModel
-            ? processVideoCostForSelection(selectedModel.provider as string, selectedModel.mode as string)
-            : processVideoCostForSelection(transcribeProvider, transcribeMode);
+        const selectedCost = processVideoCostForSelection('mock', 'standard');
 
         // Show compact view if we have a file OR a completed job (restored state)
         // Check if we have consistent job data to display if file is missing
@@ -349,7 +338,7 @@ export function UploadSection() {
                                                 const jobModel = selectedJob?.result_data?.model_size;
 
                                                 const jobTier = resolveTranscriptionTier(jobProvider, jobModel);
-                                                const selectedTier = transcribeMode || 'standard';
+                                                const selectedTier = 'standard';
                                                 const isMatch = Boolean(jobCompleted && jobTier === selectedTier);
 
                                                 if (isMatch) {
@@ -409,7 +398,6 @@ export function UploadSection() {
                                             e.stopPropagation();
                                             onFileSelect(null);
                                             onJobSelect(null);
-                                            setHasChosenModel(true);
                                         }}
                                         className="px-3 py-1.5 text-xs font-medium rounded-lg border border-dashed border-[var(--border)] hover:border-[var(--accent)]/50 hover:bg-[var(--surface-elevated)] hover:text-[var(--foreground)] text-[var(--muted)] transition-all flex items-center gap-2 group/upload"
                                         title={t('uploadNew')}
@@ -475,7 +463,7 @@ export function UploadSection() {
         }
 
         return (
-            <div id="upload-section" data-testid="upload-section" className={`studio-upload-shell animate-fade-in-up-scale ${!hasChosenModel ? 'studio-upload-locked' : ''}`}>
+            <div id="upload-section" data-testid="upload-section" className="studio-upload-shell animate-fade-in-up-scale">
                 <div
                     className={`studio-upload-zone ${isDragOver ? 'studio-upload-zone-active' : ''}`}
                     data-clickable="true"
@@ -483,7 +471,6 @@ export function UploadSection() {
                     onKeyDown={(e) => handleKeyDown(e, handleUploadCardClick)}
                     role="button"
                     tabIndex={0}
-                    aria-disabled={!hasChosenModel}
                     aria-label={t('uploadDropTitle')}
                     onDragEnter={handleDragEnter}
                     onDragLeave={handleDragLeave}
@@ -496,7 +483,7 @@ export function UploadSection() {
                         accept="video/mp4,video/quicktime,video/x-matroska"
                         onChange={handleFileChange}
                         className="hidden"
-                        disabled={isProcessing || !hasChosenModel}
+                        disabled={isProcessing}
                     />
 
                     <div className="studio-upload-preview" aria-hidden="true">
@@ -516,9 +503,6 @@ export function UploadSection() {
                     <small>{t('uploadDropFootnote')}</small>
                 </div>
 
-                {!hasChosenModel && (
-                    <p className="studio-upload-message">{t('uploadEngineRequired')}</p>
-                )}
                 {fileValidationError && (
                     <div className="rounded-xl border border-[var(--danger)]/30 bg-[var(--danger)]/10 px-4 py-3 text-sm text-[var(--danger)] animate-fade-in">
                         {fileValidationError}
@@ -527,10 +511,10 @@ export function UploadSection() {
             </div>
         );
     }, [
-        selectedFile, t, currentStep, videoInfo, isProcessing, error, hasChosenModel,
-        selectedJob, handleStart, onFileSelect, setHasChosenModel, handleKeyDown,
-        handleSummaryToggle, isDragOver, selectedModel,
-        transcribeProvider, transcribeMode, isExpanded,
+        selectedFile, t, currentStep, videoInfo, isProcessing, error,
+        selectedJob, handleStart, onFileSelect, handleKeyDown,
+        handleSummaryToggle, isDragOver,
+        isExpanded,
         handleUploadCardClick, handleDragEnter, handleDragLeave, handleDragOver,
         handleDrop, fileInputRef, handleFileChange, fileValidationError, videoUrl, progress, statusMessage, onCancelProcessing,
         onJobSelect, setOverrideStep

@@ -1,4 +1,4 @@
-.PHONY: install test lint run docker-up docker-down clean coverage coverage-frontend coverage-backend coverage-open
+.PHONY: install test test-frontend test-backend lint run docker-up docker-down db-up db-down db-create-test migrate migrate-test clean coverage coverage-frontend coverage-backend coverage-open
 
 APP_ENV ?= dev
 PORT ?= 8080
@@ -26,7 +26,7 @@ lint:
 	@echo "Running ruff..."
 	ruff check backend
 	@echo "Running eslint..."
-	cd frontend && npm run lint
+	cd frontend && npm run lint && npm run lint:dead-code
 
 coverage: coverage-backend coverage-frontend
 	@echo "Coverage reports generated!"
@@ -49,10 +49,10 @@ run:
 	APP_ENV=$(APP_ENV) uvicorn $(UVICORN_APP) --reload --port $(PORT)
 
 docker-up:
-	docker-compose up --build
+	docker compose up --build
 
 docker-down:
-	docker-compose down
+	docker compose down
 
 # Database management
 db-up:
@@ -76,6 +76,7 @@ clean:
 	find . -type d -name ".pytest_cache" -exec rm -rf {} +
 	find . -type d -name ".ruff_cache" -exec rm -rf {} +
 	rm -rf frontend/coverage backend/htmlcov
+	rm -f backend/coverage.xml
 
 ifneq ("$(wildcard .codex/quality.mk)","")
 include .codex/quality.mk

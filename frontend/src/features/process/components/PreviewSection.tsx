@@ -311,7 +311,6 @@ export function PreviewSection() {
         exportingResolutions,
         exportError,
         onReset,
-        setHasChosenModel,
         onJobSelect,
     } = useProcessContext();
     const { setCurrentTime } = usePlaybackContext();
@@ -319,10 +318,9 @@ export function PreviewSection() {
 
     const handleNewVideoConfirm = useCallback(() => {
         onReset();
-        setHasChosenModel(true);
         onJobSelect(null);
         window.scrollTo({ top: 0, behavior: 'smooth' });
-    }, [onReset, setHasChosenModel, onJobSelect]);
+    }, [onReset, onJobSelect]);
 
     const playerSettings = useMemo(() => ({
         position: subtitlePosition,

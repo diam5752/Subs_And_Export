@@ -3,7 +3,7 @@ import en from '@/i18n/en.json';
 
 export type Locale = 'el' | 'en';
 
-export type Messages = typeof en;
+type Messages = typeof en;
 export type MessageKey = keyof Messages;
 
 export const defaultLocale: Locale = 'el';

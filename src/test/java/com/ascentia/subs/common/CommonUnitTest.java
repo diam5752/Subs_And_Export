@@ -14,6 +14,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.postgresql.util.PGobject;
 import org.springframework.core.MethodParameter;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -51,7 +52,9 @@ class CommonUnitTest {
         assertThat(codec.readMap(json)).containsEntry("answer", 42).containsEntry("name", "test");
         assertThat(codec.readMap(null)).isEmpty();
         assertThat(codec.readMap("")).isEmpty();
-        assertThat(codec.toJsonb(Map.of("k", "v")).getType()).isEqualTo("jsonb");
+        PGobject jsonb = codec.toJsonb(Map.of("k", "v"));
+        assertThat(jsonb.getType()).isEqualTo("jsonb");
+        assertThat(jsonb.getValue()).isEqualTo("{\"k\":\"v\"}");
         assertThat(codec.toJsonb(null).getValue()).isNull();
     }
 
@@ -180,7 +183,9 @@ class CommonUnitTest {
 
         MockHttpServletRequest validRequest = new MockHttpServletRequest();
         validRequest.addHeader(HttpHeaders.AUTHORIZATION, "Bearer valid-token");
-        filter.doFilter(validRequest, new MockHttpServletResponse(), new MockFilterChain());
+        MockFilterChain validChain = new MockFilterChain();
+        filter.doFilter(validRequest, new MockHttpServletResponse(), validChain);
+        assertThat(validChain.getRequest()).isSameAs(validRequest);
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNotNull();
         assertThat(SecurityContextHolder.getContext().getAuthentication().getPrincipal()).isEqualTo(currentUser);
         SecurityContextHolder.clearContext();

@@ -26,6 +26,7 @@ describe('useJobs Hook', () => {
     beforeEach(() => {
         jest.clearAllMocks();
         mockUseAuth.mockReturnValue({ user: mockUser });
+        mockT.mockImplementation((key) => key);
     });
 
     it('loads jobs on mount if user exists', async () => {
@@ -193,6 +194,40 @@ describe('useJobs Hook', () => {
             expect(result.current.jobsError).toBe('Fetch failed');
         });
         expect(result.current.jobsLoading).toBe(false);
+    });
+
+    it('uses the localized fallback for non-Error failures', async () => {
+        (api.getJobsPaginated as jest.Mock).mockRejectedValue('Fetch failed');
+        mockT.mockImplementation((key) => key === 'jobsErrorFallback' ? 'Fallback Error' : key);
+
+        const { result } = renderHook(() => useJobs());
+
+        await waitFor(() => {
+            expect(result.current.jobsError).toBe('Fallback Error');
+        });
+    });
+
+    it('selects the latest usable completed job when requested', async () => {
+        (api.getJobsPaginated as jest.Mock).mockResolvedValue({
+            items: [
+                { id: 'pending', status: 'pending' },
+                { id: 'missing', status: 'completed', result_data: { files_missing: true } },
+                { id: 'available', status: 'completed', result_data: { video_path: 'available.mp4' } },
+            ],
+            total: 3,
+            page: 1,
+            page_size: 5,
+            total_pages: 1,
+        });
+
+        const { result } = renderHook(() => useJobs());
+        await waitFor(() => expect(result.current.recentJobs).toHaveLength(3));
+
+        await act(async () => {
+            await result.current.loadJobs(true);
+        });
+
+        expect(result.current.selectedJob?.id).toBe('available');
     });
 
     it('updates page size', async () => {

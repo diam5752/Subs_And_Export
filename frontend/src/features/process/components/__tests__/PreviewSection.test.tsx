@@ -92,7 +92,6 @@ function buildContext() {
             };
         } | null,
         isProcessing: false,
-        transcribeProvider: 'groq',
         videoUrl: 'blob:video',
         processedCues: [{ start: 0, end: 1, text: 'hello' }],
         subtitlePosition: 20,
@@ -106,28 +105,10 @@ function buildContext() {
         resultsRef: React.createRef<HTMLDivElement>(),
         currentStep: 3,
         setOverrideStep: jest.fn(),
-        AVAILABLE_MODELS: [
-            {
-                id: 'standard',
-                provider: 'groq',
-                mode: 'standard',
-                name: 'Standard',
-                icon: () => <span>model-icon</span>,
-            },
-            {
-                id: 'pro',
-                provider: 'groq',
-                mode: 'pro',
-                name: 'Pro',
-                icon: () => <span>pro-icon</span>,
-            },
-        ],
-        transcribeMode: 'standard',
         handleExport: jest.fn(async () => { }),
         exportingResolutions: {},
         exportError: null as string | null,
         onReset: jest.fn(),
-        setHasChosenModel: jest.fn(),
         onJobSelect: jest.fn(),
     };
 }
@@ -230,7 +211,6 @@ describe('PreviewSection', () => {
         fireEvent.click(screen.getByRole('button', { name: 'confirm-new-video' }));
 
         expect(contextValue.onReset).toHaveBeenCalled();
-        expect(contextValue.setHasChosenModel).toHaveBeenCalledWith(true);
         expect(contextValue.onJobSelect).toHaveBeenCalledWith(null);
         expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' });
     });

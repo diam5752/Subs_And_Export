@@ -111,7 +111,6 @@ def test_export_video_failure(client: TestClient, user_auth_headers: dict, monke
             uploads.mkdir()
             (uploads / "job1_input.mp4").touch()
 
-            monkeypatch.setattr("backend.app.api.endpoints.videos._data_roots", lambda: (tpath, uploads, tpath / "artifacts"))
             monkeypatch.setattr(export_routes, "data_roots", lambda: (tpath, uploads, tpath / "artifacts"))
 
             # Mock generate_video_variant to raise exception

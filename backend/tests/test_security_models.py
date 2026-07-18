@@ -2,8 +2,8 @@ import pytest
 from pydantic import ValidationError
 
 from backend.app.api.endpoints.auth import UserUpdatePassword
-from backend.app.api.endpoints.videos import (
-    ExportRequest,
+from backend.app.api.endpoints.export_routes import ExportRequest
+from backend.app.api.endpoints.job_routes import (
     TranscriptionCueRequest,
     TranscriptionWordRequest,
 )

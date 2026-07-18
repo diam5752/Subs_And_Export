@@ -1,5 +1,6 @@
 import React, { memo } from 'react';
 import { useI18n } from '@/context/I18nContext';
+import type { LastUsedSettings, StylePreset } from '../processTypes';
 
 const SUBTITLE_PREVIEW_BG_CLASS_BY_COLOR: Record<string, string> = {
     '#FFFF00': 'bg-[#FFFF00]',
@@ -26,30 +27,6 @@ function getPreviewBottomClass(position: number | string): string {
     if (position === 'top') return 'bottom-[80%]';
     if (position === 'bottom') return 'bottom-[20%]';
     return 'bottom-[50%]';
-}
-
-export interface StylePreset {
-    id: string;
-    name: string;
-    description: string;
-    emoji: string;
-    settings: {
-        position: number;
-        size: number;
-        lines: number;
-        color: string;
-        karaoke: boolean;
-    };
-    colorClass: string;
-}
-
-export interface LastUsedSettings {
-    position: number;
-    size: number;
-    lines: number;
-    color: string;
-    karaoke: boolean;
-    timestamp: number;
 }
 
 interface StylePresetTilesProps {

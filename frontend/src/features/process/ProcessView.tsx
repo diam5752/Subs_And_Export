@@ -26,8 +26,16 @@ interface ProcessViewProps {
     totalJobs: number;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const ProcessViewLayout = React.memo(({ currentStep, steps, selectedFile, isProcessing, selectedJob, setOverrideStep }: { currentStep: number; steps: any[]; selectedFile: File | null; isProcessing: boolean; selectedJob: JobResponse | null; setOverrideStep: (s: number | null) => void }) => {
+interface ProcessViewLayoutProps {
+    currentStep: number;
+    steps: React.ComponentProps<typeof StepIndicator>['steps'];
+    selectedFile: File | null;
+    isProcessing: boolean;
+    selectedJob: JobResponse | null;
+    setOverrideStep: (step: number | null) => void;
+}
+
+const ProcessViewLayout = React.memo(({ currentStep, steps, selectedFile, isProcessing, selectedJob, setOverrideStep }: ProcessViewLayoutProps) => {
     const showUploadSection = currentStep <= 2;
     const showPreviewSection = currentStep === 3 && selectedJob?.status === 'completed';
 

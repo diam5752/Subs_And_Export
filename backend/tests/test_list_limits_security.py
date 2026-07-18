@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from backend.app.api.endpoints.videos import (
+from backend.app.api.endpoints.job_routes import (
     TranscriptionCueRequest,
     TranscriptionWordRequest,
     UpdateTranscriptionRequest,

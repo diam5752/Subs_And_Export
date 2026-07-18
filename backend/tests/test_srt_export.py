@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from backend.app.api.endpoints import export_routes, videos
+from backend.app.api.endpoints import export_routes
 from backend.app.core import auth as backend_auth
 from backend.app.core.database import Database
 from backend.app.services import jobs
@@ -61,7 +61,6 @@ def test_subtitle_file_export_success(
     # Setup environment - patch the settings object project_root attribute
     from backend.app.core.config import settings
     monkeypatch.setattr(settings, "project_root", tmp_path)
-    monkeypatch.setattr(videos, "_data_roots", lambda: (tmp_path, tmp_path / "uploads", tmp_path / "artifacts"))
     monkeypatch.setattr(export_routes, "data_roots", lambda: (tmp_path, tmp_path / "uploads", tmp_path / "artifacts"))
 
     # Setup DB
@@ -125,7 +124,6 @@ def test_subtitle_file_export_resegments_long_word_timed_cues(
     from backend.app.core.config import settings
 
     monkeypatch.setattr(settings, "project_root", tmp_path)
-    monkeypatch.setattr(videos, "_data_roots", lambda: (tmp_path, tmp_path / "uploads", tmp_path / "artifacts"))
     monkeypatch.setattr(export_routes, "data_roots", lambda: (tmp_path, tmp_path / "uploads", tmp_path / "artifacts"))
 
     db = Database()

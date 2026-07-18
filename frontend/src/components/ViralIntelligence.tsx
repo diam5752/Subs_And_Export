@@ -289,8 +289,7 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
                                                 item.severity === 'medium' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
                                                     'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                                                 }`}>
-                                                {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                                                {t(item.severity as any)}
+                                                {t(item.severity)}
                                             </span>
                                             <div className="flex items-center gap-1.5 text-white/40">
                                                 <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83" /></svg>

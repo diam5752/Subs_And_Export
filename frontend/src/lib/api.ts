@@ -12,7 +12,7 @@ interface TokenResponse {
     name: string;
 }
 
-export interface JobResultData {
+interface JobResultData {
     video_path: string;
     artifacts_dir: string;
     public_url?: string;
@@ -42,7 +42,7 @@ export interface JobResponse {
     balance?: number | null;
 }
 
-export interface GcsUploadUrlResponse {
+interface GcsUploadUrlResponse {
     upload_id: string;
     object_name: string;
     upload_url: string;
@@ -50,7 +50,7 @@ export interface GcsUploadUrlResponse {
     required_headers: Record<string, string>;
 }
 
-export interface HistoryEvent {
+interface HistoryEvent {
     ts: string;
     user_id: string;
     email: string;
@@ -59,18 +59,18 @@ export interface HistoryEvent {
     data: Record<string, unknown>;
 }
 
-export interface UserResponse {
+interface UserResponse {
     id: string;
     email: string;
     name: string;
     provider: string;
 }
 
-export interface PointsBalanceResponse {
+interface PointsBalanceResponse {
     balance: number;
 }
 
-export interface ExportDataResponse {
+interface ExportDataResponse {
     profile: UserResponse;
     jobs: JobResponse[];
     history: HistoryEvent[];
@@ -78,7 +78,7 @@ export interface ExportDataResponse {
 
 
 
-export interface PaginatedJobsResponse {
+interface PaginatedJobsResponse {
     items: JobResponse[];
     total: number;
     page: number;
@@ -510,7 +510,7 @@ class ApiClient {
     }
 }
 
-export interface FactCheckItem {
+interface FactCheckItem {
     mistake_el: string;
     mistake_en: string;
     correction_el: string;
@@ -533,7 +533,7 @@ export interface FactCheckResponse {
     balance?: number | null;
 }
 
-export interface SocialCopySchema {
+interface SocialCopySchema {
     title_el: string;
     title_en: string;
     description_el: string;

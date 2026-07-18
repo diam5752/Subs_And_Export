@@ -1,7 +1,5 @@
-export const STARTING_POINTS_BALANCE = 500;
-
 export const PROCESS_VIDEO_DEFAULT_COST = 25;
-export const PROCESS_VIDEO_MODEL_COSTS: Record<string, number> = {
+const PROCESS_VIDEO_MODEL_COSTS: Record<string, number> = {
     standard: 25,
     pro: 50,
 };

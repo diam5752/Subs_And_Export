@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from backend.app.api.endpoints import processing_tasks
 from backend.app.api.endpoints import videos as videos_endpoints
 from backend.app.core import config
 from backend.app.core.database import Database
@@ -75,10 +76,10 @@ def test_process_video_refunds_points_when_processing_fails(
     artifacts_dir = data_dir / "artifacts"
     uploads_dir.mkdir(parents=True)
     artifacts_dir.mkdir(parents=True)
-    monkeypatch.setattr(videos_endpoints, "_data_roots", lambda: (data_dir, uploads_dir, artifacts_dir))
+    monkeypatch.setattr(videos_endpoints, "data_roots", lambda: (data_dir, uploads_dir, artifacts_dir))
 
     monkeypatch.setattr(
-        videos_endpoints,
+        processing_tasks,
         "normalize_and_stub_subtitles",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("boom")),
     )
@@ -143,7 +144,7 @@ def test_fact_check_charges_points_and_rejects_on_insufficient_balance(
     uploads_dir.mkdir(parents=True)
     artifacts_dir.mkdir(parents=True)
     monkeypatch.setattr("backend.app.api.endpoints.intelligence_routes.data_roots", lambda: (data_dir, uploads_dir, artifacts_dir))
-    monkeypatch.setattr(videos_endpoints, "_data_roots", lambda: (data_dir, uploads_dir, artifacts_dir))
+    monkeypatch.setattr(videos_endpoints, "data_roots", lambda: (data_dir, uploads_dir, artifacts_dir))
     monkeypatch.setattr(videos_endpoints, "run_video_processing", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
         "backend.app.services.subtitles.generate_fact_check",
@@ -179,9 +180,23 @@ def test_fact_check_charges_points_and_rejects_on_insufficient_balance(
     )["credits"]
     assert fact_resp.json()["balance"] == before - expected_reserve
 
-    # Drain remaining points and verify 402 path.
+    # Use a distinct job so idempotent retries of the first request remain free.
     me = client.get("/auth/me", headers=user_auth_headers)
     user_id = me.json()["id"]
+    insufficient_job_id = str(uuid.uuid4())
+    job_store = JobStore(db=db)
+    job_store.create_job(insufficient_job_id, user_id)
+    job_store.update_job(
+        insufficient_job_id,
+        status="completed",
+        progress=100,
+        result_data={"model_size": "standard"},
+    )
+    insufficient_job_dir = artifacts_dir / insufficient_job_id
+    insufficient_job_dir.mkdir(parents=True, exist_ok=True)
+    (insufficient_job_dir / "transcript.txt").write_text("hello", encoding="utf-8")
+
+    # Drain remaining points and verify the first charge for the second job is rejected.
     current = client.get("/auth/points", headers=user_auth_headers).json()["balance"]
     if current:
         PointsStore(db=db).spend(user_id, current, reason="test_setup")
@@ -190,11 +205,12 @@ def test_fact_check_charges_points_and_rejects_on_insufficient_balance(
     zero_bal = client.get("/auth/points", headers=user_auth_headers).json()["balance"]
     assert zero_bal == 0, f"Balance not drained! {zero_bal}"
 
-    import pytest
-    pytest.skip("Skipping insufficient balance test due to environment sync issues")
-    # insufficient = client.post(f"/videos/jobs/{job_id}/fact-check", headers=user_auth_headers)
-    # assert insufficient.status_code == 402
-    # assert insufficient.json()["detail"] == "Insufficient points"
+    insufficient = client.post(
+        f"/videos/jobs/{insufficient_job_id}/fact-check",
+        headers=user_auth_headers,
+    )
+    assert insufficient.status_code == 402
+    assert insufficient.json()["detail"] == "Insufficient points"
 
 
 def test_fact_check_refunds_points_when_generation_fails(
@@ -209,7 +225,7 @@ def test_fact_check_refunds_points_when_generation_fails(
     uploads_dir.mkdir(parents=True)
     artifacts_dir.mkdir(parents=True)
     monkeypatch.setattr("backend.app.api.endpoints.intelligence_routes.data_roots", lambda: (data_dir, uploads_dir, artifacts_dir))
-    monkeypatch.setattr(videos_endpoints, "_data_roots", lambda: (data_dir, uploads_dir, artifacts_dir))
+    monkeypatch.setattr(videos_endpoints, "data_roots", lambda: (data_dir, uploads_dir, artifacts_dir))
 
     monkeypatch.setattr(
         "backend.app.services.subtitles.generate_fact_check",

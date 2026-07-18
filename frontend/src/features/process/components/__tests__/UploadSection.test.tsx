@@ -35,26 +35,13 @@ jest.mock('@/lib/video', () => ({
 
 type MockContext = ReturnType<typeof buildContext>;
 
-const sampleModel = {
-    id: 'standard',
-    provider: 'groq',
-    mode: 'standard',
-    name: 'Standard',
-    icon: () => <span>model-icon</span>,
-};
-
 function buildContext() {
     return {
         selectedFile: null as File | null,
         onFileSelect: jest.fn(),
         isProcessing: false,
-        hasChosenModel: true,
-        transcribeProvider: 'groq',
-        transcribeMode: 'standard',
-        AVAILABLE_MODELS: [sampleModel],
         currentStep: 2,
         setOverrideStep: jest.fn(),
-        setHasChosenModel: jest.fn(),
         onJobSelect: jest.fn(),
         handleStart: jest.fn(),
         fileInputRef: React.createRef<HTMLInputElement>(),
@@ -123,15 +110,6 @@ describe('UploadSection', () => {
     function renderUpload() {
         return render(<UploadSection />);
     }
-
-    it('shows the locked state until a model is chosen', () => {
-        contextValue.hasChosenModel = false;
-
-        renderUpload();
-
-        expect(screen.getByText('uploadEngineRequired')).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: 'uploadDropTitle' })).toHaveAttribute('aria-disabled', 'true');
-    });
 
     it('shows an error when the video duration cannot be read', async () => {
         contextValue.selectedFile = new File(['video'], 'broken.mp4', { type: 'video/mp4' });
@@ -295,6 +273,5 @@ describe('UploadSection', () => {
         fireEvent.click(screen.getByRole('button', { name: 'uploadNew' }));
         expect(contextValue.onFileSelect).toHaveBeenCalledWith(null);
         expect(contextValue.onJobSelect).toHaveBeenCalledWith(null);
-        expect(contextValue.setHasChosenModel).toHaveBeenCalledWith(true);
     });
 });

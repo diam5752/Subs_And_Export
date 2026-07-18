@@ -5,7 +5,8 @@ import uuid
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from backend.app.api.endpoints import processing_tasks, videos
+from backend.app.api.endpoints import processing_tasks
+from backend.app.api.endpoints.settings import ProcessingSettings
 from backend.app.core import auth as backend_auth
 from backend.app.core import config
 from backend.app.core.database import Database
@@ -75,7 +76,7 @@ def test_run_video_processing_continues_when_gcs_upload_fails(monkeypatch, tmp_p
         input_path,
         output_path,
         artifact_dir,
-        videos.ProcessingSettings(),
+        ProcessingSettings(),
         job_store,
     )
 
@@ -95,7 +96,7 @@ def test_run_gcs_video_processing_fails_fast_without_configuration() -> None:
         input_path=Path("input.mp4"),
         output_path=Path("output.mp4"),
         artifact_dir=Path("artifacts"),
-        settings=videos.ProcessingSettings(),
+        settings=ProcessingSettings(),
         job_store=job_store,
         ledger_store=ledger_store,
         charge_plan=charge_plan,

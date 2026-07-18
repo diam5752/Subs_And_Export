@@ -5,7 +5,6 @@ import types
 import pytest
 
 from backend.app.api.endpoints import auth as auth_ep
-from backend.app.core import auth as backend_auth
 from backend.app.core.database import Database
 from backend.app.db.models import DbUser
 
@@ -324,42 +323,27 @@ class TestGoogleOAuthEndpoints:
         assert resp.status_code == 503
 
     def test_google_callback_success_and_failure(self, client, monkeypatch):
-        """Skip: OAuth callback test requires complex module mocking."""
-        import pytest
-        pytest.skip("OAuth callback test requires complex module mocking - skipping in CI")
-        monkeypatch.setenv("GOOGLE_CLIENT_ID", "cid")
-        monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "sec")
-        monkeypatch.setenv("GOOGLE_REDIRECT_URI", "http://localhost")
+        config = {
+            "client_id": "cid",
+            "client_secret": "sec",
+            "redirect_uri": "http://localhost",
+        }
 
-        # Stub out flow + token verification
         class FakeFlow:
-            def __init__(self):
-                self.credentials = types.SimpleNamespace(id_token="tok")
-
             def authorization_url(self, **_kwargs):
                 return "http://example.com/auth", None
 
-            def fetch_token(self, code):
-                self.fetched = code
-
-        monkeypatch.setitem(
-            sys.modules,
-            "google_auth_oauthlib.flow",
-            types.SimpleNamespace(Flow=types.SimpleNamespace(from_client_config=lambda cfg, scopes, redirect_uri=None: FakeFlow())),
+        monkeypatch.setattr(auth_ep, "google_oauth_config", lambda: config)
+        monkeypatch.setattr(auth_ep, "build_google_flow", lambda _config: FakeFlow())
+        monkeypatch.setattr(
+            auth_ep,
+            "exchange_google_code",
+            lambda _config, _code: {
+                "email": "g@example.com",
+                "name": "Google User",
+                "sub": "subid",
+            },
         )
-        monkeypatch.setitem(
-            sys.modules,
-            "google.auth.transport.requests",
-            types.SimpleNamespace(Request=lambda: "req"),
-        )
-        monkeypatch.setitem(
-            sys.modules,
-            "google.oauth2.id_token",
-            types.SimpleNamespace(verify_oauth2_token=lambda tok, req, client_id: {"email": "g@example.com", "name": None, "sub": "subid"}),
-        )
-
-        # Patch exchange to exercise both success and error branches
-        monkeypatch.setattr(auth_ep, "exchange_google_code", backend_auth.exchange_google_code)
 
         # Get a valid state
         state = client.get("/auth/google/url").json()["state"]
@@ -371,7 +355,11 @@ class TestGoogleOAuthEndpoints:
 
         # Failure path
         state2 = client.get("/auth/google/url").json()["state"]
-        monkeypatch.setattr(auth_ep, "exchange_google_code", lambda cfg, code: (_ for _ in ()).throw(RuntimeError("boom")))
+        monkeypatch.setattr(
+            auth_ep,
+            "exchange_google_code",
+            lambda _config, _code: (_ for _ in ()).throw(RuntimeError("boom")),
+        )
         resp_fail = client.post("/auth/google/callback", json={"code": "bad", "state": state2})
         assert resp_fail.status_code == 400
 
