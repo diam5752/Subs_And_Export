@@ -1,5 +1,5 @@
 import React from 'react';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { PreviewSection } from '../PreviewSection';
 import { useProcessContext } from '../../ProcessContext';
@@ -138,21 +138,10 @@ describe('PreviewSection', () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
-        jest.useFakeTimers();
         contextValue = buildContext();
         (useProcessContext as jest.Mock).mockImplementation(() => contextValue);
         (usePlaybackContext as jest.Mock).mockReturnValue({ setCurrentTime });
         window.scrollTo = jest.fn();
-        window.HTMLElement.prototype.scrollIntoView = jest.fn();
-        document.body.innerHTML = '<div id="step-3-wrapper"></div>';
-        const stepWrapper = document.getElementById('step-3-wrapper') as HTMLDivElement | null;
-        if (stepWrapper) {
-            stepWrapper.scrollIntoView = jest.fn();
-        }
-    });
-
-    afterEach(() => {
-        jest.useRealTimers();
     });
 
     it('shows the placeholder state when no completed job is available', () => {
@@ -192,7 +181,23 @@ describe('PreviewSection', () => {
         // REGRESSION: preview, controls, and exports must remain separate layout regions.
         expect(screen.getByTestId('completed-editor')).toBeInTheDocument();
         expect(screen.getByTestId('editor-preview-panel')).toBeInTheDocument();
-        expect(screen.getByTestId('editor-export-grid')).toBeInTheDocument();
+        expect(document.querySelector('.editor-preview-meta')).not.toBeInTheDocument();
+        expect(document.querySelector('.editor-model-pill')).not.toBeInTheDocument();
+        expect(document.querySelector('.editor-aspect-pill')).not.toBeInTheDocument();
+
+        // REGRESSION: video and subtitle downloads must be presented as two
+        // distinct groups instead of one mixed row of formats.
+        const videoExports = screen.getByTestId('video-export-group');
+        const subtitleExports = screen.getByTestId('subtitle-export-group');
+        expect(within(videoExports).getByText('exportVideoTitle')).toBeInTheDocument();
+        expect(within(videoExports).getByTestId('download-1080p-btn')).toBeInTheDocument();
+        expect(within(videoExports).getByTestId('download-4k-btn')).toBeInTheDocument();
+        expect(within(videoExports).queryByTestId('srt-btn')).not.toBeInTheDocument();
+        expect(within(subtitleExports).getByText('exportSubtitlesTitle')).toBeInTheDocument();
+        expect(within(subtitleExports).getByTestId('srt-btn')).toBeInTheDocument();
+        expect(within(subtitleExports).getByTestId('vtt-btn')).toBeInTheDocument();
+        expect(within(subtitleExports).getByTestId('txt-btn')).toBeInTheDocument();
+        expect(within(subtitleExports).queryByTestId('download-1080p-btn')).not.toBeInTheDocument();
     });
 
     it('renders export errors when the provider surfaces one', () => {
@@ -230,8 +235,7 @@ describe('PreviewSection', () => {
         expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' });
     });
 
-    it('expands step 3 from another step and scrolls it into view', () => {
-        contextValue.currentStep = 2;
+    it('does not repeat the workflow step heading inside the completed editor', () => {
         contextValue.selectedJob = {
             status: 'completed',
             result_data: {
@@ -242,12 +246,8 @@ describe('PreviewSection', () => {
 
         render(<PreviewSection />);
 
-        fireEvent.click(screen.getByText('step3Label'));
-
-        expect(contextValue.setOverrideStep).toHaveBeenCalledWith(3);
-        act(() => {
-            jest.advanceTimersByTime(350);
-        });
-        expect(document.getElementById('step-3-wrapper')?.scrollIntoView).toHaveBeenCalled();
+        // REGRESSION: workflow progress now has one canonical home above the editor.
+        expect(screen.queryByText('step3Label')).not.toBeInTheDocument();
+        expect(screen.getByTestId('completed-editor')).toBeInTheDocument();
     });
 });

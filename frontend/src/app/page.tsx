@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useState, useMemo, useRef } from 'react';
-import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { useAppEnv } from '@/context/AppEnvContext';
 import { usePoints } from '@/context/PointsContext';
@@ -12,8 +11,10 @@ import { LanguageToggle } from '@/components/LanguageToggle';
 import { ProcessView, ProcessingOptions } from '@/features/process/ProcessView';
 import { AccountView } from '@/components/AccountView';
 import { CreditsBadge } from '@/components/CreditsBadge';
+import { ProcessingGateModal, type ProcessingGateStage } from '@/components/ProcessingGateModal';
 import { useJobs } from '@/hooks/useJobs';
 import { useJobPolling, JobPollingCallbacks } from '@/hooks/useJobPolling';
+import { processVideoCostForSelection } from '@/lib/points';
 
 const statusStyles: Record<string, string> = {
   completed: 'bg-green-500/15 text-green-300 border-green-500/30',
@@ -22,10 +23,13 @@ const statusStyles: Record<string, string> = {
   failed: 'bg-[var(--danger)]/15 text-[var(--danger)] border-[var(--danger)]/40',
 };
 
+type PendingProcessingAction =
+  | { kind: 'new'; options: ProcessingOptions }
+  | { kind: 'reprocess'; sourceJobId: string; options: ProcessingOptions };
+
 export default function DashboardPage() {
   const { user, isLoading, logout, refreshUser } = useAuth();
-  const { setBalance: setPointsBalance, refreshBalance } = usePoints();
-  const router = useRouter();
+  const { balance, setBalance: setPointsBalance, refreshBalance } = usePoints();
   const { t } = useI18n();
   const { appEnv } = useAppEnv();
   const didRestoreSession = useRef(false);
@@ -65,6 +69,10 @@ export default function DashboardPage() {
   const [progress, setProgress] = useState(0);
   const [statusMessage, setStatusMessage] = useState('');
   const [processError, setProcessError] = useState('');
+  const [pendingProcessingAction, setPendingProcessingAction] = useState<PendingProcessingAction | null>(null);
+  const [processingGateStage, setProcessingGateStage] = useState<ProcessingGateStage | null>(null);
+  const [processingGateError, setProcessingGateError] = useState('');
+  const [isGateBalanceLoading, setIsGateBalanceLoading] = useState(false);
 
   // Account Modal State
   const [showAccountPanel, setShowAccountPanel] = useState(false);
@@ -73,15 +81,9 @@ export default function DashboardPage() {
   const [accountError, setAccountError] = useState('');
   const [accountSaving, setAccountSaving] = useState(false);
 
-  useEffect(() => {
-    if (!isLoading && !user) {
-      router.push('/login');
-    }
-  }, [user, isLoading, router]);
-
   // Restore session
   useEffect(() => {
-    if (didRestoreSession.current) return;
+    if (!user || selectedFile || didRestoreSession.current) return;
     didRestoreSession.current = true;
 
     const restoreSession = async () => {
@@ -106,7 +108,7 @@ export default function DashboardPage() {
       }
     };
     void restoreSession();
-  }, [jobId, selectedJob, setSelectedJob]);
+  }, [jobId, selectedFile, selectedJob, setSelectedJob, user]);
 
   // Persist session
   useEffect(() => {
@@ -170,7 +172,7 @@ export default function DashboardPage() {
     t: t as (key: string) => string,
   });
 
-  const handleStartProcessing = useCallback(async (options: ProcessingOptions) => {
+  const executeStartProcessing = useCallback(async (options: ProcessingOptions) => {
     if (!selectedFile) return;
 
     setIsProcessing(true);
@@ -235,7 +237,7 @@ export default function DashboardPage() {
     }
   }, [appEnv, refreshBalance, selectedFile, setPointsBalance, t, setSelectedJob]);
 
-  const handleReprocessJob = useCallback(async (sourceJobId: string, options: ProcessingOptions) => {
+  const executeReprocessJob = useCallback(async (sourceJobId: string, options: ProcessingOptions) => {
     setIsProcessing(true);
     setProcessError('');
     setProgress(0);
@@ -274,6 +276,90 @@ export default function DashboardPage() {
       setIsProcessing(false);
     }
   }, [refreshBalance, setPointsBalance, t]);
+
+  const pendingProcessingCost = useMemo(() => {
+    if (!pendingProcessingAction) return 0;
+    return processVideoCostForSelection(
+      pendingProcessingAction.options.transcribeProvider,
+      pendingProcessingAction.options.transcribeMode,
+    );
+  }, [pendingProcessingAction]);
+
+  const closeProcessingGate = useCallback(() => {
+    setProcessingGateStage(null);
+    setPendingProcessingAction(null);
+    setProcessingGateError('');
+    setIsGateBalanceLoading(false);
+  }, []);
+
+  const loadGateBalance = useCallback(async () => {
+    setIsGateBalanceLoading(true);
+    setProcessingGateError('');
+    try {
+      const points = await api.getPointsBalance();
+      setPointsBalance(points.balance);
+    } catch (err) {
+      setProcessingGateError(err instanceof Error ? err.message : t('creditsError'));
+    } finally {
+      setIsGateBalanceLoading(false);
+    }
+  }, [setPointsBalance, t]);
+
+  const requestProcessingAction = useCallback((action: PendingProcessingAction) => {
+    setPendingProcessingAction(action);
+    setProcessingGateError('');
+
+    if (!user) {
+      setProcessingGateStage('auth');
+      return;
+    }
+
+    setProcessingGateStage('cost');
+    void loadGateBalance();
+  }, [loadGateBalance, user]);
+
+  const requestStartProcessing = useCallback(async (options: ProcessingOptions) => {
+    requestProcessingAction({ kind: 'new', options });
+  }, [requestProcessingAction]);
+
+  const requestReprocessJob = useCallback(async (sourceJobId: string, options: ProcessingOptions) => {
+    requestProcessingAction({ kind: 'reprocess', sourceJobId, options });
+  }, [requestProcessingAction]);
+
+  const handleGateAuthenticated = useCallback(async () => {
+    if (!pendingProcessingAction) {
+      closeProcessingGate();
+      return;
+    }
+
+    setProcessingGateStage('cost');
+    await loadGateBalance();
+  }, [closeProcessingGate, loadGateBalance, pendingProcessingAction]);
+
+  const handleGateConfirm = useCallback(async () => {
+    if (!pendingProcessingAction || balance === null || balance < pendingProcessingCost) return;
+
+    const action = pendingProcessingAction;
+    closeProcessingGate();
+    if (action.kind === 'new') {
+      await executeStartProcessing(action.options);
+      return;
+    }
+    await executeReprocessJob(action.sourceJobId, action.options);
+  }, [
+    balance,
+    closeProcessingGate,
+    executeReprocessJob,
+    executeStartProcessing,
+    pendingProcessingAction,
+    pendingProcessingCost,
+  ]);
+
+  const openOptionalSignIn = useCallback(() => {
+    setPendingProcessingAction(null);
+    setProcessingGateError('');
+    setProcessingGateStage('auth');
+  }, []);
 
   const handleProfileSave = useCallback(async (name: string, password?: string, confirmPassword?: string) => {
     if (!user) return;
@@ -343,70 +429,69 @@ export default function DashboardPage() {
     );
   }
 
-  if (!user) return null;
+  const hasBlockingModal = showAccountPanel || processingGateStage !== null;
 
   return (
     <div className="app-shell min-h-dvh relative overflow-x-hidden">
       <header
         className="studio-header"
         aria-label="Subframe studio"
-        aria-hidden={showAccountPanel || undefined}
-        inert={showAccountPanel ? true : undefined}
+        aria-hidden={hasBlockingModal || undefined}
+        inert={hasBlockingModal ? true : undefined}
       >
         <button onClick={handleReloadPage} className="studio-brand" aria-label="Reload page">
           <strong>SUBFRAME</strong>
         </button>
 
         <nav className="studio-nav" aria-label="Workspace navigation">
-          <button
-            type="button"
-            className="studio-nav-item"
-            onClick={() => {
-              setActiveAccountTab('history');
-              setShowAccountPanel(true);
-            }}
-          >
-            <span>{t('historyTitle') || 'History'}</span>
-          </button>
-          <button
-            type="button"
-            className="studio-nav-item"
-            onClick={() => {
-              setActiveAccountTab('profile');
-              setShowAccountPanel(true);
-            }}
-          >
-            <span>{t('accountSettingsTitle')}</span>
-          </button>
+          {user && (
+            <button
+              type="button"
+              className="studio-nav-item"
+              onClick={() => {
+                setActiveAccountTab('history');
+                setShowAccountPanel(true);
+              }}
+            >
+              <span>{t('historyTitle') || 'History'}</span>
+            </button>
+          )}
         </nav>
 
         <div className="studio-header-account">
-          <div className="studio-safe-state" title={t('mockModeActive')}>
-            <i />
-            <span>Mock</span>
-            <strong>€0</strong>
-          </div>
-          <div className="studio-header-credits" data-testid="studio-header-credits">
-            <CreditsBadge />
-          </div>
-          <button
-            onClick={() => {
-              setActiveAccountTab('profile');
-              setShowAccountPanel(!showAccountPanel);
-            }}
-            className="profile-trigger"
-            aria-label={t('profileLabel')}
-            title={t('accountSettingsTitle')}
-          >
-            {user.name?.trim().charAt(0).toUpperCase() || 'A'}
-          </button>
+          {user ? (
+            <>
+              <div className="studio-header-credits" data-testid="studio-header-credits">
+                <CreditsBadge />
+              </div>
+              <button
+                onClick={() => {
+                  setActiveAccountTab('profile');
+                  setShowAccountPanel(!showAccountPanel);
+                }}
+                className="profile-trigger"
+                aria-label={t('profileLabel')}
+                title={t('accountSettingsTitle')}
+              >
+                {user.name?.trim().charAt(0).toUpperCase() || 'A'}
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={openOptionalSignIn}
+              className="min-h-10 rounded-full border border-[var(--border-strong)] bg-white px-4 text-sm font-semibold text-[var(--foreground)] transition-colors hover:bg-[#f5f5f4]"
+            >
+              {t('guestSignIn')}
+            </button>
+          )}
         </div>
       </header>
 
       <div
         className="studio-stage"
-        aria-hidden={showAccountPanel || undefined}
-        inert={showAccountPanel ? true : undefined}
+        aria-hidden={hasBlockingModal || undefined}
+        inert={hasBlockingModal ? true : undefined}
       >
         <main className="studio-main">
           <section className="studio-intro" data-testid="studio-intro">
@@ -423,8 +508,8 @@ export default function DashboardPage() {
             progress={progress}
             statusMessage={statusMessage}
             error={processError}
-            onStartProcessing={handleStartProcessing}
-            onReprocessJob={handleReprocessJob}
+            onStartProcessing={requestStartProcessing}
+            onReprocessJob={requestReprocessJob}
             onReset={resetProcessing}
             onCancelProcessing={handleCancelProcessing}
             selectedJob={selectedJob}
@@ -446,13 +531,25 @@ export default function DashboardPage() {
         </footer>
       </div>
 
-      {!showAccountPanel && (
+      {!hasBlockingModal && (
         <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] right-[calc(env(safe-area-inset-right)+1rem)] z-20">
           <LanguageToggle />
         </div>
       )}
 
-      {showAccountPanel && (
+      <ProcessingGateModal
+        isOpen={processingGateStage !== null}
+        stage={processingGateStage ?? 'auth'}
+        cost={pendingProcessingCost}
+        balance={balance}
+        isBalanceLoading={isGateBalanceLoading}
+        error={processingGateError}
+        onClose={closeProcessingGate}
+        onAuthenticated={handleGateAuthenticated}
+        onConfirm={handleGateConfirm}
+      />
+
+      {user && showAccountPanel && (
         <div className="fixed inset-0 z-50 flex items-end justify-center px-4 pt-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:items-start sm:pt-20">
           <div
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { mockApi, stabilizeUi, waitForDashboardShell, waitForModelPicker } from './mocks';
+import { mockApi, stabilizeUi, waitForDashboardShell, waitForUploadWorkspace } from './mocks';
 import el from '@/i18n/el.json';
 
 /**
@@ -14,8 +14,7 @@ test.describe('Job Polling E2E', () => {
         // Use the existing mockApi which includes a processing job
         await mockApi(page);
         await page.goto('/');
-        await waitForModelPicker(page);
-        await page.getByTestId('model-standard').click({ force: true });
+        await waitForUploadWorkspace(page);
 
         // Dashboard should render with the upload area
         const uploadSection = page.getByTestId('upload-section');
@@ -31,8 +30,7 @@ test.describe('Job Polling E2E', () => {
     test('dashboard handles authenticated state correctly', async ({ page }) => {
         await mockApi(page, { authenticated: true });
         await page.goto('/');
-        await waitForModelPicker(page);
-        await page.getByTestId('model-standard').click({ force: true });
+        await waitForUploadWorkspace(page);
 
         // Verify dashboard loaded
         const uploadSection = page.getByTestId('upload-section');
@@ -43,11 +41,13 @@ test.describe('Job Polling E2E', () => {
         await expect(page.getByRole('button', { name: el.profileLabel })).toBeVisible();
     });
 
-    test('unauthenticated state redirects to login', async ({ page }) => {
+    test('unauthenticated state keeps the public workspace available', async ({ page }) => {
         await mockApi(page, { authenticated: false });
         await page.goto('/');
-        await page.waitForURL('**/login');
-        await expect(page).toHaveURL(/\/login$/);
+        await waitForUploadWorkspace(page, { authenticated: false });
+        await expect(page).toHaveURL(/\/$/);
+        await expect(page.getByTestId('upload-section')).toBeVisible();
+        await expect(page.getByRole('button', { name: el.guestSignIn })).toBeVisible();
     });
 
     test('job list displays different job statuses', async ({ page }) => {

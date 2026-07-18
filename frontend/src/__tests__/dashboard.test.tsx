@@ -5,7 +5,6 @@ import DashboardPage from '@/app/page';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { useJobs } from '@/hooks/useJobs';
-import { useRouter } from 'next/navigation';
 import { useAppEnv } from '@/context/AppEnvContext';
 
 // Mocks
@@ -19,6 +18,7 @@ jest.mock('@/lib/api', () => ({
         uploadToSignedUrl: jest.fn(),
         processVideoFromGcs: jest.fn(),
         reprocessJob: jest.fn(),
+        getPointsBalance: jest.fn(),
         updateProfile: jest.fn(),
         updatePassword: jest.fn(),
     },
@@ -35,6 +35,9 @@ jest.mock('@/context/PointsContext', () => ({
         const refreshBalanceMock = jest.fn();
         return {
             usePoints: () => ({
+                balance: 125,
+                isLoading: false,
+                error: null,
                 setBalance: setBalanceMock,
                 refreshBalance: refreshBalanceMock,
             }),
@@ -63,10 +66,6 @@ jest.mock('@/hooks/useJobPolling', () => ({
         capturedPollingCallbacks = callbacks;
         return { isPolling: false, stopPolling: jest.fn() };
     },
-}));
-
-jest.mock('next/navigation', () => ({
-    useRouter: jest.fn(),
 }));
 
 let capturedOnReset: (() => void) | null = null;
@@ -121,8 +120,9 @@ jest.mock('@/components/AccountView', () => ({
 describe('DashboardPage', () => {
     const mockUser = { id: '1', name: 'Test User', email: 'test@example.com', provider: 'local' };
     const mockLoadJobs = jest.fn();
-    const mockPush = jest.fn();
     const mockRefreshUser = jest.fn();
+    const mockLogin = jest.fn();
+    const mockRegister = jest.fn();
     const mockSetSelectedJob = jest.fn();
     const { __setBalanceMock, __refreshBalanceMock } = jest.requireMock('@/context/PointsContext') as {
         __setBalanceMock: jest.Mock;
@@ -133,14 +133,16 @@ describe('DashboardPage', () => {
         jest.clearAllMocks();
         window.localStorage.clear();
         capturedOnReset = null;
-        (useRouter as jest.Mock).mockReturnValue({ push: mockPush });
         (useAppEnv as jest.Mock).mockReturnValue({ appEnv: 'dev' });
         (useAuth as jest.Mock).mockReturnValue({
             user: mockUser,
             isLoading: false,
             refreshUser: mockRefreshUser,
             logout: jest.fn(),
+            login: mockLogin,
+            register: mockRegister,
         });
+        (api.getPointsBalance as jest.Mock).mockResolvedValue({ balance: 125 });
         (useJobs as jest.Mock).mockReturnValue({
             selectedJob: null,
             setSelectedJob: mockSetSelectedJob,
@@ -154,6 +156,16 @@ describe('DashboardPage', () => {
     afterEach(() => {
         jest.useRealTimers();
     });
+
+    async function confirmProcessingCost() {
+        expect(screen.getByRole('dialog', { name: 'processingGateCostTitle' })).toBeInTheDocument();
+        const confirmButton = screen.getByRole('button', { name: 'processingGateConfirm' });
+        await waitFor(() => expect(confirmButton).toBeEnabled());
+        await act(async () => {
+            fireEvent.click(confirmButton);
+            await Promise.resolve();
+        });
+    }
 
     it('renders dashboard components', () => {
         render(<DashboardPage />);
@@ -192,8 +204,11 @@ describe('DashboardPage', () => {
         expect(screen.getByRole('navigation', { name: 'Workspace navigation' })).toBeInTheDocument();
         expect(screen.getByTestId('studio-intro')).toHaveClass('studio-intro');
         expect(screen.getByTestId('studio-header-credits')).toBeInTheDocument();
-        expect(studioHeader).toHaveTextContent('Mock');
-        expect(studioHeader).toHaveTextContent('€0');
+        expect(screen.getByTestId('credits-coin-icon')).toBeInTheDocument();
+        expect(screen.getByTestId('credits-balance')).toHaveTextContent('125');
+        expect(studioHeader).not.toHaveTextContent('Mock');
+        expect(studioHeader).not.toHaveTextContent('€0');
+        expect(screen.queryByText('accountSettingsTitle')).not.toBeInTheDocument();
         expect(screen.queryByText('2026 REMAKE')).not.toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'switchLanguage' })).toBeInTheDocument();
 
@@ -202,6 +217,14 @@ describe('DashboardPage', () => {
         expect(studioHeader).toHaveAttribute('aria-hidden', 'true');
         expect(studioHeader).toHaveAttribute('inert');
         expect(screen.queryByRole('button', { name: 'switchLanguage' })).not.toBeInTheDocument();
+    });
+
+    it('opens account settings only from the profile avatar', () => {
+        render(<DashboardPage />);
+
+        expect(screen.queryByText('accountSettingsTitle')).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'profileLabel' }));
+        expect(screen.getByTestId('account-view')).toBeInTheDocument();
     });
 
     it('renders footer with privacy and terms links', () => {
@@ -229,31 +252,58 @@ describe('DashboardPage', () => {
         expect(screen.getByText('loading')).toBeInTheDocument();
     });
 
-    it('returns null when no user and not loading', () => {
+    it('renders the upload workspace for guests without redirecting', () => {
         (useAuth as jest.Mock).mockReturnValue({
             user: null,
             isLoading: false,
             refreshUser: mockRefreshUser,
             logout: jest.fn(),
-        });
-
-        const { container } = render(<DashboardPage />);
-        expect(container.firstChild).toBeNull();
-    });
-
-    it('redirects to login when no user', async () => {
-        (useAuth as jest.Mock).mockReturnValue({
-            user: null,
-            isLoading: false,
-            refreshUser: mockRefreshUser,
-            logout: jest.fn(),
+            login: mockLogin,
+            register: mockRegister,
         });
 
         render(<DashboardPage />);
 
-        await waitFor(() => {
-            expect(mockPush).toHaveBeenCalledWith('/login');
+        expect(screen.getByTestId('process-view')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'guestSignIn' })).toBeInTheDocument();
+        expect(screen.queryByLabelText('profileLabel')).not.toBeInTheDocument();
+        expect(screen.queryByTestId('studio-header-credits')).not.toBeInTheDocument();
+    });
+
+    it('keeps the guest file selected through login and asks for cost before processing', async () => {
+        (useAuth as jest.Mock).mockReturnValue({
+            user: null,
+            isLoading: false,
+            refreshUser: mockRefreshUser,
+            logout: jest.fn(),
+            login: mockLogin,
+            register: mockRegister,
         });
+        (api.processVideo as jest.Mock).mockResolvedValue({ id: 'job123', status: 'pending' });
+
+        render(<DashboardPage />);
+
+        fireEvent.click(screen.getByText('Select File'));
+        fireEvent.click(screen.getByText('Start Process'));
+
+        expect(screen.getByRole('dialog', { name: 'processingGateAuthTitle' })).toBeInTheDocument();
+        expect(api.processVideo).not.toHaveBeenCalled();
+
+        fireEvent.change(screen.getByLabelText('loginEmailLabel'), { target: { value: 'guest@example.com' } });
+        fireEvent.change(screen.getByLabelText('loginPasswordLabel'), { target: { value: 'correct horse battery staple' } });
+        fireEvent.click(screen.getByRole('button', { name: 'processingGateLoginSubmit' }));
+
+        await waitFor(() => {
+            expect(mockLogin).toHaveBeenCalledWith('guest@example.com', 'correct horse battery staple');
+            expect(api.getPointsBalance).toHaveBeenCalled();
+        });
+
+        expect(screen.getByRole('dialog', { name: 'processingGateCostTitle' })).toBeInTheDocument();
+        expect(api.processVideo).not.toHaveBeenCalled();
+
+        await confirmProcessingCost();
+
+        await waitFor(() => expect(api.processVideo).toHaveBeenCalledWith(expect.any(File), expect.any(Object)));
     });
 
     it('handles start processing success', async () => {
@@ -262,6 +312,7 @@ describe('DashboardPage', () => {
 
         fireEvent.click(screen.getByText('Select File'));
         fireEvent.click(screen.getByText('Start Process'));
+        await confirmProcessingCost();
 
         await waitFor(() => {
             expect(api.processVideo).toHaveBeenCalled();
@@ -282,6 +333,7 @@ describe('DashboardPage', () => {
 
         fireEvent.click(screen.getByText('Select File'));
         fireEvent.click(screen.getByText('Start Process'));
+        await confirmProcessingCost();
 
         await waitFor(() => {
             expect(api.processVideo).toHaveBeenCalledWith(
@@ -300,6 +352,7 @@ describe('DashboardPage', () => {
 
         fireEvent.click(screen.getByText('Select File'));
         fireEvent.click(screen.getByText('Start Process'));
+        await confirmProcessingCost();
 
         await waitFor(() => {
             expect(api.processVideo).toHaveBeenCalled();
@@ -313,6 +366,7 @@ describe('DashboardPage', () => {
 
         fireEvent.click(screen.getByText('Select File'));
         fireEvent.click(screen.getByText('Start Process'));
+        await confirmProcessingCost();
 
         await waitFor(() => {
             expect(api.processVideo).toHaveBeenCalled();
@@ -324,6 +378,7 @@ describe('DashboardPage', () => {
         render(<DashboardPage />);
 
         fireEvent.click(screen.getByText('Reprocess'));
+        await confirmProcessingCost();
 
         await waitFor(() => {
             expect(api.reprocessJob).toHaveBeenCalledWith('job1', expect.any(Object));
@@ -426,6 +481,7 @@ describe('DashboardPage', () => {
 
         fireEvent.click(screen.getByText('Select File'));
         fireEvent.click(screen.getByText('Start Process'));
+        await confirmProcessingCost();
 
         await waitFor(() => {
             expect(api.processVideo).toHaveBeenCalled();
@@ -461,6 +517,7 @@ describe('DashboardPage', () => {
 
         fireEvent.click(screen.getByText('Select File'));
         fireEvent.click(screen.getByText('Start Process'));
+        await confirmProcessingCost();
 
         await waitFor(() => {
             expect(api.processVideo).toHaveBeenCalled();
@@ -486,6 +543,7 @@ describe('DashboardPage', () => {
 
         fireEvent.click(screen.getByText('Select File'));
         fireEvent.click(screen.getByText('Start Process'));
+        await confirmProcessingCost();
 
         await waitFor(() => {
             expect(api.processVideo).toHaveBeenCalled();

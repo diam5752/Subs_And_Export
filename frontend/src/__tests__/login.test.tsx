@@ -62,6 +62,7 @@ describe('LoginPage', () => {
         render(<LoginPage />);
         expect(screen.getByText('loginHeading')).toBeInTheDocument();
         expect(screen.getByPlaceholderText('loginEmailPlaceholder')).toBeInTheDocument();
+        expect(screen.queryByText(/Mock|€0/)).not.toBeInTheDocument();
     });
 
     it('has link to register page', () => {

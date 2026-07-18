@@ -17,7 +17,7 @@ export const StepIndicator = React.memo(function StepIndicator({ currentStep, st
     const effectiveMaxStep = maxStep ?? currentStep;
 
     return (
-        <div className="studio-stepper" data-testid="workflow-stepper" aria-label="Workflow progress">
+        <div className="studio-stepper" data-testid="workflow-stepper" aria-label={t('workflowProgressLabel')}>
             <div className="studio-stepper-track">
                 {steps.map((step) => {
                     const isActive = currentStep === step.id;
@@ -31,13 +31,14 @@ export const StepIndicator = React.memo(function StepIndicator({ currentStep, st
                                 type="button"
                                 className="studio-step"
                                 data-state={state}
+                                aria-label={`${t('stepLabel', { n: step.id })} ${step.label}`}
                                 aria-current={isActive ? 'step' : undefined}
                                 disabled={!isClickable}
                                 onClick={() => onStepClick?.(step.id)}
                             >
                                 <span className="studio-step-number">{String(step.id).padStart(2, '0')}</span>
                                 <span className="studio-step-copy">
-                                    <small>{t('stepLabel', { n: step.id }) || `Step ${step.id}`}</small>
+                                    <small>{t('stepLabel', { n: step.id })}</small>
                                     <strong>{step.label}</strong>
                                 </span>
                             </button>

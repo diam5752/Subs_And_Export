@@ -54,32 +54,20 @@ def test_update_transcription_overwrites_job_artifacts(monkeypatch, tmp_path: Pa
 
     monkeypatch.setattr(config.settings, "project_root", tmp_path)
     monkeypatch.setattr(config.settings, "data_dir", tmp_path / "data")
-    # Also patch where settings is directly imported
-    monkeypatch.setattr("backend.app.api.endpoints.dev.settings.project_root", tmp_path)
-    monkeypatch.setattr("backend.app.api.endpoints.dev.settings.data_dir", tmp_path / "data")
     monkeypatch.setattr("backend.app.api.endpoints.file_utils.settings.project_root", tmp_path)
     monkeypatch.setattr("backend.app.api.endpoints.file_utils.settings.data_dir", tmp_path / "data")
 
-    source_job_id = str(uuid.uuid4())
+    job_id = str(uuid.uuid4())
     data_dir = tmp_path / "data"
-    uploads_dir = data_dir / "uploads"
-    source_artifacts_dir = data_dir / "artifacts" / source_job_id
-    uploads_dir.mkdir(parents=True, exist_ok=True)
-    source_artifacts_dir.mkdir(parents=True, exist_ok=True)
+    target_artifacts_dir = data_dir / "artifacts" / job_id
+    target_artifacts_dir.mkdir(parents=True, exist_ok=True)
 
-    # Mock _resolve_sample_source to return our manual setup
-    monkeypatch.setattr(
-        "backend.app.api.endpoints.dev._resolve_sample_source",
-        lambda *args: (source_job_id, uploads_dir / f"{source_job_id}_input.mp4", source_artifacts_dir)
-    )
-
-    (uploads_dir / f"{source_job_id}_input.mp4").write_bytes(b"video")
     source_transcription = [{"start": 0.0, "end": 1.0, "text": "hi", "words": []}]
-    (source_artifacts_dir / "transcription.json").write_text(
+    (target_artifacts_dir / "transcription.json").write_text(
         json.dumps(source_transcription),
         encoding="utf-8",
     )
-    (source_artifacts_dir / f"{source_job_id}_input.srt").write_text(
+    (target_artifacts_dir / f"{job_id}_input.srt").write_text(
         "1\n00:00:00,000 --> 00:00:01,000\nhi\n",
         encoding="utf-8",
     )
@@ -88,10 +76,19 @@ def test_update_transcription_overwrites_job_artifacts(monkeypatch, tmp_path: Pa
 
     with TestClient(app) as client:
         headers = _auth_header(client, f"update-transcript-{uuid.uuid4().hex}@example.com")
+        me_resp = client.get("/auth/me", headers=headers)
+        assert me_resp.status_code == 200, me_resp.text
 
-        created = client.post("/dev/sample-job", headers=headers)
-        assert created.status_code == 200, created.text
-        job_id = created.json()["id"]
+        from backend.app.services.jobs import JobStore
+
+        job_store = JobStore(db=client.app.state.db)
+        job_store.create_job(job_id, me_resp.json()["id"])
+        job_store.update_job(
+            job_id,
+            status="completed",
+            progress=100,
+            result_data={"artifacts_dir": f"artifacts/{job_id}"},
+        )
 
         target_transcription_path = data_dir / "artifacts" / job_id / "transcription.json"
         assert target_transcription_path.exists()
@@ -126,9 +123,6 @@ def test_update_transcription_overwrites_job_artifacts(monkeypatch, tmp_path: Pa
                 ],
             }
         ]
-
-        source_after = json.loads((source_artifacts_dir / "transcription.json").read_text(encoding="utf-8"))
-        assert source_after == source_transcription
 
         job_detail = client.get(f"/videos/jobs/{job_id}", headers=headers)
         assert job_detail.status_code == 200, job_detail.text

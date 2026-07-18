@@ -1,11 +1,9 @@
 /* eslint-disable @next/next/no-img-element */
 import React from 'react';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { UploadSection } from '../UploadSection';
 import { useProcessContext } from '../../ProcessContext';
-import { useAppEnv } from '@/context/AppEnvContext';
-import { api } from '@/lib/api';
 import { validateVideoAspectRatio } from '@/lib/video';
 
 jest.mock('next/image', () => ({
@@ -27,18 +25,8 @@ jest.mock('@/context/I18nContext', () => ({
     useI18n: () => ({ t: (key: string) => key }),
 }));
 
-jest.mock('@/context/AppEnvContext', () => ({
-    useAppEnv: jest.fn(),
-}));
-
 jest.mock('../../ProcessContext', () => ({
     useProcessContext: jest.fn(),
-}));
-
-jest.mock('@/lib/api', () => ({
-    api: {
-        loadDevSampleJob: jest.fn(),
-    },
 }));
 
 jest.mock('@/lib/video', () => ({
@@ -107,21 +95,12 @@ describe('UploadSection', () => {
         jest.useFakeTimers();
         contextValue = buildContext();
         (useProcessContext as jest.Mock).mockImplementation(() => contextValue);
-        (useAppEnv as jest.Mock).mockReturnValue({ appEnv: 'prod' });
         (validateVideoAspectRatio as jest.Mock).mockResolvedValue({
             width: 1080,
             height: 1920,
             aspectWarning: false,
             thumbnailUrl: 'blob:thumb',
             durationSeconds: 12,
-        });
-        (api.loadDevSampleJob as jest.Mock).mockResolvedValue({
-            id: 'sample-job',
-            status: 'completed',
-            result_data: {
-                transcribe_provider: 'groq',
-                model_size: 'standard',
-            },
         });
         Object.defineProperty(window.URL, 'createObjectURL', {
             writable: true,
@@ -167,7 +146,7 @@ describe('UploadSection', () => {
         renderUpload();
 
         await waitFor(() => {
-            expect(screen.getByText('Could not read video duration. Please try another file.')).toBeInTheDocument();
+            expect(screen.getByText('uploadDurationUnreadable')).toBeInTheDocument();
         });
         expect(contextValue.setPreviewVideoUrl).toHaveBeenCalledWith('blob:preview');
         expect(contextValue.setCues).toHaveBeenCalledWith([]);
@@ -186,11 +165,11 @@ describe('UploadSection', () => {
         renderUpload();
 
         await waitFor(() => {
-            expect(screen.getByText('Video too long. Maximum allowed duration is 3 minutes.')).toBeInTheDocument();
+            expect(screen.getByText('uploadDurationTooLong')).toBeInTheDocument();
         });
     });
 
-    it('auto-starts after a valid file is selected and validated', async () => {
+    it('keeps a valid upload ready until the user explicitly starts processing', async () => {
         const file = new File(['video'], 'clip.mp4', { type: 'video/mp4' });
         const { container, rerender } = renderUpload();
         const input = container.querySelector('input[type="file"]') as HTMLInputElement;
@@ -216,8 +195,8 @@ describe('UploadSection', () => {
 
         await waitFor(() => {
             expect(contextValue.setPreviewVideoUrl).toHaveBeenCalledWith('blob:preview');
-            expect(contextValue.handleStart).toHaveBeenCalled();
         });
+        expect(contextValue.handleStart).not.toHaveBeenCalled();
     });
 
     it('handles drag-and-drop uploads and unlock-step reset', () => {
@@ -241,46 +220,42 @@ describe('UploadSection', () => {
 
         fireEvent.change(input, { target: { files: [oversized] } });
 
-        expect(screen.getByText('File too large. Maximum allowed size is 1024MB.')).toBeInTheDocument();
+        expect(screen.getByText('uploadFileTooLarge')).toBeInTheDocument();
         expect(contextValue.onFileSelect).not.toHaveBeenCalled();
     });
 
-    it('loads a dev sample and surfaces backend detail errors', async () => {
-        const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
-        (useAppEnv as jest.Mock).mockReturnValue({ appEnv: 'dev' });
-        (api.loadDevSampleJob as jest.Mock)
-            .mockResolvedValueOnce({
-                id: 'sample-job',
-                status: 'completed',
-                result_data: { transcribe_provider: 'groq', model_size: 'standard' },
-            })
-            .mockRejectedValueOnce({
-                response: { data: { detail: 'backend sample failed' } },
-            });
+    it('keeps the input summary aligned with Step 1 without a stale nested step label', () => {
+        contextValue.currentStep = 1;
+        contextValue.selectedJob = {
+            status: 'completed',
+            result_data: {
+                transcribe_provider: 'groq',
+                model_size: 'standard',
+                original_filename: 'finished.mp4',
+                output_size: 2048,
+            },
+        };
 
         renderUpload();
 
-        fireEvent.click(screen.getByRole('button', { name: 'sampleVideoCta' }));
+        // REGRESSION: the old upload card said "STEP 2 / Upload Video" while
+        // the single source-of-truth workflow indicator correctly showed Step 1.
+        expect(screen.getByRole('heading', { name: 'inputVideoTitle' })).toBeInTheDocument();
+        expect(screen.queryByText(/STEP 2/i)).not.toBeInTheDocument();
+        expect(screen.queryByText('Upload Video')).not.toBeInTheDocument();
+        expect(screen.queryByText('localDemoLabel')).not.toBeInTheDocument();
+        expect(screen.queryByText('sampleVideoTitle')).not.toBeInTheDocument();
 
-        await waitFor(() => {
-            expect(api.loadDevSampleJob).toHaveBeenCalledWith('groq', 'standard');
-            expect(contextValue.setHasChosenModel).toHaveBeenCalledWith(true);
-            expect(contextValue.onJobSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 'sample-job' }));
-        });
-
-        act(() => {
-            jest.advanceTimersByTime(100);
-        });
-        expect(contextValue.resultsRef.current?.scrollIntoView).toHaveBeenCalled();
-
-        fireEvent.click(screen.getByRole('button', { name: 'sampleVideoCta' }));
-
-        await waitFor(() => {
-            expect(screen.getByText('backend sample failed')).toBeInTheDocument();
-        });
-        expect(errorSpy).toHaveBeenCalledWith('Failed to load dev sample:', {
-            response: { data: { detail: 'backend sample failed' } },
-        });
+        const summaryToggle = screen.getByRole('button', { name: 'inputVideoSummaryToggle' });
+        const details = screen.getByTestId('input-video-details');
+        expect(summaryToggle).toHaveAttribute('aria-expanded', 'false');
+        expect(details).toHaveAttribute('aria-hidden', 'true');
+        expect(details).toHaveAttribute('inert');
+        fireEvent.click(summaryToggle);
+        expect(summaryToggle).toHaveAttribute('aria-expanded', 'true');
+        expect(details).toHaveAttribute('aria-hidden', 'false');
+        expect(details).not.toHaveAttribute('inert');
+        expect(contextValue.setOverrideStep).not.toHaveBeenCalled();
     });
 
     it('shows compact completed state actions for matched jobs', () => {
@@ -296,7 +271,7 @@ describe('UploadSection', () => {
 
         renderUpload();
 
-        fireEvent.click(screen.getByRole('button', { name: /View Results/i }));
+        fireEvent.click(screen.getByRole('button', { name: 'viewResults' }));
 
         expect(contextValue.setOverrideStep).toHaveBeenCalledWith(3);
     });

@@ -1,12 +1,9 @@
 import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import Image from 'next/image';
 import { useI18n } from '@/context/I18nContext';
-import { useAppEnv } from '@/context/AppEnvContext';
 import { useProcessContext } from '../ProcessContext';
-import { api } from '@/lib/api';
 import { validateVideoAspectRatio } from '@/lib/video';
 import { TokenIcon } from '@/components/icons';
-import { Spinner } from '@/components/Spinner';
 import { formatPoints, processVideoCostForSelection } from '@/lib/points';
 import { resolveTranscriptionTier } from '@/lib/transcription';
 
@@ -20,8 +17,10 @@ const ALLOWED_VIDEO_EXT = /\.(mp4|mov|mkv)$/i;
 
 export function UploadSection() {
     const { t } = useI18n();
-    const { appEnv } = useAppEnv();
-    const showDevTools = appEnv === 'dev';
+    const unsupportedTypeError = t('uploadUnsupportedType');
+    const oversizedFileError = t('uploadFileTooLarge', { size: MAX_UPLOAD_MB });
+    const unreadableDurationError = t('uploadDurationUnreadable');
+    const excessiveDurationError = t('uploadDurationTooLong');
 
     const {
         selectedFile,
@@ -37,7 +36,6 @@ export function UploadSection() {
         onJobSelect,
         handleStart,
         fileInputRef,
-        resultsRef,
         videoInfo,
         setVideoInfo,
         setPreviewVideoUrl,
@@ -51,23 +49,19 @@ export function UploadSection() {
     } = useProcessContext();
 
     const [isDragOver, setIsDragOver] = useState(false);
-    const [devSampleLoading, setDevSampleLoading] = useState(false);
-    const [devSampleError, setDevSampleError] = useState<string | null>(null);
     const [fileValidationError, setFileValidationError] = useState<string | null>(null);
-    const [pendingAutoStart, setPendingAutoStart] = useState(false);
-    // Local state to allow collapsing Step 2 even when it is active, unless validating/processing
-    const [localCollapsed, setLocalCollapsed] = useState(false);
+    // Step 1 starts with a compact summary for an existing file. Step 2 expands
+    // the same input summary to show processing controls and progress.
+    const [localCollapsed, setLocalCollapsed] = useState(() => currentStep === 1);
     const validationRequestId = React.useRef(0);
 
-    // Collapsed state - expands automatically when on Step 2, unless manually collapsed
-    // But forcing expansion if processing or uploading
-    const isExpanded = (currentStep === 2 && !localCollapsed) || isProcessing;
+    const isExpanded = !localCollapsed || isProcessing;
 
-    // Reset local collapsed state when step changes
+    // The top workflow indicator is the only step navigator. Moving between
+    // steps only changes this card's presentation; the card itself never
+    // changes the active workflow step.
     useEffect(() => {
-        if (currentStep !== 2) {
-            setLocalCollapsed(false);
-        }
+        setLocalCollapsed(currentStep === 1);
     }, [currentStep]);
 
     const selectedModel = useMemo(() =>
@@ -79,17 +73,16 @@ export function UploadSection() {
         setFileValidationError(null);
         if (file) {
             if (!ALLOWED_VIDEO_EXT.test(file.name)) {
-                setFileValidationError('Unsupported file type. Please upload an MP4, MOV, or MKV video.');
+                setFileValidationError(unsupportedTypeError);
                 return;
             }
             if (file.size > MAX_UPLOAD_BYTES) {
-                setFileValidationError(`File too large. Maximum allowed size is ${MAX_UPLOAD_MB}MB.`);
+                setFileValidationError(oversizedFileError);
                 return;
             }
-            setPendingAutoStart(true);
             onFileSelect(file);
         }
-    }, [onFileSelect]);
+    }, [onFileSelect, oversizedFileError, unsupportedTypeError]);
 
     const handleUploadCardClick = useCallback(() => {
         if (!isProcessing) {
@@ -137,71 +130,17 @@ export function UploadSection() {
             const file = files[0];
             setFileValidationError(null);
             if (!ALLOWED_VIDEO_EXT.test(file.name)) {
-                setFileValidationError('Unsupported file type. Please upload an MP4, MOV, or MKV video.');
+                setFileValidationError(unsupportedTypeError);
                 return;
             }
             if (file.size > MAX_UPLOAD_BYTES) {
-                setFileValidationError(`File too large. Maximum allowed size is ${MAX_UPLOAD_MB}MB.`);
+                setFileValidationError(oversizedFileError);
                 return;
             }
-            setPendingAutoStart(true);
             onFileSelect(file);
             setOverrideStep(null);
         }
-    }, [isProcessing, onFileSelect, setOverrideStep]);
-
-    const handleLoadDevSample = useCallback(
-        async (event: React.MouseEvent<HTMLButtonElement>) => {
-            event.stopPropagation();
-            if (isProcessing || devSampleLoading) return;
-
-            setDevSampleError(null);
-            setDevSampleLoading(true);
-
-            try {
-                if (fileInputRef.current) {
-                    fileInputRef.current.value = '';
-                }
-
-                // We do NOT want to full reset because it might flicker
-                // But we should ensure we are clean.
-                // onReset(); // Removed full reset to avoid state fighting
-
-                // Instead just clear file and job if needed, but we are overwriting anyway.
-                onFileSelect(null);
-
-                const safeMode = transcribeMode || 'standard';
-                const safeProvider = transcribeProvider || 'mock';
-
-                const job = await api.loadDevSampleJob(safeProvider, safeMode);
-
-                // IMPORTANT: Ensure UI enters "Model Chosen" state so Step 2/3 are visible
-                setHasChosenModel(true);
-                onJobSelect(job);
-
-                // Wait for render cycle
-                setTimeout(() => {
-                    resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }, 100);
-
-            } catch (err: unknown) {
-                console.error('Failed to load dev sample:', err);
-                let msg = 'Failed to load sample';
-                if (err instanceof Error) msg = err.message;
-                // Extract detail from backend error if available
-                const responseDetail = (err as { response?: { data?: { detail?: unknown } } }).response?.data?.detail;
-                if (typeof responseDetail === 'string' && responseDetail.trim()) {
-                    msg = responseDetail;
-                }
-                setDevSampleError(msg);
-                // Also show in main error for visibility
-                // setVideoInfo(null); // Clear video info if failed
-            } finally {
-                setDevSampleLoading(false);
-            }
-        },
-        [isProcessing, devSampleLoading, fileInputRef, onFileSelect, setHasChosenModel, onJobSelect, resultsRef, transcribeMode, transcribeProvider]
-    );
+    }, [isProcessing, onFileSelect, oversizedFileError, setOverrideStep, unsupportedTypeError]);
 
     // Effect for validating video when selectedFile changes
     useEffect(() => {
@@ -226,11 +165,9 @@ export function UploadSection() {
             if (!isCancelled && requestId === validationRequestId.current) {
                 setVideoInfo(info);
                 if (info.durationSeconds <= 0) {
-                    setFileValidationError('Could not read video duration. Please try another file.');
-                    setPendingAutoStart(false);
+                    setFileValidationError(unreadableDurationError);
                 } else if (info.durationSeconds > MAX_VIDEO_DURATION_SECONDS) {
-                    setFileValidationError('Video too long. Maximum allowed duration is 3 minutes.');
-                    setPendingAutoStart(false);
+                    setFileValidationError(excessiveDurationError);
                 }
             }
         });
@@ -239,28 +176,13 @@ export function UploadSection() {
             isCancelled = true;
             URL.revokeObjectURL(blobUrl);
         };
-    }, [selectedFile, setCues, setPreviewVideoUrl, setVideoInfo]);
+    }, [excessiveDurationError, selectedFile, setCues, setPreviewVideoUrl, setVideoInfo, unreadableDurationError]);
 
-    // Auto-start processing when file is selected AND pendingAutoStart is true
-    useEffect(() => {
-        if (pendingAutoStart && selectedFile && videoInfo && !fileValidationError && !isProcessing && !selectedJob && hasChosenModel) {
-            setPendingAutoStart(false);
-            handleStart();
+    const handleSummaryToggle = useCallback(() => {
+        if (!isProcessing) {
+            setLocalCollapsed((collapsed) => !collapsed);
         }
-    }, [pendingAutoStart, selectedFile, videoInfo, fileValidationError, isProcessing, selectedJob, hasChosenModel, handleStart]);
-
-    const handleStepClick = useCallback((id: string) => {
-        if (currentStep === 2) {
-            setLocalCollapsed(prev => !prev);
-        } else {
-            setOverrideStep(2);
-            setLocalCollapsed(false);
-            // Wait for CSS transitions (similar to ProcessView)
-            setTimeout(() => {
-                document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }, 350);
-        }
-    }, [currentStep, setOverrideStep]);
+    }, [isProcessing]);
 
     return useMemo(() => {
         const selectedCost = selectedModel
@@ -275,7 +197,7 @@ export function UploadSection() {
             !selectedJob.result_data.files_missing;
 
         if (selectedFile || hasJobData || currentStep > 2) {
-            const fileName = selectedFile?.name || selectedJob?.result_data?.original_filename || 'Processed Video';
+            const fileName = selectedFile?.name || selectedJob?.result_data?.original_filename || t('processedVideoFallback');
             const fileSize = selectedFile?.size
                 ? (selectedFile.size / (1024 * 1024)).toFixed(1)
                 : (selectedJob?.result_data?.output_size ? (selectedJob.result_data.output_size / (1024 * 1024)).toFixed(1) : '--');
@@ -295,22 +217,22 @@ export function UploadSection() {
                             <div
                                 role="button"
                                 tabIndex={0}
-                                onKeyDown={(e) => handleKeyDown(e, () => handleStepClick('upload-section-compact'))}
-                                className={`flex items-center gap-4 transition-all duration-300 cursor-pointer group/step focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:rounded-full focus-visible:outline-none ${currentStep !== 2 ? 'opacity-100 hover:scale-[1.005]' : 'opacity-100 scale-[1.01]'}`}
-                                onClick={() => handleStepClick('upload-section-compact')}
+                                aria-expanded={isExpanded}
+                                aria-controls="input-video-details"
+                                aria-label={t('inputVideoSummaryToggle')}
+                                onKeyDown={(e) => handleKeyDown(e, handleSummaryToggle)}
+                                className={`flex items-center gap-3 transition-all duration-300 cursor-pointer group/step focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:rounded-full focus-visible:outline-none ${isExpanded ? 'scale-[1.01]' : 'hover:scale-[1.005]'}`}
+                                onClick={handleSummaryToggle}
                             >
-                                <span className={`flex items-center justify-center px-4 py-1 rounded-full border font-mono text-sm font-bold tracking-widest shadow-sm transition-all duration-500 ${currentStep === 2
-                                    ? 'bg-gradient-to-r from-[var(--accent)] to-[var(--accent-secondary)] border-transparent text-white shadow-[0_0_20px_var(--accent)] scale-105'
-                                    : 'glass-premium border-[var(--border)] text-[var(--muted)]'
-                                    }`}>STEP 2</span>
-                                <h3 className="text-xl font-semibold">Upload Video</h3>
+                                <h3 className="text-xl font-semibold">{t('inputVideoTitle')}</h3>
                                 {/* Chevron indicator for expand/collapse */}
                                 <svg
                                     className={`w-5 h-5 text-[var(--muted)] transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}
                                     fill="none"
                                     viewBox="0 0 24 24"
                                     stroke="currentColor"
-                                    data-testid="step-2-chevron"
+                                    data-testid="input-video-chevron"
+                                    aria-hidden="true"
                                 >
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                 </svg>
@@ -318,15 +240,13 @@ export function UploadSection() {
                             {/* Right side: file indicator and status badges */}
                             <div className="flex items-center gap-3">
                                 {/* Compact file indicator when collapsed */}
-                                {/* Compact file indicator when collapsed */}
-                                {/* Compact file indicator when collapsed */}
                                 {!isExpanded && (selectedFile || hasJobData || currentStep > 2) && (
                                     <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-[var(--surface-elevated)] border border-[var(--border)] overflow-hidden">
                                         {videoInfo?.thumbnailUrl ? (
                                             <div className="relative w-5 h-5 rounded-full overflow-hidden flex-shrink-0">
                                                 <Image
                                                     src={videoInfo.thumbnailUrl}
-                                                    alt="Thumbnail"
+                                                    alt={t('videoThumbnailAlt')}
                                                     fill
                                                     unoptimized
                                                     className="object-cover"
@@ -344,14 +264,20 @@ export function UploadSection() {
                             </div>
                         </div>
                         {/* Collapsible content with smooth animation */}
-                        <div className={`transition-all duration-300 ease-in-out overflow-hidden ${isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                        <div
+                            id="input-video-details"
+                            data-testid="input-video-details"
+                            aria-hidden={!isExpanded}
+                            inert={!isExpanded}
+                            className={`transition-all duration-300 ease-in-out overflow-hidden ${isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}
+                        >
                             <div className="card flex flex-col gap-4 py-3 px-4 animate-fade-in border-emerald-500/20 bg-emerald-500/5 transition-all hover:bg-emerald-500/10 sm:flex-row sm:items-center">
                                 {/* Thumbnail with Tick Overlay */}
                                 <div className="relative h-16 w-16 shrink-0 rounded-lg overflow-hidden bg-black/20 border border-emerald-500/20 group">
                                     {videoInfo?.thumbnailUrl ? (
                                         <Image
                                             src={videoInfo.thumbnailUrl}
-                                            alt="Thumbnail"
+                                            alt={t('videoThumbnailAlt')}
                                             fill
                                             unoptimized
                                             className="object-cover opacity-80 transition-opacity group-hover:opacity-100"
@@ -397,9 +323,9 @@ export function UploadSection() {
                                             <span>{fileSize} MB</span>
                                             <span className="w-1 h-1 rounded-full bg-[var(--border)]" />
                                             {isProcessing ? (
-                                                <span className="text-amber-400 font-medium animate-pulse">Processing...</span>
+                                                <span className="text-amber-400 font-medium animate-pulse">{t('statusProcessingEllipsis')}</span>
                                             ) : (
-                                                <span className="text-emerald-500 font-medium">Ready</span>
+                                                <span className="text-emerald-500 font-medium">{t('statusReady')}</span>
                                             )}
                                         </p>
 
@@ -440,7 +366,7 @@ export function UploadSection() {
                                                             }}
                                                             className="px-4 py-1.5 text-xs font-bold rounded-lg bg-emerald-500 text-white hover:brightness-110 shadow-lg shadow-emerald-500/20 transition-all active:scale-95 flex items-center gap-2"
                                                         >
-                                                            <span>View Results</span>
+                                                            <span>{t('viewResults')}</span>
                                                             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                                             </svg>
@@ -598,49 +524,15 @@ export function UploadSection() {
                         {fileValidationError}
                     </div>
                 )}
-                {showDevTools && (
-                    <div
-                        className={`studio-dev-sample ${!hasChosenModel ? 'grayscale' : ''}`}
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <div className="studio-dev-sample-copy">
-                            <div>
-                                <span>LOCAL DEMO</span>
-                                <h3>{t('sampleVideoTitle')}</h3>
-                                <p>{t('sampleVideoDescription')}</p>
-                            </div>
-                            <button
-                                type="button"
-                                className="studio-dev-sample-button"
-                                onClick={handleLoadDevSample}
-                                disabled={isProcessing || devSampleLoading}
-                                aria-busy={devSampleLoading}
-                            >
-                                {devSampleLoading ? (
-                                    <>
-                                        <Spinner className="w-4 h-4" />
-                                        <span>{t('sampleVideoLoading')}</span>
-                                    </>
-                                ) : (
-                                    t('sampleVideoCta')
-                                )}
-                            </button>
-                            {devSampleError && (
-                                <p className="text-xs text-[var(--danger)]">{devSampleError}</p>
-                            )}
-                        </div>
-                    </div>
-                )}
             </div>
         );
     }, [
         selectedFile, t, currentStep, videoInfo, isProcessing, error, hasChosenModel,
         selectedJob, handleStart, onFileSelect, setHasChosenModel, handleKeyDown,
-        handleStepClick, isDragOver, selectedModel, showDevTools,
+        handleSummaryToggle, isDragOver, selectedModel,
         transcribeProvider, transcribeMode, isExpanded,
         handleUploadCardClick, handleDragEnter, handleDragLeave, handleDragOver,
-        handleDrop, fileInputRef, handleLoadDevSample, devSampleLoading,
-        devSampleError, handleFileChange, fileValidationError, videoUrl, progress, statusMessage, onCancelProcessing,
+        handleDrop, fileInputRef, handleFileChange, fileValidationError, videoUrl, progress, statusMessage, onCancelProcessing,
         onJobSelect, setOverrideStep
     ]);
 }

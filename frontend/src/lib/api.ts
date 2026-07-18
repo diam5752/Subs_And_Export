@@ -339,16 +339,6 @@ class ApiClient {
         });
     }
 
-    async loadDevSampleJob(provider?: string, model_size?: string): Promise<JobResponse> {
-        return this.request<JobResponse>('/dev/sample-job', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ provider, model_size }),
-        });
-    }
-
     async getJobStatus(jobId: string): Promise<JobResponse> {
         return this.request<JobResponse>(`/videos/jobs/${jobId}`);
     }

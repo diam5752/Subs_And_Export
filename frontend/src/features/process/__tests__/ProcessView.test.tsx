@@ -150,33 +150,11 @@ describe('ProcessView', () => {
         );
         expect(screen.getAllByText(/Step 1/i).length).toBeGreaterThan(0);
         expect(screen.getByRole('button', { name: /choose video/i })).toBeInTheDocument();
-        expect(screen.getByTestId('mock-mode-badge')).toHaveTextContent('Mock Studio');
-        expect(screen.getByTestId('engine-settings-toggle')).toHaveAttribute('aria-expanded', 'false');
+        expect(screen.queryByTestId('mock-mode-badge')).not.toBeInTheDocument();
+        expect(screen.queryByTestId('engine-settings-toggle')).not.toBeInTheDocument();
     });
 
-    it('allows selecting a model', () => {
-        const setTranscribeProvider = jest.fn();
-        (useProcessContext as jest.Mock).mockReturnValue({
-            ...mockContextValue,
-            setTranscribeProvider
-        });
-
-        render(
-            <I18nProvider initialLocale="en">
-                <PlaybackProvider>
-                    <ProcessViewContent />
-                </PlaybackProvider>
-            </I18nProvider>
-        );
-
-        fireEvent.click(screen.getByTestId('engine-settings-toggle'));
-        const radio = screen.getByRole('radio', { name: /Standard/i });
-        fireEvent.click(radio);
-
-        expect(setTranscribeProvider).toHaveBeenCalledWith('groq');
-    });
-
-    it('renders Step 2 (Upload) when file is selected', () => {
+    it('renders Step 2 (Captions) when a file is selected', () => {
         (useProcessContext as jest.Mock).mockReturnValue({
             ...mockContextValue,
             currentStep: 2,
@@ -214,6 +192,11 @@ describe('ProcessView', () => {
         expect(screen.getAllByText(/Step 3/i).length).toBeGreaterThan(0);
         expect(screen.getAllByText(/^Export$/i).length).toBeGreaterThan(0);
         expect(screen.getByRole('tab', { name: /Transcript/i })).toBeInTheDocument();
+
+        const stepper = screen.getByTestId('workflow-stepper');
+        const editor = screen.getByTestId('completed-editor');
+        expect(screen.getAllByText(/Step 3/i)).toHaveLength(1);
+        expect(stepper.compareDocumentPosition(editor) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
     it('switches between Transcript and Styles tabs', async () => {
@@ -292,7 +275,7 @@ describe('ProcessView', () => {
         expect(progressBar).toHaveAttribute('aria-valuemax', '100');
     });
 
-    it('shows the mock safety badge and engine settings control', () => {
+    it('keeps internal engine details out of the product workspace', () => {
         (useProcessContext as jest.Mock).mockReturnValue({
             ...mockContextValue,
             currentStep: 2,
@@ -307,8 +290,10 @@ describe('ProcessView', () => {
             </I18nProvider>
         );
 
-        expect(screen.getByTestId('mock-mode-badge')).toBeInTheDocument();
-        expect(screen.getByTestId('engine-settings-toggle')).toBeInTheDocument();
+        expect(screen.queryByTestId('mock-mode-badge')).not.toBeInTheDocument();
+        expect(screen.queryByTestId('engine-settings-toggle')).not.toBeInTheDocument();
+        expect(screen.queryByText('Mock Studio')).not.toBeInTheDocument();
+        expect(screen.queryByText('€0')).not.toBeInTheDocument();
     });
 
     it('keeps the completed editor focused without duplicating the upload card', () => {

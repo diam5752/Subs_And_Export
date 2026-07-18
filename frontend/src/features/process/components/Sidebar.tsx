@@ -277,7 +277,7 @@ export function Sidebar() {
                 onSelectLastUsed={handleLastUsedSelect}
             />
 
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-3">Custom Settings</h4>
+            <h4 className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-3">{t('customSettings')}</h4>
             <SubtitlePositionSelector
                 value={subtitlePosition}
                 onChange={handlePositionChange}
@@ -322,7 +322,8 @@ export function Sidebar() {
         handleColorChange,
         handleSizeChange,
         handleKaraokeChange,
-        handleWatermarkChange
+        handleWatermarkChange,
+        t,
     ]);
 
     // Optimized: Memoize Intelligence Panel
@@ -359,7 +360,7 @@ export function Sidebar() {
                         </h3>
                     </div>
                     {isProcessing && (
-                        <span className="editor-sidebar-progress" aria-label={`${progress}% complete`}>{progress}%</span>
+                        <span className="editor-sidebar-progress" aria-label={t('progressCompleteLabel', { progress })}>{progress}%</span>
                     )}
                 </div>
 

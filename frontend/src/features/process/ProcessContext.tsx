@@ -190,11 +190,10 @@ export function ProcessProvider({
     const { t } = useI18n();
 
     // Derived: user has videos if they have at least one completed job in their history
-    // For new users (totalJobs === 0), only show Step 1 until they choose a model
+    // Historical availability metadata exposed to account/history surfaces.
     const hasVideos = totalJobs > 0;
 
-    // hasActiveJob is true when there's a job being processed or a completed job selected
-    // This controls when Step 3 (PreviewSection) should be shown
+    // A processing or selected job unlocks downstream workflow context.
     const hasActiveJob = isProcessing || Boolean(selectedJob);
 
     const clampNumber = (value: unknown, min: number, max: number): number | null => {
@@ -247,8 +246,7 @@ export function ProcessProvider({
         return defaultValue;
     };
 
-    // Mock Studio is the safe default. Upload is therefore the first useful action,
-    // while real providers remain visible only as unavailable engine settings.
+    // Local deterministic processing is the safe default, so upload is the first action.
     const [hasChosenModel, setHasChosenModel] = useState<boolean>(true);
     const [transcribeMode, setTranscribeMode] = useState<TranscribeMode | null>('standard');
     const [transcribeProvider, setTranscribeProvider] = useState<TranscribeProvider | null>('mock');
@@ -402,16 +400,9 @@ export function ProcessProvider({
     const AVAILABLE_MODELS = useMemo(() => [
         {
             id: 'mock-studio',
-            testId: 'model-standard',
-            name: t('modelMockName'),
-            description: t('modelMockDesc'),
-            badge: t('modelMockBadge'),
-            badgeColor: 'text-lime-300 bg-lime-300/10',
+            name: t('modelStudioName'),
             provider: 'mock',
             mode: 'standard',
-            available: true,
-            recommended: true,
-            costLabel: '€0 API',
             stats: { speed: 5, accuracy: 0, karaoke: true, linesControl: true },
             icon: (selected: boolean) => (
                 <div className={`p-2 rounded-lg ${selected ? 'bg-lime-300/20 text-lime-200' : 'bg-lime-300/10 text-lime-300'} `}>
@@ -423,16 +414,9 @@ export function ProcessProvider({
         },
         {
             id: 'local-private',
-            testId: 'model-local',
             name: t('modelLocalName'),
-            description: t('modelLocalDesc'),
-            badge: t('modelLocalBadge'),
-            badgeColor: 'text-cyan-300 bg-cyan-300/10',
             provider: 'local',
             mode: 'standard',
-            available: false,
-            recommended: false,
-            costLabel: '€0 API',
             stats: { speed: 2, accuracy: 4, karaoke: true, linesControl: true },
             icon: (selected: boolean) => (
                 <div className={`p-2 rounded-lg ${selected ? 'bg-cyan-300/20 text-cyan-100' : 'bg-cyan-300/10 text-cyan-300'} `}>
@@ -444,16 +428,9 @@ export function ProcessProvider({
         },
         {
             id: 'elevenlabs-scribe-v2',
-            testId: 'model-scribe',
             name: t('modelScribeName'),
-            description: t('modelScribeDesc'),
-            badge: t('modelScribeBadge'),
-            badgeColor: 'text-violet-300 bg-violet-400/10',
             provider: 'elevenlabs',
             mode: 'pro',
-            available: false,
-            recommended: false,
-            costLabel: '$0.22 / hour',
             stats: { speed: 4, accuracy: 5, karaoke: true, linesControl: true },
             icon: (selected: boolean) => (
                 <div className={`p-2 rounded-lg ${selected ? 'bg-violet-400/20 text-violet-200' : 'bg-violet-400/10 text-violet-300'} `}>
@@ -517,8 +494,8 @@ export function ProcessProvider({
             return;
         }
 
-        // Note: Removed immediate scroll to resultsRef here because we want to stay on Step 2 (Upload)
-        // to show the progress bar. The scroll to Step 3 now happens automatically upon completion via the effect above.
+        // Stay on Step 2 (caption processing) to show progress. Completion
+        // advances to Step 3 automatically via the effect above.
 
         onStartProcessing({
             transcribeMode,

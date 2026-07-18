@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { mockApi, stabilizeUi, waitForDashboardShell, waitForModelPicker } from './mocks';
+import { mockApi, stabilizeUi, waitForDashboardShell, waitForUploadWorkspace } from './mocks';
 import el from '@/i18n/el.json';
 
 const viewports = {
@@ -33,11 +33,16 @@ test('completed editor remains readable across the responsive viewport matrix', 
     localStorage.setItem('lastActiveJobId', 'job-futurist');
   });
 
+  await page.setViewportSize(editorViewportMatrix[0]);
+  await page.goto('/');
+  await page.getByText(el.subtitlesReady).waitFor({ timeout: 30_000 });
+  await stabilizeUi(page);
+
   for (const viewport of editorViewportMatrix) {
     await page.setViewportSize(viewport);
-    await page.goto('/');
-    await page.getByText(el.subtitlesReady).waitFor({ timeout: 30_000 });
-    await stabilizeUi(page);
+    await page.evaluate(() => new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    }));
 
     const metrics = await page.evaluate(() => {
       const bounds = (selector: string) => {
@@ -56,11 +61,17 @@ test('completed editor remains readable across the responsive viewport matrix', 
 
       return {
         documentOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        intro: bounds('[data-testid="studio-intro"]'),
+        stepper: bounds('[data-testid="workflow-stepper"]'),
         section: bounds('#preview-section'),
+        duplicateStepHeaders: document.querySelectorAll('.editor-step-toggle').length,
+        previewMetaCount: document.querySelectorAll('.editor-preview-meta').length,
         preview: bounds('[data-testid="editor-preview-panel"]'),
         phone: bounds('[data-testid="editor-phone"]'),
         sidebar: bounds('[data-testid="editor-sidebar"]'),
         exportPanel: bounds('.editor-export-panel'),
+        videoExportGroup: bounds('[data-testid="video-export-group"]'),
+        subtitleExportGroup: bounds('[data-testid="subtitle-export-group"]'),
         exportActions: Array.from(document.querySelectorAll<HTMLElement>('.editor-export-action')).map((element) => {
           const rect = element.getBoundingClientRect();
           return { width: rect.width, height: rect.height };
@@ -78,6 +89,12 @@ test('completed editor remains readable across the responsive viewport matrix', 
     expect(metrics.documentOverflow, `${viewport.width}px document overflow`).toBeLessThanOrEqual(1);
     expect(metrics.section.x, `${viewport.width}px section left edge`).toBeGreaterThanOrEqual(0);
     expect(metrics.section.right, `${viewport.width}px section right edge`).toBeLessThanOrEqual(viewport.width + 1);
+    expect(metrics.intro.height, `${viewport.width}px hero height`).toBeLessThanOrEqual(viewport.height * 0.34);
+    expect(metrics.stepper.bottom, `${viewport.width}px stepper order`).toBeLessThanOrEqual(metrics.section.y + 1);
+    expect(metrics.duplicateStepHeaders, `${viewport.width}px duplicate step headings`).toBe(0);
+    expect(metrics.previewMetaCount, `${viewport.width}px preview labels`).toBe(0);
+    expect(metrics.videoExportGroup.right, `${viewport.width}px video export containment`).toBeLessThanOrEqual(metrics.exportPanel.right + 1);
+    expect(metrics.subtitleExportGroup.right, `${viewport.width}px subtitle export containment`).toBeLessThanOrEqual(metrics.exportPanel.right + 1);
     expect(metrics.phone.width, `${viewport.width}px phone width`).toBeGreaterThanOrEqual(190);
     expect(metrics.phone.width, `${viewport.width}px phone width`).toBeLessThanOrEqual(280);
 
@@ -90,9 +107,14 @@ test('completed editor remains readable across the responsive viewport matrix', 
       expect(metrics.preview.width, `${viewport.width}px desktop preview width`).toBeGreaterThanOrEqual(278);
       expect(metrics.sidebar.width, `${viewport.width}px desktop controls width`).toBeGreaterThanOrEqual(480);
       expect(metrics.preview.right, `${viewport.width}px desktop column order`).toBeLessThanOrEqual(metrics.sidebar.x + 1);
+      expect(metrics.videoExportGroup.right, `${viewport.width}px desktop export group order`).toBeLessThanOrEqual(metrics.subtitleExportGroup.x + 1);
     } else {
       expect(metrics.preview.bottom, `${viewport.width}px mobile export order`).toBeLessThanOrEqual(metrics.exportPanel.y + 1);
       expect(metrics.exportPanel.bottom, `${viewport.width}px mobile controls order`).toBeLessThanOrEqual(metrics.sidebar.y + 1);
+    }
+
+    if (viewport.width <= 640) {
+      expect(metrics.videoExportGroup.bottom, `${viewport.width}px mobile export group order`).toBeLessThanOrEqual(metrics.subtitleExportGroup.y + 1);
     }
 
     if (viewport.width <= 430) {
@@ -141,8 +163,52 @@ test('desktop style controls scroll internally without stretching the preview', 
   // 1,000px tall, stretching the black preview into a visually empty column.
   expect(metrics.workspaceHeight).toBeLessThanOrEqual(720);
   expect(Math.abs(metrics.previewHeight - metrics.sidebarHeight)).toBeLessThanOrEqual(1);
-  expect(metrics.previewBackgroundColor).toBe('rgb(247, 247, 245)');
+  expect(metrics.previewBackgroundColor).toBe('rgba(0, 0, 0, 0)');
   expect(metrics.sidebarBodyScrollHeight).toBeGreaterThan(metrics.sidebarBodyClientHeight);
+});
+
+test('workflow labels stay aligned across upload, captions, and export', async ({ page }) => {
+  await mockApi(page);
+  await page.addInitScript(() => {
+    localStorage.setItem('lastActiveJobId', 'job-futurist');
+  });
+  await page.goto('/');
+  await page.getByText(el.subtitlesReady).waitFor({ timeout: 30_000 });
+
+  const workflow = page.getByLabel(el.workflowProgressLabel);
+  const uploadStep = workflow.getByRole('button', { name: new RegExp(`${el.stepLabel.replace('{n}', '1')} ${el.stepUpload}`) });
+  const captionsStep = workflow.getByRole('button', { name: new RegExp(`${el.stepLabel.replace('{n}', '2')} ${el.stepCaptions}`) });
+  const exportStep = workflow.getByRole('button', { name: new RegExp(`${el.stepLabel.replace('{n}', '3')} ${el.stepExport}`) });
+
+  await uploadStep.click();
+  await expect(uploadStep).toHaveAttribute('aria-current', 'step');
+  await expect(page.getByRole('heading', { name: el.inputVideoTitle })).toBeVisible();
+  await expect(page.getByText('STEP 2', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('Upload Video', { exact: true })).toHaveCount(0);
+
+  const inputSummary = page.getByRole('button', { name: el.inputVideoSummaryToggle });
+  const inputDetails = page.getByTestId('input-video-details');
+  await expect(inputSummary).toHaveAttribute('aria-expanded', 'false');
+  await expect(inputDetails).toHaveAttribute('aria-hidden', 'true');
+  await expect(inputDetails).toHaveAttribute('inert', '');
+  await inputSummary.click();
+  await expect(inputSummary).toHaveAttribute('aria-expanded', 'true');
+  await expect(inputDetails).toHaveAttribute('aria-hidden', 'false');
+  await expect(inputDetails).not.toHaveAttribute('inert', '');
+
+  await page.setViewportSize(viewports.mobile);
+  await expectNoHorizontalOverflow(page);
+  await expectNoHorizontalOverflow(page, '[data-testid="upload-section"]');
+  await page.setViewportSize(viewports.desktop);
+
+  await captionsStep.click();
+  await expect(captionsStep).toHaveAttribute('aria-current', 'step');
+  await expect(page.getByRole('heading', { name: el.inputVideoTitle })).toBeVisible();
+
+  await exportStep.click();
+  await expect(exportStep).toHaveAttribute('aria-current', 'step');
+  await page.getByRole('tab', { name: el.tabStyles }).click();
+  await expect(page.getByRole('heading', { name: el.customSettings })).toBeVisible();
 });
 
 for (const [label, viewport] of Object.entries(viewports)) {
@@ -156,6 +222,7 @@ for (const [label, viewport] of Object.entries(viewports)) {
       await stabilizeUi(page);
       await expectNoHorizontalOverflow(page);
       await expect(page.getByText(el.loginSubtitle)).toBeVisible();
+      await expect(page.getByText(/Mock|€0/)).toHaveCount(0);
     });
 
     test('register page layout stays contained', async ({ page }) => {
@@ -165,19 +232,26 @@ for (const [label, viewport] of Object.entries(viewports)) {
       await stabilizeUi(page);
       await expectNoHorizontalOverflow(page);
       await expect(page.getByText(el.registerSubtitle)).toBeVisible();
+      await expect(page.getByText(/Mock|€0/)).toHaveCount(0);
     });
 
     test('workspace renders upload area without overflow', async ({ page }) => {
       await mockApi(page);
       await page.goto('/');
-      await waitForModelPicker(page);
-      await page.getByTestId('model-standard').click({ force: true });
+      await waitForUploadWorkspace(page);
       const uploadSection = page.getByTestId('upload-section');
       await uploadSection.waitFor({ state: 'visible' });
 
       // Check that the upload area is visible regardless of whether it is
       // rendering the full dropzone or the compact restored-session view.
       await expect(uploadSection).toBeVisible();
+      await expect(page.getByTestId('credits-balance')).toContainText('125');
+      await expect(page.getByTestId('credits-coin-icon')).toBeVisible();
+      await expect(page.getByTestId('app-env-badge')).toHaveCount(0);
+      await expect(page.getByTestId('mock-mode-badge')).toHaveCount(0);
+      await expect(page.getByTestId('engine-settings-toggle')).toHaveCount(0);
+      await expect(page.getByText('Δες έτοιμο παράδειγμα')).toHaveCount(0);
+      await expect(page.locator('.studio-nav').getByText(el.accountSettingsTitle)).toHaveCount(0);
 
       await stabilizeUi(page);
       await expectNoHorizontalOverflow(page);
@@ -198,6 +272,7 @@ for (const [label, viewport] of Object.entries(viewports)) {
       await expect(page.getByText(el.subtitlesReady)).toBeVisible();
       await expect(page.getByRole('tab', { name: el.tabTranscript })).toBeVisible();
       await expect(page.getByRole('tab', { name: el.tabStyles })).toBeVisible();
+      await expect(page.getByText('Mock Studio')).toHaveCount(0);
     });
 
     test('history section shows event cards neatly', async ({ page }) => {
@@ -235,9 +310,13 @@ for (const [label, viewport] of Object.entries(viewports)) {
   });
 }
 
-test('unauthenticated users are redirected to login', async ({ page }) => {
+test('unauthenticated users can upload and configure before login', async ({ page }) => {
   await mockApi(page, { authenticated: false });
   await page.goto('/');
-  await page.waitForURL('**/login');
-  await expect(page).toHaveURL(/\/login$/);
+  await waitForUploadWorkspace(page, { authenticated: false });
+
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByTestId('upload-section')).toBeVisible();
+  await expect(page.getByRole('button', { name: el.guestSignIn })).toBeVisible();
+  await expect(page.getByRole('button', { name: el.profileLabel })).toHaveCount(0);
 });

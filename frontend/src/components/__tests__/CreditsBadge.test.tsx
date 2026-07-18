@@ -37,20 +37,13 @@ describe('CreditsBadge', () => {
         jest.clearAllMocks();
     });
 
-    it('renders balance, refreshes on click, and shows pricing tooltip', () => {
+    it('renders the real balance with the MizAI coin mark and refreshes on click', () => {
         render(<CreditsBadge />);
 
         expect(screen.getByText('1,234')).toBeInTheDocument();
+        expect(screen.getByTestId('credits-coin-icon')).toBeInTheDocument();
 
-        fireEvent.click(screen.getByRole('button', { name: 'Refresh credits' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Credits: 1,234' }));
         expect(__refreshBalanceMock).toHaveBeenCalled();
-
-        const pricingButton = screen.getByRole('button', { name: 'Points pricing' });
-        fireEvent.mouseEnter(pricingButton);
-
-        expect(screen.getAllByText('Points pricing').length).toBeGreaterThan(0);
-        expect(screen.getByText('Video processing (Standard)')).toBeInTheDocument();
-        expect(screen.getByText('Video processing (Pro)')).toBeInTheDocument();
-        expect(screen.getByText('Fact check')).toBeInTheDocument();
     });
 });

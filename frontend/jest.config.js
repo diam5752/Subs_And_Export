@@ -24,7 +24,6 @@ const customJestConfig = {
         '!src/features/process/ProcessContext.tsx',
         '!src/features/process/ProcessView.tsx',
         '!src/features/process/StepIndicator.tsx',
-        '!src/features/process/components/ModelSelector.tsx',
         '!src/features/process/components/NewVideoConfirmModal.tsx',
         '!src/features/process/components/Sidebar.tsx',
         '!src/features/process/components/StylePresetTiles.tsx',

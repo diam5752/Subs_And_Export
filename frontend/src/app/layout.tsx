@@ -6,7 +6,6 @@ import { I18nProvider } from "@/context/I18nContext";
 import CookieConsent from "@/components/CookieConsent"
 import { AppEnvProvider } from "@/context/AppEnvContext";
 import { normalizeAppEnv } from "@/lib/appEnv";
-import { AppEnvBadge } from "@/components/AppEnvBadge";
 import { PointsProvider } from "@/context/PointsContext";
 import { PwaRegistration } from "@/components/PwaRegistration";
 
@@ -54,7 +53,6 @@ export default function RootLayout({
           <AppEnvProvider appEnv={appEnv}>
             <AuthProvider>
               <PointsProvider>
-                <AppEnvBadge />
                 <PwaRegistration />
                 {children}
                 <CookieConsent />

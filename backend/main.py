@@ -28,7 +28,7 @@ from starlette.requests import Request
 from starlette.types import ASGIApp
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
-from backend.app.api.endpoints import auth, dev, history, videos
+from backend.app.api.endpoints import auth, history, videos
 from backend.app.core.config import settings
 from backend.app.core.database import Database
 from backend.app.core.gcs import generate_signed_download_url, get_gcs_settings
@@ -242,7 +242,6 @@ async def serve_static(request: Request, file_path: str, download: bool = False)
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(videos.router, prefix="/videos", tags=["videos"])
 app.include_router(history.router, prefix="/history", tags=["history"])
-app.include_router(dev.router, prefix="/dev", tags=["dev"])
 
 @app.get("/health")
 async def health_check():

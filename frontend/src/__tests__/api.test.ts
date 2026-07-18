@@ -358,19 +358,6 @@ describe('API Client', () => {
         });
     });
 
-    describe('loadDevSampleJob', () => {
-        it('should call the dev sample endpoint', async () => {
-            const mockJob = { id: 'job-123', status: 'completed', progress: 100, message: 'Loaded dev sample', created_at: Date.now(), updated_at: Date.now(), result_data: { video_path: '/path', artifacts_dir: '/artifacts' } };
-            (fetch as jest.Mock).mockResolvedValueOnce({ ok: true, json: async () => mockJob });
-
-            const { api } = await import('@/lib/api');
-            const result = await api.loadDevSampleJob();
-
-            expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/dev/sample-job'), expect.objectContaining({ method: 'POST' }));
-            expect(result.id).toBe('job-123');
-        });
-    });
-
     describe('updateJobTranscription', () => {
         it('should update transcription cues for a job', async () => {
             const mockResponse = { status: 'ok' };

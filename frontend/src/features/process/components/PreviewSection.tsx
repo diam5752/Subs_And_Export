@@ -5,7 +5,6 @@ import { Spinner } from '@/components/Spinner';
 import { useI18n } from '@/context/I18nContext';
 import type { MessageKey } from '@/context/i18nMessages';
 import type { JobResponse } from '@/lib/api';
-import { resolveTranscriptionTier } from '@/lib/transcription';
 import { usePlaybackContext } from '../PlaybackContext';
 import { useProcessContext } from '../ProcessContext';
 import { NewVideoConfirmModal } from './NewVideoConfirmModal';
@@ -13,16 +12,9 @@ import { Sidebar } from './Sidebar';
 
 type PreviewSectionLayoutProps = {
     resultsRef: React.RefObject<HTMLDivElement | null>;
-    currentStep: number;
-    handleStepClick: () => void;
     selectedJob: JobResponse | null;
     isProcessing: boolean;
     t: (key: MessageKey, params?: Record<string, string | number>) => string;
-    transcribeProvider: string | null;
-    displayedModel?: {
-        icon: (selected: boolean) => React.ReactNode;
-        name: string;
-    };
     processedCues: React.ComponentProps<typeof PreviewPlayer>['cues'];
     playerRef: React.RefObject<PreviewPlayerHandle | null>;
     videoUrl: string | null;
@@ -34,7 +26,6 @@ type PreviewSectionLayoutProps = {
     showNewVideoModal: boolean;
     setShowNewVideoModal: React.Dispatch<React.SetStateAction<boolean>>;
     onNewVideoConfirm: () => void;
-    isExpanded: boolean;
 };
 
 type ExportOption = {
@@ -46,7 +37,7 @@ type ExportOption = {
     primary?: boolean;
 };
 
-const EXPORT_OPTIONS: ExportOption[] = [
+const VIDEO_EXPORT_OPTIONS: ExportOption[] = [
     {
         resolution: '1080x1920',
         label: '1080p',
@@ -55,6 +46,16 @@ const EXPORT_OPTIONS: ExportOption[] = [
         testId: 'download-1080p-btn',
         primary: true,
     },
+    {
+        resolution: '2160x3840',
+        label: '4K',
+        descriptionKey: 'export4kDesc',
+        loadingKey: 'exportMastering',
+        testId: 'download-4k-btn',
+    },
+];
+
+const SUBTITLE_EXPORT_OPTIONS: ExportOption[] = [
     {
         resolution: 'srt',
         label: 'SRT',
@@ -75,13 +76,6 @@ const EXPORT_OPTIONS: ExportOption[] = [
         descriptionKey: 'subtitleFileTxtDesc',
         loadingKey: 'exportSaving',
         testId: 'txt-btn',
-    },
-    {
-        resolution: '2160x3840',
-        label: '4K',
-        descriptionKey: 'export4kDesc',
-        loadingKey: 'exportMastering',
-        testId: 'download-4k-btn',
     },
 ];
 
@@ -119,15 +113,59 @@ const ExportAction = memo(({
 ));
 ExportAction.displayName = 'ExportAction';
 
+const ExportGroup = memo(({
+    titleKey,
+    formats,
+    options,
+    variant,
+    testId,
+    exportingResolutions,
+    onExport,
+    t,
+}: {
+    titleKey: MessageKey;
+    formats: string;
+    options: ExportOption[];
+    variant: 'video' | 'subtitles';
+    testId: 'video-export-group' | 'subtitle-export-group';
+    exportingResolutions: Record<string, boolean>;
+    onExport: (resolution: string) => Promise<void>;
+    t: PreviewSectionLayoutProps['t'];
+}) => {
+    const headingId = `${testId}-title`;
+
+    return (
+        <section
+            className="editor-export-group"
+            aria-labelledby={headingId}
+            data-testid={testId}
+        >
+            <div className="editor-export-group-heading">
+                <h3 id={headingId}>{t(titleKey)}</h3>
+                <span>{formats}</span>
+            </div>
+
+            <div className={`editor-export-grid editor-export-grid-${variant}`}>
+                {options.map((option) => (
+                    <ExportAction
+                        key={option.resolution}
+                        option={option}
+                        isExporting={Boolean(exportingResolutions[option.resolution])}
+                        onExport={onExport}
+                        t={t}
+                    />
+                ))}
+            </div>
+        </section>
+    );
+});
+ExportGroup.displayName = 'ExportGroup';
+
 const PreviewSectionLayout = memo(({
     resultsRef,
-    currentStep,
-    handleStepClick,
     selectedJob,
     isProcessing,
     t,
-    transcribeProvider,
-    displayedModel,
     processedCues,
     playerRef,
     videoUrl,
@@ -139,42 +177,13 @@ const PreviewSectionLayout = memo(({
     showNewVideoModal,
     setShowNewVideoModal,
     onNewVideoConfirm,
-    isExpanded,
 }: PreviewSectionLayoutProps) => (
     <div
         id="preview-section"
         className={`card editor-section ${!selectedJob && !isProcessing ? 'opacity-50 grayscale' : ''}`}
         ref={resultsRef}
     >
-        <button
-            type="button"
-            className={`editor-step-toggle ${currentStep !== 3 && selectedJob?.status !== 'completed' ? 'opacity-40 grayscale' : ''}`}
-            onClick={handleStepClick}
-            aria-expanded={isExpanded}
-            aria-controls="editor-section-content"
-        >
-            <span className={`editor-step-badge ${currentStep === 3 ? 'editor-step-badge-active' : ''}`}>
-                {t('step3Label')}
-            </span>
-            <span className="editor-step-title">{t('previewWindowLabel')}</span>
-            <svg
-                className={`editor-step-chevron ${isExpanded ? 'rotate-180' : ''}`}
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                data-testid="step-3-chevron"
-                aria-hidden="true"
-            >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-            </svg>
-        </button>
-
-        <div
-            id="editor-section-content"
-            className={`editor-collapse ${isExpanded ? 'editor-collapse-open' : ''}`}
-        >
-            <div className="editor-collapse-inner">
-                <div className="editor-section-body">
+        <div id="editor-section-content">
                     {!selectedJob || selectedJob.status !== 'completed' ? (
                         <div className="editor-empty-state">
                             <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -211,16 +220,6 @@ const PreviewSectionLayout = memo(({
                                             data-testid="editor-preview-panel"
                                             aria-label={t('previewWindowLabel')}
                                         >
-                                            <div className="editor-preview-meta">
-                                                {(selectedJob.result_data?.transcribe_provider || transcribeProvider) && (
-                                                    <span className="editor-model-pill">
-                                                        {displayedModel && <span aria-hidden="true">{displayedModel.icon(true)}</span>}
-                                                        <span>{displayedModel?.name || 'Standard'}</span>
-                                                    </span>
-                                                )}
-                                                <span className="editor-aspect-pill">9:16</span>
-                                            </div>
-
                                             <div className="editor-phone" data-testid="editor-phone">
                                                 <PhoneFrame className="h-full w-full" showSocialOverlays={false}>
                                                     {videoUrl ? (
@@ -247,22 +246,28 @@ const PreviewSectionLayout = memo(({
                                         <Sidebar />
                                     </div>
 
-                                    <section className="editor-export-panel" aria-labelledby="editor-export-title">
-                                        <div className="editor-export-heading">
-                                            <h3 id="editor-export-title">{t('stepExport')}</h3>
-                                            <span>MP4 · SRT · VTT · TXT</span>
-                                        </div>
-
-                                        <div className="editor-export-grid" data-testid="editor-export-grid">
-                                            {EXPORT_OPTIONS.map((option) => (
-                                                <ExportAction
-                                                    key={option.resolution}
-                                                    option={option}
-                                                    isExporting={Boolean(exportingResolutions[option.resolution])}
-                                                    onExport={handleExport}
-                                                    t={t}
-                                                />
-                                            ))}
+                                    <section className="editor-export-panel" aria-label={t('stepExport')}>
+                                        <div className="editor-export-groups" data-testid="editor-export-grid">
+                                            <ExportGroup
+                                                titleKey="exportVideoTitle"
+                                                formats="MP4"
+                                                options={VIDEO_EXPORT_OPTIONS}
+                                                variant="video"
+                                                testId="video-export-group"
+                                                exportingResolutions={exportingResolutions}
+                                                onExport={handleExport}
+                                                t={t}
+                                            />
+                                            <ExportGroup
+                                                titleKey="exportSubtitlesTitle"
+                                                formats="SRT · VTT · TXT"
+                                                options={SUBTITLE_EXPORT_OPTIONS}
+                                                variant="subtitles"
+                                                testId="subtitle-export-group"
+                                                exportingResolutions={exportingResolutions}
+                                                onExport={handleExport}
+                                                t={t}
+                                            />
                                         </div>
 
                                         {exportError && (
@@ -281,8 +286,6 @@ const PreviewSectionLayout = memo(({
                         onClose={() => setShowNewVideoModal(false)}
                         onConfirm={onNewVideoConfirm}
                     />
-                </div>
-            </div>
         </div>
     </div>
 ));
@@ -293,7 +296,6 @@ export function PreviewSection() {
     const {
         selectedJob,
         isProcessing,
-        transcribeProvider,
         videoUrl,
         processedCues,
         subtitlePosition,
@@ -305,10 +307,6 @@ export function PreviewSection() {
         watermarkEnabled,
         playerRef,
         resultsRef,
-        currentStep,
-        setOverrideStep,
-        AVAILABLE_MODELS,
-        transcribeMode,
         handleExport,
         exportingResolutions,
         exportError,
@@ -318,15 +316,6 @@ export function PreviewSection() {
     } = useProcessContext();
     const { setCurrentTime } = usePlaybackContext();
     const [showNewVideoModal, setShowNewVideoModal] = React.useState(false);
-    const [localCollapsed, setLocalCollapsed] = React.useState(false);
-
-    React.useEffect(() => {
-        if (currentStep !== 3) {
-            setLocalCollapsed(false);
-        }
-    }, [currentStep]);
-
-    const isExpanded = currentStep === 3 && !localCollapsed;
 
     const handleNewVideoConfirm = useCallback(() => {
         onReset();
@@ -349,43 +338,12 @@ export function PreviewSection() {
         setCurrentTime(time);
     }, [setCurrentTime]);
 
-    const handleStepClick = useCallback(() => {
-        if (currentStep === 3) {
-            setLocalCollapsed((collapsed) => !collapsed);
-            return;
-        }
-
-        setOverrideStep(3);
-        setLocalCollapsed(false);
-        setTimeout(() => {
-            document.getElementById('step-3-wrapper')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }, 350);
-    }, [currentStep, setOverrideStep]);
-
-    const displayedModel = useMemo(() => {
-        if (selectedJob?.status === 'completed' && selectedJob.result_data) {
-            const jobTier = resolveTranscriptionTier(
-                selectedJob.result_data.transcribe_provider,
-                selectedJob.result_data.model_size,
-            );
-            return AVAILABLE_MODELS.find((model) => model.mode === jobTier);
-        }
-
-        return AVAILABLE_MODELS.find(
-            (model) => model.provider === transcribeProvider && model.mode === transcribeMode,
-        );
-    }, [AVAILABLE_MODELS, selectedJob, transcribeProvider, transcribeMode]);
-
     return (
         <PreviewSectionLayout
             resultsRef={resultsRef}
-            currentStep={currentStep}
-            handleStepClick={handleStepClick}
             selectedJob={selectedJob}
             isProcessing={isProcessing}
             t={t}
-            transcribeProvider={transcribeProvider}
-            displayedModel={displayedModel}
             processedCues={processedCues}
             playerRef={playerRef}
             videoUrl={videoUrl}
@@ -397,7 +355,6 @@ export function PreviewSection() {
             showNewVideoModal={showNewVideoModal}
             setShowNewVideoModal={setShowNewVideoModal}
             onNewVideoConfirm={handleNewVideoConfirm}
-            isExpanded={isExpanded}
         />
     );
 }

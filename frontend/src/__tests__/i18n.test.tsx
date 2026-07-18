@@ -121,14 +121,8 @@ afterEach(() => {
 });
 
 describe('i18n provider defaults and persistence', () => {
-    it('keeps locale dictionaries in sync for model-selection labels', () => {
-        /**
-         * REGRESSION: `ModelSelector` uses `t("modelInfo")`, so missing locale keys
-         * break the production TypeScript build even if the dev server appears healthy.
-         */
+    it('keeps locale dictionaries in sync', () => {
         expect(Object.keys(messages.el).sort()).toEqual(Object.keys(messages.en).sort());
-        expect(messages.el.modelInfo).toBe('Πληροφορίες σύγκρισης μοντέλων');
-        expect(messages.en.modelInfo).toBe('Model comparison information');
     });
 
     it('covers every translation key used by production source files', () => {
@@ -184,14 +178,9 @@ describe('localized pages', () => {
         renderWithI18n(<DashboardPage />);
 
         expect(await screen.findByText('Υπότιτλοι. Χωρίς κόπο.')).toBeInTheDocument();
-
-        fireEvent.click(screen.getByRole('button', { name: 'Ρυθμίσεις μηχανής' }));
-
-        const scribeCard = screen.getByTestId('model-scribe');
-        expect(scribeCard).toBeDisabled();
-        expect(scribeCard).toHaveTextContent('Scribe v2');
-        expect(scribeCard).toHaveTextContent('Κλειστό προσωρινά');
-
+        expect(screen.queryByRole('button', { name: 'Ρυθμίσεις μηχανής' })).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Πόντοι: 1,000' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Προφίλ' })).toHaveAttribute('title', 'Ρυθμίσεις λογαριασμού');
         expect(screen.getAllByText('Επιλογή βίντεο').length).toBeGreaterThan(0);
     });
 

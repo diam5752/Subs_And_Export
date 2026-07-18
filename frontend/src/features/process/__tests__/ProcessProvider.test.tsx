@@ -206,7 +206,7 @@ describe('ProcessProvider', () => {
     );
   });
 
-  it('stays on Step 2 after selecting a model on a completed job', async () => {
+  it('stays on the captions step after selecting a model on a completed job', async () => {
     const completedJob = {
       id: 'job-1',
       status: 'completed',

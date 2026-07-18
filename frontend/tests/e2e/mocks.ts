@@ -164,6 +164,7 @@ function withCors(body: unknown, status = 200) {
 
 export async function mockApi(page: Page, options: MockApiOptions = {}): Promise<void> {
   const { authenticated = true } = options;
+  let signedIn = authenticated;
 
   // Pre-set consent and locale to avoid banners/flicker
   await page.addInitScript(({ authenticated: isAuthenticated }) => {
@@ -186,7 +187,7 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
 
   await page.route('**/auth/me', async (route) => {
     if (await shortCircuitOptions(route)) return;
-    if (!authenticated) {
+    if (!signedIn) {
       await route.fulfill(unauthorizedResponse);
       return;
     }
@@ -195,6 +196,7 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
 
   await page.route('**/auth/token', async (route) => {
     if (await shortCircuitOptions(route)) return;
+    signedIn = true;
     await route.fulfill(withCors({
       access_token: 'test-token',
       token_type: 'bearer',
@@ -205,7 +207,7 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
 
   await page.route('**/auth/points', async (route) => {
     if (await shortCircuitOptions(route)) return;
-    if (!authenticated) {
+    if (!signedIn) {
       await route.fulfill(unauthorizedResponse);
       return;
     }
@@ -227,6 +229,7 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
 
   await page.route('**/auth/google/callback', async (route) => {
     if (await shortCircuitOptions(route)) return;
+    signedIn = true;
     await route.fulfill(withCors({
       access_token: 'google-token',
       token_type: 'bearer',
@@ -237,7 +240,7 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
 
   await page.route('**/videos/process', async (route) => {
     if (await shortCircuitOptions(route)) return;
-    if (!authenticated) {
+    if (!signedIn) {
       await route.fulfill(unauthorizedResponse);
       return;
     }
@@ -252,7 +255,7 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
 
   await page.route('**/videos/jobs/*/export', async (route) => {
     if (await shortCircuitOptions(route)) return;
-    if (!authenticated) {
+    if (!signedIn) {
       await route.fulfill(unauthorizedResponse);
       return;
     }
@@ -280,7 +283,7 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
 
   await page.route('**/videos/jobs**', async (route) => {
     if (await shortCircuitOptions(route)) return;
-    if (!authenticated) {
+    if (!signedIn) {
       await route.fulfill(unauthorizedResponse);
       return;
     }
@@ -310,7 +313,7 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
 
   await page.route('**/history/**', async (route) => {
     if (await shortCircuitOptions(route)) return;
-    if (!authenticated) {
+    if (!signedIn) {
       await route.fulfill(unauthorizedResponse);
       return;
     }
@@ -374,13 +377,21 @@ export async function waitForDashboardShell(page: Page): Promise<void> {
   });
 }
 
-export async function waitForModelPicker(page: Page): Promise<void> {
-  await waitForDashboardShell(page);
-  const model = page.getByTestId('model-standard');
-  if (!(await model.isVisible())) {
-    await page.getByTestId('engine-settings-toggle').click();
+export async function waitForUploadWorkspace(
+  page: Page,
+  options: { authenticated?: boolean } = {},
+): Promise<void> {
+  const { authenticated = true } = options;
+  await page.waitForLoadState('domcontentloaded');
+  if (authenticated) {
+    await waitForDashboardShell(page);
+  } else {
+    await page.getByRole('button', { name: el.guestSignIn }).waitFor({
+      state: 'visible',
+      timeout: 30_000,
+    });
   }
-  await model.waitFor({
+  await page.getByTestId('upload-section').waitFor({
     state: 'visible',
     timeout: 30_000,
   });

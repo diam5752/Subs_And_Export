@@ -9,15 +9,15 @@ from backend.app.services.transcription.base import Transcriber
 from backend.app.services.transcription.utils import normalize_text, write_srt_from_segments
 
 _PHRASES = (
-    "Αυτό είναι ένα ασφαλές mock transcript",
-    "Δοκιμάζουμε τον ρυθμό και τα animated subtitles",
-    "Καμία εξωτερική υπηρεσία AI δεν καλείται",
-    "Το export παράγεται κανονικά στη συσκευή σου",
+    "Αυτό είναι ένα δείγμα υποτίτλων",
+    "Δοκιμάζουμε τον ρυθμό και την κίνηση",
+    "Οι λέξεις συγχρονίζονται με το βίντεο",
+    "Το αρχείο είναι έτοιμο για εξαγωγή",
 )
 
 
 class MockTranscriber(Transcriber):
-    """Produce honest demo cues with word timings and no network access."""
+    """Produce deterministic cues with word timings and no network access."""
 
     def transcribe(
         self,

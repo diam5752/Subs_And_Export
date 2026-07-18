@@ -36,7 +36,6 @@ export default function RegisterPage() {
         <div className="auth-shell">
             <header className="auth-header">
                 <Link href="/" className="auth-wordmark">SUBFRAME</Link>
-                <span className="auth-safe-pill"><i /> Mock · €0</span>
             </header>
 
             <main className="auth-main animate-fade-in">

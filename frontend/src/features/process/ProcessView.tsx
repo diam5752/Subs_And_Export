@@ -3,7 +3,6 @@ import { StepIndicator } from './StepIndicator';
 import { ProcessProvider, useProcessContext, ProcessingOptions } from './ProcessContext';
 import { PlaybackProvider } from './PlaybackContext';
 export type { ProcessingOptions } from './ProcessContext';
-import { ModelSelector } from './components/ModelSelector';
 import { UploadSection } from './components/UploadSection';
 import { PreviewSection } from './components/PreviewSection';
 import { JobResponse } from '@/lib/api';
@@ -29,8 +28,6 @@ interface ProcessViewProps {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const ProcessViewLayout = React.memo(({ currentStep, steps, selectedFile, isProcessing, selectedJob, setOverrideStep }: { currentStep: number; steps: any[]; selectedFile: File | null; isProcessing: boolean; selectedJob: JobResponse | null; setOverrideStep: (s: number | null) => void }) => {
-    const { t } = useI18n();
-    const [showEngineSettings, setShowEngineSettings] = React.useState(false);
     const showUploadSection = currentStep <= 2;
     const showPreviewSection = currentStep === 3 && selectedJob?.status === 'completed';
 
@@ -58,6 +55,8 @@ const ProcessViewLayout = React.memo(({ currentStep, steps, selectedFile, isProc
 
     return (
         <div className="studio-workflow">
+            <StepIndicator currentStep={currentStep} steps={steps} onStepClick={handleStepClick} maxStep={maxStep} />
+
             {showUploadSection && (
                 <div id="primary-workspace" className="studio-primary-workspace scroll-mt-28">
                     <UploadSection />
@@ -70,30 +69,6 @@ const ProcessViewLayout = React.memo(({ currentStep, steps, selectedFile, isProc
                 </div>
             )}
 
-            <StepIndicator currentStep={currentStep} steps={steps} onStepClick={handleStepClick} maxStep={maxStep} />
-
-            <div className="studio-engine-settings">
-                <div className="studio-engine-summary" data-testid="mock-mode-badge">
-                    <span className="studio-engine-dot" aria-hidden="true" />
-                    <span>Mock Studio</span>
-                    <strong>€0</strong>
-                </div>
-                <button
-                    type="button"
-                    className="studio-engine-toggle"
-                    data-testid="engine-settings-toggle"
-                    aria-expanded={showEngineSettings}
-                    onClick={() => setShowEngineSettings((visible) => !visible)}
-                >
-                    {showEngineSettings ? t('engineSettingsHide') : t('engineSettingsShow')}
-                </button>
-            </div>
-
-            {showEngineSettings && (
-                <div id="engine-settings-panel" className="animate-fade-in">
-                    <ModelSelector />
-                </div>
-            )}
         </div>
     );
 });

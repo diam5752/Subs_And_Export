@@ -1,7 +1,7 @@
 
 import { test, expect } from '@playwright/test';
 import { resolve } from 'node:path';
-import { mockApi, waitForModelPicker } from './mocks';
+import { mockApi, waitForUploadWorkspace } from './mocks';
 import el from '@/i18n/el.json';
 
 test.describe('Video Processing Flow', () => {
@@ -11,7 +11,9 @@ test.describe('Video Processing Flow', () => {
         const exportPayloads: Array<Record<string, unknown>> = [];
 
         // Override job creation to return a specific ID
+        let processRequests = 0;
         await page.route('**/videos/process', async route => {
+            processRequests += 1;
             const json = {
                 id: 'job-123',
                 status: 'pending',
@@ -90,26 +92,30 @@ test.describe('Video Processing Flow', () => {
 
         // 2. Go to page
         await page.goto('/');
-        await waitForModelPicker(page);
-
-        // Select model first
-        await page.getByTestId('model-standard').click({ force: true });
+        await waitForUploadWorkspace(page);
 
         // Check if we are stuck on loading
         await expect(page.getByText(el.loading)).not.toBeVisible();
         // Check if we are stuck on login
         await expect(page.getByText(el.loginHeading)).not.toBeVisible();
 
-        // 3. Upload a real 8.6s vertical MP4. A valid media fixture exercises
-        // browser metadata validation and the product's normal auto-start flow.
+        // 3. Upload a real 8.6s vertical MP4. Upload and configuration remain
+        // free of side effects until the user explicitly confirms the coin cost.
         const fileInput = page.locator('input[type="file"]');
-        const processRequest = page.waitForRequest(
-            request => request.method() === 'POST' && request.url().endsWith('/videos/process'),
-        );
         await fileInput.setInputFiles(
             resolve(process.cwd(), '../backend/tests/data/demo_output.mp4'),
         );
         await expect(page.getByRole('heading', { name: 'demo_output.mp4' })).toBeVisible();
+        expect(processRequests).toBe(0);
+
+        await page.getByRole('button', { name: el.startProcessing }).click();
+        await expect(page.getByRole('dialog', { name: el.processingGateCostTitle })).toBeVisible();
+        expect(processRequests).toBe(0);
+
+        const processRequest = page.waitForRequest(
+            request => request.method() === 'POST' && request.url().endsWith('/videos/process'),
+        );
+        await page.getByRole('button', { name: el.processingGateConfirm.replace('{cost}', '25') }).click();
         await processRequest;
 
         // 4. Wait for completion. The mock job may finish before the transient
@@ -147,5 +153,56 @@ test.describe('Video Processing Flow', () => {
                 karaoke_enabled: true,
             }),
         ]);
+    });
+
+    test('guest keeps the uploaded file through login and sees cost before start', async ({ page }) => {
+        await mockApi(page, { authenticated: false });
+        let processRequests = 0;
+        await page.route('**/videos/process', async route => {
+            processRequests += 1;
+            await route.fulfill({
+                json: {
+                    id: 'job-guest',
+                    status: 'pending',
+                    user_id: 'user-demo-1',
+                    created_at: Date.now(),
+                    updated_at: Date.now(),
+                    progress: 0,
+                    message: 'Queued',
+                    result_data: {},
+                },
+            });
+        });
+
+        await page.goto('/');
+        await waitForUploadWorkspace(page, { authenticated: false });
+        await page.locator('input[type="file"]').setInputFiles(
+            resolve(process.cwd(), '../backend/tests/data/demo_output.mp4'),
+        );
+
+        await expect(page).toHaveURL(/\/$/);
+        await expect(page.getByRole('heading', { name: 'demo_output.mp4' })).toBeVisible();
+        expect(processRequests).toBe(0);
+
+        await page.getByRole('button', { name: el.startProcessing }).click();
+        await expect(page.getByRole('dialog', { name: el.processingGateAuthTitle })).toBeVisible();
+        expect(processRequests).toBe(0);
+
+        await page.getByLabel(el.loginEmailLabel).fill('guest@example.com');
+        await page.getByLabel(el.loginPasswordLabel).fill('correct horse battery staple');
+        await page.getByRole('button', { name: el.processingGateLoginSubmit }).click();
+
+        await expect(page.getByRole('dialog', { name: el.processingGateCostTitle })).toBeVisible();
+        await expect(
+            page.locator('[data-testid="upload-section"] h4', { hasText: 'demo_output.mp4' }),
+        ).toBeVisible();
+        expect(processRequests).toBe(0);
+
+        const processRequest = page.waitForRequest(
+            request => request.method() === 'POST' && request.url().endsWith('/videos/process'),
+        );
+        await page.getByRole('button', { name: el.processingGateConfirm.replace('{cost}', '25') }).click();
+        await processRequest;
+        expect(processRequests).toBe(1);
     });
 });
