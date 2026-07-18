@@ -617,6 +617,7 @@ def generate_video_variant(
     video_crf = int(stored_crf) if stored_crf is not None else settings.default_video_crf
 
     watermark_enabled = bool(subtitle_settings.get("watermark_enabled", False)) if subtitle_settings else bool(result_data.get("watermark_enabled", False))
+    audio_copy = ffmpeg_utils.input_audio_is_aac(input_path)
 
     ffmpeg_utils.run_ffmpeg_with_subs(
         input_path,
@@ -625,7 +626,7 @@ def generate_video_variant(
         video_crf=video_crf,
         video_preset=settings.default_video_preset,
         audio_bitrate=settings.default_audio_bitrate,
-        audio_copy=True,
+        audio_copy=audio_copy,
         use_hw_accel=settings.use_hw_accel,
         output_width=width,
         output_height=height,

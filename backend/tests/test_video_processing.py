@@ -825,6 +825,50 @@ def test_generate_video_variant_success(monkeypatch, tmp_path: Path):
     )
     assert res.exists() # The fake output name
 
+
+@pytest.mark.parametrize("audio_is_aac", [True, False])
+def test_generate_video_variant_only_copies_compatible_aac_audio(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    audio_is_aac: bool,
+) -> None:
+    # REGRESSION: PCM and other non-AAC tracks used to be copied into an MP4,
+    # producing an export that was not reliably playable by web clients.
+    artifact_dir = tmp_path / "artifacts"
+    artifact_dir.mkdir()
+    input_video = tmp_path / "in.mov"
+    input_video.touch()
+    (artifact_dir / "in.srt").touch()
+    (artifact_dir / "in.ass").touch()
+
+    job_store = MagicMock()
+    job = MagicMock()
+    job.user_id = "u1"
+    job.result_data = {"subtitle_size": 100}
+    job_store.get_job.return_value = job
+
+    captured: dict[str, bool] = {}
+
+    def fake_burn(
+        _input_path: Path,
+        _ass_path: Path,
+        output_path: Path,
+        **kwargs: object,
+    ) -> None:
+        selected_audio_copy = kwargs.get("audio_copy")
+        assert isinstance(selected_audio_copy, bool)
+        captured["audio_copy"] = selected_audio_copy
+        output_path.touch()
+
+    monkeypatch.setattr(ffmpeg_utils, "input_audio_is_aac", lambda _path: audio_is_aac)
+    monkeypatch.setattr(ffmpeg_utils, "run_ffmpeg_with_subs", fake_burn)
+
+    video_processing.generate_video_variant(
+        "job1", input_video, artifact_dir, "1280x720", job_store, "u1"
+    )
+
+    assert captured["audio_copy"] is audio_is_aac
+
 def test_generate_video_variant_reuses_existing_ass(monkeypatch, tmp_path: Path):
     artifact_dir = tmp_path / "artifacts"
     artifact_dir.mkdir()

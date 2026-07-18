@@ -116,6 +116,13 @@
       "command_id": "check:integration"
     },
     {
+      "id": "real-media-export",
+      "requirement": "Real FFmpeg exports must decode fully and preserve subtitle geometry across the supported media matrix.",
+      "status": "enabled",
+      "suggested_command": "Run the deterministic real-media compatibility and golden-frame export gate.",
+      "command_id": "check:media-export"
+    },
+    {
       "id": "acceptance",
       "requirement": "Acceptance or E2E coverage for critical flows.",
       "status": "enabled",
@@ -177,6 +184,7 @@
   "notes": [
     "Acceptance flows remain human-owned and should be confirmed in .codex/acceptance-flows.md.",
     "Fast/static/security/integration/E2E enforcement is executable today.",
+    "Real-media export compatibility and golden-frame regression checks run locally without external providers.",
     "Java/Spring enforcement is executable through check:java and CI configures JDK 25; local runs require a JDK 25 installation.",
     "Java PIT mutation testing and subtitle export performance smoke are executable nightly gates.",
     "DAST remains blocked until the repo has a stable deployable preview target for OWASP ZAP."
@@ -191,6 +199,7 @@
       "check-static",
       "check-unit",
       "check-integration",
+      "check-media-export",
       "check-e2e",
       "check-arch",
       "check-java",
@@ -214,7 +223,7 @@
     },
     "check:unit:backend": {
       "kind": "shell",
-      "shell": "cd backend && APP_ENV=dev pytest",
+      "shell": "cd backend && APP_ENV=dev pytest -m 'not media_export'",
       "status": "enabled"
     },
     "check:unit:frontend": {
@@ -238,6 +247,11 @@
     "check:integration": {
       "kind": "shell",
       "shell": "cd backend && APP_ENV=dev pytest -o addopts='' tests/test_auth.py tests/test_gcs_endpoints.py tests/test_jobs_and_videos.py tests/test_export_route_regressions.py tests/test_processing_task_helpers.py tests/test_validation_helpers.py",
+      "status": "enabled"
+    },
+    "check:media-export": {
+      "kind": "shell",
+      "shell": "cd backend && APP_ENV=dev GSP_MOCK_EXTERNAL_SERVICES=1 GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD=0 GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD=0 pytest -o addopts='' -m media_export tests/test_real_media_exports.py",
       "status": "enabled"
     },
     "check:arch": {
@@ -285,6 +299,7 @@
       "steps": [
         "check:fast",
         "check:integration",
+        "check:media-export",
         "check:arch",
         "check:java",
         "check:security",

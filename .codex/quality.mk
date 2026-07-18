@@ -1,7 +1,7 @@
 PYTHON ?= python3
 QUALITY_RUNNER = $(PYTHON) .codex/scripts/quality_runner.py
 
-.PHONY: check-contract check-fast check-static check-unit check-integration check-e2e check-arch check-java check-security check-mutation check-performance check-dast check-all
+.PHONY: check-contract check-fast check-static check-unit check-integration check-media-export check-e2e check-arch check-java check-security check-mutation check-performance check-dast check-all
 
 check-contract:
 	$(QUALITY_RUNNER) check:contract
@@ -17,6 +17,9 @@ check-unit:
 
 check-integration:
 	$(QUALITY_RUNNER) check:integration
+
+check-media-export:
+	$(QUALITY_RUNNER) check:media-export
 
 check-e2e:
 	$(QUALITY_RUNNER) check:e2e

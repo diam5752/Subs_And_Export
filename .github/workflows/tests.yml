@@ -62,13 +62,20 @@ jobs:
       - name: Run tests with coverage
         env:
           PYTHONPATH: .
-        run: pytest --cov=app --cov=tests --cov-report=term --cov-report=xml
+        run: pytest -m "not media_export" --cov=app --cov-report=term --cov-report=xml
+
+      - name: Run real media export gate
+        env:
+          GSP_MOCK_EXTERNAL_SERVICES: '1'
+          GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD: '0'
+          GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD: '0'
+        run: pytest -o addopts='' -m media_export tests/test_real_media_exports.py
 
       - name: Coverage Summary
         run: |
           echo "## Backend Coverage" >> $GITHUB_STEP_SUMMARY
           echo '```' >> $GITHUB_STEP_SUMMARY
-          pytest --cov=app --cov-report=term-missing --cov-fail-under=60 2>&1 | tail -30 >> $GITHUB_STEP_SUMMARY || true
+          pytest -m "not media_export" --cov=app --cov-report=term-missing --cov-fail-under=60 2>&1 | tail -30 >> $GITHUB_STEP_SUMMARY || true
           echo '```' >> $GITHUB_STEP_SUMMARY
 
   frontend-tests:
