@@ -2,6 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  // Localhost is a user-facing QA surface in this project; keep framework
+  // chrome out of responsive screenshots and touch interactions.
+  devIndicators: false,
   // Playwright/Chromium can resolve dev assets from 127.0.0.1 in CI even when
   // the app is opened through localhost. Allow both loopback hosts so the dev
   // server does not block its own Next assets during E2E runs.

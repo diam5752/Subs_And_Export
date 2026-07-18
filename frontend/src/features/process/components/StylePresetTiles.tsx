@@ -71,7 +71,7 @@ export const StylePresetTiles = memo(({
 
     return (
         <div
-            className="grid grid-cols-2 gap-3 mb-6"
+            className="style-preset-grid grid grid-cols-2 gap-3 mb-6"
             role="radiogroup"
             aria-label={t('tabStyles') || 'Style Presets'}
         >
@@ -86,7 +86,7 @@ export const StylePresetTiles = memo(({
                             e.stopPropagation();
                             onSelectPreset(preset);
                         }}
-                        className={`p-3 rounded-xl border text-left transition-all relative overflow-hidden group flex flex-row gap-3 items-center focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] focus-visible:outline-none ${activePreset === preset.id
+                        className={`style-preset-card p-3 rounded-xl border text-left transition-all relative overflow-hidden group flex flex-row gap-3 items-center focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] focus-visible:outline-none ${activePreset === preset.id
                             ? 'border-[var(--accent)] ring-1 ring-[var(--accent)]'
                             : 'border-[var(--border)] hover:border-[var(--accent)]/50'
                             } `}
@@ -132,7 +132,7 @@ export const StylePresetTiles = memo(({
                     if (!lastUsedSettings) return;
                     onSelectLastUsed();
                 }}
-                className={`p-3 rounded-xl border text-left transition-all relative overflow-hidden group flex flex-row gap-3 items-center focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] focus-visible:outline-none ${activePreset === 'lastUsed'
+                className={`style-preset-card p-3 rounded-xl border text-left transition-all relative overflow-hidden group flex flex-row gap-3 items-center focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] focus-visible:outline-none ${activePreset === 'lastUsed'
                     ? 'border-[var(--accent)] ring-1 ring-[var(--accent)]'
                     : !lastUsedSettings
                         ? 'border-[var(--border)] opacity-50 grayscale cursor-not-allowed'

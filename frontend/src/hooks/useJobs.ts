@@ -35,7 +35,11 @@ export function useJobs() {
             setTotalJobs(response.total);
 
             if (autoSelectLatest) {
-                const latest = response.items.find((job) => job.status === 'completed' && job.result_data);
+                const latest = response.items.find(
+                    (job) => job.status === 'completed'
+                        && job.result_data
+                        && !job.result_data.files_missing,
+                );
                 if (latest) {
                     setSelectedJob(prev => prev || latest);
                 }

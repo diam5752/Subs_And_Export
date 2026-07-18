@@ -7,6 +7,16 @@ const viewports = {
   mobile: { width: 390, height: 844 },
 } as const;
 
+const editorViewportMatrix = [
+  { width: 320, height: 568 },
+  { width: 375, height: 667 },
+  { width: 390, height: 844 },
+  { width: 430, height: 932 },
+  { width: 768, height: 1024 },
+  { width: 1024, height: 768 },
+  { width: 1440, height: 900 },
+] as const;
+
 async function expectNoHorizontalOverflow(page: Page, selector?: string) {
   const overflow = await page.evaluate((sel) => {
     const target = sel ? document.querySelector<HTMLElement>(sel) : document.documentElement;
@@ -16,6 +26,85 @@ async function expectNoHorizontalOverflow(page: Page, selector?: string) {
   }, selector);
   expect(overflow).toBeLessThanOrEqual(1);
 }
+
+test('completed editor remains readable across the responsive viewport matrix', async ({ page }) => {
+  await mockApi(page);
+  await page.addInitScript(() => {
+    localStorage.setItem('lastActiveJobId', 'job-futurist');
+  });
+
+  for (const viewport of editorViewportMatrix) {
+    await page.setViewportSize(viewport);
+    await page.goto('/');
+    await page.getByText(el.subtitlesReady).waitFor({ timeout: 30_000 });
+    await stabilizeUi(page);
+
+    const metrics = await page.evaluate(() => {
+      const bounds = (selector: string) => {
+        const element = document.querySelector<HTMLElement>(selector);
+        if (!element) throw new Error(`Missing responsive editor element: ${selector}`);
+        const rect = element.getBoundingClientRect();
+        return {
+          x: rect.x,
+          y: rect.y,
+          right: rect.right,
+          bottom: rect.bottom,
+          width: rect.width,
+          height: rect.height,
+        };
+      };
+
+      return {
+        documentOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        section: bounds('#preview-section'),
+        preview: bounds('[data-testid="editor-preview-panel"]'),
+        phone: bounds('[data-testid="editor-phone"]'),
+        sidebar: bounds('[data-testid="editor-sidebar"]'),
+        exportPanel: bounds('.editor-export-panel'),
+        exportActions: Array.from(document.querySelectorAll<HTMLElement>('.editor-export-action')).map((element) => {
+          const rect = element.getBoundingClientRect();
+          return { width: rect.width, height: rect.height };
+        }),
+        tabs: Array.from(document.querySelectorAll<HTMLElement>('.editor-tab')).map((element) => {
+          const rect = element.getBoundingClientRect();
+          return { width: rect.width, height: rect.height };
+        }),
+        newVideo: bounds('.editor-new-video'),
+      };
+    });
+
+    // REGRESSION: the old desktop layout gave almost all width to the fixed sidebar,
+    // leaving the video and export controls in an unusable sliver.
+    expect(metrics.documentOverflow, `${viewport.width}px document overflow`).toBeLessThanOrEqual(1);
+    expect(metrics.section.x, `${viewport.width}px section left edge`).toBeGreaterThanOrEqual(0);
+    expect(metrics.section.right, `${viewport.width}px section right edge`).toBeLessThanOrEqual(viewport.width + 1);
+    expect(metrics.phone.width, `${viewport.width}px phone width`).toBeGreaterThanOrEqual(190);
+    expect(metrics.phone.width, `${viewport.width}px phone width`).toBeLessThanOrEqual(280);
+
+    for (const action of [...metrics.exportActions, ...metrics.tabs, metrics.newVideo]) {
+      expect(action.height, `${viewport.width}px touch target height`).toBeGreaterThanOrEqual(44);
+      expect(action.width, `${viewport.width}px touch target width`).toBeGreaterThanOrEqual(42);
+    }
+
+    if (viewport.width >= 900) {
+      expect(metrics.preview.width, `${viewport.width}px desktop preview width`).toBeGreaterThanOrEqual(278);
+      expect(metrics.sidebar.width, `${viewport.width}px desktop controls width`).toBeGreaterThanOrEqual(480);
+      expect(metrics.preview.right, `${viewport.width}px desktop column order`).toBeLessThanOrEqual(metrics.sidebar.x + 1);
+    } else {
+      expect(metrics.preview.bottom, `${viewport.width}px mobile export order`).toBeLessThanOrEqual(metrics.exportPanel.y + 1);
+      expect(metrics.exportPanel.bottom, `${viewport.width}px mobile controls order`).toBeLessThanOrEqual(metrics.sidebar.y + 1);
+    }
+
+    if (viewport.width <= 430) {
+      await page.getByRole('tab', { name: el.tabStyles }).click();
+      await stabilizeUi(page);
+      await expectNoHorizontalOverflow(page);
+      await expectNoHorizontalOverflow(page, '[data-testid="editor-sidebar"]');
+      await expect(page.getByRole('radio', { name: 'TikTok Pro' })).toBeVisible();
+      await page.getByRole('tab', { name: el.tabTranscript }).click();
+    }
+  }
+});
 
 for (const [label, viewport] of Object.entries(viewports)) {
   test.describe(`${label} layouts`, () => {

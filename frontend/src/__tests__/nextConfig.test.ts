@@ -67,4 +67,10 @@ describe('next.config', () => {
       expect.arrayContaining(['127.0.0.1', 'localhost']),
     );
   });
+
+  it('keeps the localhost QA surface free of framework UI', async () => {
+    const nextConfigModule = await import('../../next.config');
+
+    expect(nextConfigModule.default.devIndicators).toBe(false);
+  });
 });

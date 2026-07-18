@@ -114,6 +114,39 @@ describe('useJobs Hook', () => {
         expect(result.current.selectedJob?.id).toBe('2');
     });
 
+    it('skips completed jobs whose local artifacts are missing', async () => {
+        const paginatedResponse = {
+            items: [
+                {
+                    id: 'missing',
+                    created_at: 300,
+                    status: 'completed',
+                    result_data: { video_path: 'missing.mp4', files_missing: true },
+                },
+                {
+                    id: 'available',
+                    created_at: 200,
+                    status: 'completed',
+                    result_data: { video_path: 'available.mp4' },
+                },
+            ],
+            total: 2,
+            page: 1,
+            page_size: 5,
+            total_pages: 1,
+        };
+        (api.getJobsPaginated as jest.Mock).mockResolvedValue(paginatedResponse);
+
+        const { result } = renderHook(() => useJobs());
+
+        await act(async () => {
+            await result.current.loadJobs(true);
+        });
+
+        // REGRESSION: never reopen a completed editor with no playable artifacts.
+        expect(result.current.selectedJob?.id).toBe('available');
+    });
+
     it('should navigate to next page', async () => {
         const page1Response = {
             items: [{ id: '1', created_at: 100, status: 'completed' }],
@@ -185,4 +218,3 @@ describe('useJobs Hook', () => {
         expect(result.current.currentPage).toBe(1);
     });
 });
-

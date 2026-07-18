@@ -180,12 +180,19 @@ describe('PreviewSection', () => {
         fireEvent.click(screen.getByTestId('vtt-btn'));
         fireEvent.click(screen.getByTestId('txt-btn'));
         fireEvent.click(screen.getByTestId('download-1080p-btn'));
+        fireEvent.click(screen.getByTestId('download-4k-btn'));
 
         expect(contextValue.handleExport).toHaveBeenCalledWith('srt');
         expect(contextValue.handleExport).toHaveBeenCalledWith('vtt');
         expect(contextValue.handleExport).toHaveBeenCalledWith('txt');
         expect(contextValue.handleExport).toHaveBeenCalledWith('1080x1920');
+        expect(contextValue.handleExport).toHaveBeenCalledWith('2160x3840');
         expect(screen.getByTestId('sidebar')).toBeInTheDocument();
+
+        // REGRESSION: preview, controls, and exports must remain separate layout regions.
+        expect(screen.getByTestId('completed-editor')).toBeInTheDocument();
+        expect(screen.getByTestId('editor-preview-panel')).toBeInTheDocument();
+        expect(screen.getByTestId('editor-export-grid')).toBeInTheDocument();
     });
 
     it('renders export errors when the provider surfaces one', () => {

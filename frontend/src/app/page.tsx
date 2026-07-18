@@ -89,8 +89,12 @@ export default function DashboardPage() {
       if (lastJobId && !selectedJob && !jobId) {
         try {
           const job = await api.getJobStatus(lastJobId);
-          // Only restore if job is valid/active
-          if (job && job.status !== 'failed') {
+          const completedFilesAreAvailable = job.status !== 'completed'
+            || Boolean(job.result_data && !job.result_data.files_missing);
+
+          // A completed job whose local artifacts were cleaned up cannot render
+          // a preview or transcript, so it must not reopen as a broken editor.
+          if (job.status !== 'failed' && completedFilesAreAvailable) {
             setSelectedJob(job);
           } else {
             localStorage.removeItem('lastActiveJobId');

@@ -1,21 +1,19 @@
-import React, { useMemo, useCallback, memo } from 'react';
-import { useI18n } from '@/context/I18nContext';
-import { useProcessContext } from '../ProcessContext';
-import { usePlaybackContext } from '../PlaybackContext';
+import React, { memo, useCallback, useMemo } from 'react';
 import { PhoneFrame } from '@/components/PhoneFrame';
 import { PreviewPlayer, type PreviewPlayerHandle } from '@/components/PreviewPlayer';
-import { Sidebar } from './Sidebar';
-import { VideoModal } from '@/components/VideoModal';
-import { NewVideoConfirmModal } from './NewVideoConfirmModal';
 import { Spinner } from '@/components/Spinner';
+import { useI18n } from '@/context/I18nContext';
 import type { MessageKey } from '@/context/i18nMessages';
-import { resolveTranscriptionTier } from '@/lib/transcription';
 import type { JobResponse } from '@/lib/api';
+import { resolveTranscriptionTier } from '@/lib/transcription';
+import { usePlaybackContext } from '../PlaybackContext';
+import { useProcessContext } from '../ProcessContext';
+import { NewVideoConfirmModal } from './NewVideoConfirmModal';
+import { Sidebar } from './Sidebar';
 
 type PreviewSectionLayoutProps = {
     resultsRef: React.RefObject<HTMLDivElement | null>;
     currentStep: number;
-    handleKeyDown: (event: React.KeyboardEvent) => void;
     handleStepClick: () => void;
     selectedJob: JobResponse | null;
     isProcessing: boolean;
@@ -33,18 +31,97 @@ type PreviewSectionLayoutProps = {
     handleExport: (resolution: string) => Promise<void>;
     exportingResolutions: Record<string, boolean>;
     exportError: string | null;
-    showPreview: boolean;
-    setShowPreview: React.Dispatch<React.SetStateAction<boolean>>;
     showNewVideoModal: boolean;
     setShowNewVideoModal: React.Dispatch<React.SetStateAction<boolean>>;
     onNewVideoConfirm: () => void;
     isExpanded: boolean;
 };
 
+type ExportOption = {
+    resolution: '1080x1920' | 'srt' | 'vtt' | 'txt' | '2160x3840';
+    label: string;
+    descriptionKey: MessageKey;
+    loadingKey: MessageKey;
+    testId: string;
+    primary?: boolean;
+};
+
+const EXPORT_OPTIONS: ExportOption[] = [
+    {
+        resolution: '1080x1920',
+        label: '1080p',
+        descriptionKey: 'exportHdDesc',
+        loadingKey: 'exportRendering',
+        testId: 'download-1080p-btn',
+        primary: true,
+    },
+    {
+        resolution: 'srt',
+        label: 'SRT',
+        descriptionKey: 'subtitleFileSrtDesc',
+        loadingKey: 'exportSaving',
+        testId: 'srt-btn',
+    },
+    {
+        resolution: 'vtt',
+        label: 'VTT',
+        descriptionKey: 'subtitleFileVttDesc',
+        loadingKey: 'exportSaving',
+        testId: 'vtt-btn',
+    },
+    {
+        resolution: 'txt',
+        label: 'TXT',
+        descriptionKey: 'subtitleFileTxtDesc',
+        loadingKey: 'exportSaving',
+        testId: 'txt-btn',
+    },
+    {
+        resolution: '2160x3840',
+        label: '4K',
+        descriptionKey: 'export4kDesc',
+        loadingKey: 'exportMastering',
+        testId: 'download-4k-btn',
+    },
+];
+
+const ExportAction = memo(({
+    option,
+    isExporting,
+    onExport,
+    t,
+}: {
+    option: ExportOption;
+    isExporting: boolean;
+    onExport: (resolution: string) => Promise<void>;
+    t: PreviewSectionLayoutProps['t'];
+}) => (
+    <button
+        type="button"
+        className={`editor-export-action ${option.primary ? 'editor-export-action-primary' : ''}`}
+        onClick={() => onExport(option.resolution)}
+        disabled={isExporting}
+        aria-busy={isExporting}
+        data-testid={option.testId}
+    >
+        {isExporting ? (
+            <span className="editor-export-loading">
+                <Spinner className="h-4 w-4" />
+                <span>{t(option.loadingKey)}</span>
+            </span>
+        ) : (
+            <>
+                <span className="editor-export-label">{option.label}</span>
+                <span className="editor-export-description">{t(option.descriptionKey)}</span>
+            </>
+        )}
+    </button>
+));
+ExportAction.displayName = 'ExportAction';
+
 const PreviewSectionLayout = memo(({
     resultsRef,
     currentStep,
-    handleKeyDown,
     handleStepClick,
     selectedJob,
     isProcessing,
@@ -59,284 +136,156 @@ const PreviewSectionLayout = memo(({
     handleExport,
     exportingResolutions,
     exportError,
-    showPreview,
-    setShowPreview,
     showNewVideoModal,
     setShowNewVideoModal,
     onNewVideoConfirm,
-    isExpanded // New prop, received from parent
-}: PreviewSectionLayoutProps) => {
-    return (
-        <div id="preview-section" className={`card space-y-4 transition-all duration-500 ${!selectedJob && !isProcessing ? 'opacity-50 grayscale' : ''}`} ref={resultsRef}>
-
-            <div
-                role="button"
-                tabIndex={0}
-                onKeyDown={handleKeyDown}
-                className={`mb-2 flex items-center gap-4 transition-all duration-300 cursor-pointer group/step ${currentStep !== 3 ? (selectedJob?.status === 'completed' ? 'opacity-100 hover:scale-[1.005]' : 'opacity-40 grayscale blur-[1px]') : 'opacity-100 scale-[1.01]'}`}
-                onClick={handleStepClick}
+    isExpanded,
+}: PreviewSectionLayoutProps) => (
+    <div
+        id="preview-section"
+        className={`card editor-section ${!selectedJob && !isProcessing ? 'opacity-50 grayscale' : ''}`}
+        ref={resultsRef}
+    >
+        <button
+            type="button"
+            className={`editor-step-toggle ${currentStep !== 3 && selectedJob?.status !== 'completed' ? 'opacity-40 grayscale' : ''}`}
+            onClick={handleStepClick}
+            aria-expanded={isExpanded}
+            aria-controls="editor-section-content"
+        >
+            <span className={`editor-step-badge ${currentStep === 3 ? 'editor-step-badge-active' : ''}`}>
+                {t('step3Label')}
+            </span>
+            <span className="editor-step-title">{t('previewWindowLabel')}</span>
+            <svg
+                className={`editor-step-chevron ${isExpanded ? 'rotate-180' : ''}`}
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                data-testid="step-3-chevron"
+                aria-hidden="true"
             >
-                <span className={`flex items-center justify-center px-4 py-1 rounded-full border font-mono text-sm font-bold tracking-widest shadow-sm transition-all duration-500 ${currentStep === 3
-                    ? 'bg-gradient-to-r from-[var(--accent)] to-[var(--accent-secondary)] border-transparent text-white shadow-[0_0_20px_var(--accent)] scale-105'
-                    : 'glass-premium border-[var(--border)] text-[var(--muted)]'
-                    }`}>{t('step3Label')}</span>
-                <h3 className="text-xl font-semibold">{t('previewWindowLabel')}</h3>
-                {/* Chevron indicator for expand/collapse */}
-                <svg
-                    className={`w-5 h-5 text-[var(--muted)] transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    data-testid="step-3-chevron"
-                >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-            </div>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+            </svg>
+        </button>
 
-            {/* Collapsible content with smooth animation */}
-            <div className={`transition-all duration-300 ease-in-out overflow-hidden ${isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`} >
-
-                <div className="space-y-4 min-h-[200px]">
-                    {(!selectedJob || selectedJob.status !== 'completed') ? (
-                        <div className="py-20 flex flex-col items-center justify-center text-center text-[var(--muted)] border-2 border-dashed border-[var(--border)]/50 rounded-xl bg-[var(--surface-elevated)]/30">
-                            <div className="text-5xl mb-4 opacity-20">🎬</div>
-                            <p className="font-semibold text-lg opacity-60">{t('resultPreviewTitle')}</p>
-                            <p className="text-sm mt-1 opacity-40 max-w-[220px]">{t('resultPreviewDescription')}</p>
+        <div
+            id="editor-section-content"
+            className={`editor-collapse ${isExpanded ? 'editor-collapse-open' : ''}`}
+        >
+            <div className="editor-collapse-inner">
+                <div className="editor-section-body">
+                    {!selectedJob || selectedJob.status !== 'completed' ? (
+                        <div className="editor-empty-state">
+                            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 10l4.5-2.25A1 1 0 0121 8.65v6.7a1 1 0 01-1.5.9L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                            <p>{t('resultPreviewTitle')}</p>
+                            <span>{t('resultPreviewDescription')}</span>
                         </div>
                     ) : (
                         <>
-                            <div className="flex flex-wrap items-start justify-between gap-3">
-                                <div className="min-w-0 flex-1">
-                                    <h3 className="text-2xl font-semibold break-words [overflow-wrap:anywhere]">
-                                        {t('subtitlesReady')}
-                                    </h3>
-                                    <p className="text-sm text-[var(--muted)]">{t('liveOutputSubtitle')}</p>
+                            <div className="editor-ready-header">
+                                <div>
+                                    <span className="editor-ready-kicker">{t('statusReady')}</span>
+                                    <h2>{t('subtitlesReady')}</h2>
+                                    <p>{t('liveOutputSubtitle')}</p>
                                 </div>
-                                <div className="flex items-center justify-end">
-                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setShowNewVideoModal(true)}
+                                    className="editor-new-video"
+                                >
+                                    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 5v14m7-7H5" />
+                                    </svg>
+                                    <span>{t('newVideoButton')}</span>
+                                </button>
                             </div>
 
-                            {!isProcessing && selectedJob && selectedJob.status === 'completed' ? (
-                                <div className="animate-fade-in relative overflow-hidden rounded-2xl p-[2px]">
-                                    <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-[var(--accent)] via-[var(--accent-secondary)] to-[var(--accent)] bg-[length:200%_100%] animate-shimmer opacity-80" />
-                                    <div className="preview-card-glow absolute inset-0 rounded-2xl" />
-
-                                    <div className="relative rounded-[14px] border border-white/10 bg-[var(--surface-elevated)] overflow-hidden">
-                                        <div className="flex flex-col lg:flex-row gap-6 transition-all duration-500 ease-in-out lg:h-[850px]">
-                                            {/* Preview Player Area */}
-                                            <div className="flex-1 flex flex-col items-center min-w-0">
-                                                <div className="w-full h-full bg-black/20 rounded-2xl border border-white/5 flex flex-col items-center justify-center p-4 lg:p-8 relative overflow-hidden backdrop-blur-sm transition-all duration-500">
-                                                    {(selectedJob?.result_data?.transcribe_provider || transcribeProvider) && (
-                                                        <div className="absolute top-4 left-4 z-10 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/60 border border-white/10 backdrop-blur-md">
-                                                            {displayedModel && (
-                                                                <span className="text-sm">{displayedModel.icon(true)}</span>
-                                                            )}
-                                                            <span className="text-xs font-medium text-white/80">
-                                                                {displayedModel?.name || 'Standard'}
-                                                            </span>
-                                                        </div>
-                                                    )}
-
-                                                    <div className="relative h-[min(70dvh,600px)] w-auto aspect-[9/16] max-w-full shadow-2xl transition-all duration-500 hover:scale-[1.01] lg:h-[85%] lg:max-h-[600px] flex-shrink-0">
-                                                        <PhoneFrame className="w-full h-full" showSocialOverlays={false}>
-                                                            {videoUrl ? (
-                                                                <PreviewPlayer
-                                                                    ref={playerRef}
-                                                                    videoUrl={videoUrl}
-                                                                    cues={processedCues || []}
-                                                                    settings={playerSettings}
-                                                                    onTimeUpdate={handlePlayerTimeUpdate}
-                                                                    initialTime={processedCues && processedCues.length > 0 ? processedCues[0].start : 0}
-                                                                />
-                                                            ) : (
-                                                                <div className="relative group w-full h-full flex items-center justify-center bg-gray-900">
-                                                                    <div className="relative z-10 text-center p-6">
-                                                                        <div className="mb-3 text-4xl animate-bounce">👆</div>
-                                                                        <p className="text-sm font-medium text-white/90">{t('clickToPreview')}</p>
-                                                                    </div>
-                                                                </div>
-                                                            )}
-                                                        </PhoneFrame>
-                                                    </div>
-
-                                                    {/* Export Actions - Linear/Minimal Style */}
-                                                    <div className="grid grid-cols-2 xl:grid-cols-5 gap-4 mt-8 w-full max-w-[960px] mx-auto z-10 relative">
-                                                        {/* SRT Button */}
-                                                        <button
-                                                            className="group relative h-[88px] rounded-lg bg-black/40 border border-white/10 hover:border-white/20 hover:bg-white/5 transition-all duration-200 overflow-hidden flex flex-col items-center justify-center gap-1"
-                                                            onClick={() => handleExport('srt')}
-                                                            disabled={exportingResolutions['srt']}
-                                                            aria-busy={exportingResolutions['srt']}
-                                                            data-testid="srt-btn"
-                                                        >
-                                                            {exportingResolutions['srt'] ? (
-                                                                <div className="flex flex-col items-center gap-2">
-                                                                    <Spinner className="w-4 h-4 text-white/40" />
-                                                                    <span className="text-[10px] font-mono text-white/40 tracking-widest uppercase">{t('exportSaving')}</span>
-                                                                </div>
-                                                            ) : (
-                                                                <>
-                                                                    <div className="flex items-center gap-2 text-white/90 group-hover:text-white transition-colors">
-                                                                        <svg className="w-4 h-4 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                                                        </svg>
-                                                                        <span className="text-lg font-medium tracking-tight">SRT</span>
-                                                                    </div>
-                                                                    <span className="text-[11px] text-white/40 font-medium">{t('subtitleFileSrtDesc')}</span>
-                                                                </>
-                                                            )}
-                                                        </button>
-
-                                                        {/* VTT Button */}
-                                                        <button
-                                                            className="group relative h-[88px] rounded-lg bg-black/40 border border-white/10 hover:border-white/20 hover:bg-white/5 transition-all duration-200 overflow-hidden flex flex-col items-center justify-center gap-1"
-                                                            onClick={() => handleExport('vtt')}
-                                                            disabled={exportingResolutions['vtt']}
-                                                            aria-busy={exportingResolutions['vtt']}
-                                                            data-testid="vtt-btn"
-                                                        >
-                                                            {exportingResolutions['vtt'] ? (
-                                                                <div className="flex flex-col items-center gap-2">
-                                                                    <Spinner className="w-4 h-4 text-white/40" />
-                                                                    <span className="text-[10px] font-mono text-white/40 tracking-widest uppercase">{t('exportSaving')}</span>
-                                                                </div>
-                                                            ) : (
-                                                                <>
-                                                                    <div className="flex items-center gap-2 text-white/90 group-hover:text-white transition-colors">
-                                                                        <svg className="w-4 h-4 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 7h16M4 12h16M4 17h10" />
-                                                                        </svg>
-                                                                        <span className="text-lg font-medium tracking-tight">VTT</span>
-                                                                    </div>
-                                                                    <span className="text-[11px] text-white/40 font-medium">{t('subtitleFileVttDesc')}</span>
-                                                                </>
-                                                            )}
-                                                        </button>
-
-                                                        {/* TXT Button */}
-                                                        <button
-                                                            className="group relative h-[88px] rounded-lg bg-black/40 border border-white/10 hover:border-white/20 hover:bg-white/5 transition-all duration-200 overflow-hidden flex flex-col items-center justify-center gap-1"
-                                                            onClick={() => handleExport('txt')}
-                                                            disabled={exportingResolutions['txt']}
-                                                            aria-busy={exportingResolutions['txt']}
-                                                            data-testid="txt-btn"
-                                                        >
-                                                            {exportingResolutions['txt'] ? (
-                                                                <div className="flex flex-col items-center gap-2">
-                                                                    <Spinner className="w-4 h-4 text-white/40" />
-                                                                    <span className="text-[10px] font-mono text-white/40 tracking-widest uppercase">{t('exportSaving')}</span>
-                                                                </div>
-                                                            ) : (
-                                                                <>
-                                                                    <div className="flex items-center gap-2 text-white/90 group-hover:text-white transition-colors">
-                                                                        <svg className="w-4 h-4 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 8h10M7 12h10M7 16h6" />
-                                                                        </svg>
-                                                                        <span className="text-lg font-medium tracking-tight">TXT</span>
-                                                                    </div>
-                                                                    <span className="text-[11px] text-white/40 font-medium">{t('subtitleFileTxtDesc')}</span>
-                                                                </>
-                                                            )}
-                                                        </button>
-
-                                                        {/* 1080p Button */}
-                                                        <button
-                                                            className="group relative h-[88px] rounded-lg bg-black/40 border border-white/10 hover:border-white/20 hover:bg-white/5 transition-all duration-200 overflow-hidden flex flex-col items-center justify-center gap-1"
-                                                            onClick={() => handleExport('1080x1920')}
-                                                            disabled={exportingResolutions['1080x1920']}
-                                                            aria-busy={exportingResolutions['1080x1920']}
-                                                            data-testid="download-1080p-btn"
-                                                        >
-                                                            {exportingResolutions['1080x1920'] ? (
-                                                                <div className="flex flex-col items-center gap-2">
-                                                                    <Spinner className="w-4 h-4 text-emerald-400" />
-                                                                    <span className="text-[10px] font-mono text-white/40 tracking-widest uppercase">{t('exportRendering')}</span>
-                                                                </div>
-                                                            ) : (
-                                                                <>
-                                                                    <span className="text-lg font-medium text-white/90 group-hover:text-white transition-colors tracking-tight">1080p</span>
-                                                                    <span className="text-[11px] text-white/40 font-medium">{t('exportHdDesc')}</span>
-                                                                </>
-                                                            )}
-                                                        </button>
-
-                                                        {/* 4K Button */}
-                                                        <button
-                                                            className="group relative h-[88px] rounded-lg bg-black/40 border border-white/10 hover:border-[var(--accent)]/30 hover:bg-[var(--accent)]/[0.03] transition-all duration-300 overflow-hidden flex flex-col items-center justify-center gap-1"
-                                                            onClick={() => handleExport('2160x3840')}
-                                                            disabled={exportingResolutions['2160x3840']}
-                                                            aria-busy={exportingResolutions['2160x3840']}
-                                                        >
-                                                            {exportingResolutions['2160x3840'] ? (
-                                                                <div className="flex flex-col items-center gap-2">
-                                                                    <Spinner className="w-4 h-4 text-[var(--accent)]" />
-                                                                    <span className="text-[10px] font-mono text-[var(--accent)] tracking-widest uppercase">{t('exportMastering')}</span>
-                                                                </div>
-                                                            ) : (
-                                                                <>
-                                                                    <div className="flex items-center gap-1.5">
-                                                                        {/* Gradient Text for 4K */}
-                                                                        <span className="text-lg font-bold bg-gradient-to-br from-white via-white to-white/70 bg-clip-text text-transparent group-hover:from-[var(--accent)] group-hover:to-[var(--accent-secondary)] transition-all duration-300 tracking-tight">4K</span>
-                                                                        <span className="px-1.5 py-0.5 rounded-[4px] bg-[var(--accent)]/10 border border-[var(--accent)]/20 text-[var(--accent)] text-[9px] font-bold uppercase tracking-wider">
-                                                                            Ultra
-                                                                        </span>
-                                                                    </div>
-                                                                    <span className="text-[11px] text-white/40 font-medium group-hover:text-[var(--accent)]/70 transition-colors">{t('export4kDesc')}</span>
-                                                                </>
-                                                            )}
-                                                        </button>
-                                                    </div>
-
-                                                    {exportError && (
-                                                        <p
-                                                            className="mt-4 w-full max-w-[800px] mx-auto text-sm text-[var(--danger)] text-center"
-                                                            role="alert"
-                                                        >
-                                                            {exportError}
-                                                        </p>
-                                                    )}
-
-                                                    {/* Process New Video Button */}
-                                                    <div className="mt-6 pt-6 border-t border-white/5 w-full max-w-[800px] mx-auto z-10 relative">
-                                                        <button
-                                                            onClick={() => setShowNewVideoModal(true)}
-                                                            className="w-full group relative h-[56px] rounded-lg bg-transparent border border-dashed border-white/20 hover:border-[var(--accent)]/40 hover:bg-[var(--accent)]/5 transition-all duration-300 flex items-center justify-center gap-2"
-                                                        >
-                                                            <svg className="w-4 h-4 text-white/40 group-hover:text-[var(--accent)] transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                                            </svg>
-                                                            <span className="text-sm font-medium text-white/40 group-hover:text-[var(--accent)] transition-colors">
-                                                                {t('newVideoButton')}
-                                                            </span>
-                                                        </button>
-                                                    </div>
-                                                </div>
+                            {!isProcessing && (
+                                <div className="editor-product animate-fade-in" data-testid="completed-editor">
+                                    <div className="editor-workspace" data-testid="editor-workspace">
+                                        <section
+                                            className="editor-preview-panel"
+                                            data-testid="editor-preview-panel"
+                                            aria-label={t('previewWindowLabel')}
+                                        >
+                                            <div className="editor-preview-meta">
+                                                {(selectedJob.result_data?.transcribe_provider || transcribeProvider) && (
+                                                    <span className="editor-model-pill">
+                                                        {displayedModel && <span aria-hidden="true">{displayedModel.icon(true)}</span>}
+                                                        <span>{displayedModel?.name || 'Standard'}</span>
+                                                    </span>
+                                                )}
+                                                <span className="editor-aspect-pill">9:16</span>
                                             </div>
 
-                                            {/* Sidebar Controls */}
-                                            <Sidebar />
-                                        </div>
+                                            <div className="editor-phone" data-testid="editor-phone">
+                                                <PhoneFrame className="h-full w-full" showSocialOverlays={false}>
+                                                    {videoUrl ? (
+                                                        <PreviewPlayer
+                                                            ref={playerRef}
+                                                            videoUrl={videoUrl}
+                                                            cues={processedCues || []}
+                                                            settings={playerSettings}
+                                                            onTimeUpdate={handlePlayerTimeUpdate}
+                                                            initialTime={processedCues && processedCues.length > 0 ? processedCues[0].start : 0}
+                                                        />
+                                                    ) : (
+                                                        <div className="editor-preview-placeholder">
+                                                            <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                                                                <path d="M8.5 6.9a1 1 0 011.52-.85l7.3 4.6a1 1 0 010 1.7l-7.3 4.6a1 1 0 01-1.52-.85V6.9z" />
+                                                            </svg>
+                                                            <span>{t('clickToPreview')}</span>
+                                                        </div>
+                                                    )}
+                                                </PhoneFrame>
+                                            </div>
+                                        </section>
+
+                                        <Sidebar />
                                     </div>
+
+                                    <section className="editor-export-panel" aria-labelledby="editor-export-title">
+                                        <div className="editor-export-heading">
+                                            <h3 id="editor-export-title">{t('stepExport')}</h3>
+                                            <span>MP4 · SRT · VTT · TXT</span>
+                                        </div>
+
+                                        <div className="editor-export-grid" data-testid="editor-export-grid">
+                                            {EXPORT_OPTIONS.map((option) => (
+                                                <ExportAction
+                                                    key={option.resolution}
+                                                    option={option}
+                                                    isExporting={Boolean(exportingResolutions[option.resolution])}
+                                                    onExport={handleExport}
+                                                    t={t}
+                                                />
+                                            ))}
+                                        </div>
+
+                                        {exportError && (
+                                            <p className="editor-export-error" role="alert">
+                                                {exportError}
+                                            </p>
+                                        )}
+                                    </section>
                                 </div>
-                            ) : null}
+                            )}
                         </>
                     )}
+
                     <NewVideoConfirmModal
                         isOpen={showNewVideoModal}
                         onClose={() => setShowNewVideoModal(false)}
                         onConfirm={onNewVideoConfirm}
                     />
-                    <VideoModal
-                        isOpen={showPreview}
-                        onClose={() => setShowPreview(false)}
-                        videoUrl={videoUrl || ''}
-                    />
                 </div>
             </div>
         </div>
-    );
-});
-
+    </div>
+));
 PreviewSectionLayout.displayName = 'PreviewSectionLayout';
 
 export function PreviewSection() {
@@ -367,28 +316,18 @@ export function PreviewSection() {
         setHasChosenModel,
         onJobSelect,
     } = useProcessContext();
-
-    // Local state for VideoModal
-    const [showPreview, setShowPreview] = React.useState(false);
     const { setCurrentTime } = usePlaybackContext();
-
-    // Local state for NewVideoConfirmModal
     const [showNewVideoModal, setShowNewVideoModal] = React.useState(false);
-
-    // Local state to allow collapsing Step 3 even when it is active
     const [localCollapsed, setLocalCollapsed] = React.useState(false);
 
-    // Reset local collapsed state when step changes
     React.useEffect(() => {
         if (currentStep !== 3) {
             setLocalCollapsed(false);
         }
     }, [currentStep]);
 
-    // Collapsed state - expands automatically when on Step 3, unless manually collapsed
     const isExpanded = currentStep === 3 && !localCollapsed;
 
-    // Handler to start a new video workflow
     const handleNewVideoConfirm = useCallback(() => {
         onReset();
         setHasChosenModel(true);
@@ -402,53 +341,45 @@ export function PreviewSection() {
         fontSize: subtitleSize,
         karaoke: karaokeEnabled,
         maxLines: maxSubtitleLines,
-        shadowStrength: shadowStrength,
-        watermarkEnabled: watermarkEnabled
+        shadowStrength,
+        watermarkEnabled,
     }), [subtitlePosition, subtitleColor, subtitleSize, karaokeEnabled, maxSubtitleLines, shadowStrength, watermarkEnabled]);
 
-    const handlePlayerTimeUpdate = useCallback((t: number) => {
-        setCurrentTime(t);
+    const handlePlayerTimeUpdate = useCallback((time: number) => {
+        setCurrentTime(time);
     }, [setCurrentTime]);
 
     const handleStepClick = useCallback(() => {
         if (currentStep === 3) {
-            setLocalCollapsed(prev => !prev);
-        } else {
-            setOverrideStep(3);
-            setLocalCollapsed(false);
-            // Wait for any panel transitions (Model selector or Upload section) to finish
-            setTimeout(() => {
-                document.getElementById('step-3-wrapper')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }, 350);
+            setLocalCollapsed((collapsed) => !collapsed);
+            return;
         }
+
+        setOverrideStep(3);
+        setLocalCollapsed(false);
+        setTimeout(() => {
+            document.getElementById('step-3-wrapper')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 350);
     }, [currentStep, setOverrideStep]);
 
-    const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            handleStepClick();
-        }
-    }, [handleStepClick]);
-
     const displayedModel = useMemo(() => {
-        // If a job is completed, we MUST show the model that generated it, NOT the current selection
         if (selectedJob?.status === 'completed' && selectedJob.result_data) {
-            const provider = selectedJob.result_data.transcribe_provider;
-            const model = selectedJob.result_data.model_size;
-
-            const jobTier = resolveTranscriptionTier(provider, model);
-            return AVAILABLE_MODELS.find(m => m.mode === jobTier);
+            const jobTier = resolveTranscriptionTier(
+                selectedJob.result_data.transcribe_provider,
+                selectedJob.result_data.model_size,
+            );
+            return AVAILABLE_MODELS.find((model) => model.mode === jobTier);
         }
 
-        // Default to current selection
-        return AVAILABLE_MODELS.find(m => m.provider === transcribeProvider && m.mode === transcribeMode);
+        return AVAILABLE_MODELS.find(
+            (model) => model.provider === transcribeProvider && model.mode === transcribeMode,
+        );
     }, [AVAILABLE_MODELS, selectedJob, transcribeProvider, transcribeMode]);
 
     return (
         <PreviewSectionLayout
             resultsRef={resultsRef}
             currentStep={currentStep}
-            handleKeyDown={handleKeyDown}
             handleStepClick={handleStepClick}
             selectedJob={selectedJob}
             isProcessing={isProcessing}
@@ -463,8 +394,6 @@ export function PreviewSection() {
             handleExport={handleExport}
             exportingResolutions={exportingResolutions}
             exportError={exportError}
-            showPreview={showPreview}
-            setShowPreview={setShowPreview}
             showNewVideoModal={showNewVideoModal}
             setShowNewVideoModal={setShowNewVideoModal}
             onNewVideoConfirm={handleNewVideoConfirm}

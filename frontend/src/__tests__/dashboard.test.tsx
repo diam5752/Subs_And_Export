@@ -131,6 +131,7 @@ describe('DashboardPage', () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
+        window.localStorage.clear();
         capturedOnReset = null;
         (useRouter as jest.Mock).mockReturnValue({ push: mockPush });
         (useAppEnv as jest.Mock).mockReturnValue({ appEnv: 'dev' });
@@ -161,6 +162,26 @@ describe('DashboardPage', () => {
         expect(screen.getByTestId('process-view')).toBeInTheDocument();
         expect(screen.getByLabelText('profileLabel')).toBeInTheDocument();
         expect(mockLoadJobs).not.toHaveBeenCalled();
+    });
+
+    it('does not restore a completed job whose preview artifacts are missing', async () => {
+        window.localStorage.setItem('lastActiveJobId', 'missing-job');
+        (api.getJobStatus as jest.Mock).mockResolvedValue({
+            id: 'missing-job',
+            status: 'completed',
+            result_data: {
+                video_path: 'missing.mp4',
+                files_missing: true,
+            },
+        });
+
+        render(<DashboardPage />);
+
+        await waitFor(() => {
+            expect(api.getJobStatus).toHaveBeenCalledWith('missing-job');
+        });
+        expect(mockSetSelectedJob).not.toHaveBeenCalled();
+        expect(window.localStorage.getItem('lastActiveJobId')).toBeNull();
     });
 
     it('renders the precision header and opens history from its navigation', () => {

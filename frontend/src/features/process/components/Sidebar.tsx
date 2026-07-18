@@ -141,7 +141,7 @@ const TranscriptPanel = memo(() => {
             {/* Scrollable Transcript List */}
             <div
                 ref={transcriptContainerRef}
-                className="max-h-[50vh] overflow-y-auto custom-scrollbar pr-2 space-y-1 scroll-smooth"
+                className="editor-transcript-list custom-scrollbar scroll-smooth"
                 style={{ scrollBehavior: 'smooth' }}
             >
                 <CueList
@@ -343,31 +343,31 @@ export function Sidebar() {
         if (!selectedJob) return null;
 
         return (
-            <div className="w-full md:w-[500px] lg:w-[600px] flex flex-col bg-[var(--surface)] border border-[var(--border)] rounded-xl shadow-xl overflow-hidden transition-all duration-500">
+            <aside className="editor-sidebar" data-testid="editor-sidebar">
                 {/* Status Header */}
                 <div
-                    className="p-4 border-b border-[var(--border)] flex items-center justify-between bg-[var(--surface-elevated)]"
+                    className="editor-sidebar-status"
                     role="status"
                 >
-                    <div className="flex items-center gap-3 overflow-hidden">
+                    <div className="editor-sidebar-status-copy">
                         <div
-                            className={`w-2.5 h-2.5 rounded-full shrink-0 animate-pulse ${isProcessing ? 'bg-amber-400' : 'bg-emerald-400'}`}
+                            className={`editor-sidebar-status-dot ${isProcessing ? 'editor-sidebar-status-dot-processing' : ''}`}
                             aria-label={isProcessing ? (t('statusProcessing') || "Processing") : (t('statusReady') || "Ready")}
                         />
-                        <h3 className="font-semibold text-[var(--foreground)] truncate" title={selectedJob.result_data?.original_filename || undefined}>
+                        <h3 title={selectedJob.result_data?.original_filename || undefined}>
                             {selectedJob.result_data?.original_filename || t('processedVideoFallback')}
                         </h3>
                     </div>
                     {isProcessing && (
-                        <span className="text-xs font-mono text-amber-400" aria-label={`${progress}% complete`}>{progress}%</span>
+                        <span className="editor-sidebar-progress" aria-label={`${progress}% complete`}>{progress}%</span>
                     )}
                 </div>
 
-                <div className="p-4 sm:p-6 flex-1 flex flex-col min-h-0 custom-scrollbar relative lg:overflow-y-auto">
+                <div className="editor-sidebar-body custom-scrollbar">
 
                     <div
                         role="tablist"
-                        className="flex items-center gap-0.5 sm:gap-1 p-1 bg-[var(--surface-elevated)] rounded-lg border border-[var(--border)] mb-4 overflow-hidden"
+                        className="editor-tabs"
                     >
                         <button
                             role="tab"
@@ -375,10 +375,7 @@ export function Sidebar() {
                             aria-selected={activeSidebarTab === 'transcript'}
                             aria-controls="panel-transcript"
                             onClick={() => setActiveSidebarTab('transcript')}
-                            className={`min-w-0 flex-1 flex items-center justify-center gap-1 sm:gap-2 py-2 px-2 sm:px-3 rounded-md text-[11px] sm:text-xs font-medium transition-all focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${activeSidebarTab === 'transcript'
-                                ? 'bg-[var(--accent)] text-[#031018] shadow-sm'
-                                : 'text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-white/5'
-                                }`}
+                            className={`editor-tab ${activeSidebarTab === 'transcript' ? 'editor-tab-active' : ''}`}
                         >
                             <svg className="hidden h-4 w-4 shrink-0 sm:block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -391,10 +388,7 @@ export function Sidebar() {
                             aria-selected={activeSidebarTab === 'styles'}
                             aria-controls="panel-styles"
                             onClick={() => setActiveSidebarTab('styles')}
-                            className={`min-w-0 flex-1 flex items-center justify-center gap-1 sm:gap-2 py-2 px-2 sm:px-3 rounded-md text-[11px] sm:text-xs font-medium transition-all focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${activeSidebarTab === 'styles'
-                                ? 'bg-[var(--accent)] text-[#031018] shadow-sm'
-                                : 'text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-white/5'
-                                }`}
+                            className={`editor-tab ${activeSidebarTab === 'styles' ? 'editor-tab-active' : ''}`}
                         >
                             <svg className="hidden h-4 w-4 shrink-0 sm:block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
@@ -407,10 +401,7 @@ export function Sidebar() {
                             aria-selected={activeSidebarTab === 'intelligence'}
                             aria-controls="panel-intelligence"
                             onClick={() => setActiveSidebarTab('intelligence')}
-                            className={`min-w-0 flex-1 flex items-center justify-center gap-1 sm:gap-2 py-2 px-2 sm:px-3 rounded-md text-[11px] sm:text-xs font-medium transition-all focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${activeSidebarTab === 'intelligence'
-                                ? 'bg-[var(--accent)] text-[#031018] shadow-sm'
-                                : 'text-[var(--muted)] hover:text-[var(--foreground)] hover:bg-white/5'
-                                }`}
+                            className={`editor-tab ${activeSidebarTab === 'intelligence' ? 'editor-tab-active' : ''}`}
                         >
                             <svg className="hidden h-4 w-4 shrink-0 sm:block" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                 <path d="M9.5 2A5.5 5.5 0 0 0 4 7.5c0 1.63.71 3.1 1.84 4.1A4.5 4.5 0 0 0 5 16.5 4.5 4.5 0 0 0 9.5 21h5a4.5 4.5 0 0 0 4.5-4.5 4.5 4.5 0 0 0-.84-2.6A5.5 5.5 0 0 0 20 7.5a5.5 5.5 0 0 0-5.5-5.5h-5z" />
@@ -425,7 +416,7 @@ export function Sidebar() {
                     </div>
 
                     {/* Tab Content */}
-                    <div className="pr-1">
+                    <div className="editor-tab-content">
                         {activeSidebarTab === 'transcript' && (
                             <TranscriptPanel />
                         )}
@@ -434,14 +425,8 @@ export function Sidebar() {
 
                         {activeSidebarTab === 'intelligence' && intelligencePanel}
                     </div>
-
-                    <div className="pt-4 mt-4 border-t border-[var(--border)]/60 space-y-4">
-                        <div className="flex flex-wrap gap-3">
-                            {/* Export buttons moved to PreviewSection */}
-                        </div>
-                    </div>
                 </div>
-            </div>
+            </aside>
         );
     }, [
         selectedJob,

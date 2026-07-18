@@ -38,6 +38,10 @@ def test_dev_sample_job_creates_completed_job(monkeypatch, tmp_path: Path) -> No
         "backend.app.api.endpoints.dev._resolve_sample_source",
         lambda *args: (sample_job_id, uploads_dir / f"{sample_job_id}_input.mp4", artifacts_dir)
     )
+    monkeypatch.setattr(
+        "backend.app.api.endpoints.dev._data_roots",
+        lambda: (data_dir, uploads_dir, artifacts_dir.parent),
+    )
 
     (uploads_dir / f"{sample_job_id}_input.mp4").write_bytes(b"video")
     (artifacts_dir / "transcription.json").write_text(
@@ -61,9 +65,19 @@ def test_dev_sample_job_creates_completed_job(monkeypatch, tmp_path: Path) -> No
         assert payload["result_data"]["public_url"].endswith("/processed.mp4")
         assert payload["result_data"]["video_path"].endswith("/processed.mp4")
         assert payload["result_data"]["output_size"] == len(b"rendered-video")
-        transcription_resp = client.get(payload["result_data"]["transcription_url"])
-        assert transcription_resp.status_code == 200
-        assert transcription_resp.json() == [{"start": 0.0, "end": 1.0, "text": "hi", "words": []}]
+
+        # REGRESSION: demo exports and transcript edits must never mutate the
+        # reusable source sample through hard-linked artifacts.
+        source_transcription = artifacts_dir / "transcription.json"
+        cloned_transcription = data_dir / "artifacts" / payload["id"] / "transcription.json"
+        assert json.loads(cloned_transcription.read_text(encoding="utf-8")) == [
+            {"start": 0.0, "end": 1.0, "text": "hi", "words": []}
+        ]
+        assert source_transcription.stat().st_ino != cloned_transcription.stat().st_ino
+        cloned_transcription.write_text("[]", encoding="utf-8")
+        assert json.loads(source_transcription.read_text(encoding="utf-8")) == [
+            {"start": 0.0, "end": 1.0, "text": "hi", "words": []}
+        ]
 
 
 def test_resolve_sample_source_falls_back_when_exact_match_upload_is_missing(tmp_path: Path) -> None:

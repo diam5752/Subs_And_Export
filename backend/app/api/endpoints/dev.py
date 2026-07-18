@@ -265,7 +265,10 @@ def create_sample_job(
     artifact_dir.mkdir(parents=True, exist_ok=True)
     for path in source_artifacts.iterdir():
         if path.is_file():
-            _link_or_copy_file(path, artifact_dir / path.name)
+            # Demo artifacts are writable: transcript edits and exports can replace
+            # ASS/SRT/video variants in place. A hard link here would mutate the
+            # source sample (and, for the bundled sample, repository fixtures).
+            shutil.copy2(path, artifact_dir / path.name)
 
     if not (artifact_dir / "transcription.json").exists():
         raise HTTPException(status_code=500, detail="Sample artifacts are missing transcription.json")
