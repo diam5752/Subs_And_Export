@@ -8,9 +8,10 @@ __pycache__/
 *$py.class
 venv/
 .venv/
-.env
-.env.local
-.env.docker
+.env*
+**/.env*
+.runtime/
+backups/
 
 # Node
 node_modules/

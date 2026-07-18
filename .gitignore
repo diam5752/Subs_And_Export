@@ -103,6 +103,10 @@ data/uploads/
 data/unit-*
 src/greek_sub_publisher/logs/
 
+# Production deployment state and encrypted backups
+.runtime/
+backups/
+
 # Test output
 test_output/
 dashboard.png

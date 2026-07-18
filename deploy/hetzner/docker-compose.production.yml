@@ -85,6 +85,8 @@ services:
 
   edge:
     image: ${CADDY_IMAGE:-caddy:2-alpine}
+    ports:
+      - "127.0.0.1:${SUBFRAME_PREVIEW_PORT:-18090}:8080"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
     networks:

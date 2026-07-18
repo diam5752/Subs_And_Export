@@ -44,9 +44,9 @@ if ! compose build --pull backend frontend; then
   rollback
   exit 1
 fi
-# This VM has a small root disk. BuildKit cache is not needed for runtime or
-# rollback and can otherwise consume the space PostgreSQL needs to start.
-if [ "${SUBFRAME_PRUNE_BUILD_CACHE:-1}" = 1 ]; then
+# Cache pruning affects every project on this shared VM, so it is opt-in and
+# should be used only during an explicit disk-recovery operation.
+if [ "${SUBFRAME_PRUNE_BUILD_CACHE:-0}" = 1 ]; then
   docker builder prune -af >/dev/null
 fi
 if ! compose up -d db backend frontend edge; then
