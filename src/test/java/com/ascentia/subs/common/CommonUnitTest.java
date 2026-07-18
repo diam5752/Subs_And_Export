@@ -8,11 +8,14 @@ import com.ascentia.subs.config.AppProperties;
 import com.ascentia.subs.web.AppController;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
+import java.io.IOException;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.postgresql.util.PGobject;
 import org.springframework.core.MethodParameter;
@@ -39,9 +42,26 @@ import static org.mockito.Mockito.when;
 
 class CommonUnitTest {
 
+    private static final List<Path> GENERATED_STATIC_FIXTURES = List.of(
+            Path.of("data", "unit-static.txt"),
+            Path.of("data", "unit-video.mp4"),
+            Path.of("data", "unit-video.mov"),
+            Path.of("data", "unit-video.avi"),
+            Path.of("data", "unit-video.webm"),
+            Path.of("data", "unit-video.mkv"),
+            Path.of("data", "unit-static-dir")
+    );
+
     private static final class ValidationTarget {
         @SuppressWarnings("unused")
         void submit(String value) {
+        }
+    }
+
+    @AfterEach
+    void removeGeneratedStaticFixtures() throws IOException {
+        for (Path path : GENERATED_STATIC_FIXTURES) {
+            Files.deleteIfExists(path);
         }
     }
 
@@ -239,7 +259,7 @@ class CommonUnitTest {
         Files.write(video, "video".getBytes(StandardCharsets.UTF_8));
         assertThat(controller.serveStatic("unit-video.mp4", false, request).getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION))
                 .contains("unit-video.mp4");
-        for (String extension : java.util.List.of(".mov", ".avi", ".webm", ".mkv")) {
+        for (String extension : List.of(".mov", ".avi", ".webm", ".mkv")) {
             String filename = "unit-video" + extension;
             Files.write(Path.of("data", filename), "video".getBytes(StandardCharsets.UTF_8));
             assertThat(controller.serveStatic(filename, false, request).getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION))

@@ -68,6 +68,15 @@ def candidate_homes() -> list[Path]:
             continue
         candidates.extend(path / "Contents" / "Home" for path in root.iterdir() if path.is_dir())
 
+    for cellar in (Path("/opt/homebrew/Cellar/openjdk"), Path("/usr/local/Cellar/openjdk")):
+        if not cellar.exists():
+            continue
+        candidates.extend(
+            version / "libexec" / "openjdk.jdk" / "Contents" / "Home"
+            for version in cellar.iterdir()
+            if version.is_dir()
+        )
+
     unique: list[Path] = []
     seen: set[Path] = set()
     for candidate in candidates:

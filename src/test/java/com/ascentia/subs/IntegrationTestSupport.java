@@ -24,9 +24,6 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import static org.springframework.http.MediaType.APPLICATION_FORM_URLENCODED;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
@@ -34,16 +31,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
-@Testcontainers
 @AutoConfigureMockMvc
 @DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 public abstract class IntegrationTestSupport {
-
-    @Container
-    private static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:17-alpine")
-            .withDatabaseName("subs_and_export_test")
-            .withUsername("postgres")
-            .withPassword("postgres");
 
     @Autowired
     protected MockMvc mockMvc;
@@ -71,12 +61,18 @@ public abstract class IntegrationTestSupport {
 
     @DynamicPropertySource
     static void registerProperties(DynamicPropertyRegistry registry) {
-        registry.add("app.database-url", POSTGRES::getJdbcUrl);
-        registry.add("app.database-username", POSTGRES::getUsername);
-        registry.add("app.database-password", POSTGRES::getPassword);
+        registry.add("app.database-url", () -> requiredEnvironment("GSP_JAVA_TEST_DATABASE_URL"));
         registry.add("GOOGLE_CLIENT_ID", () -> "test-google-client");
         registry.add("FRONTEND_URL", () -> "http://localhost:3000");
         registry.add("app.allowed-origins", () -> "http://localhost:3000");
+    }
+
+    private static String requiredEnvironment(String name) {
+        String value = System.getenv(name);
+        if (value == null || value.isBlank()) {
+            throw new IllegalStateException(name + " is required for Java integration tests");
+        }
+        return value;
     }
 
     @BeforeEach

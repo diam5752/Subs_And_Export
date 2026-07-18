@@ -100,6 +100,7 @@ backend/data/
 # Runtime data artifacts
 data/artifacts/
 data/uploads/
+data/unit-*
 src/greek_sub_publisher/logs/
 
 # Test output

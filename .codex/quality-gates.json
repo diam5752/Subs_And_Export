@@ -152,9 +152,9 @@
     },
     {
       "id": "java-spring",
-      "requirement": "The Java/Spring migration surface must build and pass tests under JDK 25.",
+      "requirement": "The Java/Spring migration surface must build and pass unit, integration, and coverage checks under JDK 25.",
       "status": "enabled",
-      "suggested_command": "Run the Maven wrapper through the JDK 25 resolver.",
+      "suggested_command": "Run a clean Maven verify against an isolated temporary PostgreSQL database through the JDK 25 resolver.",
       "command_id": "check:java"
     }
   ],
@@ -185,7 +185,7 @@
     "Acceptance flows remain human-owned and should be confirmed in .codex/acceptance-flows.md.",
     "Fast/static/security/integration/E2E enforcement is executable today.",
     "Real-media export compatibility and golden-frame regression checks run locally without external providers.",
-    "Java/Spring enforcement is executable through check:java and CI configures JDK 25; local runs require a JDK 25 installation.",
+    "Java/Spring enforcement is executable through check:java and CI configures JDK 25 plus PostgreSQL; local runs require both services.",
     "Java PIT mutation testing covers the authentication and request-safety boundary; subtitle export performance smoke is also executable nightly.",
     "DAST remains blocked until the repo has a stable deployable preview target for OWASP ZAP."
   ],
@@ -261,7 +261,7 @@
     },
     "check:java": {
       "kind": "shell",
-      "shell": "python3 .codex/scripts/run_java_gate.py ./mvnw -B test",
+      "shell": "python3 .codex/scripts/run_java_verify_gate.py",
       "status": "enabled"
     },
     "check:security": {
