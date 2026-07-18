@@ -3,7 +3,6 @@
 import { useState, useEffect, Suspense, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import Image from 'next/image';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 import { redirectTo } from '@/lib/navigation';
@@ -77,34 +76,30 @@ function LoginContent() {
     };
 
     return (
-        <div className="min-h-dvh flex items-center justify-center p-4">
-            <div className="w-full max-w-md animate-fade-in">
-                {/* Logo / Branding */}
-                <div className="text-center mb-8">
-                    <div className="relative inline-block mb-6 group">
-                        <div className="absolute inset-0 -inset-y-4 bg-[var(--accent)]/15 blur-3xl opacity-50 group-hover:opacity-75 transition-opacity duration-700 mx-auto w-3/4 rounded-full" />
-                        <Image
-                            src="/ascentia-subs.png"
-                            alt="Ascentia Subs"
-                            width={300}
-                            height={300}
-                            priority
-                            className="relative h-32 w-auto object-contain drop-shadow-[0_10px_30px_rgba(0,0,0,0.4)] group-hover:drop-shadow-[0_0_40px_rgba(141,247,223,0.4)] transition-all duration-500 scale-100 group-hover:scale-[1.02]"
-                        />
+        <div className="auth-shell">
+            <header className="auth-header">
+                <Link href="/" className="auth-wordmark">SUBFRAME</Link>
+                <span className="auth-safe-pill"><i /> Mock · €0</span>
+            </header>
+
+            <main className="auth-main animate-fade-in">
+                <section className="auth-promise" aria-labelledby="auth-promise-title">
+                    <span>{t('brandBadge')}</span>
+                    <h1 id="auth-promise-title">{t('heroTitle')}</h1>
+                    <p>{t('heroSubtitle')}</p>
+                </section>
+
+                <section className="auth-card" aria-labelledby="login-title">
+                    <div className="auth-card-heading">
+                        <h2 id="login-title">{t('loginHeading')}</h2>
+                        <p>{t('loginSubtitle')}</p>
                     </div>
-                    <p className="text-[var(--muted)] text-sm font-medium tracking-[0.2em] uppercase opacity-80">{t('loginSubtitle')}</p>
-                </div>
 
-                {/* Login Card */}
-                <div className="card">
-                    <h2 className="text-xl font-semibold mb-6 text-center">{t('loginHeading')}</h2>
-
-                    {/* Google Login Button */}
                     <button
                         onClick={handleGoogleLogin}
                         disabled={googleLoading}
                         aria-busy={googleLoading}
-                        className="w-full flex items-center justify-center gap-3 bg-white text-gray-800 font-medium py-3 px-4 rounded-xl hover:bg-gray-100 transition-colors disabled:opacity-50 mb-6"
+                        className="auth-google"
                     >
                         {googleLoading ? (
                             <Spinner className="w-5 h-5 text-gray-600" />
@@ -119,18 +114,13 @@ function LoginContent() {
                         {googleLoading ? t('loginGoogleSigningIn') : t('loginGoogleCta')}
                     </button>
 
-                    <div className="relative mb-6">
-                        <div className="absolute inset-0 flex items-center">
-                            <div className="w-full border-t border-[var(--border)]"></div>
-                        </div>
-                        <div className="relative flex justify-center text-sm">
-                            <span className="px-4 bg-[var(--surface)] text-[var(--muted)]">{t('loginOrEmail')}</span>
-                        </div>
+                    <div className="auth-divider">
+                        <span>{t('loginOrEmail')}</span>
                     </div>
 
                     <form onSubmit={handleSubmit} className="space-y-5">
                         <div>
-                            <label htmlFor="email" className="block text-sm font-medium text-[var(--muted)] mb-2">
+                            <label htmlFor="email" className="auth-label">
                                 {t('loginEmailLabel')}
                             </label>
                             <input
@@ -146,7 +136,7 @@ function LoginContent() {
                         </div>
 
                         <div>
-                            <label htmlFor="password" className="block text-sm font-medium text-[var(--muted)] mb-2">
+                            <label htmlFor="password" className="auth-label">
                                 {t('loginPasswordLabel')}
                             </label>
                             <input
@@ -162,7 +152,7 @@ function LoginContent() {
                         </div>
 
                         {error && (
-                            <div className="bg-[var(--danger)]/10 border border-[var(--danger)]/30 text-[var(--danger)] px-4 py-3 rounded-xl text-sm">
+                            <div className="auth-error">
                                 {error}
                             </div>
                         )}
@@ -178,7 +168,7 @@ function LoginContent() {
                         </button>
                     </form>
 
-                    <div className="mt-6 text-center">
+                    <div className="auth-switch">
                         <p className="text-[var(--muted)]">
                             {t('loginNoAccount')}{' '}
                             <Link href="/register" className="text-[var(--accent)] hover:underline font-medium">
@@ -186,38 +176,13 @@ function LoginContent() {
                             </Link>
                         </p>
                     </div>
-                </div>
+                </section>
+            </main>
 
-                {/* Ascentia Branding Footer */}
-                <div className="mt-10 flex flex-col items-center">
-                    <a
-                        href="https://ascentia-gp.com/"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="group flex flex-col items-center gap-2 transition-all duration-300 hover:scale-105"
-                    >
-                        <div className="relative">
-                            <div className="absolute inset-0 rounded-full bg-[var(--accent)]/20 blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                            <Image
-                                src="/ascentia-logo.png"
-                                alt="Ascentia Logo"
-                                width={100}
-                                height={100}
-                                loading="eager"
-                                className="relative h-12 w-auto object-contain drop-shadow-lg group-hover:drop-shadow-[0_0_15px_rgba(141,247,223,0.4)] transition-all duration-300"
-                            />
-                        </div>
-                        <div className="text-center">
-                            <p className="text-[10px] uppercase tracking-[0.25em] text-[var(--muted)] group-hover:text-[var(--foreground)] transition-colors duration-300">
-                                Brought to you by
-                            </p>
-                            <p className="text-sm font-semibold bg-gradient-to-r from-[var(--accent)] to-[var(--accent-secondary)] bg-clip-text text-transparent">
-                                Ascentia
-                            </p>
-                        </div>
-                    </a>
-                </div>
-            </div>
+            <footer className="auth-footer">
+                <span>ASCENTIA</span>
+                <span>{t('loginFooter')}</span>
+            </footer>
         </div>
     );
 }

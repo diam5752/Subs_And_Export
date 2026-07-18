@@ -3,7 +3,6 @@ import { API_BASE, JobResponse, api } from '@/lib/api';
 import { useI18n } from '@/context/I18nContext';
 import { Cue } from '@/components/SubtitleOverlay';
 import { normalizeSubtitleText, resegmentCues } from '@/lib/subtitleUtils';
-import { resolveTranscriptionTier } from '@/lib/transcription';
 import { PreviewPlayerHandle } from '@/components/PreviewPlayer';
 
 export type TranscribeMode = 'standard' | 'pro';
@@ -248,13 +247,11 @@ export function ProcessProvider({
         return defaultValue;
     };
 
-    const [hasChosenModel, setHasChosenModel] = useState<boolean>(() => Boolean(selectedFile));
-    const [transcribeMode, setTranscribeMode] = useState<TranscribeMode | null>(() =>
-        selectedFile ? 'standard' : null
-    );
-    const [transcribeProvider, setTranscribeProvider] = useState<TranscribeProvider | null>(() =>
-        selectedFile ? 'mock' : null
-    );
+    // Mock Studio is the safe default. Upload is therefore the first useful action,
+    // while real providers remain visible only as unavailable engine settings.
+    const [hasChosenModel, setHasChosenModel] = useState<boolean>(true);
+    const [transcribeMode, setTranscribeMode] = useState<TranscribeMode | null>('standard');
+    const [transcribeProvider, setTranscribeProvider] = useState<TranscribeProvider | null>('mock');
 
     // Initial values with priority: LocalStorage > Defaults
     // Defaults: Position: 30 (Middle), Size: 85 (Medium), Lines: 2 (Double), Color: Yellow, Karaoke: True
@@ -297,20 +294,11 @@ export function ProcessProvider({
 
     const calculatedStep = useMemo(() => {
         if (selectedJob?.status === 'completed') {
-            // Check if current settings match the job results
-            const jobProvider = selectedJob.result_data?.transcribe_provider;
-            const jobModel = selectedJob.result_data?.model_size; // 'standard' | 'pro' (or legacy values)
-
-            const jobTier = resolveTranscriptionTier(jobProvider, jobModel);
-            if (!transcribeMode || jobTier === transcribeMode) {
-                return 3;
-            }
-            // If mismatch, we fallback to Step 2, but we keep the job for history/preview if needed
-            return 2;
+            return 3;
         }
-        if (hasChosenModel) return 2;
+        if (selectedFile || selectedJob || isProcessing) return 2;
         return 1;
-    }, [hasChosenModel, selectedJob, transcribeMode]);
+    }, [isProcessing, selectedFile, selectedJob]);
 
     const currentStep = overrideStep ?? calculatedStep;
 

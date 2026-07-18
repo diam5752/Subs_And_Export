@@ -50,11 +50,11 @@ export function ModelSelector() {
         setTranscribeProvider(model.provider);
         setTranscribeMode(model.mode);
         setHasChosenModel(true);
-        setOverrideStep(2);
+        setOverrideStep(selectedJob ? 2 : 1);
         window.setTimeout(() => {
-            document.getElementById('step-2-wrapper')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            document.getElementById('primary-workspace')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }, 120);
-    }, [setHasChosenModel, setOverrideStep, setTranscribeMode, setTranscribeProvider]);
+    }, [selectedJob, setHasChosenModel, setOverrideStep, setTranscribeMode, setTranscribeProvider]);
 
     return (
         <section id="model-selection-step" className="studio-panel" aria-labelledby="engine-title">

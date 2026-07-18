@@ -150,7 +150,8 @@ describe('UploadSection', () => {
 
         renderUpload();
 
-        expect(screen.getByText('Select a model above to unlock')).toBeInTheDocument();
+        expect(screen.getByText('uploadEngineRequired')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'uploadDropTitle' })).toHaveAttribute('aria-disabled', 'true');
     });
 
     it('shows an error when the video duration cannot be read', async () => {
@@ -259,7 +260,7 @@ describe('UploadSection', () => {
 
         renderUpload();
 
-        fireEvent.click(screen.getByRole('button', { name: 'Load sample video' }));
+        fireEvent.click(screen.getByRole('button', { name: 'sampleVideoCta' }));
 
         await waitFor(() => {
             expect(api.loadDevSampleJob).toHaveBeenCalledWith('groq', 'standard');
@@ -272,7 +273,7 @@ describe('UploadSection', () => {
         });
         expect(contextValue.resultsRef.current?.scrollIntoView).toHaveBeenCalled();
 
-        fireEvent.click(screen.getByRole('button', { name: 'Load sample video' }));
+        fireEvent.click(screen.getByRole('button', { name: 'sampleVideoCta' }));
 
         await waitFor(() => {
             expect(screen.getByText('backend sample failed')).toBeInTheDocument();

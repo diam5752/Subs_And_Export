@@ -391,7 +391,7 @@ export function PreviewSection() {
     // Handler to start a new video workflow
     const handleNewVideoConfirm = useCallback(() => {
         onReset();
-        setHasChosenModel(false);
+        setHasChosenModel(true);
         onJobSelect(null);
         window.scrollTo({ top: 0, behavior: 'smooth' });
     }, [onReset, setHasChosenModel, onJobSelect]);

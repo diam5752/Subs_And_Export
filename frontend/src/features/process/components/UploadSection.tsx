@@ -70,23 +70,6 @@ export function UploadSection() {
         }
     }, [currentStep]);
 
-    const activeTheme = useMemo(() => {
-        if (transcribeMode === 'pro') {
-            return {
-                borderColor: 'border-amber-400/50',
-                bgGradient: 'from-amber-400/20 via-transparent to-amber-400/10',
-                iconColor: 'text-amber-300',
-                glowColor: 'shadow-[0_0_30px_-5px_rgba(251,191,36,0.35)]',
-            };
-        }
-        return {
-            borderColor: 'border-emerald-500/50',
-            bgGradient: 'from-emerald-500/20 via-transparent to-emerald-500/5',
-            iconColor: 'text-emerald-400',
-            glowColor: 'shadow-[0_0_30px_-5px_rgba(52,211,153,0.3)]',
-        };
-    }, [transcribeMode]);
-
     const selectedModel = useMemo(() =>
         AVAILABLE_MODELS.find(m => m.provider === transcribeProvider && m.mode === transcribeMode),
         [AVAILABLE_MODELS, transcribeProvider, transcribeMode]);
@@ -566,105 +549,50 @@ export function UploadSection() {
         }
 
         return (
-            <div id="upload-section" data-testid="upload-section" className={`card space-y-4 animate-fade-in-up-scale transition-opacity duration-300 ${!hasChosenModel ? 'opacity-40 pointer-events-none' : ''}`}>
+            <div id="upload-section" data-testid="upload-section" className={`studio-upload-shell animate-fade-in-up-scale ${!hasChosenModel ? 'studio-upload-locked' : ''}`}>
                 <div
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => handleKeyDown(e, () => handleStepClick('upload-section'))}
-                    className={`mb-2 flex items-center gap-4 transition-all duration-300 cursor-pointer group/step focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:rounded-full focus-visible:outline-none ${currentStep !== 2 ? (hasChosenModel ? 'opacity-100 hover:scale-[1.005]' : 'opacity-40 grayscale blur-[1px]') : 'opacity-100 scale-[1.01]'}`}
-                    onClick={() => handleStepClick('upload-section')}
-                >
-                    <span className={`flex items-center justify-center px-4 py-1 rounded-full border font-mono text-sm font-bold tracking-widest shadow-sm transition-all duration-500 ${currentStep === 2
-                        ? 'bg-gradient-to-r from-[var(--accent)] to-[var(--accent-secondary)] border-transparent text-white shadow-[0_0_20px_var(--accent)] scale-105'
-                        : hasChosenModel
-                            ? 'glass-premium border-[var(--accent)] text-[var(--accent)] shadow-[0_0_10px_-5px_var(--accent)]'
-                            : 'glass-premium border-[var(--border)] text-[var(--muted)] group-hover/step:border-[var(--accent)]/50 group-hover/step:text-[var(--accent)]'
-                        }`}>STEP 2</span>
-                    <h3 className="text-xl font-semibold">{t('stepUpload') || 'Upload Video'}</h3>
-                    {/* Chevron indicator for expand/collapse */}
-                    <svg
-                        className={`w-5 h-5 text-[var(--muted)] transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        data-testid="step-2-chevron"
-                    >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                </div>
-                {!hasChosenModel && (
-                    <p className="text-xs text-[var(--muted)] mt-1 italic">Select a model above to unlock</p>
-                )}
-
-                <div
-                    className={`card relative overflow-hidden cursor-pointer group transition-all duration-500 focus-visible:ring-4 focus-visible:ring-[var(--accent)]/50 focus-visible:outline-none ${isDragOver
-                        ? `border-2 border-dashed bg-opacity-10 scale-[1.02] ${activeTheme.borderColor}`
-                        : `border-2 ${activeTheme.borderColor} ${activeTheme.glowColor}`
-                        } ${!hasChosenModel ? 'grayscale' : ''}`}
+                    className={`studio-upload-zone ${isDragOver ? 'studio-upload-zone-active' : ''}`}
                     data-clickable="true"
                     onClick={handleUploadCardClick}
                     onKeyDown={(e) => handleKeyDown(e, handleUploadCardClick)}
                     role="button"
                     tabIndex={0}
-                    aria-label={selectedFile ? t('changeFile') || 'Change file' : t('uploadDropTitle')}
+                    aria-disabled={!hasChosenModel}
+                    aria-label={t('uploadDropTitle')}
                     onDragEnter={handleDragEnter}
                     onDragLeave={handleDragLeave}
                     onDragOver={handleDragOver}
                     onDrop={handleDrop}
                 >
-                    <div className={`absolute inset-0 transition-opacity pointer-events-none duration-500 ${isDragOver
-                        ? `opacity-100 bg-gradient-to-br ${activeTheme.bgGradient}`
-                        : `opacity-30 group-hover:opacity-100 bg-gradient-to-br ${activeTheme.bgGradient}`
-                        } `} />
                     <input
                         ref={fileInputRef}
                         type="file"
                         accept="video/mp4,video/quicktime,video/x-matroska"
                         onChange={handleFileChange}
                         className="hidden"
-                        disabled={isProcessing}
+                        disabled={isProcessing || !hasChosenModel}
                     />
-                    {isDragOver ? (
-                        <div className="text-center py-12 relative flex flex-col items-center">
-                            <div className="relative">
-                                <div className={`mb-3 animate-bounce p-4 rounded-full bg-white/5 ${activeTheme.iconColor}`}>
-                                    <svg className="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                                    </svg>
-                                </div>
-                                {hasChosenModel && selectedModel && (
-                                    <div className={`absolute -bottom-1 -right-1 w-8 h-8 rounded-full border border-[var(--background)] bg-[var(--card-bg)] flex items-center justify-center shadow-lg ${activeTheme.iconColor} animate-pulse`}>
-                                        <div className="scale-75">
-                                            {selectedModel.icon(true)}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                            <p className={`text-2xl font-semibold mb-1 ${activeTheme.iconColor}`}>{t('dropFileHere')}</p>
-                            <p className="text-[var(--muted)]">{t('releaseToUpload')}</p>
-                        </div>
-                    ) : (
-                        <div className="text-center py-12 relative flex flex-col items-center">
-                            <div className="relative">
-                                <div className={`mb-3 transition-all duration-500 p-4 rounded-full bg-white/5 ${activeTheme.iconColor} opacity-90`}>
-                                    <svg className="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                                    </svg>
-                                </div>
-                                {hasChosenModel && selectedModel && (
-                                    <div className={`absolute -bottom-0 -right-0 w-8 h-8 rounded-full border-2 border-[var(--background)] bg-[var(--card-bg)] flex items-center justify-center shadow-lg ${activeTheme.iconColor}`}>
-                                        <div className="scale-75">
-                                            {selectedModel.icon(true)}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                            <p className={`text-2xl font-semibold mb-1 transition-colors duration-500 ${activeTheme.iconColor}`}>{t('uploadDropTitle')}</p>
-                            <p className="text-[var(--muted)]">{t('uploadDropSubtitle')}</p>
-                            <p className="text-xs text-[var(--muted)] mt-4">{t('uploadDropFootnote')}</p>
-                        </div>
-                    )}
+
+                    <div className="studio-upload-preview" aria-hidden="true">
+                        <svg viewBox="0 0 48 48" fill="none">
+                            <rect x="10" y="7" width="28" height="34" rx="5" stroke="currentColor" strokeWidth="1.5" />
+                            <path d="M21 17.5 30 24l-9 6.5v-13Z" fill="currentColor" />
+                        </svg>
+                    </div>
+
+                    <span className="studio-upload-cta">
+                        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                            <path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                        {isDragOver ? t('dropFileHere') : t('uploadDropTitle')}
+                    </span>
+                    <p>{isDragOver ? t('releaseToUpload') : t('uploadDropSubtitle')}</p>
+                    <small>{t('uploadDropFootnote')}</small>
                 </div>
+
+                {!hasChosenModel && (
+                    <p className="studio-upload-message">{t('uploadEngineRequired')}</p>
+                )}
                 {fileValidationError && (
                     <div className="rounded-xl border border-[var(--danger)]/30 bg-[var(--danger)]/10 px-4 py-3 text-sm text-[var(--danger)] animate-fade-in">
                         {fileValidationError}
@@ -672,24 +600,18 @@ export function UploadSection() {
                 )}
                 {showDevTools && (
                     <div
-                        className={`card relative overflow-hidden border border-[var(--accent)]/35 ${!hasChosenModel ? 'grayscale' : ''}`}
+                        className={`studio-dev-sample ${!hasChosenModel ? 'grayscale' : ''}`}
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <div className="absolute inset-0 bg-gradient-to-br from-[var(--accent)]/12 via-transparent to-[var(--accent-secondary)]/10 pointer-events-none" />
-                        <div className="relative space-y-3">
-                            <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border)]/60 bg-[var(--surface-elevated)]/70 px-3 py-1 text-[10px] font-semibold tracking-[0.26em] text-[var(--muted)]">
-                                <span className="h-2 w-2 rounded-full bg-[var(--accent)]" />
-                                DEV TOOLS
-                            </div>
+                        <div className="studio-dev-sample-copy">
                             <div>
-                                <h3 className="text-lg font-semibold">Test upload</h3>
-                                <p className="text-sm text-[var(--muted)]">
-                                    Load an existing processed video so you can preview/export without uploading & transcribing again.
-                                </p>
+                                <span>LOCAL DEMO</span>
+                                <h3>{t('sampleVideoTitle')}</h3>
+                                <p>{t('sampleVideoDescription')}</p>
                             </div>
                             <button
                                 type="button"
-                                className="btn-primary w-full flex items-center justify-center gap-2 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--background)] focus-visible:ring-[var(--accent)] focus-visible:outline-none"
+                                className="studio-dev-sample-button"
                                 onClick={handleLoadDevSample}
                                 disabled={isProcessing || devSampleLoading}
                                 aria-busy={devSampleLoading}
@@ -697,10 +619,10 @@ export function UploadSection() {
                                 {devSampleLoading ? (
                                     <>
                                         <Spinner className="w-4 h-4" />
-                                        <span>Loading sample…</span>
+                                        <span>{t('sampleVideoLoading')}</span>
                                     </>
                                 ) : (
-                                    'Load sample video'
+                                    t('sampleVideoCta')
                                 )}
                             </button>
                             {devSampleError && (
@@ -714,7 +636,7 @@ export function UploadSection() {
     }, [
         selectedFile, t, currentStep, videoInfo, isProcessing, error, hasChosenModel,
         selectedJob, handleStart, onFileSelect, setHasChosenModel, handleKeyDown,
-        handleStepClick, activeTheme, isDragOver, selectedModel, showDevTools,
+        handleStepClick, isDragOver, selectedModel, showDevTools,
         transcribeProvider, transcribeMode, isExpanded,
         handleUploadCardClick, handleDragEnter, handleDragLeave, handleDragOver,
         handleDrop, fileInputRef, handleLoadDevSample, devSampleLoading,

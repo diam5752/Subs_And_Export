@@ -147,7 +147,7 @@ describe('i18n provider defaults and persistence', () => {
     it('renders Greek copy by default and updates <html lang> accordingly', async () => {
         renderWithI18n(<LoginPage />);
 
-        expect(await screen.findByText('Συνδεθείτε στον λογαριασμό σας')).toBeInTheDocument();
+        expect(await screen.findByText('Καλώς ήρθες ξανά')).toBeInTheDocument();
         await waitFor(() => expect(document.documentElement.lang).toBe('el'));
     });
 
@@ -183,18 +183,16 @@ describe('localized pages', () => {
     it('shows Greek strings across dashboard by default', async () => {
         renderWithI18n(<DashboardPage />);
 
-        // Check for Greek hero title text instead of removed tabs
-        expect(await screen.findByText(/subtitle studio σου/i)).toBeInTheDocument();
+        expect(await screen.findByText('Υπότιτλοι. Χωρίς κόπο.')).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Ρυθμίσεις μηχανής' }));
 
         const scribeCard = screen.getByTestId('model-scribe');
         expect(scribeCard).toBeDisabled();
         expect(scribeCard).toHaveTextContent('Scribe v2');
         expect(scribeCard).toHaveTextContent('Κλειστό προσωρινά');
 
-        // Select a model to show upload section
-        fireEvent.click(screen.getByTestId('model-standard'));
-
-        expect(screen.getByText('Ρίξτε το κάθετο κλιπ σας')).toBeInTheDocument();
+        expect(screen.getAllByText('Επιλογή βίντεο').length).toBeGreaterThan(0);
     });
 
     it('renders English copy when locale is set to en', async () => {
@@ -211,14 +209,9 @@ describe('localized pages', () => {
                 'en',
             );
 
-            // Check for English hero and UI elements instead of removed 'Workspace' tab
-            expect(await screen.findByText(/short-form subtitle studio/i)).toBeInTheDocument();
-
-            // Select a model to show upload section
-            fireEvent.click(screen.getByTestId('model-standard'));
-
-            expect(screen.getByText('Drop your vertical clip')).toBeInTheDocument();
-            expect(screen.getByText('Sign in to your account')).toBeInTheDocument();
+            expect((await screen.findAllByText('Captions. Effortless.')).length).toBeGreaterThan(0);
+            expect(screen.getAllByText('Choose video').length).toBeGreaterThan(0);
+            expect(screen.getByText('Welcome back')).toBeInTheDocument();
         } finally {
             Element.prototype.scrollIntoView = originalScrollIntoView;
         }

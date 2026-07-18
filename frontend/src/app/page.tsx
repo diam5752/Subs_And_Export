@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useState, useMemo, useRef } from 'react';
-import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { useAppEnv } from '@/context/AppEnvContext';
@@ -344,27 +343,17 @@ export default function DashboardPage() {
 
   return (
     <div className="app-shell min-h-dvh relative overflow-x-hidden">
-      <aside
-        className="studio-sidebar"
+      <header
+        className="studio-header"
         aria-label="Subframe studio"
         aria-hidden={showAccountPanel || undefined}
         inert={showAccountPanel ? true : undefined}
       >
         <button onClick={handleReloadPage} className="studio-brand" aria-label="Reload page">
-          <span className="studio-brand-mark" aria-hidden="true">S</span>
-          <span className="studio-brand-copy">
-            <strong>SUBFRAME</strong>
-            <small>Subtitle studio</small>
-          </span>
+          <strong>SUBFRAME</strong>
         </button>
 
         <nav className="studio-nav" aria-label="Workspace navigation">
-          <a href="#model-selection-step" className="studio-nav-item studio-nav-item-active" aria-current="page">
-            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-              <path d="M12 5v14M5 12h14" strokeWidth="1.8" strokeLinecap="round" />
-            </svg>
-            <span>{t('modelSelectTitle')}</span>
-          </a>
           <button
             type="button"
             className="studio-nav-item"
@@ -373,21 +362,27 @@ export default function DashboardPage() {
               setShowAccountPanel(true);
             }}
           >
-            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-              <path d="M4 7h16M6 4h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" strokeWidth="1.6" strokeLinecap="round" />
-              <path d="M9 11h6M9 15h4" strokeWidth="1.6" strokeLinecap="round" />
-            </svg>
             <span>{t('historyTitle') || 'History'}</span>
+          </button>
+          <button
+            type="button"
+            className="studio-nav-item"
+            onClick={() => {
+              setActiveAccountTab('profile');
+              setShowAccountPanel(true);
+            }}
+          >
+            <span>{t('accountSettingsTitle')}</span>
           </button>
         </nav>
 
-        <div className="studio-sidebar-account">
+        <div className="studio-header-account">
           <div className="studio-safe-state" title={t('mockModeActive')}>
             <i />
-            <span>MOCK</span>
+            <span>Mock</span>
             <strong>€0</strong>
           </div>
-          <div className="studio-sidebar-credits" data-testid="studio-sidebar-credits">
+          <div className="studio-header-credits" data-testid="studio-header-credits">
             <CreditsBadge />
           </div>
           <button
@@ -396,12 +391,13 @@ export default function DashboardPage() {
               setShowAccountPanel(!showAccountPanel);
             }}
             className="profile-trigger"
-            aria-label={t('accountSettingsTitle')}
+            aria-label={t('profileLabel')}
+            title={t('accountSettingsTitle')}
           >
             {user.name?.trim().charAt(0).toUpperCase() || 'A'}
           </button>
         </div>
-      </aside>
+      </header>
 
       <div
         className="studio-stage"
@@ -411,20 +407,8 @@ export default function DashboardPage() {
         <main className="studio-main">
           <section className="studio-intro" data-testid="studio-intro">
             <div className="studio-intro-copy">
-              <span className="studio-kicker">{t('brandBadge')}</span>
               <h1>{t('heroTitle')}</h1>
               <p>{t('heroSubtitle')}</p>
-            </div>
-            <div className="studio-signal" aria-label="Local mock session with zero provider spend">
-              <div className="studio-signal-bars" aria-hidden="true">
-                {[3, 6, 4, 9, 12, 7, 10, 5, 8, 4, 7, 3].map((height, index) => (
-                  <i key={`${height}-${index}`} className={`signal-${height}`} />
-                ))}
-              </div>
-              <div>
-                <span><i /> LOCAL MOCK</span>
-                <strong>€0.00</strong>
-              </div>
             </div>
           </section>
 
@@ -449,8 +433,7 @@ export default function DashboardPage() {
 
         <footer className="studio-footer">
           <a href="https://ascentia-gp.com/" target="_blank" rel="noopener noreferrer" className="footer-brand">
-            <Image src="/ascentia-logo.png" alt="Ascentia Logo" width={48} height={48} loading="eager" />
-            <span><strong>Ascentia</strong><small>Built for creators</small></span>
+            <span><strong>ASCENTIA</strong><small>Built for creators</small></span>
           </a>
           <div className="footer-links">
             <a href="/privacy">{t('cookieLearnMore') || 'Privacy Policy'}</a>

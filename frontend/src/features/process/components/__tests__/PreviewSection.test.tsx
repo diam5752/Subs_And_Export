@@ -218,7 +218,7 @@ describe('PreviewSection', () => {
         fireEvent.click(screen.getByRole('button', { name: 'confirm-new-video' }));
 
         expect(contextValue.onReset).toHaveBeenCalled();
-        expect(contextValue.setHasChosenModel).toHaveBeenCalledWith(false);
+        expect(contextValue.setHasChosenModel).toHaveBeenCalledWith(true);
         expect(contextValue.onJobSelect).toHaveBeenCalledWith(null);
         expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' });
     });

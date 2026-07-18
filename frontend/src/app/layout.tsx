@@ -22,7 +22,7 @@ export const metadata: Metadata = {
   description: "Mobile-first subtitle studio for Greek and multilingual short-form video.",
   appleWebApp: {
     capable: true,
-    statusBarStyle: "black-translucent",
+    statusBarStyle: "default",
     title: "Subframe",
   },
   icons: {
@@ -35,7 +35,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#08090c",
+  themeColor: "#f7f7f5",
 };
 
 export const dynamic = "force-dynamic";

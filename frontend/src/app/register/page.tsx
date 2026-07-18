@@ -33,22 +33,27 @@ export default function RegisterPage() {
     };
 
     return (
-        <div className="min-h-dvh flex items-center justify-center p-4">
-            <div className="w-full max-w-md animate-fade-in">
-                {/* Logo / Branding */}
-                <div className="text-center mb-10">
-                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[var(--accent)] mb-6">
-                        <span className="text-3xl">🎬</span>
-                    </div>
-                    <h1 className="text-3xl font-bold text-[var(--foreground)]">{t('registerTitle')}</h1>
-                    <p className="text-[var(--muted)] mt-2">{t('registerSubtitle')}</p>
-                </div>
+        <div className="auth-shell">
+            <header className="auth-header">
+                <Link href="/" className="auth-wordmark">SUBFRAME</Link>
+                <span className="auth-safe-pill"><i /> Mock · €0</span>
+            </header>
 
-                {/* Register Card */}
-                <div className="card">
+            <main className="auth-main animate-fade-in">
+                <section className="auth-promise" aria-labelledby="register-promise-title">
+                    <span>{t('brandBadge')}</span>
+                    <h1 id="register-promise-title">{t('heroTitle')}</h1>
+                    <p>{t('heroSubtitle')}</p>
+                </section>
+
+                <section className="auth-card" aria-labelledby="register-title">
+                    <div className="auth-card-heading">
+                        <h2 id="register-title">{t('registerTitle')}</h2>
+                        <p>{t('registerSubtitle')}</p>
+                    </div>
                     <form onSubmit={handleSubmit} className="space-y-5">
                         <div>
-                            <label htmlFor="name" className="block text-sm font-medium text-[var(--muted)] mb-2">
+                            <label htmlFor="name" className="auth-label">
                                 {t('registerNameLabel')}
                             </label>
                             <input
@@ -64,7 +69,7 @@ export default function RegisterPage() {
                         </div>
 
                         <div>
-                            <label htmlFor="email" className="block text-sm font-medium text-[var(--muted)] mb-2">
+                            <label htmlFor="email" className="auth-label">
                                 {t('registerEmailLabel')}
                             </label>
                             <input
@@ -80,7 +85,7 @@ export default function RegisterPage() {
                         </div>
 
                         <div>
-                            <label htmlFor="password" className="block text-sm font-medium text-[var(--muted)] mb-2">
+                            <label htmlFor="password" className="auth-label">
                                 {t('registerPasswordLabel')}
                             </label>
                             <input
@@ -90,14 +95,14 @@ export default function RegisterPage() {
                                 onChange={(e) => setPassword(e.target.value)}
                                 className="input-field"
                                 placeholder={t('registerPasswordPlaceholder')}
-                                minLength={6}
+                                minLength={12}
                                 autoComplete="new-password"
                                 required
                             />
                         </div>
 
                         {error && (
-                            <div className="bg-[var(--danger)]/10 border border-[var(--danger)]/30 text-[var(--danger)] px-4 py-3 rounded-xl text-sm">
+                            <div className="auth-error">
                                 {error}
                             </div>
                         )}
@@ -113,7 +118,7 @@ export default function RegisterPage() {
                         </button>
                     </form>
 
-                    <div className="mt-6 text-center">
+                    <div className="auth-switch">
                         <p className="text-[var(--muted)]">
                             {t('registerHaveAccount')}{' '}
                             <Link href="/login" className="text-[var(--accent)] hover:underline font-medium">
@@ -121,13 +126,13 @@ export default function RegisterPage() {
                             </Link>
                         </p>
                     </div>
-                </div>
+                </section>
+            </main>
 
-                {/* Footer */}
-                <p className="text-center text-[var(--muted)] text-sm mt-8">
-                    {t('loginFooter')}
-                </p>
-            </div>
+            <footer className="auth-footer">
+                <span>ASCENTIA</span>
+                <span>{t('loginFooter')}</span>
+            </footer>
         </div>
     );
 }

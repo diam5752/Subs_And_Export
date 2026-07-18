@@ -12,7 +12,7 @@ export function LanguageToggle() {
     <button
       type="button"
       onClick={() => setLocale(nextLocale)}
-      className="flex items-center gap-1.5 rounded-full bg-white/5 border border-[var(--border)] px-2.5 py-1.5 text-sm hover:bg-white/10 transition-all duration-200"
+      className="language-toggle flex items-center gap-1.5 rounded-full border border-[var(--border)] px-2.5 py-1.5 text-sm transition-all duration-200"
       aria-label={t('switchLanguage', { language: nextLocale === 'el' ? t('languageNameEl') : t('languageNameEn') })}
     >
       <span className="text-lg leading-none">{locale === 'el' ? '🇬🇷' : '🇬🇧'}</span>

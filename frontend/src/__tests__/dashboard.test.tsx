@@ -159,26 +159,27 @@ describe('DashboardPage', () => {
 
         expect(screen.getByText('heroTitle')).toBeInTheDocument();
         expect(screen.getByTestId('process-view')).toBeInTheDocument();
-        expect(screen.getByLabelText('accountSettingsTitle')).toBeInTheDocument();
+        expect(screen.getByLabelText('profileLabel')).toBeInTheDocument();
         expect(mockLoadJobs).not.toHaveBeenCalled();
     });
 
-    it('renders the compact studio shell and opens history from its sidebar', () => {
+    it('renders the precision header and opens history from its navigation', () => {
         render(<DashboardPage />);
 
-        const studioSidebar = screen.getByRole('complementary', { name: 'Subframe studio' });
-        expect(studioSidebar).toBeInTheDocument();
+        const studioHeader = screen.getByRole('banner', { name: 'Subframe studio' });
+        expect(studioHeader).toBeInTheDocument();
         expect(screen.getByRole('navigation', { name: 'Workspace navigation' })).toBeInTheDocument();
         expect(screen.getByTestId('studio-intro')).toHaveClass('studio-intro');
-        expect(screen.getByTestId('studio-sidebar-credits')).toBeInTheDocument();
-        expect(screen.getByLabelText('Local mock session with zero provider spend')).toHaveTextContent('€0.00');
+        expect(screen.getByTestId('studio-header-credits')).toBeInTheDocument();
+        expect(studioHeader).toHaveTextContent('Mock');
+        expect(studioHeader).toHaveTextContent('€0');
         expect(screen.queryByText('2026 REMAKE')).not.toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'switchLanguage' })).toBeInTheDocument();
 
         fireEvent.click(screen.getByRole('button', { name: 'historyTitle' }));
         expect(screen.getByTestId('account-view')).toBeInTheDocument();
-        expect(studioSidebar).toHaveAttribute('aria-hidden', 'true');
-        expect(studioSidebar).toHaveAttribute('inert');
+        expect(studioHeader).toHaveAttribute('aria-hidden', 'true');
+        expect(studioHeader).toHaveAttribute('inert');
         expect(screen.queryByRole('button', { name: 'switchLanguage' })).not.toBeInTheDocument();
     });
 
@@ -321,7 +322,7 @@ describe('DashboardPage', () => {
 
         render(<DashboardPage />);
 
-        fireEvent.click(screen.getByLabelText('accountSettingsTitle'));
+        fireEvent.click(screen.getByLabelText('profileLabel'));
         expect(screen.getByTestId('account-view')).toBeInTheDocument();
 
         fireEvent.click(screen.getByText('Save Name Only'));
@@ -335,7 +336,7 @@ describe('DashboardPage', () => {
     it('handles profile save with password mismatch', async () => {
         render(<DashboardPage />);
 
-        fireEvent.click(screen.getByLabelText('accountSettingsTitle'));
+        fireEvent.click(screen.getByLabelText('profileLabel'));
         fireEvent.click(screen.getByText('Save Mismatch'));
 
         // Password mismatch error should be set but we can't easily verify internal state
@@ -352,7 +353,7 @@ describe('DashboardPage', () => {
 
         render(<DashboardPage />);
 
-        fireEvent.click(screen.getByLabelText('accountSettingsTitle'));
+        fireEvent.click(screen.getByLabelText('profileLabel'));
         fireEvent.click(screen.getByText('Save Profile'));
 
         await waitFor(() => {
@@ -366,7 +367,7 @@ describe('DashboardPage', () => {
 
         render(<DashboardPage />);
 
-        fireEvent.click(screen.getByLabelText('accountSettingsTitle'));
+        fireEvent.click(screen.getByLabelText('profileLabel'));
         fireEvent.click(screen.getByText('Save Name Only'));
 
         await waitFor(() => {
@@ -480,7 +481,7 @@ describe('DashboardPage', () => {
     it.skip('opens and closes account modal', () => {
         render(<DashboardPage />);
 
-        fireEvent.click(screen.getByLabelText('accountSettingsTitle'));
+        fireEvent.click(screen.getByLabelText('profileLabel'));
         expect(screen.getByTestId('account-view')).toBeInTheDocument();
 
         // Click the actual modal close button (the ✕ in the modal header from page.tsx)
@@ -492,7 +493,7 @@ describe('DashboardPage', () => {
     it('calls refreshActivity via refresh button', async () => {
         render(<DashboardPage />);
 
-        fireEvent.click(screen.getByLabelText('accountSettingsTitle'));
+        fireEvent.click(screen.getByLabelText('profileLabel'));
         fireEvent.click(screen.getByTestId('refresh-jobs-btn'));
 
         await waitFor(() => {
@@ -557,11 +558,11 @@ describe('DashboardPage', () => {
         render(<DashboardPage />);
 
         // Open account panel
-        fireEvent.click(screen.getByLabelText('accountSettingsTitle'));
+        fireEvent.click(screen.getByLabelText('profileLabel'));
         expect(screen.getByTestId('account-view')).toBeInTheDocument();
 
         // Click backdrop (the absolute inset-0 div)
-        const backdrop = screen.getByText('accountSettingsTitle').closest('.fixed')?.querySelector('.absolute.inset-0');
+        const backdrop = screen.getByTestId('account-view').closest('.fixed')?.querySelector('.absolute.inset-0');
         if (backdrop) {
             fireEvent.click(backdrop);
         }

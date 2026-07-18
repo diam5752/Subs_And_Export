@@ -23,7 +23,7 @@ test.describe('Job Polling E2E', () => {
         await expect(uploadSection).toBeVisible();
 
         // History lives under the account modal
-        await page.getByRole('button', { name: el.accountSettingsTitle }).click();
+        await page.getByRole('button', { name: el.profileLabel }).click();
         await page.getByRole('button', { name: el.historyTitle }).click();
         await expect(page.getByRole('heading', { name: el.historyTitle })).toBeVisible();
     });
@@ -40,7 +40,7 @@ test.describe('Job Polling E2E', () => {
         await expect(uploadSection).toBeVisible();
 
         // Account settings button should be available
-        await expect(page.getByRole('button', { name: el.accountSettingsTitle })).toBeVisible();
+        await expect(page.getByRole('button', { name: el.profileLabel })).toBeVisible();
     });
 
     test('unauthenticated state redirects to login', async ({ page }) => {
@@ -58,7 +58,7 @@ test.describe('Job Polling E2E', () => {
 
         // The mock includes jobs with various statuses (completed, processing, pending, failed)
         // History lives under the account modal
-        await page.getByRole('button', { name: el.accountSettingsTitle }).click();
+        await page.getByRole('button', { name: el.profileLabel }).click();
         await page.getByRole('button', { name: el.historyTitle }).click();
         await expect(page.getByRole('heading', { name: el.historyTitle })).toBeVisible();
     });

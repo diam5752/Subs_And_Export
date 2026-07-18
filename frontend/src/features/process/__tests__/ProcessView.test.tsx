@@ -107,7 +107,7 @@ const mockContextValue = {
     onJobSelect: jest.fn(),
     statusStyles: {},
     buildStaticUrl: jest.fn(),
-    hasChosenModel: false,
+    hasChosenModel: true,
     setHasChosenModel: jest.fn(),
     setVideoInfo: jest.fn(),
     setPreviewVideoUrl: jest.fn(),
@@ -149,8 +149,9 @@ describe('ProcessView', () => {
             </I18nProvider>
         );
         expect(screen.getAllByText(/Step 1/i).length).toBeGreaterThan(0);
-        expect(screen.getByRole('heading', { name: /choose how this studio should hear your video/i })).toBeInTheDocument();
-        expect(screen.getByText(/no media or money reaches an AI provider/i)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /choose video/i })).toBeInTheDocument();
+        expect(screen.getByTestId('mock-mode-badge')).toHaveTextContent('Mock Studio');
+        expect(screen.getByTestId('engine-settings-toggle')).toHaveAttribute('aria-expanded', 'false');
     });
 
     it('allows selecting a model', () => {
@@ -168,6 +169,7 @@ describe('ProcessView', () => {
             </I18nProvider>
         );
 
+        fireEvent.click(screen.getByTestId('engine-settings-toggle'));
         const radio = screen.getByRole('radio', { name: /Standard/i });
         fireEvent.click(radio);
 
@@ -190,7 +192,7 @@ describe('ProcessView', () => {
         );
 
         expect(screen.getAllByText(/Step 2/i).length).toBeGreaterThan(0);
-        expect(screen.getAllByText(/^Upload$/i).length).toBeGreaterThan(0);
+        expect(screen.getAllByText(/^Captions$/i).length).toBeGreaterThan(0);
     });
 
     it('renders Step 3 (Preview) when job is completed', () => {
@@ -210,7 +212,7 @@ describe('ProcessView', () => {
         );
 
         expect(screen.getAllByText(/Step 3/i).length).toBeGreaterThan(0);
-        expect(screen.getAllByText(/^Preview$/i).length).toBeGreaterThan(0);
+        expect(screen.getAllByText(/^Export$/i).length).toBeGreaterThan(0);
         expect(screen.getByRole('tab', { name: /Transcript/i })).toBeInTheDocument();
     });
 
@@ -290,7 +292,7 @@ describe('ProcessView', () => {
         expect(progressBar).toHaveAttribute('aria-valuemax', '100');
     });
 
-    it('shows the mock safety badge and upload section control', () => {
+    it('shows the mock safety badge and engine settings control', () => {
         (useProcessContext as jest.Mock).mockReturnValue({
             ...mockContextValue,
             currentStep: 2,
@@ -306,15 +308,17 @@ describe('ProcessView', () => {
         );
 
         expect(screen.getByTestId('mock-mode-badge')).toBeInTheDocument();
-        expect(screen.getByTestId('step-2-chevron')).toBeInTheDocument();
+        expect(screen.getByTestId('engine-settings-toggle')).toBeInTheDocument();
     });
 
-    it('displays thumbnail preview in collapsed Step 2 header', () => {
+    it('keeps the completed editor focused without duplicating the upload card', () => {
         (useProcessContext as jest.Mock).mockReturnValue({
             ...mockContextValue,
             currentStep: 3, // Step 3 active, Step 2 collapsed
             hasChosenModel: true,
             selectedFile: new File([''], 'test.mp4', { type: 'video/mp4' }),
+            selectedJob: mockJob,
+            cues: [{ start: 0, end: 1, text: 'Test' }],
             videoInfo: { thumbnailUrl: 'http://example.com/thumb.jpg' }
         });
 
@@ -326,14 +330,11 @@ describe('ProcessView', () => {
             </I18nProvider>
         );
 
-        // In Step 3, Step 2 is collapsed. It should show the thumbnail image.
-        // We use getAllByAltText because it might appear in both compact and full view (even if one is hidden)
-        const thumbnails = screen.getAllByAltText('Thumbnail');
-        expect(thumbnails.length).toBeGreaterThanOrEqual(1);
-        expect(thumbnails[0]).toHaveAttribute('src', expect.stringContaining('http://example.com/thumb.jpg'));
+        expect(screen.queryByTestId('upload-section')).not.toBeInTheDocument();
+        expect(screen.getByRole('tab', { name: /Transcript/i })).toBeInTheDocument();
     });
 
-    it('renders Step 2 in compact mode on page refresh (selectedFile is null, job is active)', () => {
+    it('restores a completed job directly into the export editor', () => {
         (useProcessContext as jest.Mock).mockReturnValue({
             ...mockContextValue,
             currentStep: 3,
@@ -343,7 +344,7 @@ describe('ProcessView', () => {
             videoInfo: { thumbnailUrl: 'http://example.com/thumb.jpg' }
         });
 
-        const { container } = render(
+        render(
             <I18nProvider initialLocale="en">
                 <PlaybackProvider>
                     <ProcessViewContent />
@@ -351,11 +352,8 @@ describe('ProcessView', () => {
             </I18nProvider>
         );
 
-        // Verify the compact section is present
-        const compactSection = container.querySelector('#upload-section-compact');
-        expect(compactSection).toBeInTheDocument();
-
-        // Should also show "Ready" badge
-        expect(screen.getAllByText(/Ready/i).length).toBeGreaterThan(0);
+        expect(screen.queryByTestId('upload-section')).not.toBeInTheDocument();
+        expect(screen.getByRole('tab', { name: /Transcript/i })).toBeInTheDocument();
+        expect(screen.getByTestId('workflow-stepper')).toHaveTextContent('Export');
     });
 });

@@ -368,15 +368,19 @@ export async function stabilizeUi(page: Page): Promise<void> {
 
 export async function waitForDashboardShell(page: Page): Promise<void> {
   await page.waitForLoadState('domcontentloaded');
-  await page.getByRole('button', { name: el.accountSettingsTitle }).waitFor({
+  await page.getByRole('button', { name: el.profileLabel }).waitFor({
     state: 'visible',
     timeout: 30_000,
   });
 }
 
 export async function waitForModelPicker(page: Page): Promise<void> {
-  await page.waitForLoadState('domcontentloaded');
-  await page.getByTestId('model-standard').waitFor({
+  await waitForDashboardShell(page);
+  const model = page.getByTestId('model-standard');
+  if (!(await model.isVisible())) {
+    await page.getByTestId('engine-settings-toggle').click();
+  }
+  await model.waitFor({
     state: 'visible',
     timeout: 30_000,
   });

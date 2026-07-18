@@ -1,5 +1,6 @@
 
 import { test, expect } from '@playwright/test';
+import { resolve } from 'node:path';
 import { mockApi, waitForModelPicker } from './mocks';
 import el from '@/i18n/el.json';
 
@@ -99,49 +100,25 @@ test.describe('Video Processing Flow', () => {
         // Check if we are stuck on login
         await expect(page.getByText(el.loginHeading)).not.toBeVisible();
 
-        // 3. Upload File
-        // Find hidden input
+        // 3. Upload a real 8.6s vertical MP4. A valid media fixture exercises
+        // browser metadata validation and the product's normal auto-start flow.
         const fileInput = page.locator('input[type="file"]');
-        await fileInput.setInputFiles({
-            name: 'test.mp4',
-            mimeType: 'video/mp4',
-            buffer: Buffer.from('dummy content')
-        });
-        // Trigger change event to ensure React picks it up
-        await fileInput.dispatchEvent('change');
+        const processRequest = page.waitForRequest(
+            request => request.method() === 'POST' && request.url().endsWith('/videos/process'),
+        );
+        await fileInput.setInputFiles(
+            resolve(process.cwd(), '../backend/tests/data/demo_output.mp4'),
+        );
+        await expect(page.getByRole('heading', { name: 'demo_output.mp4' })).toBeVisible();
+        await processRequest;
 
-        // 4. Verify customization step appears (if setup requires it) 
-        // OR if upload starts immediately. 
-        // The current UI might show settings first?
-        // Actually, dropzone usually uploads immediately OR requires button?
-        // "Review Video Settings" button?
-        // Let's check ProcessView logic in mind -> Upload -> Settings -> Start.
-
-        // Wait for "Review Video Settings" or similar trigger if needed.
-        // If the mock flow assumes Upload -> Auto Start, then we check for progress.
-        // If Upload -> Settings -> Click Process, we must click.
-        // Based on previous `ProcessView.test.tsx`, it seems we select file, then change settings, then click "Process Video".
-
-        // Wait for the uploaded file heading to appear to confirm upload.
-        await expect(page.getByRole('heading', { name: 'test.mp4' })).toBeVisible();
-
-        // Check if button is enabled/visible
-        const processBtn = page.getByRole('button', { name: /Έναρξη|Start/i });
-        await expect(processBtn).toBeVisible();
-        await processBtn.click({ force: true });
-
-        // 5. Verify Progress Mode
-        // Assuming el.progressLabel or just text regex
-        await expect(
-            page.getByRole('progressbar', { name: /Processing...|Επεξεργασία.../ }),
-        ).toBeVisible();
-
-        // 6. Wait for Completion
-        // Poll mock should switch to completed eventually.
+        // 4. Wait for completion. The mock job may finish before the transient
+        // progress bar can be observed on fast local machines.
         // Once completed, the SRT export button should appear in PreviewSection
         await expect(page.getByTestId('srt-btn')).toBeVisible({ timeout: 25000 });
+        expect(pollCount).toBeGreaterThanOrEqual(3);
 
-        // 7. Check Download Options
+        // 5. Check Download Options
         await expect(page.getByTestId('download-1080p-btn')).toBeVisible();
 
         const srtDownloadPromise = page.waitForEvent('download');

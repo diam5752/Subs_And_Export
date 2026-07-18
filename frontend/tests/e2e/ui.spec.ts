@@ -76,7 +76,7 @@ for (const [label, viewport] of Object.entries(viewports)) {
       await mockApi(page);
       await page.goto('/');
       await waitForDashboardShell(page);
-      await page.getByRole('button', { name: el.accountSettingsTitle }).click();
+      await page.getByRole('button', { name: el.profileLabel }).click();
       await page.getByRole('button', { name: el.historyTitle }).click();
       await page.getByRole('heading', { name: el.historyTitle }).waitFor();
       await page.getByText(el.historyExpiry).waitFor();
@@ -95,7 +95,7 @@ for (const [label, viewport] of Object.entries(viewports)) {
       await waitForDashboardShell(page);
 
       // Wait for the account settings button to be rendered (after auth check) and click it
-      await page.getByRole('button', { name: el.accountSettingsTitle }).click();
+      await page.getByRole('button', { name: el.profileLabel }).click();
 
       // Wait for the modal heading (the modal title is the first one visible)
       await page.getByRole('heading', { name: el.accountSettingsTitle }).first().waitFor({ timeout: 5000 });
