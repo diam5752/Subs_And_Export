@@ -130,6 +130,7 @@ test('desktop style controls scroll internally without stretching the preview', 
     return {
       workspaceHeight: workspace.getBoundingClientRect().height,
       previewHeight: preview.getBoundingClientRect().height,
+      previewBackgroundColor: getComputedStyle(preview).backgroundColor,
       sidebarHeight: sidebar.getBoundingClientRect().height,
       sidebarBodyClientHeight: sidebarBody.clientHeight,
       sidebarBodyScrollHeight: sidebarBody.scrollHeight,
@@ -140,6 +141,7 @@ test('desktop style controls scroll internally without stretching the preview', 
   // 1,000px tall, stretching the black preview into a visually empty column.
   expect(metrics.workspaceHeight).toBeLessThanOrEqual(720);
   expect(Math.abs(metrics.previewHeight - metrics.sidebarHeight)).toBeLessThanOrEqual(1);
+  expect(metrics.previewBackgroundColor).toBe('rgb(247, 247, 245)');
   expect(metrics.sidebarBodyScrollHeight).toBeGreaterThan(metrics.sidebarBodyClientHeight);
 });
 
