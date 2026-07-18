@@ -1587,9 +1587,14 @@ body {
   flex-direction: column;
   padding: 16px;
   overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .editor-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   min-height: 52px;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1600,6 +1605,18 @@ body {
   background: #f4f4f3;
   padding: 3px;
   overflow: hidden;
+}
+
+@media (min-width: 900px) {
+  .editor-workspace {
+    height: clamp(610px, 72dvh, 690px);
+  }
+
+  .editor-preview-panel,
+  .editor-sidebar {
+    height: 100%;
+    min-height: 0;
+  }
 }
 
 .editor-tab {
@@ -1766,6 +1783,7 @@ body {
 
   .editor-preview-panel {
     order: 1;
+    height: auto;
     min-height: 0;
   }
 
@@ -1775,6 +1793,7 @@ body {
 
   .editor-sidebar {
     order: 3;
+    height: auto;
     min-height: 0;
     margin-top: 14px;
   }

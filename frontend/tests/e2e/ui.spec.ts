@@ -106,6 +106,43 @@ test('completed editor remains readable across the responsive viewport matrix', 
   }
 });
 
+test('desktop style controls scroll internally without stretching the preview', async ({ page }) => {
+  await page.setViewportSize({ width: 2048, height: 1152 });
+  await mockApi(page);
+  await page.addInitScript(() => {
+    localStorage.setItem('lastActiveJobId', 'job-futurist');
+  });
+  await page.goto('/');
+  await page.getByText(el.subtitlesReady).waitFor({ timeout: 30_000 });
+  await page.getByRole('tab', { name: el.tabStyles }).click();
+  await stabilizeUi(page);
+
+  const metrics = await page.evaluate(() => {
+    const workspace = document.querySelector<HTMLElement>('[data-testid="editor-workspace"]');
+    const preview = document.querySelector<HTMLElement>('[data-testid="editor-preview-panel"]');
+    const sidebar = document.querySelector<HTMLElement>('[data-testid="editor-sidebar"]');
+    const sidebarBody = document.querySelector<HTMLElement>('.editor-sidebar-body');
+
+    if (!workspace || !preview || !sidebar || !sidebarBody) {
+      throw new Error('Missing completed editor layout element');
+    }
+
+    return {
+      workspaceHeight: workspace.getBoundingClientRect().height,
+      previewHeight: preview.getBoundingClientRect().height,
+      sidebarHeight: sidebar.getBoundingClientRect().height,
+      sidebarBodyClientHeight: sidebarBody.clientHeight,
+      sidebarBodyScrollHeight: sidebarBody.scrollHeight,
+    };
+  });
+
+  // REGRESSION: the long Styles form used to make the entire desktop grid nearly
+  // 1,000px tall, stretching the black preview into a visually empty column.
+  expect(metrics.workspaceHeight).toBeLessThanOrEqual(720);
+  expect(Math.abs(metrics.previewHeight - metrics.sidebarHeight)).toBeLessThanOrEqual(1);
+  expect(metrics.sidebarBodyScrollHeight).toBeGreaterThan(metrics.sidebarBodyClientHeight);
+});
+
 for (const [label, viewport] of Object.entries(viewports)) {
   test.describe(`${label} layouts`, () => {
     test.use({ viewport });
