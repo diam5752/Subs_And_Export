@@ -30,17 +30,7 @@ describe('resegmentCues', () => {
         // If we set 2 lines (56 chars limit approx), it might merge them?
         // But logic respects maxLines.
 
-        // Let's try 1 line limit.
-        // "Hello world This is a test of splitting" -> 38 chars
-        // 1 line limit (max 28 chars) -> should split.
-
         const result = resegmentCues(mockCues, 1, 100);
-
-        // Expect strict segmentation.
-        // Hello world (11) -> fits
-        // This is a test (14) -> fits
-        // of splitting (12) -> fits
-        // So we expect 3 cues maybe?
 
         expect(result.length).toBeGreaterThanOrEqual(2);
 
@@ -134,7 +124,7 @@ describe('resegmentCues', () => {
         expect(result[0].words?.[1].end).toBe(2);
     });
 
-    it('trims whitespace from word timings (whisper-style tokens)', () => {
+    it('trims whitespace from word timings', () => {
         const cue: Cue = {
             start: 0,
             end: 2,
@@ -166,6 +156,28 @@ describe('resegmentCues', () => {
         expect(words[words.length - 1].end).toBe(4);
         expect(words[0].end).toBeCloseTo(4 * (3 / 11), 5);
         expect(words[1].end).toBeCloseTo(4 * (6 / 11), 5);
+    });
+
+    it('returns cached result for same cue and settings', () => {
+         const cue: Cue = {
+            start: 0,
+            end: 2,
+            text: "Cached Item",
+            words: [{ start: 0, end: 2, text: "Cached Item" }]
+        };
+
+        // First call
+        const result1 = resegmentCues([cue], 2, 100);
+
+        // Second call with same cue object
+        const result2 = resegmentCues([cue], 2, 100);
+
+        // Should return exact same array reference if cached
+        expect(result1[0]).toBe(result2[0]);
+
+        // Different settings -> new result
+        const result3 = resegmentCues([cue], 1, 100);
+        expect(result3[0]).not.toBe(result1[0]);
     });
 });
 
