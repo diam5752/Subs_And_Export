@@ -72,6 +72,7 @@ const PreviewSectionLayout = memo(({
             <div
                 role="button"
                 tabIndex={0}
+                aria-expanded={isExpanded}
                 onKeyDown={handleKeyDown}
                 className={`mb-2 flex items-center gap-4 transition-all duration-300 cursor-pointer group/step ${currentStep !== 3 ? (selectedJob?.status === 'completed' ? 'opacity-100 hover:scale-[1.005]' : 'opacity-40 grayscale blur-[1px]') : 'opacity-100 scale-[1.01]'}`}
                 onClick={handleStepClick}
