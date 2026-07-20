@@ -56,6 +56,16 @@ export function resetWordWidthCache() {
     _wordWidthCache.clear();
 }
 
+// Cache for cue segmentation results to avoid expensive re-calculations
+// WeakMap key: The Cue object (identity)
+// Inner Map key: `${maxLines}:${fontSizePercent}`
+// Value: The resulting segmented cues
+let _segmentationCache = new WeakMap<Cue, Map<string, Cue[]>>();
+
+export function resetSegmentationCache() {
+    _segmentationCache = new WeakMap<Cue, Map<string, Cue[]>>();
+}
+
 let _sharedMeasurerCanvas: HTMLCanvasElement | null = null;
 
 function getSharedMeasurerCanvas(): HTMLCanvasElement | null {
@@ -285,8 +295,19 @@ export function resegmentCues(
 
     const measurer = createTextMeasurer(fontSizePercent);
     const effectiveMaxChars = getEffectiveMaxChars(fontSizePercent);
+    const cacheKey = `${maxLines}:${fontSizePercent}`;
 
     return originalCues.flatMap((cue) => {
+        // Check cache
+        let cueCache = _segmentationCache.get(cue);
+        if (!cueCache) {
+            cueCache = new Map();
+            _segmentationCache.set(cue, cueCache);
+        }
+
+        const cached = cueCache.get(cacheKey);
+        if (cached) return cached;
+
         // 1. Get words for this SPECIFIC cue (real or interpolated)
         let cueWords: TranscriptionWordTiming[] = [];
         if (cue.words && cue.words.length > 0) {
@@ -305,7 +326,7 @@ export function resegmentCues(
             : chunkTimedWords(cueWords, effectiveMaxChars, maxLines);
 
         // 3. Create new cues from chunks
-        return wordChunks
+        const result = wordChunks
             .filter((chunkWords) => chunkWords.length > 0)
             .map((chunkWords) => {
                 const first = chunkWords[0];
@@ -323,6 +344,10 @@ export function resegmentCues(
                     words: chunkWords,
                 };
             });
+
+        // Cache result
+        cueCache.set(cacheKey, result);
+        return result;
     });
 }
 
