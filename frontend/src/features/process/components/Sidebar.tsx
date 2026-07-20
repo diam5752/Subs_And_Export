@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, memo } from 'react';
+import React, { useCallback, useEffect, useMemo, memo, useRef } from 'react';
 import { Spinner } from '@/components/Spinner';
 import { useI18n } from '@/context/I18nContext';
 import { useProcessContext } from '../ProcessContext';
@@ -88,9 +88,14 @@ const TranscriptPanel = memo(() => {
         playerRef.current?.seekTo(time);
     }, [playerRef]);
 
+    // Optimization: Cache last active cue index to speed up linear playback lookups
+    const lastCueIndexRef = useRef<number>(-1);
+
     const activeCueIndex = useMemo(() => {
         if (!cues || cues.length === 0) return -1;
-        return findCueIndexAtTime(cues, currentTime);
+        const index = findCueIndexAtTime(cues, currentTime, lastCueIndexRef.current);
+        lastCueIndexRef.current = index;
+        return index;
     }, [cues, currentTime]);
 
     // Scroll active cue into view

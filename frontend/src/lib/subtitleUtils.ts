@@ -330,8 +330,27 @@ export function resegmentCues(
  * Efficiently finds the index of the cue active at the given time using binary search.
  * Assumes cues are sorted by start time.
  * Returns -1 if no cue is active.
+ *
+ * @param hintIndex Optimization hint: index of the last found cue.
+ *                  Checks this and the next index before binary search.
  */
-export function findCueIndexAtTime(cues: Cue[], time: number): number {
+export function findCueIndexAtTime(cues: Cue[], time: number, hintIndex = -1): number {
+    // Optimization: Check hint index first (and next one)
+    // This reduces lookup from O(log N) to O(1) for linear playback
+    if (hintIndex >= 0 && hintIndex < cues.length) {
+        // Check exact hint
+        if (time >= cues[hintIndex].start && time < cues[hintIndex].end) {
+            return hintIndex;
+        }
+        // Check next (common case for linear playback)
+        const nextIndex = hintIndex + 1;
+        if (nextIndex < cues.length) {
+            if (time >= cues[nextIndex].start && time < cues[nextIndex].end) {
+                return nextIndex;
+            }
+        }
+    }
+
     let low = 0;
     let high = cues.length - 1;
 
@@ -351,7 +370,7 @@ export function findCueIndexAtTime(cues: Cue[], time: number): number {
     return -1;
 }
 
-export function findCueAtTime(cues: Cue[], time: number): Cue | undefined {
-    const index = findCueIndexAtTime(cues, time);
+export function findCueAtTime(cues: Cue[], time: number, hintIndex = -1): Cue | undefined {
+    const index = findCueIndexAtTime(cues, time, hintIndex);
     return index !== -1 ? cues[index] : undefined;
 }
