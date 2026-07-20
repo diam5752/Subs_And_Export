@@ -10,6 +10,7 @@
   "jumpToTime": "Jump to {time}",
   "jumpToCue": "Jump to cue: {text}",
   "modelSelectTitle": "Select a model",
+  "modelInfo": "Model comparison information",
   "modelSelectSubtitle": "Choose the engine before uploading",
   "modelInfo": "Model comparison information",
   "stepUpload": "Upload",
