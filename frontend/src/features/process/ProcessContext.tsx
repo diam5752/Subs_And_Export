@@ -1,3 +1,4 @@
+'use client';
 import React, { createContext, useContext, useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import { API_BASE, JobResponse, api } from '@/lib/api';
 import { useI18n } from '@/context/I18nContext';
