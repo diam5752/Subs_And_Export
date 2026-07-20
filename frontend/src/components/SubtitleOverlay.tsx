@@ -1,6 +1,6 @@
-import React, { useMemo, memo } from 'react';
+import React, { useMemo, memo, useRef } from 'react';
 import { TranscriptionCue } from '../lib/api';
-import { findCueAtTime } from '../lib/subtitleUtils';
+import { findCueIndexAtTime } from '../lib/subtitleUtils';
 
 export type Cue = TranscriptionCue;
 
@@ -24,9 +24,20 @@ export const SubtitleOverlay = memo<SubtitleOverlayProps>(({
     settings,
     videoWidth = 1080,
 }) => {
+    // Optimization: Cache the last found cue index to speed up lookups (O(log n) -> O(1))
+    // during sequential playback.
+    const activeCueIndexRef = useRef<number>(-1);
+
     // 1. Find active cue
     const activeCue = useMemo(() => {
-        return findCueAtTime(cues, currentTime);
+        // eslint-disable-next-line react-hooks/refs
+        const index = findCueIndexAtTime(cues, currentTime, activeCueIndexRef.current);
+        // Side-effect: Update ref for next render.
+        // Safe here as it's a cache that doesn't affect render purity logic (idempotent result)
+        // and simplifies usage compared to useEffect which would be one frame late.
+        // eslint-disable-next-line react-hooks/refs
+        activeCueIndexRef.current = index;
+        return index !== -1 ? cues[index] : undefined;
     }, [currentTime, cues]);
 
     // 2. Base Styles
