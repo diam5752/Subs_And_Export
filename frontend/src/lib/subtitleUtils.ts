@@ -16,29 +16,8 @@ const OVERLAY_FONT_WEIGHT = 900;
  * Mirrored from backend `_effective_max_chars`
  */
 function getEffectiveMaxChars(fontSizePercent: number): number {
-    // Backend logic:
-    // base_font = 62
-    // font_scale = base_font / (base_font * (percent/100)) = 1 / (percent/100)
-    // Actually backend: font_size parameter IS the scaled size (e.g. 62 * 1.5).
-    // Let's replicate the math:
-
-    // config.py:
-    // size = subtitle_size (e.g. 100)
-    // font_size = round(62 * size / 100)
-
     const fontSizePx = Math.round(DEFAULT_SUB_FONT_SIZE * (fontSizePercent / 100));
-
-    // effective = max_chars * width_scale * font_scale
-    // width_scale = 1 (assuming we normalize to 1080p logic for "chars count")
-    // font_scale = 62 / fontSizePx
-
     const fontScale = DEFAULT_SUB_FONT_SIZE / Math.max(1, fontSizePx);
-
-    // In backend video_processing:
-    // width_scale = play_res_x / 1080
-    // But character count limit (28) is tuned for 1080p with default font.
-    // If we render at actual video width, we should scale max chars?
-    // Actually, simple proxy:
     const effective = Math.round(MAX_SUB_LINE_CHARS * fontScale);
     return Math.max(10, Math.min(60, effective));
 }
@@ -52,8 +31,15 @@ type TextMeasurer = {
 const MAX_CACHE_SIZE = 10000;
 const _wordWidthCache = new Map<string, number>();
 
+// Segmentation cache: WeakMap keys the Cue object -> Map(params -> result)
+let _segmentationCache = new WeakMap<Cue, Map<string, Cue[]>>();
+
 export function resetWordWidthCache() {
     _wordWidthCache.clear();
+}
+
+export function resetSegmentationCache() {
+    _segmentationCache = new WeakMap();
 }
 
 let _sharedMeasurerCanvas: HTMLCanvasElement | null = null;
@@ -78,9 +64,6 @@ function createTextMeasurer(fontSizePercent: number): TextMeasurer | null {
     if (!ctx) return null;
 
     const fontSizePx = Math.max(1, Math.round(DEFAULT_SUB_FONT_SIZE * (fontSizePercent / 100)));
-    // Add stroke width buffer? 
-    // The stroke is around 3px scaled.
-    // Using a conservative 90% width below handles this implicitly.
     ctx.font = `${OVERLAY_FONT_WEIGHT} ${fontSizePx}px ${OVERLAY_FONT_FAMILY}`;
 
     const measureText = (text: string) => {
@@ -102,15 +85,10 @@ function createTextMeasurer(fontSizePercent: number): TextMeasurer | null {
     return {
         measureText,
         spaceWidth: measureText(' '),
-        // Use a slightly conservative width to avoid edge-case overflows from measurement differences.
-        // Reduced from 0.98 to 0.90 to be safer against stroke width and anti-aliasing differences.
         maxLineWidth: BASE_SAFE_WIDTH * 0.90,
     };
 }
 
-/**
- * Flatten all words from a list of cues into a single timeline.
- */
 function expandPhraseTiming(word: TranscriptionWordTiming): TranscriptionWordTiming[] {
     const normalized = word.text.trim();
     if (!normalized) return [];
@@ -252,7 +230,6 @@ function chunkTimedWordsByWidth(
         if (currentLineWidth + spaceWidth + wordWidth <= measurer.maxLineWidth || currentLineWidth === 0) {
             currentLineWidth += spaceWidth + wordWidth;
         } else {
-            // Wrap to next line; if no room, start a new chunk/cue.
             if (currentChunk.length > 0 && currentLines + 1 > maxLines) {
                 chunks.push(currentChunk);
                 currentChunk = [];
@@ -274,6 +251,8 @@ function chunkTimedWordsByWidth(
  * Re-segment cues to fit within maxLines constraints.
  * Ports backend `_split_long_cues` logic.
  * Processes each cue individually to preserve original time boundaries/silences.
+ *
+ * Optimized: Uses a WeakMap cache to prevent re-calculating layout for unchanged cues.
  */
 export function resegmentCues(
     originalCues: Cue[],
@@ -281,12 +260,25 @@ export function resegmentCues(
     fontSizePercent: number
 ): Cue[] {
     if (!originalCues || originalCues.length === 0) return [];
-    if (maxLines === 0) return originalCues; // Handled by SubtitleOverlay specially ("One Word" mode)
+    if (maxLines === 0) return originalCues;
 
     const measurer = createTextMeasurer(fontSizePercent);
     const effectiveMaxChars = getEffectiveMaxChars(fontSizePercent);
+    const cacheKey = `${maxLines}:${fontSizePercent}`;
 
     return originalCues.flatMap((cue) => {
+        // Optimization: Check WeakMap cache first
+        let cueCache = _segmentationCache.get(cue);
+        if (!cueCache) {
+            cueCache = new Map();
+            _segmentationCache.set(cue, cueCache);
+        }
+
+        const cachedResult = cueCache.get(cacheKey);
+        if (cachedResult) {
+            return cachedResult;
+        }
+
         // 1. Get words for this SPECIFIC cue (real or interpolated)
         let cueWords: TranscriptionWordTiming[] = [];
         if (cue.words && cue.words.length > 0) {
@@ -297,7 +289,11 @@ export function resegmentCues(
             cueWords = interpolateWordsFromCueText(cue);
         }
 
-        if (cueWords.length === 0) return [cue];
+        if (cueWords.length === 0) {
+            const res = [cue];
+            cueCache.set(cacheKey, res);
+            return res;
+        }
 
         // 2. Chunk ONLY this cue's words
         const wordChunks = measurer
@@ -305,14 +301,11 @@ export function resegmentCues(
             : chunkTimedWords(cueWords, effectiveMaxChars, maxLines);
 
         // 3. Create new cues from chunks
-        return wordChunks
+        const result = wordChunks
             .filter((chunkWords) => chunkWords.length > 0)
             .map((chunkWords) => {
                 const first = chunkWords[0];
                 const last = chunkWords[chunkWords.length - 1];
-
-                // Ensure the last chunk extends to the original cue end time 
-                // to match backend logic (avoid shortening due to word timing precision)
                 const isLastChunk = chunkWords === wordChunks[wordChunks.length - 1];
                 const endTime = isLastChunk ? Math.max(last.end, cue.end) : last.end;
 
@@ -323,14 +316,13 @@ export function resegmentCues(
                     words: chunkWords,
                 };
             });
+
+        // Cache the result
+        cueCache.set(cacheKey, result);
+        return result;
     });
 }
 
-/**
- * Efficiently finds the index of the cue active at the given time using binary search.
- * Assumes cues are sorted by start time.
- * Returns -1 if no cue is active.
- */
 export function findCueIndexAtTime(cues: Cue[], time: number): number {
     let low = 0;
     let high = cues.length - 1;
