@@ -1,4 +1,4 @@
-import React, { memo, useRef, useEffect } from 'react';
+import React, { memo, useRef, useEffect, useState } from 'react';
 import { Spinner } from '@/components/Spinner';
 import { JobResponse } from '@/lib/api';
 
@@ -71,8 +71,16 @@ export const JobListItem = memo(function JobListItem({
     const confirmBtnRef = useRef<HTMLButtonElement>(null);
     const prevConfirmingRef = useRef(isConfirmingDelete);
     const wasCancelledRef = useRef(false);
+    const [isCopied, setIsCopied] = useState(false);
 
     const displayFilename = job.result_data?.original_filename || job.id;
+
+    useEffect(() => {
+        if (isCopied) {
+            const timer = setTimeout(() => setIsCopied(false), 2000);
+            return () => clearTimeout(timer);
+        }
+    }, [isCopied]);
 
     useEffect(() => {
         // If entering confirmation mode
@@ -118,6 +126,17 @@ export const JobListItem = memo(function JobListItem({
         // Handled by parent via onToggleSelection
     };
 
+    const handleCopyLink = async (e: React.MouseEvent) => {
+        e.stopPropagation();
+        if (!publicUrl) return;
+        try {
+            await navigator.clipboard.writeText(publicUrl);
+            setIsCopied(true);
+        } catch (err) {
+            console.error('Failed to copy:', err);
+        }
+    };
+
     return (
         <div
             onClick={handleContainerClick}
@@ -161,6 +180,22 @@ export const JobListItem = memo(function JobListItem({
                     <>
                         {job.status === 'completed' && publicUrl && !selectionMode && (
                             <>
+                                <button
+                                    onClick={handleCopyLink}
+                                    className="text-xs px-2 py-1.5 rounded border border-[var(--border)] hover:bg-[var(--surface-elevated)] hover:text-[var(--accent)] transition-all flex items-center gap-1.5 h-auto min-w-[28px] justify-center"
+                                    title={t('copyLink') || 'Copy Link'}
+                                    aria-label={isCopied ? (t('copied') || 'Copied') : (t('copyLink') || 'Copy Link')}
+                                >
+                                    {isCopied ? (
+                                        <svg className="w-3.5 h-3.5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                                        </svg>
+                                    ) : (
+                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                                        </svg>
+                                    )}
+                                </button>
                                 <a
                                     className="text-xs btn-primary py-1.5 px-3 h-auto"
                                     href={publicUrl}

@@ -207,6 +207,8 @@
   "deleteSelectedConfirm": "Delete selected items?",
   "confirmDelete": "Confirm",
   "expired": "Expired",
+  "copyLink": "Copy Link",
+  "copied": "Copied",
   "download": "Download",
   "view": "View",
   "previousPage": "Previous",
