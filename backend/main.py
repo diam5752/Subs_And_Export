@@ -131,6 +131,13 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
         await self.secure_headers.set_headers_async(response)
+
+        # Security: Prevent caching of sensitive data
+        # Explicitly disable caching for authenticated and sensitive endpoints
+        path = request.url.path
+        if path.startswith(("/auth", "/videos", "/history", "/jobs")):
+            response.headers["Cache-Control"] = "no-store"
+
         # Avoid sending HSTS on cleartext requests to keep local dev/proxy setups flexible.
         if settings.is_dev and request.url.scheme not in ("https", "wss"):
             if "Strict-Transport-Security" in response.headers:
