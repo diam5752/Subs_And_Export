@@ -158,3 +158,7 @@
 **Vulnerability:** The `/auth/google/url` endpoint triggered database writes (issuing state tokens) without authentication or rate limiting, allowing attackers to fill the state store.
 **Learning:** Endpoints that initiate flows (like OAuth) are public by definition but still consume resources. They are often missed when auditing "login" or "register" endpoints.
 **Prevention:** Apply rate limits (e.g. `limiter_login`) to ALL public endpoints that trigger backend state creation, not just the final submission step.
+## 2025-02-18 - [Medium] Sensitive Data Caching
+**Vulnerability:** Sensitive API endpoints (e.g., `/auth/me`, `/videos/process`) lacked `Cache-Control: no-store` headers, allowing browsers or intermediate proxies to cache responses containing PII or session state.
+**Learning:** Default middleware configurations (like `SecurityHeadersMiddleware`) often focus on active attacks (XSS, CSP) but overlook data leakage via caching mechanisms.
+**Prevention:** Explicitly apply `Cache-Control: no-store` middleware to all path prefixes handling sensitive user data or authentication state.

@@ -135,6 +135,13 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         if settings.is_dev and request.url.scheme not in ("https", "wss"):
             if "Strict-Transport-Security" in response.headers:
                 del response.headers["Strict-Transport-Security"]
+
+        # Security Enhancement: Prevent caching of sensitive data
+        # Explicitly set Cache-Control: no-store for auth, videos, and history endpoints
+        # to prevent sensitive information from being cached by browsers or intermediate proxies.
+        if request.url.path.startswith(("/auth/", "/videos/", "/history/")):
+            response.headers["Cache-Control"] = "no-store"
+
         return response
 
 
