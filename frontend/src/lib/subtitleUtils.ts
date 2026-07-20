@@ -52,8 +52,12 @@ type TextMeasurer = {
 const MAX_CACHE_SIZE = 10000;
 const _wordWidthCache = new Map<string, number>();
 
+// Cache the last set font string to avoid redundant property access/parsing on the canvas context
+let _lastFont: string = '';
+
 export function resetWordWidthCache() {
     _wordWidthCache.clear();
+    _lastFont = '';
 }
 
 let _sharedMeasurerCanvas: HTMLCanvasElement | null = null;
@@ -81,7 +85,13 @@ function createTextMeasurer(fontSizePercent: number): TextMeasurer | null {
     // Add stroke width buffer? 
     // The stroke is around 3px scaled.
     // Using a conservative 90% width below handles this implicitly.
-    ctx.font = `${OVERLAY_FONT_WEIGHT} ${fontSizePx}px ${OVERLAY_FONT_FAMILY}`;
+
+    // Bolt Optimization: Check if font string changed before assignment to prevent layout thrashing
+    const newFont = `${OVERLAY_FONT_WEIGHT} ${fontSizePx}px ${OVERLAY_FONT_FAMILY}`;
+    if (_lastFont !== newFont) {
+        ctx.font = newFont;
+        _lastFont = newFont;
+    }
 
     const measureText = (text: string) => {
         const key = `${fontSizePx}:${text}`;
