@@ -1,6 +1,6 @@
 import React, { useMemo, memo } from 'react';
 import { TranscriptionCue } from '../lib/api';
-import { findCueAtTime } from '../lib/subtitleUtils';
+import { findCueIndexAtTime } from '../lib/subtitleUtils';
 
 export type Cue = TranscriptionCue;
 
@@ -24,10 +24,24 @@ export const SubtitleOverlay = memo<SubtitleOverlayProps>(({
     settings,
     videoWidth = 1080,
 }) => {
-    // 1. Find active cue
-    const activeCue = useMemo(() => {
-        return findCueAtTime(cues, currentTime);
+    // 1. Find active cue (Optimized with hint for linear playback)
+    const hintIndexRef = React.useRef(-1);
+
+    // We calculate the index during render to ensure the UI is always consistent with currentTime
+    // but we use the previous hint to make this calculation O(1) in most cases.
+    const activeCueIndex = useMemo(() => {
+        return findCueIndexAtTime(cues, currentTime, hintIndexRef.current);
     }, [currentTime, cues]);
+
+    // Update the hint for the NEXT frame after rendering is committed.
+    // This avoids side-effects during the render phase (React Strict Mode safety).
+    React.useEffect(() => {
+        if (activeCueIndex !== -1) {
+            hintIndexRef.current = activeCueIndex;
+        }
+    }, [activeCueIndex]);
+
+    const activeCue = activeCueIndex !== -1 ? cues[activeCueIndex] : undefined;
 
     // 2. Base Styles
     // Map settings to CSS

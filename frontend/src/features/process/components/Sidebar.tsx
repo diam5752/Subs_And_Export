@@ -88,10 +88,19 @@ const TranscriptPanel = memo(() => {
         playerRef.current?.seekTo(time);
     }, [playerRef]);
 
+    const hintIndexRef = React.useRef(-1);
     const activeCueIndex = useMemo(() => {
         if (!cues || cues.length === 0) return -1;
-        return findCueIndexAtTime(cues, currentTime);
+        // Optimized: Check hint and next cue first (O(1) for linear playback)
+        return findCueIndexAtTime(cues, currentTime, hintIndexRef.current);
     }, [cues, currentTime]);
+
+    // Update hint ref after render to avoid side-effects
+    useEffect(() => {
+        if (activeCueIndex !== -1) {
+            hintIndexRef.current = activeCueIndex;
+        }
+    }, [activeCueIndex]);
 
     // Scroll active cue into view
     useEffect(() => {
