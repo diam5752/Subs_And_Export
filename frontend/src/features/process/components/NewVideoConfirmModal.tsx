@@ -86,7 +86,7 @@ export function NewVideoConfirmModal({ isOpen, onClose, onConfirm }: NewVideoCon
                         {/* Cancel Button */}
                         <button
                             onClick={onClose}
-                            className="flex-1 px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-[var(--foreground)] font-medium hover:bg-white/10 transition-all duration-200"
+                            className="flex-1 px-4 py-3 rounded-xl border border-white/10 bg-white/5 text-[var(--foreground)] font-medium hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-white/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-elevated)] focus-visible:outline-none transition-all duration-200"
                         >
                             {t('newVideoCancel') || 'Keep Working'}
                         </button>
@@ -98,7 +98,7 @@ export function NewVideoConfirmModal({ isOpen, onClose, onConfirm }: NewVideoCon
                                 onConfirm();
                                 onClose();
                             }}
-                            className="flex-1 px-4 py-3 rounded-xl bg-gradient-to-r from-[var(--accent)] to-[var(--accent-secondary)] text-white font-semibold hover:opacity-90 transition-all duration-200 shadow-lg shadow-[var(--accent)]/20"
+                            className="flex-1 px-4 py-3 rounded-xl bg-gradient-to-r from-[var(--accent)] to-[var(--accent-secondary)] text-white font-semibold hover:opacity-90 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface-elevated)] focus-visible:outline-none transition-all duration-200 shadow-lg shadow-[var(--accent)]/20"
                         >
                             {t('newVideoConfirm') || 'Start Fresh'}
                         </button>
