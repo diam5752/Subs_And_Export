@@ -73,6 +73,8 @@ const PreviewSectionLayout = memo(({
                 role="button"
                 tabIndex={0}
                 onKeyDown={handleKeyDown}
+                aria-expanded={isExpanded}
+                aria-controls="preview-section-content"
                 className={`mb-2 flex items-center gap-4 transition-all duration-300 cursor-pointer group/step ${currentStep !== 3 ? (selectedJob?.status === 'completed' ? 'opacity-100 hover:scale-[1.005]' : 'opacity-40 grayscale blur-[1px]') : 'opacity-100 scale-[1.01]'}`}
                 onClick={handleStepClick}
             >
@@ -94,7 +96,7 @@ const PreviewSectionLayout = memo(({
             </div>
 
             {/* Collapsible content with smooth animation */}
-            <div className={`transition-all duration-300 ease-in-out overflow-hidden ${isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`} >
+            <div id="preview-section-content" className={`transition-all duration-300 ease-in-out overflow-hidden ${isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`} >
 
                 <div className="space-y-4 min-h-[200px]">
                     {(!selectedJob || selectedJob.status !== 'completed') ? (

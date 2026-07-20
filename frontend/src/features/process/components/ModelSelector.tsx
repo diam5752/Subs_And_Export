@@ -249,6 +249,8 @@ export function ModelSelector() {
                     role="button"
                     tabIndex={0}
                     onKeyDown={handleKeyDown}
+                    aria-expanded={isExpanded}
+                    aria-controls="model-selection-content"
                     className={`flex items-center gap-3 transition-all duration-300 cursor-pointer group/step ${currentStep !== 1 ? 'opacity-100 hover:scale-[1.005]' : 'opacity-100 scale-[1.01]'}`}
                     onClick={handleStepClick}
                 >
@@ -329,7 +331,7 @@ export function ModelSelector() {
             </div>
 
             {/* Collapsible model grid with smooth animation */}
-            <div className={`transition-all duration-300 ease-in-out overflow-hidden ${isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}>
+            <div id="model-selection-content" className={`transition-all duration-300 ease-in-out overflow-hidden ${isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'}`}>
                 {modelGrid}
             </div>
         </div>
