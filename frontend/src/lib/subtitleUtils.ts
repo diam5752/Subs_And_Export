@@ -52,8 +52,21 @@ type TextMeasurer = {
 const MAX_CACHE_SIZE = 10000;
 const _wordWidthCache = new Map<string, number>();
 
+// Optimization: Cache re-segmentation results per cue instance.
+// Key: Cue object reference
+// Value: Map<"maxLines:fontSize", Cue[]>
+// Initialized as let to allow resetting.
+let _segmentationCache = new WeakMap<Cue, Map<string, Cue[]>>();
+
 export function resetWordWidthCache() {
     _wordWidthCache.clear();
+    // Also reset segmentation cache as measurements may be invalid
+    _segmentationCache = new WeakMap();
+}
+
+export function resetSegmentationCache() {
+    // Used by tests or when font loading changes invalidate measurements
+    _segmentationCache = new WeakMap();
 }
 
 let _sharedMeasurerCanvas: HTMLCanvasElement | null = null;
@@ -274,6 +287,8 @@ function chunkTimedWordsByWidth(
  * Re-segment cues to fit within maxLines constraints.
  * Ports backend `_split_long_cues` logic.
  * Processes each cue individually to preserve original time boundaries/silences.
+ *
+ * Optimized with WeakMap caching to avoid re-calculation for unchanged cues.
  */
 export function resegmentCues(
     originalCues: Cue[],
@@ -283,10 +298,23 @@ export function resegmentCues(
     if (!originalCues || originalCues.length === 0) return [];
     if (maxLines === 0) return originalCues; // Handled by SubtitleOverlay specially ("One Word" mode)
 
+    const cacheKey = `${maxLines}:${fontSizePercent}`;
     const measurer = createTextMeasurer(fontSizePercent);
     const effectiveMaxChars = getEffectiveMaxChars(fontSizePercent);
 
     return originalCues.flatMap((cue) => {
+        // Check cache
+        let cueCache = _segmentationCache.get(cue);
+        if (cueCache) {
+            const cachedResult = cueCache.get(cacheKey);
+            if (cachedResult) {
+                return cachedResult;
+            }
+        } else {
+            cueCache = new Map();
+            _segmentationCache.set(cue, cueCache);
+        }
+
         // 1. Get words for this SPECIFIC cue (real or interpolated)
         let cueWords: TranscriptionWordTiming[] = [];
         if (cue.words && cue.words.length > 0) {
@@ -297,32 +325,40 @@ export function resegmentCues(
             cueWords = interpolateWordsFromCueText(cue);
         }
 
-        if (cueWords.length === 0) return [cue];
+        let result: Cue[];
 
-        // 2. Chunk ONLY this cue's words
-        const wordChunks = measurer
-            ? chunkTimedWordsByWidth(cueWords, maxLines, measurer)
-            : chunkTimedWords(cueWords, effectiveMaxChars, maxLines);
+        if (cueWords.length === 0) {
+            result = [cue];
+        } else {
+            // 2. Chunk ONLY this cue's words
+            const wordChunks = measurer
+                ? chunkTimedWordsByWidth(cueWords, maxLines, measurer)
+                : chunkTimedWords(cueWords, effectiveMaxChars, maxLines);
 
-        // 3. Create new cues from chunks
-        return wordChunks
-            .filter((chunkWords) => chunkWords.length > 0)
-            .map((chunkWords) => {
-                const first = chunkWords[0];
-                const last = chunkWords[chunkWords.length - 1];
+            // 3. Create new cues from chunks
+            result = wordChunks
+                .filter((chunkWords) => chunkWords.length > 0)
+                .map((chunkWords) => {
+                    const first = chunkWords[0];
+                    const last = chunkWords[chunkWords.length - 1];
 
-                // Ensure the last chunk extends to the original cue end time 
-                // to match backend logic (avoid shortening due to word timing precision)
-                const isLastChunk = chunkWords === wordChunks[wordChunks.length - 1];
-                const endTime = isLastChunk ? Math.max(last.end, cue.end) : last.end;
+                    // Ensure the last chunk extends to the original cue end time
+                    // to match backend logic (avoid shortening due to word timing precision)
+                    const isLastChunk = chunkWords === wordChunks[wordChunks.length - 1];
+                    const endTime = isLastChunk ? Math.max(last.end, cue.end) : last.end;
 
-                return {
-                    start: first.start,
-                    end: endTime,
-                    text: chunkWords.map((w) => w.text).join(' '),
-                    words: chunkWords,
-                };
-            });
+                    return {
+                        start: first.start,
+                        end: endTime,
+                        text: chunkWords.map((w) => w.text).join(' '),
+                        words: chunkWords,
+                    };
+                });
+        }
+
+        // Cache result
+        cueCache.set(cacheKey, result);
+        return result;
     });
 }
 
