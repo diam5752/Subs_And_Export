@@ -56,6 +56,17 @@ export function resetWordWidthCache() {
     _wordWidthCache.clear();
 }
 
+// Optimization: Cache segmentation results per Cue reference + configuration.
+// Key: Cue object (WeakMap)
+// Value: Map<ConfigString, Cue[]>
+// This avoids re-calculating layout for every cue when only one cue changes during editing.
+// Note: We use a simple object as the inner value for slightly better perf than Map.
+let _segmentationCache = new WeakMap<Cue, Record<string, Cue[]>>();
+
+export function resetSegmentationCache() {
+    _segmentationCache = new WeakMap();
+}
+
 let _sharedMeasurerCanvas: HTMLCanvasElement | null = null;
 
 function getSharedMeasurerCanvas(): HTMLCanvasElement | null {
@@ -285,8 +296,15 @@ export function resegmentCues(
 
     const measurer = createTextMeasurer(fontSizePercent);
     const effectiveMaxChars = getEffectiveMaxChars(fontSizePercent);
+    const configKey = `${maxLines}:${fontSizePercent}`;
 
     return originalCues.flatMap((cue) => {
+        // Optimization: Check cache first
+        const cachedConfigs = _segmentationCache.get(cue);
+        if (cachedConfigs && cachedConfigs[configKey]) {
+            return cachedConfigs[configKey];
+        }
+
         // 1. Get words for this SPECIFIC cue (real or interpolated)
         let cueWords: TranscriptionWordTiming[] = [];
         if (cue.words && cue.words.length > 0) {
@@ -305,7 +323,7 @@ export function resegmentCues(
             : chunkTimedWords(cueWords, effectiveMaxChars, maxLines);
 
         // 3. Create new cues from chunks
-        return wordChunks
+        const result = wordChunks
             .filter((chunkWords) => chunkWords.length > 0)
             .map((chunkWords) => {
                 const first = chunkWords[0];
@@ -323,6 +341,16 @@ export function resegmentCues(
                     words: chunkWords,
                 };
             });
+
+        // Save to cache
+        // We use a new object reference if no entry exists to keep the WeakMap value mutable via reference if needed,
+        // but since we just store a new object, it's fine.
+        // Actually, we need to preserve other config keys if they exist.
+        const existing = cachedConfigs || {};
+        existing[configKey] = result;
+        _segmentationCache.set(cue, existing);
+
+        return result;
     });
 }
 

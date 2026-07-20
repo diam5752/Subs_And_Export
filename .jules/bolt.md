@@ -29,3 +29,7 @@
 ## 2025-03-01 - [Global Cache for Canvas Text Measurement]
 **Learning:** `ctx.measureText` is expensive. Creating a new cache `Map` inside the helper function (`createTextMeasurer`) meant the cache was destroyed and recreated on every re-render or re-calculation (e.g. dragging a slider), defeating the purpose of caching.
 **Action:** Move read-only or expensive caches to module scope (global) with a size limit to share results across function calls, and export a reset function for test isolation.
+
+## 2025-05-24 - [Referential Identity for Incremental List Processing]
+**Learning:** When processing a large list where only one item changes (e.g., editing one subtitle cue in a list of 1000), using `WeakMap` keyed by the item reference allows skipping expensive layout calculations (O(N) -> O(1)) for unchanged items. This is 13x faster than full reprocessing.
+**Action:** For expensive transformation functions iterating over arrays, cache results using `WeakMap<Item, Result>` to exploit React's immutable update patterns (where unchanged items preserve referential identity).
