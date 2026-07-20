@@ -52,8 +52,22 @@ type TextMeasurer = {
 const MAX_CACHE_SIZE = 10000;
 const _wordWidthCache = new Map<string, number>();
 
+// Cache for cue segmentation results to avoid recalculating layout on every render
+// Key: Cue object reference (weakly held)
+// Value: The segmentation result and the parameters used (to invalidate on config change)
+let _segmentationCache = new WeakMap<Cue, {
+    maxLines: number;
+    fontSizePercent: number;
+    hasMeasurer: boolean;
+    result: Cue[];
+}>();
+
 export function resetWordWidthCache() {
     _wordWidthCache.clear();
+}
+
+export function resetSegmentationCache() {
+    _segmentationCache = new WeakMap();
 }
 
 let _sharedMeasurerCanvas: HTMLCanvasElement | null = null;
@@ -287,6 +301,20 @@ export function resegmentCues(
     const effectiveMaxChars = getEffectiveMaxChars(fontSizePercent);
 
     return originalCues.flatMap((cue) => {
+        // Check cache
+        const cached = _segmentationCache.get(cue);
+        // We must also verify if the measurer availability matches (e.g. if we switched from no-canvas to canvas mode)
+        // Since measurer is derived from fontSizePercent inside this function, we just check if we used one last time vs now.
+        const hasMeasurer = !!measurer;
+
+        if (cached &&
+            cached.maxLines === maxLines &&
+            cached.fontSizePercent === fontSizePercent &&
+            cached.hasMeasurer === hasMeasurer
+        ) {
+            return cached.result;
+        }
+
         // 1. Get words for this SPECIFIC cue (real or interpolated)
         let cueWords: TranscriptionWordTiming[] = [];
         if (cue.words && cue.words.length > 0) {
@@ -297,32 +325,46 @@ export function resegmentCues(
             cueWords = interpolateWordsFromCueText(cue);
         }
 
-        if (cueWords.length === 0) return [cue];
+        let result: Cue[];
 
-        // 2. Chunk ONLY this cue's words
-        const wordChunks = measurer
-            ? chunkTimedWordsByWidth(cueWords, maxLines, measurer)
-            : chunkTimedWords(cueWords, effectiveMaxChars, maxLines);
+        if (cueWords.length === 0) {
+            result = [cue];
+        } else {
+            // 2. Chunk ONLY this cue's words
+            const wordChunks = measurer
+                ? chunkTimedWordsByWidth(cueWords, maxLines, measurer)
+                : chunkTimedWords(cueWords, effectiveMaxChars, maxLines);
 
-        // 3. Create new cues from chunks
-        return wordChunks
-            .filter((chunkWords) => chunkWords.length > 0)
-            .map((chunkWords) => {
-                const first = chunkWords[0];
-                const last = chunkWords[chunkWords.length - 1];
+            // 3. Create new cues from chunks
+            result = wordChunks
+                .filter((chunkWords) => chunkWords.length > 0)
+                .map((chunkWords) => {
+                    const first = chunkWords[0];
+                    const last = chunkWords[chunkWords.length - 1];
 
-                // Ensure the last chunk extends to the original cue end time 
-                // to match backend logic (avoid shortening due to word timing precision)
-                const isLastChunk = chunkWords === wordChunks[wordChunks.length - 1];
-                const endTime = isLastChunk ? Math.max(last.end, cue.end) : last.end;
+                    // Ensure the last chunk extends to the original cue end time
+                    // to match backend logic (avoid shortening due to word timing precision)
+                    const isLastChunk = chunkWords === wordChunks[wordChunks.length - 1];
+                    const endTime = isLastChunk ? Math.max(last.end, cue.end) : last.end;
 
-                return {
-                    start: first.start,
-                    end: endTime,
-                    text: chunkWords.map((w) => w.text).join(' '),
-                    words: chunkWords,
-                };
-            });
+                    return {
+                        start: first.start,
+                        end: endTime,
+                        text: chunkWords.map((w) => w.text).join(' '),
+                        words: chunkWords,
+                    };
+                });
+        }
+
+        // Store in cache
+        _segmentationCache.set(cue, {
+            maxLines,
+            fontSizePercent,
+            hasMeasurer,
+            result
+        });
+
+        return result;
     });
 }
 
