@@ -384,6 +384,9 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
 
     const [showColorGrid, setShowColorGrid] = useState(false);
     const gridRef = useRef<HTMLDivElement>(null);
+    const toggleRef = useRef<HTMLButtonElement>(null);
+    const popoverRef = useRef<HTMLDivElement>(null);
+    const prevShowGrid = useRef(showColorGrid);
 
     // Close color grid when clicking outside
     useEffect(() => {
@@ -396,6 +399,35 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
         return () => {
             document.removeEventListener("mousedown", handleClickOutside);
         };
+    }, []);
+
+    // Intelligent Focus Management for Color Grid
+    useEffect(() => {
+        // When grid opens
+        if (showColorGrid && !prevShowGrid.current) {
+            // Wait for render, then focus first color
+            requestAnimationFrame(() => {
+                const firstButton = popoverRef.current?.querySelector('button');
+                firstButton?.focus();
+            });
+        }
+        // When grid closes
+        if (!showColorGrid && prevShowGrid.current) {
+            // Restore focus to toggle button
+            requestAnimationFrame(() => {
+                toggleRef.current?.focus();
+            });
+        }
+        prevShowGrid.current = showColorGrid;
+    }, [showColorGrid]);
+
+    // Handle Escape key in popover
+    const handlePopoverKeyDown = useCallback((e: React.KeyboardEvent) => {
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            e.stopPropagation();
+            setShowColorGrid(false);
+        }
     }, []);
 
     // Preset tick marks for position
@@ -726,11 +758,12 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
                                     {/* More Colors Button (Toggle Popover) */}
                                     <div className="relative">
                                         <button
+                                            ref={toggleRef}
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 setShowColorGrid(!showColorGrid);
                                             }}
-                                            className="group relative p-1 transition-transform active:scale-95"
+                                            className="group relative p-1 transition-transform active:scale-95 focus-visible:ring-2 focus-visible:ring-white/50 focus-visible:rounded-full focus-visible:outline-none"
                                             title={t('moreColors') || "More Colors"}
                                             aria-expanded={showColorGrid}
                                             aria-haspopup="true"
@@ -761,9 +794,11 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
                                         {/* Color Grid Popover */}
                                         {showColorGrid && (
                                             <div
+                                                ref={popoverRef}
                                                 className="absolute top-full left-1/2 -translate-x-1/2 mt-3 p-3 bg-[var(--surface-elevated)] border border-[var(--border)] rounded-xl shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-200 min-w-[180px]"
                                                 role="radiogroup"
                                                 aria-label={t('moreColors') || 'More Colors'}
+                                                onKeyDown={handlePopoverKeyDown}
                                             >
                                                 <div className="grid grid-cols-4 gap-2">
                                                     {MORE_COLORS.map((color) => (
