@@ -93,9 +93,11 @@ done
 
 if command -v curl >/dev/null 2>&1; then
   curl -fsS "http://127.0.0.1:$preview_port/health" >/dev/null
+  curl -fsS "http://127.0.0.1:$preview_port/billing/catalog" >/dev/null
   curl -fsS "http://127.0.0.1:$preview_port/" >/dev/null
 elif command -v wget >/dev/null 2>&1; then
   wget -qO- "http://127.0.0.1:$preview_port/health" >/dev/null
+  wget -qO- "http://127.0.0.1:$preview_port/billing/catalog" >/dev/null
   wget -qO- "http://127.0.0.1:$preview_port/" >/dev/null
 else
   echo "curl or wget is required for loopback verification." >&2

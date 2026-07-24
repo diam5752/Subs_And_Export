@@ -74,6 +74,15 @@ def test_production_environment_defaults_do_not_prune_shared_cache() -> None:
     assert '${SUBFRAME_PRUNE_BUILD_CACHE:-0}' in deploy_script
 
 
+def test_edge_routes_billing_api_and_verifier_smokes_catalog() -> None:
+    """REGRESSION: the deployed edge previously sent /billing to Next.js."""
+    caddyfile = deployment_text("Caddyfile")
+    verifier = deployment_text("verify-production.sh")
+
+    assert "/billing /billing/*" in caddyfile
+    assert "/billing/catalog" in verifier
+
+
 def test_docker_build_context_excludes_production_secrets_and_state() -> None:
     dockerignore = (REPOSITORY_ROOT / ".dockerignore").read_text(encoding="utf-8")
 

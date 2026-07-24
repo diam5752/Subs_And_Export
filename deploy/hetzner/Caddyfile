@@ -6,7 +6,7 @@
 :8080 {
 	encode zstd gzip
 
-	@backend path /auth /auth/* /videos /videos/* /history /history/* /static/* /health
+	@backend path /auth /auth/* /billing /billing/* /videos /videos/* /history /history/* /static/* /health
 	handle @backend {
 		reverse_proxy backend:8080
 	}
