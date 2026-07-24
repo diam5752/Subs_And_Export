@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import importlib
 import os
 import re
 from dataclasses import dataclass
@@ -10,7 +11,6 @@ from pathlib import Path
 from typing import Any, Protocol
 
 from google.auth.transport.requests import Request as GoogleAuthRequest
-from google.cloud import storage
 
 from .config import settings
 
@@ -34,6 +34,15 @@ class GcsSettings:
     upload_url_ttl_seconds: int
     download_url_ttl_seconds: int
     keep_uploads: bool
+
+
+def _storage_client() -> Any:
+    """Load the optional GCS SDK only when a GCS operation is requested."""
+    try:
+        storage = importlib.import_module("google.cloud.storage")
+    except ModuleNotFoundError as exc:
+        raise RuntimeError("Google Cloud Storage support is not installed") from exc
+    return storage.Client()
 
 
 def _coerce_bool(value: bool | str | None, default: bool) -> bool:
@@ -126,7 +135,7 @@ def generate_signed_upload_url(
     Note: In Cloud Run / GCE environments, signed URLs require IAM signBlob permissions
     (typically `roles/iam.serviceAccountTokenCreator` on the runtime service account).
     """
-    client = storage.Client()
+    client = _storage_client()
     bucket = client.bucket(settings.bucket)
     blob = bucket.blob(object_name)
 
@@ -163,7 +172,7 @@ def generate_signed_download_url(
     response_disposition: str | None = None,
 ) -> str:
     """Generate a signed GET URL for downloads (short-lived)."""
-    client = storage.Client()
+    client = _storage_client()
     bucket = client.bucket(settings.bucket)
     blob = bucket.blob(object_name)
 
@@ -199,14 +208,14 @@ def upload_object(
     source: Path,
     content_type: str | None = None,
 ) -> None:
-    client = storage.Client()
+    client = _storage_client()
     blob = client.bucket(settings.bucket).blob(object_name)
     # Enforce timeout on upload to prevent hanging
     blob.upload_from_filename(str(source), content_type=content_type, timeout=60)
 
 
 def delete_prefix(*, settings: GcsSettings, prefix: str) -> None:
-    client = storage.Client()
+    client = _storage_client()
     bucket = client.bucket(settings.bucket)
     for blob in bucket.list_blobs(prefix=prefix):
         blob.delete()
@@ -220,7 +229,7 @@ def download_object(
     max_bytes: int,
 ) -> int:
     """Download a GCS object to disk, enforcing a maximum size."""
-    client = storage.Client()
+    client = _storage_client()
     blob = client.bucket(settings.bucket).blob(object_name)
     blob.reload()
     size = blob.size
@@ -238,7 +247,7 @@ def download_object(
 
 
 def delete_object(*, settings: GcsSettings, object_name: str) -> None:
-    client = storage.Client()
+    client = _storage_client()
     client.bucket(settings.bucket).blob(object_name).delete()
 
 

@@ -29,6 +29,8 @@ def test_production_compose_is_mock_only_and_loopback_bound() -> None:
     assert 'OPENAI_API_KEY: ""' in compose
     assert 'GROQ_API_KEY: ""' in compose
     assert 'ELEVENLABS_API_KEY: ""' in compose
+    assert 'GSP_GCS_BUCKET: ""' in compose
+    assert 'GOOGLE_APPLICATION_CREDENTIALS: ""' in compose
     assert 'GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD: "0"' in compose
     assert 'GSP_EXTERNAL_PROVIDER_DAILY_BUDGET_USD: "0"' in compose
     assert 'GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD: "0"' in compose
@@ -54,6 +56,8 @@ def test_production_verifier_requires_every_fail_closed_runtime_setting() -> Non
         "OPENAI_API_KEY=",
         "GROQ_API_KEY=",
         "ELEVENLABS_API_KEY=",
+        "GSP_GCS_BUCKET=",
+        "GOOGLE_APPLICATION_CREDENTIALS=",
         "GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD=0",
         "GSP_EXTERNAL_PROVIDER_DAILY_BUDGET_USD=0",
         "GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD=0",

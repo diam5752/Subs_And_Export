@@ -1,6 +1,8 @@
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import pytest
+
 from backend.app.core import gcs
 
 
@@ -18,11 +20,8 @@ def test_refresh_access_token_timeout(monkeypatch):
 
 def test_upload_object_timeout(monkeypatch):
     """Verify upload_object passes a timeout."""
-    mock_storage = MagicMock()
-    monkeypatch.setattr(gcs, "storage", mock_storage)
-
     mock_client = MagicMock()
-    mock_storage.Client.return_value = mock_client
+    monkeypatch.setattr(gcs, "_storage_client", lambda: mock_client)
     mock_bucket = MagicMock()
     mock_client.bucket.return_value = mock_bucket
     mock_blob = MagicMock()
@@ -46,11 +45,8 @@ def test_upload_object_timeout(monkeypatch):
 
 def test_download_object_timeout(monkeypatch):
     """Verify download_object passes a timeout."""
-    mock_storage = MagicMock()
-    monkeypatch.setattr(gcs, "storage", mock_storage)
-
     mock_client = MagicMock()
-    mock_storage.Client.return_value = mock_client
+    monkeypatch.setattr(gcs, "_storage_client", lambda: mock_client)
     mock_bucket = MagicMock()
     mock_client.bucket.return_value = mock_bucket
     mock_blob = MagicMock()
@@ -78,9 +74,9 @@ def test_download_object_timeout(monkeypatch):
 
 def test_signed_download_forwards_content_disposition(monkeypatch):
     """The GCS fallback must preserve the same browser download filename."""
-    mock_storage = MagicMock()
-    monkeypatch.setattr(gcs, "storage", mock_storage)
-    mock_blob = mock_storage.Client.return_value.bucket.return_value.blob.return_value
+    mock_client = MagicMock()
+    monkeypatch.setattr(gcs, "_storage_client", lambda: mock_client)
+    mock_blob = mock_client.bucket.return_value.blob.return_value
     mock_blob.generate_signed_url.return_value = "https://signed.example/download"
     settings = MagicMock(download_url_ttl_seconds=300)
 
@@ -94,3 +90,14 @@ def test_signed_download_forwards_content_disposition(monkeypatch):
     assert mock_blob.generate_signed_url.call_args.kwargs["response_disposition"].endswith(
         "E%20Isous_subs.mp4"
     )
+
+
+def test_storage_client_reports_missing_optional_dependency(monkeypatch):
+    """The mock runtime can import the app without installing the GCS SDK."""
+    def missing_storage(_module_name: str):
+        raise ModuleNotFoundError("google.cloud.storage")
+
+    monkeypatch.setattr(gcs.importlib, "import_module", missing_storage)
+
+    with pytest.raises(RuntimeError, match="Google Cloud Storage support is not installed"):
+        gcs._storage_client()
