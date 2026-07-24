@@ -15,6 +15,7 @@ from backend.app.services import (
     subtitles,
     video_processing,
 )
+from backend.app.services.social_intelligence import SocialContent, SocialCopy
 from backend.app.services.subtitle_types import Cue, WordTiming
 
 
@@ -44,7 +45,14 @@ def test_font_size_from_subtitle_size_presets():
     assert settings_utils.font_size_from_subtitle_size(200) == 93  # Clamped to 150%
 
 
-def test_normalize_and_stub_subtitles_runs_pipeline(monkeypatch, tmp_path: Path):
+def test_ass_font_calibration_matches_browser_visual_weight() -> None:
+    """REGRESSION: libass rendered the same nominal font visibly smaller than CSS."""
+    assert settings_utils.font_size_for_ass_rendering(31) == 35
+    assert settings_utils.font_size_for_ass_rendering(62) == 69
+    assert settings_utils.font_size_for_ass_rendering(93) == 104
+
+
+def test_process_video_pipeline_runs_pipeline(monkeypatch, tmp_path: Path):
     # Mock all the heavy lifting
     input_video = tmp_path / "input.mp4"
     input_video.touch()
@@ -83,7 +91,7 @@ def test_normalize_and_stub_subtitles_runs_pipeline(monkeypatch, tmp_path: Path)
         return str(output_path)
 
     monkeypatch.setattr(subtitles, "extract_audio", fake_extract)
-    monkeypatch.setattr(subtitles, "create_styled_subtitle_file", fake_style)
+    monkeypatch.setattr(video_processing.subtitle_renderer, "create_styled_subtitle_file", fake_style)
     monkeypatch.setattr(ffmpeg_utils, "run_ffmpeg_with_subs", fake_burn)
     monkeypatch.setattr(ffmpeg_utils, "probe_media", lambda p: ffmpeg_utils.MediaProbe(10.0, "aac"))
 
@@ -92,11 +100,11 @@ def test_normalize_and_stub_subtitles_runs_pipeline(monkeypatch, tmp_path: Path)
 
     output_path = tmp_path / "final.mp4"
 
-    res = video_processing.normalize_and_stub_subtitles(
+    res = video_processing.process_video_pipeline(
         input_path=input_video,
         output_path=output_path,
         transcribe_provider="groq",
-        model_size="tiny",
+        transcribe_tier="standard",
     )
 
     assert res == output_path
@@ -128,7 +136,7 @@ def test_mock_transcription_finalizes_with_zero_provider_cost(monkeypatch, tmp_p
         output_path.touch()
 
     monkeypatch.setattr(subtitles, "extract_audio", fake_extract)
-    monkeypatch.setattr(subtitles, "create_styled_subtitle_file", fake_style)
+    monkeypatch.setattr(video_processing.subtitle_renderer, "create_styled_subtitle_file", fake_style)
     monkeypatch.setattr(ffmpeg_utils, "run_ffmpeg_with_subs", fake_burn)
     monkeypatch.setattr(
         ffmpeg_utils,
@@ -140,11 +148,11 @@ def test_mock_transcription_finalizes_with_zero_provider_cost(monkeypatch, tmp_p
     reservation = types.SimpleNamespace(tier="standard", min_credits=25)
     charge_plan = types.SimpleNamespace(transcription=reservation, social_copy=None)
 
-    video_processing.normalize_and_stub_subtitles(
+    video_processing.process_video_pipeline(
         input_video,
         tmp_path / "out.mp4",
         transcribe_provider="mock",
-        model_size="standard",
+        transcribe_tier="standard",
         ledger_store=ledger_store,
         charge_plan=charge_plan,
     )
@@ -156,7 +164,7 @@ def test_mock_transcription_finalizes_with_zero_provider_cost(monkeypatch, tmp_p
     assert finalize_kwargs["units"]["model"] == "mock-caption-v1"
 
 
-def test_normalize_and_stub_subtitles_falls_back_to_local_when_groq_key_missing(monkeypatch, tmp_path: Path):
+def test_process_video_pipeline_falls_back_to_local_when_groq_key_missing(monkeypatch, tmp_path: Path):
     input_video = tmp_path / "input.mp4"
     input_video.touch()
 
@@ -185,7 +193,7 @@ def test_normalize_and_stub_subtitles_falls_back_to_local_when_groq_key_missing(
         return str(output_path)
 
     monkeypatch.setattr(subtitles, "extract_audio", fake_extract)
-    monkeypatch.setattr(subtitles, "create_styled_subtitle_file", fake_style)
+    monkeypatch.setattr(video_processing.subtitle_renderer, "create_styled_subtitle_file", fake_style)
     monkeypatch.setattr(ffmpeg_utils, "run_ffmpeg_with_subs", fake_burn)
     monkeypatch.setattr(ffmpeg_utils, "probe_media", lambda p: ffmpeg_utils.MediaProbe(10.0, "aac"))
     monkeypatch.setattr(video_processing.llm_utils, "resolve_groq_api_key", lambda: None)
@@ -197,11 +205,11 @@ def test_normalize_and_stub_subtitles_falls_back_to_local_when_groq_key_missing(
     monkeypatch.setattr(video_processing, "GroqTranscriber", fail_if_cloud_used)
 
     output_path = tmp_path / "final.mp4"
-    result = video_processing.normalize_and_stub_subtitles(
+    result = video_processing.process_video_pipeline(
         input_path=input_video,
         output_path=output_path,
         transcribe_provider="groq",
-        model_size="standard",
+        transcribe_tier="standard",
     )
 
     assert result == output_path
@@ -287,7 +295,7 @@ def test_active_graphics_maps_to_ass_active(monkeypatch, tmp_path: Path):
             return srt_file, cues
 
     monkeypatch.setattr(subtitles, "extract_audio", fake_extract)
-    monkeypatch.setattr(subtitles, "create_styled_subtitle_file", fake_style)
+    monkeypatch.setattr(video_processing.subtitle_renderer, "create_styled_subtitle_file", fake_style)
     monkeypatch.setattr(ffmpeg_utils, "run_ffmpeg_with_subs", fake_burn)
     monkeypatch.setattr(ffmpeg_utils, "probe_media", lambda p: ffmpeg_utils.MediaProbe(10.0, "aac"))
 
@@ -296,7 +304,7 @@ def test_active_graphics_maps_to_ass_active(monkeypatch, tmp_path: Path):
 
     output_path = tmp_path / "final.mp4"
 
-    video_processing.normalize_and_stub_subtitles(
+    video_processing.process_video_pipeline(
         input_path=input_video,
         output_path=output_path,
         transcribe_provider="groq",
@@ -316,7 +324,7 @@ def test_build_filtergraph_quotes_ass_path():
     assert "foo\\'bar.ass" in fg or "foo'bar.ass" in fg or r"\'" in fg
 
 
-def test_normalize_and_stub_subtitles_removes_temporary_directory(
+def test_process_video_pipeline_removes_temporary_directory(
     monkeypatch, tmp_path: Path
 ):
     input_video = tmp_path / "input.mp4"
@@ -357,7 +365,7 @@ def test_normalize_and_stub_subtitles_removes_temporary_directory(
         Path(output_path).touch()
 
     monkeypatch.setattr(subtitles, "extract_audio", fake_extract)
-    monkeypatch.setattr(subtitles, "create_styled_subtitle_file", fake_style)
+    monkeypatch.setattr(video_processing.subtitle_renderer, "create_styled_subtitle_file", fake_style)
     monkeypatch.setattr(ffmpeg_utils, "run_ffmpeg_with_subs", fake_burn)
     monkeypatch.setattr(ffmpeg_utils, "probe_media", lambda p: ffmpeg_utils.MediaProbe(10.0, "aac"))
 
@@ -365,7 +373,7 @@ def test_normalize_and_stub_subtitles_removes_temporary_directory(
 
     output_path = tmp_path / "out.mp4"
 
-    video_processing.normalize_and_stub_subtitles(
+    video_processing.process_video_pipeline(
         input_video, output_path, transcribe_provider="groq"
     )
 
@@ -373,7 +381,7 @@ def test_normalize_and_stub_subtitles_removes_temporary_directory(
     assert not (tmp_path / "scratch").exists()
 
 
-def test_normalize_and_stub_subtitles_can_return_social_copy(
+def test_process_video_pipeline_can_return_social_copy(
     monkeypatch, tmp_path: Path
 ):
     input_video = tmp_path / "vid.mp4"
@@ -381,7 +389,7 @@ def test_normalize_and_stub_subtitles_can_return_social_copy(
 
     # Mock mocks
     monkeypatch.setattr(subtitles, "extract_audio", lambda *args, **kwargs: tmp_path / "a.wav")
-    monkeypatch.setattr(subtitles, "create_styled_subtitle_file", lambda *args, **kwargs: tmp_path / "a.ass")
+    monkeypatch.setattr(video_processing.subtitle_renderer, "create_styled_subtitle_file", lambda *args, **kwargs: tmp_path / "a.ass")
     # Need to touch output
     def fake_burn(input_path, ass_path, output_path, **kwargs):
         Path(output_path).touch()
@@ -400,11 +408,11 @@ def test_normalize_and_stub_subtitles_can_return_social_copy(
     monkeypatch.setattr(video_processing, "GroqTranscriber", FakeTranscriber)
 
     # Mock social copy generation
-    soc = subtitles.SocialCopy(subtitles.SocialContent("Title EL", "Title EN", "Desc EL", "Desc EN", ["#tag"]))
-    monkeypatch.setattr(subtitles, "build_social_copy", lambda text: soc)
+    soc = SocialCopy(SocialContent("Title EL", "Title EN", "Desc EL", "Desc EN", ["#tag"]))
+    monkeypatch.setattr(video_processing.social_intelligence, "build_social_copy", lambda text: soc)
 
     output_path = tmp_path / "out.mp4"
-    path, copy = video_processing.normalize_and_stub_subtitles(
+    path, copy = video_processing.process_video_pipeline(
         input_video, output_path,
         transcribe_provider="groq",
         generate_social_copy=True
@@ -413,7 +421,7 @@ def test_normalize_and_stub_subtitles_can_return_social_copy(
     assert copy == soc
 
 
-def test_normalize_and_stub_subtitles_persists_preview_asset_for_transcription_only(
+def test_process_video_pipeline_persists_preview_asset_for_transcription_only(
     monkeypatch, tmp_path: Path
 ):
     input_video = tmp_path / "vid.mp4"
@@ -421,7 +429,7 @@ def test_normalize_and_stub_subtitles_persists_preview_asset_for_transcription_o
     artifact_dir = tmp_path / "artifacts"
 
     monkeypatch.setattr(subtitles, "extract_audio", lambda *args, **kwargs: tmp_path / "a.wav")
-    monkeypatch.setattr(subtitles, "create_styled_subtitle_file", lambda *args, **kwargs: tmp_path / "a.ass")
+    monkeypatch.setattr(video_processing.subtitle_renderer, "create_styled_subtitle_file", lambda *args, **kwargs: tmp_path / "a.ass")
     monkeypatch.setattr(ffmpeg_utils, "probe_media", lambda _path: ffmpeg_utils.MediaProbe(10.0, "aac"))
 
     class FakeTranscriber:
@@ -436,7 +444,7 @@ def test_normalize_and_stub_subtitles_persists_preview_asset_for_transcription_o
     monkeypatch.setattr(video_processing, "GroqTranscriber", FakeTranscriber)
 
     output_path = tmp_path / "artifacts" / "processed.mp4"
-    res = video_processing.normalize_and_stub_subtitles(
+    res = video_processing.process_video_pipeline(
         input_video,
         output_path,
         transcribe_provider="groq",
@@ -449,7 +457,7 @@ def test_normalize_and_stub_subtitles_persists_preview_asset_for_transcription_o
     assert output_path.read_bytes() == b"video"
 
 
-def test_normalize_and_stub_subtitles_persists_artifacts(monkeypatch, tmp_path: Path):
+def test_process_video_pipeline_persists_artifacts(monkeypatch, tmp_path: Path):
     input_video = tmp_path / "vid.mp4"
     input_video.touch()
     artifact_dir = tmp_path / "artifacts"
@@ -459,7 +467,7 @@ def test_normalize_and_stub_subtitles_persists_artifacts(monkeypatch, tmp_path: 
 
     # Mocks
     monkeypatch.setattr(subtitles, "extract_audio", lambda *args, **kwargs: tmp_path / "a.wav")
-    monkeypatch.setattr(subtitles, "create_styled_subtitle_file", lambda *args, **kwargs: tmp_path / "a.ass")
+    monkeypatch.setattr(video_processing.subtitle_renderer, "create_styled_subtitle_file", lambda *args, **kwargs: tmp_path / "a.ass")
 
     def fake_burn(input_path, ass_path, output_path, **kwargs):
         Path(output_path).touch()
@@ -476,7 +484,7 @@ def test_normalize_and_stub_subtitles_persists_artifacts(monkeypatch, tmp_path: 
 
     monkeypatch.setattr(video_processing, "GroqTranscriber", FakeTranscriber)
 
-    video_processing.normalize_and_stub_subtitles(
+    video_processing.process_video_pipeline(
         input_video, tmp_path/"out.mp4",
         transcribe_provider="groq",
         artifact_dir=artifact_dir
@@ -486,13 +494,13 @@ def test_normalize_and_stub_subtitles_persists_artifacts(monkeypatch, tmp_path: 
     assert mock_persist.call_args[0][0] == artifact_dir
 
 
-def test_normalize_and_stub_subtitles_can_use_llm_social_copy(monkeypatch, tmp_path: Path):
+def test_process_video_pipeline_can_use_llm_social_copy(monkeypatch, tmp_path: Path):
     # Verify use_llm_social_copy triggers build_social_copy_llm
     input_video = tmp_path / "vid.mp4"
     input_video.touch()
 
     monkeypatch.setattr(subtitles, "extract_audio", lambda *args, **kwargs: tmp_path / "a.wav")
-    monkeypatch.setattr(subtitles, "create_styled_subtitle_file", lambda *args, **kwargs: tmp_path / "a.ass")
+    monkeypatch.setattr(video_processing.subtitle_renderer, "create_styled_subtitle_file", lambda *args, **kwargs: tmp_path / "a.ass")
     def fake_burn(input_path, ass_path, output_path, **kwargs):
         Path(output_path).touch()
     monkeypatch.setattr(ffmpeg_utils, "run_ffmpeg_with_subs", fake_burn)
@@ -507,9 +515,9 @@ def test_normalize_and_stub_subtitles_can_use_llm_social_copy(monkeypatch, tmp_p
     monkeypatch.setattr(video_processing, "GroqTranscriber", FakeTranscriber)
 
     mock_llm = MagicMock()
-    monkeypatch.setattr(subtitles, "build_social_copy_llm", mock_llm)
+    monkeypatch.setattr(video_processing.social_intelligence, "build_social_copy_llm", mock_llm)
 
-    video_processing.normalize_and_stub_subtitles(
+    video_processing.process_video_pipeline(
         input_video, tmp_path/"out.mp4",
         transcribe_provider="groq",
         generate_social_copy=True,
@@ -529,7 +537,7 @@ def test_pipeline_logs_metrics(monkeypatch, tmp_path: Path):
 
     # Mocks
     monkeypatch.setattr(subtitles, "extract_audio", lambda *args, **kwargs: tmp_path / "a.wav")
-    monkeypatch.setattr(subtitles, "create_styled_subtitle_file", lambda *args, **kwargs: tmp_path / "a.ass")
+    monkeypatch.setattr(video_processing.subtitle_renderer, "create_styled_subtitle_file", lambda *args, **kwargs: tmp_path / "a.ass")
     def fake_burn(input_path, ass_path, output_path, **kwargs):
         Path(output_path).touch()
     monkeypatch.setattr(ffmpeg_utils, "run_ffmpeg_with_subs", fake_burn)
@@ -543,7 +551,7 @@ def test_pipeline_logs_metrics(monkeypatch, tmp_path: Path):
             return srt, []
     monkeypatch.setattr(video_processing, "GroqTranscriber", FakeTranscriber)
 
-    video_processing.normalize_and_stub_subtitles(
+    video_processing.process_video_pipeline(
         input_video, tmp_path/"out.mp4",
         transcribe_provider="groq"
     )
@@ -560,7 +568,7 @@ def test_pipeline_logs_error_when_output_missing(monkeypatch, tmp_path: Path):
 
     # Mocks that FAIL to produce output video
     monkeypatch.setattr(subtitles, "extract_audio", lambda *args, **kwargs: tmp_path / "a.wav")
-    monkeypatch.setattr(subtitles, "create_styled_subtitle_file", lambda *args, **kwargs: tmp_path / "a.ass")
+    monkeypatch.setattr(video_processing.subtitle_renderer, "create_styled_subtitle_file", lambda *args, **kwargs: tmp_path / "a.ass")
     monkeypatch.setattr(ffmpeg_utils, "run_ffmpeg_with_subs", lambda *args, **kwargs: None) # Does nothing, file not created
     monkeypatch.setattr(ffmpeg_utils, "probe_media", lambda p: ffmpeg_utils.MediaProbe(10.0, "aac"))
 
@@ -574,7 +582,7 @@ def test_pipeline_logs_error_when_output_missing(monkeypatch, tmp_path: Path):
 
     # Should raise RuntimeError because output missing
     with pytest.raises(RuntimeError):
-        video_processing.normalize_and_stub_subtitles(
+        video_processing.process_video_pipeline(
             input_video, tmp_path/"out.mp4", transcribe_provider="groq"
         )
 
@@ -676,7 +684,7 @@ def test_pipeline_retries_without_hw_accel(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(ffmpeg_utils, "run_ffmpeg_with_subs", ffmpeg_mock)
 
     monkeypatch.setattr(subtitles, "extract_audio", lambda *args, **kwargs: tmp_path / "a.wav")
-    monkeypatch.setattr(subtitles, "create_styled_subtitle_file", lambda *args, **kwargs: tmp_path / "a.ass")
+    monkeypatch.setattr(video_processing.subtitle_renderer, "create_styled_subtitle_file", lambda *args, **kwargs: tmp_path / "a.ass")
     monkeypatch.setattr(ffmpeg_utils, "probe_media", lambda p: ffmpeg_utils.MediaProbe(10.0, "aac"))
 
     class FakeTranscriber:
@@ -684,7 +692,7 @@ def test_pipeline_retries_without_hw_accel(monkeypatch, tmp_path: Path):
         def transcribe(self, audio_path, output_dir, **kwargs): return (output_dir/"a.srt", [])
     monkeypatch.setattr(video_processing, "GroqTranscriber", FakeTranscriber)
 
-    video_processing.normalize_and_stub_subtitles(
+    video_processing.process_video_pipeline(
         input_video, tmp_path/"out.mp4", transcribe_provider="groq", use_hw_accel=True
     )
 
@@ -704,7 +712,7 @@ def test_normalize_handles_duration_failure(monkeypatch, tmp_path: Path):
 
     # Mocks
     monkeypatch.setattr(subtitles, "extract_audio", lambda *args, **kwargs: tmp_path / "a.wav")
-    monkeypatch.setattr(subtitles, "create_styled_subtitle_file", lambda *args, **kwargs: tmp_path / "a.ass")
+    monkeypatch.setattr(video_processing.subtitle_renderer, "create_styled_subtitle_file", lambda *args, **kwargs: tmp_path / "a.ass")
 
     def fake_burn(input_path, ass_path, output_path, **kwargs):
         Path(output_path).touch()
@@ -716,7 +724,7 @@ def test_normalize_handles_duration_failure(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(video_processing, "GroqTranscriber", FakeTranscriber)
 
     # Should not crash
-    video_processing.normalize_and_stub_subtitles(
+    video_processing.process_video_pipeline(
         input_video, tmp_path/"out.mp4", transcribe_provider="groq"
     )
 
@@ -742,21 +750,44 @@ def test_run_ffmpeg_with_subs_raises_on_failure(monkeypatch, tmp_path: Path):
         ffmpeg_utils.run_ffmpeg_with_subs(tmp_path/"in", tmp_path/"sub", tmp_path/"out",
             video_crf=23, video_preset="f", audio_bitrate="k", audio_copy=False)
 
-def test_normalize_applies_turbo_defaults():
-    pass
+def test_persist_artifacts_copies_sources_and_writes_bilingual_social_copy(tmp_path: Path):
+    artifact_dir = tmp_path / "artifacts"
+    audio_path = tmp_path / "audio.wav"
+    srt_path = tmp_path / "captions.srt"
+    ass_path = tmp_path / "captions.ass"
+    for path in (audio_path, srt_path, ass_path):
+        path.write_text(path.name, encoding="utf-8")
 
-def test_social_copy_falls_back_if_none():
-    pass
+    social_copy = SocialCopy(
+        generic=SocialContent(
+            title_el="Ελληνικός τίτλος",
+            title_en="English title",
+            description_el="Ελληνική περιγραφή",
+            description_en="English description",
+            hashtags=["#subframe"],
+        )
+    )
 
-def test_hw_accel_retry_falls_back():
-    pass
+    artifact_manager.persist_artifacts(
+        artifact_dir,
+        audio_path,
+        srt_path,
+        ass_path,
+        "Μεταγραφή",
+        social_copy,
+    )
 
-def test_persist_artifacts_copy_logic(tmp_path):
-    d = tmp_path / "artifacts"
-    f = tmp_path / "file.txt"
-    f.touch()
-    # Stub test
-    pass
+    assert (artifact_dir / audio_path.name).read_text(encoding="utf-8") == audio_path.name
+    assert (artifact_dir / srt_path.name).read_text(encoding="utf-8") == srt_path.name
+    assert (artifact_dir / ass_path.name).read_text(encoding="utf-8") == ass_path.name
+    social_json = json.loads((artifact_dir / "social_copy.json").read_text(encoding="utf-8"))
+    assert social_json == {
+        "title_el": "Ελληνικός τίτλος",
+        "description_el": "Ελληνική περιγραφή",
+        "title_en": "English title",
+        "description_en": "English description",
+        "hashtags": ["#subframe"],
+    }
 
 
 def test_persist_artifacts_resegments_transcription_json(tmp_path: Path):
@@ -815,7 +846,7 @@ def test_generate_video_variant_success(monkeypatch, tmp_path: Path):
     job.result_data = {"subtitle_size": 100} # Explicit dict
     job_store.get_job.return_value = job
 
-    monkeypatch.setattr(subtitles, "create_styled_subtitle_file", lambda *args, **kwargs: tmp_path / "a.ass")
+    monkeypatch.setattr(video_processing.subtitle_renderer, "create_styled_subtitle_file", lambda *args, **kwargs: tmp_path / "a.ass")
     def fake_burn(*args, **kwargs):
         Path(args[2]).touch() # args[2] is output_path
     monkeypatch.setattr(ffmpeg_utils, "run_ffmpeg_with_subs", fake_burn)
@@ -885,7 +916,7 @@ def test_generate_video_variant_reuses_existing_ass(monkeypatch, tmp_path: Path)
 
     # Should NOT call create_styled_subtitle_file if no settings passed
     create_mock = MagicMock()
-    monkeypatch.setattr(subtitles, "create_styled_subtitle_file", create_mock)
+    monkeypatch.setattr(video_processing.subtitle_renderer, "create_styled_subtitle_file", create_mock)
     def fake_burn(*args, **kwargs):
         Path(args[2]).touch()
     monkeypatch.setattr(ffmpeg_utils, "run_ffmpeg_with_subs", fake_burn)
@@ -917,7 +948,7 @@ def test_generate_video_variant_glob_srt(monkeypatch, tmp_path):
     job.result_data = {"subtitle_size": 100}
     job_store.get_job.return_value = job
 
-    monkeypatch.setattr(subtitles, "create_styled_subtitle_file", lambda *args, **kwargs: tmp_path / "a.ass")
+    monkeypatch.setattr(video_processing.subtitle_renderer, "create_styled_subtitle_file", lambda *args, **kwargs: tmp_path / "a.ass")
     def fake_burn(*args, **kwargs):
         Path(args[2]).touch()
     monkeypatch.setattr(ffmpeg_utils, "run_ffmpeg_with_subs", fake_burn)
@@ -970,7 +1001,7 @@ def test_generate_video_variant_active_graphics_maps_to_active(monkeypatch, tmp_
         ass_output.touch()  # Create the file so fallback path is not triggered
         return ass_output
 
-    monkeypatch.setattr(subtitles, "create_styled_subtitle_file", capture_style)
+    monkeypatch.setattr(video_processing.subtitle_renderer, "create_styled_subtitle_file", capture_style)
     def fake_burn(*args, **kwargs):
         Path(args[2]).touch()
     monkeypatch.setattr(ffmpeg_utils, "run_ffmpeg_with_subs", fake_burn)

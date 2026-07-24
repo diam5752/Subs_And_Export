@@ -6,7 +6,7 @@ import json
 import logging
 import re
 from dataclasses import dataclass
-from typing import Any, List, Sequence
+from typing import Any, Sequence
 
 from sqlalchemy.orm import Session
 
@@ -18,27 +18,27 @@ from backend.app.services.usage_ledger import ChargeReservation, UsageLedgerStor
 logger = logging.getLogger(__name__)
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class SocialContent:
     title_el: str
     title_en: str
     description_el: str
     description_en: str
-    hashtags: List[str]
+    hashtags: list[str]
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class SocialCopy:
     generic: SocialContent
 
 
-@dataclass
+@dataclass(slots=True)
 class ViralMetadata:
-    hooks: List[str]
+    hooks: list[str]
     caption_hook: str
     caption_body: str
     cta: str
-    hashtags: List[str]
+    hashtags: list[str]
 
 
 _STOPWORDS = {
@@ -63,7 +63,7 @@ _STOPWORDS = {
 }
 
 
-def _extract_keywords(text: str, limit: int = 5) -> List[str]:
+def _extract_keywords(text: str, limit: int = 5) -> list[str]:
     tokens = re.findall(r"[\wάέίόύήώϊϋΐΰ]+", text.lower())
     ranked: dict[str, tuple[int, int]] = {}
     for idx, tok in enumerate(tokens):
@@ -89,7 +89,7 @@ def _compose_title(keywords: Sequence[str]) -> str:
     return f"{keywords[0].title()} & {keywords[1].title()} Moments"
 
 
-def _build_hashtags(keywords: Sequence[str], extra: Sequence[str]) -> List[str]:
+def _build_hashtags(keywords: Sequence[str], extra: Sequence[str]) -> list[str]:
     raw_tags = [f"#{kw.replace(' ', '')}" for kw in keywords]
     raw_tags.extend(f"#{tag}" if not tag.startswith("#") else tag for tag in extra)
     deduped = list(dict.fromkeys(raw_tags))
@@ -227,13 +227,17 @@ def build_social_copy_llm(
         {"role": "user", "content": transcript_text.strip()[:settings.max_llm_input_chars]},
     ]
 
-    # Retry mechanism
-    max_retries = 3
+    # A paid reservation is dispatched at most once. Invalid provider output
+    # falls back locally instead of spending the customer's money in a loop.
+    max_retries = 0 if charge_reservation else 3
     last_exc = None
 
     usage_prompt = 0
     usage_completion = 0
     total_cost = 0.0
+
+    if ledger_store and charge_reservation:
+        ledger_store.mark_dispatched(charge_reservation)
 
     for attempt in range(max_retries + 1):
         response: Any | None = None
@@ -288,9 +292,8 @@ def build_social_copy_llm(
                     completion_tokens=usage_completion,
                     min_credits=charge_reservation.min_credits,
                 )
-                if session and total_cost <= 0:
-                    total_cost = pricing.llm_cost_usd(
-                        session,
+                if total_cost <= 0:
+                    total_cost = pricing.llm_cost_estimate_usd(
                         model_name=model_name,
                         prompt_tokens=usage_prompt,
                         completion_tokens=usage_completion,
@@ -339,9 +342,8 @@ def build_social_copy_llm(
                 completion_tokens=usage_completion,
                 min_credits=charge_reservation.min_credits,
             )
-            if session and total_cost <= 0:
-                total_cost = pricing.llm_cost_usd(
-                    session,
+            if total_cost <= 0:
+                total_cost = pricing.llm_cost_estimate_usd(
                     model_name=model_name,
                     prompt_tokens=usage_prompt,
                     completion_tokens=usage_completion,

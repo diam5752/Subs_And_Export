@@ -19,6 +19,48 @@ class LlmModels:
     extraction: str
 
 
+@dataclass(frozen=True, slots=True)
+class VideoCreditQuote:
+    key: str
+    max_duration_seconds: int
+    credits: int
+
+
+VIDEO_CREDIT_BRACKETS: tuple[VideoCreditQuote, ...] = (
+    VideoCreditQuote(key="up_to_3m", max_duration_seconds=180, credits=30),
+    VideoCreditQuote(key="up_to_6m", max_duration_seconds=360, credits=60),
+    VideoCreditQuote(key="up_to_10m", max_duration_seconds=600, credits=100),
+)
+
+
+def video_credit_quote(duration_seconds: float) -> VideoCreditQuote:
+    """Return the immutable, server-authoritative price bracket for one video."""
+    duration = float(duration_seconds)
+    if not math.isfinite(duration) or duration <= 0:
+        raise ValueError("Video duration must be a positive finite number")
+
+    for quote in VIDEO_CREDIT_BRACKETS:
+        if duration <= quote.max_duration_seconds:
+            return quote
+    raise ValueError("Video duration exceeds the priced 10 minute limit")
+
+
+def credits_for_video_duration(duration_seconds: float) -> int:
+    return video_credit_quote(duration_seconds).credits
+
+
+def video_credit_catalog() -> list[dict[str, int | str]]:
+    """Return JSON-safe copies so callers cannot mutate pricing policy."""
+    return [
+        {
+            "key": quote.key,
+            "max_duration_seconds": quote.max_duration_seconds,
+            "credits": quote.credits,
+        }
+        for quote in VIDEO_CREDIT_BRACKETS
+    ]
+
+
 def normalize_tier(tier: str | None) -> str:
     if not tier:
         return settings.default_transcribe_tier
@@ -73,29 +115,6 @@ def resolve_llm_models(tier: str) -> LlmModels:
         fact_check=settings.factcheck_llm_model,
         extraction=settings.extraction_llm_model,
     )
-
-
-def resolve_tier_from_model(value: str | None) -> str:
-    if not value:
-        return settings.default_transcribe_tier
-    normalized = value.strip().lower()
-    if normalized in settings.transcribe_tier_provider:
-        return normalized
-    if "transcribe" in normalized and normalized.startswith("gpt-4o"):
-        return "pro"
-    if normalized == "scribe_v2" or "scribe" in normalized:
-        return "pro"
-    if "turbo" in normalized or normalized == "enhanced":
-        return "standard"
-    if normalized in {"ultimate", "whisper-1"}:
-        return "pro"
-    if "large" in normalized:
-        return "pro"
-    if normalized in {"medium", "small", "base"}:
-        return "standard"
-    if "openai" in normalized:
-        return "pro"
-    return settings.default_transcribe_tier
 
 
 def estimate_prompt_tokens(text: str) -> int:

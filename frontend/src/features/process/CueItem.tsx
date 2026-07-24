@@ -16,6 +16,7 @@ interface CueItemProps {
     onSave: () => void;
     onCancel: () => void;
     onUpdateDraft: (text: string) => void;
+    autoFocusEditor?: boolean;
 }
 
 export const CueItem = memo(({
@@ -30,7 +31,8 @@ export const CueItem = memo(({
     onEdit,
     onSave,
     onCancel,
-    onUpdateDraft
+    onUpdateDraft,
+    autoFocusEditor = true,
 }: CueItemProps) => {
     const { t } = useI18n();
     const formattedTime = `${Math.floor(cue.start / 60)}:${(cue.start % 60).toFixed(0).padStart(2, '0')}`;
@@ -42,7 +44,7 @@ export const CueItem = memo(({
 
     useEffect(() => {
         // Entering edit mode
-        if (isEditing && !prevIsEditingRef.current) {
+        if (isEditing && !prevIsEditingRef.current && autoFocusEditor) {
             requestAnimationFrame(() => {
                 textareaRef.current?.focus();
             });
@@ -59,7 +61,7 @@ export const CueItem = memo(({
         }
 
         prevIsEditingRef.current = isEditing;
-    }, [isEditing]);
+    }, [autoFocusEditor, isEditing]);
 
     const handleSave = () => {
         shouldRestoreFocusRef.current = true;

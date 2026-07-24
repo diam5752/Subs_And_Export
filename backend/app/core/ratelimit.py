@@ -21,6 +21,13 @@ if TYPE_CHECKING:
     from .database import Database
 
 
+def _parse_ip(value: str) -> str | None:
+    try:
+        return str(ipaddress.ip_address(value.strip()))
+    except ValueError:
+        return None
+
+
 def get_client_ip(request: Request) -> str:
     """
     Best-effort client IP extraction safe for proxy environments.
@@ -36,28 +43,25 @@ def get_client_ip(request: Request) -> str:
     if x_forwarded_for:
         parts = [part.strip() for part in x_forwarded_for.split(",") if part.strip()]
         if parts:
-            candidate = parts[-1]
-            try:
-                return str(ipaddress.ip_address(candidate))
-            except ValueError:
-                pass
+            candidate = _parse_ip(parts[-1])
+            if candidate:
+                return candidate
 
     x_real_ip = request.headers.get("x-real-ip")
     if x_real_ip:
-        try:
-            return str(ipaddress.ip_address(x_real_ip.strip()))
-        except ValueError:
-            pass
+        candidate = _parse_ip(x_real_ip)
+        if candidate:
+            return candidate
 
     if request.client and request.client.host:
         return request.client.host
     return "unknown"
 
 
-class RateLimiter:
-    """In-memory rate limiter (fast but per-process, for tests/dev)."""
+class _InMemoryLimiter:
+    """Shared in-memory counter implementation."""
 
-    def __init__(self, limit: int, window: int):
+    def __init__(self, limit: int, window: int) -> None:
         self.limit = limit
         self.window = window
         self.clients: dict[str, list[float]] = {}
@@ -83,43 +87,28 @@ class RateLimiter:
         history.append(now)
         self.clients[key] = history
 
-    def __call__(self, request: Request):
-        ip = get_client_ip(request)
-        self.check(ip)
-
-    def reset(self):
+    def reset(self) -> None:
         self.clients.clear()
 
 
-class AuthenticatedRateLimiter(RateLimiter):
+class RateLimiter(_InMemoryLimiter):
+    """IP-based in-memory FastAPI dependency for tests and local development."""
+
+    def __call__(self, request: Request) -> None:
+        ip = get_client_ip(request)
+        self.check(ip)
+
+class AuthenticatedRateLimiter(_InMemoryLimiter):
     """Rate limiter that uses User ID instead of IP."""
 
-    def __call__(self, user: User = Depends(get_current_user)):
-        # Basic protection against memory exhaustion
-        if len(self.clients) > 10000:
-            self.clients.clear()
-
-        # Use User ID as key
-        key = user.id
-        now = time.time()
-
-        # Filter out old timestamps
-        history = [t for t in self.clients.get(key, []) if now - t < self.window]
-
-        if len(history) >= self.limit:
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Too many requests. Please try again later.",
-            )
-
-        history.append(now)
-        self.clients[key] = history
+    def __call__(self, user: User = Depends(get_current_user)) -> None:
+        self.check(user.id)
 
 
-class DbRateLimiter:
-    """DB-backed rate limiter for multi-instance correctness (Cloud Run)."""
+class _DbLimiter:
+    """Shared database-backed counter implementation."""
 
-    def __init__(self, limit: int, window: int, action: str = "request"):
+    def __init__(self, limit: int, window: int, action: str = "request") -> None:
         self.limit = limit
         self.window = window
         self.action = action
@@ -183,22 +172,22 @@ class DbRateLimiter:
                 detail="Too many requests. Please try again later.",
             )
 
-    def __call__(self, request: Request):
+    def reset(self) -> None:
+        """Expose the same test helper contract as the in-memory limiter."""
+
+
+class DbRateLimiter(_DbLimiter):
+    """IP-based DB rate limiter for multi-instance deployments."""
+
+    def __call__(self, request: Request) -> None:
         """FastAPI dependency for IP-based rate limiting."""
         ip = get_client_ip(request)
         self.check(ip)
 
-    def reset(self):
-        """Clear rate limit state (for tests). In production this is a no-op."""
-        # In production with DB, clearing isn't needed; entries expire naturally.
-        # This method exists for API compatibility with in-memory limiter.
-        pass
-
-
-class DbAuthenticatedRateLimiter(DbRateLimiter):
+class DbAuthenticatedRateLimiter(_DbLimiter):
     """DB-backed rate limiter using User ID."""
 
-    def __call__(self, user: User = Depends(get_current_user)):
+    def __call__(self, user: User = Depends(get_current_user)) -> None:
         self.check(user.id)
 
 
@@ -208,16 +197,23 @@ def _use_db_rate_limiting() -> bool:
 
 
 # Factory functions to choose implementation based on environment
-def _create_limiter(limit: int, window: int, action: str, authenticated: bool = False):
+Limiter = RateLimiter | AuthenticatedRateLimiter | DbRateLimiter | DbAuthenticatedRateLimiter
+
+
+def _create_limiter(
+    limit: int,
+    window: int,
+    action: str,
+    authenticated: bool = False,
+) -> Limiter:
     """Create appropriate rate limiter based on environment."""
     if _use_db_rate_limiting():
         if authenticated:
             return DbAuthenticatedRateLimiter(limit=limit, window=window, action=action)
         return DbRateLimiter(limit=limit, window=window, action=action)
-    else:
-        if authenticated:
-            return AuthenticatedRateLimiter(limit=limit, window=window)
-        return RateLimiter(limit=limit, window=window)
+    if authenticated:
+        return AuthenticatedRateLimiter(limit=limit, window=window)
+    return RateLimiter(limit=limit, window=window)
 
 
 # 5 login attempts per minute per IP

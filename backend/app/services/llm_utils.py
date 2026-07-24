@@ -5,21 +5,11 @@ from __future__ import annotations
 import logging
 import os
 import tomllib
-from typing import Any, Tuple
+from typing import Any
 
 from backend.app.core.config import settings
 
 logger = logging.getLogger(__name__)
-
-
-def should_use_openai(model_name: str | None) -> bool:
-    """Check if the model name implies using OpenAI's API."""
-    return model_name is not None and "openai" in model_name.lower()
-
-
-def model_uses_openai(model_name: str | None) -> bool:
-    """Helper for internal use (alias of should_use_openai)."""
-    return should_use_openai(model_name)
 
 
 def _resolve_provider_api_key(
@@ -88,7 +78,12 @@ def load_openai_client(
 
     # Security: Enforce default timeout to prevent indefinite hanging (DoS)
     # Consumers can override this per-request if needed (e.g. for long transcriptions)
-    return OpenAI(api_key=api_key, base_url=base_url, timeout=timeout)
+    return OpenAI(
+        api_key=api_key,
+        base_url=base_url,
+        timeout=timeout,
+        max_retries=0,
+    )
 
 
 def clean_json_response(content: str) -> str:
@@ -99,7 +94,7 @@ def clean_json_response(content: str) -> str:
     return content
 
 
-def extract_chat_completion_text(response: Any) -> Tuple[str | None, str | None]:
+def extract_chat_completion_text(response: Any) -> tuple[str | None, str | None]:
     """
     Extract text content from an OpenAI Chat Completions response.
 
@@ -126,7 +121,7 @@ def extract_chat_completion_text(response: Any) -> Tuple[str | None, str | None]
             content = "".join(text_parts)
 
         if content:
-             return content.strip(), None
+            return content.strip(), None
 
         # Fallback to tool calls if content is empty
         tool_calls = getattr(message, "tool_calls", None)
@@ -158,5 +153,5 @@ def chat_completion_debug(response: Any | None) -> None:
                 usage.completion_tokens,
                 usage.total_tokens,
             )
-    except Exception:
-        pass
+    except (AttributeError, TypeError) as exc:
+        logger.debug("ChatCompletion usage metadata was unavailable: %s", exc)

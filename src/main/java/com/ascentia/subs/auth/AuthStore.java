@@ -29,6 +29,7 @@ public class AuthStore {
     private static final int SCRYPT_R = 8;
     private static final int SCRYPT_P = 1;
     private static final int SCRYPT_DK_LEN = 64;
+    private static final String DUMMY_PASSWORD_HASH = hashPassword("dummy_password_123");
 
     private final JdbcClient jdbcClient;
     private final PointsStore pointsStore;
@@ -111,7 +112,9 @@ public class AuthStore {
 
     public Optional<CurrentUser> authenticateLocal(String email, String password) {
         Optional<CurrentUser> candidate = findUserByEmail(normalizeEmail(email));
-        String targetHash = candidate.map(CurrentUser::passwordHash).filter(value -> value != null && !value.isBlank()).orElseGet(() -> hashPassword("dummy_password_123"));
+        String targetHash = candidate.map(CurrentUser::passwordHash)
+                .filter(value -> value != null && !value.isBlank())
+                .orElse(DUMMY_PASSWORD_HASH);
         boolean valid = verifyPassword(password, targetHash);
         if (candidate.isPresent() && candidate.get().passwordHash() != null && valid) {
             return candidate.map(AuthStore::withoutSecret);
@@ -349,36 +352,33 @@ public class AuthStore {
     }
 
     static boolean verifyPassword(String password, String encoded) {
-        if (encoded == null || encoded.isBlank()) {
-            return false;
-        }
-        if (encoded.startsWith("scrypt$")) {
-            String[] parts = encoded.split("\\$", 6);
-            if (parts.length != 6) {
-                return false;
-            }
-            try {
-                int n = Integer.parseInt(parts[1]);
-                int r = Integer.parseInt(parts[2]);
-                int p = Integer.parseInt(parts[3]);
-                byte[] salt = HexFormat.of().parseHex(parts[4]);
-                byte[] expected = HexFormat.of().parseHex(parts[5]);
-                byte[] derived = SCrypt.generate(password.getBytes(StandardCharsets.UTF_8), salt, n, r, p, expected.length);
-                return MessageDigest.isEqual(expected, derived);
-            } catch (Exception ignored) {
-                return false;
-            }
-        }
-        int delimiter = encoded.indexOf('$');
-        if (delimiter < 0) {
-            return false;
-        }
-        String salt = encoded.substring(0, delimiter);
-        return MessageDigest.isEqual(encoded.getBytes(StandardCharsets.UTF_8), hashPasswordLegacy(password, salt).getBytes(StandardCharsets.UTF_8));
+        boolean supportedFormat = encoded != null && encoded.startsWith("scrypt$");
+        String candidate = supportedFormat ? encoded : DUMMY_PASSWORD_HASH;
+        return supportedFormat && verifyScrypt(password, candidate);
     }
 
-    private static String hashPasswordLegacy(String password, String salt) {
-        return salt + "$" + sha256Hex(salt + ":" + password);
+    private static boolean verifyScrypt(String password, String encoded) {
+        String[] parts = encoded.split("\\$", 6);
+        try {
+            if (parts.length != 6) {
+                throw new IllegalArgumentException("Malformed scrypt hash");
+            }
+            int n = Integer.parseInt(parts[1]);
+            int r = Integer.parseInt(parts[2]);
+            int p = Integer.parseInt(parts[3]);
+            byte[] salt = HexFormat.of().parseHex(parts[4]);
+            byte[] expected = HexFormat.of().parseHex(parts[5]);
+            if (n != SCRYPT_N || r != SCRYPT_R || p != SCRYPT_P || salt.length != 16 || expected.length != SCRYPT_DK_LEN) {
+                throw new IllegalArgumentException("Unsupported scrypt parameters");
+            }
+            byte[] derived = SCrypt.generate(password.getBytes(StandardCharsets.UTF_8), salt, n, r, p, expected.length);
+            return MessageDigest.isEqual(expected, derived);
+        } catch (IllegalArgumentException exception) {
+            if (!DUMMY_PASSWORD_HASH.equals(encoded)) {
+                verifyScrypt(password, DUMMY_PASSWORD_HASH);
+            }
+            return false;
+        }
     }
 
     public static String hashToken(String token) {

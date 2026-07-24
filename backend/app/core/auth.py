@@ -12,8 +12,9 @@ import time
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Any
 
+from google_auth_oauthlib.flow import Flow
 from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -26,7 +27,7 @@ from .database import Database
 logger = logging.getLogger(__name__)
 
 
-@dataclass
+@dataclass(slots=True)
 class User:
     """Represents an authenticated user profile."""
 
@@ -39,7 +40,7 @@ class User:
     created_at: str | None = None
     email_verified: bool = False
 
-    def to_session(self) -> dict:
+    def to_session(self) -> dict[str, str]:
         """Compact dict safe to store in session_state."""
         return {
             "id": self.id,
@@ -173,7 +174,7 @@ class UserStore:
                 return
             user.password_hash = p_hash
 
-    def authenticate_local(self, email: str, password: str) -> Optional[User]:
+    def authenticate_local(self, email: str, password: str) -> User | None:
         email = email.strip().lower()
         user = self.get_user_by_email(email)
 
@@ -186,7 +187,7 @@ class UserStore:
             return user
         return None
 
-    def get_user_by_email(self, email: str) -> Optional[User]:
+    def get_user_by_email(self, email: str) -> User | None:
         email = email.strip().lower()
         with self.db.session() as session:
             user = session.scalar(select(DbUser).where(DbUser.email == email).limit(1))
@@ -246,7 +247,7 @@ class SessionStore:
             )
         return token
 
-    def authenticate(self, token: str) -> Optional[User]:
+    def authenticate(self, token: str) -> User | None:
         if not token:
             return None
         token_hash = _hash_token(token)
@@ -308,39 +309,31 @@ def _hash_password(password: str, salt: str | None = None) -> str:
 _DUMMY_HASH = _hash_password("dummy_password")
 
 
-def _hash_password_legacy(password: str, salt: str) -> str:
-    digest = hashlib.sha256(f"{salt}:{password}".encode("utf-8")).hexdigest()
-    return f"{salt}${digest}"
-
-
 def _hash_token(token: str) -> str:
     return hashlib.sha256(f"session:{token}".encode("utf-8")).hexdigest()
 
 
 def _verify_password(password: str, encoded: str) -> bool:
-    if encoded.startswith("scrypt$"):
-        try:
-            _, n, r, p, salt_hex, stored = encoded.split("$", 5)
-            salt_bytes = bytes.fromhex(salt_hex)
-            expected = bytes.fromhex(stored)
-            derived = hashlib.scrypt(
-                password.encode("utf-8"),
-                salt=salt_bytes,
-                n=int(n),
-                r=int(r),
-                p=int(p),
-                dklen=len(expected),
-            )
-            return hmac.compare_digest(derived, expected)
-        except Exception as e:
-            logger.warning(f"Scrypt verification failed: {e}")
-            return False
-
-    if "$" not in encoded:
+    supported_format = encoded.startswith("scrypt$")
+    candidate = encoded if supported_format else _DUMMY_HASH
+    try:
+        _, n, r, p, salt_hex, stored = candidate.split("$", 5)
+        salt_bytes = bytes.fromhex(salt_hex)
+        expected = bytes.fromhex(stored)
+        derived = hashlib.scrypt(
+            password.encode("utf-8"),
+            salt=salt_bytes,
+            n=int(n),
+            r=int(r),
+            p=int(p),
+            dklen=len(expected),
+        )
+        return supported_format and hmac.compare_digest(derived, expected)
+    except (TypeError, ValueError) as exc:
+        logger.warning("Scrypt verification failed: %s", exc)
+        if candidate != _DUMMY_HASH:
+            _verify_password(password, _DUMMY_HASH)
         return False
-    salt, digest = encoded.split("$", 1)
-    legacy_hash = _hash_password_legacy(password, salt)
-    return hmac.compare_digest(legacy_hash, encoded) and bool(digest)
 
 
 def _validate_password_strength(password: str) -> None:
@@ -447,10 +440,8 @@ def _derive_frontend_redirect() -> str | None:
     return base.rstrip("/") + "/login"
 
 
-def build_google_flow(cfg: dict[str, str]):
-    """Create a Google OAuth Flow instance (import deferred)."""
-    from google_auth_oauthlib.flow import Flow
-
+def build_google_flow(cfg: dict[str, str]) -> Flow:
+    """Create a Google OAuth flow for the configured client."""
     client_config = {
         "web": {
             "client_id": cfg["client_id"],
@@ -472,16 +463,16 @@ def build_google_flow(cfg: dict[str, str]):
     return flow
 
 
-def exchange_google_code(cfg: dict[str, str], code: str) -> dict:
+def exchange_google_code(cfg: dict[str, str], code: str) -> dict[str, str]:
     """Exchange OAuth code for a verified profile dict."""
     from google.auth.transport.requests import Request
     from google.oauth2 import id_token
 
     # Enforce timeout on cert verification requests (default is infinite)
     class TimeoutRequest(Request):
-        def __call__(self, *args, **kwargs):
+        def __call__(self, *args: Any, **kwargs: Any) -> Any:
             kwargs.setdefault("timeout", 30)
-            return super().__call__(*args, **kwargs)
+            return super().__call__(*args, **kwargs)  # type: ignore[no-untyped-call]
 
     flow = build_google_flow(cfg)
     # Enforce timeout on token exchange
@@ -489,11 +480,15 @@ def exchange_google_code(cfg: dict[str, str], code: str) -> dict:
     creds = flow.credentials
     if not creds or not creds.id_token:
         raise ValueError("Missing Google ID token")
-    idinfo = id_token.verify_oauth2_token(
+    idinfo = id_token.verify_oauth2_token(  # type: ignore[no-untyped-call]
         creds.id_token, TimeoutRequest(), cfg["client_id"]
     )
-    return {
-        "email": idinfo.get("email"),
-        "name": idinfo.get("name") or idinfo.get("email") or "Google User",
-        "sub": idinfo.get("sub"),
-    }
+    raw_email = idinfo.get("email")
+    if not isinstance(raw_email, str) or not raw_email.strip():
+        raise ValueError("Google profile is missing an email address")
+    email = raw_email.strip()
+    raw_name = idinfo.get("name")
+    name = raw_name.strip() if isinstance(raw_name, str) and raw_name.strip() else email
+    raw_sub = idinfo.get("sub")
+    sub = raw_sub.strip() if isinstance(raw_sub, str) else ""
+    return {"email": email, "name": name, "sub": sub}

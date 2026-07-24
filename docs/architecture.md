@@ -43,7 +43,7 @@ The API catalog is capability-first:
 - OpenAI GPT transcription models: catalogued for text or speaker workflows,
   but not marked caption-ready because they do not expose the word-timing
   contract used by karaoke animation.
-- OpenAI `whisper-1`: accepted only by the legacy OpenAI caption adapter because
+- OpenAI `whisper-1`: accepted only by the dedicated OpenAI caption adapter because
   it provides word timestamps; the adapter rejects incompatible models early.
 
 ## Deployment boundary

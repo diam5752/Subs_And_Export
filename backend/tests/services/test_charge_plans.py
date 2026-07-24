@@ -64,6 +64,12 @@ class TestReserveTranscriptionCharge:
         _seed_job(db, user_id, job_id)
         points_store = PointsStore(db=db)
         points_store.ensure_account(user_id)
+        points_store.credit(
+            user_id,
+            200,
+            reason="test_paid_funding",
+            paid_credit_delta=200,
+        )
         starting_balance = points_store.get_balance(user_id)
         ledger_store = UsageLedgerStore(db=db, points_store=points_store)
 
@@ -80,10 +86,9 @@ class TestReserveTranscriptionCharge:
         assert reservation.action == "transcription"
         assert reservation.tier == "standard"
         assert reservation.provider == "groq"
-        assert reservation.min_credits == config.settings.credits_min_transcribe["standard"]
-        # 2 minutes at 10 credits/min = 20, but min is 25
-        assert reservation.reserved_credits == 25
-        assert balance == starting_balance - 25
+        assert reservation.min_credits == 30
+        assert reservation.reserved_credits == 30
+        assert balance == starting_balance - 30
 
     def test_reserve_pro_tier(self) -> None:
         db = Database()
@@ -92,6 +97,12 @@ class TestReserveTranscriptionCharge:
         _seed_job(db, user_id, job_id)
         points_store = PointsStore(db=db)
         points_store.ensure_account(user_id)
+        points_store.credit(
+            user_id,
+            200,
+            reason="test_paid_funding",
+            paid_credit_delta=200,
+        )
         starting_balance = points_store.get_balance(user_id)
         ledger_store = UsageLedgerStore(db=db, points_store=points_store)
 
@@ -106,9 +117,8 @@ class TestReserveTranscriptionCharge:
         )
 
         assert reservation.tier == "pro"
-        # 3 minutes at 20 credits/min = 60
-        assert reservation.reserved_credits == 60
-        assert balance == starting_balance - 60
+        assert reservation.reserved_credits == 30
+        assert balance == starting_balance - 30
 
 
 class TestReserveLlmCharge:
@@ -121,6 +131,12 @@ class TestReserveLlmCharge:
         _seed_job(db, user_id, job_id)
         points_store = PointsStore(db=db)
         points_store.ensure_account(user_id)
+        points_store.credit(
+            user_id,
+            200,
+            reason="test_paid_funding",
+            paid_credit_delta=200,
+        )
         starting_balance = points_store.get_balance(user_id)
         ledger_store = UsageLedgerStore(db=db, points_store=points_store)
 
@@ -130,7 +146,7 @@ class TestReserveLlmCharge:
             job_id=job_id,
             tier="standard",
             action="social_copy",
-            model="gpt-5.1-mini",
+            model="gpt-5-mini",
             max_prompt_chars=config.settings.max_llm_input_chars,
             max_completion_tokens=config.settings.max_llm_output_tokens_social,
             min_credits=config.settings.credits_min_social_copy["standard"],
@@ -152,6 +168,12 @@ class TestReserveProcessingCharges:
         _seed_job(db, user_id, job_id)
         points_store = PointsStore(db=db)
         points_store.ensure_account(user_id)
+        points_store.credit(
+            user_id,
+            200,
+            reason="test_paid_funding",
+            paid_credit_delta=200,
+        )
         starting_balance = points_store.get_balance(user_id)
         ledger_store = UsageLedgerStore(db=db, points_store=points_store)
 
@@ -172,6 +194,9 @@ class TestReserveProcessingCharges:
         assert charge_plan.social_copy is not None
         assert charge_plan.transcription.action == "transcription"
         assert charge_plan.social_copy.action == "social_copy"
+        assert charge_plan.transcription.reserved_credits == 30
+        assert charge_plan.social_copy.reserved_credits == 0
+        assert balance == starting_balance - 30
 
     def test_reserve_without_llm(self) -> None:
         db = Database()
@@ -180,6 +205,12 @@ class TestReserveProcessingCharges:
         _seed_job(db, user_id, job_id)
         points_store = PointsStore(db=db)
         points_store.ensure_account(user_id)
+        points_store.credit(
+            user_id,
+            200,
+            reason="test_paid_funding",
+            paid_credit_delta=200,
+        )
         starting_balance = points_store.get_balance(user_id)
         ledger_store = UsageLedgerStore(db=db, points_store=points_store)
 
@@ -190,7 +221,7 @@ class TestReserveProcessingCharges:
             tier="standard",
             duration_seconds=60.0,
             use_llm=False,
-            llm_model="gpt-5.1-mini",
+            llm_model="gpt-5-mini",
             provider="groq",
             stt_model=config.settings.transcribe_tier_model["standard"],
         )
@@ -198,7 +229,7 @@ class TestReserveProcessingCharges:
         assert charge_plan.transcription is not None
         assert charge_plan.social_copy is None
         # Only transcription charge
-        assert balance == starting_balance - 25  # min credits
+        assert balance == starting_balance - 30
 
 
 class TestExternalProviderBudget:
@@ -212,11 +243,12 @@ class TestExternalProviderBudget:
             assert start_ts <= end_ts
             return self.spent
 
-    def test_rejects_monthly_overage(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr(config.settings, "external_provider_monthly_budget_usd", 1.0)
+    def test_rejects_closed_monthly_budget(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(config.settings, "external_provider_monthly_budget_usd", 0.0)
+        monkeypatch.setattr(config.settings, "external_provider_daily_budget_usd", 1.0)
         monkeypatch.setattr(config.settings, "external_provider_per_request_budget_usd", 0.5)
 
-        with pytest.raises(ProviderBudgetExceededError, match="Monthly"):
+        with pytest.raises(ProviderBudgetExceededError, match="closed"):
             assert_external_provider_budget(
                 ledger_store=self._Ledger(0.9),  # type: ignore[arg-type]
                 estimated_cost_usd=0.11,

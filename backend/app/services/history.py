@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List
+from typing import Any
 
 from sqlalchemy import select
 
@@ -12,7 +12,7 @@ from backend.app.core.database import Database
 from backend.app.db.models import DbHistoryEvent, DbUser
 
 
-@dataclass
+@dataclass(slots=True)
 class HistoryEvent:
     """Lightweight user event for UI display."""
 
@@ -21,7 +21,7 @@ class HistoryEvent:
     email: str
     kind: str  # e.g., "process", "auth"
     summary: str
-    data: Dict
+    data: dict[str, Any]
 
 
 class HistoryStore:
@@ -35,7 +35,7 @@ class HistoryStore:
         user: User,
         kind: str,
         summary: str,
-        data: Dict,
+        data: dict[str, Any],
     ) -> HistoryEvent:
         event = HistoryEvent(
             ts=_utc_iso(),
@@ -73,7 +73,7 @@ class HistoryStore:
             )
         return event
 
-    def recent_for_user(self, user: User, limit: int = 20) -> List[HistoryEvent]:
+    def recent_for_user(self, user: User, limit: int = 20) -> list[HistoryEvent]:
         with self.db.session() as session:
             stmt = (
                 select(DbHistoryEvent)

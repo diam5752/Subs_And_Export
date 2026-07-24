@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from backend.app.services import llm_utils, subtitles
+from backend.app.services import fact_checking, llm_utils
 
 
 def _fake_openai_client(calls: dict | None = None):
@@ -73,7 +73,7 @@ def test_generate_fact_check_uses_correct_model_and_params(monkeypatch) -> None:
     # The payload in _fake_openai_client contains BOTH `claims` and `items`.
     # So it should pass both stages happily.
 
-    result = subtitles.generate_fact_check("some text")
+    result = fact_checking.generate_fact_check("some text")
 
     # Model can be either gpt-4o-mini or config.FACTCHECK_LLM_MODEL depending on config
     assert "gpt" in calls["kwargs"]["model"]  # Just verify it's a GPT model
@@ -114,7 +114,7 @@ def test_generate_fact_check_retries_on_invalid_json(monkeypatch) -> None:
     client = FlakyClient()
     monkeypatch.setattr("backend.app.services.llm_utils.load_openai_client", lambda api_key: client)
 
-    result = subtitles.generate_fact_check("transcript")
+    result = fact_checking.generate_fact_check("transcript")
 
     assert client.chat.completions.attempts == 2
     assert result.truth_score == 100
@@ -132,7 +132,7 @@ def test_generate_fact_check_raises_on_failure(monkeypatch) -> None:
     monkeypatch.setattr("backend.app.services.llm_utils.load_openai_client", lambda api_key: BrokenClient())
 
     with pytest.raises(ValueError):
-        subtitles.generate_fact_check("transcript")
+        fact_checking.generate_fact_check("transcript")
 
 
 def test_generate_fact_check_retries_on_empty_response(monkeypatch) -> None:
@@ -192,7 +192,7 @@ def test_generate_fact_check_retries_on_empty_response(monkeypatch) -> None:
     client = FlakyClient()
     monkeypatch.setattr("backend.app.services.llm_utils.load_openai_client", lambda api_key: client)
 
-    result = subtitles.generate_fact_check("transcript")
+    result = fact_checking.generate_fact_check("transcript")
 
     assert client.chat.completions.attempts == 3
     assert result.truth_score == 100

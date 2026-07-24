@@ -23,7 +23,7 @@ from ...services.subtitle_exports import (
 )
 from ...services.video_processing import generate_video_variant
 from ..deps import get_current_user, get_job_store
-from .file_utils import DATA_DIR, MAX_UPLOAD_BYTES, data_roots, relpath_safe
+from .file_utils import MAX_UPLOAD_BYTES, data_roots, relpath_safe
 from .validation import (
     ALLOWED_VIDEO_EXTENSIONS,
     validate_highlight_style,
@@ -48,23 +48,6 @@ def _validate_subtitle_export_settings(request: "ExportRequest") -> None:
         validate_subtitle_size(request.subtitle_size)
     if request.highlight_style is not None:
         validate_highlight_style(request.highlight_style)
-
-
-def _ensure_job_size(job):
-    """Helper to backfill output_size for legacy jobs."""
-    if job.status == "completed" and job.result_data:
-        if not job.result_data.get("output_size"):
-            video_path = job.result_data.get("video_path")
-            if video_path:
-                try:
-                    full_path = DATA_DIR / video_path
-                    if not full_path.exists():
-                        full_path = settings.project_root.parent / video_path
-                    if full_path.exists():
-                        job.result_data["output_size"] = full_path.stat().st_size
-                except Exception as e:
-                    logger.warning(f"Failed to ensure job size: {e}")
-    return job
 
 
 class ExportRequest(BaseModel):
@@ -118,7 +101,7 @@ def export_video(
     request: ExportRequest,
     current_user: User = Depends(get_current_user),
     job_store: JobStore = Depends(get_job_store),
-):
+) -> JobResponse:
     """Export a video variant from an existing job."""
     job = job_store.get_job(job_id)
     if not job or job.user_id != current_user.id:
@@ -178,7 +161,9 @@ def export_video(
 
             job_store.update_job(job_id, result_data=result_data, status="completed")
             updated_job = job_store.get_job(job_id)
-            return _ensure_job_size(updated_job)
+            if updated_job is None:
+                raise HTTPException(status_code=500, detail="Exported job could not be reloaded")
+            return JobResponse.model_validate(updated_job)
         except HTTPException:
             raise
         except MalformedTranscriptError as e:
@@ -268,7 +253,9 @@ def export_video(
 
         job_store.update_job(job_id, result_data=result_data, status="completed", progress=100)
         updated_job = job_store.get_job(job_id)
-        return _ensure_job_size(updated_job)
+        if updated_job is None:
+            raise HTTPException(status_code=500, detail="Exported job could not be reloaded")
+        return JobResponse.model_validate(updated_job)
     except HTTPException:
         raise
     except Exception as e:

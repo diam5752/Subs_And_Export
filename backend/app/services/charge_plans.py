@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from typing import Any
 
 from backend.app.core.config import settings
@@ -10,12 +9,6 @@ from backend.app.core.errors import ProviderBudgetExceededError
 from backend.app.services import pricing
 from backend.app.services.points import make_idempotency_id
 from backend.app.services.usage_ledger import ChargePlan, ChargeReservation, UsageLedgerStore
-
-
-def _current_month_bounds() -> tuple[int, int]:
-    now = datetime.now(timezone.utc)
-    start = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
-    return int(start.timestamp()), int(now.timestamp())
 
 
 def assert_external_provider_budget(
@@ -29,11 +22,11 @@ def assert_external_provider_budget(
         return
     if estimate > settings.external_provider_per_request_budget_usd:
         raise ProviderBudgetExceededError("Per-request external provider budget exceeded")
-
-    start_ts, end_ts = _current_month_bounds()
-    spent = ledger_store.total_cost_usd(start_ts=start_ts, end_ts=end_ts)
-    if spent + estimate > settings.external_provider_monthly_budget_usd:
-        raise ProviderBudgetExceededError("Monthly external provider budget exceeded")
+    if (
+        settings.external_provider_daily_budget_usd <= 0
+        or settings.external_provider_monthly_budget_usd <= 0
+    ):
+        raise ProviderBudgetExceededError("External provider budgets are closed")
 
 
 def reserve_transcription_charge(
@@ -46,12 +39,14 @@ def reserve_transcription_charge(
     provider: str,
     model: str,
     enforce_budget: bool = True,
+    require_paid_credits: bool | None = None,
+    allow_downward_adjustment: bool = False,
 ) -> tuple[ChargeReservation, int]:
-    min_credits = settings.credits_min_transcribe[tier]
-    credits = pricing.credits_for_minutes(
-        tier=tier,
-        duration_seconds=duration_seconds,
-        min_credits=min_credits,
+    credits = pricing.credits_for_video_duration(duration_seconds)
+    min_credits = (
+        pricing.VIDEO_CREDIT_BRACKETS[0].credits
+        if allow_downward_adjustment
+        else credits
     )
     cost_estimate = pricing.stt_provider_cost_usd(
         tier=tier,
@@ -84,6 +79,7 @@ def reserve_transcription_charge(
         units=units,
         idempotency_key=idempotency_key,
         endpoint="audio/transcriptions",
+        require_paid_credits=require_paid_credits,
     )
 
 
@@ -139,6 +135,52 @@ def reserve_llm_charge(
     )
 
 
+def reserve_included_llm_charge(
+    *,
+    ledger_store: UsageLedgerStore,
+    parent: ChargeReservation,
+    user_id: str,
+    job_id: str,
+    tier: str,
+    action: str,
+    model: str,
+    max_prompt_chars: int,
+    max_completion_tokens: int,
+) -> tuple[ChargeReservation, int]:
+    """Reserve provider money while keeping the visible video price all-inclusive."""
+    reservation_info = pricing.max_llm_credits_for_limits(
+        tier=tier,
+        max_prompt_chars=max_prompt_chars,
+        max_completion_tokens=max_completion_tokens,
+        min_credits=0,
+    )
+    cost_estimate = pricing.llm_cost_estimate_usd(
+        model_name=model,
+        prompt_tokens=reservation_info["prompt_tokens"],
+        completion_tokens=reservation_info["completion_tokens"],
+    )
+    idempotency_key = make_idempotency_id("usage", action, user_id, job_id, "included")
+    return ledger_store.reserve(
+        user_id=user_id,
+        job_id=job_id,
+        action=action,
+        provider="openai",
+        model=model,
+        tier=tier,
+        credits=0,
+        min_credits=0,
+        cost_estimate_usd=cost_estimate,
+        units={
+            "max_prompt_tokens": reservation_info["prompt_tokens"],
+            "max_completion_tokens": reservation_info["completion_tokens"],
+            "included_in_video_credits": parent.reserved_credits,
+        },
+        idempotency_key=idempotency_key,
+        endpoint="chat/completions",
+        covered_by_ledger_id=parent.ledger_id,
+    )
+
+
 def reserve_processing_charges(
     *,
     ledger_store: UsageLedgerStore,
@@ -150,6 +192,7 @@ def reserve_processing_charges(
     llm_model: str,
     provider: str,
     stt_model: str,
+    allow_downward_adjustment: bool = False,
 ) -> tuple[ChargePlan, int]:
     if settings.mock_external_services:
         provider = "mock"
@@ -189,22 +232,31 @@ def reserve_processing_charges(
         provider=provider,
         model=stt_model,
         enforce_budget=False,
+        require_paid_credits=use_llm and social_cost > 0,
+        allow_downward_adjustment=allow_downward_adjustment,
     )
 
     social_reservation: ChargeReservation | None = None
     if use_llm:
-        social_reservation, balance = reserve_llm_charge(
-            ledger_store=ledger_store,
-            user_id=user_id,
-            job_id=job_id,
-            tier=tier,
-            action="social_copy",
-            model=llm_model,
-            max_prompt_chars=settings.max_llm_input_chars,
-            max_completion_tokens=settings.max_llm_output_tokens_social,
-            min_credits=settings.credits_min_social_copy[tier],
-            enforce_budget=False,
-        )
+        try:
+            social_reservation, balance = reserve_included_llm_charge(
+                ledger_store=ledger_store,
+                parent=transcription_reservation,
+                user_id=user_id,
+                job_id=job_id,
+                tier=tier,
+                action="social_copy",
+                model=llm_model,
+                max_prompt_chars=settings.max_llm_input_chars,
+                max_completion_tokens=settings.max_llm_output_tokens_social,
+            )
+        except Exception as exc:
+            ledger_store.fail(
+                transcription_reservation,
+                status="failed",
+                error=f"Bundled provider reservation failed: {type(exc).__name__}",
+            )
+            raise
 
     return ChargePlan(
         transcription=transcription_reservation,

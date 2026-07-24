@@ -39,7 +39,13 @@ def _auth_header(client: TestClient, email: str | None = None) -> dict[str, str]
             points_store = PointsStore(db=db)
             points_store.ensure_account(user_id)
             # Grant additional credits for tests (in case user already existed with low balance)
-            points_store.credit(user_id, 1000, "test_credit", {"source": "unit_tests"})
+            points_store.credit(
+                user_id,
+                1000,
+                "test_credit",
+                {"source": "unit_tests"},
+                paid_credit_delta=1000,
+            )
 
     return headers
 
@@ -102,7 +108,7 @@ def test_run_video_processing_success(monkeypatch, tmp_path: Path):
         social = types.SimpleNamespace(generic=types.SimpleNamespace(title_en="hi"))
         return output_path, social
 
-    monkeypatch.setattr(processing_tasks, "normalize_and_stub_subtitles", fake_normalize)
+    monkeypatch.setattr(processing_tasks, "process_video_pipeline", fake_normalize)
     settings = ProcessingSettings()
     processing_tasks.run_video_processing(job.id, input_path, output_path, output_path.parent, settings, store)
 
@@ -130,7 +136,7 @@ def test_run_video_processing_failure(monkeypatch, tmp_path: Path):
     def boom(*args, **kwargs):
         raise RuntimeError("explode")
 
-    monkeypatch.setattr(processing_tasks, "normalize_and_stub_subtitles", boom)
+    monkeypatch.setattr(processing_tasks, "process_video_pipeline", boom)
     settings = ProcessingSettings()
     processing_tasks.run_video_processing(job.id, input_path, output_path, tmp_path / "artifacts2", settings, store)
 
@@ -158,7 +164,7 @@ def test_run_video_processing_handles_path_only(monkeypatch, tmp_path: Path):
         output_path.write_bytes(b"ok")
         return output_path
 
-    monkeypatch.setattr(processing_tasks, "normalize_and_stub_subtitles", fake_normalize)
+    monkeypatch.setattr(processing_tasks, "process_video_pipeline", fake_normalize)
     settings = ProcessingSettings()
     processing_tasks.run_video_processing(job.id, input_path, output_path, output_path.parent, settings, store)
 
@@ -190,7 +196,7 @@ def test_run_video_processing_records_duration_and_empty_resolution(monkeypatch,
         output_path.write_bytes(b"ok")
         return output_path
 
-    monkeypatch.setattr(processing_tasks, "normalize_and_stub_subtitles", fake_normalize)
+    monkeypatch.setattr(processing_tasks, "process_video_pipeline", fake_normalize)
     settings = ProcessingSettings()
     processing_tasks.run_video_processing(job.id, input_path, output_path, output_path.parent, settings, store)
 
@@ -213,6 +219,12 @@ def test_run_video_processing_does_not_restart_cancelled_job_and_refunds(monkeyp
         f"cancelled_{uuid.uuid4().hex}@example.com", "testpassword123", "Runner"
     ).id
     job = job_store.create_job(f"job-cancelled-{uuid.uuid4().hex}", user_id)
+    points_store.credit(
+        user_id,
+        100,
+        reason="test_paid_funding",
+        paid_credit_delta=100,
+    )
     starting_balance = points_store.get_balance(user_id)
 
     llm_models = pricing.resolve_llm_models("standard")
@@ -227,11 +239,7 @@ def test_run_video_processing_does_not_restart_cancelled_job_and_refunds(monkeyp
         provider="groq",
         stt_model=pricing.resolve_transcribe_model("standard"),
     )
-    expected_charge = pricing.credits_for_minutes(
-        tier="standard",
-        duration_seconds=60.0,
-        min_credits=config.settings.credits_min_transcribe["standard"],
-    )
+    expected_charge = pricing.credits_for_video_duration(60.0)
     assert points_store.get_balance(user_id) == starting_balance - expected_charge
 
     job_store.update_job(job.id, status="cancelled", message="Cancelled by user")
@@ -242,7 +250,7 @@ def test_run_video_processing_does_not_restart_cancelled_job_and_refunds(monkeyp
 
     monkeypatch.setattr(
         processing_tasks,
-        "normalize_and_stub_subtitles",
+        "process_video_pipeline",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("should not process cancelled jobs")),
     )
 
@@ -285,6 +293,12 @@ def test_run_gcs_video_processing_does_not_restart_cancelled_job_and_refunds(mon
         f"cancelled_gcs_{uuid.uuid4().hex}@example.com", "testpassword123", "Runner"
     ).id
     job = job_store.create_job(f"job-cancelled-gcs-{uuid.uuid4().hex}", user_id)
+    points_store.credit(
+        user_id,
+        100,
+        reason="test_paid_funding",
+        paid_credit_delta=100,
+    )
     starting_balance = points_store.get_balance(user_id)
 
     llm_models = pricing.resolve_llm_models("standard")
@@ -299,11 +313,7 @@ def test_run_gcs_video_processing_does_not_restart_cancelled_job_and_refunds(mon
         provider="groq",
         stt_model=pricing.resolve_transcribe_model("standard"),
     )
-    expected_charge = pricing.credits_for_minutes(
-        tier="standard",
-        duration_seconds=60.0,
-        min_credits=config.settings.credits_min_transcribe["standard"],
-    )
+    expected_charge = pricing.credits_for_video_duration(60.0)
     assert points_store.get_balance(user_id) == starting_balance - expected_charge
 
     job_store.update_job(job.id, status="cancelled", message="Cancelled by user")
@@ -409,6 +419,7 @@ def test_process_video_creates_job(client: TestClient, monkeypatch):
 def test_process_video_accepts_openai_provider_override(client: TestClient, monkeypatch):
     headers = _auth_header(client, email="process-openai@example.com")
     captured: dict[str, object] = {}
+    monkeypatch.setattr(videos.settings, "mock_external_services", False)
 
     monkeypatch.setattr(videos, "run_video_processing", lambda *args, **kwargs: None)
 
@@ -422,7 +433,7 @@ def test_process_video_accepts_openai_provider_override(client: TestClient, monk
         "/videos/process",
         headers=headers,
         data={
-            "transcribe_model": "pro",
+            "transcribe_tier": "pro",
             "transcribe_provider": "openai",
             "openai_model": "whisper-1",
         },
@@ -450,7 +461,7 @@ def test_process_video_forces_mock_before_charge_planning(client: TestClient, mo
         "/videos/process",
         headers=headers,
         data={
-            "transcribe_model": "pro",
+            "transcribe_tier": "pro",
             "transcribe_provider": "openai",
             "openai_model": "gpt-4o-transcribe",
             "use_llm": "true",
@@ -467,6 +478,7 @@ def test_process_video_forces_mock_before_charge_planning(client: TestClient, mo
 def test_process_video_accepts_local_provider_override(client: TestClient, monkeypatch):
     headers = _auth_header(client, email="process-local@example.com")
     captured: dict[str, object] = {}
+    monkeypatch.setattr(videos.settings, "mock_external_services", False)
 
     monkeypatch.setattr(videos, "run_video_processing", lambda *args, **kwargs: None)
 
@@ -480,7 +492,7 @@ def test_process_video_accepts_local_provider_override(client: TestClient, monke
         "/videos/process",
         headers=headers,
         data={
-            "transcribe_model": "standard",
+            "transcribe_tier": "standard",
             "transcribe_provider": "local",
         },
         files={"file": ("clip.mp4", io.BytesIO(b"123"), "video/mp4")},
@@ -571,7 +583,12 @@ def test_reprocess_job_creates_new_job(client: TestClient, monkeypatch):
     user_resp = client.get("/auth/me", headers=headers)
     assert user_resp.status_code == 200
     user_id = user_resp.json()["id"]
-    PointsStore(db=Database()).credit(user_id, 1000, "test_topup")
+    PointsStore(db=Database()).credit(
+        user_id,
+        1000,
+        "test_topup",
+        paid_credit_delta=1000,
+    )
 
     source = client.post(
         "/videos/process",
@@ -615,14 +632,6 @@ def test_get_job_not_found(client: TestClient):
     headers = _auth_header(client)
     resp = client.get(f"/videos/jobs/{uuid.uuid4()}", headers=headers)
     assert resp.status_code == 404
-
-
-def test_backend_wrappers_import():
-    from backend.app.core import metrics as backend_metrics
-    from backend.app.services import subtitles as backend_subtitles
-
-    assert hasattr(backend_metrics, "should_log_metrics")
-    assert hasattr(backend_subtitles, "create_styled_subtitle_file")
 
 
 def test_cancel_job_success(client: TestClient, monkeypatch, tmp_path: Path):

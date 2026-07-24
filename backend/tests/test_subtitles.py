@@ -1,11 +1,11 @@
+import re
 import subprocess
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
-from backend.app.core import config
 from backend.app.services import (
     llm_utils,
     social_intelligence,
@@ -62,40 +62,6 @@ def test_get_video_duration(monkeypatch):
     assert subtitles.get_video_duration(Path("dummy")) == 3.5
 
 
-def test_generate_subtitles_from_audio_writes_srt(monkeypatch, tmp_path: Path):
-    """Test deprecated generate_subtitles_from_audio wrapper still works via local provider."""
-    # We mock LocalWhisperTranscriber to avoid loading real model
-    with patch("backend.app.services.transcription.local_whisper.LocalWhisperTranscriber") as MockTranscriber:
-        mock_instance = MockTranscriber.return_value
-
-        # Setup mock return
-        srt_path = tmp_path / "test.srt"
-        srt_path.touch()
-        cues = [
-            Cue(
-                start=0.0,
-                end=1.5,
-                text="Γεια σου",
-                words=[WordTiming(0.0, 0.7, "Γεια"), WordTiming(0.7, 1.5, "σου")],
-            )
-        ]
-        mock_instance.transcribe.return_value = (srt_path, cues)
-
-        audio_path = tmp_path / "audio.wav"
-        audio_path.touch()
-
-        # Call the deprecated function
-        res_srt, res_cues = subtitles.generate_subtitles_from_audio(
-            audio_path,
-            output_dir=tmp_path,
-            provider="local"
-        )
-
-        assert res_srt == srt_path
-        assert len(res_cues) == 1
-        assert res_cues[0].text == "Γεια σου"
-
-
 def test_create_styled_subtitle_file_generates_ass(tmp_path: Path):
     srt_path = tmp_path / "subs.srt"
     srt_path.write_text(
@@ -114,11 +80,53 @@ def test_create_styled_subtitle_file_generates_ass(tmp_path: Path):
     assert ass_path.suffix == ".ass"
     content = ass_path.read_text(encoding="utf-8")
     assert "Style: Default" in content
-    # The format might be different, let's just check the value is present
-    assert "12" in content
+    # REGRESSION: libass needs a small metric calibration to match CSS preview size.
+    assert "Style: Default,Arial Black,13," in content
     assert "&H00FFFF" in content  # color
     # Text is normalized to Upper
     assert "HELLO WORLD" in content
+
+
+def test_ass_positions_complete_multiline_block_at_both_safe_edges() -> None:
+    """REGRESSION: the old 35% cap could not render subtitles at the top."""
+    events = [subtitle_renderer.format_ass_dialogue(
+        0.0,
+        2.0,
+        r"ΠΡΩΤΗ ΓΡΑΜΜΗ\NΔΕΥΤΕΡΗ, ΓΡΑΜΜΗ",
+    )]
+    top_dialogue = subtitle_renderer.position_ass_dialogue_events(
+        events,
+        subtitle_position=95,
+        font_size=69,
+        play_res_x=1080,
+        play_res_y=1920,
+    )[0]
+    bottom_dialogue = subtitle_renderer.position_ass_dialogue_events(
+        events,
+        subtitle_position=5,
+        font_size=69,
+        play_res_x=1080,
+        play_res_y=1920,
+    )[0]
+
+    assert r"{\an8\pos(540,96)}" in top_dialogue
+    assert r"{\an8\pos(540,1658)}" in bottom_dialogue
+    assert "ΔΕΥΤΕΡΗ, ΓΡΑΜΜΗ" in top_dialogue
+
+
+def test_create_styled_subtitle_file_accepts_cues_without_transcript(tmp_path: Path):
+    ass_path = subtitle_renderer.create_styled_subtitle_file(
+        cues=[Cue(start=0.0, end=1.0, text="Άμεση διόρθωση")],
+        output_dir=tmp_path,
+    )
+
+    assert ass_path == tmp_path / "subtitles.ass"
+    assert "Άμεση διόρθωση" in ass_path.read_text(encoding="utf-8")
+
+
+def test_create_styled_subtitle_file_requires_a_source():
+    with pytest.raises(ValueError, match="transcript_path or cues"):
+        subtitle_renderer.create_styled_subtitle_file()
 
 
 def test_create_styled_subtitle_file_active_word_wraps_lines(tmp_path: Path):
@@ -177,59 +185,6 @@ def test_format_karaoke_wraps_long_lines():
     assert lines[0][0].text == "One"  # Just checking structure
 
 
-def test_generate_subtitles_from_audio_accepts_auto_language(monkeypatch, tmp_path: Path):
-    with patch("backend.app.services.transcription.local_whisper.LocalWhisperTranscriber") as MockTranscriber:
-        mock_instance = MockTranscriber.return_value
-        mock_instance.transcribe.return_value = (tmp_path / "test.srt", [])
-
-        audio_path = tmp_path / "audio.wav"
-        audio_path.touch()
-
-        # Pass "auto"
-        subtitles.generate_subtitles_from_audio(
-            audio_path,
-            language="auto",
-            output_dir=tmp_path,
-            provider="local"
-        )
-
-        call_args = mock_instance.transcribe.call_args
-        assert call_args
-        assert call_args.kwargs["language"] == config.settings.whisper_language
-
-
-def test_generate_subtitles_from_audio_passes_decoding_params(monkeypatch, tmp_path: Path):
-    with patch("backend.app.services.transcription.local_whisper.LocalWhisperTranscriber") as MockTranscriber:
-        mock_instance = MockTranscriber.return_value
-        mock_instance.transcribe.return_value = (tmp_path / "test.srt", [])
-
-        audio_path = tmp_path / "audio.wav"
-        audio_path.touch()
-
-        subtitles.generate_subtitles_from_audio(
-            audio_path,
-            beam_size=10,
-            best_of=3,
-            temperature=0.2,
-            condition_on_previous_text=True,
-            initial_prompt="Hello",
-            output_dir=tmp_path,
-            provider="local",
-        )
-
-        _, init_kwargs = MockTranscriber.call_args
-        assert init_kwargs["beam_size"] == 10
-
-        _, call_kwargs = mock_instance.transcribe.call_args
-
-        assert call_kwargs["best_of"] == 3
-        assert call_kwargs["temperature"] == 0.2
-        assert call_kwargs["condition_on_previous_text"] is True
-        assert call_kwargs["initial_prompt"] == "Hello"
-
-
-# --- Testing New Service Logic (Refactored) ---
-
 def test_clean_json_response_strips_fences():
     raw = "```json\n{\"foo\": \"bar\"}\n```"
     cleaned = llm_utils.clean_json_response(raw)
@@ -240,12 +195,10 @@ def test_build_social_copy_llm_retries_and_raises(monkeypatch):
     monkeypatch.setattr(llm_utils, "resolve_openai_api_key", lambda k: "sk-fake")
 
     # Mock fallback to ensure it is returned
-    fallback = subtitles.SocialCopy(
-        subtitles.SocialContent("Fallback EL", "Fallback EN", "Fallback EL Desc", "Fallback EN Desc", ["#fallback"])
+    fallback = social_lib.SocialCopy(
+        social_lib.SocialContent("Fallback EL", "Fallback EN", "Fallback EL Desc", "Fallback EN Desc", ["#fallback"])
     )
     monkeypatch.setattr(social_lib, "build_social_copy", lambda text: fallback)
-    # Also patch subtitles.build_social_copy because wrapper uses it
-    monkeypatch.setattr(subtitles, "build_social_copy", lambda text: fallback)
 
     mock_client = MagicMock()
     # Mock create to raise exception
@@ -254,8 +207,7 @@ def test_build_social_copy_llm_retries_and_raises(monkeypatch):
     # Patch where it is used! (In llm_utils because social_lib calls it from there)
     monkeypatch.setattr(llm_utils, "load_openai_client", lambda k: mock_client)
 
-    # Call the WRAPPER which handles fallback
-    res = subtitles.build_social_copy_llm("some text", api_key="sk-fake")
+    res = social_lib.build_social_copy_llm("some text", api_key="sk-fake")
     assert res is not None
     assert res.generic.title_en == "Fallback EN"
 
@@ -293,18 +245,13 @@ def test_build_social_copy_llm_empty_response(monkeypatch):
     monkeypatch.setattr(llm_utils, "load_openai_client", lambda k: mock_client)
 
     # Pass fallback
-    fallback = subtitles.SocialCopy(
-        subtitles.SocialContent("Fallback EL", "Fallback EN", "Fallback EL Desc", "Fallback EN Desc", ["#fallback"])
+    fallback = social_lib.SocialCopy(
+        social_lib.SocialContent("Fallback EL", "Fallback EN", "Fallback EL Desc", "Fallback EN Desc", ["#fallback"])
     )
-    monkeypatch.setattr(subtitles, "build_social_copy", lambda text: fallback)
     monkeypatch.setattr(social_lib, "build_social_copy", lambda text: fallback)
 
-    # Call wrapper for fallback logic
-    res = subtitles.build_social_copy_llm("text", api_key="sk-fake")
+    res = social_lib.build_social_copy_llm("text", api_key="sk-fake")
     assert res is not None
-    # Wait, wrapper fallback logic: "Failed to generate valid social copy..." raised by build_social_copy_llm
-    # Then caught by wrapper.
-    # The wrapper should catch ValueError and return fallback.
     assert res.generic.title_en == "Fallback EN"
 
 
@@ -407,8 +354,23 @@ def test_greek_text_fits_within_config_width():
 
 
 def test_format_karaoke_text_preserves_all_words():
-    # Just a helper check
-    pass
+    # REGRESSION: three-line karaoke must preserve every word and emit explicit
+    # ASS line breaks instead of relying on renderer-dependent wrapping.
+    text = "ΒΑΛΤΕ ΥΠΟΘΕΣΕΙΣ ΚΑΙ ΕΛΑΤΕ ΝΑ ΦΤΙΑΞΟΥΜΕ"
+    words = [
+        WordTiming(index * 0.4, (index + 1) * 0.4, word)
+        for index, word in enumerate(text.split())
+    ]
+
+    rendered = subtitle_renderer.format_karaoke_text(
+        Cue(0.0, len(words) * 0.4, text, words),
+        max_lines=3,
+        max_chars=17,
+    )
+    visible = re.sub(r"\{[^}]*\}", "", rendered).replace("\\N", " ")
+
+    assert rendered.count("\\N") == 2
+    assert visible.split() == text.split()
 
 
 def test_short_text_stays_on_single_line():
@@ -424,13 +386,6 @@ def test_resolve_groq_api_key_explicit():
 def test_resolve_groq_api_key_env(monkeypatch):
     monkeypatch.setenv("GROQ_API_KEY", "gsk-env")
     assert llm_utils.resolve_groq_api_key() == "gsk-env"
-
-
-def test_resolve_groq_api_key_file(monkeypatch, tmp_path):
-    secrets = tmp_path / "secrets.toml"
-    secrets.write_bytes(b'GROQ_API_KEY = "gsk-file"')
-    monkeypatch.setattr(config, "PROJECT_ROOT", tmp_path.parent) # Hacky path math
-    pass
 
 
 def test_resolve_groq_api_key_not_found(monkeypatch):
@@ -453,12 +408,35 @@ def test_cues_without_words_DO_split_interpolated():
 
 
 def test_standard_model_no_words_lost():
-    pass
+    text = "ONE TWO THREE FOUR FIVE SIX SEVEN EIGHT NINE TEN ELEVEN"
+    chunks = subtitle_renderer.split_long_cues(
+        [Cue(0.0, 11.0, text)],
+        max_chars=10,
+        max_lines=3,
+    )
+
+    assert " ".join(chunk.text for chunk in chunks).split() == text.split()
+    assert all(
+        len(subtitle_renderer.wrap_lines(chunk.text.split(), max_chars=10)) <= 3
+        for chunk in chunks
+    )
+    assert chunks[0].start == 0.0
+    assert chunks[-1].end == 11.0
 
 
 def test_per_word_karaoke():
-    # Helper logic check
-    pass
+    words = [
+        WordTiming(0.0, 0.5, "ONE"),
+        WordTiming(0.5, 1.0, "TWO"),
+        WordTiming(1.0, 1.5, "THREE"),
+    ]
+    rendered = subtitle_renderer.format_karaoke_text(
+        Cue(0.0, 1.5, "ONE TWO THREE", words),
+        max_lines=1,
+        max_chars=40,
+    )
+
+    assert rendered == "{\\k50}ONE {\\k50}TWO {\\k50}THREE"
 
 
 def test_create_styled_subtitle_file_clamps_overlapping_cues(tmp_path):
@@ -474,17 +452,65 @@ def test_create_styled_subtitle_file_clamps_overlapping_cues(tmp_path):
     assert ass_path.exists()
 
 
-def test_1_word_mode_splitting_standard_model():
-    pass
+def test_1_word_mode_splitting_standard_model(tmp_path: Path):
+    srt = tmp_path / "single-word.srt"
+    srt.write_text(
+        "1\n00:00:00,000 --> 00:00:03,000\nONE TWO THREE\n",
+        encoding="utf-8",
+    )
+
+    ass_path = subtitle_renderer.create_styled_subtitle_file(
+        srt,
+        max_lines=0,
+        highlight_style="active",
+        output_dir=tmp_path,
+    )
+    dialogue = [
+        line for line in ass_path.read_text(encoding="utf-8").splitlines()
+        if line.startswith("Dialogue:")
+    ]
+    visible = [re.sub(r"\{[^}]*\}", "", line.rsplit(",,", maxsplit=1)[-1]) for line in dialogue]
+
+    assert visible == ["ONE", "TWO", "THREE"]
+    assert dialogue[0].startswith("Dialogue: 0,0:00:00.00,0:00:01.00")
+    assert dialogue[-1].startswith("Dialogue: 0,0:00:02.00,0:00:03.00")
 
 
-def test_generate_active_word_ass_no_words(tmp_path):
-    # Should fallback to karaoke or block
-    pass
+def test_generate_active_word_ass_no_words():
+    events = subtitle_renderer.generate_active_word_ass(
+        Cue(2.0, 5.0, "ALPHA BETA GAMMA"),
+        max_lines=0,
+        primary_color="&H00FFFF",
+        secondary_color="&HFFFFFF",
+    )
+
+    assert len(events) == 3
+    assert [re.sub(r"\{[^}]*\}", "", event.rsplit(",,", maxsplit=1)[-1]) for event in events] == [
+        "ALPHA",
+        "BETA",
+        "GAMMA",
+    ]
 
 
 def test_generate_active_word_ass_logic():
-    pass
+    text = "ONE TWO THREE FOUR FIVE SIX"
+    words = [
+        WordTiming(index * 0.5, (index + 1) * 0.5, word)
+        for index, word in enumerate(text.split())
+    ]
+    cue = Cue(0.0, 3.0, "ONE TWO\\NTHREE FOUR\\NFIVE SIX", words)
+
+    events = subtitle_renderer.generate_active_word_ass(
+        cue,
+        max_lines=3,
+        primary_color="&H00FFFF",
+        secondary_color="&HFFFFFF",
+    )
+
+    assert len(events) == len(words) + 1
+    assert all(event.rsplit(",,", maxsplit=1)[-1].count("\\N") == 2 for event in events)
+    assert all(word in events[0] for word in text.split())
+    assert "{\\alpha&H00&\\c&H00FFFF&}ONE" in events[1]
 
 
 def test_split_long_cues_with_phrases_interpolation():

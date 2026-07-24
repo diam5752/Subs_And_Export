@@ -20,6 +20,22 @@ def _db_from_env() -> Database:
     return Database()
 
 
+def _grant_paid_credits(
+    client: TestClient,
+    headers: dict[str, str],
+    *,
+    amount: int = 500,
+) -> str:
+    user_id = client.get("/auth/me", headers=headers).json()["id"]
+    PointsStore(db=_db_from_env()).credit(
+        user_id,
+        amount,
+        reason="test_paid_funding",
+        paid_credit_delta=amount,
+    )
+    return user_id
+
+
 def test_auth_points_endpoint_returns_starting_balance(
     client: TestClient, user_auth_headers: dict[str, str]
 ) -> None:
@@ -46,20 +62,17 @@ def test_process_video_charges_points_and_returns_balance(
         "run_video_processing",
         _fake_run_video_processing,
     )
+    _grant_paid_credits(client, user_auth_headers)
     before = client.get("/auth/points", headers=user_auth_headers).json()["balance"]
     resp = client.post(
         "/videos/process",
         headers=user_auth_headers,
         files={"file": ("clip.mp4", b"123", "video/mp4")},
-        data={"transcribe_model": "standard"},
+        data={"transcribe_tier": "standard"},
     )
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    expected_charge = pricing.credits_for_minutes(
-        tier="standard",
-        duration_seconds=10.0,
-        min_credits=config.settings.credits_min_transcribe["standard"],
-    )
+    expected_charge = pricing.credits_for_video_duration(10.0)
     assert body["balance"] == before - expected_charge
 
     after = client.get("/auth/points", headers=user_auth_headers).json()["balance"]
@@ -80,24 +93,21 @@ def test_process_video_refunds_points_when_processing_fails(
 
     monkeypatch.setattr(
         processing_tasks,
-        "normalize_and_stub_subtitles",
+        "process_video_pipeline",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("boom")),
     )
 
+    _grant_paid_credits(client, user_auth_headers)
     before = client.get("/auth/points", headers=user_auth_headers).json()["balance"]
     resp = client.post(
         "/videos/process",
         headers=user_auth_headers,
         files={"file": ("clip.mp4", b"123", "video/mp4")},
-        data={"transcribe_model": "standard"},
+        data={"transcribe_tier": "standard"},
     )
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    expected_charge = pricing.credits_for_minutes(
-        tier="standard",
-        duration_seconds=10.0,
-        min_credits=config.settings.credits_min_transcribe["standard"],
-    )
+    expected_charge = pricing.credits_for_video_duration(10.0)
     assert body["balance"] == before - expected_charge
 
     after = client.get("/auth/points", headers=user_auth_headers).json()["balance"]
@@ -125,7 +135,7 @@ def test_process_video_rejects_on_insufficient_points(
         "/videos/process",
         headers=user_auth_headers,
         files={"file": ("clip.mp4", b"123", "video/mp4")},
-        data={"transcribe_model": "standard"},
+        data={"transcribe_tier": "standard"},
     )
     assert resp.status_code == 402
     assert resp.json()["detail"] == "Insufficient points"
@@ -138,6 +148,7 @@ def test_fact_check_charges_points_and_rejects_on_insufficient_balance(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    monkeypatch.setattr(config.settings, "mock_external_services", False)
     data_dir = tmp_path / "data"
     uploads_dir = data_dir / "uploads"
     artifacts_dir = data_dir / "artifacts"
@@ -147,17 +158,18 @@ def test_fact_check_charges_points_and_rejects_on_insufficient_balance(
     monkeypatch.setattr(videos_endpoints, "data_roots", lambda: (data_dir, uploads_dir, artifacts_dir))
     monkeypatch.setattr(videos_endpoints, "run_video_processing", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
-        "backend.app.services.subtitles.generate_fact_check",
+        "backend.app.api.endpoints.intelligence_routes.generate_fact_check",
         lambda *_args, **_kwargs: types.SimpleNamespace(
             items=[], truth_score=100, supported_claims_pct=100, claims_checked=0
         ),
     )
+    _grant_paid_credits(client, user_auth_headers, amount=1000)
 
     process_resp = client.post(
         "/videos/process",
         headers=user_auth_headers,
         files={"file": ("clip.mp4", b"123", "video/mp4")},
-        data={"transcribe_model": "standard"},
+        data={"transcribe_tier": "standard"},
     )
     assert process_resp.status_code == 200, process_resp.text
     job_id = process_resp.json()["id"]
@@ -174,8 +186,11 @@ def test_fact_check_charges_points_and_rejects_on_insufficient_balance(
     assert fact_resp.status_code == 200, fact_resp.text
     expected_reserve = pricing.max_llm_credits_for_limits(
         tier="standard",
-        max_prompt_chars=config.settings.max_llm_input_chars,
-        max_completion_tokens=config.settings.max_llm_output_tokens_factcheck,
+        max_prompt_chars=(config.settings.max_llm_input_chars * 2) + 10_000,
+        max_completion_tokens=(
+            config.settings.max_llm_output_tokens_extraction
+            + config.settings.max_llm_output_tokens_factcheck
+        ),
         min_credits=config.settings.credits_min_fact_check["standard"],
     )["credits"]
     assert fact_resp.json()["balance"] == before - expected_reserve
@@ -190,7 +205,7 @@ def test_fact_check_charges_points_and_rejects_on_insufficient_balance(
         insufficient_job_id,
         status="completed",
         progress=100,
-        result_data={"model_size": "standard"},
+        result_data={"transcribe_tier": "standard"},
     )
     insufficient_job_dir = artifacts_dir / insufficient_job_id
     insufficient_job_dir.mkdir(parents=True, exist_ok=True)
@@ -219,6 +234,7 @@ def test_fact_check_refunds_points_when_generation_fails(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
+    monkeypatch.setattr(config.settings, "mock_external_services", False)
     data_dir = tmp_path / "data"
     uploads_dir = data_dir / "uploads"
     artifacts_dir = data_dir / "artifacts"
@@ -228,7 +244,7 @@ def test_fact_check_refunds_points_when_generation_fails(
     monkeypatch.setattr(videos_endpoints, "data_roots", lambda: (data_dir, uploads_dir, artifacts_dir))
 
     monkeypatch.setattr(
-        "backend.app.services.subtitles.generate_fact_check",
+        "backend.app.api.endpoints.intelligence_routes.generate_fact_check",
         lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("boom")),
     )
 
@@ -237,6 +253,12 @@ def test_fact_check_refunds_points_when_generation_fails(
     user_id = me.json()["id"]
 
     db = _db_from_env()
+    PointsStore(db=db).credit(
+        user_id,
+        500,
+        reason="test_paid_funding",
+        paid_credit_delta=500,
+    )
     job_id = f"job_fact_refund_{uuid.uuid4().hex}"
     JobStore(db=db).create_job(job_id, user_id)
     JobStore(db=db).update_job(job_id, status="completed", progress=100)

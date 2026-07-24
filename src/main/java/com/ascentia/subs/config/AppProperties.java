@@ -18,7 +18,7 @@ public class AppProperties {
     private String proxyTrustedHosts = "127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16";
     private boolean forceHttps;
     private int maxUploadMb = 1024;
-    private int maxVideoDurationSeconds = 210;
+    private int maxVideoDurationSeconds = 600;
     private int maxConcurrentJobs = 2;
     private int staticRateLimit = 60;
     private int staticRateLimitWindow = 60;
@@ -27,11 +27,11 @@ public class AppProperties {
     private int defaultHeight = 1920;
     private int maxResolutionDimension = 4096;
     private String defaultTranscribeTier = "standard";
-    private String socialLlmModel = "gpt-5.1-mini";
-    private String factcheckLlmModel = "gpt-5.1-mini";
-    private String extractionLlmModel = "gpt-5.1-mini";
+    private String socialLlmModel = "gpt-5-mini";
+    private String factcheckLlmModel = "gpt-5-mini";
+    private String extractionLlmModel = "gpt-5-mini";
     private boolean useLlmByDefault;
-    private String llmModel = "gpt-5.1-mini";
+    private String llmModel = "gpt-5-mini";
     private double llmTemperature = 0.6d;
     private Map<String, String> transcribeTierProvider = Map.of("standard", "groq", "pro", "groq");
     private Map<String, String> transcribeTierModel = Map.of("standard", "whisper-large-v3-turbo", "pro", "whisper-large-v3");

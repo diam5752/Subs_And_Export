@@ -6,5 +6,4 @@ from sqlalchemy.orm import DeclarativeBase
 
 
 class Base(DeclarativeBase):
-    pass
-
+    """Shared declarative base for all persisted models."""

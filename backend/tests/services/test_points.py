@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import uuid
-from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -52,6 +51,8 @@ def test_ensure_account_creates_row_and_initial_transaction(tmp_path: Path) -> N
     created = store.ensure_account(user_id)
     assert created is True
     assert store.get_balance(user_id) == STARTING_POINTS_BALANCE
+    assert store.get_balances(user_id).paid_balance == 0
+    assert store.get_balances(user_id).promotional_balance == STARTING_POINTS_BALANCE
 
     created_again = store.ensure_account(user_id)
     assert created_again is False
@@ -169,6 +170,209 @@ def test_spend_once_is_idempotent(tmp_path: Path) -> None:
             ).all()
         )
         assert [tx.delta for tx in txs] == [STARTING_POINTS_BALANCE, -100]
+
+
+def test_paid_credit_cannot_be_funded_by_promotional_balance(tmp_path: Path) -> None:
+    # REGRESSION: free signup credits must never authorize a paid provider call.
+    db = Database()
+    user_id = _seed_user(db, email_verified=True)
+    store = PointsStore(db=db)
+    store.ensure_account(user_id)
+
+    with pytest.raises(HTTPException) as exc_info:
+        store.spend_once(
+            user_id,
+            30,
+            reason="transcription",
+            transaction_id=uuid.uuid4().hex,
+            require_paid=True,
+        )
+
+    assert exc_info.value.status_code == 402
+    assert exc_info.value.detail == "Insufficient paid credits"
+    balances = store.get_balances(user_id)
+    assert balances.balance == STARTING_POINTS_BALANCE
+    assert balances.paid_balance == 0
+
+
+def test_paid_credit_and_paid_refund_are_atomic_and_idempotent(tmp_path: Path) -> None:
+    db = Database()
+    user_id = _seed_user(db, email_verified=True)
+    store = PointsStore(db=db)
+    store.ensure_account(user_id)
+
+    purchase_id = uuid.uuid4().hex
+    balance, credited = store.credit_once(
+        user_id,
+        100,
+        reason="stripe_purchase",
+        transaction_id=purchase_id,
+        paid_credit_delta=100,
+    )
+    assert credited is True
+    assert balance == STARTING_POINTS_BALANCE + 100
+    assert store.get_balances(user_id).paid_balance == 100
+
+    _, credited_again = store.credit_once(
+        user_id,
+        100,
+        reason="stripe_purchase",
+        transaction_id=purchase_id,
+        paid_credit_delta=100,
+    )
+    assert credited_again is False
+
+    spend_id = uuid.uuid4().hex
+    after_spend, spent = store.spend_once(
+        user_id,
+        60,
+        reason="transcription",
+        transaction_id=spend_id,
+        require_paid=True,
+    )
+    assert spent is True
+    assert after_spend == STARTING_POINTS_BALANCE + 40
+    assert store.get_balances(user_id).paid_balance == 40
+
+    refund_id = uuid.uuid4().hex
+    store.refund_once(
+        user_id,
+        60,
+        original_reason="transcription",
+        transaction_id=refund_id,
+        paid_credit_delta=60,
+    )
+    balances = store.get_balances(user_id)
+    assert balances.balance == STARTING_POINTS_BALANCE + 100
+    assert balances.paid_balance == 100
+
+
+def test_refund_clawback_creates_debt_and_next_purchase_repays_it(tmp_path: Path) -> None:
+    db = Database()
+    user_id = _seed_user(db, email_verified=True)
+    store = PointsStore(db=db)
+    store.ensure_account(user_id, starting_balance_override=0)
+
+    purchase_id = uuid.uuid4().hex
+    first = store.apply_paid_purchase_once(
+        user_id,
+        100,
+        purchase_id=purchase_id,
+        transaction_id=make_idempotency_id("purchase", purchase_id),
+    )
+    assert first.credit_delta == 100
+    store.spend(
+        user_id,
+        80,
+        reason="transcription",
+        require_paid=True,
+    )
+
+    reversed_wallet = store.reverse_paid_purchase_once(
+        user_id,
+        100,
+        purchase_id=purchase_id,
+        transaction_id=make_idempotency_id("reversal", purchase_id, "100"),
+    )
+    assert reversed_wallet.balance == 0
+    assert reversed_wallet.paid_balance == 0
+    assert reversed_wallet.reversal_debt == 80
+    assert reversed_wallet.credit_delta == -20
+    assert reversed_wallet.debt_delta == 80
+
+    second_purchase_id = uuid.uuid4().hex
+    repaid = store.apply_paid_purchase_once(
+        user_id,
+        100,
+        purchase_id=second_purchase_id,
+        transaction_id=make_idempotency_id("purchase", second_purchase_id),
+    )
+    assert repaid.balance == 20
+    assert repaid.paid_balance == 20
+    assert repaid.reversal_debt == 0
+    assert repaid.credit_delta == 20
+    assert repaid.debt_delta == -80
+
+
+def test_won_dispute_restore_relief_is_idempotent(tmp_path: Path) -> None:
+    db = Database()
+    user_id = _seed_user(db, email_verified=True)
+    store = PointsStore(db=db)
+    store.ensure_account(user_id, starting_balance_override=0)
+    purchase_id = uuid.uuid4().hex
+    store.apply_paid_purchase_once(
+        user_id,
+        100,
+        purchase_id=purchase_id,
+        transaction_id=make_idempotency_id("purchase", purchase_id),
+    )
+    store.spend(user_id, 100, reason="transcription", require_paid=True)
+    store.reverse_paid_purchase_once(
+        user_id,
+        100,
+        purchase_id=purchase_id,
+        transaction_id=make_idempotency_id("reversal", purchase_id, "100"),
+    )
+
+    transaction_id = make_idempotency_id("restore", purchase_id, "100")
+    restored = store.restore_paid_reversal_once(
+        user_id,
+        100,
+        purchase_id=purchase_id,
+        transaction_id=transaction_id,
+    )
+    restored_again = store.restore_paid_reversal_once(
+        user_id,
+        100,
+        purchase_id=purchase_id,
+        transaction_id=transaction_id,
+    )
+    assert restored.reversal_debt == 0
+    assert restored.credit_delta == 0
+    assert restored.debt_delta == -100
+    assert restored_again.applied is False
+    assert store.get_balances(user_id).reversal_debt == 0
+
+
+def test_outstanding_reversal_debt_blocks_paid_provider_spend(tmp_path: Path) -> None:
+    db = Database()
+    user_id = _seed_user(db, email_verified=True)
+    store = PointsStore(db=db)
+    store.ensure_account(user_id, starting_balance_override=0)
+    first_purchase = uuid.uuid4().hex
+    store.apply_paid_purchase_once(
+        user_id,
+        30,
+        purchase_id=first_purchase,
+        transaction_id=make_idempotency_id("purchase", first_purchase),
+    )
+    store.spend(user_id, 30, reason="transcription", require_paid=True)
+    store.reverse_paid_purchase_once(
+        user_id,
+        30,
+        purchase_id=first_purchase,
+        transaction_id=make_idempotency_id("reversal", first_purchase),
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        store.spend(user_id, 1, reason="transcription", require_paid=True)
+    assert exc_info.value.status_code == 402
+    assert exc_info.value.detail == "Outstanding credit reversal"
+
+
+def test_promotional_spend_uses_promo_before_paid_credits(tmp_path: Path) -> None:
+    db = Database()
+    user_id = _seed_user(db, email_verified=True)
+    store = PointsStore(db=db)
+    store.ensure_account(user_id, starting_balance_override=20)
+    store.credit(user_id, 100, reason="stripe_purchase", paid_credit_delta=100)
+
+    store.spend(user_id, 50, reason="local_render")
+
+    balances = store.get_balances(user_id)
+    assert balances.balance == 70
+    assert balances.paid_balance == 70
+    assert balances.promotional_balance == 0
 
 
 def test_spend_insufficient_funds_is_atomic(tmp_path: Path) -> None:
@@ -327,33 +531,34 @@ def test_ensure_account_in_session_postgres_branch_is_covered(tmp_path: Path) ->
     session.add.assert_not_called()
 
 
-def test_refund_once_postgres_branch_uses_returning(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    store = PointsStore(db=Database())
-    session = MagicMock()
-    session.get_bind.return_value.dialect.name = "postgresql"
-    session.scalar.return_value = 900
+def test_credit_once_rejects_idempotency_key_reuse_with_different_value(
+    tmp_path: Path,
+) -> None:
+    db = Database()
+    user_id = _seed_user(db, email_verified=True)
+    store = PointsStore(db=db)
+    store.ensure_account(user_id)
+    transaction_id = uuid.uuid4().hex
 
-    insert_exec_result = MagicMock()
-    insert_exec_result.scalar_one_or_none.return_value = "txid"
-    session.execute.side_effect = [insert_exec_result, MagicMock()]
-
-    monkeypatch.setattr(store, "_ensure_account_in_session", lambda *_args, **_kwargs: False)
-
-    @contextmanager
-    def _session() -> object:
-        yield session
-
-    monkeypatch.setattr(store.db, "session", _session)
-
-    balance = store.refund_once(
-        "u1",
+    store.credit_once(
+        user_id,
         100,
-        original_reason="process_video",
-        transaction_id="a" * 32,
-        meta={"job_id": "j1"},
+        reason="stripe_purchase",
+        transaction_id=transaction_id,
+        paid_credit_delta=100,
     )
-    assert balance == 900
-    assert session.execute.call_count >= 1
+
+    with pytest.raises(HTTPException) as exc_info:
+        store.credit_once(
+            user_id,
+            350,
+            reason="stripe_purchase",
+            transaction_id=transaction_id,
+            paid_credit_delta=350,
+        )
+
+    assert exc_info.value.status_code == 409
+    assert exc_info.value.detail == "Idempotency key conflict"
 
 
 def test_refund_once_credits_balance_and_is_idempotent(tmp_path: Path) -> None:

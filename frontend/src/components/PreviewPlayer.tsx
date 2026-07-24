@@ -1,10 +1,33 @@
-import React, { useCallback, useEffect, useImperativeHandle, useRef, useState, forwardRef, memo } from 'react';
+import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, forwardRef, memo } from 'react';
 import Image from 'next/image';
-import { SubtitleOverlay, Cue } from './SubtitleOverlay';
+import {
+    SubtitleOverlay,
+    Cue,
+    type SubtitleTransformControls,
+} from './SubtitleOverlay';
+import type { InlineSubtitleEditorLabels } from './InlineSubtitleEditor';
+import { findCueIndexAtTime } from '@/lib/subtitleUtils';
 
 export interface PreviewPlayerHandle {
     seekTo: (time: number) => void;
+    pause: () => void;
 }
+
+export interface InlineSubtitleEditorConfig {
+    cues: Cue[];
+    editingCueIndex: number | null;
+    draftText: string;
+    isSaving: boolean;
+    error?: string | null;
+    autoFocus?: boolean;
+    labels: InlineSubtitleEditorLabels & { editAction: string };
+    onBeginEdit: (index: number) => void;
+    onChange: (text: string) => void;
+    onSave: () => void;
+    onCancel: () => void;
+}
+
+export type SubtitleTransformConfig = Omit<SubtitleTransformControls, 'onInteractionStart'>;
 
 interface PreviewPlayerProps {
     videoUrl: string;
@@ -20,14 +43,25 @@ interface PreviewPlayerProps {
     };
     onTimeUpdate?: (time: number) => void;
     initialTime?: number;
+    subtitleEditor?: InlineSubtitleEditorConfig;
+    subtitleTransformControls?: SubtitleTransformConfig;
 }
+
+type VideoWithFrameCallback = HTMLVideoElement & {
+    requestVideoFrameCallback?: (
+        callback: (now: DOMHighResTimeStamp, metadata: unknown) => void
+    ) => number;
+    cancelVideoFrameCallback?: (handle: number) => void;
+};
 
 export const PreviewPlayer = memo(forwardRef<PreviewPlayerHandle, PreviewPlayerProps>(({
     videoUrl,
     cues,
     settings,
     onTimeUpdate,
-    initialTime = 0
+    initialTime = 0,
+    subtitleEditor,
+    subtitleTransformControls,
 }, ref) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -38,12 +72,12 @@ export const PreviewPlayer = memo(forwardRef<PreviewPlayerHandle, PreviewPlayerP
     const frameCallbackVideoRef = useRef<VideoWithFrameCallback | null>(null);
     const isTimeSyncRunningRef = useRef(false);
 
-    type VideoWithFrameCallback = HTMLVideoElement & {
-        requestVideoFrameCallback?: (
-            callback: (now: DOMHighResTimeStamp, metadata: unknown) => void
-        ) => number;
-        cancelVideoFrameCallback?: (handle: number) => void;
-    };
+    const pauseForSubtitleInteraction = useCallback(() => {
+        const video = videoRef.current;
+        if (!video) return;
+        video.pause();
+        setCurrentTime(video.currentTime);
+    }, []);
 
     useImperativeHandle(ref, () => ({
         seekTo: (time: number) => {
@@ -51,8 +85,54 @@ export const PreviewPlayer = memo(forwardRef<PreviewPlayerHandle, PreviewPlayerP
                 videoRef.current.currentTime = time;
                 setCurrentTime(time);
             }
-        }
+        },
+        pause: () => {
+            if (!videoRef.current) return;
+            videoRef.current.pause();
+            setCurrentTime(videoRef.current.currentTime);
+        },
     }));
+
+    const editableCues = subtitleEditor?.cues;
+    const activeEditableCueIndex = useMemo(() => {
+        if (!editableCues?.length) return -1;
+        return findCueIndexAtTime(editableCues, currentTime);
+    }, [currentTime, editableCues]);
+
+    const inlineEditor = useMemo(() => {
+        if (!subtitleEditor || activeEditableCueIndex < 0) return undefined;
+        if (
+            subtitleEditor.editingCueIndex !== null
+            && subtitleEditor.editingCueIndex !== activeEditableCueIndex
+        ) {
+            return undefined;
+        }
+
+        return {
+            cueIndex: activeEditableCueIndex,
+            isEditing: subtitleEditor.editingCueIndex === activeEditableCueIndex,
+            draftText: subtitleEditor.draftText,
+            isSaving: subtitleEditor.isSaving,
+            error: subtitleEditor.error,
+            autoFocus: subtitleEditor.autoFocus,
+            labels: subtitleEditor.labels,
+            onBeginEdit: () => {
+                pauseForSubtitleInteraction();
+                subtitleEditor.onBeginEdit(activeEditableCueIndex);
+            },
+            onChange: subtitleEditor.onChange,
+            onSave: subtitleEditor.onSave,
+            onCancel: subtitleEditor.onCancel,
+        };
+    }, [activeEditableCueIndex, pauseForSubtitleInteraction, subtitleEditor]);
+
+    const overlayTransformControls = useMemo<SubtitleTransformControls | undefined>(() => {
+        if (!subtitleTransformControls) return undefined;
+        return {
+            ...subtitleTransformControls,
+            onInteractionStart: pauseForSubtitleInteraction,
+        };
+    }, [pauseForSubtitleInteraction, subtitleTransformControls]);
 
     // Handle time update from video
     const handleTimeUpdate = () => {
@@ -112,7 +192,7 @@ export const PreviewPlayer = memo(forwardRef<PreviewPlayerHandle, PreviewPlayerP
     }, [stopHighResTimeSync]);
 
     // Calculate actual video position within the container (object-contain logic)
-    const updateContentRect = () => {
+    const updateContentRect = useCallback(() => {
         if (!videoRef.current || !containerRef.current) return;
 
         const video = videoRef.current;
@@ -151,7 +231,7 @@ export const PreviewPlayer = memo(forwardRef<PreviewPlayerHandle, PreviewPlayerP
             top: renderTop,
             left: renderLeft
         });
-    };
+    }, []);
 
     useEffect(() => {
         const observer = new ResizeObserver(updateContentRect);
@@ -162,30 +242,16 @@ export const PreviewPlayer = memo(forwardRef<PreviewPlayerHandle, PreviewPlayerP
             observer.disconnect();
             window.removeEventListener('resize', updateContentRect);
         };
-    }, []);
+    }, [updateContentRect]);
 
     // Set initial time when video loads or initialTime changes
     useEffect(() => {
         if (typeof initialTime === 'number' && videoRef.current) {
-            // Add slight offset (0.1s) to ensure renderer catches it, as requested
-            const targetTime = initialTime + 0.1;
-
-            // Seek if discrepancy > 0.1s to avoid fighting with playback
-            if (Math.abs(videoRef.current.currentTime - targetTime) > 0.1) {
-                videoRef.current.currentTime = targetTime;
-                // eslint-disable-next-line react-hooks/set-state-in-effect
-                setCurrentTime(targetTime);
+            if (Math.abs(videoRef.current.currentTime - initialTime) > 0.01) {
+                videoRef.current.currentTime = initialTime;
             }
         }
     }, [initialTime]);
-
-    // Force content rect update on mount to catch cached video metadata
-    useEffect(() => {
-        if (videoRef.current && videoRef.current.readyState >= 1) {
-            // eslint-disable-next-line react-hooks/set-state-in-effect
-            updateContentRect();
-        }
-    }, []);
 
     useEffect(() => {
         const video = videoRef.current as VideoWithFrameCallback | null;
@@ -237,11 +303,10 @@ export const PreviewPlayer = memo(forwardRef<PreviewPlayerHandle, PreviewPlayerP
                 onLoadedMetadata={() => {
                     updateContentRect();
                     if (typeof initialTime === 'number' && videoRef.current) {
-                        const targetTime = initialTime + 0.1;
-                        if (Math.abs(videoRef.current.currentTime - targetTime) > 0.1) {
-                            videoRef.current.currentTime = targetTime;
-                            setCurrentTime(targetTime);
+                        if (Math.abs(videoRef.current.currentTime - initialTime) > 0.01) {
+                            videoRef.current.currentTime = initialTime;
                         }
+                        setCurrentTime(videoRef.current.currentTime);
                     }
                 }}
             />
@@ -259,28 +324,28 @@ export const PreviewPlayer = memo(forwardRef<PreviewPlayerHandle, PreviewPlayerP
                 {/* Watermark Overlay */}
                 {settings.watermarkEnabled && (
                     <div
-                        className="absolute bottom-[40px] right-[40px] z-20 animate-in fade-in duration-500"
-                        style={{ width: '15%' }} // Approximate 180px on 1080p
+                        className="absolute bottom-[40px] right-[40px] z-20 w-[15%] animate-in fade-in duration-500"
                     >
                         <Image
                             src="/ascentia-logo.png"
                             alt="Watermark"
-                            width={0}
-                            height={0}
+                            width={1280}
+                            height={1280}
                             sizes="20vw"
                             className="w-full h-auto opacity-90"
                         />
                     </div>
                 )}
 
-                {settings && (
-                    <SubtitleOverlay
-                        currentTime={currentTime}
-                        cues={cues}
-                        settings={settings}
-                        videoWidth={contentRect.width}
-                    />
-                )}
+                <SubtitleOverlay
+                    currentTime={currentTime}
+                    cues={cues}
+                    settings={settings}
+                    videoWidth={contentRect.width}
+                    videoHeight={contentRect.height}
+                    inlineEditor={inlineEditor}
+                    transformControls={overlayTransformControls}
+                />
             </div>
         </div>
     );

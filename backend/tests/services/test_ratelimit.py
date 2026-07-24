@@ -54,6 +54,14 @@ class TestGetClientIp:
         request.client.host = None
         assert get_client_ip(request) == "172.16.0.1"
 
+    def test_invalid_proxy_headers_fall_back_to_unknown(self) -> None:
+        request = MockRequest(
+            client_host=None,
+            headers={"x-forwarded-for": "not-an-ip", "x-real-ip": "also-invalid"},
+        )
+        request.client = None
+        assert get_client_ip(request) == "unknown"
+
     def test_fallback_unknown(self) -> None:
         request = MockRequest(client_host=None, headers={})
         request.client = None
@@ -122,7 +130,8 @@ class TestInMemoryRateLimiter:
 class TestAuthenticatedRateLimiter:
     """Test user-based rate limiter."""
 
-    def test_uses_user_id(self) -> None:
+    def test_uses_user_id(self, monkeypatch) -> None:
+        monkeypatch.delenv("GSP_DISABLE_RATELIMIT", raising=False)
         limiter = AuthenticatedRateLimiter(limit=2, window=60)
 
         user1 = MagicMock()

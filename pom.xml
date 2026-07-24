@@ -30,6 +30,8 @@
         <pitest.junit5.version>1.2.3</pitest.junit5.version>
         <maven.enforcer.version>3.6.1</maven.enforcer.version>
         <bouncycastle.version>1.83</bouncycastle.version>
+        <argLine></argLine>
+        <mockito.agent>-javaagent:${settings.localRepository}/org/mockito/mockito-core/${mockito.version}/mockito-core-${mockito.version}.jar</mockito.agent>
     </properties>
 
     <dependencyManagement>
@@ -222,6 +224,7 @@
             <plugin>
                 <artifactId>maven-failsafe-plugin</artifactId>
                 <configuration>
+                    <argLine>@{argLine} -Xshare:off ${mockito.agent}</argLine>
                     <includes>
                         <include>**/*IT.java</include>
                     </includes>
@@ -239,6 +242,7 @@
             <plugin>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
+                    <argLine>@{argLine} -Xshare:off ${mockito.agent}</argLine>
                     <excludes>
                         <exclude>**/*IT.java</exclude>
                     </excludes>

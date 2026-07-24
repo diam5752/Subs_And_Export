@@ -4,10 +4,12 @@ import com.ascentia.subs.common.ClientIpResolver;
 import com.ascentia.subs.common.RateLimitService;
 import com.ascentia.subs.config.AppProperties;
 import jakarta.servlet.http.HttpServletRequest;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.text.Normalizer;
 import java.util.Map;
-import org.springframework.core.io.PathResource;
+import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -54,6 +56,7 @@ public class AppController {
     public ResponseEntity<Resource> serveStatic(
             @PathVariable String filePath,
             @RequestParam(name = "download", defaultValue = "false") boolean download,
+            @RequestParam(name = "filename", required = false) String filename,
             HttpServletRequest request
     ) {
         String ip = clientIpResolver.resolve(request);
@@ -72,12 +75,16 @@ public class AppController {
             throw new ResponseStatusException(NOT_FOUND, "File not found");
         }
 
-        PathResource resource = new PathResource(resolvedPath);
+        Resource resource = new FileSystemResource(resolvedPath);
         MediaType mediaType = MediaTypeFactory.getMediaType(resource).orElse(MediaType.APPLICATION_OCTET_STREAM);
         ResponseEntity.BodyBuilder response = ResponseEntity.ok().contentType(mediaType);
         if (download || isVideoDownload(resolvedPath.getFileName().toString())) {
+            String downloadFilename = sanitizeDownloadFilename(
+                    filename,
+                    resolvedPath.getFileName().toString()
+            );
             response.header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
-                    .filename(resolvedPath.getFileName().toString())
+                    .filename(downloadFilename, StandardCharsets.UTF_8)
                     .build()
                     .toString());
         }
@@ -91,5 +98,49 @@ public class AppController {
                 || normalized.endsWith(".avi")
                 || normalized.endsWith(".webm")
                 || normalized.endsWith(".mkv");
+    }
+
+    static String sanitizeDownloadFilename(String requested, String sourceFilename) {
+        String sourceName = Path.of(sourceFilename).getFileName().toString();
+        String candidate = requested == null || requested.isBlank() ? sourceName : requested;
+        candidate = Normalizer.normalize(candidate, Normalizer.Form.NFC).replace('\\', '/');
+        candidate = candidate.substring(candidate.lastIndexOf('/') + 1);
+
+        StringBuilder safe = new StringBuilder(candidate.length());
+        String unsafeCharacters = "<>:\"/\\|?*";
+        for (int index = 0; index < candidate.length(); index++) {
+            char character = candidate.charAt(index);
+            if (character < 32 || character == 127 || unsafeCharacters.indexOf(character) >= 0) {
+                safe.append('_');
+            } else {
+                safe.append(character);
+            }
+        }
+        candidate = safe.toString().trim().replaceAll("[. ]+$", "");
+        if (candidate.isBlank() || candidate.equals(".") || candidate.equals("..")) {
+            candidate = sourceName;
+        }
+
+        String sourceExtension = extensionOf(sourceName);
+        if (!sourceExtension.isEmpty() && !extensionOf(candidate).equalsIgnoreCase(sourceExtension)) {
+            String candidateExtension = extensionOf(candidate);
+            String candidateStem = candidateExtension.isEmpty()
+                    ? candidate
+                    : candidate.substring(0, candidate.length() - candidateExtension.length());
+            candidate = candidateStem + sourceExtension;
+        }
+
+        int maximumLength = 180;
+        if (candidate.length() > maximumLength) {
+            String extension = extensionOf(candidate);
+            int stemLength = Math.max(1, maximumLength - extension.length());
+            candidate = candidate.substring(0, stemLength).stripTrailing() + extension;
+        }
+        return candidate;
+    }
+
+    private static String extensionOf(String filename) {
+        int extensionIndex = filename.lastIndexOf('.');
+        return extensionIndex > 0 ? filename.substring(extensionIndex) : "";
     }
 }

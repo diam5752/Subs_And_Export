@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import shutil
 import subprocess
 import tempfile
 import time
-from concurrent.futures import ThreadPoolExecutor
+from collections.abc import Mapping
+from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, cast
 
 from backend.app.core import metrics
 from backend.app.core.config import settings
@@ -20,15 +22,21 @@ from backend.app.services import (
     llm_utils,
     pricing,
     settings_utils,
+    social_intelligence,
+    subtitle_renderer,
     subtitles,
 )
-from backend.app.services.styles import SubtitleStyle
+from backend.app.services.jobs import JobStore
+from backend.app.services.social_intelligence import SocialCopy
+from backend.app.services.styles import SubtitleHighlightStyle, SubtitleStyle
+from backend.app.services.subtitle_types import Cue, WordTiming
+from backend.app.services.transcription.base import Transcriber
 from backend.app.services.transcription.elevenlabs_scribe import ElevenLabsScribeTranscriber
 from backend.app.services.transcription.groq_cloud import GroqTranscriber
 from backend.app.services.transcription.local_whisper import LocalWhisperTranscriber
 from backend.app.services.transcription.mock_service import MockTranscriber
 from backend.app.services.transcription.openai_cloud import OpenAITranscriber
-from backend.app.services.usage_ledger import ChargePlan, UsageLedgerStore
+from backend.app.services.usage_ledger import ChargePlan, ChargeReservation, UsageLedgerStore
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +44,89 @@ ALLOWED_TIER_PROVIDER_OVERRIDES: dict[str, set[str]] = {
     "standard": {"mock", "groq", "local"},
     "pro": {"mock", "elevenlabs", "groq", "openai", "local"},
 }
+ALLOWED_HIGHLIGHT_STYLES: frozenset[str] = frozenset(
+    {"static", "karaoke", "pop", "active-graphics"}
+)
+
+
+def _normalize_highlight_style(
+    value: str,
+    *,
+    karaoke_enabled: bool,
+) -> SubtitleHighlightStyle:
+    if not karaoke_enabled:
+        return "static"
+    normalized = value.strip().lower()
+    if normalized not in ALLOWED_HIGHLIGHT_STYLES:
+        raise ValueError("Unsupported subtitle highlight style")
+    return cast(SubtitleHighlightStyle, normalized)
+
+
+def _resolve_ass_highlight_style(
+    style: SubtitleHighlightStyle,
+    cues: list[Cue] | None,
+) -> str:
+    if style != "active-graphics":
+        return style
+    return "active" if cues and any(cue.words for cue in cues) else "karaoke"
+
+
+def _load_persisted_cues(path: Path) -> list[Cue] | None:
+    if not path.exists():
+        return None
+    try:
+        payload: object = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(payload, list):
+            raise ValueError("transcription.json must contain a list")
+
+        cues: list[Cue] = []
+        for raw_cue in payload:
+            if not isinstance(raw_cue, dict):
+                raise ValueError("transcription cue must be an object")
+            start = raw_cue.get("start")
+            end = raw_cue.get("end")
+            text = raw_cue.get("text")
+            if (
+                isinstance(start, bool)
+                or not isinstance(start, (int, float))
+                or isinstance(end, bool)
+                or not isinstance(end, (int, float))
+                or not isinstance(text, str)
+            ):
+                raise ValueError("transcription cue fields are invalid")
+
+            words_payload = raw_cue.get("words")
+            words: list[WordTiming] | None = None
+            if words_payload is not None:
+                if not isinstance(words_payload, list):
+                    raise ValueError("cue words must be a list")
+                words = []
+                for raw_word in words_payload:
+                    if not isinstance(raw_word, dict):
+                        raise ValueError("word timing must be an object")
+                    word_start = raw_word.get("start")
+                    word_end = raw_word.get("end")
+                    word_text = raw_word.get("text")
+                    if (
+                        isinstance(word_start, bool)
+                        or not isinstance(word_start, (int, float))
+                        or isinstance(word_end, bool)
+                        or not isinstance(word_end, (int, float))
+                        or not isinstance(word_text, str)
+                    ):
+                        raise ValueError("word timing fields are invalid")
+                    words.append(
+                        WordTiming(
+                            start=float(word_start),
+                            end=float(word_end),
+                            text=word_text,
+                        )
+                    )
+            cues.append(Cue(start=float(start), end=float(end), text=text, words=words))
+        return cues
+    except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
+        logger.warning("Could not load persisted transcription from %s: %s", path, exc)
+        return None
 
 
 def resolve_runtime_transcribe_provider(
@@ -78,23 +169,23 @@ def _persist_preview_asset(source: Path, destination: Path) -> None:
     try:
         destination.hardlink_to(source)
         return
-    except OSError:
-        pass
+    except OSError as exc:
+        logger.debug("Hard link unavailable for preview asset; copying instead: %s", exc)
 
     shutil.copy2(source, destination)
 
 
-def normalize_and_stub_subtitles(
+def process_video_pipeline(
     input_path: Path,
     output_path: Path,
     *,
     # Transcription Options
-    model_size: str | None = None,
+    transcribe_tier: str | None = None,
     language: str | None = None,
     transcribe_provider: str | None = None,
     openai_api_key: str | None = None,
     provider_model: str | None = None,
-    # Style Options (Will construct SubtitleStyle)
+    # Style options
     subtitle_position: int = 16,
     max_subtitle_lines: int = 2,
     subtitle_color: str | None = None,
@@ -118,7 +209,7 @@ def normalize_and_stub_subtitles(
     output_width: int | None = None,
     output_height: int | None = None,
     media_probe: ffmpeg_utils.MediaProbe | None = None,
-    # Legacy/Passed-through but less impactful now
+    # Provider and encoder options
     beam_size: int | None = None,
     best_of: int | None = None,
     temperature: float | None = None,
@@ -126,7 +217,7 @@ def normalize_and_stub_subtitles(
     condition_on_previous_text: bool | None = None,
     initial_prompt: str | None = None,
     vad_filter: bool | None = None,
-    vad_parameters: dict | None = None,
+    vad_parameters: dict[str, Any] | None = None,
     video_crf: int | None = None,
     video_preset: str | None = None,
     audio_bitrate: str | None = None,
@@ -136,7 +227,7 @@ def normalize_and_stub_subtitles(
     job_id: str | None = None,
     ledger_store: UsageLedgerStore | None = None,
     charge_plan: ChargePlan | None = None,
-) -> Path | tuple[Path, subtitles.SocialCopy]:
+) -> Path | tuple[Path, SocialCopy]:
 
     if not input_path.exists():
         raise FileNotFoundError(f"Input video not found: {input_path}")
@@ -144,25 +235,22 @@ def normalize_and_stub_subtitles(
     destination = output_path.expanduser().resolve()
     destination.parent.mkdir(parents=True, exist_ok=True)
 
-    # --- 1. CONFIGURATION (The Director) ---
     font_size = settings_utils.font_size_from_subtitle_size(subtitle_size)
-
-    # Determine effective highlight style
-    effective_highlight_style = highlight_style
-    if not karaoke_enabled:
-        effective_highlight_style = "static"
+    effective_highlight_style = _normalize_highlight_style(
+        highlight_style,
+        karaoke_enabled=karaoke_enabled,
+    )
 
     style = SubtitleStyle(
-        position=subtitle_position if subtitle_position is not None else 16,
+        position=subtitle_position,
         max_lines=max_subtitle_lines,
         primary_color=subtitle_color or settings.default_sub_color,
         shadow_strength=shadow_strength,
         highlight_style=effective_highlight_style,
-        font_size=font_size
+        font_size=font_size,
     )
 
-    # Map abstract model names to concrete models & providers
-    tier = pricing.resolve_tier_from_model(model_size)
+    tier = pricing.normalize_tier(transcribe_tier)
     provider_name = transcribe_provider.strip().lower() if transcribe_provider else None
     if provider_name:
         allowed_providers = ALLOWED_TIER_PROVIDER_OVERRIDES[tier]
@@ -181,8 +269,7 @@ def normalize_and_stub_subtitles(
         openai_model=provider_model,
     )
 
-    # Instantiate Transcriber (The Ear)
-    transcriber = None
+    transcriber: Transcriber
     if provider_name == "mock":
         transcriber = MockTranscriber()
     elif provider_name == "groq":
@@ -200,7 +287,6 @@ def normalize_and_stub_subtitles(
     else:
         raise ValueError(f"Provider '{provider_name}' is not supported.")
 
-    # --- PIPELINE EXECUTION ---
     pipeline_timings: dict[str, float] = {}
     pipeline_error: str | None = None
     overall_start = time.perf_counter()
@@ -212,9 +298,9 @@ def normalize_and_stub_subtitles(
             scratch = Path(scratch_dir)
             scratch.mkdir(parents=True, exist_ok=True)
 
-            if check_cancelled: check_cancelled()
+            if check_cancelled:
+                check_cancelled()
 
-            # Probe once for duration + audio codec
             if progress_callback is not None or audio_copy is None:
                 try:
                     probe = media_probe or ffmpeg_utils.probe_media(input_path)
@@ -222,33 +308,44 @@ def normalize_and_stub_subtitles(
                         total_duration = probe.duration_s
                     if audio_copy is None:
                         resolved_audio_copy = probe.audio_is_aac
-                except Exception:
+                except (OSError, RuntimeError, subprocess.SubprocessError, ValueError) as exc:
+                    logger.warning("Could not probe input media %s: %s", input_path, exc)
                     total_duration = 0.0
                     resolved_audio_copy = audio_copy if audio_copy is not None else False
 
-            # Step 1: Extract Audio
-            def _extract_cb(p: float):
-                if progress_callback: progress_callback(f"Extracting Audio ({int(p)}%)...", p * 0.05)
+            def _extract_cb(progress: float) -> None:
+                if progress_callback:
+                    progress_callback(
+                        f"Extracting Audio ({int(progress)}%)...",
+                        progress * 0.05,
+                    )
 
-            if progress_callback: progress_callback("Extracting audio...", 0.0)
-            if check_cancelled: check_cancelled()
+            if progress_callback:
+                progress_callback("Extracting audio...", 0.0)
+            if check_cancelled:
+                check_cancelled()
             with metrics.measure_time(pipeline_timings, "extract_audio_s"):
                 audio_path = subtitles.extract_audio(
                     input_path,
                     output_dir=scratch,
                     check_cancelled=check_cancelled,
                     progress_callback=_extract_cb if total_duration else None,
-                    total_duration=total_duration
+                    total_duration=total_duration,
                 )
 
-            # Step 2: Transcribe
-            if progress_callback: progress_callback("Transcribing audio...", 5.0)
-            if check_cancelled: check_cancelled()
+            if progress_callback:
+                progress_callback("Transcribing audio...", 5.0)
+            if check_cancelled:
+                check_cancelled()
             with metrics.measure_time(pipeline_timings, "transcribe_s"):
-                def _transcribe_cb(p):
-                    if progress_callback: progress_callback(f"Transcribing ({int(p)}%)...", 5.0 + (p * 0.6))
+                def _transcribe_cb(progress: float) -> None:
+                    if progress_callback:
+                        progress_callback(
+                            f"Transcribing ({int(progress)}%)...",
+                            5.0 + (progress * 0.6),
+                        )
 
-                transcribe_kwargs = {
+                transcribe_kwargs: dict[str, Any] = {
                     "best_of": best_of,
                     "total_duration": total_duration,
                     "openai_api_key": openai_api_key,
@@ -262,21 +359,34 @@ def normalize_and_stub_subtitles(
                     "check_cancelled": check_cancelled,
                 }
 
+                if (
+                    ledger_store
+                    and charge_plan
+                    and charge_plan.transcription
+                    and getattr(
+                        charge_plan.transcription,
+                        "estimated_cost_usd",
+                        0.0,
+                    )
+                    > 0
+                ):
+                    ledger_store.mark_dispatched(charge_plan.transcription)
+
                 srt_path, cues = transcriber.transcribe(
                     audio_path,
                     output_dir=scratch,
                     language=language or settings.whisper_language,
                     model=selected_model,
-                    **transcribe_kwargs
+                    **transcribe_kwargs,
                 )
 
             if ledger_store and charge_plan and charge_plan.transcription:
                 duration_seconds = total_duration if total_duration > 0 else 0.0
                 tier = charge_plan.transcription.tier or settings.default_transcribe_tier
-                credits = pricing.credits_for_minutes(
-                    tier=tier,
-                    duration_seconds=duration_seconds,
-                    min_credits=charge_plan.transcription.min_credits,
+                credits = (
+                    pricing.credits_for_video_duration(duration_seconds)
+                    if duration_seconds > 0
+                    else charge_plan.transcription.reserved_credits
                 )
                 cost_usd = pricing.stt_provider_cost_usd(
                     tier=tier,
@@ -296,17 +406,15 @@ def normalize_and_stub_subtitles(
                     units=units,
                 )
 
-            if check_cancelled: check_cancelled()
+            if check_cancelled:
+                check_cancelled()
 
-            # Step 3: Style (ASS Generation)
-            if progress_callback: progress_callback("Styling...", 65.0)
+            if progress_callback:
+                progress_callback("Styling...", 65.0)
             with metrics.measure_time(pipeline_timings, "style_subs_s"):
-                has_words = bool(cues and any(c.words for c in cues))
-                ass_highlight_style = style.highlight_style
-                if ass_highlight_style == "active-graphics":
-                    ass_highlight_style = "active" if has_words else "karaoke"
+                ass_highlight_style = _resolve_ass_highlight_style(style.highlight_style, cues)
 
-                ass_path = subtitles.create_styled_subtitle_file(
+                ass_path = subtitle_renderer.create_styled_subtitle_file(
                     srt_path,
                     cues=cues,
                     subtitle_position=style.position,
@@ -319,19 +427,25 @@ def normalize_and_stub_subtitles(
                     play_res_y=settings.default_height,
                 )
 
-            # Step 4: Social Copy & Rendering
             transcript_text = subtitles.cues_to_text(cues)
-            social_copy = None
-            future_social = None
+            social_copy: SocialCopy | None = None
+            future_social: Future[SocialCopy] | None = None
 
             with ThreadPoolExecutor() as executor:
                 if generate_social_copy:
-                    if progress_callback: progress_callback("Social Copy...", 70.0)
+                    if progress_callback:
+                        progress_callback("Social Copy...", 70.0)
                     if use_llm_social_copy and not settings.mock_external_services:
-                        def _run_social_with_session(text, model, temp, api_key, reservation):
+                        def _run_social_with_session(
+                            text: str,
+                            model: str | None,
+                            temp: float,
+                            api_key: str | None,
+                            reservation: ChargeReservation | None,
+                        ) -> SocialCopy:
                             if db:
                                 with db.session() as session:
-                                    return subtitles.build_social_copy_llm(
+                                    return social_intelligence.build_social_copy_llm(
                                         text,
                                         model=model,
                                         temperature=temp,
@@ -341,15 +455,14 @@ def normalize_and_stub_subtitles(
                                         ledger_store=ledger_store,
                                         charge_reservation=reservation,
                                     )
-                            else:
-                                 return subtitles.build_social_copy_llm(
+                            return social_intelligence.build_social_copy_llm(
                                     text,
                                     model=model,
                                     temperature=temp,
                                     api_key=api_key,
                                     ledger_store=ledger_store,
                                     charge_reservation=reservation,
-                                 )
+                                )
 
                         future_social = executor.submit(
                             _run_social_with_session,
@@ -360,15 +473,19 @@ def normalize_and_stub_subtitles(
                             charge_plan.social_copy if charge_plan else None,
                         )
                     else:
-                        social_copy = subtitles.build_social_copy(transcript_text)
+                        social_copy = social_intelligence.build_social_copy(transcript_text)
 
-            # RENDER (The Eye)
             if not transcription_only:
-                if progress_callback: progress_callback("Rendering...", 80.0)
+                if progress_callback:
+                    progress_callback("Rendering...", 80.0)
 
                 try:
-                    def _enc_cb(p):
-                        if progress_callback: progress_callback(f"Encoding ({int(p)}%)...", 80.0 + (p * 0.2))
+                    def _enc_cb(progress: float) -> None:
+                        if progress_callback:
+                            progress_callback(
+                                f"Encoding ({int(progress)}%)...",
+                                80.0 + (progress * 0.2),
+                            )
 
                     ffmpeg_utils.run_ffmpeg_with_subs(
                         input_path, ass_path, destination,
@@ -382,7 +499,7 @@ def normalize_and_stub_subtitles(
                         output_width=output_width,
                         output_height=output_height,
                         watermark_enabled=watermark_enabled,
-                        check_cancelled=check_cancelled
+                        check_cancelled=check_cancelled,
                     )
                 except subprocess.CalledProcessError as exc:
                     if use_hw_accel:
@@ -394,13 +511,13 @@ def normalize_and_stub_subtitles(
                             video_preset=video_preset or settings.default_video_preset,
                             audio_bitrate=audio_bitrate or settings.default_audio_bitrate,
                             audio_copy=resolved_audio_copy,
-                            use_hw_accel=False, # Force False
+                            use_hw_accel=False,
                             progress_callback=_enc_cb if total_duration > 0 else None,
                             total_duration=total_duration,
                             output_width=output_width,
                             output_height=output_height,
                             watermark_enabled=watermark_enabled,
-                            check_cancelled=check_cancelled
+                            check_cancelled=check_cancelled,
                         )
                     else:
                         raise
@@ -408,27 +525,27 @@ def normalize_and_stub_subtitles(
                 if future_social:
                     social_copy = future_social.result()
 
-            # Step 5: Artifacts
-            if progress_callback: progress_callback("Finalizing...", 95.0)
+            if progress_callback:
+                progress_callback("Finalizing...", 95.0)
             if transcription_only:
-                 _persist_preview_asset(input_path, destination)
+                _persist_preview_asset(input_path, destination)
             if artifact_dir:
-                 artifact_manager.persist_artifacts(
-                     artifact_dir,
-                     audio_path,
-                     srt_path,
-                     ass_path,
-                     transcript_text,
-                     social_copy,
-                     cues,
-                     max_subtitle_lines=style.max_lines,
-                     subtitle_size=style.font_size,
-                 )
-                 if destination.exists() and artifact_dir != destination.parent:
-                     try:
-                         shutil.copy2(destination, artifact_dir / destination.name)
-                     except FileNotFoundError:
-                         pass
+                artifact_manager.persist_artifacts(
+                    artifact_dir,
+                    audio_path,
+                    srt_path,
+                    ass_path,
+                    transcript_text,
+                    social_copy,
+                    cues,
+                    max_subtitle_lines=style.max_lines,
+                    subtitle_size=style.font_size,
+                )
+                if destination.exists() and artifact_dir != destination.parent:
+                    try:
+                        shutil.copy2(destination, artifact_dir / destination.name)
+                    except FileNotFoundError:
+                        logger.warning("Rendered output disappeared before artifact copy: %s", destination)
 
     except Exception as exc:
         pipeline_error = str(exc)
@@ -439,7 +556,7 @@ def normalize_and_stub_subtitles(
             {
                 "status": "error" if pipeline_error else "success",
                 "error": pipeline_error,
-                "model_size": selected_model,
+                "transcribe_model": selected_model,
                 "device": device or settings.whisper_device,
                 "compute_type": compute_type or settings.whisper_compute_type,
                 "transcribe_provider": provider_name,
@@ -451,15 +568,15 @@ def normalize_and_stub_subtitles(
             }
         )
 
-    if progress_callback: progress_callback("Done!", 100.0)
+    if progress_callback:
+        progress_callback("Done!", 100.0)
 
     if not transcription_only and not destination.exists():
         raise RuntimeError(f"Output video was not produced. Error: {pipeline_error or 'Unknown'}")
 
     if generate_social_copy:
         if social_copy is None:
-            # Safety fallback
-            social_copy = subtitles.build_social_copy(transcript_text or "")
+            social_copy = social_intelligence.build_social_copy(transcript_text or "")
         return destination, social_copy
     return destination
 
@@ -469,9 +586,9 @@ def generate_video_variant(
     input_path: Path,
     artifact_dir: Path,
     resolution: str,
-    job_store,
+    job_store: JobStore,
     user_id: str,
-    subtitle_settings: dict | None = None,
+    subtitle_settings: Mapping[str, Any] | None = None,
 ) -> Path:
     if not input_path.exists():
         raise FileNotFoundError("Original input video not found")
@@ -510,45 +627,26 @@ def generate_video_variant(
     def _resolve_param(val: Any, default: int) -> int:
         return int(val) if val is not None else default
 
-    # If explicit settings provided, we FORCE regeneration
     if subtitle_settings:
-        cues = None
-        transcription_json = artifact_dir / "transcription.json"
-
-        if transcription_json.exists():
-            try:
-                import json
-                data = json.loads(transcription_json.read_text(encoding="utf-8"))
-                cues = []
-                for item in data:
-                    words = [subtitles.WordTiming(**w) for w in item["words"]] if item.get("words") else None
-                    cues.append(subtitles.Cue(
-                        start=item["start"],
-                        end=item["end"],
-                        text=item["text"],
-                        words=words
-                    ))
-            except Exception as e:
-                logger.warning(f"Failed to load transcription.json: {e}")
+        cues = _load_persisted_cues(artifact_dir / "transcription.json")
 
         font_size = settings_utils.font_size_from_subtitle_size(subtitle_settings.get("subtitle_size"))
         karaoke_enabled = bool(subtitle_settings.get("karaoke_enabled", True))
-        requested_highlight_style = str(subtitle_settings.get("highlight_style") or "karaoke").lower()
-        highlight_style = "static" if not karaoke_enabled else requested_highlight_style
+        requested_style = str(subtitle_settings.get("highlight_style") or "karaoke")
+        highlight_style = _resolve_ass_highlight_style(
+            _normalize_highlight_style(requested_style, karaoke_enabled=karaoke_enabled),
+            cues,
+        )
 
-        # Convert active-graphics to active if words are available
-        has_words = bool(cues and any(c.words for c in cues))
-        if highlight_style == "active-graphics":
-            highlight_style = "active" if has_words else "karaoke"
-
-        # FIX: Always use reference resolution (1080x1920) for ASS generation.
         base_width, base_height = settings.default_width, settings.default_height
 
         resolved_color = str(subtitle_settings.get("subtitle_color") or settings.default_sub_color)
-        ass_path = subtitles.create_styled_subtitle_file(
+        ass_path = subtitle_renderer.create_styled_subtitle_file(
             transcript_path,
             cues=cues,
-            subtitle_position=settings_utils.parse_legacy_position(subtitle_settings.get("subtitle_position")),
+            subtitle_position=settings_utils.normalize_subtitle_position(
+                subtitle_settings.get("subtitle_position")
+            ),
             max_lines=_resolve_param(subtitle_settings.get("max_subtitle_lines"), 2),
             primary_color=resolved_color,
             shadow_strength=_resolve_param(subtitle_settings.get("shadow_strength"), 4),
@@ -559,47 +657,28 @@ def generate_video_variant(
             output_dir=artifact_dir,
         )
 
-    # Otherwise try to reuse existing ASS
     elif not ass_path.exists():
         ass_candidates = sorted(artifact_dir.glob("*.ass"))
         ass_path = ass_candidates[0] if ass_candidates else ass_path
 
     if not ass_path.exists():
-        # Fallback: regenerate ASS using persisted job settings.
         font_size = settings_utils.font_size_from_subtitle_size(result_data.get("subtitle_size"))
         karaoke_enabled = bool(result_data.get("karaoke_enabled", True))
-        requested_highlight_style = str(result_data.get("highlight_style") or "karaoke").lower()
-        highlight_style = "static" if not karaoke_enabled else requested_highlight_style
-
-        cues = None
-        transcription_json = artifact_dir / "transcription.json"
-        if transcription_json.exists():
-            try:
-                import json
-                data = json.loads(transcription_json.read_text(encoding="utf-8"))
-                cues = []
-                for item in data:
-                    words = [subtitles.WordTiming(**w) for w in item["words"]] if item.get("words") else None
-                    cues.append(subtitles.Cue(
-                        start=item["start"],
-                        end=item["end"],
-                        text=item["text"],
-                        words=words
-                    ))
-            except Exception as e:
-                logger.warning(f"Failed to load transcription.json: {e}")
-
-        # Convert active-graphics to active if words are available
-        has_words = bool(cues and any(c.words for c in cues))
-        if highlight_style == "active-graphics":
-            highlight_style = "active" if has_words else "karaoke"
+        requested_style = str(result_data.get("highlight_style") or "karaoke")
+        cues = _load_persisted_cues(artifact_dir / "transcription.json")
+        highlight_style = _resolve_ass_highlight_style(
+            _normalize_highlight_style(requested_style, karaoke_enabled=karaoke_enabled),
+            cues,
+        )
 
         base_width, base_height = settings.default_width, settings.default_height
 
-        ass_path = subtitles.create_styled_subtitle_file(
+        ass_path = subtitle_renderer.create_styled_subtitle_file(
             transcript_path,
             cues=cues,
-            subtitle_position=settings_utils.parse_legacy_position(result_data.get("subtitle_position")),
+            subtitle_position=settings_utils.normalize_subtitle_position(
+                result_data.get("subtitle_position")
+            ),
             max_lines=_resolve_param(result_data.get("max_subtitle_lines"), 2),
             primary_color=str(result_data.get("subtitle_color") or settings.default_sub_color),
             shadow_strength=_resolve_param(result_data.get("shadow_strength"), 4),

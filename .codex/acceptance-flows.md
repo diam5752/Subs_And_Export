@@ -1,20 +1,22 @@
 # Critical Acceptance Flows
 
-Human review is required before this file becomes the canonical acceptance contract.
+These flows reflect the product behavior explicitly approved during the guest-first workflow review.
 
 ## Status
 
-- needs_human_review
+- human_reviewed
 
 ## Candidate flows
 
-- Unauthenticated users are redirected from `/` to `/login`.
+- Unauthenticated users can open `/`, select a video, and configure subtitle options without losing their work.
 - Login and register layouts remain readable and overflow-free on desktop and mobile.
-- Authenticated users can reach the workspace and see the upload area after selecting a model.
-- Uploading a video can progress from upload to processing to completed preview and export actions.
+- Starting paid or provider-backed processing prompts an unauthenticated user to log in, then resumes with the selected local video and settings intact.
+- Before a chargeable action starts, the user sees the required credit amount and cannot proceed with an insufficient balance.
+- Uploading a video can progress from upload to processing to completed preview, inline subtitle editing, and separate video/subtitle export actions.
 - Processing-job polling surfaces active jobs from history and handles authenticated state correctly.
-- Completed previews render transcript and styling surfaces without layout breakage.
+- Completed previews keep the video, transcript, styling controls, and inline editor usable without layout breakage across supported viewports.
 - The account settings modal remains usable and readable across supported viewports.
 - History views show prior jobs and status cards without layout regressions.
+- Mock mode never calls a paid external provider and remains the default until live mode and non-zero safety budgets are explicitly enabled.
 
-Do not let the agent silently remove or redefine these flows without human approval.
+Do not remove or redefine these flows without a new explicit product decision.

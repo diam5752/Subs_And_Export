@@ -1,6 +1,11 @@
 import React, { memo, useCallback, useMemo } from 'react';
 import { PhoneFrame } from '@/components/PhoneFrame';
-import { PreviewPlayer, type PreviewPlayerHandle } from '@/components/PreviewPlayer';
+import {
+    PreviewPlayer,
+    type InlineSubtitleEditorConfig,
+    type PreviewPlayerHandle,
+    type SubtitleTransformConfig,
+} from '@/components/PreviewPlayer';
 import { Spinner } from '@/components/Spinner';
 import { useI18n } from '@/context/I18nContext';
 import type { MessageKey } from '@/context/i18nMessages';
@@ -19,6 +24,8 @@ type PreviewSectionLayoutProps = {
     playerRef: React.RefObject<PreviewPlayerHandle | null>;
     videoUrl: string | null;
     playerSettings: React.ComponentProps<typeof PreviewPlayer>['settings'];
+    subtitleEditor: InlineSubtitleEditorConfig;
+    subtitleTransformControls: SubtitleTransformConfig;
     handlePlayerTimeUpdate: (time: number) => void;
     handleExport: (resolution: string) => Promise<void>;
     exportingResolutions: Record<string, boolean>;
@@ -170,6 +177,8 @@ const PreviewSectionLayout = memo(({
     playerRef,
     videoUrl,
     playerSettings,
+    subtitleEditor,
+    subtitleTransformControls,
     handlePlayerTimeUpdate,
     handleExport,
     exportingResolutions,
@@ -228,6 +237,8 @@ const PreviewSectionLayout = memo(({
                                                             videoUrl={videoUrl}
                                                             cues={processedCues || []}
                                                             settings={playerSettings}
+                                                            subtitleEditor={subtitleEditor}
+                                                            subtitleTransformControls={subtitleTransformControls}
                                                             onTimeUpdate={handlePlayerTimeUpdate}
                                                             initialTime={processedCues && processedCues.length > 0 ? processedCues[0].start : 0}
                                                         />
@@ -241,6 +252,15 @@ const PreviewSectionLayout = memo(({
                                                     )}
                                                 </PhoneFrame>
                                             </div>
+                                            {videoUrl && (
+                                                <p
+                                                    data-testid="subtitle-direct-manipulation-hint"
+                                                    className="mt-5 max-w-[278px] text-center text-[11px] font-semibold leading-5 text-[var(--muted)]"
+                                                >
+                                                    <span aria-hidden="true" className="mr-1 text-[var(--accent)]">↕</span>
+                                                    {t('subtitleDirectManipulationHint')}
+                                                </p>
+                                            )}
                                         </section>
 
                                         <Sidebar />
@@ -298,9 +318,12 @@ export function PreviewSection() {
         isProcessing,
         videoUrl,
         processedCues,
+        cues,
         subtitlePosition,
+        setSubtitlePosition,
         subtitleColor,
         subtitleSize,
+        setSubtitleSize,
         karaokeEnabled,
         maxSubtitleLines,
         shadowStrength,
@@ -312,6 +335,15 @@ export function PreviewSection() {
         exportError,
         onReset,
         onJobSelect,
+        editingCueIndex,
+        editingCueDraft,
+        editingCueSurface,
+        isSavingTranscript,
+        transcriptSaveError,
+        beginEditingCue,
+        handleUpdateDraft,
+        saveEditingCue,
+        cancelEditingCue,
     } = useProcessContext();
     const { setCurrentTime } = usePlaybackContext();
     const [showNewVideoModal, setShowNewVideoModal] = React.useState(false);
@@ -332,6 +364,49 @@ export function PreviewSection() {
         watermarkEnabled,
     }), [subtitlePosition, subtitleColor, subtitleSize, karaokeEnabled, maxSubtitleLines, shadowStrength, watermarkEnabled]);
 
+    const subtitleEditor = useMemo<InlineSubtitleEditorConfig>(() => ({
+        cues,
+        editingCueIndex,
+        draftText: editingCueDraft,
+        isSaving: isSavingTranscript,
+        error: transcriptSaveError,
+        autoFocus: editingCueSurface === 'video',
+        labels: {
+            editAction: t('subtitleInlineEditAction'),
+            title: t('subtitleInlineEditorTitle'),
+            textarea: t('subtitleInlineTextareaLabel'),
+            save: t('transcriptSave'),
+            cancel: t('transcriptCancel'),
+            shortcut: t('transcriptEditHint'),
+            saving: t('transcriptSaving'),
+        },
+        onBeginEdit: (index) => beginEditingCue(index, 'video'),
+        onChange: handleUpdateDraft,
+        onSave: saveEditingCue,
+        onCancel: cancelEditingCue,
+    }), [
+        beginEditingCue,
+        cancelEditingCue,
+        cues,
+        editingCueDraft,
+        editingCueIndex,
+        editingCueSurface,
+        handleUpdateDraft,
+        isSavingTranscript,
+        saveEditingCue,
+        t,
+        transcriptSaveError,
+    ]);
+
+    const subtitleTransformControls = useMemo<SubtitleTransformConfig>(() => ({
+        labels: {
+            move: t('subtitleDragHandleLabel'),
+            resize: t('subtitleResizeHandleLabel'),
+        },
+        onPositionChange: setSubtitlePosition,
+        onSizeChange: setSubtitleSize,
+    }), [setSubtitlePosition, setSubtitleSize, t]);
+
     const handlePlayerTimeUpdate = useCallback((time: number) => {
         setCurrentTime(time);
     }, [setCurrentTime]);
@@ -346,6 +421,8 @@ export function PreviewSection() {
             playerRef={playerRef}
             videoUrl={videoUrl}
             playerSettings={playerSettings}
+            subtitleEditor={subtitleEditor}
+            subtitleTransformControls={subtitleTransformControls}
             handlePlayerTimeUpdate={handlePlayerTimeUpdate}
             handleExport={handleExport}
             exportingResolutions={exportingResolutions}

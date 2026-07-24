@@ -55,7 +55,12 @@ describe('JobListItem', () => {
 
     it('shows download and view buttons with accessible labels when completed', () => {
         render(<JobListItem {...mockProps} />);
-        expect(screen.getByLabelText('download test-video.mp4')).toBeInTheDocument();
+        const download = screen.getByLabelText('download test-video.mp4');
+        expect(download).toHaveAttribute('download', 'test-video_subs.mp4');
+        expect(download).toHaveAttribute(
+            'href',
+            'http://example.com/video.mp4?download=true&filename=test-video_subs.mp4',
+        );
         expect(screen.getByLabelText('view test-video.mp4')).toBeInTheDocument();
     });
 

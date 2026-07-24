@@ -78,7 +78,7 @@ describe('ProcessProvider', () => {
     localStorage.setItem(
       'lastUsedSubtitleSettings',
       JSON.stringify({
-        position: 50,
+        position: 120,
         size: 85,
         lines: 2,
         color: '#FFFF00',
@@ -95,7 +95,7 @@ describe('ProcessProvider', () => {
       </I18nProvider>,
     );
 
-    expect(screen.getByTestId('position')).toHaveTextContent('35');
+    expect(screen.getByTestId('position')).toHaveTextContent('95');
   });
 
   it('opens the file picker when starting without a file', () => {
@@ -159,7 +159,7 @@ describe('ProcessProvider', () => {
       updated_at: Date.now(),
       result_data: {
         transcribe_provider: 'groq',
-        model_size: 'standard',
+        transcribe_tier: 'standard',
         video_path: '/videos/test.mp4',
         artifacts_dir: '/tmp/artifacts'
       },
@@ -200,7 +200,7 @@ describe('ProcessProvider', () => {
       updated_at: Date.now(),
       result_data: {
         transcribe_provider: 'groq',
-        model_size: 'standard',
+        transcribe_tier: 'standard',
         video_path: '/videos/test.mp4',
         artifacts_dir: '/tmp/artifacts'
       },

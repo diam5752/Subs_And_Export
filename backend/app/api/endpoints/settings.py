@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 class ProcessingSettings(BaseModel):
     """Settings for video processing."""
 
-    transcribe_model: str = settings.default_transcribe_tier
+    transcribe_tier: str = settings.default_transcribe_tier
     transcribe_provider: str = "groq"
     openai_model: str | None = None
     video_quality: str = "high quality"
@@ -40,7 +40,7 @@ class ProcessingSettings(BaseModel):
     context_prompt: str = ""
     llm_model: str = settings.llm_model
     llm_temperature: float = settings.llm_temperature
-    subtitle_position: int = 16  # 5-35 percentage from bottom
+    subtitle_position: int = 16  # 5-95 progression from safe bottom to safe top
     max_subtitle_lines: int = 2
     subtitle_color: str | None = None
     shadow_strength: int = 4
@@ -83,7 +83,7 @@ def parse_resolution(res_str: str | None) -> tuple[int | None, int | None]:
 
 def build_processing_settings(
     *,
-    transcribe_model: str,
+    transcribe_tier: str,
     transcribe_provider: str,
     openai_model: str,
     video_quality: str,
@@ -107,7 +107,7 @@ def build_processing_settings(
     # Security: Validate input lengths to prevent DoS
     if len(context_prompt) > 5000:
         raise HTTPException(status_code=400, detail="Context prompt too long (max 5000 chars)")
-    if len(transcribe_model) > 50:
+    if len(transcribe_tier) > 50:
         raise HTTPException(status_code=400, detail="Model name too long")
     if len(video_quality) > 50:
         raise HTTPException(status_code=400, detail="Video quality string too long")
@@ -120,7 +120,7 @@ def build_processing_settings(
     if len(highlight_style) > 20:
         raise HTTPException(status_code=400, detail="Highlight style too long")
 
-    tier = validate_transcribe_tier(transcribe_model)
+    tier = validate_transcribe_tier(transcribe_tier)
     provider = validate_transcribe_provider(transcribe_provider) if transcribe_provider else settings.transcribe_tier_provider[tier]
     allowed_providers = ALLOWED_TIER_PROVIDER_OVERRIDES[tier]
     if provider not in allowed_providers:
@@ -151,7 +151,7 @@ def build_processing_settings(
     target_width, target_height = parse_resolution(video_resolution)
     llm_models = pricing.resolve_llm_models(tier)
     return ProcessingSettings(
-        transcribe_model=tier,
+        transcribe_tier=tier,
         transcribe_provider=provider,
         openai_model=openai_model_value,
         video_quality=quality,

@@ -12,6 +12,115 @@ const OVERLAY_FONT_FAMILY = "'Arial Black', 'Montserrat', sans-serif";
 const OVERLAY_FONT_WEIGHT = 900;
 const STRONG_BREAK_PUNCTUATION = new Set(['.', '!', '?', ';', ':', '…']);
 const SOFT_BREAK_PUNCTUATION = new Set([',']);
+export const SUBTITLE_POSITION_MIN = 5;
+export const SUBTITLE_POSITION_MAX = 95;
+const DEFAULT_SUBTITLE_POSITION = 16;
+
+interface SubtitlePositionStyle {
+    top: string;
+    transform: string;
+}
+
+function formatPositionPercent(value: number): string {
+    return Number(value.toFixed(3)).toString();
+}
+
+/**
+ * Map the bottom-to-top slider to a top coordinate while keeping the complete
+ * subtitle block inside a 5% safe area at both extremes.
+ */
+export function getSubtitlePositionStyle(position: number): SubtitlePositionStyle {
+    const numericPosition = Number.isFinite(position) ? position : DEFAULT_SUBTITLE_POSITION;
+    const clampedPosition = Math.min(
+        SUBTITLE_POSITION_MAX,
+        Math.max(SUBTITLE_POSITION_MIN, numericPosition),
+    );
+    const progress = (
+        (clampedPosition - SUBTITLE_POSITION_MIN)
+        / (SUBTITLE_POSITION_MAX - SUBTITLE_POSITION_MIN)
+    );
+    const anchorFromTop = 100 - clampedPosition;
+    const translate = (1 - progress) * 100;
+
+    return {
+        top: `${formatPositionPercent(anchorFromTop)}%`,
+        transform: translate === 0
+            ? 'translateY(0)'
+            : `translateY(-${formatPositionPercent(translate)}%)`,
+    };
+}
+
+/**
+ * Reconcile edited subtitle text with the cue's existing word timings.
+ * Existing timing boundaries are preserved when possible; added words split
+ * the original intervals and removed words merge adjacent intervals.
+ */
+export function updateCueText(cue: Cue, nextText: string): Cue {
+    const normalizedText = nextText.normalize('NFC').replace(/\s+/g, ' ').trim();
+    const tokens = normalizedText.length > 0 ? normalizedText.split(' ') : [];
+
+    if (!tokens.length) {
+        return { ...cue, text: '', words: undefined };
+    }
+
+    const oldWords = cue.words?.filter((word) => word.text.trim().length > 0) ?? [];
+    if (!oldWords.length) {
+        return { ...cue, text: normalizedText, words: undefined };
+    }
+
+    const oldCount = oldWords.length;
+    const nextCount = tokens.length;
+    const newWords: TranscriptionWordTiming[] = [];
+
+    if (nextCount === oldCount) {
+        return {
+            ...cue,
+            text: normalizedText,
+            words: oldWords.map((word, index) => ({ ...word, text: tokens[index] })),
+        };
+    }
+
+    if (nextCount < oldCount) {
+        const base = Math.floor(oldCount / nextCount);
+        const remainder = oldCount % nextCount;
+        let cursor = 0;
+
+        for (let index = 0; index < nextCount; index += 1) {
+            const size = base + (index < remainder ? 1 : 0);
+            const group = oldWords.slice(cursor, cursor + size);
+            cursor += size;
+            newWords.push({
+                start: group[0].start,
+                end: group[group.length - 1].end,
+                text: tokens[index],
+            });
+        }
+
+        return { ...cue, text: normalizedText, words: newWords };
+    }
+
+    const base = Math.floor(nextCount / oldCount);
+    const remainder = nextCount % oldCount;
+    let tokenCursor = 0;
+
+    for (let index = 0; index < oldCount; index += 1) {
+        const segments = base + (index < remainder ? 1 : 0);
+        const wordStart = oldWords[index].start;
+        const wordEnd = oldWords[index].end;
+        const segmentDuration = Math.max(0, wordEnd - wordStart) / Math.max(1, segments);
+
+        for (let segment = 0; segment < segments; segment += 1) {
+            const start = wordStart + segmentDuration * segment;
+            const end = segment === segments - 1
+                ? wordEnd
+                : wordStart + segmentDuration * (segment + 1);
+            newWords.push({ start, end, text: tokens[tokenCursor] });
+            tokenCursor += 1;
+        }
+    }
+
+    return { ...cue, text: normalizedText, words: newWords };
+}
 
 /**
  * Estimate the effective character limit per line based on font size and video width.
@@ -394,6 +503,52 @@ function interpolateWordsFromCueText(cue: Cue): TranscriptionWordTiming[] {
     return timings;
 }
 
+function prepareCueWords(cue: Cue): TranscriptionWordTiming[] {
+    const cueWords: TranscriptionWordTiming[] = [];
+
+    if (cue.words && cue.words.length > 0) {
+        for (const word of cue.words) {
+            cueWords.push(...expandPhraseTiming(word));
+        }
+    } else {
+        cueWords.push(...interpolateWordsFromCueText(cue));
+    }
+
+    return cueWords
+        .map((word) => ({ ...word, text: normalizeSubtitleText(word.text).trim() }))
+        .filter((word) => word.text.length > 0);
+}
+
+/**
+ * Produces the exact visual line groups used by the browser preview.
+ *
+ * Cue segmentation and line layout are deliberately separate concerns: a cue
+ * decides which words are visible at a given time, while this function decides
+ * where those words break inside the safe subtitle area. Rendering explicit
+ * rows prevents the browser from introducing an extra line because of inline
+ * transforms, font fallback, or fractional rounding.
+ */
+export function layoutCueLines(
+    cue: Cue,
+    maxLines: number,
+    fontSizePercent: number,
+): TranscriptionWordTiming[][] {
+    const preparedWords = prepareCueWords(cue);
+    if (preparedWords.length === 0) return [];
+    if (maxLines <= 0) return [preparedWords];
+
+    const measurer = createTextMeasurer(fontSizePercent);
+    if (measurer) {
+        return wrapItemsByWidth(preparedWords, (word) => word.text, measurer);
+    }
+
+    return wrapItemsBalanced(
+        preparedWords,
+        (word) => word.text,
+        getEffectiveMaxChars(fontSizePercent),
+    );
+}
+
 function chunkTimedWords(
     words: TranscriptionWordTiming[],
     maxChars: number,
@@ -519,31 +674,16 @@ export function resegmentCues(
 
     return originalCues.flatMap((cue) => {
         // 1. Get words for this SPECIFIC cue (real or interpolated)
-        let cueWords: TranscriptionWordTiming[] = [];
-        if (cue.words && cue.words.length > 0) {
-            cue.words.forEach((word) => {
-                cueWords.push(...expandPhraseTiming(word));
-            });
-        } else {
-            cueWords = interpolateWordsFromCueText(cue);
-        }
+        const cueWords = prepareCueWords(cue);
 
         if (cueWords.length === 0) {
             return [{ ...cue, text: normalizeSubtitleText(cue.text) }];
         }
 
-        const preparedWords = cueWords
-            .map((word) => ({ ...word, text: normalizeSubtitleText(word.text).trim() }))
-            .filter((word) => word.text.length > 0);
-
-        if (preparedWords.length === 0) {
-            return [{ ...cue, text: normalizeSubtitleText(cue.text) }];
-        }
-
         // 2. Chunk ONLY this cue's words
         const wordChunks = measurer
-            ? chunkTimedWordsByWidth(preparedWords, maxLines, measurer)
-            : chunkTimedWords(preparedWords, effectiveMaxChars, maxLines);
+            ? chunkTimedWordsByWidth(cueWords, maxLines, measurer)
+            : chunkTimedWords(cueWords, effectiveMaxChars, maxLines);
 
         // 3. Create new cues from chunks
         return wordChunks

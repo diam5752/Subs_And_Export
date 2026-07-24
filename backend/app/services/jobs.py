@@ -1,14 +1,15 @@
 import time
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Any, cast
 
 from sqlalchemy import delete, func, select
+from sqlalchemy.engine import CursorResult
 
 from backend.app.core.database import Database
 from backend.app.db.models import DbJob
 
 
-@dataclass
+@dataclass(slots=True)
 class Job:
     id: str
     user_id: str
@@ -17,10 +18,10 @@ class Job:
     message: str | None
     created_at: int
     updated_at: int
-    result_data: Dict | None
+    result_data: dict[str, Any] | None
 
 class JobStore:
-    def __init__(self, db: Database):
+    def __init__(self, db: Database) -> None:
         self.db = db
 
     def create_job(self, job_id: str, user_id: str) -> Job:
@@ -56,7 +57,7 @@ class JobStore:
         status: str | None = None,
         progress: int | None = None,
         message: str | None = None,
-        result_data: Dict | None = None,
+        result_data: dict[str, Any] | None = None,
     ) -> None:
         if status is None and progress is None and message is None and result_data is None:
             return
@@ -75,7 +76,7 @@ class JobStore:
                 job.result_data = result_data
             job.updated_at = int(time.time())
 
-    def get_job(self, job_id: str) -> Optional[Job]:
+    def get_job(self, job_id: str) -> Job | None:
         with self.db.session() as session:
             row = session.get(DbJob, job_id)
             if not row:
@@ -91,7 +92,7 @@ class JobStore:
                 result_data=row.result_data,
             )
 
-    def list_jobs_for_user(self, user_id: str, limit: int = 10) -> List[Job]:
+    def list_jobs_for_user(self, user_id: str, limit: int = 10) -> list[Job]:
         with self.db.session() as session:
             stmt = (
                 select(DbJob)
@@ -114,7 +115,7 @@ class JobStore:
             for row in rows
         ]
 
-    def get_jobs(self, job_ids: List[str], user_id: str) -> List[Job]:
+    def get_jobs(self, job_ids: list[str], user_id: str) -> list[Job]:
         """Get multiple jobs by ID for a specific user."""
         if not job_ids:
             return []
@@ -163,7 +164,7 @@ class JobStore:
 
     def list_jobs_for_user_paginated(
         self, user_id: str, offset: int = 0, limit: int = 10
-    ) -> List[Job]:
+    ) -> list[Job]:
         """List jobs for a user with pagination support."""
         with self.db.session() as session:
             stmt = (
@@ -188,15 +189,18 @@ class JobStore:
             for row in rows
         ]
 
-    def delete_jobs(self, job_ids: List[str], user_id: str) -> int:
+    def delete_jobs(self, job_ids: list[str], user_id: str) -> int:
         """Delete multiple jobs by IDs (with ownership check). Returns count deleted."""
         if not job_ids:
             return 0
         with self.db.session() as session:
-            result = session.execute(delete(DbJob).where(DbJob.id.in_(job_ids), DbJob.user_id == user_id))
+            result = cast(
+                CursorResult[Any],
+                session.execute(delete(DbJob).where(DbJob.id.in_(job_ids), DbJob.user_id == user_id)),
+            )
             return int(result.rowcount or 0)
 
-    def list_jobs_created_before(self, timestamp: int) -> List[Job]:
+    def list_jobs_created_before(self, timestamp: int) -> list[Job]:
         """List jobs created before a certain timestamp (for retention)."""
         with self.db.session() as session:
             stmt = select(DbJob).where(DbJob.created_at < timestamp)

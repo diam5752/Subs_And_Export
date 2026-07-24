@@ -8,27 +8,12 @@ import subprocess
 import tempfile
 import time
 from pathlib import Path
-from typing import Callable, Iterable, List, Sequence, Tuple
+from typing import Callable, Iterable, Sequence
 
 from backend.app.core.config import settings
-from backend.app.services import (
-    fact_checking,
-    llm_utils,
-    social_intelligence,
-    subtitle_renderer,
-)
 from backend.app.services.subtitle_types import Cue, TimeRange
-from backend.app.services.subtitle_types import WordTiming as SubtitleWordTiming
 
 logger = logging.getLogger(__name__)
-
-# Re-export key types and classes for backward compatibility
-SocialContent = social_intelligence.SocialContent
-SocialCopy = social_intelligence.SocialCopy
-ViralMetadata = social_intelligence.ViralMetadata
-FactCheckResult = fact_checking.FactCheckResult
-FactCheckItem = fact_checking.FactCheckItem
-WordTiming = SubtitleWordTiming
 
 TIME_PATTERN = re.compile(r"time=(\d{2}):(\d{2}):(\d{2}\.\d{2})")
 
@@ -118,7 +103,7 @@ def extract_audio(
 
 
 def write_srt_from_segments(segments: Iterable[TimeRange], dest: Path) -> Path:
-    lines: List[str] = []
+    lines: list[str] = []
     for idx, (start, end, text) in enumerate(segments, start=1):
         lines.append(str(idx))
         lines.append(f"{_format_subtitle_timestamp(start, separator=',')} --> {_format_subtitle_timestamp(end, separator=',')}")
@@ -140,7 +125,7 @@ def _format_subtitle_timestamp(seconds: float, *, separator: str) -> str:
 
 
 def write_vtt_from_segments(segments: Iterable[TimeRange], dest: Path) -> Path:
-    lines: List[str] = ["WEBVTT", ""]
+    lines: list[str] = ["WEBVTT", ""]
     for idx, (start, end, text) in enumerate(segments, start=1):
         lines.append(str(idx))
         lines.append(f"{_format_subtitle_timestamp(start, separator='.')} --> {_format_subtitle_timestamp(end, separator='.')}")
@@ -161,11 +146,6 @@ def write_txt_from_segments(segments: Iterable[TimeRange], dest: Path) -> Path:
     return dest
 
 
-_write_srt_from_segments = write_srt_from_segments
-_write_vtt_from_segments = write_vtt_from_segments
-_write_txt_from_segments = write_txt_from_segments
-
-
 def get_video_duration(path: Path) -> float:
     """Get the duration of a video/audio file in seconds using ffprobe."""
     cmd = [
@@ -183,121 +163,6 @@ def get_video_duration(path: Path) -> float:
     return float(result.stdout.strip())
 
 
-def generate_subtitles_from_audio(
-    audio_path: Path,
-    model_size: str = settings.whisper_model,
-    language: str | None = settings.whisper_language,
-    device: str = settings.whisper_device,
-    compute_type: str = settings.whisper_compute_type,
-    beam_size: int | None = None,
-    best_of: int | None = 1,
-    output_dir: Path | None = None,
-    progress_callback: Callable[[float], None] | None = None,
-    total_duration: float | None = None,
-    temperature: float | None = None,
-    chunk_length: int | None = settings.whisper_chunk_length,
-    condition_on_previous_text: bool = False,
-    initial_prompt: str | None = None,
-    vad_filter: bool = True,
-    vad_parameters: dict | None = None,
-    provider: str = "local",
-    openai_api_key: str | None = None,
-) -> Tuple[Path, List[Cue]]:  # pragma: no cover
-    """
-    DEPRECATED: Use the Transcriber classes directly.
-    Legacy wrapper to maintain backward compatibility during refactoring.
-    """
-    from backend.app.services.transcription.elevenlabs_scribe import ElevenLabsScribeTranscriber
-    from backend.app.services.transcription.groq_cloud import GroqTranscriber
-    from backend.app.services.transcription.local_whisper import LocalWhisperTranscriber
-    from backend.app.services.transcription.openai_cloud import OpenAITranscriber
-    from backend.app.services.transcription.standard_whisper import StandardTranscriber
-
-    if not language or language.lower() == "auto":
-        language = settings.whisper_language
-
-    wants_openai = provider == "openai" or llm_utils.model_uses_openai(model_size)
-    output_dir = output_dir or Path(tempfile.mkdtemp())
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    if wants_openai:
-        transcriber = OpenAITranscriber(api_key=openai_api_key)
-        return transcriber.transcribe(
-            audio_path,
-            output_dir,
-            language=language,
-            model=model_size or settings.openai_transcribe_model,
-            initial_prompt=initial_prompt,
-            progress_callback=progress_callback,
-        )
-
-    if provider == "groq":
-        transcriber = GroqTranscriber(api_key=openai_api_key)
-        return transcriber.transcribe(
-            audio_path, output_dir, language=language, model=settings.groq_transcribe_model,
-            initial_prompt=initial_prompt, progress_callback=progress_callback
-        )
-
-    if provider == "elevenlabs":
-        transcriber = ElevenLabsScribeTranscriber()
-        return transcriber.transcribe(
-            audio_path,
-            output_dir,
-            language=language,
-            model=settings.elevenlabs_transcribe_model,
-            progress_callback=progress_callback,
-            initial_prompt=initial_prompt,
-        )
-
-    if provider == "local":
-        resolved_model = model_size
-        if resolved_model == "turbo":
-            resolved_model = settings.whisper_model
-
-        transcriber = LocalWhisperTranscriber(
-            device=device,
-            compute_type=compute_type,
-            beam_size=beam_size or 5,
-        )
-        return transcriber.transcribe(
-            audio_path,
-            output_dir,
-            language=language,
-            model=resolved_model,
-            progress_callback=progress_callback,
-            best_of=best_of,
-            temperature=temperature,
-            initial_prompt=initial_prompt,
-            vad_filter=vad_filter,
-            condition_on_previous_text=condition_on_previous_text,
-        )
-
-    if provider == "whispercpp":
-        transcriber = StandardTranscriber()
-        return transcriber.transcribe(
-            audio_path,
-            output_dir,
-            language=language,
-            model=settings.whispercpp_model,
-            progress_callback=progress_callback,
-        )
-
-    raise ValueError(f"Unknown or removed provider: {provider}")
-
-
 def cues_to_text(cues: Sequence[Cue]) -> str:
     """Collapse cue text into a single transcript string."""
     return " ".join(cue.text.strip() for cue in cues if cue.text).strip()
-
-
-# =============================================================================
-# FACADES / ALIASES
-# Use these definitions to maintain backward compatibility while delegating
-# to the new service modules.
-# =============================================================================
-
-should_use_openai = llm_utils.should_use_openai
-create_styled_subtitle_file = subtitle_renderer.create_styled_subtitle_file
-build_social_copy = social_intelligence.build_social_copy
-build_social_copy_llm = social_intelligence.build_social_copy_llm
-generate_fact_check = fact_checking.generate_fact_check

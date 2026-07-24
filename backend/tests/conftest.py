@@ -17,6 +17,7 @@ os.environ["GSP_USE_MEMORY_RATELIMIT"] = "1"
 # COMPLETELY DISABLE rate limiting to prevent tests from blocking each other (shared IP)
 os.environ["GSP_DISABLE_RATELIMIT"] = "1"
 os.environ.setdefault("GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD", "1000")
+os.environ.setdefault("GSP_EXTERNAL_PROVIDER_DAILY_BUDGET_USD", "1000")
 os.environ.setdefault("GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD", "1000")
 os.environ.setdefault("GSP_MOCK_EXTERNAL_SERVICES", "0")
 
@@ -82,6 +83,7 @@ def client(monkeypatch) -> TestClient:
 
     from backend.app.api.endpoints import videos as videos_endpoints
     from backend.app.core import ratelimit
+    from backend.app.core.config import settings
     from backend.app.services.ffmpeg_utils import MediaProbe
     from backend.main import app
 
@@ -100,6 +102,10 @@ def client(monkeypatch) -> TestClient:
     # We also keep resets just in case logic leaks, but disabling check is key.
     ratelimit.limiter_login.reset()
     ratelimit.limiter_register.reset()
+
+    # API integration tests use the deterministic zero-cost pipeline by
+    # default. Tests for real-provider accounting explicitly opt back out.
+    monkeypatch.setattr(settings, "mock_external_services", True)
 
     monkeypatch.setattr(
         videos_endpoints,

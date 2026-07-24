@@ -60,10 +60,11 @@ function buildContext() {
             status: string;
             result_data?: {
                 transcribe_provider?: string;
-                model_size?: string;
+                transcribe_tier?: string;
                 original_filename?: string | null;
                 output_size?: number;
                 files_missing?: boolean;
+                duration_seconds?: number;
             };
         } | null,
         error: '',
@@ -71,6 +72,8 @@ function buildContext() {
         statusMessage: '',
         onCancelProcessing: jest.fn(),
         videoUrl: null as string | null,
+        transcribeMode: 'standard' as 'standard' | 'pro',
+        transcribeProvider: 'mock' as 'mock' | 'elevenlabs' | 'groq' | 'local',
     };
 }
 
@@ -137,7 +140,7 @@ describe('UploadSection', () => {
             height: 1920,
             aspectWarning: false,
             thumbnailUrl: 'blob:thumb',
-            durationSeconds: 500,
+            durationSeconds: 601,
         });
 
         renderUpload();
@@ -145,6 +148,26 @@ describe('UploadSection', () => {
         await waitFor(() => {
             expect(screen.getByText('uploadDurationTooLong')).toBeInTheDocument();
         });
+    });
+
+    it('accepts a video longer than the legacy three-and-a-half-minute limit', async () => {
+        contextValue.selectedFile = new File(['video'], 'ten-minute-clip.mp4', { type: 'video/mp4' });
+        (validateVideoAspectRatio as jest.Mock).mockResolvedValueOnce({
+            width: 1080,
+            height: 1920,
+            aspectWarning: false,
+            thumbnailUrl: 'blob:thumb',
+            durationSeconds: 600,
+        });
+
+        renderUpload();
+
+        await waitFor(() => {
+            expect(contextValue.setVideoInfo).toHaveBeenCalledWith(expect.objectContaining({ durationSeconds: 600 }));
+        });
+        // REGRESSION: uploads above 3:30 used to be rejected even though the
+        // processing pipeline can safely handle the new ten-minute ceiling.
+        expect(screen.queryByText('uploadDurationTooLong')).not.toBeInTheDocument();
     });
 
     it('keeps a valid upload ready until the user explicitly starts processing', async () => {
@@ -208,7 +231,7 @@ describe('UploadSection', () => {
             status: 'completed',
             result_data: {
                 transcribe_provider: 'groq',
-                model_size: 'standard',
+                transcribe_tier: 'standard',
                 original_filename: 'finished.mp4',
                 output_size: 2048,
             },
@@ -241,7 +264,7 @@ describe('UploadSection', () => {
             status: 'completed',
             result_data: {
                 transcribe_provider: 'groq',
-                model_size: 'standard',
+                transcribe_tier: 'standard',
                 original_filename: 'finished.mp4',
                 output_size: 2048,
             },
@@ -259,7 +282,7 @@ describe('UploadSection', () => {
             status: 'completed',
             result_data: {
                 transcribe_provider: 'groq',
-                model_size: 'pro',
+                transcribe_tier: 'pro',
                 original_filename: 'finished.mp4',
                 output_size: 2048,
             },
@@ -273,5 +296,57 @@ describe('UploadSection', () => {
         fireEvent.click(screen.getByRole('button', { name: 'uploadNew' }));
         expect(contextValue.onFileSelect).toHaveBeenCalledWith(null);
         expect(contextValue.onJobSelect).toHaveBeenCalledWith(null);
+    });
+
+    it('uses duration pricing regardless of provider and recognizes a matching pro job', () => {
+        contextValue.transcribeMode = 'pro';
+        contextValue.transcribeProvider = 'elevenlabs';
+        contextValue.selectedJob = {
+            status: 'completed',
+            result_data: {
+                transcribe_provider: 'groq',
+                transcribe_tier: 'standard',
+                original_filename: 'standard.mp4',
+                output_size: 2048,
+                duration_seconds: 180,
+            },
+        };
+
+        const { rerender } = renderUpload();
+        expect(screen.getByRole('button', { name: /startProcessing 30/i })).toBeInTheDocument();
+
+        contextValue.selectedJob = {
+            status: 'completed',
+            result_data: {
+                transcribe_provider: 'elevenlabs',
+                transcribe_tier: 'pro',
+                original_filename: 'scribe.mp4',
+                output_size: 2048,
+            },
+        };
+        rerender(<UploadSection />);
+
+        expect(screen.getByRole('button', { name: 'viewResults' })).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /startProcessing/i })).not.toBeInTheDocument();
+    });
+
+    it('shows the exact 3, 6 and 10 minute pricing tier for the selected video', () => {
+        contextValue.selectedFile = new File(['video'], 'priced.mp4', { type: 'video/mp4' });
+        contextValue.videoInfo = {
+            width: 1080,
+            height: 1920,
+            aspectWarning: false,
+            thumbnailUrl: null,
+            durationSeconds: 360.001,
+        };
+
+        renderUpload();
+
+        const pricing = screen.getByTestId('video-credit-pricing');
+        expect(pricing).toHaveTextContent('30 creditsLabel');
+        expect(pricing).toHaveTextContent('60 creditsLabel');
+        expect(pricing).toHaveTextContent('100 creditsLabel');
+        expect(pricing.querySelector('[data-active="true"]')).toHaveTextContent('100 creditsLabel');
+        expect(screen.getByRole('button', { name: /startProcessing 100/i })).toBeInTheDocument();
     });
 });

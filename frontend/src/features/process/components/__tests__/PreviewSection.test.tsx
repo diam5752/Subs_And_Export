@@ -27,18 +27,52 @@ jest.mock('@/components/PreviewPlayer', () => ({
             videoUrl,
             cues,
             onTimeUpdate,
+            subtitleEditor,
+            subtitleTransformControls,
         }: {
             videoUrl: string;
             cues: Array<{ text: string }>;
             onTimeUpdate?: (time: number) => void;
+            subtitleEditor?: {
+                cues: Array<{ text: string }>;
+                onBeginEdit: (index: number) => void;
+            };
+            subtitleTransformControls?: {
+                onPositionChange: (position: number) => void;
+                onSizeChange: (size: number) => void;
+            };
         },
         ref,
     ) {
         void ref;
         return (
-            <button type="button" data-testid="preview-player" onClick={() => onTimeUpdate?.(12.5)}>
-                {videoUrl}:{cues.length}
-            </button>
+            <div>
+                <button type="button" data-testid="preview-player" onClick={() => onTimeUpdate?.(12.5)}>
+                    {videoUrl}:{cues.length}
+                </button>
+                <button
+                    type="button"
+                    data-testid="inline-editor-bridge"
+                    data-source-cues={subtitleEditor?.cues.length ?? 0}
+                    onClick={() => subtitleEditor?.onBeginEdit(0)}
+                >
+                    edit-on-video
+                </button>
+                <button
+                    type="button"
+                    data-testid="position-on-video"
+                    onClick={() => subtitleTransformControls?.onPositionChange(42)}
+                >
+                    position-on-video
+                </button>
+                <button
+                    type="button"
+                    data-testid="resize-on-video"
+                    onClick={() => subtitleTransformControls?.onSizeChange(115)}
+                >
+                    resize-on-video
+                </button>
+            </div>
         );
     }),
 }));
@@ -88,15 +122,18 @@ function buildContext() {
             status: string;
             result_data?: {
                 transcribe_provider?: string;
-                model_size?: string;
+                transcribe_tier?: string;
             };
         } | null,
         isProcessing: false,
         videoUrl: 'blob:video',
         processedCues: [{ start: 0, end: 1, text: 'hello' }],
+        cues: [{ start: 0, end: 1, text: 'hello' }],
         subtitlePosition: 20,
+        setSubtitlePosition: jest.fn(),
         subtitleColor: '#FFFF00',
         subtitleSize: 100,
+        setSubtitleSize: jest.fn(),
         karaokeEnabled: true,
         maxSubtitleLines: 2,
         shadowStrength: 4,
@@ -110,6 +147,14 @@ function buildContext() {
         exportError: null as string | null,
         onReset: jest.fn(),
         onJobSelect: jest.fn(),
+        editingCueIndex: null as number | null,
+        editingCueDraft: '',
+        editingCueSurface: null as 'video' | 'transcript' | null,
+        isSavingTranscript: false,
+        beginEditingCue: jest.fn(),
+        handleUpdateDraft: jest.fn(),
+        saveEditingCue: jest.fn(async () => { }),
+        cancelEditingCue: jest.fn(),
     };
 }
 
@@ -137,7 +182,7 @@ describe('PreviewSection', () => {
             status: 'completed',
             result_data: {
                 transcribe_provider: 'groq',
-                model_size: 'standard',
+                transcribe_tier: 'standard',
             },
         };
 
@@ -145,6 +190,17 @@ describe('PreviewSection', () => {
 
         fireEvent.click(screen.getByTestId('preview-player'));
         expect(setCurrentTime).toHaveBeenCalledWith(12.5);
+
+        const inlineEditorBridge = screen.getByTestId('inline-editor-bridge');
+        expect(inlineEditorBridge).toHaveAttribute('data-source-cues', '1');
+        fireEvent.click(inlineEditorBridge);
+        expect(contextValue.beginEditingCue).toHaveBeenCalledWith(0, 'video');
+
+        fireEvent.click(screen.getByTestId('position-on-video'));
+        fireEvent.click(screen.getByTestId('resize-on-video'));
+        expect(contextValue.setSubtitlePosition).toHaveBeenCalledWith(42);
+        expect(contextValue.setSubtitleSize).toHaveBeenCalledWith(115);
+        expect(screen.getByText('subtitleDirectManipulationHint')).toBeInTheDocument();
 
         fireEvent.click(screen.getByTestId('srt-btn'));
         fireEvent.click(screen.getByTestId('vtt-btn'));
@@ -186,7 +242,7 @@ describe('PreviewSection', () => {
             status: 'completed',
             result_data: {
                 transcribe_provider: 'groq',
-                model_size: 'standard',
+                transcribe_tier: 'standard',
             },
         };
         contextValue.exportError = 'Export failed';
@@ -201,7 +257,7 @@ describe('PreviewSection', () => {
             status: 'completed',
             result_data: {
                 transcribe_provider: 'groq',
-                model_size: 'pro',
+                transcribe_tier: 'pro',
             },
         };
 
@@ -220,7 +276,7 @@ describe('PreviewSection', () => {
             status: 'completed',
             result_data: {
                 transcribe_provider: 'groq',
-                model_size: 'standard',
+                transcribe_tier: 'standard',
             },
         };
 

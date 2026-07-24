@@ -196,14 +196,14 @@ def test_run_video_processing_uses_precomputed_probe(monkeypatch, tmp_path: Path
 
     captured: dict[str, object] = {}
 
-    def fake_normalize_and_stub_subtitles(**kwargs):
+    def fake_process_video_pipeline(**kwargs):
         captured["media_probe"] = kwargs["media_probe"]
         destination = kwargs["output_path"]
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(b"preview")
         return destination
 
-    monkeypatch.setattr(processing_tasks, "normalize_and_stub_subtitles", fake_normalize_and_stub_subtitles)
+    monkeypatch.setattr(processing_tasks, "process_video_pipeline", fake_process_video_pipeline)
     monkeypatch.setattr(processing_tasks, "get_gcs_settings", lambda: None)
 
     job = SimpleNamespace(status="pending")
@@ -211,7 +211,7 @@ def test_run_video_processing_uses_precomputed_probe(monkeypatch, tmp_path: Path
     job_store.get_job.return_value = job
 
     proc_settings = ProcessingSettings(
-        transcribe_model="standard",
+        transcribe_tier="standard",
         transcribe_provider="groq",
         video_quality="balanced",
     )

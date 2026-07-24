@@ -29,31 +29,6 @@ class TestTierNormalization:
             pricing.normalize_tier("invalid")
 
 
-class TestTierResolution:
-    """Test resolving tier from legacy model strings."""
-
-    def test_resolve_tier_from_standard(self) -> None:
-        assert pricing.resolve_tier_from_model("standard") == "standard"
-        assert pricing.resolve_tier_from_model("turbo") == "standard"
-        assert pricing.resolve_tier_from_model("enhanced") == "standard"
-        assert pricing.resolve_tier_from_model("whisper-large-v3-turbo") == "standard"
-
-    def test_resolve_tier_from_pro(self) -> None:
-        assert pricing.resolve_tier_from_model("pro") == "pro"
-        assert pricing.resolve_tier_from_model("ultimate") == "pro"
-        assert pricing.resolve_tier_from_model("whisper-1") == "pro"
-        assert pricing.resolve_tier_from_model("whisper-large-v3") == "pro"
-        assert pricing.resolve_tier_from_model("openai") == "pro"
-        assert pricing.resolve_tier_from_model("gpt-4o-transcribe") == "pro"
-        assert pricing.resolve_tier_from_model("gpt-4o-mini-transcribe") == "pro"
-
-    def test_resolve_tier_from_none_returns_default(self) -> None:
-        assert pricing.resolve_tier_from_model(None) == settings.default_transcribe_tier
-
-    def test_resolve_tier_from_empty_returns_default(self) -> None:
-        assert pricing.resolve_tier_from_model("") == settings.default_transcribe_tier
-
-
 class TestProviderResolution:
     """Test transcription provider resolution."""
 
@@ -120,6 +95,45 @@ class TestLlmModelsResolution:
 
 class TestCreditsCalculation:
     """Test credit calculation functions."""
+
+    @pytest.mark.parametrize(
+        ("duration_seconds", "expected_credits", "expected_key"),
+        [
+            (0.001, 30, "up_to_3m"),
+            (180.0, 30, "up_to_3m"),
+            (180.001, 60, "up_to_6m"),
+            (360.0, 60, "up_to_6m"),
+            (360.001, 100, "up_to_10m"),
+            (600.0, 100, "up_to_10m"),
+        ],
+    )
+    def test_video_credit_brackets(
+        self,
+        duration_seconds: float,
+        expected_credits: int,
+        expected_key: str,
+    ) -> None:
+        # REGRESSION: client and server must agree on the exact 3/6/10 minute
+        # boundaries so an upload can never dispatch with an under-reservation.
+        quote = pricing.video_credit_quote(duration_seconds)
+
+        assert quote.credits == expected_credits
+        assert quote.key == expected_key
+        assert pricing.credits_for_video_duration(duration_seconds) == expected_credits
+
+    @pytest.mark.parametrize("duration_seconds", [0, -1, float("nan"), float("inf"), 600.001])
+    def test_video_credit_brackets_reject_unpriced_durations(
+        self,
+        duration_seconds: float,
+    ) -> None:
+        with pytest.raises(ValueError, match="duration"):
+            pricing.video_credit_quote(duration_seconds)
+
+    def test_public_video_credit_catalog_is_immutable_copy(self) -> None:
+        catalog = pricing.video_credit_catalog()
+        catalog[0]["credits"] = 999
+
+        assert pricing.video_credit_catalog()[0]["credits"] == 30
 
     def test_credits_for_minutes_standard(self) -> None:
         credits = pricing.credits_for_minutes(tier="standard", duration_seconds=60.0, min_credits=25)
@@ -208,7 +222,7 @@ class TestCostEstimation:
 
     def test_llm_cost_estimate_uses_configured_model_pricing(self) -> None:
         cost = pricing.llm_cost_estimate_usd(
-            model_name="gpt-5.1-mini",
+            model_name="gpt-5-mini",
             prompt_tokens=1_000_000,
             completion_tokens=1_000_000,
         )

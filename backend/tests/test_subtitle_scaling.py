@@ -13,7 +13,7 @@ def test_ass_generation_forces_1080p_playres():
     Verify that ASS generation uses 1080x1920 PlayRes
     even if the output resolution is different (e.g. 720p).
     """
-    with patch("backend.app.services.video_processing.subtitles.create_styled_subtitle_file") as mock_create_ass, \
+    with patch("backend.app.services.video_processing.subtitle_renderer.create_styled_subtitle_file") as mock_create_ass, \
          patch("backend.app.services.video_processing.Path.exists", return_value=True), \
          patch("backend.app.services.ffmpeg_utils.probe_media") as mock_probe, \
          patch("backend.app.services.video_processing.subtitles.extract_audio") as mock_extract, \
@@ -31,7 +31,7 @@ def test_ass_generation_forces_1080p_playres():
         output_path = Path("/tmp/output.mp4")
         artifact_dir = Path("/tmp/artifacts")
 
-        video_processing.normalize_and_stub_subtitles(
+        video_processing.process_video_pipeline(
             input_path=input_path,
             output_path=output_path,
             artifact_dir=artifact_dir,
@@ -50,7 +50,7 @@ def test_ass_generation_forces_1080p_playres():
 
 def test_generate_video_variant_forces_1080p_playres():
     """Verify export logic also forces 1080p reference."""
-    with patch("backend.app.services.video_processing.subtitles.create_styled_subtitle_file") as mock_create_ass, \
+    with patch("backend.app.services.video_processing.subtitle_renderer.create_styled_subtitle_file") as mock_create_ass, \
          patch("backend.app.services.video_processing.Path.exists", return_value=True), \
          patch("backend.app.services.ffmpeg_utils.probe_media"), \
          patch("backend.app.services.ffmpeg_utils.run_ffmpeg_with_subs"):

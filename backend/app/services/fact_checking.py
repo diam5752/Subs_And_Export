@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass
-from typing import Any, List
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -17,7 +17,7 @@ from backend.app.services.usage_ledger import ChargeReservation, UsageLedgerStor
 logger = logging.getLogger(__name__)
 
 
-@dataclass
+@dataclass(slots=True)
 class FactCheckItem:
     mistake_el: str
     mistake_en: str
@@ -33,12 +33,12 @@ class FactCheckItem:
     scientific_evidence_en: str
 
 
-@dataclass
+@dataclass(slots=True)
 class FactCheckResult:
     truth_score: int
     supported_claims_pct: int
     claims_checked: int
-    items: List[FactCheckItem]
+    items: list[FactCheckItem]
 
 
 def generate_fact_check(
@@ -83,6 +83,9 @@ def generate_fact_check(
     total_cost = 0.0
     breakdown: dict[str, Any] = {}
 
+    if ledger_store and charge_reservation:
+        ledger_store.mark_dispatched(charge_reservation)
+
     try:
         extract_response = client.chat.completions.create(
             model=extraction_model_name, # Cheap model
@@ -91,6 +94,7 @@ def generate_fact_check(
                 {"role": "user", "content": transcript_text.strip()[:settings.max_llm_input_chars]}
             ],
             temperature=0.3,
+            max_completion_tokens=settings.max_llm_output_tokens_extraction,
             response_format={"type": "json_object"},
             timeout=30.0
         )
@@ -133,9 +137,8 @@ def generate_fact_check(
                     completion_tokens=usage_completion,
                     min_credits=charge_reservation.min_credits,
                 )
-                if session and total_cost <= 0:
-                    total_cost = pricing.llm_cost_usd(
-                        session,
+                if total_cost <= 0:
+                    total_cost = pricing.llm_cost_estimate_usd(
                         model_name=extraction_model_name,
                         prompt_tokens=usage_prompt,
                         completion_tokens=usage_completion,
@@ -157,6 +160,13 @@ def generate_fact_check(
 
     except Exception as e:
         logger.warning(f"Fact Check Extraction failed: {e}. Fallback to full check.")
+        if ledger_store and charge_reservation:
+            ledger_store.fail(
+                charge_reservation,
+                status="failed",
+                error=f"Fact-check extraction failed: {type(e).__name__}",
+            )
+            raise ValueError("Fact-check extraction failed after provider dispatch") from e
         # Fallback to original full check if extraction fails
         claims = ["Full Text Analysis"]
 
@@ -216,7 +226,7 @@ def generate_fact_check(
     ]
 
 
-    max_retries = 2
+    max_retries = 0 if charge_reservation else 2
     last_exc = None
 
     for attempt in range(max_retries + 1):
@@ -295,9 +305,8 @@ def generate_fact_check(
                     completion_tokens=usage_completion,
                     min_credits=charge_reservation.min_credits,
                 )
-                if session and total_cost <= 0:
-                    total_cost = pricing.llm_cost_usd(
-                        session,
+                if total_cost <= 0:
+                    total_cost = pricing.llm_cost_estimate_usd(
                         model_name=model_name,
                         prompt_tokens=usage_prompt,
                         completion_tokens=usage_completion,
@@ -339,9 +348,8 @@ def generate_fact_check(
                 completion_tokens=usage_completion,
                 min_credits=charge_reservation.min_credits,
             )
-            if session and total_cost <= 0:
-                total_cost = pricing.llm_cost_usd(
-                    session,
+            if total_cost <= 0:
+                total_cost = pricing.llm_cost_estimate_usd(
                     model_name=model_name,
                     prompt_tokens=usage_prompt,
                     completion_tokens=usage_completion,

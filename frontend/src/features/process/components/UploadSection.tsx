@@ -4,7 +4,12 @@ import { useI18n } from '@/context/I18nContext';
 import { useProcessContext } from '../ProcessContext';
 import { validateVideoAspectRatio } from '@/lib/video';
 import { TokenIcon } from '@/components/icons';
-import { formatPoints, processVideoCostForSelection } from '@/lib/points';
+import {
+    formatPoints,
+    processVideoCostForSelection,
+    VIDEO_CREDIT_BRACKETS,
+    videoCreditQuoteForDuration,
+} from '@/lib/points';
 import { resolveTranscriptionTier } from '@/lib/transcription';
 
 const parsedMaxUploadMb = Number(process.env.NEXT_PUBLIC_MAX_UPLOAD_MB ?? '1024');
@@ -12,15 +17,24 @@ const MAX_UPLOAD_MB = Number.isFinite(parsedMaxUploadMb) && parsedMaxUploadMb > 
     ? Math.floor(parsedMaxUploadMb)
     : 1024;
 const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
-const MAX_VIDEO_DURATION_SECONDS = 3 * 60 + 30;
+const parsedMaxVideoDurationSeconds = Number(process.env.NEXT_PUBLIC_MAX_VIDEO_DURATION_SECONDS ?? '600');
+const MAX_VIDEO_DURATION_SECONDS = Number.isFinite(parsedMaxVideoDurationSeconds) && parsedMaxVideoDurationSeconds > 0
+    ? Math.floor(parsedMaxVideoDurationSeconds)
+    : 600;
+const MAX_VIDEO_DURATION_LABEL = `${Math.floor(MAX_VIDEO_DURATION_SECONDS / 60)}:${String(MAX_VIDEO_DURATION_SECONDS % 60).padStart(2, '0')}`;
 const ALLOWED_VIDEO_EXT = /\.(mp4|mov|mkv)$/i;
+
+function formatVideoDuration(durationSeconds: number): string {
+    const roundedSeconds = Math.max(1, Math.ceil(durationSeconds));
+    return `${Math.floor(roundedSeconds / 60)}:${String(roundedSeconds % 60).padStart(2, '0')}`;
+}
 
 export function UploadSection() {
     const { t } = useI18n();
     const unsupportedTypeError = t('uploadUnsupportedType');
     const oversizedFileError = t('uploadFileTooLarge', { size: MAX_UPLOAD_MB });
     const unreadableDurationError = t('uploadDurationUnreadable');
-    const excessiveDurationError = t('uploadDurationTooLong');
+    const excessiveDurationError = t('uploadDurationTooLong', { duration: MAX_VIDEO_DURATION_LABEL });
 
     const {
         selectedFile,
@@ -40,24 +54,25 @@ export function UploadSection() {
         progress,
         statusMessage,
         onCancelProcessing,
-        videoUrl
+        videoUrl,
+        transcribeMode,
+        transcribeProvider,
     } = useProcessContext();
 
     const [isDragOver, setIsDragOver] = useState(false);
     const [fileValidationError, setFileValidationError] = useState<string | null>(null);
     // Step 1 starts with a compact summary for an existing file. Step 2 expands
     // the same input summary to show processing controls and progress.
-    const [localCollapsed, setLocalCollapsed] = useState(() => currentStep === 1);
+    const [collapsePreference, setCollapsePreference] = useState<{
+        step: number;
+        collapsed: boolean;
+    } | null>(null);
     const validationRequestId = React.useRef(0);
 
+    const localCollapsed = collapsePreference?.step === currentStep
+        ? collapsePreference.collapsed
+        : currentStep === 1;
     const isExpanded = !localCollapsed || isProcessing;
-
-    // The top workflow indicator is the only step navigator. Moving between
-    // steps only changes this card's presentation; the card itself never
-    // changes the active workflow step.
-    useEffect(() => {
-        setLocalCollapsed(currentStep === 1);
-    }, [currentStep]);
 
     const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0] || null;
@@ -136,23 +151,30 @@ export function UploadSection() {
     // Effect for validating video when selectedFile changes
     useEffect(() => {
         let isCancelled = false;
-
-        if (!selectedFile) {
-            validationRequestId.current += 1;
-            setVideoInfo(null);
-            setPreviewVideoUrl(null);
-            setCues([]);
-            setFileValidationError(null);
-            return;
-        }
-
         const requestId = ++validationRequestId.current;
 
-        const blobUrl = URL.createObjectURL(selectedFile);
-        setPreviewVideoUrl(blobUrl);
-        setCues([]);
+        if (!selectedFile) {
+            queueMicrotask(() => {
+                if (isCancelled || requestId !== validationRequestId.current) return;
+                setVideoInfo(null);
+                setPreviewVideoUrl(null);
+                setCues([]);
+                setFileValidationError(null);
+            });
+            return () => {
+                isCancelled = true;
+            };
+        }
 
-        validateVideoAspectRatio(selectedFile).then(info => {
+        const blobUrl = URL.createObjectURL(selectedFile);
+        queueMicrotask(() => {
+            if (isCancelled || requestId !== validationRequestId.current) return;
+            setPreviewVideoUrl(blobUrl);
+            setCues([]);
+            setFileValidationError(null);
+        });
+
+        void validateVideoAspectRatio(selectedFile).then(info => {
             if (!isCancelled && requestId === validationRequestId.current) {
                 setVideoInfo(info);
                 if (info.durationSeconds <= 0) {
@@ -171,12 +193,20 @@ export function UploadSection() {
 
     const handleSummaryToggle = useCallback(() => {
         if (!isProcessing) {
-            setLocalCollapsed((collapsed) => !collapsed);
+            setCollapsePreference({ step: currentStep, collapsed: !localCollapsed });
         }
-    }, [isProcessing]);
+    }, [currentStep, isProcessing, localCollapsed]);
 
     return useMemo(() => {
-        const selectedCost = processVideoCostForSelection('mock', 'standard');
+        const pricingDuration = videoInfo?.durationSeconds
+            ?? selectedJob?.result_data?.duration_seconds
+            ?? null;
+        const selectedQuote = videoCreditQuoteForDuration(pricingDuration);
+        const selectedCost = processVideoCostForSelection(
+            transcribeProvider,
+            transcribeMode,
+            pricingDuration,
+        );
 
         // Show compact view if we have a file OR a completed job (restored state)
         // Check if we have consistent job data to display if file is missing
@@ -334,11 +364,10 @@ export function UploadSection() {
                                             {(() => {
                                                 // Check if we have a completed job that matches current tier
                                                 const jobCompleted = selectedJob?.status === 'completed';
-                                                const jobProvider = selectedJob?.result_data?.transcribe_provider;
-                                                const jobModel = selectedJob?.result_data?.model_size;
-
-                                                const jobTier = resolveTranscriptionTier(jobProvider, jobModel);
-                                                const selectedTier = 'standard';
+                                                const jobTier = resolveTranscriptionTier(
+                                                    selectedJob?.result_data?.transcribe_tier,
+                                                );
+                                                const selectedTier = transcribeMode;
                                                 const isMatch = Boolean(jobCompleted && jobTier === selectedTier);
 
                                                 if (isMatch) {
@@ -410,6 +439,54 @@ export function UploadSection() {
                                     </button>
                                 </div>
                             </div>
+                            <div
+                                data-testid="video-credit-pricing"
+                                className="rounded-2xl border border-sky-400/20 bg-sky-400/[0.045] p-4"
+                            >
+                                <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+                                    <div>
+                                        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-sky-500">
+                                            {t('videoCreditPricingKicker')}
+                                        </p>
+                                        <p className="mt-1 text-sm text-[var(--muted)]">
+                                            {pricingDuration
+                                                ? t('videoCreditPricingDuration', {
+                                                    duration: formatVideoDuration(pricingDuration),
+                                                })
+                                                : t('videoCreditPricingPending')}
+                                        </p>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-sm font-bold text-sky-500">
+                                        <TokenIcon className="h-4 w-4" />
+                                        <span>{formatPoints(selectedCost)} {t('creditsLabel')}</span>
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-3 gap-2" aria-label={t('videoCreditPricingTiers')}>
+                                    {VIDEO_CREDIT_BRACKETS.map((quote) => {
+                                        const isActive = quote.key === selectedQuote.key;
+                                        return (
+                                            <div
+                                                key={quote.key}
+                                                data-active={isActive ? 'true' : 'false'}
+                                                className={`rounded-xl border px-2 py-3 text-center transition ${
+                                                    isActive
+                                                        ? 'border-sky-400 bg-sky-400/10 text-[var(--foreground)] shadow-[0_0_0_1px_rgba(56,189,248,0.12)]'
+                                                        : 'border-[var(--border)] bg-[var(--surface-elevated)] text-[var(--muted)]'
+                                                }`}
+                                            >
+                                                <span className="block text-[10px] font-semibold uppercase tracking-wide">
+                                                    {t('videoCreditPricingUpTo', {
+                                                        minutes: quote.maxDurationSeconds / 60,
+                                                    })}
+                                                </span>
+                                                <strong className="mt-1 block text-sm">
+                                                    {formatPoints(quote.credits)} {t('creditsLabel')}
+                                                </strong>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
                         </div>
                         {error && (
                             <div className="rounded-xl border border-[var(--danger)]/30 bg-[var(--danger)]/10 px-4 py-3 text-sm text-[var(--danger)] animate-fade-in">
@@ -436,12 +513,13 @@ export function UploadSection() {
                                     <span id="progress-label" className="font-medium">{statusMessage || t('progressLabel')}</span>
                                     <span className="text-[var(--accent)] font-semibold">{progress}%</span>
                                 </div>
-                                <div className="w-full bg-[var(--surface)] rounded-full h-2 overflow-hidden" aria-hidden="true">
-                                    <div
-                                        className="progress-bar bg-gradient-to-r from-[var(--accent)] to-[var(--accent-secondary)] h-2 rounded-full"
-                                        style={{ width: `${progress}%` }}
-                                    />
-                                </div>
+                                <progress
+                                    className="upload-progress"
+                                    value={progress}
+                                    max={100}
+                                    aria-hidden="true"
+                                    tabIndex={-1}
+                                />
                                 {onCancelProcessing && (
                                     <div className="flex justify-end pt-1">
                                         <button
@@ -500,7 +578,7 @@ export function UploadSection() {
                         {isDragOver ? t('dropFileHere') : t('uploadDropTitle')}
                     </span>
                     <p>{isDragOver ? t('releaseToUpload') : t('uploadDropSubtitle')}</p>
-                    <small>{t('uploadDropFootnote')}</small>
+                    <small>{t('uploadDropFootnote', { duration: MAX_VIDEO_DURATION_LABEL })}</small>
                 </div>
 
                 {fileValidationError && (
@@ -517,6 +595,6 @@ export function UploadSection() {
         isExpanded,
         handleUploadCardClick, handleDragEnter, handleDragLeave, handleDragOver,
         handleDrop, fileInputRef, handleFileChange, fileValidationError, videoUrl, progress, statusMessage, onCancelProcessing,
-        onJobSelect, setOverrideStep
+        onJobSelect, setOverrideStep, transcribeMode, transcribeProvider
     ]);
 }

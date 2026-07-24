@@ -7,31 +7,26 @@ import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
-try:
-    from google.auth.transport.requests import Request as GoogleAuthRequest
-    from google.cloud import storage
-except Exception:  # pragma: no cover
-    GoogleAuthRequest = None  # type: ignore[assignment]
-    storage = None  # type: ignore[assignment]
-
-# Define TimeoutRequest to enforce timeouts on auth calls
-if GoogleAuthRequest:
-    class TimeoutRequest(GoogleAuthRequest):
-        def __call__(self, *args, **kwargs):
-            kwargs.setdefault("timeout", 30)
-            return super().__call__(*args, **kwargs)
-else:
-    TimeoutRequest = None
+from google.auth.transport.requests import Request as GoogleAuthRequest
+from google.cloud import storage
 
 from .config import settings
+
+
+class TimeoutRequest(GoogleAuthRequest):
+    """Google auth transport with a bounded network timeout."""
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        kwargs.setdefault("timeout", 30)
+        return super().__call__(*args, **kwargs)  # type: ignore[no-untyped-call]
 
 _BUCKET_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{1,220}[a-z0-9]$")
 _PREFIX_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9/_-]{0,250}[A-Za-z0-9]$")
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class GcsSettings:
     bucket: str
     uploads_prefix: str
@@ -41,12 +36,9 @@ class GcsSettings:
     keep_uploads: bool
 
 
-def _require_storage() -> None:
-    if storage is None or GoogleAuthRequest is None:
-        raise RuntimeError("google-cloud-storage is required; install backend requirements")
-
-
-def _coerce_bool(value: str | None, default: bool) -> bool:
+def _coerce_bool(value: bool | str | None, default: bool) -> bool:
+    if isinstance(value, bool):
+        return value
     if value is None:
         return default
     lowered = value.strip().lower()
@@ -100,19 +92,16 @@ def get_gcs_settings() -> GcsSettings | None:
 
 
 def _refresh_access_token(client: Any) -> str:
-    _require_storage()
     credentials = client._credentials
-    # Use TimeoutRequest to prevent hanging on auth refresh
-    request = TimeoutRequest() if TimeoutRequest else GoogleAuthRequest()  # type: ignore[operator]
+    request = TimeoutRequest()
     credentials.refresh(request)
     token = credentials.token
     if not token:
         raise RuntimeError("Could not obtain Google access token for signing")
-    return token
+    return str(token)
 
 
 def _signing_service_account_email(client: Any) -> str:
-    _require_storage()
     override = os.getenv("GSP_GCS_SIGNER_EMAIL")
     if override:
         return override.strip()
@@ -137,7 +126,6 @@ def generate_signed_upload_url(
     Note: In Cloud Run / GCE environments, signed URLs require IAM signBlob permissions
     (typically `roles/iam.serviceAccountTokenCreator` on the runtime service account).
     """
-    _require_storage()
     client = storage.Client()
     bucket = client.bucket(settings.bucket)
     blob = bucket.blob(object_name)
@@ -152,7 +140,7 @@ def generate_signed_upload_url(
     if content_length is not None:
         headers["Content-Length"] = str(content_length)
 
-    return blob.generate_signed_url(
+    signed_url = blob.generate_signed_url(
         version="v4",
         expiration=dt.timedelta(seconds=ttl),
         method="PUT",
@@ -162,6 +150,9 @@ def generate_signed_upload_url(
         scheme="https",
         headers=headers if headers else None,
     )
+    if not isinstance(signed_url, str):
+        raise RuntimeError("Google Cloud Storage returned an invalid upload URL")
+    return signed_url
 
 
 def generate_signed_download_url(
@@ -169,9 +160,9 @@ def generate_signed_download_url(
     settings: GcsSettings,
     object_name: str,
     ttl_seconds: int | None = None,
+    response_disposition: str | None = None,
 ) -> str:
     """Generate a signed GET URL for downloads (short-lived)."""
-    _require_storage()
     client = storage.Client()
     bucket = client.bucket(settings.bucket)
     blob = bucket.blob(object_name)
@@ -182,14 +173,23 @@ def generate_signed_download_url(
     ttl = ttl_seconds if ttl_seconds is not None else settings.download_url_ttl_seconds
     ttl = _clamp_ttl_seconds(ttl, settings.download_url_ttl_seconds)
 
-    return blob.generate_signed_url(
-        version="v4",
-        expiration=dt.timedelta(seconds=ttl),
-        method="GET",
-        service_account_email=signer_email,
-        access_token=access_token,
-        scheme="https",
+    signed_url_kwargs: dict[str, Any] = {
+        "version": "v4",
+        "expiration": dt.timedelta(seconds=ttl),
+        "method": "GET",
+        "service_account_email": signer_email,
+        "access_token": access_token,
+        "scheme": "https",
+    }
+    if response_disposition:
+        signed_url_kwargs["response_disposition"] = response_disposition
+
+    signed_url = blob.generate_signed_url(
+        **signed_url_kwargs,
     )
+    if not isinstance(signed_url, str):
+        raise RuntimeError("Google Cloud Storage returned an invalid download URL")
+    return signed_url
 
 
 def upload_object(
@@ -199,7 +199,6 @@ def upload_object(
     source: Path,
     content_type: str | None = None,
 ) -> None:
-    _require_storage()
     client = storage.Client()
     blob = client.bucket(settings.bucket).blob(object_name)
     # Enforce timeout on upload to prevent hanging
@@ -207,7 +206,6 @@ def upload_object(
 
 
 def delete_prefix(*, settings: GcsSettings, prefix: str) -> None:
-    _require_storage()
     client = storage.Client()
     bucket = client.bucket(settings.bucket)
     for blob in bucket.list_blobs(prefix=prefix):
@@ -222,7 +220,6 @@ def download_object(
     max_bytes: int,
 ) -> int:
     """Download a GCS object to disk, enforcing a maximum size."""
-    _require_storage()
     client = storage.Client()
     blob = client.bucket(settings.bucket).blob(object_name)
     blob.reload()
@@ -241,11 +238,14 @@ def download_object(
 
 
 def delete_object(*, settings: GcsSettings, object_name: str) -> None:
-    _require_storage()
     client = storage.Client()
     client.bucket(settings.bucket).blob(object_name).delete()
 
 
-def max_upload_bytes(provided_settings: Any | None = None) -> int:
+class UploadSizeSettings(Protocol):
+    max_upload_mb: int
+
+
+def max_upload_bytes(provided_settings: UploadSizeSettings | None = None) -> int:
     s = provided_settings or settings
     return int(s.max_upload_mb) * 1024 * 1024

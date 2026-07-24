@@ -96,6 +96,10 @@ def read_users_me(
 
 class PointsBalanceResponse(BaseModel):
     balance: int
+    paid_balance: int
+    promotional_balance: int
+    reversal_debt: int
+    ai_spendable_balance: int
 
 
 @router.get("/points", response_model=PointsBalanceResponse)
@@ -104,7 +108,14 @@ def read_my_points(
     points_store: PointsStore = Depends(get_points_store),
 ) -> Any:
     """Get current user's points balance."""
-    return {"balance": points_store.get_balance(current_user.id)}
+    wallet = points_store.get_balances(current_user.id)
+    return {
+        "balance": wallet.balance,
+        "paid_balance": wallet.paid_balance,
+        "promotional_balance": wallet.promotional_balance,
+        "reversal_debt": wallet.reversal_debt,
+        "ai_spendable_balance": wallet.ai_spendable_balance,
+    }
 
 class UserUpdateName(BaseModel):
     name: str = Field(..., max_length=100)

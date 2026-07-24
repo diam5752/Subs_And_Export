@@ -1,10 +1,11 @@
-from backend.app.services import subtitles
+from backend.app.services import subtitle_renderer
+from backend.app.services.subtitle_types import Cue
 
 
 def test_sanitize_ass_text_removes_newlines():
     """Verify that newlines are removed to prevent ASS injection."""
     malicious = "Hello\nDialogue: 0,0:00:00.00,0:00:05.00,Default,,0,0,0,,Injected!"
-    sanitized = subtitles.subtitle_renderer.sanitize_ass_text(malicious)
+    sanitized = subtitle_renderer.sanitize_ass_text(malicious)
 
     assert "\n" not in sanitized
     assert "\r" not in sanitized
@@ -16,13 +17,13 @@ def test_create_styled_subtitle_file_resists_injection(tmp_path):
     # We use a payload that fits on one line but contains a newline injection
     malicious_text = "Hello\nDialogue: 0,0:00:00.00,0:00:01.00,Default,,0,0,0,,Hacked"
 
-    cue = subtitles.Cue(start=0.0, end=1.0, text=malicious_text)
+    cue = Cue(start=0.0, end=1.0, text=malicious_text)
 
     srt_path = tmp_path / "test.srt"
     srt_path.write_text("1\n00:00:00,000 --> 00:00:01,000\nDummy", encoding="utf-8")
 
     # We generate the ASS file
-    ass_path = subtitles.create_styled_subtitle_file(
+    ass_path = subtitle_renderer.create_styled_subtitle_file(
         srt_path,
         cues=[cue],
         output_dir=tmp_path,
@@ -50,7 +51,7 @@ def test_create_styled_subtitle_file_resists_injection(tmp_path):
 def test_sanitize_ass_text_removes_tags():
     """Verify that ASS override tags are neutralized."""
     malicious = "Hello {\\c&H0000FF&}World"
-    sanitized = subtitles.subtitle_renderer.sanitize_ass_text(malicious)
+    sanitized = subtitle_renderer.sanitize_ass_text(malicious)
 
     assert "{" not in sanitized
     assert "}" not in sanitized

@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 import time
 from pathlib import Path
+from typing import Any
 
 from ...core.auth import User
 from ...core.config import settings as app_settings
@@ -15,7 +16,7 @@ from ...services.ffmpeg_utils import MediaProbe, probe_media
 from ...services.history import HistoryStore
 from ...services.jobs import JobStore
 from ...services.usage_ledger import ChargePlan, UsageLedgerStore
-from ...services.video_processing import normalize_and_stub_subtitles, resolve_runtime_transcribe_provider
+from ...services.video_processing import process_video_pipeline, resolve_runtime_transcribe_provider
 from .file_utils import MAX_UPLOAD_BYTES, data_roots, relpath_safe
 from .settings import ProcessingSettings
 
@@ -53,15 +54,15 @@ def record_event_safe(
     user: User | None,
     kind: str,
     summary: str,
-    data: dict,
+    data: dict[str, Any],
 ) -> None:
     """Best-effort history logger that never raises."""
     if not history_store or not user:
         return
     try:
         history_store.record_event(user, kind, summary, data)
-    except Exception:
-        return
+    except Exception as exc:
+        logger.warning("Failed to record history event %s: %s", kind, exc)
 
 
 def run_video_processing(
@@ -113,10 +114,9 @@ def run_video_processing(
 
         data_dir, _, _ = data_roots()
 
-        # Map settings to internal params
-        model_size = settings.transcribe_model
+        tier = settings.transcribe_tier
         requested_provider = settings.transcribe_provider or app_settings.transcribe_tier_provider.get(
-            settings.transcribe_model, app_settings.transcribe_tier_provider[app_settings.default_transcribe_tier]
+            settings.transcribe_tier, app_settings.transcribe_tier_provider[app_settings.default_transcribe_tier]
         )
         provider = resolve_runtime_transcribe_provider(requested_provider)
         crf_map = {"low size": 28, "balanced": 20, "high quality": 12}
@@ -137,10 +137,10 @@ def run_video_processing(
         artifact_dir.mkdir(parents=True, exist_ok=True)
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        result = normalize_and_stub_subtitles(
+        result = process_video_pipeline(
             input_path=input_path,
             output_path=output_path,
-            model_size=model_size,
+            transcribe_tier=tier,
             generate_social_copy=settings.use_llm,
             use_llm_social_copy=settings.use_llm,
             llm_model=settings.llm_model,
@@ -179,7 +179,7 @@ def run_video_processing(
             final_path = result
 
         logger.debug(
-            "normalize_and_stub_subtitles completed: max_subtitle_lines=%s subtitle_color=%s shadow_strength=%s highlight_style=%s",
+            "process_video_pipeline completed: max_subtitle_lines=%s subtitle_color=%s shadow_strength=%s highlight_style=%s",
             settings.max_subtitle_lines,
             settings.subtitle_color,
             settings.shadow_strength,
@@ -219,7 +219,7 @@ def run_video_processing(
             "social": social.generic.title_en if social else None,
             "original_filename": original_name or input_path.name,
             "video_crf": video_crf,
-            "model_size": model_size,
+            "transcribe_tier": tier,
             "transcribe_provider": provider,
             "output_size": final_path.stat().st_size if final_path.exists() else 0,
             "resolution": f"{target_width}x{target_height}" if target_width and target_height else "",
@@ -244,7 +244,7 @@ def run_video_processing(
             f"Processed {original_name or input_path.name}",
             {
                 "job_id": job_id,
-                "model_size": model_size,
+                "transcribe_tier": tier,
                 "provider": provider,
                 "video_crf": video_crf,
                 "output": result_data.get("public_url"),
@@ -342,8 +342,8 @@ def run_gcs_video_processing(
             if final_job and final_job.status == "completed":
                 try:
                     delete_object(settings=gcs_settings, object_name=gcs_object_name)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning("Failed to delete processed GCS upload %s: %s", gcs_object_name, exc)
     except Exception as exc:
         input_path.unlink(missing_ok=True)
         safe_msg = sanitize_message(str(exc))

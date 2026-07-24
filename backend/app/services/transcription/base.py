@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import List
+from typing import Any
 
 from backend.app.services.subtitle_types import Cue
 
@@ -11,7 +11,14 @@ class Transcriber(ABC):
     """
 
     @abstractmethod
-    def transcribe(self, audio_path: Path, output_dir: Path, language: str = "en", model: str = "base", **kwargs) -> tuple[Path, List[Cue]]:
+    def transcribe(
+        self,
+        audio_path: Path,
+        output_dir: Path,
+        language: str = "en",
+        model: str = "base",
+        **kwargs: Any,
+    ) -> tuple[Path, list[Cue]]:
         """
         Transcribe audio file into a list of timed Cues.
 
@@ -23,6 +30,6 @@ class Transcriber(ABC):
             **kwargs: Additional provider-specific arguments (temperature, vad_filter, etc.).
 
         Returns:
-            Tuple[Path, List[Cue]]: The path to the generated SRT file and the list of cues.
+            The generated SRT path and timed cues.
         """
-        pass
+        raise NotImplementedError

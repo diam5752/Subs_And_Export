@@ -19,6 +19,9 @@ jest.mock('@/lib/api', () => ({
         processVideoFromGcs: jest.fn(),
         reprocessJob: jest.fn(),
         getPointsBalance: jest.fn(),
+        getCreditCatalog: jest.fn(),
+        createCreditCheckout: jest.fn(),
+        getCreditCheckoutStatus: jest.fn(),
         updateProfile: jest.fn(),
         updatePassword: jest.fn(),
     },
@@ -32,24 +35,34 @@ jest.mock('@/context/PointsContext', () => ({
     __esModule: true,
     ...(() => {
         const setBalanceMock = jest.fn();
+        const setWalletMock = jest.fn();
         const refreshBalanceMock = jest.fn();
         return {
             usePoints: () => ({
                 balance: 125,
+                paidBalance: 125,
+                promotionalBalance: 0,
+                reversalDebt: 0,
+                aiSpendableBalance: 125,
                 isLoading: false,
                 error: null,
                 setBalance: setBalanceMock,
+                setWallet: setWalletMock,
                 refreshBalance: refreshBalanceMock,
             }),
             __setBalanceMock: setBalanceMock,
+            __setWalletMock: setWalletMock,
             __refreshBalanceMock: refreshBalanceMock,
         };
     })(),
 }));
 
-jest.mock('@/context/I18nContext', () => ({
-    useI18n: () => ({ t: (key: string) => key }),
-}));
+jest.mock('@/context/I18nContext', () => {
+    const translate = (key: string) => key;
+    return {
+        useI18n: () => ({ t: translate }),
+    };
+});
 
 jest.mock('@/context/AppEnvContext', () => ({
     useAppEnv: jest.fn(),
@@ -84,6 +97,7 @@ jest.mock('@/features/process/ProcessView', () => ({
                     width: 1920,
                     height: 1080,
                     duration: 10,
+                    sourceDurationSeconds: 10,
                     subtitle_position: 16,
                     max_subtitle_lines: 2,
                     watermark_enabled: true,
@@ -96,6 +110,7 @@ jest.mock('@/features/process/ProcessView', () => ({
                     width: 1920,
                     height: 1080,
                     duration: 10,
+                    sourceDurationSeconds: 10,
                     subtitle_position: 16,
                     max_subtitle_lines: 2,
                     watermark_enabled: true,
@@ -143,6 +158,19 @@ describe('DashboardPage', () => {
             register: mockRegister,
         });
         (api.getPointsBalance as jest.Mock).mockResolvedValue({ balance: 125 });
+        (api.getCreditCatalog as jest.Mock).mockResolvedValue({
+            catalog_version: 'video-credits-v1',
+            currency: 'eur',
+            checkout_enabled: false,
+            packages: [
+                { key: 'starter', credits: 100, amount_eur_cents: 100, featured: false },
+            ],
+            video_pricing: [
+                { key: 'up_to_3m', max_duration_seconds: 180, credits: 30 },
+                { key: 'up_to_6m', max_duration_seconds: 360, credits: 60 },
+                { key: 'up_to_10m', max_duration_seconds: 600, credits: 100 },
+            ],
+        });
         (useJobs as jest.Mock).mockReturnValue({
             selectedJob: null,
             setSelectedJob: mockSetSelectedJob,
@@ -217,6 +245,16 @@ describe('DashboardPage', () => {
         expect(studioHeader).toHaveAttribute('aria-hidden', 'true');
         expect(studioHeader).toHaveAttribute('inert');
         expect(screen.queryByRole('button', { name: 'switchLanguage' })).not.toBeInTheDocument();
+    });
+
+    it('opens the credit packages from the authenticated header balance', async () => {
+        render(<DashboardPage />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'creditsLabel: 125' }));
+
+        expect(await screen.findByRole('dialog', { name: 'creditPurchaseTitle' })).toBeInTheDocument();
+        expect(api.getCreditCatalog).toHaveBeenCalledTimes(1);
+        expect(screen.getByRole('radio', { name: /starter/i })).toBeInTheDocument();
     });
 
     it('opens account settings only from the profile avatar', () => {

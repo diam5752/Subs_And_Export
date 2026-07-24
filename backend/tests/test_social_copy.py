@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from backend.app.services import llm_utils, subtitles
+from backend.app.services import llm_utils, social_intelligence
 
 
 def _fake_openai_client(calls: dict | None = None):
@@ -48,7 +48,7 @@ def _fake_openai_client(calls: dict | None = None):
 def test_build_social_copy_returns_generic_strings() -> None:
     transcript = "Coding tips coding flow python python testing coffee rituals for focus."
 
-    social = subtitles.build_social_copy(transcript)
+    social = social_intelligence.build_social_copy(transcript)
 
     # Updated to check new multilingual fields
     assert social.generic.title_en.startswith("Coding & Python")
@@ -66,7 +66,7 @@ def test_build_social_copy_llm_uses_client(monkeypatch) -> None:
     monkeypatch.setattr("backend.app.services.llm_utils.resolve_openai_api_key", lambda *a: "test-key")
     monkeypatch.setattr("backend.app.services.llm_utils.load_openai_client", lambda api_key: _fake_openai_client(calls))
 
-    social = subtitles.build_social_copy_llm("hello world", model="gpt-test", temperature=0.7)
+    social = social_intelligence.build_social_copy_llm("hello world", model="gpt-test", temperature=0.7)
 
     assert calls["kwargs"]["model"] == "gpt-test"
     assert calls["kwargs"]["temperature"] == 0.7
@@ -87,7 +87,7 @@ def test_build_social_copy_llm_prefers_explicit_key(monkeypatch) -> None:
         lambda api_key: captured_keys.append(api_key) or _fake_openai_client(calls),
     )
 
-    subtitles.build_social_copy_llm("hello world", api_key="explicit-key")
+    social_intelligence.build_social_copy_llm("hello world", api_key="explicit-key")
 
     assert captured_keys == ["explicit-key"]
 
@@ -99,7 +99,7 @@ def test_build_social_copy_llm_requires_key(monkeypatch) -> None:
     monkeypatch.setattr(settings, "social_llm_model", "gpt-test")
     monkeypatch.setattr("backend.app.services.llm_utils.resolve_openai_api_key", lambda: None)
     with pytest.raises(RuntimeError, match="OpenAI API key is required"):
-        subtitles.build_social_copy_llm("hi there")
+        social_intelligence.build_social_copy_llm("hi there")
 
 
 def test_clean_json_response_strips_markdown() -> None:
@@ -141,7 +141,7 @@ def test_build_social_copy_llm_retries_on_failure(monkeypatch) -> None:
     client = FlakyClient()
     monkeypatch.setattr("backend.app.services.llm_utils.load_openai_client", lambda api_key: client)
 
-    social = subtitles.build_social_copy_llm("transcript")
+    social = social_intelligence.build_social_copy_llm("transcript")
 
     assert client.chat.completions.attempts == 2
     assert social.generic.title_en == "Retried Title EN"

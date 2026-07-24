@@ -13,11 +13,12 @@ type MockJob = {
     artifacts_dir: string;
     public_url?: string;
     artifact_url?: string;
+    transcription_url?: string;
     variants?: Record<string, string>;
     social?: string | null;
     original_filename?: string | null;
     video_crf?: number;
-    model_size?: string;
+    transcribe_tier?: string;
     transcribe_provider?: string;
   } | null;
 };
@@ -48,6 +49,24 @@ const mockUser = {
   provider: 'local',
 };
 
+const mockTranscription = [
+  {
+    start: 0,
+    end: 4,
+    text: 'ΒΑΛΤΕ ΥΠΟΘΕΣΕΙΣ ΚΑΙ ΕΛΑΤΕ ΝΑ ΦΤΙΑΞΟΥΜΕ ΜΙΑ ΟΜΑΔΑ',
+    words: [
+      { start: 0, end: 0.5, text: 'ΒΑΛΤΕ' },
+      { start: 0.5, end: 1, text: 'ΥΠΟΘΕΣΕΙΣ' },
+      { start: 1, end: 1.5, text: 'ΚΑΙ' },
+      { start: 1.5, end: 2, text: 'ΕΛΑΤΕ' },
+      { start: 2, end: 2.5, text: 'ΝΑ' },
+      { start: 2.5, end: 3, text: 'ΦΤΙΑΞΟΥΜΕ' },
+      { start: 3, end: 3.5, text: 'ΜΙΑ' },
+      { start: 3.5, end: 4, text: 'ΟΜΑΔΑ' },
+    ],
+  },
+];
+
 const mockJobs: MockJob[] = [
   {
     id: 'job-futurist',
@@ -61,9 +80,10 @@ const mockJobs: MockJob[] = [
       artifacts_dir: '/static/artifacts/futurist-showcase.zip',
       public_url: '/static/videos/futurist-showcase.mp4',
       artifact_url: '/static/artifacts/futurist-showcase.zip',
+      transcription_url: '/static/transcriptions/futurist-showcase.json',
       original_filename: 'GreekSubtitles_CaseStudy_Vertical_Edit_v4.mp4',
       video_crf: 12,
-      model_size: 'large-v3',
+      transcribe_tier: 'pro',
       transcribe_provider: 'local',
     },
   },
@@ -79,7 +99,7 @@ const mockJobs: MockJob[] = [
       artifacts_dir: '/static/artifacts/creative-cut.zip',
       original_filename: 'GreekSubtitles_TrendingClip_Highlight.mp4',
       video_crf: 14,
-      model_size: 'turbo',
+      transcribe_tier: 'standard',
       transcribe_provider: 'openai',
     },
   },
@@ -95,7 +115,7 @@ const mockJobs: MockJob[] = [
       artifacts_dir: '/static/artifacts/long-form.zip',
       original_filename: 'A_very_long_filename_showing_wrapping_behavior_in_buttons.mp4',
       video_crf: 20,
-      model_size: 'balanced',
+      transcribe_tier: 'standard',
       transcribe_provider: 'local',
     },
   },
@@ -111,7 +131,7 @@ const mockJobs: MockJob[] = [
       artifacts_dir: '/static/artifacts/failed.zip',
       original_filename: 'Short_fail_case.mp4',
       video_crf: 28,
-      model_size: 'fast',
+      transcribe_tier: 'standard',
       transcribe_provider: 'local',
     },
   },
@@ -165,6 +185,10 @@ function withCors(body: unknown, status = 200) {
 export async function mockApi(page: Page, options: MockApiOptions = {}): Promise<void> {
   const { authenticated = true } = options;
   let signedIn = authenticated;
+  let currentTranscription = mockTranscription.map((cue) => ({
+    ...cue,
+    words: cue.words.map((word) => ({ ...word })),
+  }));
 
   // Pre-set consent and locale to avoid banners/flicker
   await page.addInitScript(({ authenticated: isAuthenticated }) => {
@@ -211,7 +235,46 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
       await route.fulfill(unauthorizedResponse);
       return;
     }
-    await route.fulfill(withCors({ balance: 125 }));
+    await route.fulfill(withCors({
+      balance: 125,
+      paid_balance: 100,
+      promotional_balance: 25,
+      reversal_debt: 0,
+      ai_spendable_balance: 100,
+    }));
+  });
+
+  await page.route('**/billing/catalog', async (route) => {
+    if (await shortCircuitOptions(route)) return;
+    await route.fulfill(withCors({
+      catalog_version: '2026-07-23-v1',
+      currency: 'eur',
+      checkout_enabled: true,
+      packages: [
+        { key: 'starter', credits: 100, amount_eur_cents: 100, featured: false },
+        { key: 'core', credits: 350, amount_eur_cents: 300, featured: true },
+        { key: 'pro', credits: 1200, amount_eur_cents: 1000, featured: false },
+      ],
+      video_pricing: [
+        { key: 'up_to_3m', max_duration_seconds: 180, credits: 30 },
+        { key: 'up_to_6m', max_duration_seconds: 360, credits: 60 },
+        { key: 'up_to_10m', max_duration_seconds: 600, credits: 100 },
+      ],
+    }));
+  });
+
+  await page.route('**/billing/checkout', async (route) => {
+    if (await shortCircuitOptions(route)) return;
+    if (!signedIn) {
+      await route.fulfill(unauthorizedResponse);
+      return;
+    }
+    await route.fulfill(withCors({
+      purchase_id: 'purchase-e2e',
+      checkout_session_id: 'cs_test_subframe',
+      checkout_url: 'https://checkout.stripe.com/c/pay/cs_test_subframe',
+      status: 'checkout_created',
+    }));
   });
 
   await page.route('**/auth/register', async (route) => {
@@ -290,6 +353,16 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
 
     const url = new URL(route.request().url());
 
+    if (route.request().method() === 'PUT' && url.pathname.endsWith('/transcription')) {
+      const payload = route.request().postDataJSON() as { cues?: typeof mockTranscription };
+      currentTranscription = (payload.cues ?? []).map((cue) => ({
+        ...cue,
+        words: cue.words?.map((word) => ({ ...word })) ?? [],
+      }));
+      await route.fulfill(withCors({ status: 'ok' }));
+      return;
+    }
+
     if (url.pathname.includes('/videos/jobs/paginated')) {
       await route.fulfill(withCors({
         items: mockJobs,
@@ -332,6 +405,11 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
     // Only stub backend-served assets under `/static/**`.
     if (!url.pathname.startsWith('/static/')) {
       await route.fallback();
+      return;
+    }
+
+    if (url.pathname === '/static/transcriptions/futurist-showcase.json') {
+      await route.fulfill(withCors(currentTranscription));
       return;
     }
 

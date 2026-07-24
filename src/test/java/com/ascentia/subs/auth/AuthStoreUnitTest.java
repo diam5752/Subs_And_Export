@@ -1,8 +1,5 @@
 package com.ascentia.subs.auth;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.util.HexFormat;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -10,7 +7,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class AuthStoreUnitTest {
 
     @Test
-    void verifyPasswordSupportsScryptLegacyAndMalformedEncodings() {
+    void verifyPasswordAcceptsOnlyCurrentScryptEncodings() {
         String password = "letters123456";
         String encoded = AuthStore.hashPassword(password);
 
@@ -20,12 +17,15 @@ class AuthStoreUnitTest {
         assertThat(AuthStore.verifyPassword(password, " ")).isFalse();
         assertThat(AuthStore.verifyPassword(password, "scrypt$bad")).isFalse();
         assertThat(AuthStore.verifyPassword(password, "scrypt$16384$8$1$zz$11")).isFalse();
-        assertThat(AuthStore.verifyPassword(password, "legacy-without-delimiter")).isFalse();
-
-        String salt = "salty";
-        String legacy = salt + "$" + sha256Hex(salt + ":" + password);
-        assertThat(AuthStore.verifyPassword(password, legacy)).isTrue();
-        assertThat(AuthStore.verifyPassword("other-password123", legacy)).isFalse();
+        String salt = "00".repeat(16);
+        String digest = "00".repeat(64);
+        assertThat(AuthStore.verifyPassword(password, "scrypt$32768$8$1$" + salt + "$" + digest)).isFalse();
+        assertThat(AuthStore.verifyPassword(password, "scrypt$16384$9$1$" + salt + "$" + digest)).isFalse();
+        assertThat(AuthStore.verifyPassword(password, "scrypt$16384$8$2$" + salt + "$" + digest)).isFalse();
+        assertThat(AuthStore.verifyPassword(password, "scrypt$16384$8$1$00$" + digest)).isFalse();
+        assertThat(AuthStore.verifyPassword(password, "scrypt$16384$8$1$" + salt + "$00")).isFalse();
+        assertThat(AuthStore.verifyPassword(password, "old-password-encoding")).isFalse();
+        assertThat(AuthStore.verifyPassword(password, "salty$untrusted-sha256-digest")).isFalse();
     }
 
     @Test
@@ -34,14 +34,5 @@ class AuthStoreUnitTest {
                 .hasSize(64)
                 .isEqualTo(AuthStore.hashToken("token-a"))
                 .isNotEqualTo(AuthStore.hashToken("token-b"));
-    }
-
-    private static String sha256Hex(String value) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            return HexFormat.of().formatHex(digest.digest(value.getBytes(StandardCharsets.UTF_8)));
-        } catch (Exception exception) {
-            throw new IllegalStateException(exception);
-        }
     }
 }

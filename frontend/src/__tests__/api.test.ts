@@ -152,7 +152,7 @@ describe('API Client', () => {
 
             const { api } = await import('@/lib/api');
             const file = new File(['video'], 'test.mp4', { type: 'video/mp4' });
-            const result = await api.processVideo(file, { transcribe_model: 'standard', video_quality: 'high' });
+            const result = await api.processVideo(file, { transcribe_tier: 'standard', video_quality: 'high' });
 
             expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/videos/process'), expect.objectContaining({ method: 'POST' }));
             expect(result.id).toBe('job-123');
@@ -170,7 +170,7 @@ describe('API Client', () => {
             const formData = callArgs[1].body as FormData;
 
             // Check defaults
-            expect(formData.get('transcribe_model')).toBe('standard');
+            expect(formData.get('transcribe_tier')).toBe('standard');
             expect(formData.get('transcribe_provider')).toBe('mock');
             expect(formData.get('video_quality')).toBe('balanced');
             expect(formData.get('subtitle_position')).toBe('16');
@@ -322,7 +322,7 @@ describe('API Client', () => {
                     method: 'POST',
                     body: JSON.stringify({
                         upload_id: 'upload-123',
-                        transcribe_model: 'standard',
+                        transcribe_tier: 'standard',
                         transcribe_provider: 'groq',
                         openai_model: '',
                         source_duration_seconds: 42.5,

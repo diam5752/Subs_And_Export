@@ -2,7 +2,15 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { resegmentCues, findCueIndexAtTime, findCueAtTime, normalizeSubtitleText, resetWordWidthCache } from '../subtitleUtils';
+import {
+    findCueAtTime,
+    findCueIndexAtTime,
+    getSubtitlePositionStyle,
+    normalizeSubtitleText,
+    resegmentCues,
+    resetWordWidthCache,
+    updateCueText,
+} from '../subtitleUtils';
 import { TranscriptionCue as Cue } from '../api';
 
 // Mock cues
@@ -277,5 +285,94 @@ describe('findCueAtTime', () => {
 
     it('returns undefined when not found', () => {
         expect(findCueAtTime(cues, 1.5)).toBeUndefined();
+    });
+});
+
+describe('getSubtitlePositionStyle', () => {
+    it('keeps the complete subtitle block inside the safe frame across the full slider', () => {
+        // REGRESSION: the old 35% cap could not move subtitles to the top.
+        expect(getSubtitlePositionStyle(5)).toEqual({
+            top: '95%',
+            transform: 'translateY(-100%)',
+        });
+        expect(getSubtitlePositionStyle(50)).toEqual({
+            top: '50%',
+            transform: 'translateY(-50%)',
+        });
+        expect(getSubtitlePositionStyle(95)).toEqual({
+            top: '5%',
+            transform: 'translateY(0)',
+        });
+        expect(getSubtitlePositionStyle(-10)).toEqual(getSubtitlePositionStyle(5));
+        expect(getSubtitlePositionStyle(120)).toEqual(getSubtitlePositionStyle(95));
+        expect(getSubtitlePositionStyle(Number.NaN)).toEqual(getSubtitlePositionStyle(16));
+    });
+});
+
+describe('updateCueText', () => {
+    const timedCue: Cue = {
+        start: 0,
+        end: 4,
+        text: 'one two three four',
+        words: [
+            { start: 0, end: 1, text: 'one' },
+            { start: 1, end: 2, text: 'two' },
+            { start: 2, end: 3, text: 'three' },
+            { start: 3, end: 4, text: 'four' },
+        ],
+    };
+
+    it('preserves timing slots when the word count is unchanged', () => {
+        const result = updateCueText(timedCue, 'ένα δύο τρία τέσσερα');
+
+        expect(result.text).toBe('ένα δύο τρία τέσσερα');
+        expect(result.words).toEqual([
+            { start: 0, end: 1, text: 'ένα' },
+            { start: 1, end: 2, text: 'δύο' },
+            { start: 2, end: 3, text: 'τρία' },
+            { start: 3, end: 4, text: 'τέσσερα' },
+        ]);
+    });
+
+    it('merges adjacent timing slots when words are removed', () => {
+        const result = updateCueText(timedCue, 'πρώτο δεύτερο');
+
+        expect(result.words).toEqual([
+            { start: 0, end: 2, text: 'πρώτο' },
+            { start: 2, end: 4, text: 'δεύτερο' },
+        ]);
+    });
+
+    it('splits timing slots monotonically when words are added', () => {
+        const result = updateCueText(
+            {
+                start: 0,
+                end: 2,
+                text: 'one two',
+                words: [
+                    { start: 0, end: 1, text: 'one' },
+                    { start: 1, end: 2, text: 'two' },
+                ],
+            },
+            'a b c d e',
+        );
+
+        expect(result.words).toEqual([
+            { start: 0, end: 1 / 3, text: 'a' },
+            { start: 1 / 3, end: 2 / 3, text: 'b' },
+            { start: 2 / 3, end: 1, text: 'c' },
+            { start: 1, end: 1.5, text: 'd' },
+            { start: 1.5, end: 2, text: 'e' },
+        ]);
+    });
+
+    it('normalizes whitespace and safely handles empty or missing timings', () => {
+        expect(updateCueText(timedCue, '   ').words).toBeUndefined();
+        expect(updateCueText({ start: 0, end: 1, text: 'old' }, '  νέο   κείμενο  ')).toEqual({
+            start: 0,
+            end: 1,
+            text: 'νέο κείμενο',
+            words: undefined,
+        });
     });
 });

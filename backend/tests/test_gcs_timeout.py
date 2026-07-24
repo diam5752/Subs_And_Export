@@ -1,44 +1,20 @@
 from pathlib import Path
 from unittest.mock import MagicMock
 
-import pytest
-
 from backend.app.core import gcs
 
 
 def test_refresh_access_token_timeout(monkeypatch):
     """Verify that GCS auth token refresh uses a TimeoutRequest."""
-    # Mock imports in gcs
-    # We need to ensure GoogleAuthRequest is not None so _require_storage passes
-    mock_base_request = MagicMock()
-    monkeypatch.setattr(gcs, "GoogleAuthRequest", mock_base_request)
-    monkeypatch.setattr(gcs, "storage", MagicMock())
-
-    # Mock client with credentials
     mock_client = MagicMock()
     mock_creds = MagicMock()
+    mock_creds.token = "access-token"
     mock_client._credentials = mock_creds
 
-    # Call function
-    # This might fail if the code doesn't define TimeoutRequest and uses GoogleAuthRequest directly
-    try:
-        gcs._refresh_access_token(mock_client)
-    except Exception:
-        # If it fails due to logic we mock, we catch it.
-        # But we want to inspect the 'request' passed to refresh.
-        pass
+    assert gcs._refresh_access_token(mock_client) == "access-token"
 
-    # Inspect the call to credentials.refresh(request)
-    if mock_creds.refresh.called:
-        args, _ = mock_creds.refresh.call_args
-        request_obj = args[0]
-        # We expect the request object to be an instance of a custom class named "TimeoutRequest"
-        # OR we can verify it behaves like one if we can.
-        # Checking name is easier if we follow the pattern in auth.py
-        assert type(request_obj).__name__ == "TimeoutRequest", \
-            f"Expected TimeoutRequest, got {type(request_obj).__name__}"
-    else:
-        pytest.fail("credentials.refresh was not called")
+    request_obj = mock_creds.refresh.call_args.args[0]
+    assert isinstance(request_obj, gcs.TimeoutRequest)
 
 def test_upload_object_timeout(monkeypatch):
     """Verify upload_object passes a timeout."""
@@ -98,3 +74,23 @@ def test_download_object_timeout(monkeypatch):
     args, kwargs = mock_blob.download_to_filename.call_args
     assert "timeout" in kwargs, "download_to_filename missing timeout"
     assert kwargs["timeout"] >= 60
+
+
+def test_signed_download_forwards_content_disposition(monkeypatch):
+    """The GCS fallback must preserve the same browser download filename."""
+    mock_storage = MagicMock()
+    monkeypatch.setattr(gcs, "storage", mock_storage)
+    mock_blob = mock_storage.Client.return_value.bucket.return_value.blob.return_value
+    mock_blob.generate_signed_url.return_value = "https://signed.example/download"
+    settings = MagicMock(download_url_ttl_seconds=300)
+
+    result = gcs.generate_signed_download_url(
+        settings=settings,
+        object_name="static/export.mp4",
+        response_disposition="attachment; filename*=UTF-8''E%20Isous_subs.mp4",
+    )
+
+    assert result == "https://signed.example/download"
+    assert mock_blob.generate_signed_url.call_args.kwargs["response_disposition"].endswith(
+        "E%20Isous_subs.mp4"
+    )

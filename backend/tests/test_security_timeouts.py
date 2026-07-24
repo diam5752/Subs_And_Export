@@ -1,4 +1,4 @@
-from backend.app.services import subtitles
+from backend.app.services import fact_checking, social_intelligence
 
 # 1. subtitles.py tests (Social Copy, Viral Metadata, Fact Check)
 
@@ -33,12 +33,12 @@ def test_subtitles_llm_timeouts(monkeypatch):
 
     # Test build_social_copy_llm
     print("Testing build_social_copy_llm...")
-    subtitles.build_social_copy_llm("text")
+    social_intelligence.build_social_copy_llm("text")
     assert calls[-1]["timeout"] >= 10.0
 
     # Test generate_fact_check
     print("Testing generate_fact_check...")
-    subtitles.generate_fact_check("text")
+    fact_checking.generate_fact_check("text")
     assert calls[-1]["timeout"] >= 10.0
 
 

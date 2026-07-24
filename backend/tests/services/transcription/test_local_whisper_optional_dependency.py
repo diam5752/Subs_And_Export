@@ -6,7 +6,7 @@ from unittest.mock import patch
 import pytest
 
 
-def test_subtitles_module_import_does_not_require_faster_whisper():
+def test_subtitle_helpers_import_without_local_whisper_dependency():
     """
     REGRESSION: the FastAPI app imports `subtitles.py` at startup, so missing
     local Whisper dependencies must not crash the whole backend before any local
@@ -15,7 +15,7 @@ def test_subtitles_module_import_does_not_require_faster_whisper():
     with patch.dict(sys.modules, {"faster_whisper": None}):
         module = importlib.import_module("backend.app.services.subtitles")
         reloaded = importlib.reload(module)
-        assert hasattr(reloaded, "generate_subtitles_from_audio")
+        assert callable(reloaded.write_srt_from_segments)
 
 
 def test_local_whisper_transcriber_raises_clear_error_when_dependency_missing(tmp_path: Path):

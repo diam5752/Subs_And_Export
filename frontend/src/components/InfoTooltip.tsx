@@ -101,8 +101,8 @@ export function InfoTooltip({ ariaLabel, children }: InfoTooltipProps) {
                 aria-describedby={open ? tooltipId : undefined}
                 onMouseEnter={() => setHovered(true)}
                 onMouseLeave={(e) => {
-                    const nextTarget = e.relatedTarget as Node | null;
-                    if (nextTarget && tooltipRef.current?.contains(nextTarget)) return;
+                    const nextTarget = e.relatedTarget;
+                    if (nextTarget instanceof Node && tooltipRef.current?.contains(nextTarget)) return;
                     setHovered(false);
                 }}
                 onFocus={() => setFocused(true)}
@@ -134,8 +134,8 @@ export function InfoTooltip({ ariaLabel, children }: InfoTooltipProps) {
                     id={tooltipId}
                     onMouseEnter={() => setHovered(true)}
                     onMouseLeave={(e) => {
-                        const nextTarget = e.relatedTarget as Node | null;
-                        if (nextTarget && anchorRef.current?.contains(nextTarget)) return;
+                        const nextTarget = e.relatedTarget;
+                        if (nextTarget instanceof Node && anchorRef.current?.contains(nextTarget)) return;
                         setHovered(false);
                     }}
                     className="fixed z-[9999] w-[min(260px,calc(100vw-2rem))] -translate-x-1/2 rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)] p-3 text-[11px] text-[var(--foreground)] shadow-2xl ring-1 ring-white/5"

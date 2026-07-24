@@ -65,7 +65,7 @@ def test_run_video_processing_continues_when_gcs_upload_fails(monkeypatch, tmp_p
         (artifact_dir / "transcription.json").write_text("[]", encoding="utf-8")
         return output_path
 
-    monkeypatch.setattr(processing_tasks, "normalize_and_stub_subtitles", fake_normalize)
+    monkeypatch.setattr(processing_tasks, "process_video_pipeline", fake_normalize)
     monkeypatch.setattr(processing_tasks, "get_gcs_settings", lambda: types.SimpleNamespace(static_prefix="static"))
     monkeypatch.setattr(processing_tasks, "upload_object", lambda **_kwargs: (_ for _ in ()).throw(RuntimeError("upload failed")))
     warning_spy = MagicMock()

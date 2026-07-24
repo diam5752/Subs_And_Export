@@ -106,7 +106,7 @@ def create_gcs_upload_url(
 
 class GcsProcessRequest(BaseModel):
     upload_id: str = Field(..., max_length=128)
-    transcribe_model: str = Field(settings.default_transcribe_tier, max_length=50)
+    transcribe_tier: str = Field(settings.default_transcribe_tier, max_length=50)
     transcribe_provider: str = Field(settings.transcribe_tier_provider[settings.default_transcribe_tier], max_length=50)
     openai_model: str = Field("", max_length=50)
     source_duration_seconds: float | None = Field(None, gt=0, le=settings.max_video_duration_seconds)
@@ -133,7 +133,7 @@ def process_video_from_gcs(
     history_store: HistoryStore = Depends(get_history_store),
     gcs_upload_store: GcsUploadStore = Depends(get_gcs_upload_store),
     ledger_store: UsageLedgerStore = Depends(get_usage_ledger_store),
-) -> Any:
+) -> JobResponse:
     """Start processing for an already-uploaded GCS object."""
     gcs_settings = get_gcs_settings()
     if not gcs_settings:
@@ -151,7 +151,7 @@ def process_video_from_gcs(
         raise HTTPException(status_code=404, detail="Upload not found or expired")
 
     proc_settings = build_processing_settings(
-        transcribe_model=payload.transcribe_model,
+        transcribe_tier=payload.transcribe_tier,
         transcribe_provider=payload.transcribe_provider,
         openai_model=payload.openai_model,
         video_quality=payload.video_quality,
@@ -179,22 +179,26 @@ def process_video_from_gcs(
     output_path = artifacts_root / job_id / "processed.mp4"
     artifact_path = artifacts_root / job_id
 
-    llm_models = pricing.resolve_llm_models(proc_settings.transcribe_model)
-    estimated_duration_seconds = float(payload.source_duration_seconds or settings.max_video_duration_seconds)
+    llm_models = pricing.resolve_llm_models(proc_settings.transcribe_tier)
+    # The browser-reported duration is useful for UX only. GCS media has not
+    # reached our trusted probe yet, so reserve the 10-minute ceiling and
+    # refund down to the server-measured bracket after download.
+    estimated_duration_seconds = float(settings.max_video_duration_seconds)
     charge_plan, new_balance = reserve_processing_charges(
         ledger_store=ledger_store,
         user_id=current_user.id,
         job_id=job_id,
-        tier=proc_settings.transcribe_model,
+        tier=proc_settings.transcribe_tier,
         duration_seconds=estimated_duration_seconds,
         use_llm=proc_settings.use_llm,
         llm_model=llm_models.social,
         provider=proc_settings.transcribe_provider,
         stt_model=pricing.resolve_requested_transcribe_model(
-            tier=proc_settings.transcribe_model,
+            tier=proc_settings.transcribe_tier,
             provider=proc_settings.transcribe_provider,
             openai_model=proc_settings.openai_model,
         ),
+        allow_downward_adjustment=True,
     )
 
     try:
@@ -202,7 +206,7 @@ def process_video_from_gcs(
         record_event_safe(
             history_store, current_user, "process_started",
             f"Queued {session.original_filename}",
-            {"job_id": job_id, "provider": proc_settings.transcribe_provider, "model_size": proc_settings.transcribe_model, "video_quality": proc_settings.video_quality, "source": "gcs"},
+            {"job_id": job_id, "provider": proc_settings.transcribe_provider, "transcribe_tier": proc_settings.transcribe_tier, "video_quality": proc_settings.video_quality, "source": "gcs"},
         )
 
         background_tasks.add_task(
@@ -227,4 +231,4 @@ def process_video_from_gcs(
         refund_charge_best_effort(ledger_store, charge_plan, status="failed", error=sanitize_message(str(exc)))
         raise
 
-    return {**job.__dict__, "balance": new_balance}
+    return JobResponse.model_validate(job).model_copy(update={"balance": new_balance})

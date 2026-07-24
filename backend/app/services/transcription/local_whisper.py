@@ -1,7 +1,8 @@
 import importlib
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, Iterable, List, Optional
+from types import ModuleType
+from typing import TYPE_CHECKING, Any, Callable, Iterable
 
 from backend.app.core.config import settings
 from backend.app.services.subtitle_types import Cue, TimeRange, WordTiming
@@ -24,7 +25,7 @@ LOCAL_MODEL_ALIASES: dict[str, str] = {
 }
 
 
-def _load_faster_whisper():
+def _load_faster_whisper() -> ModuleType:
     try:
         return importlib.import_module("faster_whisper")
     except ModuleNotFoundError as exc:
@@ -75,10 +76,10 @@ class LocalWhisperTranscriber(Transcriber):
 
     def __init__(
         self,
-        device: Optional[str] = None,
-        compute_type: Optional[str] = None,
+        device: str | None = None,
+        compute_type: str | None = None,
         beam_size: int = 5,
-    ):
+    ) -> None:
         self.device = device or settings.whisper_device
         self.compute_type = compute_type or settings.whisper_compute_type
         self.beam_size = beam_size
@@ -89,13 +90,13 @@ class LocalWhisperTranscriber(Transcriber):
         output_dir: Path,
         language: str = "en",
         model: str = "base",
-        **kwargs,
-    ) -> tuple[Path, List[Cue]]:
+        **kwargs: Any,
+    ) -> tuple[Path, list[Cue]]:
         progress_callback = kwargs.get("progress_callback")
         check_cancelled = kwargs.get("check_cancelled")
 
         # Check cancellation before starting expensive operations
-        if check_cancelled:
+        if callable(check_cancelled):
             check_cancelled()
 
         threads = min(8, os.cpu_count() or 4)
@@ -108,7 +109,7 @@ class LocalWhisperTranscriber(Transcriber):
         )
 
         # Check cancellation after model loading but before transcription
-        if check_cancelled:
+        if callable(check_cancelled):
             check_cancelled()
 
         transcribe_kwargs = {
@@ -130,13 +131,13 @@ class LocalWhisperTranscriber(Transcriber):
         if initial_prompt:
             transcribe_kwargs["initial_prompt"] = initial_prompt
 
-        if progress_callback:
+        if callable(progress_callback):
             progress_callback(10.0)
 
         segments, _info = model_instance.transcribe(str(audio_path), **transcribe_kwargs)
 
-        cues: List[Cue] = []
-        timed_text: List[TimeRange] = []
+        cues: list[Cue] = []
+        timed_text: list[TimeRange] = []
         for seg in _iter_segments(segments, check_cancelled):
             seg_start = seg.start
             seg_end = seg.end
@@ -144,7 +145,7 @@ class LocalWhisperTranscriber(Transcriber):
 
             timed_text.append((seg_start, seg_end, seg_text))
 
-            words: Optional[List[WordTiming]] = None
+            words: list[WordTiming] | None = None
             if seg.words:
                 words = [
                     WordTiming(start=w.start, end=w.end, text=normalize_text(w.word.strip()))
@@ -155,10 +156,10 @@ class LocalWhisperTranscriber(Transcriber):
             cue_text = normalize_text(seg_text)
             cues.append(Cue(start=seg_start, end=seg_end, text=cue_text, words=words))
 
-        if check_cancelled:
+        if callable(check_cancelled):
             check_cancelled()
 
-        if progress_callback:
+        if callable(progress_callback):
             progress_callback(100.0)
 
         srt_path = output_dir / f"{audio_path.stem}.srt"
@@ -169,9 +170,9 @@ class LocalWhisperTranscriber(Transcriber):
 
 def _iter_segments(
     segments: Iterable[Any],
-    check_cancelled: Optional[Callable[[], None]],
+    check_cancelled: Callable[[], None] | None,
 ) -> Iterable[Any]:
     for segment in segments:
-        if check_cancelled:
+        if check_cancelled is not None:
             check_cancelled()
         yield segment

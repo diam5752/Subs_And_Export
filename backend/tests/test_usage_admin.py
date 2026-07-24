@@ -51,6 +51,12 @@ def test_admin_usage_summary_returns_data(client: TestClient, monkeypatch) -> No
     job_id = f"admin-summary-{uuid.uuid4().hex[:8]}"
     _seed_job(db, user_id, job_id)
     points_store = PointsStore(db=db)
+    points_store.credit(
+        user_id,
+        25,
+        reason="test_paid_funding",
+        paid_credit_delta=25,
+    )
     ledger_store = UsageLedgerStore(db=db, points_store=points_store)
 
     reservation, _ = ledger_store.reserve(

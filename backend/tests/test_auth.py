@@ -1,6 +1,4 @@
 """Tests for the auth API endpoints."""
-import sys
-import types
 
 import pytest
 
@@ -306,9 +304,7 @@ class TestGoogleOAuthEndpoints:
             def authorization_url(self, **kwargs):
                 return "http://example.com/auth", None
 
-        # Inject fake Flow into the module import path used by build_google_flow
-        fake_module = types.SimpleNamespace(Flow=DummyFlow)
-        monkeypatch.setitem(sys.modules, "google_auth_oauthlib.flow", fake_module)
+        monkeypatch.setattr("backend.app.core.auth.Flow", DummyFlow)
 
         resp = client.get("/auth/google/url")
         assert resp.status_code == 200

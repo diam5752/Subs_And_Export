@@ -10,7 +10,7 @@ interface NewVideoConfirmModalProps {
 export function NewVideoConfirmModal({ isOpen, onClose, onConfirm }: NewVideoConfirmModalProps) {
     const { t } = useI18n();
     const containerRef = useRef<HTMLDivElement>(null);
-    const confirmButtonRef = useRef<HTMLButtonElement>(null);
+    const cancelButtonRef = useRef<HTMLButtonElement>(null);
 
     // Handle escape key to close modal
     const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -21,18 +21,26 @@ export function NewVideoConfirmModal({ isOpen, onClose, onConfirm }: NewVideoCon
 
     // Sync external systems only (DOM event listeners, body scroll)
     useEffect(() => {
+        const previouslyFocused = document.activeElement instanceof HTMLElement
+            ? document.activeElement
+            : null;
+        let focusTimer: ReturnType<typeof setTimeout> | undefined;
+
         if (isOpen) {
             document.addEventListener('keydown', handleKeyDown);
             document.body.style.overflow = 'hidden';
-            // Focus the confirm button for accessibility
-            setTimeout(() => confirmButtonRef.current?.focus(), 100);
+            // REGRESSION: focus the safe action so pressing Enter cannot discard
+            // the current editing view by accident.
+            focusTimer = setTimeout(() => cancelButtonRef.current?.focus(), 100);
         } else {
             document.removeEventListener('keydown', handleKeyDown);
             document.body.style.overflow = '';
         }
         return () => {
+            if (focusTimer) clearTimeout(focusTimer);
             document.removeEventListener('keydown', handleKeyDown);
             document.body.style.overflow = '';
+            previouslyFocused?.focus();
         };
     }, [isOpen, handleKeyDown]);
 
@@ -85,6 +93,7 @@ export function NewVideoConfirmModal({ isOpen, onClose, onConfirm }: NewVideoCon
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {/* Cancel Button */}
                         <button
+                            ref={cancelButtonRef}
                             onClick={onClose}
                             className="min-h-12 px-4 py-3 rounded-xl border border-[var(--border)] bg-white text-[var(--foreground)] font-medium hover:bg-[#f5f5f4] transition-colors duration-150"
                         >
@@ -93,7 +102,6 @@ export function NewVideoConfirmModal({ isOpen, onClose, onConfirm }: NewVideoCon
 
                         {/* Confirm Button */}
                         <button
-                            ref={confirmButtonRef}
                             onClick={() => {
                                 onConfirm();
                                 onClose();

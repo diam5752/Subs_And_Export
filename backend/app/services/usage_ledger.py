@@ -11,9 +11,11 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
+from backend.app.core.config import settings
 from backend.app.core.database import Database
 from backend.app.db.models import DbUsageLedger
 from backend.app.services.points import PointsStore, make_idempotency_id
+from backend.app.services.provider_budget import ProviderBudgetStore
 
 
 @dataclass(frozen=True)
@@ -28,6 +30,8 @@ class ChargeReservation:
     reserved_credits: int
     min_credits: int
     idempotency_key: str
+    paid_credits_reserved: int = 0
+    estimated_cost_usd: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -51,6 +55,7 @@ class UsageLedgerStore:
     def __init__(self, db: Database, points_store: PointsStore) -> None:
         self.db = db
         self.points_store = points_store
+        self.provider_budget_store = ProviderBudgetStore(db)
 
     def reserve(
         self,
@@ -68,17 +73,39 @@ class UsageLedgerStore:
         idempotency_key: str,
         endpoint: str | None = None,
         currency: str = "USD",
+        covered_by_ledger_id: str | None = None,
+        require_paid_credits: bool | None = None,
     ) -> tuple[ChargeReservation, int]:
-        if credits <= 0:
-            raise ValueError("credits must be positive")
+        if credits < 0 or (credits == 0 and not covered_by_ledger_id):
+            raise ValueError("credits must be positive unless covered by a paid reservation")
         if not idempotency_key:
             raise ValueError("idempotency_key is required")
+        if covered_by_ledger_id:
+            self._validate_coverage(
+                covered_by_ledger_id=covered_by_ledger_id,
+                user_id=user_id,
+                job_id=job_id,
+            )
 
         with self.db.session() as session:
             existing = session.scalar(
                 select(DbUsageLedger).where(DbUsageLedger.idempotency_key == idempotency_key).limit(1)
             )
             if existing:
+                self._validate_existing_reservation(
+                    existing,
+                    user_id=user_id,
+                    job_id=job_id,
+                    action=action,
+                    provider=provider,
+                    model=model,
+                    tier=tier,
+                    credits=credits,
+                    min_credits=min_credits,
+                    cost_estimate_usd=cost_estimate_usd,
+                    covered_by_ledger_id=covered_by_ledger_id,
+                    require_paid_credits=require_paid_credits,
+                )
                 reservation = ChargeReservation(
                     ledger_id=existing.id,
                     user_id=existing.user_id,
@@ -90,28 +117,63 @@ class UsageLedgerStore:
                     reserved_credits=existing.credits_reserved,
                     min_credits=existing.min_credits,
                     idempotency_key=idempotency_key,
+                    paid_credits_reserved=existing.paid_credits_reserved,
+                    estimated_cost_usd=self._estimate_from_ledger(existing),
                 )
                 balance = self.points_store.get_balance(user_id)
                 return reservation, balance
 
+        normalized_provider = provider.strip().lower()
+        estimate = max(0.0, float(cost_estimate_usd))
+        provider_requires_paid = estimate > 0 and normalized_provider not in {"local", "mock"}
+        requires_paid = provider_requires_paid or require_paid_credits is True
+        guarded_estimate = estimate * settings.external_provider_price_safety_multiplier
+        budget_reserved = False
+        if requires_paid:
+            self.provider_budget_store.reserve(
+                idempotency_key=idempotency_key,
+                estimated_usd=guarded_estimate,
+                daily_limit_usd=settings.external_provider_daily_budget_usd,
+                monthly_limit_usd=settings.external_provider_monthly_budget_usd,
+            )
+            budget_reserved = True
+
         ledger_id = uuid.uuid4().hex
-        tx_id = make_idempotency_id("reserve", idempotency_key)
-        new_balance, spent = self.points_store.spend_once(
-            user_id,
-            credits,
-            reason=action,
-            transaction_id=tx_id,
-            meta={
-                "ledger_id": ledger_id,
-                "action": action,
-                "provider": provider,
-                "model": model,
-                "tier": tier,
-                "kind": "reserve",
-            },
-        )
+        spent = False
+        try:
+            if credits > 0:
+                tx_id = make_idempotency_id("reserve", idempotency_key)
+                new_balance, spent = self.points_store.spend_once(
+                    user_id,
+                    credits,
+                    reason=action,
+                    transaction_id=tx_id,
+                    meta={
+                        "ledger_id": ledger_id,
+                        "action": action,
+                        "provider": provider,
+                        "model": model,
+                        "tier": tier,
+                        "kind": "reserve",
+                        "funding_source": "paid" if requires_paid else "mixed",
+                    },
+                    require_paid=requires_paid,
+                )
+            else:
+                new_balance = self.points_store.get_balance(user_id)
+        except Exception:
+            if budget_reserved:
+                self.provider_budget_store.release(idempotency_key)
+            raise
 
         now = int(time.time())
+        resolved_units = dict(units or {})
+        resolved_units["cost_estimate_usd"] = estimate
+        resolved_units["guarded_cost_estimate_usd"] = guarded_estimate
+        resolved_units["paid_credits_reserved"] = credits if requires_paid else 0
+        resolved_units["require_paid_credits"] = requires_paid
+        if covered_by_ledger_id:
+            resolved_units["covered_by_ledger_id"] = covered_by_ledger_id
         record = DbUsageLedger(
             id=ledger_id,
             user_id=user_id,
@@ -121,9 +183,10 @@ class UsageLedgerStore:
             endpoint=endpoint,
             model=model,
             tier=tier,
-            units=units,
-            cost_usd=cost_estimate_usd,
+            units=resolved_units,
+            cost_usd=estimate,
             credits_reserved=credits,
+            paid_credits_reserved=credits if requires_paid else 0,
             credits_charged=0,
             min_credits=min_credits,
             currency=currency,
@@ -143,6 +206,20 @@ class UsageLedgerStore:
                     select(DbUsageLedger).where(DbUsageLedger.idempotency_key == idempotency_key).limit(1)
                 )
             if existing:
+                self._validate_existing_reservation(
+                    existing,
+                    user_id=user_id,
+                    job_id=job_id,
+                    action=action,
+                    provider=provider,
+                    model=model,
+                    tier=tier,
+                    credits=credits,
+                    min_credits=min_credits,
+                    cost_estimate_usd=cost_estimate_usd,
+                    covered_by_ledger_id=covered_by_ledger_id,
+                    require_paid_credits=require_paid_credits,
+                )
                 reservation = ChargeReservation(
                     ledger_id=existing.id,
                     user_id=existing.user_id,
@@ -154,6 +231,8 @@ class UsageLedgerStore:
                     reserved_credits=existing.credits_reserved,
                     min_credits=existing.min_credits,
                     idempotency_key=idempotency_key,
+                    paid_credits_reserved=existing.paid_credits_reserved,
+                    estimated_cost_usd=self._estimate_from_ledger(existing),
                 )
                 balance = self.points_store.get_balance(user_id)
                 return reservation, balance
@@ -166,7 +245,10 @@ class UsageLedgerStore:
                     original_reason=action,
                     transaction_id=refund_tx,
                     meta={"ledger_id": ledger_id, "action": action, "kind": "reserve_refund"},
+                    paid_credit_delta=credits if requires_paid else 0,
                 )
+            if budget_reserved:
+                self.provider_budget_store.release(idempotency_key)
             raise
         except Exception:
             if spent:
@@ -177,7 +259,10 @@ class UsageLedgerStore:
                     original_reason=action,
                     transaction_id=refund_tx,
                     meta={"ledger_id": ledger_id, "action": action, "kind": "reserve_refund"},
+                    paid_credit_delta=credits if requires_paid else 0,
                 )
+            if budget_reserved:
+                self.provider_budget_store.release(idempotency_key)
             raise
 
         reservation = ChargeReservation(
@@ -191,8 +276,28 @@ class UsageLedgerStore:
             reserved_credits=credits,
             min_credits=min_credits,
             idempotency_key=idempotency_key,
+            paid_credits_reserved=credits if requires_paid else 0,
+            estimated_cost_usd=estimate,
         )
         return reservation, new_balance
+
+    def mark_dispatched(self, reservation: ChargeReservation) -> None:
+        """Persist the no-refund boundary immediately before provider I/O."""
+        now = int(time.time())
+        with self.db.session() as session:
+            ledger = session.scalar(
+                select(DbUsageLedger)
+                .where(DbUsageLedger.id == reservation.ledger_id)
+                .with_for_update()
+                .limit(1)
+            )
+            if ledger is None:
+                raise RuntimeError("Usage reservation is missing")
+            if ledger.status == "reserved":
+                ledger.status = "dispatched"
+                ledger.updated_at = now
+            elif ledger.status not in {"dispatched", "finalizing", "finalized"}:
+                raise RuntimeError(f"Usage reservation cannot be dispatched from {ledger.status}")
 
     def finalize(
         self,
@@ -203,9 +308,30 @@ class UsageLedgerStore:
         units: dict[str, Any] | None,
         status: str = "finalized",
     ) -> int:
-        final_credits = max(int(credits_charged), int(reservation.min_credits))
+        with self.db.session() as session:
+            ledger = session.scalar(
+                select(DbUsageLedger)
+                .where(DbUsageLedger.id == reservation.ledger_id)
+                .with_for_update()
+                .limit(1)
+            )
+            if ledger is None:
+                return self.points_store.get_balance(reservation.user_id)
+            if ledger.status in {"finalized", "failed_charged"}:
+                return self.points_store.get_balance(reservation.user_id)
+            if ledger.status not in {"reserved", "dispatched", "finalizing"}:
+                return self.points_store.get_balance(reservation.user_id)
+            ledger.status = "finalizing"
+            ledger.updated_at = int(time.time())
+
+        final_credits = (
+            0
+            if reservation.reserved_credits == 0 and reservation.min_credits == 0
+            else max(int(credits_charged), int(reservation.min_credits))
+        )
         refund_amount = max(0, reservation.reserved_credits - final_credits)
         extra_charge = max(0, final_credits - reservation.reserved_credits)
+        paid_operation = reservation.paid_credits_reserved > 0
 
         if extra_charge:
             tx_id = make_idempotency_id("overage", reservation.ledger_id, str(extra_charge))
@@ -215,6 +341,7 @@ class UsageLedgerStore:
                 reason=reservation.action,
                 transaction_id=tx_id,
                 meta={"ledger_id": reservation.ledger_id, "action": reservation.action, "kind": "overage"},
+                require_paid=paid_operation,
             )
 
         if refund_amount:
@@ -225,6 +352,7 @@ class UsageLedgerStore:
                 original_reason=reservation.action,
                 transaction_id=refund_tx,
                 meta={"ledger_id": reservation.ledger_id, "action": reservation.action, "kind": "adjustment"},
+                paid_credit_delta=refund_amount if paid_operation else 0,
             )
 
         now = int(time.time())
@@ -238,6 +366,12 @@ class UsageLedgerStore:
             ledger.status = status
             ledger.updated_at = now
 
+        if reservation.estimated_cost_usd > 0:
+            self.provider_budget_store.finalize(
+                reservation.idempotency_key,
+                actual_usd=max(0.0, float(cost_usd)),
+            )
+
         return self.points_store.get_balance(reservation.user_id)
 
     def fail(
@@ -247,20 +381,57 @@ class UsageLedgerStore:
         status: str,
         error: str | None = None,
     ) -> int:
-        refund_tx = make_idempotency_id("refund", reservation.ledger_id, "failed")
-        self.points_store.refund_once(
-            reservation.user_id,
-            reservation.reserved_credits,
-            original_reason=reservation.action,
-            transaction_id=refund_tx,
-            meta={"ledger_id": reservation.ledger_id, "action": reservation.action, "kind": "failed"},
-        )
-
         now = int(time.time())
+        with self.db.session() as session:
+            ledger = session.scalar(
+                select(DbUsageLedger)
+                .where(DbUsageLedger.id == reservation.ledger_id)
+                .with_for_update()
+                .limit(1)
+            )
+            if ledger is None:
+                return self.points_store.get_balance(reservation.user_id)
+            current_status = ledger.status
+            if current_status == "reserved":
+                ledger.status = "failing_refund"
+            elif current_status in {"dispatched", "finalizing"}:
+                ledger.status = "failing_charged"
+            elif current_status not in {"failing_refund", "failing_charged"}:
+                return self.points_store.get_balance(reservation.user_id)
+            ledger.updated_at = now
+
+        if current_status in {"reserved", "failing_refund"}:
+            if reservation.reserved_credits > 0:
+                refund_tx = make_idempotency_id("refund", reservation.ledger_id, "failed")
+                self.points_store.refund_once(
+                    reservation.user_id,
+                    reservation.reserved_credits,
+                    original_reason=reservation.action,
+                    transaction_id=refund_tx,
+                    meta={
+                        "ledger_id": reservation.ledger_id,
+                        "action": reservation.action,
+                        "kind": "failed",
+                    },
+                    paid_credit_delta=reservation.paid_credits_reserved,
+                )
+            if reservation.estimated_cost_usd > 0:
+                self.provider_budget_store.release(reservation.idempotency_key)
+            settled_status = status
+            charged = 0
+        elif current_status in {"dispatched", "finalizing", "failing_charged"}:
+            if reservation.estimated_cost_usd > 0:
+                self.provider_budget_store.finalize(
+                    reservation.idempotency_key,
+                    actual_usd=reservation.estimated_cost_usd,
+                )
+            settled_status = "failed_charged"
+            charged = reservation.reserved_credits
         with self.db.session() as session:
             ledger = session.get(DbUsageLedger, reservation.ledger_id)
             if ledger:
-                ledger.status = status
+                ledger.status = settled_status
+                ledger.credits_charged = charged
                 ledger.error = error[:500] if error else None
                 ledger.updated_at = now
         return self.points_store.get_balance(reservation.user_id)
@@ -272,11 +443,6 @@ class UsageLedgerStore:
         status: str,
         error: str | None = None,
     ) -> int:
-        with self.db.session() as session:
-            ledger = session.get(DbUsageLedger, reservation.ledger_id)
-            if not ledger or ledger.status != "reserved":
-                return self.points_store.get_balance(reservation.user_id)
-
         return self.fail(reservation, status=status, error=error)
 
     def summarize(
@@ -344,3 +510,69 @@ class UsageLedgerStore:
                 )
             )
         return float(value or 0.0)
+
+    @staticmethod
+    def _estimate_from_ledger(ledger: DbUsageLedger) -> float:
+        units = ledger.units if isinstance(ledger.units, dict) else {}
+        stored = units.get("cost_estimate_usd")
+        return float(stored if stored is not None else ledger.cost_usd or 0.0)
+
+    @staticmethod
+    def _validate_existing_reservation(
+        ledger: DbUsageLedger,
+        *,
+        user_id: str,
+        job_id: str | None,
+        action: str,
+        provider: str,
+        model: str | None,
+        tier: str | None,
+        credits: int,
+        min_credits: int,
+        cost_estimate_usd: float,
+        covered_by_ledger_id: str | None,
+        require_paid_credits: bool | None,
+    ) -> None:
+        units = ledger.units if isinstance(ledger.units, dict) else {}
+        normalized_provider = provider.strip().lower()
+        expected_requires_paid = (
+            max(0.0, float(cost_estimate_usd)) > 0
+            and normalized_provider not in {"local", "mock"}
+        ) or require_paid_credits is True
+        if (
+            ledger.user_id != user_id
+            or ledger.job_id != job_id
+            or ledger.action != action
+            or ledger.provider != provider
+            or ledger.model != model
+            or ledger.tier != tier
+            or int(ledger.credits_reserved) != int(credits)
+            or int(ledger.min_credits) != int(min_credits)
+            or abs(
+                UsageLedgerStore._estimate_from_ledger(ledger)
+                - max(0.0, float(cost_estimate_usd))
+            )
+            > 1e-9
+            or units.get("covered_by_ledger_id") != covered_by_ledger_id
+            or bool(units.get("require_paid_credits")) != expected_requires_paid
+        ):
+            raise ValueError("Usage idempotency key conflict")
+
+    def _validate_coverage(
+        self,
+        *,
+        covered_by_ledger_id: str,
+        user_id: str,
+        job_id: str | None,
+    ) -> None:
+        with self.db.session() as session:
+            parent = session.get(DbUsageLedger, covered_by_ledger_id)
+            if (
+                parent is None
+                or parent.user_id != user_id
+                or parent.job_id != job_id
+                or int(parent.paid_credits_reserved or 0) <= 0
+                or parent.status
+                not in {"reserved", "dispatched", "finalizing", "finalized", "failed_charged"}
+            ):
+                raise ValueError("Included provider call requires a matching paid reservation")

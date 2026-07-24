@@ -1,37 +1,36 @@
-from typing import Annotated, Dict, List, Optional
+from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from typing import Annotated, Any
+
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class JobResponse(BaseModel):
-    model_config = {'from_attributes': True}
+    model_config = ConfigDict(from_attributes=True)
 
     id: str
     status: str
     progress: int
-    message: Optional[str]
+    message: str | None
     created_at: int
     updated_at: int
-    result_data: Optional[Dict]
+    result_data: dict[str, Any] | None
     balance: int | None = None
 
 class PaginatedJobsResponse(BaseModel):
-    items: List[JobResponse]
+    items: list[JobResponse]
     total: int
     page: int
     page_size: int
     total_pages: int
 
 class BatchDeleteRequest(BaseModel):
-    job_ids: Annotated[List[Annotated[str, Field(max_length=64)]], Field(max_length=50)]
+    job_ids: Annotated[list[Annotated[str, Field(max_length=64)]], Field(max_length=50)]
 
 class BatchDeleteResponse(BaseModel):
     status: str
     deleted_count: int
-    job_ids: List[str]
-
-
-
+    job_ids: list[str]
 
 class FactCheckItemSchema(BaseModel):
     mistake_el: str
@@ -49,7 +48,7 @@ class FactCheckItemSchema(BaseModel):
 
 
 class FactCheckResponse(BaseModel):
-    items: List[FactCheckItemSchema]
+    items: list[FactCheckItemSchema]
     truth_score: int  # 0-100 overall accuracy
     supported_claims_pct: int  # 0-100 percent supported
     claims_checked: int  # Total claims analyzed
@@ -61,7 +60,7 @@ class SocialCopySchema(BaseModel):
     title_en: str
     description_el: str
     description_en: str
-    hashtags: List[str]
+    hashtags: list[str]
 
 
 class SocialCopyResponse(BaseModel):

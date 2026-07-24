@@ -32,18 +32,32 @@ function LoginContent() {
         }
 
         if (code && state && storedState === state) {
-            hasHandledGoogleCallback.current = true;
-            setGoogleLoading(true);
-            // Clear immediately to avoid duplicate callback posts (e.g. React strict mode in dev).
-            localStorage.removeItem('google_oauth_state');
-            googleLogin(code, state)
-                .then(() => {
-                    router.push('/');
-                })
-                .catch((err) => {
-                    setError(err.message || t('loginErrorGoogle'));
-                })
-                .finally(() => setGoogleLoading(false));
+            let cancelled = false;
+
+            // OAuth completion is an external callback. Start it in a microtask so
+            // Strict Mode can cancel its probe mount without posting the code twice.
+            queueMicrotask(() => {
+                if (cancelled || hasHandledGoogleCallback.current) return;
+                hasHandledGoogleCallback.current = true;
+                setGoogleLoading(true);
+                localStorage.removeItem('google_oauth_state');
+                googleLogin(code, state)
+                    .then(() => {
+                        if (!cancelled) router.push('/');
+                    })
+                    .catch((err: unknown) => {
+                        if (!cancelled) {
+                            setError(err instanceof Error ? err.message : t('loginErrorGoogle'));
+                        }
+                    })
+                    .finally(() => {
+                        if (!cancelled) setGoogleLoading(false);
+                    });
+            });
+
+            return () => {
+                cancelled = true;
+            };
         }
     }, [searchParams, router, googleLogin, t]);
 
@@ -180,7 +194,7 @@ function LoginContent() {
 
             <footer className="auth-footer">
                 <span>ASCENTIA</span>
-                <span>{t('loginFooter')}</span>
+                <span>{t('loginFooter', { year: new Date().getFullYear() })}</span>
             </footer>
         </div>
     );

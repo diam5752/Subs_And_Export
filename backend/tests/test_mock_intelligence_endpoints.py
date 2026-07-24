@@ -48,11 +48,11 @@ def test_mock_intelligence_routes_use_no_external_service_or_points(
         lambda: (data_dir, uploads_dir, artifacts_dir),
     )
     monkeypatch.setattr(
-        "backend.app.services.subtitles.generate_fact_check",
+        "backend.app.api.endpoints.intelligence_routes.generate_fact_check",
         lambda *_args, **_kwargs: pytest.fail("live fact-check service was called"),
     )
     monkeypatch.setattr(
-        "backend.app.services.subtitles.build_social_copy_llm",
+        "backend.app.api.endpoints.intelligence_routes.build_social_copy_llm",
         lambda *_args, **_kwargs: pytest.fail("live social-copy service was called"),
     )
     job_id = _completed_job_with_transcript(

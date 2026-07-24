@@ -2,17 +2,13 @@
 
 from __future__ import annotations
 
-import os
+import json
 from enum import StrEnum
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 
-from pydantic import AliasChoices, Field, field_validator
-from pydantic_settings import (
-    BaseSettings,
-    PydanticBaseSettingsSource,
-    SettingsConfigDict,
-)
+from pydantic import AliasChoices, Field, SecretStr, field_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 
@@ -20,59 +16,6 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 class AppEnv(StrEnum):
     DEV = "dev"
     PRODUCTION = "production"
-
-
-class LegacyTomlSettingsSource(PydanticBaseSettingsSource):
-    def __init__(self, settings_cls: type[BaseSettings], toml_file: str | Path):
-        super().__init__(settings_cls)
-        self.toml_file = Path(toml_file)
-
-    def get_field_value(self, field_name: str, field_data: Any) -> tuple[Any, str, bool]:
-        # Not used in this source style
-        return None, field_name, False
-
-    def __call__(self) -> dict[str, Any]:
-        if not self.toml_file.exists():
-            return {}
-
-        import tomllib
-
-        try:
-            with open(self.toml_file, "rb") as f:
-                data = tomllib.load(f)
-        except Exception:
-            return {}
-
-        if not isinstance(data, dict):
-            return {}
-
-        # Flatten nested keys for legacy compatibility
-        flattened = {}
-
-        # [ai] section
-        ai = data.get("ai", {})
-        if isinstance(ai, dict):
-            if "mock_external_services" in ai:
-                flattened["mock_external_services"] = ai["mock_external_services"]
-            if "enable_by_default" in ai:
-                flattened["use_llm_by_default"] = ai["enable_by_default"]
-            if "model" in ai:
-                flattened["llm_model"] = ai["model"]
-            if "temperature" in ai:
-                flattened["llm_temperature"] = ai["temperature"]
-
-        # [uploads] section
-        uploads = data.get("uploads", {})
-        if isinstance(uploads, dict):
-            if "max_upload_mb" in uploads:
-                flattened["max_upload_mb"] = uploads["max_upload_mb"]
-
-        # Top level keys
-        for k, v in data.items():
-            if k not in {"ai", "uploads"}:
-                flattened[k] = v
-
-        return flattened
 
 
 class Settings(BaseSettings):
@@ -92,30 +35,35 @@ class Settings(BaseSettings):
 
     @field_validator("app_env", mode="before")
     @classmethod
-    def normalize_env(cls, v: Any) -> AppEnv:
+    def normalize_env(cls, v: object) -> AppEnv:
+        if isinstance(v, AppEnv):
+            return v
         if v is None:
             return AppEnv.PRODUCTION
         if isinstance(v, str):
             lowered = v.strip().lower()
             if lowered in {"dev", "development", "local", "localhost"}:
                 return AppEnv.DEV
-            return AppEnv.PRODUCTION
+        return AppEnv.PRODUCTION
 
     @field_validator("allowed_origins", "trusted_hosts", "proxy_trusted_hosts", mode="before")
     @classmethod
-    def parse_list(cls, v: Any) -> list[str]:
+    def parse_list(cls, v: object) -> list[str]:
         if isinstance(v, str):
             v_stripped = v.strip()
             if not v_stripped:
                 return []
             if v_stripped.startswith("[") and v_stripped.endswith("]"):
-                import json
                 try:
-                    return json.loads(v_stripped)
-                except Exception:
-                    pass
+                    parsed = json.loads(v_stripped)
+                except json.JSONDecodeError:
+                    parsed = None
+                if isinstance(parsed, list):
+                    return [str(item).strip() for item in parsed if str(item).strip()]
             return [x.strip() for x in v_stripped.split(",") if x.strip()]
-        return v or []
+        if isinstance(v, (list, tuple, set)):
+            return [str(item).strip() for item in v if str(item).strip()]
+        return []
 
     @property
     def is_dev(self) -> bool:
@@ -127,9 +75,15 @@ class Settings(BaseSettings):
     watermark_path: Path = PROJECT_ROOT / "Ascentia_Logo.png"
 
     # --- API & Security ---
-    allowed_origins: Any = Field(default_factory=list, validation_alias="GSP_ALLOWED_ORIGINS")
-    trusted_hosts: Any = Field(default_factory=list, validation_alias="GSP_TRUSTED_HOSTS")
-    proxy_trusted_hosts: Any = Field(
+    allowed_origins: Annotated[list[str], NoDecode] = Field(
+        default_factory=list,
+        validation_alias="GSP_ALLOWED_ORIGINS",
+    )
+    trusted_hosts: Annotated[list[str], NoDecode] = Field(
+        default_factory=list,
+        validation_alias="GSP_TRUSTED_HOSTS",
+    )
+    proxy_trusted_hosts: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: ["127.0.0.1", "::1", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"],
         validation_alias="GSP_PROXY_TRUSTED_HOSTS",
     )
@@ -146,7 +100,11 @@ class Settings(BaseSettings):
     default_height: int = 1920
     default_fps: int = 30
     max_resolution_dimension: int = 4096
-    max_video_duration_seconds: int = 210
+    max_video_duration_seconds: int = Field(
+        default=600,
+        gt=0,
+        validation_alias="GSP_MAX_VIDEO_DURATION_SECONDS",
+    )
     max_concurrent_jobs: int = 2
     audio_sample_rate: int = 16000
     audio_channels: int = 1
@@ -201,22 +159,57 @@ class Settings(BaseSettings):
     elevenlabs_transcribe_model: str = "scribe_v2"
 
     # --- LLM ---
-    social_llm_model: str = "gpt-5.1-mini"
-    factcheck_llm_model: str = "gpt-5.1-mini"
-    extraction_llm_model: str = "gpt-5.1-mini"
+    social_llm_model: str = "gpt-5-mini"
+    factcheck_llm_model: str = "gpt-5-mini"
+    extraction_llm_model: str = "gpt-5-mini"
 
     # --- Pricing & Credits ---
     default_transcribe_tier: str = "standard"
-    transcribe_tier_provider: Any = {"standard": "groq", "pro": "groq"}
-    transcribe_tier_model: Any = {
+    transcribe_tier_provider: dict[str, str] = {"standard": "groq", "pro": "groq"}
+    transcribe_tier_model: dict[str, str] = {
         "standard": "whisper-large-v3-turbo",
         "pro": "whisper-large-v3",
     }
-    credits_per_1k_tokens: Any = {"standard": 2, "pro": 7}
-    credits_per_minute_transcribe: Any = {"standard": 10, "pro": 20}
-    credits_min_transcribe: Any = {"standard": 25, "pro": 50}
-    credits_min_social_copy: Any = {"standard": 10, "pro": 20}
-    credits_min_fact_check: Any = {"standard": 20, "pro": 40}
+    credits_per_1k_tokens: dict[str, int] = {"standard": 2, "pro": 7}
+    credits_per_minute_transcribe: dict[str, int] = {"standard": 10, "pro": 20}
+    credits_min_transcribe: dict[str, int] = {"standard": 25, "pro": 50}
+    credits_min_social_copy: dict[str, int] = {"standard": 10, "pro": 20}
+    credits_min_fact_check: dict[str, int] = {"standard": 20, "pro": 40}
+
+    # --- Prepaid credit Checkout (owner-gated; disabled until Stripe setup) ---
+    paid_credits_enabled: bool = Field(
+        default=False,
+        validation_alias="GSP_PAID_CREDITS_ENABLED",
+    )
+    stripe_restricted_key: SecretStr | None = Field(
+        default=None,
+        validation_alias=AliasChoices("GSP_STRIPE_RESTRICTED_KEY", "STRIPE_SECRET_KEY"),
+    )
+    stripe_webhook_secret: SecretStr | None = Field(
+        default=None,
+        validation_alias=AliasChoices("GSP_STRIPE_WEBHOOK_SECRET", "STRIPE_WEBHOOK_SECRET"),
+    )
+    stripe_price_starter: str = Field(default="", validation_alias="GSP_STRIPE_PRICE_STARTER")
+    stripe_price_core: str = Field(default="", validation_alias="GSP_STRIPE_PRICE_CORE")
+    stripe_price_pro: str = Field(default="", validation_alias="GSP_STRIPE_PRICE_PRO")
+    stripe_success_url: str = Field(
+        default="http://localhost:3000/?checkout=success&session_id={CHECKOUT_SESSION_ID}",
+        validation_alias="GSP_STRIPE_SUCCESS_URL",
+    )
+    stripe_cancel_url: str = Field(
+        default="http://localhost:3000/?checkout=cancelled",
+        validation_alias="GSP_STRIPE_CANCEL_URL",
+    )
+    stripe_automatic_tax_enabled: bool = Field(
+        default=False,
+        validation_alias="GSP_STRIPE_AUTOMATIC_TAX_ENABLED",
+    )
+    stripe_webhook_tolerance_seconds: int = Field(
+        default=300,
+        ge=60,
+        le=900,
+        validation_alias="GSP_STRIPE_WEBHOOK_TOLERANCE_SECONDS",
+    )
 
     # --- Pricing (USD) ---
     stt_price_per_minute: dict[str, float] = {
@@ -228,7 +221,7 @@ class Settings(BaseSettings):
     llm_pricing: dict[str, dict[str, float]] = {
         "gpt-4o": {"input": 5.00, "output": 15.00},
         "gpt-4o-mini": {"input": 0.15, "output": 0.60},
-        "gpt-5.1-mini": {"input": 0.25, "output": 2.00},
+        "gpt-5-mini": {"input": 0.25, "output": 2.00},
     }
     default_llm_input_price: float = 0.25
     default_llm_output_price: float = 2.00
@@ -239,12 +232,24 @@ class Settings(BaseSettings):
         ge=0.0,
         validation_alias="GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD",
     )
+    external_provider_daily_budget_usd: float = Field(
+        default=0.0,
+        ge=0.0,
+        validation_alias="GSP_EXTERNAL_PROVIDER_DAILY_BUDGET_USD",
+    )
     external_provider_per_request_budget_usd: float = Field(
         default=0.0,
         ge=0.0,
         validation_alias="GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD",
     )
+    external_provider_price_safety_multiplier: float = Field(
+        default=1.25,
+        ge=1.0,
+        le=2.0,
+        validation_alias="GSP_EXTERNAL_PROVIDER_PRICE_SAFETY_MULTIPLIER",
+    )
     max_llm_input_chars: int = 15000
+    max_llm_output_tokens_extraction: int = 1000
     max_llm_output_tokens_social: int = 3000
     max_llm_output_tokens_factcheck: int = 6000
     max_upload_mb: int = Field(default=1024, validation_alias="GSP_MAX_UPLOAD_MB")
@@ -252,9 +257,9 @@ class Settings(BaseSettings):
     static_rate_limit: int = 60
     static_rate_limit_window: int = 60
 
-    # --- App Settings (Legacy from settings.py) ---
+    # --- Runtime defaults ---
     use_llm_by_default: bool = Field(default=False, validation_alias="GSP_USE_LLM_BY_DEFAULT")
-    llm_model: str = Field(default="gpt-5.1-mini", validation_alias="GSP_LLM_MODEL")
+    llm_model: str = Field(default="gpt-5-mini", validation_alias="GSP_LLM_MODEL")
     llm_temperature: float = Field(default=0.6, validation_alias="GSP_LLM_TEMPERATURE")
 
     def __init__(self, **values: Any) -> None:
@@ -264,34 +269,43 @@ class Settings(BaseSettings):
             if not self.trusted_hosts:
                 self.trusted_hosts = ["*.run.app", "*.a.run.app"]
 
-    @classmethod
-    def settings_customise_sources(
-        cls,
-        settings_cls: type[BaseSettings],
-        init_settings: PydanticBaseSettingsSource,
-        env_settings: PydanticBaseSettingsSource,
-        dotenv_settings: PydanticBaseSettingsSource,
-        file_secret_settings: PydanticBaseSettingsSource,
-    ) -> tuple[PydanticBaseSettingsSource, ...]:
-        # Order of precedence:
-        # 1. Constructor arguments
-        # 2. Environment variables
-        # 3. .env file
-        # 4. config/app_settings.toml (Legacy support)
-        # 5. Secrets
+    def assert_paid_credits_configuration(self) -> None:
+        """Fail closed before a runtime can create real Checkout Sessions."""
+        if not self.paid_credits_enabled:
+            return
+        if self.stripe_automatic_tax_enabled:
+            raise RuntimeError(
+                "Stripe Automatic Tax is owner-gated until active tax registrations "
+                "and the tax-inclusive catalog are reviewed."
+            )
 
-        # Determine TOML path
-        toml_path = os.getenv("GSP_APP_SETTINGS_FILE")
-        if not toml_path:
-            toml_path = str(PROJECT_ROOT / "config" / "app_settings.toml")
-
-        return (
-            init_settings,
-            env_settings,
-            dotenv_settings,
-            LegacyTomlSettingsSource(settings_cls, toml_file=toml_path),
-            file_secret_settings,
+        restricted_key = (
+            self.stripe_restricted_key.get_secret_value().strip()
+            if self.stripe_restricted_key is not None
+            else ""
         )
-
+        webhook_secret = (
+            self.stripe_webhook_secret.get_secret_value().strip()
+            if self.stripe_webhook_secret is not None
+            else ""
+        )
+        if not restricted_key.startswith(("rk_test_", "rk_live_")):
+            raise RuntimeError("A Stripe restricted key is required for paid credits.")
+        if not webhook_secret.startswith("whsec_"):
+            raise RuntimeError("A Stripe webhook signing secret is required for paid credits.")
+        for price_id in (
+            self.stripe_price_starter,
+            self.stripe_price_core,
+            self.stripe_price_pro,
+        ):
+            if not price_id.strip().startswith("price_"):
+                raise RuntimeError("All three Stripe credit Price IDs are required.")
+        if "{CHECKOUT_SESSION_ID}" not in self.stripe_success_url:
+            raise RuntimeError("Stripe success URL must include {CHECKOUT_SESSION_ID}.")
+        if not self.is_dev and (
+            not self.stripe_success_url.startswith("https://")
+            or not self.stripe_cancel_url.startswith("https://")
+        ):
+            raise RuntimeError("Stripe return URLs must use HTTPS outside development.")
 
 settings = Settings()

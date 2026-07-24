@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { api, JobResponse } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { useI18n } from '@/context/I18nContext';
@@ -19,14 +19,18 @@ export function useJobs() {
     const [totalPages, setTotalPages] = useState(1);
     const [totalJobs, setTotalJobs] = useState(0);
     const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+    const latestRequestId = useRef(0);
+    const loadedUserId = useRef(user?.id ?? null);
 
     const fetchJobsPage = useCallback(async (autoSelectLatest: boolean, page: number) => {
         if (!user) return;
+        const requestId = ++latestRequestId.current;
         setJobsLoading(true);
         setJobsError('');
 
         try {
             const response = await api.getJobsPaginated(page, pageSize);
+            if (requestId !== latestRequestId.current) return;
             setRecentJobs(response.items);
             setCurrentPage(response.page);
             setTotalPages(response.total_pages);
@@ -43,9 +47,13 @@ export function useJobs() {
                 }
             }
         } catch (err) {
-            setJobsError(err instanceof Error ? err.message : t('jobsErrorFallback'));
+            if (requestId === latestRequestId.current) {
+                setJobsError(err instanceof Error ? err.message : t('jobsErrorFallback'));
+            }
         } finally {
-            setJobsLoading(false);
+            if (requestId === latestRequestId.current) {
+                setJobsLoading(false);
+            }
         }
     }, [pageSize, t, user]);
 
@@ -84,9 +92,34 @@ export function useJobs() {
 
     // Initial load
     useEffect(() => {
-        if (user) {
-            void fetchJobsPage(false, 1);
-        }
+        let cancelled = false;
+        const userId = user?.id ?? null;
+
+        queueMicrotask(() => {
+            if (cancelled) return;
+
+            if (loadedUserId.current !== userId) {
+                loadedUserId.current = userId;
+                setSelectedJob(null);
+                setRecentJobs([]);
+                setCurrentPage(1);
+                setTotalPages(1);
+                setTotalJobs(0);
+                setJobsError('');
+            }
+
+            if (user) {
+                void fetchJobsPage(false, 1);
+            } else {
+                latestRequestId.current += 1;
+                setJobsLoading(false);
+            }
+        });
+
+        return () => {
+            cancelled = true;
+            latestRequestId.current += 1;
+        };
     }, [fetchJobsPage, user]);
 
     return {

@@ -1,6 +1,5 @@
 import logging
 import time
-from typing import Optional
 
 from sqlalchemy.orm import Session
 
@@ -11,13 +10,12 @@ logger = logging.getLogger(__name__)
 
 class CostService:
     @staticmethod
-    def get_model_pricing(session: Session, model_name: str) -> Optional[DbAIModel]:
+    def get_model_pricing(session: Session, model_name: str) -> DbAIModel | None:
         """
         Fetch pricing for a given model.
         Tries to find exact match, then falls back to Config if DB entry missing (optional fallback strategy).
         """
-        model = session.query(DbAIModel).filter(DbAIModel.id == model_name).first()
-        return model
+        return session.query(DbAIModel).filter(DbAIModel.id == model_name).first()
 
     @staticmethod
     def track_usage(
@@ -25,7 +23,7 @@ class CostService:
         model_name: str,
         prompt_tokens: int,
         completion_tokens: int,
-        job_id: Optional[str] = None,
+        job_id: str | None = None,
     ) -> float:
         """
         Calculate cost, log it, and save to database.
@@ -42,7 +40,7 @@ class CostService:
         else:
             # Fallback to Config or Default if DB missing (Safety net)
             # Though migration should have seeded it.
-            logger.warning(f"Pricing not found in DB for model {model_name}. Using fallback.")
+            logger.warning("Pricing not found in DB for model %s; using configured fallback", model_name)
             # Fallback from settings
             model_pricing = settings.llm_pricing.get(model_name, {})
             input_price = model_pricing.get("input", settings.default_llm_input_price)
@@ -69,10 +67,10 @@ class CostService:
             session.add(usage_record)
             try:
                 session.commit()
-            except Exception as e:
-                logger.error(f"Failed to save token usage: {e}")
+            except Exception as exc:
+                logger.error("Failed to save token usage: %s", exc)
                 session.rollback()
         else:
-            logger.error(f"Skipping DB save for token usage: Model {model_name} not in ai_models table.")
+            logger.error("Skipping usage persistence because model %s is not registered", model_name)
 
         return total_cost

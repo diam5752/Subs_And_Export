@@ -54,7 +54,7 @@ def _ensure_admin(current_user: User) -> None:
 
 
 class ReprocessRequest(BaseModel):
-    transcribe_model: str = Field(settings.default_transcribe_tier, max_length=50)
+    transcribe_tier: str = Field(settings.default_transcribe_tier, max_length=50)
     transcribe_provider: str = Field(settings.transcribe_tier_provider[settings.default_transcribe_tier], max_length=50)
     openai_model: str = Field("", max_length=50)
     video_quality: str = Field("high quality", max_length=50)
@@ -71,6 +71,12 @@ class ReprocessRequest(BaseModel):
     watermark_enabled: bool = False
 
 
+class RetentionResponse(BaseModel):
+    status: str
+    deleted_count: int
+    message: str
+
+
 @router.post("/jobs/{job_id}/reprocess", response_model=JobResponse, dependencies=[Depends(limiter_processing)])
 def reprocess_job(
     job_id: str,
@@ -80,7 +86,7 @@ def reprocess_job(
     job_store: JobStore = Depends(get_job_store),
     history_store: HistoryStore = Depends(get_history_store),
     ledger_store: UsageLedgerStore = Depends(get_usage_ledger_store),
-):
+) -> JobResponse:
     source_job = job_store.get_job(job_id)
     if not source_job or source_job.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -96,7 +102,7 @@ def reprocess_job(
         )
 
     proc_settings = build_processing_settings(
-        transcribe_model=request.transcribe_model,
+        transcribe_tier=request.transcribe_tier,
         transcribe_provider=request.transcribe_provider,
         openai_model=request.openai_model,
         video_quality=request.video_quality,
@@ -134,7 +140,7 @@ def reprocess_job(
         job = job_store.create_job(new_job_id, current_user.id)
 
         try:
-            llm_models = pricing.resolve_llm_models(proc_settings.transcribe_model)
+            llm_models = pricing.resolve_llm_models(proc_settings.transcribe_tier)
             source_duration_seconds = (source_job.result_data or {}).get("duration_seconds")
             estimated_duration_seconds = (
                 float(source_duration_seconds)
@@ -145,13 +151,13 @@ def reprocess_job(
                 ledger_store=ledger_store,
                 user_id=current_user.id,
                 job_id=new_job_id,
-                tier=proc_settings.transcribe_model,
+                tier=proc_settings.transcribe_tier,
                 duration_seconds=estimated_duration_seconds,
                 use_llm=proc_settings.use_llm,
                 llm_model=llm_models.social,
                 provider=proc_settings.transcribe_provider,
                 stt_model=pricing.resolve_requested_transcribe_model(
-                    tier=proc_settings.transcribe_model,
+                    tier=proc_settings.transcribe_tier,
                     provider=proc_settings.transcribe_provider,
                     openai_model=proc_settings.openai_model,
                 ),
@@ -166,7 +172,7 @@ def reprocess_job(
             record_event_safe(
                 history_store, current_user, "process_started",
                 f"Reprocessing {source_job.result_data.get('original_filename', 'video') if source_job.result_data else 'video'}",
-                {"job_id": new_job_id, "source_job_id": job_id, "provider": proc_settings.transcribe_provider, "model_size": proc_settings.transcribe_model, "source": "gcs"},
+                {"job_id": new_job_id, "source_job_id": job_id, "provider": proc_settings.transcribe_provider, "transcribe_tier": proc_settings.transcribe_tier, "source": "gcs"},
             )
 
             background_tasks.add_task(
@@ -191,7 +197,7 @@ def reprocess_job(
             refund_charge_best_effort(ledger_store, charge_plan, status="failed", error=sanitize_message(str(exc)))
             raise
 
-        return {**job.__dict__, "balance": new_balance}
+        return JobResponse.model_validate(job).model_copy(update={"balance": new_balance})
 
     # Local file reprocessing
     source_input: Path | None = None
@@ -245,18 +251,18 @@ def reprocess_job(
     job = job_store.create_job(new_job_id, current_user.id)
 
     try:
-        llm_models = pricing.resolve_llm_models(proc_settings.transcribe_model)
+        llm_models = pricing.resolve_llm_models(proc_settings.transcribe_tier)
         charge_plan, new_balance = reserve_processing_charges(
             ledger_store=ledger_store,
             user_id=current_user.id,
             job_id=new_job_id,
-            tier=proc_settings.transcribe_model,
+            tier=proc_settings.transcribe_tier,
             duration_seconds=float(probe.duration_s or 0),
             use_llm=proc_settings.use_llm,
             llm_model=llm_models.social,
             provider=proc_settings.transcribe_provider,
             stt_model=pricing.resolve_requested_transcribe_model(
-                tier=proc_settings.transcribe_model,
+                tier=proc_settings.transcribe_tier,
                 provider=proc_settings.transcribe_provider,
                 openai_model=proc_settings.openai_model,
             ),
@@ -272,7 +278,7 @@ def reprocess_job(
         record_event_safe(
             history_store, current_user, "process_started",
             f"Reprocessing {source_job.result_data.get('original_filename', 'video') if source_job.result_data else 'video'}",
-            {"job_id": new_job_id, "source_job_id": job_id, "provider": proc_settings.transcribe_provider, "model_size": proc_settings.transcribe_model, "source": "local"},
+            {"job_id": new_job_id, "source_job_id": job_id, "provider": proc_settings.transcribe_provider, "transcribe_tier": proc_settings.transcribe_tier, "source": "local"},
         )
 
         background_tasks.add_task(
@@ -292,16 +298,16 @@ def reprocess_job(
         input_path.unlink(missing_ok=True)
         raise
 
-    return {**job.__dict__, "balance": new_balance}
+    return JobResponse.model_validate(job).model_copy(update={"balance": new_balance})
 
 
-@router.post("/jobs/cleanup")
+@router.post("/jobs/cleanup", response_model=RetentionResponse)
 def run_retention_policy(
     days: int = 30,
     job_store: JobStore = Depends(get_job_store),
     history_store: HistoryStore = Depends(get_history_store),
     current_user: User = Depends(get_current_user),
-):
+) -> RetentionResponse:
     """Manually trigger retention policy: Delete jobs older than {days} days."""
     _ensure_admin(current_user)
 
@@ -309,7 +315,11 @@ def run_retention_policy(
     old_jobs = job_store.list_jobs_created_before(cutoff)
 
     if not old_jobs:
-        return {"status": "success", "deleted_count": 0, "message": "No old jobs found"}
+        return RetentionResponse(
+            status="success",
+            deleted_count=0,
+            message="No old jobs found",
+        )
 
     _, uploads_dir, artifacts_root = data_roots()
     deleted_ids = []
@@ -329,7 +339,11 @@ def run_retention_policy(
     for jid in deleted_ids:
         job_store.delete_job(jid)
 
-    return {"status": "success", "deleted_count": len(deleted_ids), "message": f"Deleted {len(deleted_ids)} jobs older than {days} days"}
+    return RetentionResponse(
+        status="success",
+        deleted_count=len(deleted_ids),
+        message=f"Deleted {len(deleted_ids)} jobs older than {days} days",
+    )
 
 
 @router.get("/admin/usage/summary", response_model=UsageSummaryResponse)
@@ -339,7 +353,7 @@ def get_usage_summary(
     end_ts: int | None = Query(None, ge=0),
     current_user: User = Depends(get_current_user),
     ledger_store: UsageLedgerStore = Depends(get_usage_ledger_store),
-):
+) -> UsageSummaryResponse:
     """Admin usage summary by day/month/user/action."""
     _ensure_admin(current_user)
 

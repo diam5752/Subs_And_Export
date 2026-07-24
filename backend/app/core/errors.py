@@ -2,7 +2,7 @@
 
 import logging
 import re
-from typing import Union
+from typing import cast
 
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
@@ -42,29 +42,35 @@ def sanitize_message(msg: str) -> str:
 
     return msg
 
-def sanitize_error(exc: Union[Exception, str]) -> str:
+def sanitize_error(exc: Exception | str) -> str:
     """
     Convenience wrapper to sanitize an exception or a string.
     """
     return sanitize_message(str(exc))
 
-def create_error_response(status_code: int, message: str, error_code: str = None) -> JSONResponse:
+def create_error_response(
+    status_code: int,
+    message: str,
+    error_code: str | None = None,
+) -> JSONResponse:
     content = {"detail": message}
     if error_code:
         content["code"] = error_code
     return JSONResponse(status_code=status_code, content=content)
 
-async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+async def http_exception_handler(_request: Request, exc: Exception) -> JSONResponse:
     """
     Handle explicit HTTP exceptions (e.g. 404, 403).
     """
-    return create_error_response(exc.status_code, sanitize_message(str(exc.detail)))
+    http_exc = cast(StarletteHTTPException, exc)
+    return create_error_response(http_exc.status_code, sanitize_message(str(http_exc.detail)))
 
-async def validation_exception_handler(request: Request, exc: RequestValidationError):
+async def validation_exception_handler(request: Request, exc: Exception) -> JSONResponse:
     """
     Handle Pydantic validation errors.
     """
-    errors = exc.errors()
+    validation_exc = cast(RequestValidationError, exc)
+    errors = validation_exc.errors()
 
     # Specific logic ported from main.py for batch delete limit
     if request.url.path.endswith("/videos/jobs/batch-delete"):
@@ -88,7 +94,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     error_msg = "; ".join(sanitized_errors)
     return create_error_response(status.HTTP_422_UNPROCESSABLE_CONTENT, f"Validation Error: {sanitize_message(error_msg)}")
 
-async def database_exception_handler(request: Request, exc: SQLAlchemyError):
+async def database_exception_handler(request: Request, _exc: Exception) -> JSONResponse:
     """
     Handle database errors. Log the full error, return generic message.
     """
@@ -100,7 +106,7 @@ async def database_exception_handler(request: Request, exc: SQLAlchemyError):
     )
 
 
-async def provider_budget_exception_handler(request: Request, exc: ProviderBudgetExceededError):
+async def provider_budget_exception_handler(request: Request, _exc: Exception) -> JSONResponse:
     """Return a stable, non-sensitive response when the provider budget is closed."""
     logger.warning("External provider budget blocked request", extra={"path": request.url.path})
     return create_error_response(
@@ -109,7 +115,7 @@ async def provider_budget_exception_handler(request: Request, exc: ProviderBudge
         "PROVIDER_BUDGET_REACHED",
     )
 
-async def global_exception_handler(request: Request, exc: Exception):
+async def global_exception_handler(request: Request, _exc: Exception) -> JSONResponse:
     """
     Catch-all for unhandled exceptions.
     """
@@ -120,7 +126,7 @@ async def global_exception_handler(request: Request, exc: Exception):
         "INTERNAL_ERROR"
     )
 
-def register_exception_handlers(app: FastAPI):
+def register_exception_handlers(app: FastAPI) -> None:
     """
     Registrar for all exception handlers.
     """

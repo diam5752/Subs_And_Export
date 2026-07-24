@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Iterator
+from typing import Any, Iterator, Mapping, cast
 
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
@@ -70,12 +70,15 @@ class Database:
         self._engine.dispose()
 
     @staticmethod
-    def dumps(data: dict) -> str:
+    def dumps(data: Mapping[str, Any]) -> str:
         return json.dumps(data, ensure_ascii=False, separators=(",", ":"))
 
     @staticmethod
-    def loads(data: str) -> dict:
+    def loads(data: str) -> dict[str, Any]:
         try:
-            return json.loads(data)
-        except Exception:
+            decoded: object = json.loads(data)
+        except (TypeError, json.JSONDecodeError):
             return {}
+        if not isinstance(decoded, dict):
+            return {}
+        return cast(dict[str, Any], decoded)

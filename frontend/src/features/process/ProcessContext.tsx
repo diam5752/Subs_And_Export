@@ -1,10 +1,17 @@
-import React, { createContext, useContext, useMemo, useState, useEffect, useRef, useCallback } from 'react';
+import React, { createContext, useContext, useMemo, useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react';
 import { API_BASE, JobResponse, api } from '@/lib/api';
 import { useI18n } from '@/context/I18nContext';
 import { Cue } from '@/components/SubtitleOverlay';
-import { normalizeSubtitleText, resegmentCues } from '@/lib/subtitleUtils';
+import {
+    resegmentCues,
+    SUBTITLE_POSITION_MAX,
+    SUBTITLE_POSITION_MIN,
+    updateCueText,
+} from '@/lib/subtitleUtils';
 import { PreviewPlayerHandle } from '@/components/PreviewPlayer';
 import type { LastUsedSettings, StylePreset, TranscribeMode, TranscribeProvider } from './processTypes';
+import { resolveConfiguredTranscription } from '@/lib/transcription';
+import { buildSubtitleExportFilename, withDownloadParameters } from '@/lib/exportFilename';
 
 export interface ProcessingOptions {
     transcribeMode: TranscribeMode;
@@ -52,6 +59,8 @@ interface ProcessContextType {
     buildStaticUrl: (path?: string | null) => string | null;
     hasVideos: boolean;
     hasActiveJob: boolean;
+    transcribeMode: TranscribeMode;
+    transcribeProvider: TranscribeProvider;
 
     // Local state
     subtitlePosition: number;
@@ -102,12 +111,14 @@ interface ProcessContextType {
     // Transcript editing
     editingCueIndex: number | null;
     setEditingCueIndex: (i: number | null) => void;
+    editingCueSurface: 'video' | 'transcript' | null;
     editingCueDraft: string;
     setEditingCueDraft: (s: string) => void;
     isSavingTranscript: boolean;
+    transcriptLoadError: string | null;
     transcriptSaveError: string | null;
     setTranscriptSaveError: (s: string | null) => void;
-    beginEditingCue: (index: number) => void;
+    beginEditingCue: (index: number, surface?: 'video' | 'transcript') => void;
     cancelEditingCue: () => void;
     saveEditingCue: () => Promise<void>;
     updateCueText: (cue: Cue, nextText: string) => Cue;
@@ -202,7 +213,10 @@ export function ProcessProvider({
                 if (parsed && parsed[key] !== undefined) {
                     const rawValue = parsed[key] as unknown;
                     if (key === 'position') {
-                        return (clampNumber(rawValue, 5, 35) ?? defaultValue) as T;
+                        return (
+                            clampNumber(rawValue, SUBTITLE_POSITION_MIN, SUBTITLE_POSITION_MAX)
+                            ?? defaultValue
+                        ) as T;
                     }
                     if (key === 'size') {
                         return (clampNumber(rawValue, 50, 150) ?? defaultValue) as T;
@@ -225,10 +239,15 @@ export function ProcessProvider({
         return defaultValue;
     };
 
-    // The product is intentionally pinned to the deterministic mock engine until
-    // a live provider is explicitly enabled in both product policy and backend configuration.
-    const transcribeMode: TranscribeMode = 'standard';
-    const transcribeProvider: TranscribeProvider = 'mock';
+    // Public configuration selects only the requested UI route. The backend
+    // independently enforces feature flags, provider scope, credentials, and budgets.
+    // Missing or invalid configuration always fails closed to the mock engine.
+    const configuredTranscription = resolveConfiguredTranscription(
+        process.env.NEXT_PUBLIC_TRANSCRIBE_PROVIDER,
+        process.env.NEXT_PUBLIC_TRANSCRIBE_MODE,
+    );
+    const transcribeMode: TranscribeMode = configuredTranscription.mode;
+    const transcribeProvider: TranscribeProvider = configuredTranscription.provider;
 
     // Initial values with priority: LocalStorage > Defaults
     // Defaults: Position: 30 (Middle), Size: 85 (Medium), Lines: 2 (Double), Color: Yellow, Karaoke: True
@@ -247,17 +266,46 @@ export function ProcessProvider({
     const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null);
     const [previewVideoUrl, setPreviewVideoUrl] = useState<string | null>(null);
     const [activePreviewVariant, setActivePreviewVariant] = useState<string | null>(null);
-    const [cues, setCues] = useState<Cue[]>([]);
+    const transcriptionSource = selectedJob?.result_data?.transcription_url ?? null;
+    const [cueResource, setCueResource] = useState<{
+        source: string | null;
+        cues: Cue[];
+        error: string | null;
+    }>({
+        source: transcriptionSource,
+        cues: [],
+        error: null,
+    });
+    const cues = useMemo(
+        () => cueResource.source === transcriptionSource ? cueResource.cues : [],
+        [cueResource, transcriptionSource],
+    );
+    const transcriptLoadError = cueResource.source === transcriptionSource
+        ? cueResource.error
+        : null;
+    const setCues = useCallback((nextCues: Cue[]) => {
+        setCueResource({ source: transcriptionSource, cues: nextCues, error: null });
+    }, [transcriptionSource]);
 
-    const [overrideStep, setOverrideStep] = useState<number | null>(null);
+    const [overrideStep, setOverrideStepState] = useState<number | null>(null);
     const [exportingResolutions, setExportingResolutions] = useState<Record<string, boolean>>({});
     const [exportError, setExportError] = useState<string | null>(null);
 
     // Transcript editing state
     const [editingCueIndex, setEditingCueIndex] = useState<number | null>(null);
+    const [editingCueSurface, setEditingCueSurface] = useState<'video' | 'transcript' | null>(null);
     const [editingCueDraft, setEditingCueDraft] = useState<string>('');
     const [isSavingTranscript, setIsSavingTranscript] = useState(false);
     const [transcriptSaveError, setTranscriptSaveError] = useState<string | null>(null);
+    const selectedJobId = selectedJob?.id ?? null;
+    const selectedJobIdRef = useRef(selectedJobId);
+    useLayoutEffect(() => {
+        selectedJobIdRef.current = selectedJobId;
+        return () => {
+            selectedJobIdRef.current = null;
+        };
+    }, [selectedJobId]);
+    const [transientJobId, setTransientJobId] = useState(selectedJobId);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
     const resultsRef = useRef<HTMLDivElement>(null);
@@ -276,6 +324,33 @@ export function ProcessProvider({
         if (selectedFile || selectedJob || isProcessing) return 2;
         return 1;
     }, [isProcessing, selectedFile, selectedJob]);
+
+    const setOverrideStep = useCallback((step: number | null) => {
+        setOverrideStepState(step === calculatedStep ? null : step);
+    }, [calculatedStep]);
+
+    const [observedCalculatedStep, setObservedCalculatedStep] = useState(calculatedStep);
+    if (observedCalculatedStep !== calculatedStep) {
+        setObservedCalculatedStep(calculatedStep);
+        if (overrideStep === calculatedStep) {
+            setOverrideStepState(null);
+        }
+    }
+
+    // Transient editor/export state belongs to exactly one job. Reset it during
+    // the render transition so children never observe the previous job's state.
+    if (transientJobId !== selectedJobId) {
+        setTransientJobId(selectedJobId);
+        setExportingResolutions({});
+        setExportError(null);
+        setTranscriptSaveError(null);
+        setIsSavingTranscript(false);
+        setEditingCueIndex(null);
+        setEditingCueSurface(null);
+        setEditingCueDraft('');
+        setActivePreviewVariant(null);
+        setOverrideStepState(null);
+    }
 
     const currentStep = overrideStep ?? calculatedStep;
 
@@ -397,7 +472,10 @@ export function ProcessProvider({
                 void onReprocessJob(selectedJob.id, {
                     transcribeMode,
                     transcribeProvider,
-                    sourceDurationSeconds: videoInfo?.durationSeconds ?? null,
+                    sourceDurationSeconds:
+                        videoInfo?.durationSeconds
+                        ?? selectedJob.result_data?.duration_seconds
+                        ?? null,
                     outputQuality: 'high quality',
                     outputResolution: '',
                     useAI: false,
@@ -461,6 +539,7 @@ export function ProcessProvider({
 
     const handleExport = useCallback(async (resolution: string) => {
         if (!selectedJob) return;
+        const exportJobId = selectedJob.id;
 
         setExportError(null);
         setExportingResolutions(prev => ({ ...prev, [resolution]: true }));
@@ -478,6 +557,7 @@ export function ProcessProvider({
                 karaoke_enabled: karaokeEnabled,
                 watermark_enabled: watermarkEnabled,
             });
+            if (selectedJobIdRef.current !== exportJobId) return;
             onJobSelect(updatedJob);
             if (!subtitleFileFormats.has(resolution) && updatedJob.result_data?.variants?.[resolution]) {
                 setActivePreviewVariant(resolution);
@@ -489,12 +569,16 @@ export function ProcessProvider({
                 const url = buildStaticUrl(updatedJob.result_data.variants[resolution]);
                 if (url) {
                     try {
-                        // Direct download link method - avoids loading entire file into memory (blob)
+                        // Direct download avoids loading the entire export into browser memory.
                         const link = document.createElement('a');
-                        // Add download=true query param to force Content-Disposition: attachment
-                        link.href = url + (url.includes('?') ? '&' : '?') + 'download=true';
                         const extension = subtitleFileFormats.has(resolution) ? resolution : 'mp4';
-                        link.download = `processed_${resolution}.${extension}`;
+                        const downloadFilename = buildSubtitleExportFilename(
+                            updatedJob.result_data.original_filename
+                                ?? selectedJob.result_data?.original_filename,
+                            extension,
+                        );
+                        link.href = withDownloadParameters(url, downloadFilename);
+                        link.download = downloadFilename;
                         // NOTE: Don't set target="_blank" - it prevents download attribute from working
                         document.body.appendChild(link);
                         link.click();
@@ -506,11 +590,15 @@ export function ProcessProvider({
                 }
             }
         } catch (err) {
-            setExportError(
-                err instanceof Error ? err.message : (t('exportVideoError') || 'Failed to export file')
-            );
+            if (selectedJobIdRef.current === exportJobId) {
+                setExportError(
+                    err instanceof Error ? err.message : (t('exportVideoError') || 'Failed to export file')
+                );
+            }
         } finally {
-            setExportingResolutions(prev => ({ ...prev, [resolution]: false }));
+            if (selectedJobIdRef.current === exportJobId) {
+                setExportingResolutions(prev => ({ ...prev, [resolution]: false }));
+            }
         }
     }, [
         selectedJob,
@@ -528,80 +616,17 @@ export function ProcessProvider({
         t,
     ]);
 
-    // Transcript Editing Helpers
-    const updateCueText = useCallback((cue: Cue, nextText: string): Cue => {
-        const normalizedText = normalizeSubtitleText(nextText).replace(/\s+/g, ' ').trim();
-        const tokens = normalizedText.length > 0 ? normalizedText.split(' ') : [];
-
-        if (!tokens.length) {
-            return { ...cue, text: '', words: undefined };
-        }
-
-        const oldWords = cue.words?.filter(w => w.text.trim().length > 0) ?? [];
-        if (!oldWords.length) {
-            return { ...cue, text: normalizedText, words: undefined };
-        }
-
-        const oldCount = oldWords.length;
-        const nextCount = tokens.length;
-        const newWords: NonNullable<Cue['words']> = [];
-
-        if (nextCount === oldCount) {
-            for (let i = 0; i < oldCount; i += 1) {
-                const word = oldWords[i];
-                newWords.push({ ...word, text: normalizeSubtitleText(tokens[i]) });
-            }
-            return { ...cue, text: normalizedText, words: newWords };
-        }
-
-        if (nextCount < oldCount) {
-            const base = Math.floor(oldCount / nextCount);
-            const remainder = oldCount % nextCount;
-            let cursor = 0;
-
-            for (let i = 0; i < nextCount; i += 1) {
-                const size = base + (i < remainder ? 1 : 0);
-                const group = oldWords.slice(cursor, cursor + size);
-                cursor += size;
-                const first = group[0];
-                const last = group[group.length - 1];
-                newWords.push({ start: first.start, end: last.end, text: normalizeSubtitleText(tokens[i]) });
-            }
-
-            return { ...cue, text: normalizedText, words: newWords };
-        }
-
-        const base = Math.floor(nextCount / oldCount);
-        const remainder = nextCount % oldCount;
-        let tokenCursor = 0;
-
-        for (let i = 0; i < oldCount; i += 1) {
-            const segments = base + (i < remainder ? 1 : 0);
-            const wordStart = oldWords[i].start;
-            const wordEnd = oldWords[i].end;
-            const duration = Math.max(0, wordEnd - wordStart);
-            const segmentDuration = duration / Math.max(1, segments);
-
-            for (let j = 0; j < segments; j += 1) {
-                const start = wordStart + segmentDuration * j;
-                const end = j === segments - 1 ? wordEnd : wordStart + segmentDuration * (j + 1);
-                newWords.push({ start, end, text: normalizeSubtitleText(tokens[tokenCursor]) });
-                tokenCursor += 1;
-            }
-        }
-
-        return { ...cue, text: normalizedText, words: newWords };
-    }, []);
-
-    const beginEditingCue = useCallback((index: number) => {
+    const beginEditingCue = useCallback((index: number, surface: 'video' | 'transcript' = 'transcript') => {
         setTranscriptSaveError(null);
         setEditingCueIndex(index);
+        setEditingCueSurface(surface);
         setEditingCueDraft(cues[index]?.text ?? '');
     }, [cues]);
 
     const cancelEditingCue = useCallback(() => {
         setTranscriptSaveError(null);
         setEditingCueIndex(null);
+        setEditingCueSurface(null);
         setEditingCueDraft('');
     }, []);
 
@@ -630,45 +655,47 @@ export function ProcessProvider({
         });
 
         setCues(updatedCues);
-        setEditingCueIndex(null);
-        setEditingCueDraft('');
+        if (!selectedJob) {
+            setEditingCueIndex(null);
+            setEditingCueSurface(null);
+            setEditingCueDraft('');
+            return;
+        }
 
-        if (!selectedJob?.id) return;
+        const editingJobId = selectedJob.id;
         setIsSavingTranscript(true);
         try {
-            await api.updateJobTranscription(selectedJob.id, updatedCues);
+            await api.updateJobTranscription(editingJobId, updatedCues);
+            if (selectedJobIdRef.current !== editingJobId) return;
+            setEditingCueIndex(null);
+            setEditingCueSurface(null);
+            setEditingCueDraft('');
         } catch (err) {
+            if (selectedJobIdRef.current !== editingJobId) return;
+            // Keep the editor and server-backed transcript in sync. If persistence
+            // fails, restore the last confirmed cues so exports cannot silently use
+            // text that the UI only saved locally.
+            setCues(currentCues);
             setTranscriptSaveError(
                 err instanceof Error ? err.message : (t('transcriptSaveError') || 'Unable to save transcript')
             );
         } finally {
-            setIsSavingTranscript(false);
+            if (selectedJobIdRef.current === editingJobId) {
+                setIsSavingTranscript(false);
+            }
         }
-    }, [selectedJob?.id, t, updateCueText]);
+    }, [selectedJob, setCues, t]);
 
     const handleUpdateDraft = useCallback((text: string) => {
         setEditingCueDraft(text);
     }, []);
 
-    // Effects
-    useEffect(() => {
-        setExportError(null);
-        setTranscriptSaveError(null);
-        setIsSavingTranscript(false);
-        setEditingCueIndex(null);
-        setEditingCueDraft('');
-        setActivePreviewVariant(null);
-    }, [selectedJob?.id]);
-
     useEffect(() => {
         let cancelled = false;
-        const transcriptionUrl = selectedJob?.result_data?.transcription_url;
+        const transcriptionUrl = transcriptionSource;
 
         if (!transcriptionUrl) {
-            setCues([]);
-            return () => {
-                cancelled = true;
-            };
+            return;
         }
 
         const resolvedUrl = transcriptionUrl.startsWith('http') ? transcriptionUrl : `${API_BASE}${transcriptionUrl}`;
@@ -680,28 +707,25 @@ export function ProcessProvider({
             })
             .then(data => {
                 if (cancelled) return;
-                setCues(data as Cue[]);
+                if (!Array.isArray(data)) {
+                    throw new Error('Invalid transcription payload');
+                }
+                setCueResource({ source: transcriptionUrl, cues: data as Cue[], error: null });
             })
-            .catch(err => {
-                console.error('Error loading transcription cues:', err);
-                if (!cancelled) setCues([]);
+            .catch(() => {
+                if (!cancelled) {
+                    setCueResource({
+                        source: transcriptionUrl,
+                        cues: [],
+                        error: t('transcriptLoadError'),
+                    });
+                }
             });
 
         return () => {
             cancelled = true;
         };
-    }, [selectedJob?.result_data?.transcription_url]);
-
-    const previousCalculatedStep = useRef(calculatedStep);
-    useEffect(() => {
-        previousCalculatedStep.current = calculatedStep;
-
-        // Only clear override if we naturally land on the EXACT step we overrode.
-        // Never force-push the user forward if they are looking at a previous step.
-        if (overrideStep !== null && calculatedStep === overrideStep) {
-            setOverrideStep(null);
-        }
-    }, [calculatedStep, overrideStep]);
+    }, [t, transcriptionSource]);
 
     const value = {
         selectedFile,
@@ -720,6 +744,8 @@ export function ProcessProvider({
         buildStaticUrl,
         hasVideos,
         hasActiveJob,
+        transcribeMode,
+        transcribeProvider,
         subtitlePosition, setSubtitlePosition,
         maxSubtitleLines, setMaxSubtitleLines,
         subtitleColor, setSubtitleColor,
@@ -740,8 +766,9 @@ export function ProcessProvider({
         exportError,
         saveLastUsedSettings, lastUsedSettings,
         editingCueIndex, setEditingCueIndex,
+        editingCueSurface,
         editingCueDraft, setEditingCueDraft,
-        isSavingTranscript, transcriptSaveError, setTranscriptSaveError,
+        isSavingTranscript, transcriptLoadError, transcriptSaveError, setTranscriptSaveError,
         beginEditingCue, cancelEditingCue, saveEditingCue, updateCueText, handleUpdateDraft,
         SUBTITLE_COLORS, STYLE_PRESETS,
     };

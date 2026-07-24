@@ -8,6 +8,8 @@ from backend.app.core.logging import setup_logging
 logger = setup_logging()
 
 import os
+from pathlib import Path
+from urllib.parse import quote
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -28,16 +30,18 @@ from starlette.requests import Request
 from starlette.types import ASGIApp
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
-from backend.app.api.endpoints import auth, history, videos
+from backend.app.api.endpoints import auth, billing, history, videos
+from backend.app.api.endpoints.file_utils import sanitize_download_filename
 from backend.app.core.config import settings
 from backend.app.core.database import Database
-from backend.app.core.gcs import generate_signed_download_url, get_gcs_settings
+from backend.app.core.gcs import GcsSettings, generate_signed_download_url, get_gcs_settings
 from backend.app.core.ratelimit import get_client_ip, limiter_static
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
+    settings.assert_paid_credits_configuration()
     app.state.db = Database()
     yield
     # Shutdown
@@ -93,7 +97,7 @@ app.add_middleware(
     allow_origins=origins,
     allow_credentials=False,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type"],
+    allow_headers=["Authorization", "Content-Type", "Idempotency-Key", "Stripe-Signature"],
 )
 
 # Enable GZip compression for responses > 1000 bytes
@@ -174,20 +178,32 @@ DATA_DIR.mkdir(parents=True, exist_ok=True)
 # LRU cache for signed URLs (5 min TTL, shorter than signed URL expiry)
 import time as time_module
 
-_signed_url_cache: dict[str, tuple[str, float]] = {}
+_signed_url_cache: dict[tuple[str, str | None], tuple[str, float]] = {}
 _SIGNED_URL_CACHE_TTL = 300  # 5 minutes
 
-def _get_cached_signed_url(object_name: str, gcs_settings) -> str:
+def _get_cached_signed_url(
+    object_name: str,
+    gcs_settings: GcsSettings,
+    download_filename: str | None = None,
+) -> str:
     """Get signed URL from cache or generate new one."""
     now = time_module.time()
-    if object_name in _signed_url_cache:
-        url, expires = _signed_url_cache[object_name]
+    cache_key = (object_name, download_filename)
+    if cache_key in _signed_url_cache:
+        url, expires = _signed_url_cache[cache_key]
         if now < expires:
             return url
 
     # Generate new signed URL
-    url = generate_signed_download_url(settings=gcs_settings, object_name=object_name)
-    _signed_url_cache[object_name] = (url, now + _SIGNED_URL_CACHE_TTL)
+    response_disposition = None
+    if download_filename:
+        response_disposition = f"attachment; filename*=UTF-8''{quote(download_filename)}"
+    url = generate_signed_download_url(
+        settings=gcs_settings,
+        object_name=object_name,
+        response_disposition=response_disposition,
+    )
+    _signed_url_cache[cache_key] = (url, now + _SIGNED_URL_CACHE_TTL)
 
     # Cleanup old entries (simple garbage collection)
     if len(_signed_url_cache) > 1000:
@@ -199,7 +215,12 @@ def _get_cached_signed_url(object_name: str, gcs_settings) -> str:
 
 
 @app.get("/static/{file_path:path}")
-async def serve_static(request: Request, file_path: str, download: bool = False):
+async def serve_static(
+    request: Request,
+    file_path: str,
+    download: bool = False,
+    filename: str | None = None,
+):
     # Rate limit static file access to prevent egress abuse
     ip = get_client_ip(request)
     limiter_static.check(ip)
@@ -214,11 +235,17 @@ async def serve_static(request: Request, file_path: str, download: bool = False)
 
     if full_path.is_file():
         # Force download for video files or when download=true
-        filename = full_path.name
-        content_disposition = None
-        if download or filename.endswith(('.mp4', '.mov', '.avi', '.webm', '.mkv')):
-            content_disposition = f'attachment; filename="{filename}"'
-        return FileResponse(full_path, headers={"Content-Disposition": content_disposition} if content_disposition else None)
+        force_download = download or full_path.suffix.lower() in {
+            ".mp4", ".mov", ".avi", ".webm", ".mkv",
+        }
+        if force_download:
+            download_name = sanitize_download_filename(filename, full_path.name)
+            return FileResponse(
+                full_path,
+                filename=download_name,
+                content_disposition_type="attachment",
+            )
+        return FileResponse(full_path)
 
     if full_path.is_dir():
         # Security: Disable directory listing to prevent information disclosure
@@ -228,7 +255,19 @@ async def serve_static(request: Request, file_path: str, download: bool = False)
     if gcs_settings:
         object_name = f"{gcs_settings.static_prefix}/{file_path.strip('/')}"
         try:
-            signed_url = _get_cached_signed_url(object_name, gcs_settings)
+            force_download = download or Path(file_path).suffix.lower() in {
+                ".mp4", ".mov", ".avi", ".webm", ".mkv",
+            }
+            download_name = (
+                sanitize_download_filename(filename, Path(file_path).name)
+                if force_download
+                else None
+            )
+            signed_url = _get_cached_signed_url(
+                object_name,
+                gcs_settings,
+                download_filename=download_name,
+            )
             return RedirectResponse(url=signed_url, status_code=302)
         except Exception:
             pass
@@ -242,6 +281,7 @@ async def serve_static(request: Request, file_path: str, download: bool = False)
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(videos.router, prefix="/videos", tags=["videos"])
 app.include_router(history.router, prefix="/history", tags=["history"])
+app.include_router(billing.router, prefix="/billing", tags=["billing"])
 
 @app.get("/health")
 async def health_check():

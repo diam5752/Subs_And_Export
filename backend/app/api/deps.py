@@ -7,6 +7,7 @@ from ..core.auth import SessionStore, User, UserStore
 from ..core.database import Database
 from ..core.gcs_uploads import GcsUploadStore
 from ..core.oauth_state import OAuthStateStore
+from ..services.billing import BillingService
 from ..services.history import HistoryStore
 from ..services.jobs import JobStore
 from ..services.points import PointsStore
@@ -46,6 +47,12 @@ def get_usage_ledger_store(
     points_store: PointsStore = Depends(get_points_store),
 ) -> UsageLedgerStore:
     return UsageLedgerStore(db=db, points_store=points_store)
+
+def get_billing_service(
+    db: Database = Depends(get_db),
+    points_store: PointsStore = Depends(get_points_store),
+) -> BillingService:
+    return BillingService(db=db, points_store=points_store)
 
 async def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],

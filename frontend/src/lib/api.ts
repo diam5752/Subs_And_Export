@@ -22,7 +22,7 @@ interface JobResultData {
     social?: string | null;
     original_filename?: string | null;
     video_crf?: number;
-    model_size?: string;
+    transcribe_tier?: string;
     transcribe_provider?: string;
     output_size?: number;
     duration_seconds?: number;
@@ -66,8 +66,50 @@ interface UserResponse {
     provider: string;
 }
 
-interface PointsBalanceResponse {
+export interface PointsBalanceResponse {
     balance: number;
+    paid_balance: number;
+    promotional_balance: number;
+    reversal_debt: number;
+    ai_spendable_balance: number;
+}
+
+export interface CreditPackage {
+    key: string;
+    credits: number;
+    amount_eur_cents: number;
+    featured: boolean;
+}
+
+export interface VideoCreditBracket {
+    key: string;
+    max_duration_seconds: number;
+    credits: number;
+}
+
+export interface CreditCatalogResponse {
+    catalog_version: string;
+    currency: string;
+    checkout_enabled: boolean;
+    packages: CreditPackage[];
+    video_pricing: VideoCreditBracket[];
+}
+
+interface CreditCheckoutResponse {
+    purchase_id: string;
+    checkout_session_id: string | null;
+    checkout_url: string | null;
+    status: string;
+}
+
+interface CreditCheckoutStatusResponse {
+    purchase_id: string;
+    package_key: string;
+    credits: number;
+    amount_eur_cents: number;
+    status: string;
+    checkout_session_id: string | null;
+    wallet: PointsBalanceResponse;
 }
 
 interface ExportDataResponse {
@@ -209,8 +251,31 @@ class ApiClient {
         return this.request<PointsBalanceResponse>('/auth/points');
     }
 
+    async getCreditCatalog(): Promise<CreditCatalogResponse> {
+        return this.request<CreditCatalogResponse>('/billing/catalog');
+    }
+
+    async createCreditCheckout(
+        packageKey: string,
+        idempotencyKey: string,
+    ): Promise<CreditCheckoutResponse> {
+        return this.request<CreditCheckoutResponse>('/billing/checkout', {
+            method: 'POST',
+            headers: { 'Idempotency-Key': idempotencyKey },
+            body: JSON.stringify({ package_key: packageKey }),
+        });
+    }
+
+    async getCreditCheckoutStatus(
+        checkoutSessionId: string,
+    ): Promise<CreditCheckoutStatusResponse> {
+        return this.request<CreditCheckoutStatusResponse>(
+            `/billing/checkout/${encodeURIComponent(checkoutSessionId)}`,
+        );
+    }
+
     async processVideo(file: File, settings: {
-        transcribe_model?: string;
+        transcribe_tier?: string;
         transcribe_provider?: string;
         openai_model?: string;
         video_quality?: string;
@@ -228,7 +293,7 @@ class ApiClient {
     }): Promise<JobResponse> {
         const formData = new FormData();
         formData.append('file', file);
-        formData.append('transcribe_model', settings.transcribe_model || 'standard');
+        formData.append('transcribe_tier', settings.transcribe_tier || 'standard');
         formData.append('transcribe_provider', settings.transcribe_provider || 'mock');
         formData.append('openai_model', settings.openai_model || '');
         formData.append('video_quality', settings.video_quality || 'balanced');
@@ -298,7 +363,7 @@ class ApiClient {
     }
 
     async processVideoFromGcs(uploadId: string, settings: {
-        transcribe_model?: string;
+        transcribe_tier?: string;
         transcribe_provider?: string;
         openai_model?: string;
         source_duration_seconds?: number | null;
@@ -319,7 +384,7 @@ class ApiClient {
             method: 'POST',
             body: JSON.stringify({
                 upload_id: uploadId,
-                transcribe_model: settings.transcribe_model || 'standard',
+                transcribe_tier: settings.transcribe_tier || 'standard',
                 transcribe_provider: settings.transcribe_provider || 'mock',
                 openai_model: settings.openai_model || '',
                 source_duration_seconds: settings.source_duration_seconds ?? null,
@@ -450,7 +515,7 @@ class ApiClient {
     }
 
     async reprocessJob(jobId: string, settings: {
-        transcribe_model?: string;
+        transcribe_tier?: string;
         transcribe_provider?: string;
         openai_model?: string;
         video_quality?: string;
@@ -469,7 +534,7 @@ class ApiClient {
         return this.request<JobResponse>(`/videos/jobs/${jobId}/reprocess`, {
             method: 'POST',
             body: JSON.stringify({
-                transcribe_model: settings.transcribe_model || 'standard',
+                transcribe_tier: settings.transcribe_tier || 'standard',
                 transcribe_provider: settings.transcribe_provider || 'mock',
                 openai_model: settings.openai_model || '',
                 video_quality: settings.video_quality || 'balanced',

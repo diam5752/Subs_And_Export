@@ -49,6 +49,15 @@ class ApiContractIT extends IntegrationTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION, org.hamcrest.Matchers.containsString("attachment")));
 
+        mockMvc.perform(get("/static/artifacts/static-contract/hello.txt")
+                        .param("download", "true")
+                        .param("filename", "Ε Isous_subs.txt"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(
+                        HttpHeaders.CONTENT_DISPOSITION,
+                        org.hamcrest.Matchers.containsString("%CE%95%20Isous_subs.txt")
+                ));
+
         mockMvc.perform(get("/static/test-listing"))
                 .andExpect(status().isNotFound());
     }

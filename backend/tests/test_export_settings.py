@@ -10,7 +10,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from backend.app.services import ffmpeg_utils, subtitles, video_processing
+from backend.app.services import ffmpeg_utils, video_processing
 
 
 class TestSubtitleSettingsExport:
@@ -69,7 +69,11 @@ class TestSubtitleSettingsExport:
             ass_output.touch()
             return ass_output
 
-        monkeypatch.setattr(subtitles, "create_styled_subtitle_file", capture_style)
+        monkeypatch.setattr(
+            video_processing.subtitle_renderer,
+            "create_styled_subtitle_file",
+            capture_style,
+        )
 
         video_processing.generate_video_variant(
             "job1", setup["input_video"], setup["artifact_dir"], "1280x720",
@@ -97,7 +101,11 @@ class TestSubtitleSettingsExport:
             ass_output.touch()
             return ass_output
 
-        monkeypatch.setattr(subtitles, "create_styled_subtitle_file", capture_style)
+        monkeypatch.setattr(
+            video_processing.subtitle_renderer,
+            "create_styled_subtitle_file",
+            capture_style,
+        )
 
         video_processing.generate_video_variant(
             "job1", setup["input_video"], setup["artifact_dir"], "1280x720",
@@ -124,7 +132,11 @@ class TestSubtitleSettingsExport:
             ass_output.touch()
             return ass_output
 
-        monkeypatch.setattr(subtitles, "create_styled_subtitle_file", capture_style)
+        monkeypatch.setattr(
+            video_processing.subtitle_renderer,
+            "create_styled_subtitle_file",
+            capture_style,
+        )
 
         video_processing.generate_video_variant(
             "job1", setup["input_video"], setup["artifact_dir"], "1280x720",
@@ -153,7 +165,11 @@ class TestSubtitleSettingsExport:
             ass_output.touch()
             return ass_output
 
-        monkeypatch.setattr(subtitles, "create_styled_subtitle_file", capture_style)
+        monkeypatch.setattr(
+            video_processing.subtitle_renderer,
+            "create_styled_subtitle_file",
+            capture_style,
+        )
 
         video_processing.generate_video_variant(
             "job1", setup["input_video"], setup["artifact_dir"], "1280x720",
@@ -185,7 +201,11 @@ class TestSubtitleSettingsExport:
             ass_output.touch()
             return ass_output
 
-        monkeypatch.setattr(subtitles, "create_styled_subtitle_file", capture_style)
+        monkeypatch.setattr(
+            video_processing.subtitle_renderer,
+            "create_styled_subtitle_file",
+            capture_style,
+        )
 
         video_processing.generate_video_variant(
             "job1", setup["input_video"], setup["artifact_dir"], "1280x720",

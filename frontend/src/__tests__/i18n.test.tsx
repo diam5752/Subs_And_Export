@@ -33,10 +33,15 @@ jest.mock('@/context/AuthContext', () => {
 jest.mock('@/context/PointsContext', () => ({
     usePoints: () => ({
         balance: 1000,
+        paidBalance: 1000,
+        promotionalBalance: 0,
+        reversalDebt: 0,
+        aiSpendableBalance: 1000,
         isLoading: false,
         error: null,
         refreshBalance: jest.fn(),
         setBalance: jest.fn(),
+        setWallet: jest.fn(),
     }),
 }));
 
@@ -179,7 +184,7 @@ describe('localized pages', () => {
 
         expect(await screen.findByText('Υπότιτλοι. Χωρίς κόπο.')).toBeInTheDocument();
         expect(screen.queryByRole('button', { name: 'Ρυθμίσεις μηχανής' })).not.toBeInTheDocument();
-        expect(screen.getByRole('button', { name: 'Πόντοι: 1,000' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Credits: 1,000' })).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Προφίλ' })).toHaveAttribute('title', 'Ρυθμίσεις λογαριασμού');
         expect(screen.getAllByText('Επιλογή βίντεο').length).toBeGreaterThan(0);
     });

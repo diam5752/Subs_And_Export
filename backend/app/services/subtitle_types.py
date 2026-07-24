@@ -3,21 +3,20 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
 
-TimeRange = Tuple[float, float, str]
+TimeRange = tuple[float, float, str]
 
 
-@dataclass
+@dataclass(slots=True)
 class WordTiming:
     start: float
     end: float
     text: str
 
 
-@dataclass
+@dataclass(slots=True)
 class Cue:
     start: float
     end: float
     text: str
-    words: Optional[List[WordTiming]] = None
+    words: list[WordTiming] | None = None

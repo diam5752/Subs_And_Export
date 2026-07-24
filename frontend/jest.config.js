@@ -18,16 +18,6 @@ const customJestConfig = {
         '!src/app/privacy/page.tsx',
         '!src/app/register/page.tsx',
         '!src/app/terms/page.tsx',
-        '!src/components/InfoTooltip.tsx',
-        '!src/components/SubtitlePositionSelector.tsx',
-        '!src/features/process/CueItem.tsx',
-        '!src/features/process/ProcessContext.tsx',
-        '!src/features/process/ProcessView.tsx',
-        '!src/features/process/StepIndicator.tsx',
-        '!src/features/process/components/NewVideoConfirmModal.tsx',
-        '!src/features/process/components/Sidebar.tsx',
-        '!src/features/process/components/StylePresetTiles.tsx',
-        '!src/lib/navigation.ts',
     ],
     coverageThreshold: {
         global: {

@@ -24,7 +24,8 @@ def test_groq_transcriber_delegates(tmp_path):
         MockOpenAI.assert_called_with(
             api_key="fake-key",
             base_url="https://api.groq.com/openai/v1",
-            timeout=60.0
+            timeout=60.0,
+            max_retries=0,
         )
         # Verify transcribe call
         mock_client.audio.transcriptions.create.assert_called_with(

@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import List
+from typing import Any
 
 from backend.app.core.config import settings
 from backend.app.services.subtitle_types import Cue, TimeRange
@@ -13,12 +13,19 @@ class StandardTranscriber(Transcriber):
     Transcriber using whisper.cpp with Metal/CoreML acceleration (Apple Silicon optimized).
     """
 
-    def transcribe(self, audio_path: Path, output_dir: Path, language: str = "en", model: str = "base", **kwargs) -> tuple[Path, List[Cue]]:
+    def transcribe(
+        self,
+        audio_path: Path,
+        output_dir: Path,
+        language: str = "en",
+        model: str = "base",
+        **kwargs: Any,
+    ) -> tuple[Path, list[Cue]]:
         progress_callback = kwargs.get("progress_callback")
         check_cancelled = kwargs.get("check_cancelled")
 
         # Check cancellation before starting
-        if check_cancelled:
+        if callable(check_cancelled):
             check_cancelled()
 
         try:
@@ -33,7 +40,7 @@ class StandardTranscriber(Transcriber):
         model_size = model or settings.whispercpp_model
         language = language or settings.whispercpp_language
 
-        if progress_callback:
+        if callable(progress_callback):
             progress_callback(5.0)
 
         # Initialize whisper.cpp model
@@ -44,10 +51,10 @@ class StandardTranscriber(Transcriber):
         )
 
         # Check cancellation after model loading
-        if check_cancelled:
+        if callable(check_cancelled):
             check_cancelled()
 
-        if progress_callback:
+        if callable(progress_callback):
             progress_callback(15.0)
 
         # Transcribe
@@ -58,15 +65,15 @@ class StandardTranscriber(Transcriber):
         )
 
         # Check cancellation after transcription
-        if check_cancelled:
+        if callable(check_cancelled):
             check_cancelled()
 
-        if progress_callback:
+        if callable(progress_callback):
             progress_callback(85.0)
 
 
-        cues: List[Cue] = []
-        timed_text: List[TimeRange] = []
+        cues: list[Cue] = []
+        timed_text: list[TimeRange] = []
 
         for seg in segments:
             seg_start = seg.t0 / 100.0  # centiseconds to seconds
@@ -88,7 +95,7 @@ class StandardTranscriber(Transcriber):
         srt_path = output_dir / f"{audio_path.stem}.srt"
         write_srt_from_segments(timed_text, srt_path)
 
-        if progress_callback:
+        if callable(progress_callback):
             progress_callback(100.0)
 
         return srt_path, cues

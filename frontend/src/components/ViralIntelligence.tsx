@@ -28,7 +28,7 @@ function CopyButton({ text, label }: { text: string; label: string }) {
         <button
             type="button"
             onClick={handleCopy}
-            className="flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px] font-medium bg-white/5 hover:bg-white/10 border border-white/10 hover:border-white/20 transition-all text-white/50 hover:text-white"
+            className="flex min-h-11 items-center gap-1.5 rounded-lg border border-[var(--border)] bg-white px-3 text-[11px] font-semibold text-[var(--muted)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--foreground)]"
             aria-label={copied ? "Copied" : `Copy ${label}`}
         >
             {copied ? (
@@ -51,9 +51,13 @@ function CopyButton({ text, label }: { text: string; label: string }) {
 }
 
 export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
+    return <ViralIntelligenceSession key={jobId} jobId={jobId} />;
+}
+
+function ViralIntelligenceSession({ jobId }: ViralIntelligenceProps) {
     const { t, locale } = useI18n();
     const { setBalance } = usePoints();
-    const activeJobIdRef = useRef(jobId);
+    const isActiveRef = useRef(true);
 
     // Fact Check State
     const [checkingFacts, setCheckingFacts] = useState(false);
@@ -67,14 +71,9 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
 
     const loading = checkingFacts || generatingCopy;
 
-    useEffect(() => {
-        activeJobIdRef.current = jobId;
-        setCheckingFacts(false);
-        setGeneratingCopy(false);
-        setFactCheckResult(null);
-        setSocialCopyResult(null);
-        setError(null);
-    }, [jobId]);
+    useEffect(() => () => {
+        isActiveRef.current = false;
+    }, []);
 
     const handleFactCheck = async () => {
         const requestJobId = jobId;
@@ -82,17 +81,17 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
         setError(null);
         try {
             const result = await api.factCheck(requestJobId);
-            if (activeJobIdRef.current !== requestJobId) return;
+            if (!isActiveRef.current) return;
             setFactCheckResult(result);
             if (typeof result.balance === 'number') {
                 setBalance(result.balance);
             }
         } catch (err: unknown) {
-            if (activeJobIdRef.current !== requestJobId) return;
+            if (!isActiveRef.current) return;
             const message = err instanceof Error ? err.message : 'Failed to fact check';
             setError(message);
         } finally {
-            if (activeJobIdRef.current !== requestJobId) return;
+            if (!isActiveRef.current) return;
             setCheckingFacts(false);
         }
     };
@@ -103,43 +102,43 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
         setError(null);
         try {
             const result = await api.socialCopy(requestJobId);
-            if (activeJobIdRef.current !== requestJobId) return;
+            if (!isActiveRef.current) return;
             setSocialCopyResult(result);
             if (typeof result.balance === 'number') {
                 setBalance(result.balance);
             }
         } catch (err: unknown) {
-            if (activeJobIdRef.current !== requestJobId) return;
+            if (!isActiveRef.current) return;
             const message = err instanceof Error ? err.message : 'Failed to generate social copy';
             setError(message);
         } finally {
-            if (activeJobIdRef.current !== requestJobId) return;
+            if (!isActiveRef.current) return;
             setGeneratingCopy(false);
         }
     };
 
     return (
         <div className="space-y-6">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {/* Fact Check Button */}
                 {!factCheckResult && !loading && (
                     <div className="relative group/btn">
                         <button
                             onClick={handleFactCheck}
                             disabled={loading}
-                            className="w-full group relative flex flex-col items-center justify-center gap-3 py-6 px-4 rounded-[2rem] bg-white/5 hover:bg-white/10 backdrop-blur-2xl border border-white/10 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-xl hover:shadow-emerald-500/10"
+                            className="group relative flex min-h-40 w-full flex-col items-center justify-center gap-3 rounded-2xl border border-[var(--border)] bg-white px-4 py-6 text-[var(--foreground)] shadow-[0_10px_26px_rgba(17,18,21,0.06)] transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-[0_14px_34px_rgba(16,185,129,0.12)] active:translate-y-0"
                         >
-                            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-400/20 to-teal-400/20 flex items-center justify-center text-emerald-300 shadow-inner mb-1 group-hover:scale-110 group-hover:bg-gradient-to-br group-hover:from-emerald-400 group-hover:to-teal-400 group-hover:text-white transition-all duration-300">
+                            <div className="mb-1 flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-emerald-100 to-teal-100 text-emerald-600 shadow-inner transition-transform duration-200 group-hover:scale-105">
                                 <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                     <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
                                     <path d="M9 12l2 2 4-4" />
                                 </svg>
                             </div>
                             <div className="text-center">
-                                <span className="block text-sm font-medium text-white/90 group-hover:text-white">{t('viralVerifyFacts')}</span>
+                                <span className="block text-sm font-semibold text-[var(--foreground)]">{t('viralVerifyFacts')}</span>
                                 <div className="flex items-center justify-center gap-1.5 opacity-80 mt-1">
                                     <TokenIcon className="w-3.5 h-3.5" />
-                                    <span className="text-xs font-semibold text-white/70">
+                                    <span className="text-xs font-semibold text-[var(--muted)]">
                                         {formatPoints(FACT_CHECK_COST)}
                                     </span>
                                 </div>
@@ -162,9 +161,9 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
                         <button
                             onClick={handleSocialCopy}
                             disabled={loading}
-                            className="w-full group relative flex flex-col items-center justify-center gap-3 py-6 px-4 rounded-[2rem] bg-white/5 hover:bg-white/10 backdrop-blur-2xl border border-white/10 transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] shadow-lg hover:shadow-xl hover:shadow-purple-500/10"
+                            className="group relative flex min-h-40 w-full flex-col items-center justify-center gap-3 rounded-2xl border border-[var(--border)] bg-white px-4 py-6 text-[var(--foreground)] shadow-[0_10px_26px_rgba(17,18,21,0.06)] transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-purple-300 hover:shadow-[0_14px_34px_rgba(147,51,234,0.12)] active:translate-y-0"
                         >
-                            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-purple-400/20 to-pink-400/20 flex items-center justify-center text-purple-300 shadow-inner mb-1 group-hover:scale-110 group-hover:bg-gradient-to-br group-hover:from-purple-400 group-hover:to-pink-400 group-hover:text-white transition-all duration-300">
+                            <div className="mb-1 flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-purple-100 to-pink-100 text-purple-600 shadow-inner transition-transform duration-200 group-hover:scale-105">
                                 {/* Wand / Sparkles Icon */}
                                 <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                     <path d="M15 4V2" />
@@ -179,10 +178,10 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
                                 </svg>
                             </div>
                             <div className="text-center">
-                                <span className="block text-sm font-medium text-white/90 group-hover:text-white">{t('viralGenerateMetadata')}</span>
+                                <span className="block text-sm font-semibold text-[var(--foreground)]">{t('viralGenerateMetadata')}</span>
                                 <div className="flex items-center justify-center gap-1.5 opacity-80 mt-1">
                                     <TokenIcon className="w-3.5 h-3.5" />
-                                    <span className="text-xs font-semibold text-white/70">
+                                    <span className="text-xs font-semibold text-[var(--muted)]">
                                         {formatPoints(SOCIAL_COPY_COST)}
                                     </span>
                                 </div>
@@ -201,22 +200,22 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
             </div>
 
             {error && (
-                <div className="p-4 rounded-[1.5rem] bg-red-500/10 backdrop-blur-xl border border-red-500/10 text-red-200 text-sm text-center font-medium">
+                <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-center text-sm font-medium text-red-700">
                     {error}
                 </div>
             )}
 
             {loading && (
-                <div className="flex flex-col items-center justify-center py-16 space-y-4 rounded-[2.5rem] bg-white/5 border border-white/10 backdrop-blur-2xl shadow-2xl">
+                <div className="flex flex-col items-center justify-center space-y-4 rounded-2xl border border-[var(--border)] bg-white py-16 shadow-[0_12px_30px_rgba(17,18,21,0.06)]">
                     <div className="relative">
-                        <div className="w-12 h-12 rounded-full border-2 border-white/10 border-t-white animate-spin" />
+                        <div className="h-12 w-12 animate-spin rounded-full border-2 border-slate-200 border-t-[var(--accent)]" />
                         <div className="absolute inset-0 flex items-center justify-center">
-                            <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <svg className="h-4 w-4 text-[var(--accent)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                 <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
                             </svg>
                         </div>
                     </div>
-                    <p className="text-white/60 font-medium tracking-wide text-sm animate-pulse">
+                    <p className="animate-pulse text-sm font-medium tracking-wide text-[var(--muted)]">
                         {checkingFacts ? t('checkingFacts') : t('viralAnalyzing')}
                     </p>
                 </div>
@@ -227,20 +226,20 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
                 <div className="space-y-5 animate-fade-in">
                     {/* Header */}
                     <div className="flex items-center justify-between px-2">
-                        <h4 className="text-xs font-semibold text-white/40 uppercase tracking-widest pl-2 flex items-center gap-2">
+                        <h4 className="flex items-center gap-2 pl-2 text-xs font-semibold uppercase tracking-widest text-[var(--muted)]">
                             <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                             {t('factReport')}
                         </h4>
-                        <button onClick={() => setFactCheckResult(null)} className="px-3 py-1 rounded-full bg-white/5 hover:bg-white/10 text-xs text-white/60 hover:text-white transition-colors backdrop-blur-md">{t('closeLabel')}</button>
+                        <button onClick={() => setFactCheckResult(null)} className="min-h-11 rounded-full border border-[var(--border)] bg-white px-4 text-xs font-semibold text-[var(--muted)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--foreground)]">{t('closeLabel')}</button>
                     </div>
 
                     {/* Truth Score Card */}
-                    <div className="p-6 rounded-[2rem] bg-gradient-to-br from-white/5 to-white/[0.02] border border-white/10 backdrop-blur-2xl shadow-2xl">
+                    <div className="rounded-2xl border border-[var(--border)] bg-gradient-to-br from-white to-slate-50 p-6 shadow-[0_12px_30px_rgba(17,18,21,0.07)]">
                         <div className="flex items-center justify-between gap-6">
                             {/* Score Circle */}
                             <div className="relative">
                                 <svg className="w-24 h-24 -rotate-90" viewBox="0 0 100 100">
-                                    <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="8" />
+                                    <circle cx="50" cy="50" r="42" fill="none" stroke="#e5e7eb" strokeWidth="8" />
                                     <circle
                                         cx="50" cy="50" r="42" fill="none"
                                         stroke={factCheckResult.truth_score >= 80 ? '#34d399' : factCheckResult.truth_score >= 50 ? '#fbbf24' : '#f87171'}
@@ -251,28 +250,28 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
                                     />
                                 </svg>
                                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                    <span className="text-2xl font-bold text-white">{factCheckResult.truth_score}</span>
-                                    <span className="text-[10px] text-white/50 uppercase tracking-wide">{t('scoreLabel')}</span>
+                                    <span className="text-2xl font-bold text-[var(--foreground)]">{factCheckResult.truth_score}</span>
+                                    <span className="text-[10px] uppercase tracking-wide text-[var(--muted)]">{t('scoreLabel')}</span>
                                 </div>
                             </div>
 
                             {/* Stats */}
                             <div className="flex-1 grid grid-cols-2 gap-4">
-                                <div className="p-4 rounded-2xl bg-white/5 border border-white/5">
-                                    <div className="text-2xl font-bold text-white">{factCheckResult.claims_checked}</div>
-                                    <div className="text-[10px] text-white/40 uppercase tracking-wide mt-1">{t('claimsCheckedLabel')}</div>
+                                <div className="rounded-2xl border border-[var(--border)] bg-white p-4">
+                                    <div className="text-2xl font-bold text-[var(--foreground)]">{factCheckResult.claims_checked}</div>
+                                    <div className="mt-1 text-[10px] uppercase tracking-wide text-[var(--muted)]">{t('claimsCheckedLabel')}</div>
                                 </div>
-                                <div className="p-4 rounded-2xl bg-white/5 border border-white/5">
-                                    <div className="text-2xl font-bold text-emerald-400">{factCheckResult.supported_claims_pct}%</div>
-                                    <div className="text-[10px] text-white/40 uppercase tracking-wide mt-1">{t('supportedLabel')}</div>
+                                <div className="rounded-2xl border border-[var(--border)] bg-white p-4">
+                                    <div className="text-2xl font-bold text-emerald-600">{factCheckResult.supported_claims_pct}%</div>
+                                    <div className="mt-1 text-[10px] uppercase tracking-wide text-[var(--muted)]">{t('supportedLabel')}</div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
                     {factCheckResult.items.length === 0 ? (
-                        <div className="p-6 rounded-[2rem] bg-emerald-500/5 border border-emerald-500/10 backdrop-blur-xl text-emerald-200/90 text-sm text-center font-medium shadow-lg flex flex-col items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400">
+                        <div className="flex flex-col items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-6 text-center text-sm font-medium text-emerald-800 shadow-sm">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
                                 <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 6L9 17l-5-5" /></svg>
                             </div>
                             <span className="text-base">{t('allVerified')}</span>
@@ -280,7 +279,7 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
                     ) : (
                         <div className="space-y-4">
                             {factCheckResult.items.map((item, i) => (
-                                <div key={i} className="rounded-[2rem] bg-white/5 border border-white/10 backdrop-blur-md overflow-hidden transition-all duration-300 hover:bg-white/[0.07]">
+                                <div key={i} className="overflow-hidden rounded-2xl border border-[var(--border)] bg-white shadow-sm transition-shadow duration-200 hover:shadow-md">
                                     {/* Item Header */}
                                     <div className="p-5 space-y-4">
                                         {/* Severity & Confidence Row */}
@@ -291,7 +290,7 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
                                                 }`}>
                                                 {t(item.severity)}
                                             </span>
-                                            <div className="flex items-center gap-1.5 text-white/40">
+                                            <div className="flex items-center gap-1.5 text-[var(--muted)]">
                                                 <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83" /></svg>
                                                 <span className="text-[10px] font-medium">{t('confidenceLabel', { percent: item.confidence })}</span>
                                             </div>
@@ -304,16 +303,16 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
                                             </div>
                                             <div className="flex-1">
                                                 <div className="text-[10px] font-medium text-red-400 mb-1 uppercase tracking-wide">{t('inaccuracyLabel')}</div>
-                                                <p className="text-white/80 text-[15px] leading-relaxed">&quot;{locale === 'el' ? item.mistake_el : item.mistake_en}&quot;</p>
+                                                <p className="text-[15px] leading-relaxed text-[var(--foreground)]">&quot;{locale === 'el' ? item.mistake_el : item.mistake_en}&quot;</p>
                                             </div>
                                         </div>
 
                                         {/* Correction */}
                                         <div className="pl-12">
-                                            <div className="p-4 rounded-xl bg-emerald-500/5 border border-emerald-500/10">
+                                            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
                                                 <div className="text-[10px] font-medium text-emerald-400 mb-1 uppercase tracking-wide">{t('correctionLabel')}</div>
-                                                <p className="text-white/90 text-[15px] font-medium leading-relaxed">{locale === 'el' ? item.correction_el : item.correction_en}</p>
-                                                <p className="text-xs text-white/40 mt-3 pt-3 border-t border-white/5 leading-relaxed">{locale === 'el' ? item.explanation_el : item.explanation_en}</p>
+                                                <p className="text-[15px] font-medium leading-relaxed text-[var(--foreground)]">{locale === 'el' ? item.correction_el : item.correction_en}</p>
+                                                <p className="mt-3 border-t border-emerald-200 pt-3 text-xs leading-relaxed text-[var(--muted)]">{locale === 'el' ? item.explanation_el : item.explanation_en}</p>
                                             </div>
                                         </div>
                                     </div>
@@ -323,23 +322,23 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
                                         <div className="px-5 pb-5 pt-0 space-y-3">
                                             {/* Real-life Example */}
                                             {(locale === 'el' ? item.real_life_example_el : item.real_life_example_en) && (
-                                                <div className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/10">
+                                                    <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
                                                     <div className="flex items-center gap-2 mb-2">
                                                         <span className="text-lg">💡</span>
                                                         <span className="text-[10px] font-medium text-amber-400 uppercase tracking-wide">{t('realWorldExampleLabel')}</span>
                                                     </div>
-                                                    <p className="text-white/70 text-sm leading-relaxed">{locale === 'el' ? item.real_life_example_el : item.real_life_example_en}</p>
+                                                    <p className="text-sm leading-relaxed text-[var(--foreground)]">{locale === 'el' ? item.real_life_example_el : item.real_life_example_en}</p>
                                                 </div>
                                             )}
 
                                             {/* Scientific Evidence */}
                                             {(locale === 'el' ? item.scientific_evidence_el : item.scientific_evidence_en) && (
-                                                <div className="p-4 rounded-xl bg-blue-500/5 border border-blue-500/10">
+                                                    <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
                                                     <div className="flex items-center gap-2 mb-2">
                                                         <span className="text-lg">🔬</span>
                                                         <span className="text-[10px] font-medium text-blue-400 uppercase tracking-wide">{t('scientificEvidenceLabel')}</span>
                                                     </div>
-                                                    <p className="text-white/70 text-sm leading-relaxed">{locale === 'el' ? item.scientific_evidence_el : item.scientific_evidence_en}</p>
+                                                    <p className="text-sm leading-relaxed text-[var(--foreground)]">{locale === 'el' ? item.scientific_evidence_el : item.scientific_evidence_en}</p>
                                                 </div>
                                             )}
                                         </div>
@@ -355,20 +354,20 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
             {socialCopyResult && (
                 <div className="space-y-4 animate-fade-in">
                     <div className="flex items-center justify-between px-2">
-                        <h4 className="text-xs font-semibold text-white/40 uppercase tracking-widest pl-2 flex items-center gap-2">
+                        <h4 className="flex items-center gap-2 pl-2 text-xs font-semibold uppercase tracking-widest text-[var(--muted)]">
                             <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 4V2" /><path d="M15 16v-2" /></svg>
                             {t('metadataLabel')}
                         </h4>
-                        <button onClick={() => setSocialCopyResult(null)} className="px-3 py-1 rounded-full bg-white/5 hover:bg-white/10 text-xs text-white/60 hover:text-white transition-colors backdrop-blur-md">{t('closeLabel')}</button>
+                        <button onClick={() => setSocialCopyResult(null)} className="min-h-11 rounded-full border border-[var(--border)] bg-white px-4 text-xs font-semibold text-[var(--muted)] transition-colors hover:border-[var(--border-strong)] hover:text-[var(--foreground)]">{t('closeLabel')}</button>
                     </div>
 
-                    <div className="p-5 rounded-[2rem] bg-white/5 border border-white/10 backdrop-blur-md hover:bg-white/10 transition-colors space-y-4">
+                    <div className="space-y-4 rounded-2xl border border-[var(--border)] bg-white p-5 shadow-sm">
                         <div className="space-y-2">
                             <div className="flex items-center justify-between">
                                 <label className="text-xs font-medium text-purple-400 uppercase tracking-wide">{t('titleLabel')}</label>
                                 <CopyButton text={locale === 'el' ? socialCopyResult.social_copy.title_el : socialCopyResult.social_copy.title_en} label={t('titleLabel')} />
                             </div>
-                            <div className="p-3 rounded-xl bg-black/20 border border-white/5 text-white/90 text-sm font-medium">
+                            <div className="rounded-xl border border-[var(--border)] bg-slate-50 p-3 text-sm font-medium text-[var(--foreground)]">
                                 {locale === 'el' ? socialCopyResult.social_copy.title_el : socialCopyResult.social_copy.title_en}
                             </div>
                         </div>
@@ -377,7 +376,7 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
                                 <label className="text-xs font-medium text-purple-400 uppercase tracking-wide">{t('descriptionLabel')}</label>
                                 <CopyButton text={locale === 'el' ? socialCopyResult.social_copy.description_el : socialCopyResult.social_copy.description_en} label={t('descriptionLabel')} />
                             </div>
-                            <div className="p-3 rounded-xl bg-black/20 border border-white/5 text-white/80 text-sm leading-relaxed whitespace-pre-wrap">
+                            <div className="whitespace-pre-wrap rounded-xl border border-[var(--border)] bg-slate-50 p-3 text-sm leading-relaxed text-[var(--foreground)]">
                                 {locale === 'el' ? socialCopyResult.social_copy.description_el : socialCopyResult.social_copy.description_en}
                             </div>
                         </div>
@@ -388,7 +387,7 @@ export function ViralIntelligence({ jobId }: ViralIntelligenceProps) {
                             </div>
                             <div className="flex flex-wrap gap-2">
                                 {socialCopyResult.social_copy.hashtags.map((tag, i) => (
-                                    <span key={i} className="px-2 py-1 rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-300 text-xs">
+                                    <span key={i} className="rounded-lg border border-purple-200 bg-purple-50 px-2 py-1 text-xs text-purple-700">
                                         {tag}
                                     </span>
                                 ))}

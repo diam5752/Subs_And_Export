@@ -98,4 +98,37 @@ describe('CueItem', () => {
         fireEvent.change(textarea, { target: { value: 'New text' } });
         expect(defaultProps.onUpdateDraft).toHaveBeenCalledWith('New text');
     });
+
+    it('supports keyboard save and cancel shortcuts', () => {
+        render(<CueItem {...defaultProps} isEditing />);
+
+        const textarea = screen.getByRole('textbox');
+        fireEvent.keyDown(textarea, { key: 'Enter', ctrlKey: true });
+        fireEvent.keyDown(textarea, { key: 'Escape' });
+
+        expect(defaultProps.onSave).toHaveBeenCalledTimes(1);
+        expect(defaultProps.onCancel).toHaveBeenCalledTimes(1);
+    });
+
+    it('moves focus into and back out of the editor during an edit session', async () => {
+        const { rerender } = render(<CueItem {...defaultProps} />);
+
+        rerender(<CueItem {...defaultProps} isEditing />);
+        await waitFor(() => expect(screen.getByRole('textbox')).toHaveFocus());
+
+        fireEvent.click(screen.getByRole('button', { name: 'transcriptSave' }));
+        rerender(<CueItem {...defaultProps} />);
+
+        await waitFor(() => {
+            expect(screen.getByRole('button', { name: /transcriptEdit/i })).toHaveFocus();
+        });
+    });
+
+    it('seeks from the cue text and disables editing when the cue is locked', () => {
+        render(<CueItem {...defaultProps} canEdit={false} />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'jumpToCue' }));
+        expect(defaultProps.onSeek).toHaveBeenCalledWith(12.5);
+        expect(screen.getByRole('button', { name: /transcriptEdit/i })).toBeDisabled();
+    });
 });

@@ -1,6 +1,7 @@
 import React, { memo, useRef, useEffect } from 'react';
 import { Spinner } from '@/components/Spinner';
 import { JobResponse } from '@/lib/api';
+import { buildSubtitleExportFilename, withDownloadParameters } from '@/lib/exportFilename';
 
 interface JobListItemProps {
     job: JobResponse;
@@ -73,6 +74,8 @@ export const JobListItem = memo(function JobListItem({
     const wasCancelledRef = useRef(false);
 
     const displayFilename = job.result_data?.original_filename || job.id;
+    const downloadFilename = buildSubtitleExportFilename(job.result_data?.original_filename, 'mp4');
+    const downloadUrl = publicUrl ? withDownloadParameters(publicUrl, downloadFilename) : null;
 
     useEffect(() => {
         // If entering confirmation mode
@@ -159,12 +162,12 @@ export const JobListItem = memo(function JobListItem({
                     </span>
                 ) : (
                     <>
-                        {job.status === 'completed' && publicUrl && !selectionMode && (
+                        {job.status === 'completed' && downloadUrl && !selectionMode && (
                             <>
                                 <a
                                     className="text-xs btn-primary py-1.5 px-3 h-auto"
-                                    href={publicUrl}
-                                    download={job.result_data?.original_filename || 'processed.mp4'}
+                                    href={downloadUrl}
+                                    download={downloadFilename}
                                     onClick={(e) => e.stopPropagation()}
                                     aria-label={`${t('download') || 'Download'} ${displayFilename}`}
                                 >

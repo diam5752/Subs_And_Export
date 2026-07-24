@@ -1,5 +1,6 @@
 
 import shutil
+from urllib.parse import quote
 
 from backend.app.core import config
 
@@ -30,3 +31,26 @@ def test_directory_listing_disabled(client):
 
     # Cleanup
     shutil.rmtree(test_subdir)
+
+
+def test_static_download_uses_requested_safe_export_filename(client) -> None:
+    """REGRESSION: the response header overrode the browser's _subs filename."""
+    data_dir = config.PROJECT_ROOT / "data"
+    export_path = data_dir / "test_download_name" / "processed_1080x1920.mp4"
+    export_path.parent.mkdir(parents=True, exist_ok=True)
+    export_path.write_bytes(b"video")
+
+    try:
+        filename = "Ε Isous_subs.mp4"
+        response = client.get(
+            "/static/test_download_name/processed_1080x1920.mp4",
+            params={"download": "true", "filename": filename},
+        )
+
+        assert response.status_code == 200
+        disposition = response.headers["content-disposition"]
+        assert "attachment" in disposition
+        assert quote(filename) in disposition
+        assert "processed_1080x1920" not in disposition
+    finally:
+        shutil.rmtree(export_path.parent, ignore_errors=True)

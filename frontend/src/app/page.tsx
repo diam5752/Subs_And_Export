@@ -11,6 +11,7 @@ import { LanguageToggle } from '@/components/LanguageToggle';
 import { ProcessView, ProcessingOptions } from '@/features/process/ProcessView';
 import { AccountView } from '@/components/AccountView';
 import { CreditsBadge } from '@/components/CreditsBadge';
+import { CreditPurchaseDialog } from '@/components/CreditPurchaseDialog';
 import { ProcessingGateModal, type ProcessingGateStage } from '@/components/ProcessingGateModal';
 import { useJobs } from '@/hooks/useJobs';
 import { useJobPolling, JobPollingCallbacks } from '@/hooks/useJobPolling';
@@ -30,16 +31,15 @@ type PendingProcessingAction =
 
 export default function DashboardPage() {
   const { user, isLoading, logout, refreshUser } = useAuth();
-  const { balance, setBalance: setPointsBalance, refreshBalance } = usePoints();
+  const {
+    aiSpendableBalance,
+    setBalance: setPointsBalance,
+    setWallet,
+    refreshBalance,
+  } = usePoints();
   const { t } = useI18n();
   const { appEnv } = useAppEnv();
   const didRestoreSession = useRef(false);
-
-  const handleCloseAccountPanel = useCallback(() => {
-    setShowAccountPanel(false);
-  }, []);
-
-
 
   // Custom Hooks
   const {
@@ -68,6 +68,8 @@ export default function DashboardPage() {
   const [processingGateStage, setProcessingGateStage] = useState<ProcessingGateStage | null>(null);
   const [processingGateError, setProcessingGateError] = useState('');
   const [isGateBalanceLoading, setIsGateBalanceLoading] = useState(false);
+  const [showCreditPurchase, setShowCreditPurchase] = useState(false);
+  const [checkoutNotice, setCheckoutNotice] = useState('');
 
   // Account Modal State
   const [showAccountPanel, setShowAccountPanel] = useState(false);
@@ -75,6 +77,10 @@ export default function DashboardPage() {
   const [accountMessage, setAccountMessage] = useState('');
   const [accountError, setAccountError] = useState('');
   const [accountSaving, setAccountSaving] = useState(false);
+
+  const handleCloseAccountPanel = useCallback(() => {
+    setShowAccountPanel(false);
+  }, [setShowAccountPanel]);
 
   // Restore session
   useEffect(() => {
@@ -177,7 +183,7 @@ export default function DashboardPage() {
 
     try {
       const settings = {
-        transcribe_model: selectedModel,
+        transcribe_tier: selectedModel,
         transcribe_provider: provider,
         source_duration_seconds: options.sourceDurationSeconds ?? null,
         video_quality: options.outputQuality,
@@ -219,9 +225,8 @@ export default function DashboardPage() {
       setJobId(result.id);
       if (typeof result.balance === 'number') {
         setPointsBalance(result.balance);
-      } else {
-        void refreshBalance();
       }
+      void refreshBalance();
     } catch (err) {
       setProcessError(err instanceof Error ? err.message : t('startProcessingError'));
       setIsProcessing(false);
@@ -239,7 +244,7 @@ export default function DashboardPage() {
 
     try {
       const settings = {
-        transcribe_model: selectedModel,
+        transcribe_tier: selectedModel,
         transcribe_provider: provider,
         video_quality: options.outputQuality,
         video_resolution: options.outputResolution,
@@ -259,9 +264,8 @@ export default function DashboardPage() {
       setJobId(result.id);
       if (typeof result.balance === 'number') {
         setPointsBalance(result.balance);
-      } else {
-        void refreshBalance();
       }
+      void refreshBalance();
     } catch (err) {
       setProcessError(err instanceof Error ? err.message : t('startProcessingError'));
       setIsProcessing(false);
@@ -273,6 +277,7 @@ export default function DashboardPage() {
     return processVideoCostForSelection(
       pendingProcessingAction.options.transcribeProvider,
       pendingProcessingAction.options.transcribeMode,
+      pendingProcessingAction.options.sourceDurationSeconds,
     );
   }, [pendingProcessingAction]);
 
@@ -288,13 +293,13 @@ export default function DashboardPage() {
     setProcessingGateError('');
     try {
       const points = await api.getPointsBalance();
-      setPointsBalance(points.balance);
+      setWallet(points);
     } catch (err) {
       setProcessingGateError(err instanceof Error ? err.message : t('creditsError'));
     } finally {
       setIsGateBalanceLoading(false);
     }
-  }, [setPointsBalance, t]);
+  }, [setWallet, t]);
 
   const requestProcessingAction = useCallback((action: PendingProcessingAction) => {
     setPendingProcessingAction(action);
@@ -328,7 +333,11 @@ export default function DashboardPage() {
   }, [closeProcessingGate, loadGateBalance, pendingProcessingAction]);
 
   const handleGateConfirm = useCallback(async () => {
-    if (!pendingProcessingAction || balance === null || balance < pendingProcessingCost) return;
+    if (
+      !pendingProcessingAction
+      || aiSpendableBalance === null
+      || aiSpendableBalance < pendingProcessingCost
+    ) return;
 
     const action = pendingProcessingAction;
     closeProcessingGate();
@@ -338,7 +347,7 @@ export default function DashboardPage() {
     }
     await executeReprocessJob(action.sourceJobId, action.options);
   }, [
-    balance,
+    aiSpendableBalance,
     closeProcessingGate,
     executeReprocessJob,
     executeStartProcessing,
@@ -351,6 +360,64 @@ export default function DashboardPage() {
     setProcessingGateError('');
     setProcessingGateStage('auth');
   }, []);
+
+  const closeCreditPurchase = useCallback(() => {
+    setShowCreditPurchase(false);
+    if (user) void refreshBalance();
+  }, [refreshBalance, user]);
+
+  useEffect(() => {
+    if (!user || typeof window === 'undefined') return;
+    let active = true;
+    const params = new URLSearchParams(window.location.search);
+    const checkoutState = params.get('checkout');
+    const sessionId = params.get('session_id');
+    if (checkoutState !== 'success' || !sessionId) {
+      if (checkoutState === 'cancelled') {
+        const cancelledNotice = t('creditPurchaseCancelled');
+        queueMicrotask(() => {
+          if (active) setCheckoutNotice(cancelledNotice);
+        });
+      }
+      return () => {
+        active = false;
+      };
+    }
+
+    const reconcileCheckout = async () => {
+      for (let attempt = 0; attempt < 6 && active; attempt += 1) {
+        try {
+          const status = await api.getCreditCheckoutStatus(sessionId);
+          if (!active) return;
+          setWallet(status.wallet);
+          if (status.status === 'paid' || status.status === 'partially_refunded') {
+            setCheckoutNotice(t('creditPurchaseSuccess', { count: status.credits }));
+            break;
+          }
+          setCheckoutNotice(t('creditPurchasePending'));
+        } catch (checkoutError) {
+          if (!active) return;
+          setCheckoutNotice(
+            checkoutError instanceof Error
+              ? checkoutError.message
+              : t('creditPurchaseStatusError'),
+          );
+          break;
+        }
+        await new Promise((resolve) => window.setTimeout(resolve, 1000));
+      }
+      if (active) {
+        const cleaned = new URL(window.location.href);
+        cleaned.searchParams.delete('checkout');
+        cleaned.searchParams.delete('session_id');
+        window.history.replaceState({}, '', `${cleaned.pathname}${cleaned.search}${cleaned.hash}`);
+      }
+    };
+    void reconcileCheckout();
+    return () => {
+      active = false;
+    };
+  }, [setWallet, t, user]);
 
   const handleProfileSave = useCallback(async (name: string, password?: string, confirmPassword?: string) => {
     if (!user) return;
@@ -411,7 +478,7 @@ export default function DashboardPage() {
       // Scroll to top where player is
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
-  }, []);
+  }, [setShowAccountPanel]);
 
   if (isLoading) {
     return (
@@ -421,7 +488,7 @@ export default function DashboardPage() {
     );
   }
 
-  const hasBlockingModal = showAccountPanel || processingGateStage !== null;
+  const hasBlockingModal = showAccountPanel || processingGateStage !== null || showCreditPurchase;
 
   return (
     <div className="app-shell min-h-dvh relative overflow-x-hidden">
@@ -451,10 +518,11 @@ export default function DashboardPage() {
         </nav>
 
         <div className="studio-header-account">
+          <LanguageToggle />
           {user ? (
             <>
               <div className="studio-header-credits" data-testid="studio-header-credits">
-                <CreditsBadge />
+                <CreditsBadge onClick={() => setShowCreditPurchase(true)} />
               </div>
               <button
                 onClick={() => {
@@ -493,6 +561,23 @@ export default function DashboardPage() {
             </div>
           </section>
 
+          {checkoutNotice && (
+            <div
+              role="status"
+              className="mb-5 flex items-center justify-between gap-4 rounded-2xl border border-sky-400/20 bg-sky-400/[0.07] px-4 py-3 text-sm text-[var(--foreground)]"
+            >
+              <span>{checkoutNotice}</span>
+              <button
+                type="button"
+                onClick={() => setCheckoutNotice('')}
+                className="grid h-8 w-8 place-items-center rounded-full text-[var(--muted)] hover:bg-white/5 hover:text-[var(--foreground)]"
+                aria-label={t('closeLabel')}
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
           <ProcessView
             selectedFile={selectedFile}
             onFileSelect={handleFileSelect}
@@ -523,22 +608,30 @@ export default function DashboardPage() {
         </footer>
       </div>
 
-      {!hasBlockingModal && (
-        <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] right-[calc(env(safe-area-inset-right)+1rem)] z-20">
-          <LanguageToggle />
-        </div>
+      {processingGateStage !== null && !showCreditPurchase && (
+        <ProcessingGateModal
+          isOpen
+          stage={processingGateStage}
+          cost={pendingProcessingCost}
+          balance={aiSpendableBalance}
+          isBalanceLoading={isGateBalanceLoading}
+          error={processingGateError}
+          onClose={closeProcessingGate}
+          onAuthenticated={handleGateAuthenticated}
+          onConfirm={handleGateConfirm}
+          onPurchaseCredits={() => setShowCreditPurchase(true)}
+        />
       )}
 
-      <ProcessingGateModal
-        isOpen={processingGateStage !== null}
-        stage={processingGateStage ?? 'auth'}
-        cost={pendingProcessingCost}
-        balance={balance}
-        isBalanceLoading={isGateBalanceLoading}
-        error={processingGateError}
-        onClose={closeProcessingGate}
-        onAuthenticated={handleGateAuthenticated}
-        onConfirm={handleGateConfirm}
+      <CreditPurchaseDialog
+        isOpen={showCreditPurchase}
+        isAuthenticated={Boolean(user)}
+        requiredCredits={pendingProcessingCost}
+        onClose={closeCreditPurchase}
+        onRequireAuth={() => {
+          setShowCreditPurchase(false);
+          setProcessingGateStage('auth');
+        }}
       />
 
       {user && showAccountPanel && (
@@ -547,28 +640,34 @@ export default function DashboardPage() {
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             onClick={handleCloseAccountPanel}
           />
-          <div className="relative z-10 w-full max-w-2xl animate-fade-in">
+          <div
+            className="relative z-10 w-full max-w-2xl animate-fade-in"
+            role="dialog"
+            aria-modal="true"
+            aria-label={activeAccountTab === 'profile' ? t('accountSettingsTitle') : t('historyTitle')}
+          >
             <div className="bg-[var(--surface-elevated)] border border-[var(--border)] rounded-2xl shadow-2xl overflow-hidden max-h-[90dvh] sm:max-h-[85dvh] flex flex-col">
-              <div className="flex items-center justify-between p-4 border-b border-[var(--border)]">
-                <div className="flex gap-4">
+              <div className="flex items-center justify-between gap-1 p-4 border-b border-[var(--border)] sm:gap-3">
+                <div className="flex min-w-0 flex-1 items-center gap-1 sm:gap-4">
                   <button
                     onClick={() => setActiveAccountTab('profile')}
-                    className={`text-sm font-semibold pb-1 border-b-2 transition-colors ${activeAccountTab === 'profile' ? 'border-[var(--accent)] text-[var(--accent)]' : 'border-transparent text-[var(--muted)] hover:text-[var(--foreground)]'}`}
+                    className={`min-h-11 min-w-0 px-1 text-xs font-semibold border-b-2 transition-colors sm:text-sm ${activeAccountTab === 'profile' ? 'border-[var(--accent)] text-[var(--accent)]' : 'border-transparent text-[var(--muted)] hover:text-[var(--foreground)]'}`}
                   >
                     {t('accountSettingsTitle')}
                   </button>
                   <button
                     onClick={() => setActiveAccountTab('history')}
-                    className={`text-sm font-semibold pb-1 border-b-2 transition-colors ${activeAccountTab === 'history' ? 'border-[var(--accent)] text-[var(--accent)]' : 'border-transparent text-[var(--muted)] hover:text-[var(--foreground)]'}`}
+                    className={`min-h-11 min-w-0 px-1 text-xs font-semibold border-b-2 transition-colors sm:text-sm ${activeAccountTab === 'history' ? 'border-[var(--accent)] text-[var(--accent)]' : 'border-transparent text-[var(--muted)] hover:text-[var(--foreground)]'}`}
                   >
                     {t('historyTitle') || 'History'}
                   </button>
                 </div>
                 <button
                   onClick={handleCloseAccountPanel}
-                  className="p-2 rounded-lg hover:bg-white/10 transition-colors"
+                  className="flex min-h-11 min-w-11 flex-none items-center justify-center rounded-lg transition-colors hover:bg-black/5"
+                  aria-label={t('closeLabel')}
                 >
-                  ✕
+                  <span aria-hidden="true">✕</span>
                 </button>
               </div>
               <div className="p-4 overflow-y-auto">

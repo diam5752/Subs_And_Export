@@ -2,7 +2,8 @@ from pathlib import Path
 
 import typer
 
-from backend.app.services.video_processing import normalize_and_stub_subtitles
+from backend.app.core.config import settings
+from backend.app.services.video_processing import process_video_pipeline
 
 app = typer.Typer(help="Normalize vertical videos and prepare styled Greek subtitles.")
 
@@ -24,12 +25,17 @@ def process(
         dir_okay=False,
         help="Path where the processed video will be written.",
     ),
-    model_size: str = typer.Option(
-        None,
-        "--model",
-        help="faster-whisper model size (e.g., tiny, base, small, medium).",
+    tier: str = typer.Option(
+        settings.default_transcribe_tier,
+        "--tier",
+        help="Transcription quality tier: standard or pro.",
     ),
-    language: str = typer.Option(
+    provider: str = typer.Option(
+        "mock",
+        "--provider",
+        help="Transcription provider: mock, local, groq, openai, or elevenlabs.",
+    ),
+    language: str | None = typer.Option(
         None,
         "--language",
         help="Language code for transcription (default: el).",
@@ -46,27 +52,27 @@ def process(
         min=1,
         help="Number of candidate samples to pick best from during decoding.",
     ),
-    device: str = typer.Option(
+    device: str | None = typer.Option(
         None,
         "--device",
         help="Device for faster-whisper: cpu, cuda, or auto.",
     ),
-    compute_type: str = typer.Option(
+    compute_type: str | None = typer.Option(
         None,
         "--compute-type",
         help="faster-whisper compute type (e.g., int8, float16, auto).",
     ),
-    video_crf: int = typer.Option(
+    video_crf: int | None = typer.Option(
         None,
         "--crf",
         help="H.264 CRF (lower = higher quality). Default tuned for social platforms.",
     ),
-    video_preset: str = typer.Option(
+    video_preset: str | None = typer.Option(
         None,
         "--preset",
         help="ffmpeg x264 preset (slower = better quality at same size).",
     ),
-    audio_bitrate: str = typer.Option(
+    audio_bitrate: str | None = typer.Option(
         None,
         "--audio-bitrate",
         help="Audio bitrate (e.g., 256k). Ignored if --audio-copy is set.",
@@ -81,10 +87,10 @@ def process(
         "--llm-social-copy/--no-llm-social-copy",
         help="Use OpenAI GPT models to generate professional social copy (requires OPENAI_API_KEY).",
     ),
-    llm_model: str = typer.Option(
+    llm_model: str | None = typer.Option(
         None,
         "--llm-model",
-        help="OpenAI model name (defaults to gpt-5.1-mini).",
+        help="OpenAI model name (defaults to gpt-5-mini).",
     ),
     llm_temperature: float = typer.Option(
         0.6,
@@ -111,10 +117,11 @@ def process(
     ),
 ) -> None:
     """Normalize a video, transcribe Greek audio, and burn styled subtitles."""
-    result = normalize_and_stub_subtitles(
+    result = process_video_pipeline(
         input_video,
         output_video,
-        model_size=model_size,
+        transcribe_tier=tier,
+        transcribe_provider=provider,
         language=language,
         beam_size=beam_size,
         best_of=best_of,

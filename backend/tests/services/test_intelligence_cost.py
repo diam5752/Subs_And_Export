@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from backend.app.core import config
-from backend.app.services import subtitles
+from backend.app.services import fact_checking, social_intelligence
 
 
 @pytest.fixture
@@ -23,7 +23,7 @@ def test_hybrid_fact_check_extraction_empty(mock_client):
     mock_client.chat.completions.create.return_value.usage.completion_tokens = 5
     mock_client.chat.completions.create.return_value.usage.total_tokens = 15
 
-    result = subtitles.generate_fact_check("input text", api_key="sk-test")
+    result = fact_checking.generate_fact_check("input text", api_key="sk-test")
 
     assert result.claims_checked == 0
     assert result.items == []
@@ -32,6 +32,10 @@ def test_hybrid_fact_check_extraction_empty(mock_client):
     # Verify model used was extraction model
     call_args = mock_client.chat.completions.create.call_args
     assert call_args.kwargs["model"] == config.settings.extraction_llm_model
+    assert (
+        call_args.kwargs["max_completion_tokens"]
+        == config.settings.max_llm_output_tokens_extraction
+    )
 
 def test_hybrid_fact_check_extraction_found(mock_client):
     """Verify verification runs if claims are extracted."""
@@ -53,12 +57,17 @@ def test_hybrid_fact_check_extraction_found(mock_client):
 
     mock_client.chat.completions.create.side_effect = [mock_response_extract, mock_response_verify]
 
-    result = subtitles.generate_fact_check("input text", api_key="sk-test")
+    result = fact_checking.generate_fact_check("input text", api_key="sk-test")
 
     assert result.truth_score == 80
     assert mock_client.chat.completions.create.call_count == 2
 
     # Verify verification model used was smart model
+    extract_call_args = mock_client.chat.completions.create.call_args_list[0]
+    assert (
+        extract_call_args.kwargs["max_completion_tokens"]
+        == config.settings.max_llm_output_tokens_extraction
+    )
     verify_call_args = mock_client.chat.completions.create.call_args_list[1]
     assert verify_call_args.kwargs["model"] == config.settings.factcheck_llm_model
 
@@ -75,7 +84,7 @@ def test_social_copy_truncates_input(mock_client):
 
     mock_client.chat.completions.create.return_value = mock_response
 
-    subtitles.build_social_copy_llm(long_text, api_key="sk-test")
+    social_intelligence.build_social_copy_llm(long_text, api_key="sk-test")
 
     # Check that the sent message content length is truncated
     call_args = mock_client.chat.completions.create.call_args

@@ -35,7 +35,11 @@ class MockTranscriber(Transcriber):
         if callable(progress_callback):
             progress_callback(10.0)
 
-        total_duration = max(1.0, float(kwargs.get("total_duration") or 12.0))
+        raw_duration = kwargs.get("total_duration", 12.0)
+        total_duration = max(
+            1.0,
+            float(raw_duration) if isinstance(raw_duration, (int, float, str)) else 12.0,
+        )
         cue_count = min(len(_PHRASES), max(1, round(total_duration / 3.0)))
         cue_duration = total_duration / cue_count
         cues: list[Cue] = []

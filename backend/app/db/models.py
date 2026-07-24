@@ -4,7 +4,17 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import Boolean, CheckConstraint, Float, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.types import JSON
@@ -127,10 +137,15 @@ class DbUserPoints(Base):
         primary_key=True,
     )
     balance: Mapped[int] = mapped_column(Integer, default=1000, server_default="1000")
+    paid_balance: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    reversal_debt: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     updated_at: Mapped[int] = mapped_column(Integer)
 
     __table_args__ = (
         CheckConstraint("balance >= 0", name="chk_user_points_balance_nonnegative"),
+        CheckConstraint("paid_balance >= 0", name="chk_user_points_paid_balance_nonnegative"),
+        CheckConstraint("paid_balance <= balance", name="chk_user_points_paid_balance_within_total"),
+        CheckConstraint("reversal_debt >= 0", name="chk_user_points_reversal_debt_nonnegative"),
     )
 
 
@@ -140,12 +155,21 @@ class DbPointTransaction(Base):
     id: Mapped[str] = mapped_column(String(32), primary_key=True)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     delta: Mapped[int] = mapped_column(Integer)
+    paid_delta: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    reversal_debt_delta: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        server_default="0",
+    )
     reason: Mapped[str] = mapped_column(String(64))
     meta: Mapped[dict[str, Any] | None] = mapped_column(JSON_VALUE, nullable=True)
     created_at: Mapped[int] = mapped_column(Integer)
 
     __table_args__ = (
-        CheckConstraint("delta != 0", name="chk_point_transactions_delta_nonzero"),
+        CheckConstraint(
+            "delta != 0 OR reversal_debt_delta != 0",
+            name="chk_point_transactions_effect_nonzero",
+        ),
         Index("idx_point_transactions_user_created_at", "user_id", "created_at"),
     )
 
@@ -205,6 +229,7 @@ class DbUsageLedger(Base):
     units: Mapped[dict[str, Any] | None] = mapped_column(JSON_VALUE, nullable=True)
     cost_usd: Mapped[float] = mapped_column(Float, default=0.0)
     credits_reserved: Mapped[int] = mapped_column(Integer, default=0)
+    paid_credits_reserved: Mapped[int] = mapped_column(Integer, default=0)
     credits_charged: Mapped[int] = mapped_column(Integer, default=0)
     min_credits: Mapped[int] = mapped_column(Integer, default=0)
     currency: Mapped[str] = mapped_column(String(3), default="USD")
@@ -218,6 +243,121 @@ class DbUsageLedger(Base):
         Index("idx_usage_ledger_user_created", "user_id", "created_at"),
         Index("idx_usage_ledger_action", "action"),
         Index("idx_usage_ledger_status", "status"),
+    )
+
+
+class DbCreditPurchase(Base):
+    """Immutable package snapshot plus Stripe fulfillment/reversal state."""
+
+    __tablename__ = "credit_purchases"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    provider: Mapped[str] = mapped_column(String(32), default="stripe")
+    package_key: Mapped[str] = mapped_column(String(32))
+    credits: Mapped[int] = mapped_column(Integer)
+    amount_eur_cents: Mapped[int] = mapped_column(Integer)
+    currency: Mapped[str] = mapped_column(String(3), default="eur")
+    idempotency_key: Mapped[str] = mapped_column(String(64), unique=True)
+    checkout_session_id: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True)
+    checkout_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    payment_intent_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    integration_identifier: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(32))
+    fulfilled_at: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    refunded_amount_cents: Mapped[int] = mapped_column(Integer, default=0)
+    dispute_active: Mapped[bool] = mapped_column(Boolean, default=False)
+    reversed_credits: Mapped[int] = mapped_column(Integer, default=0)
+    reversal_debt_credits: Mapped[int] = mapped_column(Integer, default=0)
+    snapshot: Mapped[dict[str, Any]] = mapped_column(JSON_VALUE)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[int] = mapped_column(Integer)
+    updated_at: Mapped[int] = mapped_column(Integer)
+
+    __table_args__ = (
+        CheckConstraint("credits > 0", name="chk_credit_purchases_credits_positive"),
+        CheckConstraint("amount_eur_cents > 0", name="chk_credit_purchases_amount_positive"),
+        CheckConstraint("refunded_amount_cents >= 0", name="chk_credit_purchases_refund_nonnegative"),
+        CheckConstraint(
+            "reversed_credits >= 0 AND reversed_credits <= credits",
+            name="chk_credit_purchases_reversed_credits",
+        ),
+        CheckConstraint(
+            "reversal_debt_credits >= 0 AND reversal_debt_credits <= reversed_credits",
+            name="chk_credit_purchases_reversal_debt",
+        ),
+        UniqueConstraint(
+            "payment_intent_id",
+            name="uq_credit_purchases_payment_intent",
+        ),
+        Index("ix_credit_purchases_user_created", "user_id", "created_at"),
+        Index("ix_credit_purchases_status", "status"),
+    )
+
+
+class DbStripeWebhookEvent(Base):
+    """Persistent Stripe event receipt used for replay-safe processing."""
+
+    __tablename__ = "stripe_webhook_events"
+
+    id: Mapped[str] = mapped_column(String(255), primary_key=True)
+    event_type: Mapped[str] = mapped_column(String(128))
+    payload_sha256: Mapped[str] = mapped_column(String(64))
+    status: Mapped[str] = mapped_column(String(32))
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[int] = mapped_column(Integer)
+    processed_at: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    __table_args__ = (
+        Index("ix_stripe_webhook_events_status_created", "status", "created_at"),
+    )
+
+
+class DbProviderBudgetWindow(Base):
+    """Concurrency-safe aggregate for daily/monthly provider-money caps."""
+
+    __tablename__ = "provider_budget_windows"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    scope: Mapped[str] = mapped_column(String(8))
+    period_start: Mapped[int] = mapped_column(Integer)
+    reserved_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    spent_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    updated_at: Mapped[int] = mapped_column(Integer)
+
+    __table_args__ = (
+        CheckConstraint("scope IN ('day','month')", name="chk_provider_budget_windows_scope"),
+        CheckConstraint("reserved_usd >= 0", name="chk_provider_budget_windows_reserved"),
+        CheckConstraint("spent_usd >= 0", name="chk_provider_budget_windows_spent"),
+    )
+
+
+class DbProviderBudgetReservation(Base):
+    """One cost reservation per idempotent external-provider operation."""
+
+    __tablename__ = "provider_budget_reservations"
+
+    idempotency_key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    daily_window_key: Mapped[str] = mapped_column(
+        ForeignKey("provider_budget_windows.key", ondelete="RESTRICT")
+    )
+    monthly_window_key: Mapped[str] = mapped_column(
+        ForeignKey("provider_budget_windows.key", ondelete="RESTRICT")
+    )
+    estimated_usd: Mapped[float] = mapped_column(Float)
+    actual_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    status: Mapped[str] = mapped_column(String(16))
+    created_at: Mapped[int] = mapped_column(Integer)
+    updated_at: Mapped[int] = mapped_column(Integer)
+
+    __table_args__ = (
+        CheckConstraint("estimated_usd >= 0", name="chk_provider_budget_reservation_estimate"),
+        CheckConstraint("actual_usd >= 0", name="chk_provider_budget_reservation_actual"),
+        CheckConstraint(
+            "status IN ('reserved','finalized','released')",
+            name="chk_provider_budget_reservation_status",
+        ),
+        Index("ix_provider_budget_reservations_status", "status", "created_at"),
     )
 
 

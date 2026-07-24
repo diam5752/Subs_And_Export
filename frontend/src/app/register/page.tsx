@@ -130,7 +130,7 @@ export default function RegisterPage() {
 
             <footer className="auth-footer">
                 <span>ASCENTIA</span>
-                <span>{t('loginFooter')}</span>
+                <span>{t('loginFooter', { year: new Date().getFullYear() })}</span>
             </footer>
         </div>
     );

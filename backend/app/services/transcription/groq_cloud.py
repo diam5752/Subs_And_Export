@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import List
+from typing import Any
 
 from backend.app.services.llm_utils import load_openai_client, resolve_groq_api_key
 from backend.app.services.subtitle_types import Cue, TimeRange, WordTiming
@@ -12,16 +12,23 @@ class GroqTranscriber(Transcriber):
     Transcriber using Groq Cloud API for ultra-fast inference.
     """
 
-    def __init__(self, api_key: str = None):
+    def __init__(self, api_key: str | None = None) -> None:
         self.api_key = api_key
 
-    def transcribe(self, audio_path: Path, output_dir: Path, language: str = "en", model: str = "whisper-large-v3", **kwargs) -> tuple[Path, List[Cue]]:
+    def transcribe(
+        self,
+        audio_path: Path,
+        output_dir: Path,
+        language: str = "en",
+        model: str = "whisper-large-v3",
+        **kwargs: Any,
+    ) -> tuple[Path, list[Cue]]:
         prompt = kwargs.get("initial_prompt")
         progress_callback = kwargs.get("progress_callback")
         check_cancelled = kwargs.get("check_cancelled")
 
         # Check cancellation before starting
-        if check_cancelled:
+        if callable(check_cancelled):
             check_cancelled()
 
         # Resolve API Key
@@ -37,11 +44,11 @@ class GroqTranscriber(Transcriber):
             base_url="https://api.groq.com/openai/v1"
         )
 
-        if progress_callback:
+        if callable(progress_callback):
             progress_callback(10.0)
 
         # Check cancellation before API call
-        if check_cancelled:
+        if callable(check_cancelled):
             check_cancelled()
 
         try:
@@ -59,15 +66,15 @@ class GroqTranscriber(Transcriber):
             raise RuntimeError(f"Groq transcription failed: {exc}") from exc
 
         # Check cancellation after API call
-        if check_cancelled:
+        if callable(check_cancelled):
             check_cancelled()
 
-        if progress_callback:
+        if callable(progress_callback):
             progress_callback(90.0)
 
         # Convert response to our Cue/WordTiming format (same as OpenAI)
-        cues: List[Cue] = []
-        timed_text: List[TimeRange] = []
+        cues: list[Cue] = []
+        timed_text: list[TimeRange] = []
 
         if hasattr(transcript, "segments"):
             for seg in transcript.segments:
@@ -75,7 +82,7 @@ class GroqTranscriber(Transcriber):
                 seg_start = seg.start
                 seg_end = seg.end
 
-                current_words: List[WordTiming] = []
+                current_words: list[WordTiming] = []
                 all_words = getattr(transcript, "words", [])
                 if all_words:
                     seg_words_data = [
@@ -91,7 +98,7 @@ class GroqTranscriber(Transcriber):
                 cues.append(Cue(start=seg_start, end=seg_end, text=processed_text, words=current_words))
                 timed_text.append((seg_start, seg_end, seg_text))
 
-        if progress_callback:
+        if callable(progress_callback):
             progress_callback(100.0)
 
         srt_path = output_dir / f"{audio_path.stem}.srt"

@@ -22,6 +22,7 @@ interface CueListProps {
     onSave: () => void;
     onCancel: () => void;
     onUpdateDraft: (text: string) => void;
+    autoFocusEditor: boolean;
 }
 
 const CueList = memo(({
@@ -34,7 +35,8 @@ const CueList = memo(({
     onEdit,
     onSave,
     onCancel,
-    onUpdateDraft
+    onUpdateDraft,
+    autoFocusEditor,
 }: CueListProps) => {
     return (
         <>
@@ -58,6 +60,7 @@ const CueList = memo(({
                             onSave={onSave}
                             onCancel={onCancel}
                             onUpdateDraft={onUpdateDraft}
+                            autoFocusEditor={autoFocusEditor}
                         />
                     </div>
                 );
@@ -73,7 +76,9 @@ const TranscriptPanel = memo(() => {
         cues,
         editingCueIndex,
         editingCueDraft,
+        editingCueSurface,
         isSavingTranscript,
+        transcriptLoadError,
         transcriptSaveError,
         transcriptContainerRef,
         playerRef,
@@ -88,6 +93,14 @@ const TranscriptPanel = memo(() => {
     const handleSeek = useCallback((time: number) => {
         playerRef.current?.seekTo(time);
     }, [playerRef]);
+
+    const handleEdit = useCallback((index: number) => {
+        const cue = cues[index];
+        if (!cue) return;
+        playerRef.current?.pause();
+        playerRef.current?.seekTo(cue.start);
+        beginEditingCue(index, 'transcript');
+    }, [beginEditingCue, cues, playerRef]);
 
     const activeCueIndex = useMemo(() => {
         if (!cues || cues.length === 0) return -1;
@@ -127,6 +140,11 @@ const TranscriptPanel = memo(() => {
             aria-labelledby="tab-transcript"
             className="space-y-2"
         >
+            {transcriptLoadError && (
+                <div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                    {transcriptLoadError}
+                </div>
+            )}
             {transcriptSaveError && (
                 <div className="rounded-lg border border-[var(--danger)]/30 bg-[var(--danger)]/10 px-3 py-2 text-xs text-[var(--danger)]">
                     {transcriptSaveError}
@@ -143,7 +161,6 @@ const TranscriptPanel = memo(() => {
             <div
                 ref={transcriptContainerRef}
                 className="editor-transcript-list custom-scrollbar scroll-smooth"
-                style={{ scrollBehavior: 'smooth' }}
             >
                 <CueList
                     cues={cues}
@@ -152,10 +169,11 @@ const TranscriptPanel = memo(() => {
                     editingCueDraft={editingCueDraft}
                     isSaving={isSavingTranscript}
                     onSeek={handleSeek}
-                    onEdit={beginEditingCue}
+                    onEdit={handleEdit}
                     onSave={saveEditingCue}
                     onCancel={cancelEditingCue}
                     onUpdateDraft={handleUpdateDraft}
+                    autoFocusEditor={editingCueSurface !== 'video'}
                 />
                 {cues.length === 0 && (
                     <div className="text-center text-[var(--muted)] py-10 opacity-50 font-medium">
@@ -171,11 +189,13 @@ const TranscriptPanel = memo(() => {
         cues,
         editingCueIndex,
         editingCueDraft,
+        editingCueSurface,
         isSavingTranscript,
+        transcriptLoadError,
         transcriptSaveError,
         transcriptContainerRef,
         handleSeek,
-        beginEditingCue,
+        handleEdit,
         saveEditingCue,
         cancelEditingCue,
         handleUpdateDraft,
@@ -193,7 +213,6 @@ export function Sidebar() {
         progress,
         activeSidebarTab,
         setActiveSidebarTab,
-        cues,
         STYLE_PRESETS,
         activePreset,
         setActivePreset,
@@ -205,14 +224,12 @@ export function Sidebar() {
         lastUsedSettings,
         subtitlePosition,
         maxSubtitleLines,
-        videoInfo,
         subtitleColor,
         SUBTITLE_COLORS,
         subtitleSize,
         karaokeEnabled,
         watermarkEnabled,
         setWatermarkEnabled,
-        previewVideoUrl
     } = useProcessContext();
 
     // Stable callbacks for StylePresetTiles
@@ -251,11 +268,7 @@ export function Sidebar() {
         setActivePreset(null);
     }, [setWatermarkEnabled, setActivePreset]);
 
-    // Optimized: Calculate derived values outside render loop
-    const karaokeSupported = true;
-
     const jobId = selectedJob?.id;
-    const thumbnailUrl = videoInfo?.thumbnailUrl;
 
     // Optimized: Memoize Styles Panel to prevent VDOM re-creation on high-frequency Context updates (like currentTime)
     const stylesPanel = useMemo(() => (
@@ -280,21 +293,15 @@ export function Sidebar() {
                 onChange={handlePositionChange}
                 lines={maxSubtitleLines}
                 onChangeLines={handleLinesChange}
-                thumbnailUrl={thumbnailUrl}
                 subtitleColor={subtitleColor}
                 onChangeColor={handleColorChange}
                 colors={SUBTITLE_COLORS}
-                disableMaxLines={false}
                 subtitleSize={subtitleSize}
                 onChangeSize={handleSizeChange}
                 karaokeEnabled={karaokeEnabled}
                 onChangeKaraoke={handleKaraokeChange}
                 watermarkEnabled={watermarkEnabled}
                 onChangeWatermark={handleWatermarkChange}
-                karaokeSupported={karaokeSupported}
-                previewVideoUrl={previewVideoUrl || undefined}
-                cues={cues}
-                hidePreview={true}
             />
         </div>
     ), [
@@ -308,10 +315,6 @@ export function Sidebar() {
         subtitleSize,
         karaokeEnabled,
         watermarkEnabled,
-        karaokeSupported,
-        thumbnailUrl,
-        previewVideoUrl,
-        cues,
         handlePresetSelect,
         handleLastUsedSelect,
         handlePositionChange,

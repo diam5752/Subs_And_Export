@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any, Callable, List, Sequence
 
 from backend.app.core.config import settings
+from backend.app.services import settings_utils
 from backend.app.services.subtitle_types import Cue, TimeRange, WordTiming
 
 logger = logging.getLogger(__name__)
@@ -143,6 +144,49 @@ def format_ass_dialogue(start: float, end: float, text: str, layer: int = 0) -> 
     return f"Dialogue: {layer},{format_timestamp(start)},{format_timestamp(end)},Default,,0,0,0,,{text}"
 
 
+def position_ass_dialogue_events(
+    events: Sequence[str],
+    *,
+    subtitle_position: int,
+    font_size: int,
+    play_res_x: int,
+    play_res_y: int,
+) -> List[str]:
+    r"""Position each ASS text block continuously inside the 5% vertical safe area.
+
+    ``\an8`` anchors the event at its top-center. The computed y coordinate
+    mirrors the browser preview: low positions anchor the block's bottom, the
+    midpoint centers it, and the maximum anchors its top at the safe edge.
+    """
+    position = settings_utils.normalize_subtitle_position(subtitle_position)
+    progress = (
+        (position - settings_utils.SUBTITLE_POSITION_MIN)
+        / (settings_utils.SUBTITLE_POSITION_MAX - settings_utils.SUBTITLE_POSITION_MIN)
+    )
+    safe_margin = play_res_y * (settings_utils.SUBTITLE_POSITION_MIN / 100)
+    usable_height = play_res_y - (2 * safe_margin)
+    positioned: List[str] = []
+
+    for event in events:
+        if not event.startswith("Dialogue:"):
+            positioned.append(event)
+            continue
+
+        fields = event.split(",", 9)
+        if len(fields) != 10:
+            positioned.append(event)
+            continue
+
+        text = fields[9]
+        line_count = max(1, text.count(r"\N") + 1)
+        block_height = min(usable_height, font_size * 1.2 * line_count)
+        top_y = safe_margin + ((1 - progress) * (usable_height - block_height))
+        fields[9] = f"{{\\an8\\pos({play_res_x // 2},{int(round(top_y))})}}{text}"
+        positioned.append(",".join(fields))
+
+    return positioned
+
+
 def generate_active_word_ass(cue: Cue, max_lines: int, primary_color: str, secondary_color: str) -> List[str]:
     """
     Generates ASS dialogue lines for 'active word' highlighting.
@@ -152,7 +196,26 @@ def generate_active_word_ass(cue: Cue, max_lines: int, primary_color: str, secon
     When max_lines>0: Show all words with the active word highlighted.
     """
     if not cue.words:
-        # Fallback to standard dialogue if no word timings
+        if max_lines == 0:
+            # REGRESSION: one-word mode used to display the entire sentence when
+            # a provider returned cue-level timestamps only. Interpolate stable
+            # word windows so the selected mode remains truthful and usable.
+            tokens = [token for token in cue.text.split() if token]
+            if not tokens:
+                return []
+
+            cue_duration = max(0.01, cue.end - cue.start)
+            step = cue_duration / len(tokens)
+            return [
+                format_ass_dialogue(
+                    cue.start + (index * step),
+                    cue.end if index == len(tokens) - 1 else cue.start + ((index + 1) * step),
+                    f"{{\\c{primary_color}&}}{token}",
+                )
+                for index, token in enumerate(tokens)
+            ]
+
+        # Fallback to standard dialogue for multi-word modes.
         return [format_ass_dialogue(cue.start, cue.end, cue.text)]
 
     lines = []
@@ -762,7 +825,7 @@ def create_styled_subtitle_file(
     margin_v: int = settings.default_sub_margin_v,
     margin_l: int = settings.default_sub_margin_l,
     margin_r: int = settings.default_sub_margin_r,
-    subtitle_position: int = 16,  # 5-35 (percentage from bottom)
+    subtitle_position: int = 16,  # 5-95 progression from safe bottom to safe top
     max_lines: int = 2,
     shadow_strength: int = 4,
     play_res_x: int = settings.default_width,
@@ -774,13 +837,15 @@ def create_styled_subtitle_file(
     Convert an SRT transcript to an ASS file with styling for vertical video.
     """
     parsed_cues: List[Cue]
-    if cues:
+    if cues is not None:
         parsed_cues = list(cues)
-    else:
+    elif transcript_path is not None:
         parsed_cues = [
             Cue(start=s, end=e, text=normalize_text(t))
             for s, e, t in parse_srt(transcript_path)
         ]
+    else:
+        raise ValueError("Either transcript_path or cues must be provided")
 
     effective_chars = effective_max_chars(
         max_chars=settings.max_sub_line_chars,
@@ -817,19 +882,24 @@ def create_styled_subtitle_file(
         )
         parsed_cues = normalize_cues_for_ass(parsed_cues)
 
-
-    output_dir = output_dir or transcript_path.parent
+    if output_dir is None:
+        if transcript_path is None:
+            raise ValueError("output_dir is required when transcript_path is omitted")
+        output_dir = transcript_path.parent
     output_dir.mkdir(parents=True, exist_ok=True)
-    ass_path = output_dir / f"{transcript_path.stem}.ass"
+    output_stem = transcript_path.stem if transcript_path is not None else "subtitles"
+    ass_path = output_dir / f"{output_stem}.ass"
 
-    # Convert numeric subtitle_position (percentage) to margin_v
-    position_pct = max(5, min(35, subtitle_position if subtitle_position is not None else 16))
+    # Keep a valid fallback style margin; every event below receives an exact
+    # top-center position so multi-line blocks remain inside the safe frame.
+    position_pct = settings_utils.normalize_subtitle_position(subtitle_position)
     final_margin_v = int(play_res_y * position_pct / 100)
     final_alignment = alignment
+    render_font_size = settings_utils.font_size_for_ass_rendering(font_size)
 
     header = ass_header(
         font=font,
-        font_size=font_size,
+        font_size=render_font_size,
         primary_color=primary_color,
         secondary_color=secondary_color,
         outline_color=outline_color,
@@ -868,11 +938,27 @@ def create_styled_subtitle_file(
                 primary_color=primary_color,
                 secondary_color=secondary_color,
             )
-            lines.extend(active_events)
+            lines.extend(
+                position_ass_dialogue_events(
+                    active_events,
+                    subtitle_position=position_pct,
+                    font_size=render_font_size,
+                    play_res_x=play_res_x,
+                    play_res_y=play_res_y,
+                )
+            )
         else:
             # STANDARD / KARAOKE FILL MODE
             text = format_karaoke_text(cue, max_lines=max_lines, max_chars=effective_chars)
-            lines.append(format_ass_dialogue(cue.start, cue.end, text))
+            lines.extend(
+                position_ass_dialogue_events(
+                    [format_ass_dialogue(cue.start, cue.end, text)],
+                    subtitle_position=position_pct,
+                    font_size=render_font_size,
+                    play_res_x=play_res_x,
+                    play_res_y=play_res_y,
+                )
+            )
 
     ass_path.write_text("\n".join(lines), encoding="utf-8")
     return ass_path

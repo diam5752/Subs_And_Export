@@ -1,32 +1,38 @@
 type TranscriptionTier = 'standard' | 'pro';
+type RuntimeTranscriptionProvider = 'mock' | 'elevenlabs' | 'groq' | 'local';
+
+interface RuntimeTranscriptionSelection {
+    mode: TranscriptionTier;
+    provider: RuntimeTranscriptionProvider;
+}
+
+const RUNTIME_PROVIDERS = new Set<RuntimeTranscriptionProvider>([
+    'mock',
+    'elevenlabs',
+    'groq',
+    'local',
+]);
+
+export function resolveConfiguredTranscription(
+    providerValue: string | null | undefined,
+    modeValue: string | null | undefined,
+): RuntimeTranscriptionSelection {
+    const normalizedProvider = (providerValue ?? '').trim().toLowerCase();
+    const provider = RUNTIME_PROVIDERS.has(normalizedProvider as RuntimeTranscriptionProvider)
+        ? normalizedProvider as RuntimeTranscriptionProvider
+        : 'mock';
+    const requestedMode: TranscriptionTier = (modeValue ?? '').trim().toLowerCase() === 'pro'
+        ? 'pro'
+        : 'standard';
+
+    // ElevenLabs is intentionally available only through the pro tier. The
+    // backend independently enforces the same provider/tier contract.
+    const mode: TranscriptionTier = provider === 'elevenlabs' ? 'pro' : requestedMode;
+    return { mode, provider };
+}
 
 export function resolveTranscriptionTier(
-    provider: string | null | undefined,
-    model: string | null | undefined,
+    tierValue: string | null | undefined,
 ): TranscriptionTier {
-    const normalizedProvider = (provider ?? '').trim().toLowerCase();
-    const normalizedModel = (model ?? '').trim().toLowerCase();
-
-    if (normalizedModel === 'pro' || normalizedModel === 'standard') {
-        return normalizedModel as TranscriptionTier;
-    }
-    if (normalizedModel.startsWith('gpt-4o') && normalizedModel.includes('transcribe')) {
-        return 'pro';
-    }
-    if (normalizedProvider === 'elevenlabs' || normalizedModel.includes('scribe')) {
-        return 'pro';
-    }
-    if (normalizedModel.includes('turbo') || normalizedModel.includes('enhanced')) {
-        return 'standard';
-    }
-    if (normalizedModel.includes('large')) {
-        return 'pro';
-    }
-    if (normalizedProvider === 'openai') {
-        return 'pro';
-    }
-    if (normalizedModel.includes('ultimate') || normalizedModel.includes('whisper-1') || normalizedModel.includes('openai')) {
-        return 'pro';
-    }
-    return 'standard';
+    return (tierValue ?? '').trim().toLowerCase() === 'pro' ? 'pro' : 'standard';
 }

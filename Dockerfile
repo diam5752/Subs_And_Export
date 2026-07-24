@@ -11,10 +11,8 @@ FROM python:3.11-slim AS runtime
 # Install runtime system dependencies
 # - ffmpeg: video/audio processing
 # - fonts-*: subtitle text rendering (Greek support)
-# - libgl1: OpenCV dependency
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
-    libgl1 \
     fonts-dejavu-core \
     fonts-noto-core \
     fonts-freefont-ttf \
@@ -52,7 +50,8 @@ ENV GSP_ELEVENLABS_ENABLED=0
 ENV GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD=0
 ENV GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD=0
 
-# Create symlink so 'backend.app' imports work (codebase uses mixed import styles)
+# The image copies the backend package contents into /app; expose the canonical
+# `backend.*` package path without maintaining a second source tree.
 RUN rm -rf /app/backend && ln -s /app /app/backend
 
 # Drop root privileges for runtime.

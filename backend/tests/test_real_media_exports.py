@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -16,6 +17,7 @@ from backend.app.services import video_processing
 pytestmark = pytest.mark.media_export
 
 TEST_DURATION_SECONDS = 1.2
+MAX_DURATION_SECONDS = 600.0
 FRAME_TIMESTAMP_SECONDS = 0.55
 DEMO_FRAME_TIMESTAMP_SECONDS = 1.2
 DEMO_VIDEO = Path(__file__).parent / "data" / "demo.mp4"
@@ -483,6 +485,7 @@ def test_export_visual_controls_change_real_rendered_frames(
         ("low-small-yellow", 6, 60, "&H0000FFFF", "yellow"),
         ("middle-medium-white", 16, 100, "&H00FFFFFF", "white"),
         ("high-large-cyan", 32, 140, "&H00FFFF00", "cyan"),
+        ("safe-top-medium-yellow", 95, 100, "&H0000FFFF", "yellow"),
     )
     signatures: dict[str, VisualSignature] = {}
 
@@ -508,8 +511,152 @@ def test_export_visual_controls_change_real_rendered_frames(
     low = signatures["low-small-yellow"]
     middle = signatures["middle-medium-white"]
     high = signatures["high-large-cyan"]
-    assert high.centroid_y < middle.centroid_y < low.centroid_y
+    safe_top = signatures["safe-top-medium-yellow"]
+    assert safe_top.centroid_y < high.centroid_y < middle.centroid_y < low.centroid_y
+    assert 20 <= safe_top.bounding_box[1] < 70
     assert low.pixel_count < middle.pixel_count < high.pixel_count
+
+
+def test_three_line_export_renders_three_bounded_rows(
+    source_media: dict[str, Path],
+    tmp_path: Path,
+) -> None:
+    """REGRESSION: the three-line UI choice must survive the real FFmpeg export."""
+    source = source_media["h264_aac.mp4"]
+    artifact_dir = tmp_path / "three-line-export"
+    subtitle_text = "ΒΑΛΤΕ ΥΠΟΘΕΣΕΙΣ ΚΑΙ ΕΛΑΤΕ ΝΑ ΦΤΙΑΞΟΥΜΕ ΜΙΑ ΔΥΝΑΤΗ ΟΜΑΔΑ"
+    _write_srt(artifact_dir, source.stem, subtitle_text)
+
+    output = video_processing.generate_video_variant(
+        "three-line-real-export",
+        source,
+        artifact_dir,
+        "360x640",
+        ExportJobStore("media-test-user"),
+        "media-test-user",
+        subtitle_settings={
+            "subtitle_position": 16,
+            "subtitle_size": 100,
+            "max_subtitle_lines": 3,
+            "subtitle_color": "&H0000FFFF",
+            "shadow_strength": 2,
+            "karaoke_enabled": False,
+            "highlight_style": "static",
+        },
+    )
+
+    ass_path = artifact_dir / f"{source.stem}.ass"
+    dialogue_text = [
+        line.rsplit(",,", maxsplit=1)[-1]
+        for line in ass_path.read_text(encoding="utf-8").splitlines()
+        if line.startswith("Dialogue:")
+    ]
+    assert dialogue_text
+    assert any(text.count("\\N") == 2 for text in dialogue_text)
+    assert all(text.count("\\N") <= 2 for text in dialogue_text)
+    visible_dialogue_text = [
+        re.sub(r"^\{\\an8\\pos\(\d+,\d+\)\}", "", text)
+        for text in dialogue_text
+    ]
+    assert " ".join(
+        text.replace("\\N", " ") for text in visible_dialogue_text
+    ).split() == subtitle_text.split()
+
+    _decode_entire_export(output)
+    baseline = _extract_frame(
+        source,
+        tmp_path / "three-line-source.png",
+        video_filter="scale=360:-2:force_original_aspect_ratio=decrease,"
+        "pad=360:640:(360-iw)/2:(640-ih)/2,format=rgb24",
+    )
+    rendered = _extract_frame(output, tmp_path / "three-line-rendered.png")
+    signature = _visual_signature(rendered, baseline)
+
+    assert _color_pixel_count(rendered, "yellow") > 25
+    assert signature.bounding_box[3] - signature.bounding_box[1] >= 45
+    assert 0 <= signature.bounding_box[0] < signature.bounding_box[2] < 360
+    assert 0 <= signature.bounding_box[1] < signature.bounding_box[3] < 640
+
+
+def test_ten_minute_export_preserves_duration_decode_and_subtitle_position(
+    tmp_path: Path,
+) -> None:
+    """REGRESSION: the ten-minute upload ceiling must be exportable end to end."""
+    source = tmp_path / "ten-minute-source.mp4"
+    _run(
+        [
+            "ffmpeg", "-y", "-v", "error",
+            "-f", "lavfi", "-i",
+            f"color=c=0x101820:s=180x320:r=1:d={MAX_DURATION_SECONDS}",
+            "-f", "lavfi", "-i",
+            f"sine=frequency=440:sample_rate=16000:duration={MAX_DURATION_SECONDS}",
+            "-shortest", "-c:v", "libx264", "-preset", "ultrafast",
+            "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "32k", str(source),
+        ],
+    )
+
+    artifact_dir = tmp_path / "ten-minute-artifacts"
+    artifact_dir.mkdir()
+    (artifact_dir / f"{source.stem}.srt").write_text(
+        "1\n00:00:00,000 --> 00:00:02,000\nΣΤΑΘΕΡΗ ΘΕΣΗ\n\n"
+        "2\n00:04:59,000 --> 00:05:02,000\nΣΤΑΘΕΡΗ ΘΕΣΗ\n\n"
+        "3\n00:09:58,000 --> 00:10:00,000\nΣΤΑΘΕΡΗ ΘΕΣΗ\n",
+        encoding="utf-8",
+    )
+
+    output = video_processing.generate_video_variant(
+        "ten-minute-real-export",
+        source,
+        artifact_dir,
+        "360x640",
+        ExportJobStore("media-test-user"),
+        "media-test-user",
+        subtitle_settings={
+            "subtitle_position": 32,
+            "subtitle_size": 100,
+            "max_subtitle_lines": 2,
+            "subtitle_color": "&H0000FFFF",
+            "shadow_strength": 2,
+            "karaoke_enabled": False,
+            "highlight_style": "static",
+        },
+    )
+
+    output_probe = _probe(output)
+    output_video = _stream(output_probe, "video")
+    output_audio = _stream(output_probe, "audio")
+    assert output_video is not None
+    assert output_video.get("codec_name") == "h264"
+    assert output_video.get("pix_fmt") == "yuv420p"
+    assert output_video.get("width") == 360
+    assert output_video.get("height") == 640
+    assert output_audio is not None and output_audio.get("codec_name") == "aac"
+    assert abs(_duration(output_probe) - MAX_DURATION_SECONDS) <= 0.35
+    _decode_entire_export(output)
+
+    signatures: list[VisualSignature] = []
+    for index, timestamp in enumerate((1.0, 300.0, 599.0)):
+        baseline = _extract_frame(
+            source,
+            tmp_path / f"ten-minute-source-{index}.png",
+            timestamp_seconds=timestamp,
+            video_filter="scale=360:-2:force_original_aspect_ratio=decrease,"
+            "pad=360:640:(360-iw)/2:(640-ih)/2,format=rgb24",
+        )
+        rendered = _extract_frame(
+            output,
+            tmp_path / f"ten-minute-rendered-{index}.png",
+            timestamp_seconds=timestamp,
+        )
+        signature = _visual_signature(rendered, baseline)
+        signatures.append(signature)
+        assert _color_pixel_count(rendered, "yellow") > 25
+        assert signature.centroid_y < rendered.height * 0.75
+
+    centroid_spread = max(item.centroid_y for item in signatures) - min(
+        item.centroid_y for item in signatures
+    )
+    assert centroid_spread <= 2.0
 
 
 def test_watermark_toggle_changes_only_the_requested_real_export(

@@ -69,6 +69,7 @@ const mockContextValue = {
     playerRef: { current: null },
     transcriptContainerRef: { current: null },
     editingCueIndex: null,
+    editingCueSurface: null,
     editingCueDraft: '',
     handleUpdateDraft: jest.fn(),
     beginEditingCue: jest.fn(),
@@ -315,5 +316,36 @@ describe('ProcessView', () => {
         expect(screen.queryByTestId('upload-section')).not.toBeInTheDocument();
         expect(screen.getByRole('tab', { name: /Transcript/i })).toBeInTheDocument();
         expect(screen.getByTestId('workflow-stepper')).toHaveTextContent('Export');
+    });
+
+    it('navigates and scrolls to an unlocked workflow step', () => {
+        jest.useFakeTimers();
+        const setOverrideStep = jest.fn();
+        const scrollTo = jest.spyOn(window, 'scrollTo').mockImplementation(() => undefined);
+        (useProcessContext as jest.Mock).mockReturnValue({
+            ...mockContextValue,
+            currentStep: 3,
+            selectedJob: mockJob,
+            setOverrideStep,
+        });
+
+        try {
+            render(
+                <I18nProvider initialLocale="en">
+                    <PlaybackProvider>
+                        <ProcessViewContent />
+                    </PlaybackProvider>
+                </I18nProvider>,
+            );
+
+            fireEvent.click(screen.getByRole('button', { name: /Step 3 Export/i }));
+            jest.advanceTimersByTime(180);
+
+            expect(setOverrideStep).toHaveBeenCalledWith(3);
+            expect(scrollTo).toHaveBeenCalledWith({ top: -108, behavior: 'smooth' });
+        } finally {
+            scrollTo.mockRestore();
+            jest.useRealTimers();
+        }
     });
 });

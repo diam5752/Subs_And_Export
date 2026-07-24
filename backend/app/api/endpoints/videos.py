@@ -78,7 +78,7 @@ async def process_video(
     background_tasks: BackgroundTasks,
     request: Request,
     file: UploadFile = File(...),
-    transcribe_model: str = Form(settings.default_transcribe_tier),
+    transcribe_tier: str = Form(settings.default_transcribe_tier),
     transcribe_provider: str = Form(settings.transcribe_tier_provider[settings.default_transcribe_tier]),
     openai_model: str = Form(""),
     video_quality: str = Form("high quality"),
@@ -98,10 +98,10 @@ async def process_video(
     history_store: HistoryStore = Depends(get_history_store),
     ledger_store: UsageLedgerStore = Depends(get_usage_ledger_store),
     db: Database = Depends(get_db),
-):
+) -> JobResponse:
     """Upload a video and start processing."""
     proc_settings = build_processing_settings(
-        transcribe_model=transcribe_model,
+        transcribe_tier=transcribe_tier,
         transcribe_provider=transcribe_provider,
         openai_model=openai_model,
         video_quality=video_quality,
@@ -144,8 +144,8 @@ async def process_video(
                     status_code=413,
                     detail=f"Request too large; limit is {settings.max_upload_mb}MB",
                 )
-        except ValueError:
-            pass
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail="Invalid Content-Length header") from exc
     save_upload_with_limit(file, input_path)
 
     # Validate Duration
@@ -170,18 +170,18 @@ async def process_video(
     job = job_store.create_job(job_id, current_user.id)
 
     try:
-        llm_models = pricing.resolve_llm_models(proc_settings.transcribe_model)
+        llm_models = pricing.resolve_llm_models(proc_settings.transcribe_tier)
         charge_plan, new_balance = reserve_processing_charges(
             ledger_store=ledger_store,
             user_id=current_user.id,
             job_id=job_id,
-            tier=proc_settings.transcribe_model,
+            tier=proc_settings.transcribe_tier,
             duration_seconds=float(probe.duration_s),
             use_llm=proc_settings.use_llm,
             llm_model=llm_models.social,
             provider=proc_settings.transcribe_provider,
             stt_model=pricing.resolve_requested_transcribe_model(
-                tier=proc_settings.transcribe_model,
+                tier=proc_settings.transcribe_tier,
                 provider=proc_settings.transcribe_provider,
                 openai_model=proc_settings.openai_model,
             ),
@@ -203,7 +203,7 @@ async def process_video(
             f"Queued {file.filename}",
             {
                 "job_id": job_id,
-                "model_size": proc_settings.transcribe_model,
+                "transcribe_tier": proc_settings.transcribe_tier,
                 "provider": proc_settings.transcribe_provider or settings.transcribe_tier_provider[settings.default_transcribe_tier],
                 "video_quality": proc_settings.video_quality,
                 "video_resolution": video_resolution,
@@ -254,4 +254,4 @@ async def process_video(
         input_path.unlink(missing_ok=True)
         raise
 
-    return {**job.__dict__, "balance": new_balance}
+    return JobResponse.model_validate(job).model_copy(update={"balance": new_balance})

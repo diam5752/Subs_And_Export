@@ -1,4 +1,4 @@
-from backend.app.services.subtitles import _write_srt_from_segments
+from backend.app.services.subtitles import write_srt_from_segments
 
 
 def test_srt_injection_sanitization(tmp_path):
@@ -15,7 +15,7 @@ def test_srt_injection_sanitization(tmp_path):
         (1.0, 4.0, injection_payload)
     ]
 
-    _write_srt_from_segments(segments, dest)
+    write_srt_from_segments(segments, dest)
 
     content = dest.read_text(encoding="utf-8")
 

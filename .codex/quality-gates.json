@@ -140,7 +140,7 @@
       "id": "static-analysis",
       "requirement": "Zero critical or blocker static-analysis issues.",
       "status": "enabled",
-      "suggested_command": "Run Ruff, ESLint, and frontend TypeScript type-checking.",
+      "suggested_command": "Run strict mypy, Ruff, ESLint, dead-code analysis, and frontend TypeScript type-checking.",
       "command_id": "check:static"
     },
     {
@@ -218,7 +218,7 @@
     },
     "check:static": {
       "kind": "shell",
-      "shell": "ruff check backend && cd frontend && npm run lint && npm run lint:dead-code && npx tsc --noEmit",
+      "shell": "mypy backend/app && ruff check backend && cd frontend && npm run lint && npm run lint:dead-code && npx tsc --noEmit",
       "status": "enabled"
     },
     "check:unit:backend": {

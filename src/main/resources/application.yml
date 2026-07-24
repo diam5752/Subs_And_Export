@@ -1,6 +1,8 @@
 spring:
   application:
     name: greek-sub-publisher
+  autoconfigure:
+    exclude: org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
   config:
     import:
       - optional:file:.env[.properties]
@@ -62,7 +64,7 @@ app:
   proxy-trusted-hosts: ${GSP_PROXY_TRUSTED_HOSTS:127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
   force-https: ${GSP_FORCE_HTTPS:false}
   max-upload-mb: ${GSP_MAX_UPLOAD_MB:1024}
-  max-video-duration-seconds: 210
+  max-video-duration-seconds: ${GSP_MAX_VIDEO_DURATION_SECONDS:600}
   max-concurrent-jobs: 2
   static-rate-limit: 60
   static-rate-limit-window: 60
@@ -72,11 +74,11 @@ app:
   max-resolution-dimension: 4096
   default-transcribe-tier: standard
   use-llm-by-default: ${GSP_USE_LLM_BY_DEFAULT:false}
-  llm-model: ${GSP_LLM_MODEL:gpt-5.1-mini}
+  llm-model: ${GSP_LLM_MODEL:gpt-5-mini}
   llm-temperature: ${GSP_LLM_TEMPERATURE:0.6}
-  social-llm-model: gpt-5.1-mini
-  factcheck-llm-model: gpt-5.1-mini
-  extraction-llm-model: gpt-5.1-mini
+  social-llm-model: gpt-5-mini
+  factcheck-llm-model: gpt-5-mini
+  extraction-llm-model: gpt-5-mini
   admin-emails: ${GSP_ADMIN_EMAILS:}
   gcs-bucket: ${GSP_GCS_BUCKET:}
   gcs-uploads-prefix: ${GSP_GCS_UPLOADS_PREFIX:uploads}

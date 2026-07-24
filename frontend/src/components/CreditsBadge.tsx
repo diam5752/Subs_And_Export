@@ -5,7 +5,7 @@ import { Spinner } from '@/components/Spinner';
 import { CoinsIcon } from '@/components/icons';
 import { formatPoints } from '@/lib/points';
 
-export function CreditsBadge() {
+export function CreditsBadge({ onClick }: { onClick?: () => void }) {
     const { t } = useI18n();
     const { balance, isLoading, error, refreshBalance } = usePoints();
 
@@ -18,7 +18,13 @@ export function CreditsBadge() {
     return (
         <button
             type="button"
-            onClick={() => void refreshBalance()}
+            onClick={() => {
+                if (onClick) {
+                    onClick();
+                    return;
+                }
+                void refreshBalance();
+            }}
             className="studio-credit-balance"
             aria-label={label}
             aria-busy={isLoading}
@@ -29,6 +35,7 @@ export function CreditsBadge() {
                 <CoinsIcon className="h-4 w-4" />
             </span>
             <span className="studio-credit-value" aria-live="polite">{formatted}</span>
+            {onClick ? <span aria-hidden="true" className="text-[11px] font-bold opacity-70">+</span> : null}
             {isLoading ? <Spinner className="h-3 w-3" /> : null}
         </button>
     );

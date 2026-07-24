@@ -49,6 +49,7 @@ def test_rate_limiter_clears_oversized_client_cache(monkeypatch) -> None:
 
 
 def test_authenticated_rate_limiter_clears_oversized_client_cache(monkeypatch) -> None:
+    monkeypatch.delenv("GSP_DISABLE_RATELIMIT", raising=False)
     limiter = ratelimit.AuthenticatedRateLimiter(limit=2, window=60)
     limiter.clients = {f"user-{i}": [0.0] for i in range(10001)}
     monkeypatch.setattr(ratelimit.time, "time", lambda: 10.0)

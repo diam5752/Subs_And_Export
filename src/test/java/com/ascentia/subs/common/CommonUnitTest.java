@@ -237,7 +237,7 @@ class CommonUnitTest {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setRemoteAddr("127.0.0.1");
 
-        assertThatThrownBy(() -> controller.serveStatic("../pom.xml", false, request))
+        assertThatThrownBy(() -> controller.serveStatic("../pom.xml", false, null, request))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("403 FORBIDDEN");
 
@@ -245,30 +245,30 @@ class CommonUnitTest {
         Files.createDirectories(file.getParent());
         Files.write(file, "hello".getBytes(StandardCharsets.UTF_8));
 
-        assertThat(controller.serveStatic("unit-static.txt", false, request).getBody()).isNotNull();
-        assertThat(controller.serveStatic("unit-static.txt", true, request).getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION))
+        assertThat(controller.serveStatic("unit-static.txt", false, null, request).getBody()).isNotNull();
+        assertThat(controller.serveStatic("unit-static.txt", true, null, request).getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION))
                 .contains("attachment");
 
         Path directory = Path.of("data", "unit-static-dir");
         Files.createDirectories(directory);
-        assertThatThrownBy(() -> controller.serveStatic("unit-static-dir", false, request))
+        assertThatThrownBy(() -> controller.serveStatic("unit-static-dir", false, null, request))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("404 NOT_FOUND");
 
         Path video = Path.of("data", "unit-video.mp4");
         Files.write(video, "video".getBytes(StandardCharsets.UTF_8));
-        assertThat(controller.serveStatic("unit-video.mp4", false, request).getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION))
+        assertThat(controller.serveStatic("unit-video.mp4", false, null, request).getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION))
                 .contains("unit-video.mp4");
         for (String extension : List.of(".mov", ".avi", ".webm", ".mkv")) {
             String filename = "unit-video" + extension;
             Files.write(Path.of("data", filename), "video".getBytes(StandardCharsets.UTF_8));
-            assertThat(controller.serveStatic(filename, false, request).getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION))
+            assertThat(controller.serveStatic(filename, false, null, request).getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION))
                     .contains(filename);
         }
-        assertThatThrownBy(() -> controller.serveStatic(null, false, request))
+        assertThatThrownBy(() -> controller.serveStatic(null, false, null, request))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("404 NOT_FOUND");
-        assertThatThrownBy(() -> controller.serveStatic("missing.txt", false, request))
+        assertThatThrownBy(() -> controller.serveStatic("missing.txt", false, null, request))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("404 NOT_FOUND");
     }

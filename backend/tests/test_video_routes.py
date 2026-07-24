@@ -48,6 +48,21 @@ def test_process_video_content_length_error(client: TestClient, user_auth_header
     assert response.status_code == 413
     assert "too large" in response.json()["detail"]
 
+
+def test_process_video_rejects_malformed_content_length(
+    client: TestClient,
+    user_auth_headers: dict[str, str],
+) -> None:
+    headers = {**user_auth_headers, "content-length": "not-a-number"}
+    response = client.post(
+        "/videos/process",
+        headers=headers,
+        files={"file": ("test.mp4", b"data", "video/mp4")},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid Content-Length header"
+
 def test_record_event_safe_exception(monkeypatch):
     """Verify that _record_event_safe suppresses exceptions."""
     from backend.app.api.endpoints.processing_tasks import record_event_safe
@@ -75,40 +90,42 @@ def test_parse_resolution():
     assert parse_resolution("invalid") == (None, None)
     assert parse_resolution("-100x100") == (None, None)
 
-def test_ensure_job_size_logic():
-    """Test _ensure_job_size backfill logic."""
+def test_ensure_job_integrity(monkeypatch, tmp_path):
+    """Completed jobs expose current local artifact availability and size."""
 
-    from backend.app.api.endpoints.export_routes import _ensure_job_size
+    from backend.app.api.endpoints import job_routes
     from backend.app.services.jobs import Job
 
-    # Case 1: Already has size
+    monkeypatch.setattr(job_routes, "DATA_DIR", tmp_path)
+    video_path = tmp_path / "artifacts" / "j1" / "processed.mp4"
+    video_path.parent.mkdir(parents=True)
+    video_path.write_bytes(b"video")
+
     job_with_size = Job(
         id="j1", user_id="u1", status="completed", progress=100, message="done",
         created_at=0, updated_at=0,
-        result_data={"output_size": 12345, "video_path": "foo.mp4"}
+        result_data={"output_size": 12345, "video_path": "artifacts/j1/processed.mp4"}
     )
-    assert _ensure_job_size(job_with_size).result_data["output_size"] == 12345
+    result = job_routes.ensure_job_integrity(job_with_size)
+    assert result.result_data["output_size"] == 5
+    assert result.result_data["files_missing"] is False
 
-    # Case 2: Missing size, file missing
     job_missing_file = Job(
         id="j2", user_id="u1", status="completed", progress=100, message="done",
         created_at=0, updated_at=0,
         result_data={"video_path": "nonexistent.mp4"}
     )
-    # create a dummy non-existent path structure for logic check
-    # In real execution, config.PROJECT_ROOT might point to where `nonexistent.mp4` isn't.
-    # It should just pass and remain unset or unchanged.
-    res = _ensure_job_size(job_missing_file)
+    res = job_routes.ensure_job_integrity(job_missing_file)
+    assert res.result_data["files_missing"] is True
     assert "output_size" not in res.result_data
 
-    # Case 3: Error handling
-    job_bad_data = Job(
+    traversal_job = Job(
         id="j3", user_id="u1", status="completed", progress=100, message="done",
         created_at=0, updated_at=0,
-        result_data={"video_path": 123} # Invalid path type
+        result_data={"video_path": "../outside.mp4"},
     )
-    res = _ensure_job_size(job_bad_data)
-    assert "output_size" not in res.result_data
+    res = job_routes.ensure_job_integrity(traversal_job)
+    assert res.result_data["files_missing"] is True
 
 def test_delete_job(client: TestClient, user_auth_headers: dict, monkeypatch):
     """Test deleting a job and its artifacts."""

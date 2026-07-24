@@ -7,6 +7,7 @@ UVICORN_APP ?= backend.main:app
 install:
 	@echo "Installing backend dependencies..."
 	cd backend && pip install -r requirements.txt
+	pip install -e '.[dev]'
 	@echo "Installing frontend dependencies..."
 	cd frontend && npm install
 

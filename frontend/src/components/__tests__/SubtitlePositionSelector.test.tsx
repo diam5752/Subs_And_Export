@@ -18,7 +18,11 @@ describe('SubtitlePositionSelector', () => {
         onChangeSize: jest.fn(),
         karaokeEnabled: true,
         onChangeKaraoke: jest.fn(),
-        karaokeSupported: true,
+        subtitleColor: '#FFFFFF',
+        onChangeColor: jest.fn(),
+        colors: [{ label: 'White', value: '#FFFFFF', ass: '&H00FFFFFF' }],
+        watermarkEnabled: false,
+        onChangeWatermark: jest.fn(),
     };
 
     beforeEach(() => {
@@ -45,7 +49,7 @@ describe('SubtitlePositionSelector', () => {
         const slider = screen.getByLabelText('positionLabel');
         expect(slider).toHaveAttribute('type', 'range');
         expect(slider).toHaveAttribute('min', '5');
-        expect(slider).toHaveAttribute('max', '35');
+        expect(slider).toHaveAttribute('max', '95');
 
         // Presets
         expect(screen.getByText('positionLow')).toBeInTheDocument();
@@ -64,7 +68,7 @@ describe('SubtitlePositionSelector', () => {
         render(<SubtitlePositionSelector {...defaultProps} />);
 
         fireEvent.click(screen.getByText('positionHigh'));
-        expect(defaultProps.onChange).toHaveBeenCalledWith(30);
+        expect(defaultProps.onChange).toHaveBeenCalledWith(95);
     });
 
     it('calls onChangeLines when line option is clicked', () => {
@@ -75,7 +79,7 @@ describe('SubtitlePositionSelector', () => {
         expect(defaultProps.onChangeLines).toHaveBeenCalledWith(1);
     });
 
-    it('renders karaoke toggle when supported', () => {
+    it('renders and updates the karaoke toggle', () => {
         render(<SubtitlePositionSelector {...defaultProps} />);
 
         const switchControl = screen.getByRole('switch', { name: 'karaokeLabel' });
@@ -113,12 +117,6 @@ describe('SubtitlePositionSelector', () => {
         assertTooltip('infoPrefix karaokeLabel', 'tooltipKaraokeDesc');
     });
 
-    it('does not render karaoke toggle when not supported', () => {
-        render(<SubtitlePositionSelector {...defaultProps} karaokeSupported={false} />);
-
-        expect(screen.queryByText('karaokeLabel')).not.toBeInTheDocument();
-    });
-
     it('renders color selector if colors provided', () => {
         const colors = [{ label: 'Green', value: '#00FF00', ass: '&H0000FF00' }];
         const onChangeColor = jest.fn();
@@ -130,60 +128,4 @@ describe('SubtitlePositionSelector', () => {
         expect(onChangeColor).toHaveBeenCalledWith('#00FF00');
     });
 
-    it('renders a thumbnail when thumbnailUrl is provided', () => {
-        render(<SubtitlePositionSelector {...defaultProps} thumbnailUrl="/ascentia-logo.png" />);
-        expect(screen.getByAltText('Video preview')).toBeInTheDocument();
-    });
-
-    it('renders accessible video controls when preview is shown', () => {
-        // Need to provide cues to show the interactive video player
-        const cues = [{ start: 0, end: 5, text: 'Test' }];
-        // Mock HTMLMediaElement properties
-        Object.defineProperty(window.HTMLMediaElement.prototype, 'paused', {
-            get: function (this: HTMLMediaElement & { _mockPaused?: boolean }) { return this._mockPaused !== undefined ? this._mockPaused : false; },
-            configurable: true
-        });
-        Object.defineProperty(window.HTMLMediaElement.prototype, 'play', {
-            value: jest.fn().mockImplementation(function (this: HTMLMediaElement & { _mockPaused?: boolean }) {
-                this._mockPaused = false;
-                return Promise.resolve();
-            }),
-            configurable: true,
-        });
-        Object.defineProperty(window.HTMLMediaElement.prototype, 'pause', {
-            value: jest.fn().mockImplementation(function (this: HTMLMediaElement & { _mockPaused?: boolean }) {
-                this._mockPaused = true;
-            }),
-            configurable: true,
-        });
-
-        render(<SubtitlePositionSelector {...defaultProps} previewVideoUrl="blob:test" cues={cues} />);
-
-        // Play/Pause button (defaults to playing, so label is 'pausePreview')
-        const playButton = screen.getByRole('button', { name: 'pausePreview' });
-        expect(playButton).toBeInTheDocument();
-        expect(playButton).toHaveAttribute('aria-pressed', 'true');
-
-        // Main container toggle
-        const containerToggle = screen.getByRole('button', { name: 'previewVideoToggle' });
-        expect(containerToggle).toBeInTheDocument();
-        expect(containerToggle).toHaveAttribute('aria-pressed', 'true');
-
-        // Mute button (defaults to muted, so label is 'unmutePreview')
-        const muteButton = screen.getByRole('button', { name: 'unmutePreview' });
-        expect(muteButton).toBeInTheDocument();
-        expect(muteButton).toHaveAttribute('aria-pressed', 'true');
-
-        // Interact
-        fireEvent.click(playButton);
-        // Expect label change
-        expect(screen.getByRole('button', { name: 'playPreview' })).toHaveAttribute('aria-pressed', 'false');
-
-        fireEvent.click(muteButton);
-        expect(screen.getByRole('button', { name: 'mutePreview' })).toHaveAttribute('aria-pressed', 'false');
-
-        // Scrubber
-        const scrubber = screen.getByLabelText('seekVideo');
-        expect(scrubber).toBeInTheDocument();
-    });
 });

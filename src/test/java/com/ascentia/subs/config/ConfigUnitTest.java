@@ -12,6 +12,7 @@ class ConfigUnitTest {
     @Test
     void appPropertiesParsesEnvironmentListsAndConfiguredGetters() {
         AppProperties properties = new AppProperties();
+        assertThat(properties.getMaxVideoDurationSeconds()).isEqualTo(600);
         properties.setEnv("local");
         properties.setDatabaseUrl("postgresql://localhost:5432/config");
         properties.setDatabaseUsername("db-user");

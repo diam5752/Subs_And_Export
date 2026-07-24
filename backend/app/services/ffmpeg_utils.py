@@ -200,7 +200,7 @@ def run_ffmpeg_with_subs(
     )
 
     # Memory optimization: Use deque to keep only last 200 lines
-    stderr_lines = deque(maxlen=200)
+    stderr_lines: deque[str] = deque(maxlen=200)
 
     try:
         if process.stderr:

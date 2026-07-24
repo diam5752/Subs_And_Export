@@ -6,7 +6,7 @@ import json
 import logging
 import shutil
 from pathlib import Path
-from typing import List, Optional
+from typing import Any
 
 from backend.app.core.config import settings
 from backend.app.services.subtitle_types import Cue
@@ -18,11 +18,11 @@ logger = logging.getLogger(__name__)
 
 
 def _prepare_cues_for_delivery(
-    cues: List[Cue] | None,
+    cues: list[Cue] | None,
     *,
     max_subtitle_lines: int,
     subtitle_size: int,
-) -> List[Cue]:
+) -> list[Cue]:
     if not cues:
         return []
 
@@ -50,8 +50,8 @@ def persist_artifacts(
     srt_path: Path,
     ass_path: Path,
     transcript_text: str,
-    social_copy: Optional[SocialCopy],
-    cues: Optional[List[Cue]] = None,
+    social_copy: SocialCopy | None,
+    cues: list[Cue] | None = None,
     *,
     max_subtitle_lines: int = 2,
     subtitle_size: int = settings.default_sub_font_size,
@@ -69,15 +69,19 @@ def persist_artifacts(
 
     if social_copy:
         social_txt = (
-            f"Title: {social_copy.generic.title}\n"
-            f"Description: {social_copy.generic.description}\n"
+            f"Title (EL): {social_copy.generic.title_el}\n"
+            f"Description (EL): {social_copy.generic.description_el}\n"
+            f"Title (EN): {social_copy.generic.title_en}\n"
+            f"Description (EN): {social_copy.generic.description_en}\n"
             f"Hashtags: {' '.join(social_copy.generic.hashtags)}\n"
         )
         (artifact_dir / "social_copy.txt").write_text(social_txt, encoding="utf-8")
 
         social_json = {
-            "title": social_copy.generic.title,
-            "description": social_copy.generic.description,
+            "title_el": social_copy.generic.title_el,
+            "description_el": social_copy.generic.description_el,
+            "title_en": social_copy.generic.title_en,
+            "description_en": social_copy.generic.description_en,
             "hashtags": social_copy.generic.hashtags,
         }
         (artifact_dir / "social_copy.json").write_text(
@@ -90,17 +94,18 @@ def persist_artifacts(
         subtitle_size=subtitle_size,
     )
 
-    cues_data = []
+    cues_data: list[dict[str, Any]] = []
     if delivery_cues:
         cues_data = [
             {
                 "start": c.start,
                 "end": c.end,
                 "text": c.text,
-                "words": [
-                    {"start": w.start, "end": w.end, "text": w.text}
-                    for w in c.words
-                ] if c.words else None
+                "words": (
+                    [{"start": w.start, "end": w.end, "text": w.text} for w in c.words]
+                    if c.words
+                    else None
+                ),
             }
             for c in delivery_cues
         ]

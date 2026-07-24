@@ -88,7 +88,7 @@ class StoreBehaviorIT extends IntegrationTestSupport {
                 "job-usage",
                 "social_copy",
                 "openai",
-                "gpt-5.1-mini",
+                "gpt-5-mini",
                 "standard",
                 20,
                 10,
@@ -116,7 +116,7 @@ class StoreBehaviorIT extends IntegrationTestSupport {
                 "job-fail",
                 "fact_check",
                 "openai",
-                "gpt-5.1-mini",
+                "gpt-5-mini",
                 "standard",
                 10,
                 10,
@@ -160,7 +160,7 @@ class StoreBehaviorIT extends IntegrationTestSupport {
                 refundJobId,
                 "transcription",
                 "openai",
-                "gpt-5.1-mini",
+                "gpt-5-mini",
                 null,
                 20,
                 5,
@@ -175,7 +175,7 @@ class StoreBehaviorIT extends IntegrationTestSupport {
                 refundJobId,
                 "transcription",
                 "openai",
-                "gpt-5.1-mini",
+                "gpt-5-mini",
                 null,
                 20,
                 5,
@@ -198,7 +198,7 @@ class StoreBehaviorIT extends IntegrationTestSupport {
                 overageJobId,
                 "social_copy",
                 "openai",
-                "gpt-5.1-mini",
+                "gpt-5-mini",
                 "standard",
                 10,
                 5,
@@ -219,7 +219,7 @@ class StoreBehaviorIT extends IntegrationTestSupport {
                 failedJobId,
                 "fact_check",
                 "openai",
-                "gpt-5.1-mini",
+                "gpt-5-mini",
                 "pro",
                 12,
                 10,
@@ -353,7 +353,19 @@ class StoreBehaviorIT extends IntegrationTestSupport {
         assertThatThrownBy(() -> pointsStore.credit(user.id(), 0, "credit", Map.of()))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("Invalid amount");
+        assertThatThrownBy(() -> pointsStore.spend(user.id(), 1, null, Map.of()))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("Invalid reason");
+        assertThatThrownBy(() -> pointsStore.spend(user.id(), 1, "x".repeat(65), Map.of()))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("Invalid reason");
+        assertThatThrownBy(() -> pointsStore.spendOnce(user.id(), 1, "spend", null, Map.of()))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("transaction id");
         assertThatThrownBy(() -> pointsStore.spendOnce(user.id(), 1, "spend", "", Map.of()))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("transaction id");
+        assertThatThrownBy(() -> pointsStore.spendOnce(user.id(), 1, "spend", "x".repeat(33), Map.of()))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("transaction id");
         assertThatThrownBy(() -> pointsStore.refundOnce(user.id(), 1, "", "txid", Map.of()))

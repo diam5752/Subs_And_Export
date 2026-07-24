@@ -43,7 +43,7 @@ test.describe('Video Processing Flow', () => {
                     public_url: '/static/video.mp4',
                     artifact_url: '/static/artifacts',
                     output_size: 1024,
-                    model_size: 'standard',
+                    transcribe_tier: 'standard',
                     transcribe_provider: 'groq'
                 };
             }
@@ -80,7 +80,7 @@ test.describe('Video Processing Flow', () => {
                         public_url: '/static/video.mp4',
                         artifact_url: '/static/artifacts',
                         output_size: 1024,
-                        model_size: 'standard',
+                        transcribe_tier: 'standard',
                         transcribe_provider: 'groq',
                         variants: {
                             [resolution]: `/static/artifacts/job-123/processed_${resolution}.${extension}`,
@@ -108,14 +108,19 @@ test.describe('Video Processing Flow', () => {
         await expect(page.getByRole('heading', { name: 'demo_output.mp4' })).toBeVisible();
         expect(processRequests).toBe(0);
 
-        await page.getByRole('button', { name: el.startProcessing }).click();
-        await expect(page.getByRole('dialog', { name: el.processingGateCostTitle })).toBeVisible();
+        const startButton = page.getByRole('button', { name: new RegExp(el.startProcessing) });
+        expect((await startButton.innerText()).match(/([\d,.]+)\s*$/)?.[1]).toBeTruthy();
+        await startButton.click();
+        const costDialog = page.getByRole('dialog', { name: el.processingGateCostTitle });
+        await expect(costDialog).toBeVisible();
         expect(processRequests).toBe(0);
 
         const processRequest = page.waitForRequest(
             request => request.method() === 'POST' && request.url().endsWith('/videos/process'),
         );
-        await page.getByRole('button', { name: el.processingGateConfirm.replace('{cost}', '25') }).click();
+        await costDialog.getByRole('button', {
+            name: new RegExp(el.processingGateConfirm.replace('{cost}', '\\d+')),
+        }).click();
         await processRequest;
 
         // 4. Wait for completion. The mock job may finish before the transient
@@ -184,12 +189,18 @@ test.describe('Video Processing Flow', () => {
         await expect(page.getByRole('heading', { name: 'demo_output.mp4' })).toBeVisible();
         expect(processRequests).toBe(0);
 
-        await page.getByRole('button', { name: el.startProcessing }).click();
+        const startButton = page.getByRole('button', { name: new RegExp(el.startProcessing) });
+        expect((await startButton.innerText()).match(/([\d,.]+)\s*$/)?.[1]).toBeTruthy();
+        await startButton.click();
         await expect(page.getByRole('dialog', { name: el.processingGateAuthTitle })).toBeVisible();
         expect(processRequests).toBe(0);
 
-        await page.getByLabel(el.loginEmailLabel).fill('guest@example.com');
-        await page.getByLabel(el.loginPasswordLabel).fill('correct horse battery staple');
+        const emailInput = page.getByLabel(el.loginEmailLabel, { exact: true });
+        const passwordInput = page.getByLabel(el.loginPasswordLabel, { exact: true });
+        await emailInput.fill('guest@example.com');
+        await passwordInput.fill('correct horse battery staple');
+        await expect(emailInput).toHaveValue('guest@example.com');
+        await expect(passwordInput).toHaveValue('correct horse battery staple');
         await page.getByRole('button', { name: el.processingGateLoginSubmit }).click();
 
         await expect(page.getByRole('dialog', { name: el.processingGateCostTitle })).toBeVisible();
@@ -201,7 +212,9 @@ test.describe('Video Processing Flow', () => {
         const processRequest = page.waitForRequest(
             request => request.method() === 'POST' && request.url().endsWith('/videos/process'),
         );
-        await page.getByRole('button', { name: el.processingGateConfirm.replace('{cost}', '25') }).click();
+        await page.getByRole('dialog', { name: el.processingGateCostTitle }).getByRole('button', {
+            name: new RegExp(el.processingGateConfirm.replace('{cost}', '\\d+')),
+        }).click();
         await processRequest;
         expect(processRequests).toBe(1);
     });

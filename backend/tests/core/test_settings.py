@@ -4,10 +4,8 @@ from backend.app.core.gcs import _coerce_bool
 
 
 def test_coerce_bool_with_bool_values() -> None:
-    """Test boolean coercion with actual boolean values."""
-    # When given a bool, the function doesn't handle it directly
-    # as it only accepts str | None. These are edge cases.
-    pass
+    assert _coerce_bool(True, False) is True
+    assert _coerce_bool(False, True) is False
 
 
 def test_coerce_bool_with_truthy_strings() -> None:

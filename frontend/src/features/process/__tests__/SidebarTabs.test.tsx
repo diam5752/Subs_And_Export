@@ -25,6 +25,7 @@ const mockContextValue = {
     cues: [],
     currentTime: 0,
     editingCueIndex: null,
+    editingCueSurface: null,
     editingCueDraft: '',
     handleUpdateDraft: jest.fn(),
     beginEditingCue: jest.fn(),
@@ -119,7 +120,7 @@ describe('Sidebar Tabs', () => {
         expect(screen.getByTestId('viral-intelligence')).toBeInTheDocument();
     });
 
-    it('defaults legacy last-used settings without watermark to disabled', () => {
+    it('treats an absent optional watermark setting as disabled', () => {
         const setWatermarkEnabled = jest.fn();
         (useProcessContext as jest.Mock).mockReturnValue({
             ...mockContextValue,

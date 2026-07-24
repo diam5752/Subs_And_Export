@@ -19,6 +19,7 @@ interface ProcessingGateModalProps {
     onClose: () => void;
     onAuthenticated: () => Promise<void>;
     onConfirm: () => Promise<void>;
+    onPurchaseCredits?: () => void;
 }
 
 export function ProcessingGateModal({
@@ -31,6 +32,7 @@ export function ProcessingGateModal({
     onClose,
     onAuthenticated,
     onConfirm,
+    onPurchaseCredits,
 }: ProcessingGateModalProps) {
     const { login, register } = useAuth();
     const { t } = useI18n();
@@ -56,9 +58,7 @@ export function ProcessingGateModal({
         document.addEventListener('keydown', handleKeyDown);
         document.body.style.overflow = 'hidden';
         if (stage === 'auth') {
-            setAuthMode('login');
-            setAuthError('');
-            window.setTimeout(() => emailRef.current?.focus(), 50);
+            emailRef.current?.focus();
         }
 
         return () => {
@@ -123,7 +123,7 @@ export function ProcessingGateModal({
                         <button
                             type="button"
                             onClick={close}
-                            className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[var(--border)] text-[var(--muted)] transition-colors hover:bg-[#f5f5f4] hover:text-[var(--foreground)]"
+                            className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-[var(--border)] text-[var(--muted)] transition-colors hover:bg-[#f5f5f4] hover:text-[var(--foreground)]"
                             aria-label={t('closeLabel')}
                         >
                             <span aria-hidden="true">✕</span>
@@ -240,14 +240,25 @@ export function ProcessingGateModal({
                                 >
                                     {t('processingGateCancel')}
                                 </button>
-                                <button
-                                    type="button"
-                                    onClick={() => void onConfirm()}
-                                    disabled={isBalanceLoading || !canAfford}
-                                    className="btn-primary min-h-12 px-4 disabled:cursor-not-allowed disabled:opacity-45"
-                                >
-                                    {t('processingGateConfirm', { cost })}
-                                </button>
+                                {canAfford ? (
+                                    <button
+                                        type="button"
+                                        onClick={() => void onConfirm()}
+                                        disabled={isBalanceLoading}
+                                        className="btn-primary min-h-12 px-4 disabled:cursor-not-allowed disabled:opacity-45"
+                                    >
+                                        {t('processingGateConfirm', { cost })}
+                                    </button>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        onClick={onPurchaseCredits}
+                                        disabled={isBalanceLoading || !onPurchaseCredits}
+                                        className="btn-primary min-h-12 px-4 disabled:cursor-not-allowed disabled:opacity-45"
+                                    >
+                                        {t('processingGateBuyCredits')}
+                                    </button>
+                                )}
                             </div>
                         </div>
                     )}

@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { ProcessingGateModal } from '@/components/ProcessingGateModal';
 import { useAuth } from '@/context/AuthContext';
@@ -18,6 +18,7 @@ describe('ProcessingGateModal', () => {
     const onAuthenticated = jest.fn();
     const onConfirm = jest.fn();
     const onClose = jest.fn();
+    const onPurchaseCredits = jest.fn();
 
     beforeEach(() => {
         jest.clearAllMocks();
@@ -26,6 +27,10 @@ describe('ProcessingGateModal', () => {
         onAuthenticated.mockResolvedValue(undefined);
         onConfirm.mockResolvedValue(undefined);
         (useAuth as jest.Mock).mockReturnValue({ login, register });
+    });
+
+    afterEach(() => {
+        jest.useRealTimers();
     });
 
     it('authenticates inline without navigating away from the selected video', async () => {
@@ -81,6 +86,36 @@ describe('ProcessingGateModal', () => {
         });
     });
 
+    it('does not steal focus back from the password field after initial autofocus', () => {
+        jest.useFakeTimers();
+        render(
+            <ProcessingGateModal
+                isOpen
+                stage="auth"
+                cost={50}
+                balance={null}
+                isBalanceLoading={false}
+                error=""
+                onClose={onClose}
+                onAuthenticated={onAuthenticated}
+                onConfirm={onConfirm}
+            />,
+        );
+
+        const emailInput = screen.getByLabelText('loginEmailLabel');
+        const passwordInput = screen.getByLabelText('loginPasswordLabel');
+        expect(emailInput).toHaveFocus();
+
+        fireEvent.change(emailInput, { target: { value: 'guest@example.com' } });
+        passwordInput.focus();
+        act(() => jest.advanceTimersByTime(100));
+
+        expect(passwordInput).toHaveFocus();
+        fireEvent.change(passwordInput, { target: { value: 'correct horse battery staple' } });
+        expect(emailInput).toHaveValue('guest@example.com');
+        expect(passwordInput).toHaveValue('correct horse battery staple');
+    });
+
     it('requires an explicit cost confirmation before processing', () => {
         render(
             <ProcessingGateModal
@@ -102,7 +137,7 @@ describe('ProcessingGateModal', () => {
         expect(onConfirm).toHaveBeenCalledTimes(1);
     });
 
-    it('blocks confirmation when the coin balance is insufficient', () => {
+    it('routes an insufficient balance to credit purchase without starting processing', () => {
         render(
             <ProcessingGateModal
                 isOpen
@@ -114,10 +149,14 @@ describe('ProcessingGateModal', () => {
                 onClose={onClose}
                 onAuthenticated={onAuthenticated}
                 onConfirm={onConfirm}
+                onPurchaseCredits={onPurchaseCredits}
             />,
         );
 
         expect(screen.getByRole('alert')).toHaveTextContent('processingGateInsufficient');
-        expect(screen.getByRole('button', { name: 'processingGateConfirm' })).toBeDisabled();
+        expect(screen.queryByRole('button', { name: 'processingGateConfirm' })).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'processingGateBuyCredits' }));
+        expect(onPurchaseCredits).toHaveBeenCalledTimes(1);
+        expect(onConfirm).not.toHaveBeenCalled();
     });
 });

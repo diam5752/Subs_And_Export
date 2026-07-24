@@ -6,6 +6,8 @@ import re
 
 from fastapi import HTTPException
 
+from ...services.settings_utils import SUBTITLE_POSITION_MAX, SUBTITLE_POSITION_MIN
+
 # Constants
 ALLOWED_VIDEO_EXTENSIONS = {".mp4", ".mov", ".mkv"}
 ALLOWED_VIDEO_CONTENT_TYPES = {
@@ -17,7 +19,7 @@ ALLOWED_VIDEO_CONTENT_TYPES = {
 ALLOWED_TRANSCRIBE_PROVIDERS = {"mock", "elevenlabs", "groq", "openai", "local"}
 ALLOWED_TRANSCRIBE_TIERS = {"standard", "pro"}
 ALLOWED_VIDEO_QUALITIES = {"low size", "balanced", "high quality"}
-ALLOWED_HIGHLIGHT_STYLES = {"static", "karaoke", "pop", "active-graphics", "active"}
+ALLOWED_HIGHLIGHT_STYLES = {"static", "karaoke", "pop", "active-graphics"}
 MODEL_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/\\-]{0,63}$")
 
 
@@ -60,9 +62,15 @@ def validate_video_quality(value: str) -> str:
 
 
 def validate_subtitle_position(value: int) -> int:
-    """Validate subtitle position (5-35 range)."""
-    if value < 5 or value > 35:
-        raise HTTPException(status_code=400, detail="subtitle_position out of range (5-35)")
+    """Validate the full safe bottom-to-top subtitle position range."""
+    if value < SUBTITLE_POSITION_MIN or value > SUBTITLE_POSITION_MAX:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "subtitle_position out of range "
+                f"({SUBTITLE_POSITION_MIN}-{SUBTITLE_POSITION_MAX})"
+            ),
+        )
     return value
 
 

@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import shutil
-from typing import List
+from typing import TypedDict
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -18,7 +18,7 @@ from ...core.auth import User
 from ...core.ratelimit import limiter_content
 from ...schemas.base import BatchDeleteRequest, BatchDeleteResponse, JobResponse, PaginatedJobsResponse
 from ...services.history import HistoryStore
-from ...services.jobs import JobStore
+from ...services.jobs import Job, JobStore
 from ...services.transcription.utils import normalize_text
 from ..deps import get_current_user, get_history_store, get_job_store
 from .file_utils import DATA_DIR, data_roots
@@ -29,47 +29,46 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def ensure_job_size(job):
-    """Helper to backfill output_size for legacy jobs and check file existence."""
+class TranscriptionWordPayload(TypedDict):
+    start: float
+    end: float
+    text: str
+
+
+class TranscriptionCuePayload(TypedDict):
+    start: float
+    end: float
+    text: str
+    words: list[TranscriptionWordPayload] | None
+
+
+def ensure_job_integrity(job: Job) -> Job:
+    """Annotate completed local jobs with current artifact availability and size."""
     if job.status == "completed" and job.result_data:
-        video_path = job.result_data.get("video_path") or job.result_data.get("public_url")
-        if video_path:
+        video_path = job.result_data.get("video_path")
+        if isinstance(video_path, str) and video_path:
             try:
-                # Clean up the path - handle various formats like "/static/artifacts/..." or "data/artifacts/..."
-                cleaned_path = video_path.lstrip("/")
-                if cleaned_path.startswith("static/"):
-                    cleaned_path = cleaned_path[7:]  # Remove "static/" prefix
-                if cleaned_path.startswith("data/"):
-                    cleaned_path = cleaned_path[5:]  # Remove "data/" prefix
-
-                full_path = DATA_DIR / cleaned_path
-
-                # Also try the artifacts path directly
-                artifacts_path = DATA_DIR / "artifacts" / job.id / "processed.mp4"
-
-                file_exists = full_path.exists() or artifacts_path.exists()
-
-                if not file_exists:
-                    # Mark job as having missing files
-                    job.result_data = {**job.result_data, "files_missing": True}
-                else:
-                    # Backfill output_size if missing
-                    if not job.result_data.get("output_size"):
-                        existing_path = full_path if full_path.exists() else artifacts_path
-                        job.result_data["output_size"] = existing_path.stat().st_size
-            except Exception as e:
-                logger.warning(f"Failed to check job file integrity: {e}")
+                data_root = DATA_DIR.resolve()
+                full_path = (data_root / video_path).resolve()
+                file_exists = full_path.is_relative_to(data_root) and full_path.is_file()
+                result_data = dict(job.result_data)
+                result_data["files_missing"] = not file_exists
+                if file_exists:
+                    result_data["output_size"] = full_path.stat().st_size
+                job.result_data = result_data
+            except OSError as exc:
+                logger.warning("Failed to check job file integrity for %s: %s", job.id, exc)
     return job
 
 
-@router.get("/jobs", response_model=List[JobResponse])
+@router.get("/jobs", response_model=list[JobResponse])
 def list_jobs(
     current_user: User = Depends(get_current_user),
     job_store: JobStore = Depends(get_job_store)
-):
+) -> list[JobResponse]:
     """List all jobs for the current user."""
     jobs = job_store.list_jobs_for_user(current_user.id)
-    return [ensure_job_size(job) for job in jobs]
+    return [JobResponse.model_validate(ensure_job_integrity(job)) for job in jobs]
 
 
 @router.get("/jobs/paginated", response_model=PaginatedJobsResponse)
@@ -78,7 +77,7 @@ def list_jobs_paginated(
     page_size: int = 5,
     current_user: User = Depends(get_current_user),
     job_store: JobStore = Depends(get_job_store)
-):
+) -> PaginatedJobsResponse:
     """List jobs with pagination support."""
     if page < 1:
         page = 1
@@ -92,7 +91,7 @@ def list_jobs_paginated(
     total_pages = (total + page_size - 1) // page_size if total > 0 else 1
 
     jobs = job_store.list_jobs_for_user_paginated(current_user.id, offset=offset, limit=page_size)
-    items = [ensure_job_size(job) for job in jobs]
+    items = [JobResponse.model_validate(ensure_job_integrity(job)) for job in jobs]
 
     return PaginatedJobsResponse(items=items, total=total, page=page, page_size=page_size, total_pages=total_pages)
 
@@ -103,7 +102,7 @@ def batch_delete_jobs(
     current_user: User = Depends(get_current_user),
     job_store: JobStore = Depends(get_job_store),
     history_store: HistoryStore = Depends(get_history_store)
-):
+) -> BatchDeleteResponse:
     """Delete multiple jobs at once."""
     if not request.job_ids:
         return BatchDeleteResponse(status="success", deleted_count=0, job_ids=[])
@@ -111,8 +110,8 @@ def batch_delete_jobs(
     if len(request.job_ids) > 50:
         raise HTTPException(400, "Cannot delete more than 50 jobs at once")
 
-    data_dir, uploads_dir, artifacts_root = data_roots()
-    deleted_ids = []
+    _, uploads_dir, artifacts_root = data_roots()
+    deleted_ids: list[str] = []
 
     # Optimize: Fetch all jobs in one query instead of N+1
     jobs = job_store.get_jobs(request.job_ids, current_user.id)
@@ -146,12 +145,12 @@ def get_job(
     job_id: str,
     current_user: User = Depends(get_current_user),
     job_store: JobStore = Depends(get_job_store)
-):
+) -> JobResponse:
     """Get a specific job."""
     job = job_store.get_job(job_id)
     if not job or job.user_id != current_user.id:
         raise HTTPException(404, "Job not found")
-    return ensure_job_size(job)
+    return JobResponse.model_validate(ensure_job_integrity(job))
 
 
 class TranscriptionWordRequest(BaseModel):
@@ -175,20 +174,20 @@ def _normalize_transcription_text(text: str) -> str:
     return " ".join(normalize_text(text).split())
 
 
-def _normalize_transcription_payload(cues: list[TranscriptionCueRequest]) -> list[dict[str, object]]:
-    payload: list[dict[str, object]] = []
+def _normalize_transcription_payload(
+    cues: list[TranscriptionCueRequest],
+) -> list[TranscriptionCuePayload]:
+    payload: list[TranscriptionCuePayload] = []
     for cue in cues:
-        words_payload = None
+        words_payload: list[TranscriptionWordPayload] | None = None
         if cue.words is not None:
-            words_payload = [
-                {
-                    "start": word.start,
-                    "end": word.end,
-                    "text": _normalize_transcription_text(word.text),
-                }
-                for word in cue.words
-                if _normalize_transcription_text(word.text)
-            ]
+            words_payload = []
+            for word in cue.words:
+                normalized_word = _normalize_transcription_text(word.text)
+                if normalized_word:
+                    words_payload.append(
+                        {"start": word.start, "end": word.end, "text": normalized_word}
+                    )
 
         normalized_text = _normalize_transcription_text(cue.text)
         if words_payload:
@@ -211,7 +210,7 @@ def update_transcription(
     request: UpdateTranscriptionRequest,
     current_user: User = Depends(get_current_user),
     job_store: JobStore = Depends(get_job_store),
-):
+) -> dict[str, str]:
     """Update job transcription."""
     job = job_store.get_job(job_id)
     if not job or job.user_id != current_user.id:
@@ -245,13 +244,13 @@ def delete_job(
     current_user: User = Depends(get_current_user),
     job_store: JobStore = Depends(get_job_store),
     history_store: HistoryStore = Depends(get_history_store)
-):
+) -> dict[str, str]:
     """Delete a job and its associated files."""
     job = job_store.get_job(job_id)
     if not job or job.user_id != current_user.id:
         raise HTTPException(404, "Job not found")
 
-    data_dir, uploads_dir, artifacts_root = data_roots()
+    _, uploads_dir, artifacts_root = data_roots()
 
     artifact_dir = artifacts_root / job_id
     if artifact_dir.exists():
@@ -274,7 +273,7 @@ def cancel_job(
     current_user: User = Depends(get_current_user),
     job_store: JobStore = Depends(get_job_store),
     history_store: HistoryStore = Depends(get_history_store)
-):
+) -> JobResponse:
     """Cancel a processing job."""
     job = job_store.get_job(job_id)
     if not job or job.user_id != current_user.id:
@@ -287,4 +286,6 @@ def cancel_job(
     record_event_safe(history_store, current_user, "job_cancelled", f"Cancelled job {job_id}", {"job_id": job_id})
 
     updated_job = job_store.get_job(job_id)
-    return ensure_job_size(updated_job)
+    if updated_job is None:
+        raise HTTPException(status_code=500, detail="Cancelled job could not be reloaded")
+    return JobResponse.model_validate(ensure_job_integrity(updated_job))

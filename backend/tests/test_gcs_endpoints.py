@@ -1,10 +1,21 @@
 import io
 
-import pytest
 from fastapi.testclient import TestClient
 
 from backend.app.api.endpoints import export_routes, gcs_routes, videos
-from backend.app.core import gcs
+from backend.app.core import config
+from backend.app.core.database import Database
+from backend.app.services.points import PointsStore
+
+
+def _grant_paid_credits(client: TestClient, headers: dict[str, str]) -> None:
+    user_id = client.get("/auth/me", headers=headers).json()["id"]
+    PointsStore(db=Database()).credit(
+        user_id,
+        200,
+        reason="test_paid_funding",
+        paid_credit_delta=200,
+    )
 
 
 def test_gcs_upload_url_requires_auth(client: TestClient) -> None:
@@ -69,7 +80,8 @@ def test_gcs_process_consumes_upload_id(client: TestClient, user_auth_headers: d
     assert process_resp.status_code == 200
     job_id = process_resp.json()["id"]
     assert job_id
-    assert captured["duration_seconds"] == 42.5
+    assert captured["duration_seconds"] == config.settings.max_video_duration_seconds
+    assert captured["allow_downward_adjustment"] is True
 
     # Second use should fail (anti-replay)
     process_again = client.post(
@@ -135,6 +147,7 @@ def test_export_falls_back_to_gcs_when_input_missing(client: TestClient, user_au
         job_store.update_job(job_id, status="completed", progress=100, message="Done!", result_data=result_data)
 
     monkeypatch.setattr(videos, "run_video_processing", fake_run_processing)
+    _grant_paid_credits(client, user_auth_headers)
 
     process_resp = client.post(
         "/videos/process",
@@ -178,20 +191,3 @@ def test_static_redirects_to_gcs_when_missing(monkeypatch) -> None:
         resp = test_client.get("/static/artifacts/does-not-exist.mp4", follow_redirects=False)
         assert resp.status_code == 302
         assert resp.headers["location"].startswith("https://signed.example/")
-
-
-def test_gcs_helpers_require_dependency(monkeypatch) -> None:
-    monkeypatch.setattr(gcs, "storage", None)
-    monkeypatch.setattr(gcs, "GoogleAuthRequest", None)
-
-    settings = gcs.GcsSettings(
-        bucket="test-bucket",
-        uploads_prefix="uploads",
-        static_prefix="static",
-        upload_url_ttl_seconds=60,
-        download_url_ttl_seconds=60,
-        keep_uploads=True,
-    )
-
-    with pytest.raises(RuntimeError):
-        gcs.generate_signed_upload_url(settings=settings, object_name="uploads/u/clip.mp4", content_type="video/mp4")

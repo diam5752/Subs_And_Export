@@ -22,7 +22,7 @@ def test_process_rate_limit(client, user_auth_headers):
 
     # We need to send form data for required fields
     data = {
-        "transcribe_model": "standard",
+        "transcribe_tier": "standard",
         "video_quality": "balanced",
     }
 

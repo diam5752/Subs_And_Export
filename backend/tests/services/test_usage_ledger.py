@@ -50,6 +50,12 @@ def test_usage_ledger_reserve_finalize_refund_roundtrip() -> None:
     _seed_job(db, user_id, job_id)
     points_store = PointsStore(db=db)
     points_store.ensure_account(user_id)
+    points_store.credit(
+        user_id,
+        200,
+        reason="test_paid_funding",
+        paid_credit_delta=200,
+    )
     starting_balance = points_store.get_balance(user_id)
     ledger_store = UsageLedgerStore(db=db, points_store=points_store)
 
@@ -94,6 +100,12 @@ def test_usage_ledger_reserve_is_idempotent() -> None:
     idempotency_key = f"reserve-idempotent-{uuid.uuid4().hex[:8]}"
     points_store = PointsStore(db=db)
     points_store.ensure_account(user_id)
+    points_store.credit(
+        user_id,
+        200,
+        reason="test_paid_funding",
+        paid_credit_delta=200,
+    )
     starting_balance = points_store.get_balance(user_id)
     ledger_store = UsageLedgerStore(db=db, points_store=points_store)
 
@@ -138,6 +150,12 @@ def test_usage_ledger_refund_if_reserved() -> None:
     _seed_job(db, user_id, job_id)
     points_store = PointsStore(db=db)
     points_store.ensure_account(user_id)
+    points_store.credit(
+        user_id,
+        200,
+        reason="test_paid_funding",
+        paid_credit_delta=200,
+    )
     starting_balance = points_store.get_balance(user_id)
     ledger_store = UsageLedgerStore(db=db, points_store=points_store)
 
@@ -166,6 +184,109 @@ def test_usage_ledger_refund_if_reserved() -> None:
         assert ledger.status == "failed"
 
 
+def test_usage_ledger_never_refunds_after_provider_dispatch() -> None:
+    db = Database()
+    user_id = _seed_user(db)
+    job_id = f"job-dispatched-{uuid.uuid4().hex[:8]}"
+    _seed_job(db, user_id, job_id)
+    points_store = PointsStore(db=db)
+    points_store.ensure_account(user_id)
+    points_store.credit(
+        user_id,
+        100,
+        reason="test_paid_funding",
+        paid_credit_delta=100,
+    )
+    starting_balance = points_store.get_balance(user_id)
+    ledger_store = UsageLedgerStore(db=db, points_store=points_store)
+    reservation, _ = ledger_store.reserve(
+        user_id=user_id,
+        job_id=job_id,
+        action="transcription",
+        provider="groq",
+        model="whisper-large-v3-turbo",
+        tier="standard",
+        credits=30,
+        min_credits=30,
+        cost_estimate_usd=0.02,
+        units={"audio_seconds": 120},
+        idempotency_key=f"dispatch-{uuid.uuid4().hex[:8]}",
+    )
+
+    ledger_store.mark_dispatched(reservation)
+    balance = ledger_store.fail(reservation, status="failed", error="timeout")
+    assert balance == starting_balance - 30
+    assert ledger_store.fail(reservation, status="failed") == starting_balance - 30
+    assert ledger_store.finalize(
+        reservation,
+        credits_charged=30,
+        cost_usd=0.02,
+        units={},
+    ) == starting_balance - 30
+    with db.session() as session:
+        ledger = session.get(DbUsageLedger, reservation.ledger_id)
+        assert ledger is not None
+        assert ledger.status == "failed_charged"
+        assert ledger.credits_charged == 30
+
+
+def test_included_provider_reservation_tracks_cost_without_hidden_credit_charge() -> None:
+    db = Database()
+    user_id = _seed_user(db)
+    job_id = f"job-included-{uuid.uuid4().hex[:8]}"
+    _seed_job(db, user_id, job_id)
+    points_store = PointsStore(db=db)
+    points_store.ensure_account(user_id)
+    points_store.credit(
+        user_id,
+        100,
+        reason="test_paid_funding",
+        paid_credit_delta=100,
+    )
+    ledger_store = UsageLedgerStore(db=db, points_store=points_store)
+    parent, balance = ledger_store.reserve(
+        user_id=user_id,
+        job_id=job_id,
+        action="transcription",
+        provider="groq",
+        model="whisper-large-v3-turbo",
+        tier="standard",
+        credits=30,
+        min_credits=30,
+        cost_estimate_usd=0.02,
+        units={},
+        idempotency_key=f"parent-{uuid.uuid4().hex[:8]}",
+    )
+    included, included_balance = ledger_store.reserve(
+        user_id=user_id,
+        job_id=job_id,
+        action="social_copy",
+        provider="openai",
+        model="gpt-5-mini",
+        tier="standard",
+        credits=0,
+        min_credits=0,
+        cost_estimate_usd=0.01,
+        units={},
+        idempotency_key=f"included-{uuid.uuid4().hex[:8]}",
+        covered_by_ledger_id=parent.ledger_id,
+    )
+    assert included_balance == balance
+    ledger_store.mark_dispatched(included)
+    final_balance = ledger_store.finalize(
+        included,
+        credits_charged=999,
+        cost_usd=0.008,
+        units={"tokens": 100},
+    )
+    assert final_balance == balance
+    with db.session() as session:
+        ledger = session.get(DbUsageLedger, included.ledger_id)
+        assert ledger is not None
+        assert ledger.credits_charged == 0
+        assert ledger.cost_usd == pytest.approx(0.008)
+
+
 def test_usage_ledger_summarize_groups(monkeypatch) -> None:
     db = Database()
     user_id = _seed_user(db)
@@ -175,6 +296,12 @@ def test_usage_ledger_summarize_groups(monkeypatch) -> None:
     _seed_job(db, user_id, job_id_two)
     points_store = PointsStore(db=db)
     points_store.ensure_account(user_id)
+    points_store.credit(
+        user_id,
+        200,
+        reason="test_paid_funding",
+        paid_credit_delta=200,
+    )
     ledger_store = UsageLedgerStore(db=db, points_store=points_store)
 
     day_one = 1_700_000_000

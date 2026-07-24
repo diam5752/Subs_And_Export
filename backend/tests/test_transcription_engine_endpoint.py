@@ -1,5 +1,7 @@
 from fastapi.testclient import TestClient
 
+from backend.app.api.endpoints import engine_routes
+
 
 def test_transcription_engine_catalog_requires_authentication(client: TestClient) -> None:
     response = client.get("/videos/transcription-engines")
@@ -10,7 +12,9 @@ def test_transcription_engine_catalog_requires_authentication(client: TestClient
 def test_transcription_engine_catalog_exposes_capabilities(
     client: TestClient,
     user_auth_headers: dict[str, str],
+    monkeypatch,
 ) -> None:
+    monkeypatch.setattr(engine_routes.settings, "mock_external_services", False)
     response = client.get("/videos/transcription-engines", headers=user_auth_headers)
 
     assert response.status_code == 200
