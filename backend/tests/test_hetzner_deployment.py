@@ -17,10 +17,48 @@ def test_production_compose_is_mock_only_and_loopback_bound() -> None:
     assert '"127.0.0.1:${SUBFRAME_PREVIEW_PORT:-18090}:8080"' in compose
     assert 'GSP_MOCK_EXTERNAL_SERVICES: "1"' in compose
     assert 'GSP_ELEVENLABS_ENABLED: "0"' in compose
+    assert 'GSP_PAID_CREDITS_ENABLED: "0"' in compose
+    assert 'GSP_STRIPE_AUTOMATIC_TAX_ENABLED: "0"' in compose
+    assert 'GSP_STRIPE_RESTRICTED_KEY: ""' in compose
+    assert 'GSP_STRIPE_WEBHOOK_SECRET: ""' in compose
+    assert 'GSP_STRIPE_PRICE_STARTER: ""' in compose
+    assert 'GSP_STRIPE_PRICE_CORE: ""' in compose
+    assert 'GSP_STRIPE_PRICE_PRO: ""' in compose
+    assert 'STRIPE_SECRET_KEY: ""' in compose
+    assert 'STRIPE_WEBHOOK_SECRET: ""' in compose
+    assert 'OPENAI_API_KEY: ""' in compose
+    assert 'GROQ_API_KEY: ""' in compose
+    assert 'ELEVENLABS_API_KEY: ""' in compose
     assert 'GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD: "0"' in compose
+    assert 'GSP_EXTERNAL_PROVIDER_DAILY_BUDGET_USD: "0"' in compose
     assert 'GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD: "0"' in compose
     assert "external: true" in compose
     assert "name: mizai_mizai-private" in compose
+
+
+def test_production_verifier_requires_every_fail_closed_runtime_setting() -> None:
+    verifier = deployment_text("verify-production.sh")
+
+    for expected in (
+        "GSP_MOCK_EXTERNAL_SERVICES=1",
+        "GSP_ELEVENLABS_ENABLED=0",
+        "GSP_PAID_CREDITS_ENABLED=0",
+        "GSP_STRIPE_AUTOMATIC_TAX_ENABLED=0",
+        "GSP_STRIPE_RESTRICTED_KEY=",
+        "GSP_STRIPE_WEBHOOK_SECRET=",
+        "GSP_STRIPE_PRICE_STARTER=",
+        "GSP_STRIPE_PRICE_CORE=",
+        "GSP_STRIPE_PRICE_PRO=",
+        "STRIPE_SECRET_KEY=",
+        "STRIPE_WEBHOOK_SECRET=",
+        "OPENAI_API_KEY=",
+        "GROQ_API_KEY=",
+        "ELEVENLABS_API_KEY=",
+        "GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD=0",
+        "GSP_EXTERNAL_PROVIDER_DAILY_BUDGET_USD=0",
+        "GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD=0",
+    ):
+        assert expected in verifier
 
 
 def test_production_environment_defaults_do_not_prune_shared_cache() -> None:
