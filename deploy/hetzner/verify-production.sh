@@ -88,6 +88,7 @@ for expected in \
   GOOGLE_APPLICATION_CREDENTIALS= \
   GOOGLE_CLIENT_SECRET= \
   GOOGLE_REDIRECT_URI= \
+  GSP_GOOGLE_OAUTH_CERTS_URL=http://edge:8081/oauth2/v1/certs \
   GSP_GOOGLE_AUTH_NONCE_TTL_SECONDS=600 \
   GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD=0 \
   GSP_EXTERNAL_PROVIDER_DAILY_BUDGET_USD=0 \
@@ -106,6 +107,12 @@ do
 done
 printf '%s\n' "$backend_environment" | grep -Fqx "GOOGLE_CLIENT_ID=$google_client_id" || {
   echo "Backend Google client ID does not match the release environment." >&2
+  exit 1
+}
+google_oauth_certs_http=$(docker exec "$backend_id" python -c \
+  'import os, urllib.request; response = urllib.request.urlopen(os.environ["GSP_GOOGLE_OAUTH_CERTS_URL"], timeout=10); print(response.status)')
+[ "$google_oauth_certs_http" = 200 ] || {
+  echo "Google OAuth certificate relay is unavailable: $google_oauth_certs_http" >&2
   exit 1
 }
 

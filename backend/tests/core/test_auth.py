@@ -57,14 +57,27 @@ def test_google_nonce_is_hashed_before_cookie_storage():
 def test_verify_google_id_token_enforces_nonce_and_claims(monkeypatch):
     monkeypatch.setenv("GSP_USE_FILE_SECRETS", "0")
     monkeypatch.setenv("GOOGLE_CLIENT_ID", "google-client")
+    monkeypatch.setattr(
+        auth.settings,
+        "google_oauth_certs_url",
+        "http://edge:8081/oauth2/v1/certs",
+    )
     nonce = auth.create_google_auth_nonce()
     observed: dict[str, object] = {}
 
-    def fake_verify(token, request, audience, *, clock_skew_in_seconds):
+    def fake_verify(
+        token,
+        request,
+        audience,
+        *,
+        certs_url,
+        clock_skew_in_seconds,
+    ):
         observed.update(
             token=token,
             request=request,
             audience=audience,
+            certs_url=certs_url,
             clock_skew_in_seconds=clock_skew_in_seconds,
         )
         return {
@@ -78,7 +91,7 @@ def test_verify_google_id_token_enforces_nonce_and_claims(monkeypatch):
             "exp": int(time.time()) + 300,
         }
 
-    monkeypatch.setattr("google.oauth2.id_token.verify_oauth2_token", fake_verify)
+    monkeypatch.setattr("google.oauth2.id_token.verify_token", fake_verify)
 
     profile = auth.verify_google_id_token(
         "signed-id-token",
@@ -91,6 +104,9 @@ def test_verify_google_id_token_enforces_nonce_and_claims(monkeypatch):
     assert profile["sub"] == "google-subject"
     assert observed["token"] == "signed-id-token"
     assert observed["audience"] == "google-client"
+    # REGRESSION: the production backend is intentionally isolated from direct
+    # egress, so Google signing certificates must use the internal edge relay.
+    assert observed["certs_url"] == "http://edge:8081/oauth2/v1/certs"
     assert observed["clock_skew_in_seconds"] == 30
 
 
@@ -129,10 +145,7 @@ def test_verify_google_id_token_rejects_invalid_claims(
         "exp": int(time.time()) + 300,
     }
     payload[claim] = value
-    monkeypatch.setattr(
-        "google.oauth2.id_token.verify_oauth2_token",
-        lambda *_args, **_kwargs: payload,
-    )
+    monkeypatch.setattr("google.oauth2.id_token.verify_token", lambda *_args, **_kwargs: payload)
 
     with pytest.raises(auth.GoogleAuthError, match=message):
         auth.verify_google_id_token(
@@ -146,7 +159,7 @@ def test_verify_google_id_token_rejects_missing_or_wrong_nonce(monkeypatch):
     monkeypatch.setenv("GSP_USE_FILE_SECRETS", "0")
     monkeypatch.setenv("GOOGLE_CLIENT_ID", "google-client")
     monkeypatch.setattr(
-        "google.oauth2.id_token.verify_oauth2_token",
+        "google.oauth2.id_token.verify_token",
         lambda *_args, **_kwargs: {
             "aud": "google-client",
             "iss": "accounts.google.com",
@@ -213,7 +226,7 @@ def test_verify_google_id_token_hides_provider_verification_errors(monkeypatch):
         raise RuntimeError("provider internals")
 
     monkeypatch.setattr(
-        "google.oauth2.id_token.verify_oauth2_token",
+        "google.oauth2.id_token.verify_token",
         fail_verification,
     )
 

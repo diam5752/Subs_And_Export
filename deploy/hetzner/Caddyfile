@@ -21,3 +21,14 @@
 		-Server
 	}
 }
+
+:8081 {
+	@google_oauth_certs path /oauth2/v1/certs
+	handle @google_oauth_certs {
+		reverse_proxy https://www.googleapis.com {
+			header_up Host www.googleapis.com
+		}
+	}
+
+	respond 404
+}

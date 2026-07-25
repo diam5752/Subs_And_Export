@@ -33,6 +33,10 @@ def test_production_compose_is_mock_only_and_loopback_bound() -> None:
     assert 'GOOGLE_APPLICATION_CREDENTIALS: ""' in compose
     assert 'GOOGLE_CLIENT_SECRET: ""' in compose
     assert 'GOOGLE_REDIRECT_URI: ""' in compose
+    assert (
+        'GSP_GOOGLE_OAUTH_CERTS_URL: "http://edge:8081/oauth2/v1/certs"'
+        in compose
+    )
     assert 'GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD: "0"' in compose
     assert 'GSP_EXTERNAL_PROVIDER_DAILY_BUDGET_USD: "0"' in compose
     assert 'GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD: "0"' in compose
@@ -62,6 +66,7 @@ def test_production_verifier_requires_every_fail_closed_runtime_setting() -> Non
         "GOOGLE_APPLICATION_CREDENTIALS=",
         "GOOGLE_CLIENT_SECRET=",
         "GOOGLE_REDIRECT_URI=",
+        "GSP_GOOGLE_OAUTH_CERTS_URL=http://edge:8081/oauth2/v1/certs",
         "GSP_GOOGLE_AUTH_NONCE_TTL_SECONDS=600",
         "GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD=0",
         "GSP_EXTERNAL_PROVIDER_DAILY_BUDGET_USD=0",
@@ -99,6 +104,10 @@ def test_production_environment_defaults_do_not_prune_shared_cache() -> None:
     assert "GOOGLE_CLIENT_ID=replace-with-google-web-client-id" in environment
     assert "GOOGLE_CLIENT_SECRET=" in environment
     assert "GOOGLE_REDIRECT_URI=" in environment
+    assert (
+        "GSP_GOOGLE_OAUTH_CERTS_URL=http://edge:8081/oauth2/v1/certs"
+        in environment
+    )
     assert "GSP_GOOGLE_AUTH_NONCE_TTL_SECONDS=600" in environment
     assert 'google_client_id=$(env_value GOOGLE_CLIENT_ID)' in verifier
     assert "NEXT_PUBLIC_MAX_UPLOAD_MB: ${SUBFRAME_MAX_UPLOAD_MB:-500}" in compose
@@ -121,6 +130,23 @@ def test_edge_routes_billing_api_and_verifier_smokes_catalog() -> None:
 
     assert "/billing /billing/*" in caddyfile
     assert "/billing/catalog" in verifier
+
+
+def test_google_oauth_certificates_use_a_scoped_internal_edge_relay() -> None:
+    """REGRESSION: the internal-only backend could not resolve Google's cert host."""
+    compose = deployment_text("docker-compose.production.yml")
+    caddyfile = deployment_text("Caddyfile")
+    deploy_script = deployment_text("deploy-production.sh")
+    verifier = deployment_text("verify-production.sh")
+
+    assert "internal: true" in compose
+    assert 'GSP_GOOGLE_OAUTH_CERTS_URL: "http://edge:8081/oauth2/v1/certs"' in compose
+    assert ":8081" in caddyfile
+    assert "/oauth2/v1/certs" in caddyfile
+    assert "reverse_proxy https://www.googleapis.com" in caddyfile
+    assert "compose run --rm --no-deps --entrypoint caddy edge validate" in deploy_script
+    assert "compose up -d --force-recreate edge" in deploy_script
+    assert "google_oauth_certs_http=" in verifier
 
 
 def test_docker_build_context_excludes_production_secrets_and_state() -> None:

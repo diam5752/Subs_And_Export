@@ -530,10 +530,11 @@ def verify_google_id_token(
             return super().__call__(*args, **kwargs)  # type: ignore[no-untyped-call]
 
     try:
-        raw_payload = google_id_token.verify_oauth2_token(  # type: ignore[no-untyped-call]
+        raw_payload = google_id_token.verify_token(
             token,
             TimeoutRequest(),
             client_id,
+            certs_url=settings.google_oauth_certs_url,
             clock_skew_in_seconds=30,
         )
     except Exception as exc:

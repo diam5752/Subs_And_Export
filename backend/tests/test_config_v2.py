@@ -27,6 +27,10 @@ def test_settings_defaults(monkeypatch) -> None:
     assert settings.retention_cleanup_enabled is True
     assert settings.paid_credits_enabled is False
     assert settings.stripe_automatic_tax_enabled is False
+    assert (
+        settings.google_oauth_certs_url
+        == "https://www.googleapis.com/oauth2/v1/certs"
+    )
     assert settings.external_provider_price_safety_multiplier == 1.25
     assert settings.watermark_path.name == "gsubs-logo.png"
     assert settings.watermark_path.exists()
@@ -47,6 +51,10 @@ def test_settings_environment_overrides(monkeypatch) -> None:
     monkeypatch.setenv("GSP_RETENTION_CLEANUP_ENABLED", "false")
     monkeypatch.setenv("GSP_ALLOWED_ORIGINS", '["https://one.example", "https://two.example"]')
     monkeypatch.setenv("GSP_TRUSTED_HOSTS", "localhost, 127.0.0.1")
+    monkeypatch.setenv(
+        "GSP_GOOGLE_OAUTH_CERTS_URL",
+        "http://edge:8081/oauth2/v1/certs",
+    )
 
     settings = Settings(_env_file=None)
 
@@ -64,12 +72,23 @@ def test_settings_environment_overrides(monkeypatch) -> None:
     assert settings.retention_cleanup_enabled is False
     assert settings.allowed_origins == ["https://one.example", "https://two.example"]
     assert settings.trusted_hosts == ["localhost", "127.0.0.1"]
+    assert settings.google_oauth_certs_url == "http://edge:8081/oauth2/v1/certs"
 
 
 def test_settings_rejects_nonpositive_upload_limit(monkeypatch) -> None:
     monkeypatch.setenv("GSP_MAX_UPLOAD_MB", "0")
 
     with pytest.raises(ValueError, match="greater than 0"):
+        Settings(_env_file=None)
+
+
+def test_settings_rejects_unapproved_google_oauth_certs_url(monkeypatch) -> None:
+    monkeypatch.setenv(
+        "GSP_GOOGLE_OAUTH_CERTS_URL",
+        "https://attacker.example/google-certs",
+    )
+
+    with pytest.raises(ValueError, match="approved Google OAuth certificate endpoint"):
         Settings(_env_file=None)
 
 

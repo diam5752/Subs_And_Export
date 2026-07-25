@@ -11,6 +11,14 @@ from pydantic import AliasChoices, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+GOOGLE_PUBLIC_OAUTH_CERTS_URL = "https://www.googleapis.com/oauth2/v1/certs"
+GOOGLE_INTERNAL_OAUTH_CERTS_URL = "http://edge:8081/oauth2/v1/certs"
+APPROVED_GOOGLE_OAUTH_CERTS_URLS = frozenset(
+    {
+        GOOGLE_PUBLIC_OAUTH_CERTS_URL,
+        GOOGLE_INTERNAL_OAUTH_CERTS_URL,
+    }
+)
 
 
 class AppEnv(StrEnum):
@@ -45,6 +53,17 @@ class Settings(BaseSettings):
             if lowered in {"dev", "development", "local", "localhost"}:
                 return AppEnv.DEV
         return AppEnv.PRODUCTION
+
+    @field_validator("google_oauth_certs_url", mode="before")
+    @classmethod
+    def validate_google_oauth_certs_url(cls, value: object) -> str:
+        normalized = str(value).strip()
+        if normalized not in APPROVED_GOOGLE_OAUTH_CERTS_URLS:
+            raise ValueError(
+                "GSP_GOOGLE_OAUTH_CERTS_URL must use an approved "
+                "Google OAuth certificate endpoint"
+            )
+        return normalized
 
     @field_validator("allowed_origins", "trusted_hosts", "proxy_trusted_hosts", mode="before")
     @classmethod
@@ -93,6 +112,10 @@ class Settings(BaseSettings):
         ge=60,
         le=900,
         validation_alias="GSP_GOOGLE_AUTH_NONCE_TTL_SECONDS",
+    )
+    google_oauth_certs_url: str = Field(
+        default=GOOGLE_PUBLIC_OAUTH_CERTS_URL,
+        validation_alias="GSP_GOOGLE_OAUTH_CERTS_URL",
     )
 
     # --- Database ---

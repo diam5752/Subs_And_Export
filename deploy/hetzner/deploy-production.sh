@@ -40,6 +40,11 @@ rollback() {
 trap rollback INT TERM HUP
 
 compose config --quiet
+if ! compose run --rm --no-deps --entrypoint caddy edge validate \
+  --config /etc/caddy/Caddyfile --adapter caddyfile; then
+  echo "Caddy configuration validation failed." >&2
+  exit 1
+fi
 if ! compose build --pull backend frontend; then
   rollback
   exit 1
@@ -49,7 +54,13 @@ fi
 if [ "${SUBFRAME_PRUNE_BUILD_CACHE:-0}" = 1 ]; then
   docker builder prune -af >/dev/null
 fi
-if ! compose up -d db backend frontend edge; then
+if ! compose up -d db backend frontend; then
+  rollback
+  exit 1
+fi
+# Bind-mounted Caddyfile content is not part of Docker Compose's service hash,
+# so recreate the edge only after its new configuration validates.
+if ! compose up -d --force-recreate edge; then
   rollback
   exit 1
 fi
