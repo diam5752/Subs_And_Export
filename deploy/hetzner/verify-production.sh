@@ -28,6 +28,11 @@ if [ -z "$release_sha" ]; then
   echo "SUBFRAME_RELEASE_SHA is required." >&2
   exit 1
 fi
+google_client_id=$(env_value GOOGLE_CLIENT_ID)
+if [ -z "$google_client_id" ]; then
+  echo "Google client ID is required." >&2
+  exit 1
+fi
 
 export SUBFRAME_ENV_FILE="$ENV_FILE"
 export SUBFRAME_RELEASE_SHA="$release_sha"
@@ -81,6 +86,9 @@ for expected in \
   ELEVENLABS_API_KEY= \
   GSP_GCS_BUCKET= \
   GOOGLE_APPLICATION_CREDENTIALS= \
+  GOOGLE_CLIENT_SECRET= \
+  GOOGLE_REDIRECT_URI= \
+  GSP_GOOGLE_AUTH_NONCE_TTL_SECONDS=600 \
   GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD=0 \
   GSP_EXTERNAL_PROVIDER_DAILY_BUDGET_USD=0 \
   GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD=0 \
@@ -96,6 +104,10 @@ do
     exit 1
   }
 done
+printf '%s\n' "$backend_environment" | grep -Fqx "GOOGLE_CLIENT_ID=$google_client_id" || {
+  echo "Backend Google client ID does not match the release environment." >&2
+  exit 1
+}
 
 if command -v curl >/dev/null 2>&1; then
   curl -fsS "http://127.0.0.1:$preview_port/health" >/dev/null

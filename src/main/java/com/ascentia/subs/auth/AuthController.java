@@ -6,17 +6,23 @@ import com.ascentia.subs.history.HistoryStore;
 import com.ascentia.subs.jobs.JobArtifactService;
 import com.ascentia.subs.jobs.JobStore;
 import com.ascentia.subs.points.PointsStore;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.util.Arrays;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import org.springframework.core.env.Environment;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -42,6 +48,7 @@ public class AuthController {
     private final RateLimitService rateLimitService;
     private final ClientIpResolver clientIpResolver;
     private final Environment environment;
+    private final GoogleIdentityService googleIdentityService;
 
     public AuthController(
             AuthStore authStore,
@@ -51,7 +58,8 @@ public class AuthController {
             HistoryStore historyStore,
             RateLimitService rateLimitService,
             ClientIpResolver clientIpResolver,
-            Environment environment
+            Environment environment,
+            GoogleIdentityService googleIdentityService
     ) {
         this.authStore = authStore;
         this.pointsStore = pointsStore;
@@ -61,6 +69,7 @@ public class AuthController {
         this.rateLimitService = rateLimitService;
         this.clientIpResolver = clientIpResolver;
         this.environment = environment;
+        this.googleIdentityService = googleIdentityService;
     }
 
     @PostMapping("/register")
@@ -140,51 +149,121 @@ public class AuthController {
         return Map.of("status", "deleted", "message", "Account and all data have been permanently deleted");
     }
 
-    @GetMapping("/google/url")
-    GoogleAuthUrlResponse googleUrl(HttpServletRequest servletRequest) {
+    @GetMapping("/google/nonce")
+    GoogleAuthNonceResponse googleNonce(
+            HttpServletRequest servletRequest,
+            HttpServletResponse servletResponse
+    ) {
         String ip = clientIpResolver.resolve(servletRequest);
         rateLimitService.check("login", ip, 5, 60);
-        String clientId = requiredProperty("GOOGLE_CLIENT_ID");
-        String redirectUri = googleRedirectUri();
-        String state = authStore.issueOauthState("google", null, servletRequest.getHeader("User-Agent"), ip, 600);
-        String authUrl = "https://accounts.google.com/o/oauth2/auth"
-                + "?client_id=" + encode(clientId)
-                + "&redirect_uri=" + encode(redirectUri)
-                + "&response_type=code"
-                + "&scope=" + encode("openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile")
-                + "&access_type=offline"
-                + "&include_granted_scopes=true"
-                + "&state=" + encode(state);
-        return new GoogleAuthUrlResponse(authUrl, state);
+        String nonce = googleIdentityService.createNonce();
+        int ttlSeconds = googleNonceTtlSeconds();
+        setGoogleNonceCookie(
+                servletResponse,
+                googleIdentityService.nonceHash(nonce),
+                ttlSeconds
+        );
+        return new GoogleAuthNonceResponse(
+                nonce,
+                ttlSeconds,
+                googleIdentityService.clientId()
+        );
     }
 
-    @PostMapping("/google/callback")
-    TokenResponse googleCallback(@Valid @RequestBody GoogleCallbackRequest request, HttpServletRequest servletRequest) {
-        throw new ResponseStatusException(HttpStatus.NOT_IMPLEMENTED, "Google OAuth callback is not yet ported");
+    @PostMapping("/google")
+    TokenResponse googleLogin(
+            @Valid @RequestBody GoogleLoginRequest request,
+            HttpServletRequest servletRequest,
+            HttpServletResponse servletResponse
+    ) {
+        String ip = clientIpResolver.resolve(servletRequest);
+        rateLimitService.check("login", ip, 5, 60);
+        String nonceHash = cookieValue(
+                servletRequest,
+                "gsubs_google_nonce"
+        );
+        GoogleIdentityService.GoogleProfile profile = googleIdentityService.verify(
+                request.idToken(),
+                nonceHash,
+                isProduction() || nonceHash != null
+        );
+        CurrentUser user = authStore.upsertGoogleUser(
+                profile.email(),
+                profile.name(),
+                profile.subject()
+        );
+        String token = authStore.issueSession(
+                user,
+                servletRequest.getHeader("User-Agent")
+        );
+        clearGoogleNonceCookie(servletResponse);
+        return new TokenResponse(
+                token,
+                "bearer",
+                user.id(),
+                user.name()
+        );
     }
 
-    private String requiredProperty(String key) {
-        String value = environment.getProperty(key);
-        if (value == null || value.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Google OAuth not configured");
+    private int googleNonceTtlSeconds() {
+        int value = environment.getProperty(
+                "GSP_GOOGLE_AUTH_NONCE_TTL_SECONDS",
+                Integer.class,
+                600
+        );
+        if (value < 60 || value > 900) {
+            throw new IllegalStateException(
+                    "GSP_GOOGLE_AUTH_NONCE_TTL_SECONDS must be between 60 and 900"
+            );
         }
         return value;
     }
 
-    private String googleRedirectUri() {
-        String explicit = environment.getProperty("GOOGLE_REDIRECT_URI");
-        if (explicit != null && !explicit.isBlank()) {
-            return explicit;
-        }
-        String base = environment.getProperty("FRONTEND_URL", environment.getProperty("NEXT_PUBLIC_SITE_URL", environment.getProperty("NEXT_PUBLIC_APP_URL")));
-        if (base == null || base.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Google OAuth not configured");
-        }
-        return base.replaceAll("/+$", "") + "/login";
+    private void setGoogleNonceCookie(
+            HttpServletResponse response,
+            String value,
+            int maxAgeSeconds
+    ) {
+        ResponseCookie cookie = ResponseCookie.from("gsubs_google_nonce", value)
+                .httpOnly(true)
+                .secure(isProduction())
+                .sameSite("Lax")
+                .path("/")
+                .maxAge(Duration.ofSeconds(maxAgeSeconds))
+                .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
     }
 
-    private static String encode(String value) {
-        return URLEncoder.encode(value, StandardCharsets.UTF_8);
+    private void clearGoogleNonceCookie(HttpServletResponse response) {
+        setGoogleNonceCookie(response, "", 0);
+    }
+
+    private boolean isProduction() {
+        String value = environment.getProperty(
+                "APP_ENV",
+                environment.getProperty("GSP_APP_ENV", "production")
+        );
+        return !Set.of(
+                "dev",
+                "development",
+                "local",
+                "localhost"
+        ).contains(value.strip().toLowerCase(Locale.ROOT));
+    }
+
+    private static String cookieValue(
+            HttpServletRequest request,
+            String name
+    ) {
+        Cookie[] cookies = request.getCookies();
+        if (cookies == null) {
+            return null;
+        }
+        return Arrays.stream(cookies)
+                .filter(cookie -> name.equals(cookie.getName()))
+                .map(Cookie::getValue)
+                .findFirst()
+                .orElse(null);
     }
 
     public record RegisterRequest(@NotBlank @Email @Size(max = 255) String email,
@@ -199,8 +278,9 @@ public class AuthController {
                                         @NotBlank @Size(max = 128) String confirmPassword) {
     }
 
-    public record GoogleCallbackRequest(@NotBlank @Size(max = 4096) String code,
-                                        @NotBlank @Size(max = 1024) String state) {
+    public record GoogleLoginRequest(
+            @NotBlank @Size(max = 16_384) String idToken
+    ) {
     }
 
     public record TokenResponse(String access_token, String token_type, String user_id, String name) {
@@ -215,7 +295,11 @@ public class AuthController {
     public record PointsBalanceResponse(int balance) {
     }
 
-    public record GoogleAuthUrlResponse(String auth_url, String state) {
+    public record GoogleAuthNonceResponse(
+            String nonce,
+            int expires_in,
+            String client_id
+    ) {
     }
 
     public record ExportProfileResponse(String id, String email, String name, String created_at, String provider) {

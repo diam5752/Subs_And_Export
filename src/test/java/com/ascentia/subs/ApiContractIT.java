@@ -82,19 +82,15 @@ class ApiContractIT extends IntegrationTestSupport {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("Updated User"));
 
-        String googleUrlBody = mockMvc.perform(get("/auth/google/url"))
+        String googleNonceBody = mockMvc.perform(get("/auth/google/nonce"))
                 .andExpect(status().isOk())
                 .andReturn()
                 .getResponse()
                 .getContentAsString();
-        JsonNode googleUrl = objectMapper.readTree(googleUrlBody);
-        assertThat(googleUrl.get("auth_url").asText()).contains("client_id=test-google-client");
-        assertThat(googleUrl.get("state").asText()).isNotBlank();
-
-        mockMvc.perform(post("/auth/google/callback")
-                        .contentType(APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsBytes(Map.of("code", "abc", "state", "xyz"))))
-                .andExpect(status().isNotImplemented());
+        JsonNode googleNonce = objectMapper.readTree(googleNonceBody);
+        assertThat(googleNonce.get("client_id").asText()).isEqualTo("test-google-client");
+        assertThat(googleNonce.get("nonce").asText()).isNotBlank();
+        assertThat(googleNonce.get("expires_in").asInt()).isEqualTo(600);
 
         String jobId = "job-" + session.userId();
         jobStore.createJob(jobId, session.userId());

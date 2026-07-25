@@ -1,69 +1,132 @@
 'use client';
 
-import { useState, useEffect, Suspense, useRef } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
-import { redirectTo } from '@/lib/navigation';
+import {
+    loadGoogleIdentityScript,
+    type GoogleCredentialResponse,
+} from '@/lib/googleIdentity';
 import { useI18n } from '@/context/I18nContext';
 import { Spinner } from '@/components/Spinner';
 import { BrandLogo } from '@/components/BrandLogo';
 
-function LoginContent() {
+export default function LoginPage() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [googleLoading, setGoogleLoading] = useState(false);
+    const [googleReady, setGoogleReady] = useState(false);
+    const [googleUnavailable, setGoogleUnavailable] = useState(false);
     const { login, googleLogin } = useAuth();
     const router = useRouter();
-    const searchParams = useSearchParams();
     const { t } = useI18n();
-    const hasHandledGoogleCallback = useRef(false);
+    const googleButtonContainerRef = useRef<HTMLDivElement>(null);
+    const googleUnavailableMessage = t('loginGoogleUnavailable');
+    const googleErrorMessage = t('loginErrorGoogle');
 
-    // Handle Google OAuth callback
-    useEffect(() => {
-        const code = searchParams.get('code');
-        const state = searchParams.get('state');
-        const storedState = typeof window !== 'undefined' ? localStorage.getItem('google_oauth_state') : null;
-
-        if (hasHandledGoogleCallback.current) {
+    const handleGoogleCredential = useCallback(async (
+        credentialResponse: GoogleCredentialResponse,
+    ) => {
+        if (!credentialResponse.credential) {
+            setError(googleErrorMessage);
             return;
         }
-
-        if (code && state && storedState === state) {
-            let cancelled = false;
-
-            // OAuth completion is an external callback. Start it in a microtask so
-            // Strict Mode can cancel its probe mount without posting the code twice.
-            queueMicrotask(() => {
-                if (cancelled || hasHandledGoogleCallback.current) return;
-                hasHandledGoogleCallback.current = true;
-                setGoogleLoading(true);
-                localStorage.removeItem('google_oauth_state');
-                googleLogin(code, state)
-                    .then(() => {
-                        if (!cancelled) router.push('/');
-                    })
-                    .catch((err: unknown) => {
-                        if (!cancelled) {
-                            setError(err instanceof Error ? err.message : t('loginErrorGoogle'));
-                        }
-                    })
-                    .finally(() => {
-                        if (!cancelled) setGoogleLoading(false);
-                    });
-            });
-
-            return () => {
-                cancelled = true;
-            };
+        setError('');
+        setGoogleLoading(true);
+        try {
+            await googleLogin(credentialResponse.credential);
+            router.push('/');
+        } catch (err) {
+            setError(err instanceof Error ? err.message : googleErrorMessage);
+        } finally {
+            setGoogleLoading(false);
         }
-    }, [searchParams, router, googleLogin, t]);
+    }, [googleErrorMessage, googleLogin, router]);
+    const handleGoogleCredentialRef = useRef(handleGoogleCredential);
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
+    useEffect(() => {
+        handleGoogleCredentialRef.current = handleGoogleCredential;
+    }, [handleGoogleCredential]);
+
+    useEffect(() => {
+        const container = googleButtonContainerRef.current;
+        if (!container) {
+            return;
+        }
+        const googleButtonContainer = container;
+
+        let cancelled = false;
+        googleButtonContainer.replaceChildren();
+        setGoogleReady(false);
+        setGoogleUnavailable(false);
+
+        async function initializeGoogle() {
+            try {
+                const nonce = await api.getGoogleAuthNonce();
+                const clientId = nonce.client_id.trim();
+                if (!clientId) {
+                    throw new Error(googleUnavailableMessage);
+                }
+                await loadGoogleIdentityScript();
+                if (cancelled) {
+                    return;
+                }
+                const googleId = window.google?.accounts?.id;
+                if (!googleId?.initialize || !googleId.renderButton) {
+                    throw new Error(googleUnavailableMessage);
+                }
+                googleId.initialize({
+                    client_id: clientId,
+                    nonce: nonce.nonce,
+                    ux_mode: 'popup',
+                    callback: (response: GoogleCredentialResponse) => {
+                        void handleGoogleCredentialRef.current(response);
+                    },
+                });
+                const width = Math.max(
+                    240,
+                    Math.min(
+                        360,
+                        Math.floor(
+                            googleButtonContainer.getBoundingClientRect().width || 320,
+                        ),
+                    ),
+                );
+                googleId.renderButton(googleButtonContainer, {
+                    type: 'standard',
+                    theme: 'outline',
+                    size: 'large',
+                    text: 'signin_with',
+                    shape: 'rectangular',
+                    logo_alignment: 'left',
+                    width,
+                    locale: 'el',
+                });
+                setGoogleReady(true);
+            } catch (err) {
+                if (!cancelled) {
+                    const message = err instanceof Error
+                        ? err.message
+                        : googleUnavailableMessage;
+                    setGoogleUnavailable(true);
+                    setError(message === googleUnavailableMessage ? '' : message);
+                }
+            }
+        }
+
+        void initializeGoogle();
+        return () => {
+            cancelled = true;
+            googleButtonContainer.replaceChildren();
+        };
+    }, [googleUnavailableMessage]);
+
+    const handleSubmit = async (event: React.FormEvent) => {
+        event.preventDefault();
         setError('');
         setIsLoading(true);
 
@@ -74,19 +137,6 @@ function LoginContent() {
             setError(err instanceof Error ? err.message : t('loginErrorGeneral'));
         } finally {
             setIsLoading(false);
-        }
-    };
-
-    const handleGoogleLogin = async () => {
-        setError('');
-        setGoogleLoading(true);
-        try {
-            const { auth_url, state } = await api.getGoogleAuthUrl();
-            localStorage.setItem('google_oauth_state', state);
-            redirectTo(auth_url);
-        } catch (err) {
-            setError(err instanceof Error ? err.message : t('loginGoogleUnavailable'));
-            setGoogleLoading(false);
         }
     };
 
@@ -111,24 +161,32 @@ function LoginContent() {
                         <p>{t('loginSubtitle')}</p>
                     </div>
 
-                    <button
-                        onClick={handleGoogleLogin}
-                        disabled={googleLoading}
-                        aria-busy={googleLoading}
-                        className="auth-google"
-                    >
-                        {googleLoading ? (
-                            <Spinner className="w-5 h-5 text-gray-600" />
-                        ) : (
-                            <svg className="w-5 h-5" viewBox="0 0 24 24">
-                                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-                                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
-                            </svg>
-                        )}
-                        {googleLoading ? t('loginGoogleSigningIn') : t('loginGoogleCta')}
-                    </button>
+                    {!googleUnavailable ? (
+                        <div
+                            className="auth-google-shell"
+                            aria-busy={!googleReady || googleLoading}
+                        >
+                            <div
+                                ref={googleButtonContainerRef}
+                                className={googleReady ? 'auth-google-official is-ready' : 'auth-google-official'}
+                                data-testid="google-button-container"
+                            />
+                            {(!googleReady || googleLoading) && (
+                                <div className="auth-google-placeholder" aria-hidden={googleReady}>
+                                    <Spinner className="w-5 h-5 text-gray-600" />
+                                    <span>
+                                        {googleLoading
+                                            ? t('loginGoogleSigningIn')
+                                            : t('loginGoogleCta')}
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="auth-google-unavailable">
+                            {googleUnavailableMessage}
+                        </div>
+                    )}
 
                     <div className="auth-divider">
                         <span>{t('loginOrEmail')}</span>
@@ -143,7 +201,7 @@ function LoginContent() {
                                 id="email"
                                 type="email"
                                 value={email}
-                                onChange={(e) => setEmail(e.target.value)}
+                                onChange={(event) => setEmail(event.target.value)}
                                 className="input-field"
                                 placeholder={t('loginEmailPlaceholder')}
                                 autoComplete="email"
@@ -159,7 +217,7 @@ function LoginContent() {
                                 id="password"
                                 type="password"
                                 value={password}
-                                onChange={(e) => setPassword(e.target.value)}
+                                onChange={(event) => setPassword(event.target.value)}
                                 className="input-field"
                                 placeholder={t('loginPasswordPlaceholder')}
                                 autoComplete="current-password"
@@ -167,11 +225,7 @@ function LoginContent() {
                             />
                         </div>
 
-                        {error && (
-                            <div className="auth-error">
-                                {error}
-                            </div>
-                        )}
+                        {error && <div className="auth-error">{error}</div>}
 
                         <button
                             type="submit"
@@ -187,7 +241,10 @@ function LoginContent() {
                     <div className="auth-switch">
                         <p className="text-[var(--muted)]">
                             {t('loginNoAccount')}{' '}
-                            <Link href="/register" className="text-[var(--accent)] hover:underline font-medium">
+                            <Link
+                                href="/register"
+                                className="text-[var(--accent)] hover:underline font-medium"
+                            >
                                 {t('loginCreateOne')}
                             </Link>
                         </p>
@@ -200,17 +257,5 @@ function LoginContent() {
                 <span>{t('loginFooter', { year: new Date().getFullYear() })}</span>
             </footer>
         </div>
-    );
-}
-
-export default function LoginPage() {
-    return (
-        <Suspense fallback={
-            <div className="min-h-dvh flex items-center justify-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[var(--accent)]"></div>
-            </div>
-        }>
-            <LoginContent />
-        </Suspense>
     );
 }

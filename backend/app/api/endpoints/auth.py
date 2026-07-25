@@ -1,15 +1,23 @@
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, Field
 
-from ...core.auth import SessionStore, User, UserStore
+from ...core.auth import (
+    GoogleAuthError,
+    SessionStore,
+    User,
+    UserStore,
+    create_google_auth_nonce,
+    google_auth_nonce_hash,
+    google_client_id,
+    verify_google_id_token,
+)
 from ...core.cleanup import delete_job_workspace
 from ...core.config import settings
 from ...core.errors import sanitize_error
-from ...core.oauth_state import OAuthStateStore
 from ...core.ratelimit import limiter_auth_change, limiter_login, limiter_register, limiter_signup_daily
 from ...services.history import HistoryStore
 from ...services.jobs import JobStore
@@ -18,7 +26,6 @@ from ..deps import (
     get_current_user,
     get_history_store,
     get_job_store,
-    get_oauth_state_store,
     get_points_store,
     get_session_store,
     get_user_store,
@@ -232,79 +239,84 @@ def delete_account(
         )
 
 
-# Google OAuth
-from ...core.auth import build_google_flow, exchange_google_code, google_oauth_config
+GOOGLE_AUTH_NONCE_COOKIE_NAME = "gsubs_google_nonce"
 
 
-class GoogleAuthURL(BaseModel):
-    auth_url: str
-    state: str
+class GoogleAuthNonce(BaseModel):
+    nonce: str
+    expires_in: int
+    client_id: str
 
-@router.get("/google/url", response_model=GoogleAuthURL, dependencies=[Depends(limiter_login)])
-def get_google_auth_url(
-    request: Request,
-    oauth_state_store: OAuthStateStore = Depends(get_oauth_state_store),
-) -> Any:
-    """Get Google OAuth URL for frontend to redirect to."""
-    cfg = google_oauth_config()
-    if not cfg:
-        raise HTTPException(status_code=503, detail="Google OAuth not configured")
 
-    state = oauth_state_store.issue_state(
-        provider="google",
-        user_id=None,
-        user_agent=request.headers.get("user-agent"),
-        ip=request.client.host if request.client else None,
+class GoogleLogin(BaseModel):
+    id_token: str = Field(..., min_length=1, max_length=16_384)
+
+
+def _google_nonce_cookie_settings() -> dict[str, Any]:
+    return {
+        "key": GOOGLE_AUTH_NONCE_COOKIE_NAME,
+        "httponly": True,
+        "secure": not settings.is_dev,
+        "samesite": "lax",
+        "path": "/",
+    }
+
+
+@router.get(
+    "/google/nonce",
+    response_model=GoogleAuthNonce,
+    dependencies=[Depends(limiter_login)],
+)
+def get_google_auth_nonce(response: Response) -> Any:
+    """Issue a nonce for a Google Identity Services sign-in attempt."""
+    client_id = google_client_id()
+    if not client_id:
+        raise HTTPException(status_code=503, detail="Google login is not configured.")
+    nonce = create_google_auth_nonce()
+    response.set_cookie(
+        value=google_auth_nonce_hash(nonce),
+        max_age=settings.google_auth_nonce_ttl_seconds,
+        **_google_nonce_cookie_settings(),
     )
-    flow = build_google_flow(cfg)
-    auth_url, _ = flow.authorization_url(
-        access_type='offline',
-        include_granted_scopes='true',
-        state=state
-    )
-    return {"auth_url": auth_url, "state": state}
+    return {
+        "nonce": nonce,
+        "expires_in": settings.google_auth_nonce_ttl_seconds,
+        "client_id": client_id,
+    }
 
 
-class GoogleCallback(BaseModel):
-    code: str = Field(..., max_length=4096)
-    state: str = Field(..., max_length=1024)
-
-@router.post("/google/callback", response_model=Token, dependencies=[Depends(limiter_login)])
-def google_oauth_callback(
-    callback: GoogleCallback,
+@router.post("/google", response_model=Token, dependencies=[Depends(limiter_login)])
+def google_login(
+    payload: GoogleLogin,
     request: Request,
+    response: Response,
     user_store: UserStore = Depends(get_user_store),
     session_store: SessionStore = Depends(get_session_store),
-    oauth_state_store: OAuthStateStore = Depends(get_oauth_state_store),
 ) -> Any:
-    """Handle Google OAuth callback and issue session token."""
-    cfg = google_oauth_config()
-    if not cfg:
-        raise HTTPException(status_code=503, detail="Google OAuth not configured")
-
+    """Verify a Google ID token and issue a GSUBS session."""
+    if not google_client_id():
+        raise HTTPException(status_code=503, detail="Google login is not configured.")
     try:
-        if not oauth_state_store.consume_state(
-            provider="google",
-            state=callback.state,
-            user_id=None,
-            user_agent=request.headers.get("user-agent"),
-            ip=request.client.host if request.client else None,
-        ):
-            raise HTTPException(status_code=400, detail="Invalid OAuth state")
-
-        profile = exchange_google_code(cfg, callback.code)
-        user = user_store.upsert_google_user(
-            profile["email"], profile["name"], profile.get("sub") or ""
+        nonce_hash = request.cookies.get(GOOGLE_AUTH_NONCE_COOKIE_NAME)
+        profile = verify_google_id_token(
+            payload.id_token,
+            expected_nonce_hash=nonce_hash,
+            require_nonce=not settings.is_dev or bool(nonce_hash),
         )
-        token = session_store.issue_session(user)
-        return {
-            "access_token": token,
-            "token_type": "bearer",
-            "user_id": user.id,
-            "name": user.name
-        }
-    except Exception as e:
-        # Sanitize error to avoid leaking internal details (e.g. from Google API response)
-        safe_msg = sanitize_error(e)
-        logger.error(f"Google auth failed: {safe_msg}")
-        raise HTTPException(status_code=400, detail=f"Google auth failed: {safe_msg}")
+        user = user_store.upsert_google_user(
+            profile["email"],
+            profile["name"],
+            profile["sub"],
+        )
+    except GoogleAuthError as exc:
+        logger.warning("Google login rejected: %s", sanitize_error(exc))
+        raise HTTPException(status_code=401, detail=str(exc)) from exc
+
+    token = session_store.issue_session(user, request.headers.get("user-agent"))
+    response.delete_cookie(**_google_nonce_cookie_settings())
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user_id": user.id,
+        "name": user.name,
+    }

@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Pattern;
 import org.bouncycastle.crypto.generators.SCrypt;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
@@ -80,32 +81,64 @@ public class AuthStore {
     public CurrentUser upsertGoogleUser(String email, String name, String sub) {
         String normalizedEmail = normalizeEmail(email);
         String finalName = normalizeName(name, normalizedEmail);
-        Optional<CurrentUser> existing = findUserByEmail(normalizedEmail);
-        if (existing.isPresent()) {
+        String normalizedSubject = sub == null ? "" : sub.strip();
+        if (normalizedSubject.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Google token subject is missing.");
+        }
+        if (normalizedSubject.length() > 255) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Google token subject is too long.");
+        }
+        Optional<CurrentUser> existingIdentity = findUserByGoogleSub(normalizedSubject);
+        if (existingIdentity.isPresent()) {
             jdbcClient.sql("""
                     UPDATE users
-                    SET name = :name, provider = 'google', password_hash = NULL, google_sub = :googleSub, email_verified = TRUE
+                    SET name = :name, email_verified = TRUE
                     WHERE id = :id
                     """)
                     .param("name", finalName)
-                    .param("googleSub", sub)
-                    .param("id", existing.get().id())
+                    .param("id", existingIdentity.get().id())
                     .update();
-            return findUserById(existing.get().id()).map(AuthStore::withoutSecret).orElseThrow();
+            return findUserById(existingIdentity.get().id())
+                    .map(AuthStore::withoutSecret)
+                    .orElseThrow();
+        }
+        Optional<CurrentUser> existing = findUserByEmail(normalizedEmail);
+        if (existing.isPresent()) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "Google login cannot automatically link an existing email. "
+                            + "Log in with the existing account before linking Google."
+            );
         }
 
         boolean deletedEmail = emailWasDeleted(normalizedEmail);
-        CurrentUser user = new CurrentUser(randomHex(16), normalizedEmail, finalName, "google", null, sub, utcIso(), true);
-        jdbcClient.sql("""
-                INSERT INTO users (id, email, name, provider, password_hash, google_sub, created_at, email_verified)
-                VALUES (:id, :email, :name, 'google', NULL, :googleSub, :createdAt, TRUE)
-                """)
-                .param("id", user.id())
-                .param("email", user.email())
-                .param("name", user.name())
-                .param("googleSub", sub)
-                .param("createdAt", user.createdAt())
-                .update();
+        CurrentUser user = new CurrentUser(
+                randomHex(16),
+                normalizedEmail,
+                finalName,
+                "google",
+                null,
+                normalizedSubject,
+                utcIso(),
+                true
+        );
+        try {
+            jdbcClient.sql("""
+                    INSERT INTO users (id, email, name, provider, password_hash, google_sub, created_at, email_verified)
+                    VALUES (:id, :email, :name, 'google', NULL, :googleSub, :createdAt, TRUE)
+                    """)
+                    .param("id", user.id())
+                    .param("email", user.email())
+                    .param("name", user.name())
+                    .param("googleSub", normalizedSubject)
+                    .param("createdAt", user.createdAt())
+                    .update();
+        } catch (DataIntegrityViolationException exception) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED,
+                    "Google account could not be linked safely."
+            );
+        }
         pointsStore.ensureAccount(user.id(), true, deletedEmail ? 0 : null);
         return withoutSecret(user);
     }
@@ -236,6 +269,27 @@ public class AuthStore {
                 LIMIT 1
                 """)
                 .param("email", email)
+                .query((rs, rowNum) -> new CurrentUser(
+                        rs.getString("id"),
+                        rs.getString("email"),
+                        rs.getString("name"),
+                        rs.getString("provider"),
+                        rs.getString("password_hash"),
+                        rs.getString("google_sub"),
+                        rs.getString("created_at"),
+                        rs.getBoolean("email_verified")
+                ))
+                .optional();
+    }
+
+    public Optional<CurrentUser> findUserByGoogleSub(String subject) {
+        return jdbcClient.sql("""
+                SELECT id, email, name, provider, password_hash, google_sub, created_at, email_verified
+                FROM users
+                WHERE google_sub = :subject
+                LIMIT 1
+                """)
+                .param("subject", subject)
                 .query((rs, rowNum) -> new CurrentUser(
                         rs.getString("id"),
                         rs.getString("email"),

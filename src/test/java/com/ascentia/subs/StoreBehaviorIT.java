@@ -318,10 +318,46 @@ class StoreBehaviorIT extends IntegrationTestSupport {
         assertThatThrownBy(() -> authStore.registerLocalUser(user.email(), "letters123456", "Duplicate"))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("already exists");
+        assertThatThrownBy(() -> authStore.upsertGoogleUser(
+                uniqueEmail(),
+                "Google User",
+                null
+        )).hasMessageContaining("subject is missing");
+        assertThatThrownBy(() -> authStore.upsertGoogleUser(
+                uniqueEmail(),
+                "Google User",
+                " "
+        )).hasMessageContaining("subject is missing");
+        assertThatThrownBy(() -> authStore.upsertGoogleUser(
+                uniqueEmail(),
+                "Google User",
+                "s".repeat(256)
+        )).hasMessageContaining("subject is too long");
 
-        CurrentUser googleUser = authStore.upsertGoogleUser(user.email(), "Google User", "google-sub-updated");
-        assertThat(googleUser.provider()).isEqualTo("google");
+        assertThatThrownBy(() -> authStore.upsertGoogleUser(
+                user.email(),
+                "Google User",
+                "google-sub-takeover"
+        )).isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("cannot automatically link an existing email");
         assertThat(authStore.findUserById(user.id())).get()
+                .extracting(CurrentUser::provider)
+                .isEqualTo("local");
+        assertThat(authStore.authenticateLocal(user.email(), "letters123456")).isPresent();
+
+        CurrentUser googleUser = authStore.upsertGoogleUser(
+                uniqueEmail(),
+                "Google User",
+                "google-sub-updated"
+        );
+        assertThat(googleUser.provider()).isEqualTo("google");
+        CurrentUser returningGoogleUser = authStore.upsertGoogleUser(
+                googleUser.email(),
+                "Updated Google User",
+                "google-sub-updated"
+        );
+        assertThat(returningGoogleUser.id()).isEqualTo(googleUser.id());
+        assertThat(authStore.findUserById(googleUser.id())).get()
                 .extracting(CurrentUser::provider, CurrentUser::passwordHash, CurrentUser::emailVerified)
                 .containsExactly("google", null, true);
 

@@ -455,14 +455,21 @@ class ApiClient {
         });
     }
 
-    async getGoogleAuthUrl(): Promise<{ auth_url: string; state: string }> {
-        return this.request('/auth/google/url');
+    async getGoogleAuthNonce(): Promise<{
+        nonce: string;
+        expires_in: number;
+        client_id: string;
+    }> {
+        return this.request('/auth/google/nonce', {
+            credentials: 'include',
+        });
     }
 
-    async googleCallback(code: string, state: string): Promise<TokenResponse> {
-        const response = await this.request<TokenResponse>('/auth/google/callback', {
+    async googleLogin(idToken: string): Promise<TokenResponse> {
+        const response = await this.request<TokenResponse>('/auth/google', {
             method: 'POST',
-            body: JSON.stringify({ code, state }),
+            credentials: 'include',
+            body: JSON.stringify({ id_token: idToken }),
         });
         this.setToken(response.access_token);
         return response;

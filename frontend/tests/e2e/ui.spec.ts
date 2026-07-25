@@ -17,6 +17,17 @@ const editorViewportMatrix = [
   { width: 1440, height: 900 },
 ] as const;
 
+test('Google Identity Services login exchanges an ID token for a GSUBS session', async ({ page }) => {
+  await mockApi(page, { authenticated: false });
+  await page.goto('/login');
+
+  await page.getByRole('button', { name: 'Σύνδεση με Google' }).click();
+
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('auth_token')))
+    .toBe('google-token');
+  await expect(page).toHaveURL('/');
+});
+
 async function expectNoHorizontalOverflow(page: Page, selector?: string) {
   const overflow = await page.evaluate((sel) => {
     const target = sel ? document.querySelector<HTMLElement>(sel) : document.documentElement;

@@ -480,28 +480,41 @@ describe('API Client', () => {
         });
     });
 
-    describe('getGoogleAuthUrl', () => {
-        it('should fetch Google auth URL', async () => {
-            const mockResponse = { auth_url: 'https://google.com/auth', state: 'xyz789' };
+    describe('getGoogleAuthNonce', () => {
+        it('should fetch a Google Identity Services nonce', async () => {
+            const mockResponse = {
+                nonce: 'nonce-123',
+                expires_in: 600,
+                client_id: 'google-client-id',
+            };
             (fetch as jest.Mock).mockResolvedValueOnce({ ok: true, json: async () => mockResponse });
 
             const { api } = await import('@/lib/api');
-            const result = await api.getGoogleAuthUrl();
+            const result = await api.getGoogleAuthNonce();
 
-            expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/auth/google/url'), expect.anything());
-            expect(result.auth_url).toBe('https://google.com/auth');
+            expect(fetch).toHaveBeenCalledWith(
+                expect.stringContaining('/auth/google/nonce'),
+                expect.anything(),
+            );
+            expect(result.nonce).toBe('nonce-123');
         });
     });
 
-    describe('googleCallback', () => {
-        it('should handle Google callback and set token', async () => {
+    describe('googleLogin', () => {
+        it('should exchange a verified Google ID token for a session', async () => {
             const mockResponse = { access_token: 'google_token', token_type: 'bearer', user_id: '456', name: 'Google User' };
             (fetch as jest.Mock).mockResolvedValueOnce({ ok: true, json: async () => mockResponse });
 
             const { api } = await import('@/lib/api');
-            const result = await api.googleCallback('code456', 'state456');
+            const result = await api.googleLogin('signed-google-id-token');
 
-            expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/auth/google/callback'), expect.objectContaining({ method: 'POST' }));
+            expect(fetch).toHaveBeenCalledWith(
+                expect.stringContaining('/auth/google'),
+                expect.objectContaining({
+                    method: 'POST',
+                    body: JSON.stringify({ id_token: 'signed-google-id-token' }),
+                }),
+            );
             expect(result.access_token).toBe('google_token');
             expect(localStorage.getItem('auth_token')).toBe('google_token');
         });

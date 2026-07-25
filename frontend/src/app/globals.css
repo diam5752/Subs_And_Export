@@ -2048,7 +2048,29 @@ body {
   font-size: 13px;
 }
 
-.auth-google {
+.auth-google-shell {
+  position: relative;
+  min-height: 44px;
+  width: 100%;
+}
+
+.auth-google-official {
+  min-height: 44px;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.auth-google-official.is-ready {
+  opacity: 1;
+}
+
+.auth-google-official > div {
+  margin-inline: auto;
+}
+
+.auth-google-placeholder,
+.auth-google-unavailable {
+  min-height: 44px;
   width: 100%;
   display: flex;
   align-items: center;
@@ -2063,8 +2085,14 @@ body {
   padding: 12px 16px;
 }
 
-.auth-google:hover:not(:disabled) {
-  background: #f6f6f6;
+.auth-google-placeholder {
+  position: absolute;
+  inset: 0;
+}
+
+.auth-google-unavailable {
+  color: var(--muted);
+  background: #f7f7f8;
 }
 
 .auth-divider {

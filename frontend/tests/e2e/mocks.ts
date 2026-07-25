@@ -192,6 +192,9 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
 
   // Pre-set consent and locale to avoid banners/flicker
   await page.addInitScript(({ authenticated: isAuthenticated }) => {
+    const browserWindow = window as typeof window & {
+      __mockGoogleCallback?: (response: { credential?: string }) => void;
+    };
     localStorage.setItem('cookie-consent', 'accepted');
     localStorage.setItem('preferredLocale', 'el');
     localStorage.removeItem('lastActiveJobId');
@@ -200,10 +203,38 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
     } else {
       localStorage.removeItem('auth_token');
     }
+    browserWindow.google = {
+      accounts: {
+        id: {
+          initialize: (googleOptions) => {
+            browserWindow.__mockGoogleCallback = googleOptions.callback;
+          },
+          renderButton: (parent) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.textContent = 'Σύνδεση με Google';
+            button.addEventListener('click', () => {
+              browserWindow.__mockGoogleCallback?.({
+                credential: 'signed-e2e-google-id-token',
+              });
+            });
+            parent.appendChild(button);
+          },
+        },
+      },
+    };
   }, { authenticated });
   const shortCircuitOptions = async (route: Route) => {
     if (route.request().method() === 'OPTIONS') {
-      await route.fulfill({ status: 200, headers: corsHeaders });
+      const origin = route.request().headers().origin ?? 'http://localhost:3000';
+      await route.fulfill({
+        status: 200,
+        headers: {
+          ...corsHeaders,
+          'access-control-allow-origin': origin,
+          'access-control-allow-credentials': 'true',
+        },
+      });
       return true;
     }
     return false;
@@ -282,23 +313,45 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
     await route.fulfill(withCors(mockUser));
   });
 
-  await page.route('**/auth/google/url', async (route) => {
+  await page.route('**/auth/google/nonce', async (route) => {
     if (await shortCircuitOptions(route)) return;
-    await route.fulfill(withCors({
-      auth_url: 'https://accounts.google.com/o/oauth2/auth?mock',
-      state: 'mock-state',
-    }));
+    const origin = route.request().headers().origin ?? 'http://localhost:3000';
+    await route.fulfill({
+      ...withCors({
+        nonce: 'e2e-google-nonce',
+        expires_in: 600,
+        client_id: 'e2e-google-client',
+      }),
+      headers: {
+        ...corsHeaders,
+        'access-control-allow-origin': origin,
+        'access-control-allow-credentials': 'true',
+      },
+    });
   });
 
-  await page.route('**/auth/google/callback', async (route) => {
+  await page.route('**/auth/google', async (route) => {
     if (await shortCircuitOptions(route)) return;
+    const payload = route.request().postDataJSON() as { id_token?: string };
+    if (payload.id_token !== 'signed-e2e-google-id-token') {
+      await route.fulfill(withCors({ detail: 'Invalid Google token' }, 401));
+      return;
+    }
     signedIn = true;
-    await route.fulfill(withCors({
-      access_token: 'google-token',
-      token_type: 'bearer',
-      user_id: mockUser.id,
-      name: mockUser.name,
-    }));
+    const origin = route.request().headers().origin ?? 'http://localhost:3000';
+    await route.fulfill({
+      ...withCors({
+        access_token: 'google-token',
+        token_type: 'bearer',
+        user_id: mockUser.id,
+        name: mockUser.name,
+      }),
+      headers: {
+        ...corsHeaders,
+        'access-control-allow-origin': origin,
+        'access-control-allow-credentials': 'true',
+      },
+    });
   });
 
   await page.route('**/videos/process', async (route) => {

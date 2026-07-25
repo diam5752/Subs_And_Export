@@ -276,88 +276,117 @@ class TestUserUpdates:
 
 
 class TestGoogleOAuthEndpoints:
-    def test_google_url_requires_config(self, client, monkeypatch):
-        monkeypatch.delenv("GOOGLE_CLIENT_ID", raising=False)
-        monkeypatch.delenv("GOOGLE_CLIENT_SECRET", raising=False)
-        monkeypatch.delenv("GOOGLE_REDIRECT_URI", raising=False)
-        monkeypatch.setattr(auth_ep, "google_oauth_config", lambda: None)
-        resp = client.get("/auth/google/url")
+    def test_google_nonce_requires_config(self, client, monkeypatch):
+        monkeypatch.setattr(auth_ep, "google_client_id", lambda: None)
+        resp = client.get("/auth/google/nonce")
         assert resp.status_code == 503
 
-    def test_google_url_builds_auth_link(self, client, monkeypatch):
-        monkeypatch.setenv("GOOGLE_CLIENT_ID", "cid")
-        monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "sec")
-        monkeypatch.setenv("GOOGLE_REDIRECT_URI", "http://localhost")
+    def test_google_nonce_sets_httponly_cookie(self, client, monkeypatch):
+        from backend.app.core.auth import google_auth_nonce_hash
 
-        class DummyFlow:
-            called = False
-
-            @classmethod
-            def from_client_config(cls, cfg, scopes, redirect_uri=None):
-                cls.called = True
-                inst = cls()
-                inst.cfg = cfg
-                inst.scopes = scopes
-                inst.redirect_uri = redirect_uri
-                return inst
-
-            def authorization_url(self, **kwargs):
-                return "http://example.com/auth", None
-
-        monkeypatch.setattr("backend.app.core.auth.Flow", DummyFlow)
-
-        resp = client.get("/auth/google/url")
+        monkeypatch.setattr(auth_ep, "google_client_id", lambda: "cid")
+        resp = client.get("/auth/google/nonce")
         assert resp.status_code == 200
         body = resp.json()
-        assert body["auth_url"].startswith("http://example.com/auth")
-        assert body["state"]
-        assert DummyFlow.called is True
+        assert body["nonce"]
+        assert body["expires_in"] == 600
+        assert body["client_id"] == "cid"
+        cookie = resp.headers["set-cookie"]
+        assert f"gsubs_google_nonce={google_auth_nonce_hash(body['nonce'])}" in cookie
+        assert "HttpOnly" in cookie
+        assert "SameSite=lax" in cookie
 
-    def test_google_callback_requires_config(self, client, monkeypatch):
-        monkeypatch.setattr(auth_ep, "google_oauth_config", lambda: None)
-        resp = client.post("/auth/google/callback", json={"code": "c", "state": "s"})
-        assert resp.status_code == 503
+    def test_google_id_token_login_uses_nonce_and_issues_session(self, client, monkeypatch):
+        from backend.app.core.auth import google_auth_nonce_hash
 
-    def test_google_callback_success_and_failure(self, client, monkeypatch):
-        config = {
-            "client_id": "cid",
-            "client_secret": "sec",
-            "redirect_uri": "http://localhost",
-        }
+        monkeypatch.setattr(auth_ep, "google_client_id", lambda: "cid")
+        nonce_response = client.get("/auth/google/nonce")
+        nonce = nonce_response.json()["nonce"]
+        observed: dict[str, object] = {}
 
-        class FakeFlow:
-            def authorization_url(self, **_kwargs):
-                return "http://example.com/auth", None
-
-        monkeypatch.setattr(auth_ep, "google_oauth_config", lambda: config)
-        monkeypatch.setattr(auth_ep, "build_google_flow", lambda _config: FakeFlow())
-        monkeypatch.setattr(
-            auth_ep,
-            "exchange_google_code",
-            lambda _config, _code: {
+        def fake_verify(
+            token: str,
+            *,
+            expected_nonce_hash: str | None,
+            require_nonce: bool,
+        ) -> dict[str, str]:
+            observed.update(
+                token=token,
+                expected_nonce_hash=expected_nonce_hash,
+                require_nonce=require_nonce,
+            )
+            return {
                 "email": "g@example.com",
                 "name": "Google User",
                 "sub": "subid",
+            }
+
+        monkeypatch.setattr(auth_ep, "verify_google_id_token", fake_verify)
+        resp = client.post("/auth/google", json={"id_token": "verified-google-token"})
+        assert resp.status_code == 200
+        assert resp.json()["access_token"]
+        assert observed == {
+            "token": "verified-google-token",
+            "expected_nonce_hash": google_auth_nonce_hash(nonce),
+            "require_nonce": True,
+        }
+        assert "gsubs_google_nonce=" in resp.headers["set-cookie"]
+        assert "Max-Age=0" in resp.headers["set-cookie"]
+
+    def test_google_login_rejects_unverified_token_without_leaking_provider_error(
+        self,
+        client,
+        monkeypatch,
+    ):
+        from backend.app.core.auth import GoogleAuthError
+
+        monkeypatch.setattr(auth_ep, "google_client_id", lambda: "cid")
+        client.get("/auth/google/nonce")
+
+        def fail_verify(*_args, **_kwargs):
+            raise GoogleAuthError("Google token could not be verified.")
+
+        monkeypatch.setattr(auth_ep, "verify_google_id_token", fail_verify)
+        response = client.post("/auth/google", json={"id_token": "bad-token"})
+
+        assert response.status_code == 401
+        assert response.json()["detail"] == "Google token could not be verified."
+
+    def test_google_login_cannot_take_over_existing_password_account(
+        self,
+        client,
+        monkeypatch,
+    ):
+        import secrets
+
+        monkeypatch.setattr(auth_ep, "google_client_id", lambda: "cid")
+        suffix = secrets.token_hex(6)
+        local_user = {
+            "email": f"existing-{suffix}@example.com",
+            "password": "existing-pass-123",
+            "name": "Existing User",
+        }
+        assert client.post("/auth/register", json=local_user).status_code == 200
+        client.get("/auth/google/nonce")
+        monkeypatch.setattr(
+            auth_ep,
+            "verify_google_id_token",
+            lambda *_args, **_kwargs: {
+                "email": local_user["email"],
+                "name": "Different Google Name",
+                "sub": "different-google-sub",
             },
         )
 
-        # Get a valid state
-        state = client.get("/auth/google/url").json()["state"]
+        response = client.post("/auth/google", json={"id_token": "valid-token"})
 
-        # Success path
-        resp = client.post("/auth/google/callback", json={"code": "123", "state": state})
-        assert resp.status_code == 200
-        assert resp.json()["access_token"]
-
-        # Failure path
-        state2 = client.get("/auth/google/url").json()["state"]
-        monkeypatch.setattr(
-            auth_ep,
-            "exchange_google_code",
-            lambda _config, _code: (_ for _ in ()).throw(RuntimeError("boom")),
+        assert response.status_code == 401
+        assert "cannot automatically link an existing email" in response.json()["detail"]
+        local_login = client.post(
+            "/auth/token",
+            data={"username": local_user["email"], "password": local_user["password"]},
         )
-        resp_fail = client.post("/auth/google/callback", json={"code": "bad", "state": state2})
-        assert resp_fail.status_code == 400
+        assert local_login.status_code == 200
 
 
 class TestDeleteAccount:

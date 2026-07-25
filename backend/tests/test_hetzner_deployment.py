@@ -31,6 +31,8 @@ def test_production_compose_is_mock_only_and_loopback_bound() -> None:
     assert 'ELEVENLABS_API_KEY: ""' in compose
     assert 'GSP_GCS_BUCKET: ""' in compose
     assert 'GOOGLE_APPLICATION_CREDENTIALS: ""' in compose
+    assert 'GOOGLE_CLIENT_SECRET: ""' in compose
+    assert 'GOOGLE_REDIRECT_URI: ""' in compose
     assert 'GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD: "0"' in compose
     assert 'GSP_EXTERNAL_PROVIDER_DAILY_BUDGET_USD: "0"' in compose
     assert 'GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD: "0"' in compose
@@ -58,6 +60,9 @@ def test_production_verifier_requires_every_fail_closed_runtime_setting() -> Non
         "ELEVENLABS_API_KEY=",
         "GSP_GCS_BUCKET=",
         "GOOGLE_APPLICATION_CREDENTIALS=",
+        "GOOGLE_CLIENT_SECRET=",
+        "GOOGLE_REDIRECT_URI=",
+        "GSP_GOOGLE_AUTH_NONCE_TTL_SECONDS=600",
         "GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD=0",
         "GSP_EXTERNAL_PROVIDER_DAILY_BUDGET_USD=0",
         "GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD=0",
@@ -75,6 +80,7 @@ def test_production_environment_defaults_do_not_prune_shared_cache() -> None:
     environment = deployment_text("subframe.env.example")
     compose = deployment_text("docker-compose.production.yml")
     deploy_script = deployment_text("deploy-production.sh")
+    verifier = deployment_text("verify-production.sh")
     frontend_dockerfile = (
         REPOSITORY_ROOT / "frontend" / "Dockerfile"
     ).read_text(encoding="utf-8")
@@ -90,6 +96,11 @@ def test_production_environment_defaults_do_not_prune_shared_cache() -> None:
     assert "GSP_CLEANUP_INTERVAL_MINUTES=15" in environment
     assert "GSP_STORAGE_MIN_FREE_MB=2048" in environment
     assert "GSP_RETENTION_CLEANUP_ENABLED=1" in environment
+    assert "GOOGLE_CLIENT_ID=replace-with-google-web-client-id" in environment
+    assert "GOOGLE_CLIENT_SECRET=" in environment
+    assert "GOOGLE_REDIRECT_URI=" in environment
+    assert "GSP_GOOGLE_AUTH_NONCE_TTL_SECONDS=600" in environment
+    assert 'google_client_id=$(env_value GOOGLE_CLIENT_ID)' in verifier
     assert "NEXT_PUBLIC_MAX_UPLOAD_MB: ${SUBFRAME_MAX_UPLOAD_MB:-500}" in compose
     assert "ARG NEXT_PUBLIC_MAX_UPLOAD_MB=500" in frontend_dockerfile
     assert "GSP_ALLOWED_ORIGINS=https://gsubs.gr,https://www.gsubs.gr" in environment

@@ -10,7 +10,7 @@ jest.mock('@/lib/api', () => ({
         clearToken: jest.fn(),
         login: jest.fn(),
         register: jest.fn(),
-        googleCallback: jest.fn(),
+        googleLogin: jest.fn(),
     },
 }));
 
@@ -27,7 +27,7 @@ function AuthHarness() {
             <button type="button" onClick={() => void register('new@example.com', 'secret', 'New User')}>
                 register
             </button>
-            <button type="button" onClick={() => void googleLogin('oauth-code', 'oauth-state')}>
+            <button type="button" onClick={() => void googleLogin('signed-google-id-token')}>
                 google
             </button>
             <button type="button" onClick={() => logout()}>
@@ -146,7 +146,7 @@ describe('AuthContext', () => {
         fireEvent.click(screen.getByRole('button', { name: 'google' }));
 
         await waitFor(() => {
-            expect(api.googleCallback).toHaveBeenCalledWith('oauth-code', 'oauth-state');
+            expect(api.googleLogin).toHaveBeenCalledWith('signed-google-id-token');
             expect(api.getCurrentUser).toHaveBeenCalledTimes(2);
         });
     });

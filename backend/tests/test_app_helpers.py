@@ -27,13 +27,5 @@ def test_get_secret_respects_disable_flag(monkeypatch):
     assert auth._get_secret("MY_KEY") is None
 
 
-def test_derive_frontend_redirect(monkeypatch):
-    monkeypatch.delenv("FRONTEND_URL", raising=False)
-    monkeypatch.delenv("NEXT_PUBLIC_SITE_URL", raising=False)
-    monkeypatch.setenv("NEXT_PUBLIC_APP_URL", "https://example.com")
-
-    assert auth._derive_frontend_redirect() == "https://example.com/login"
-
-
 def test_database_loads_invalid_json_returns_empty():
     assert database.Database.loads("not valid") == {}

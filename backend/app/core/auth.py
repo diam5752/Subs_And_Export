@@ -14,7 +14,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from google_auth_oauthlib.flow import Flow
 from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -25,6 +24,10 @@ from .config import settings
 from .database import Database
 
 logger = logging.getLogger(__name__)
+
+
+class GoogleAuthError(ValueError):
+    """A public-safe Google authentication failure."""
 
 
 @dataclass(slots=True)
@@ -111,42 +114,60 @@ class UserStore:
 
     def upsert_google_user(self, email: str, name: str, sub: str) -> User:
         email = email.strip().lower()
+        _validate_email(email)
+        sub = sub.strip()
+        if not sub:
+            raise GoogleAuthError("Google token subject is missing.")
+        if len(sub) > 255:
+            raise GoogleAuthError("Google token subject is too long.")
         # Truncate name for external providers (don't fail)
         final_name = (name.strip() or email.split("@")[0])[:100]
         created = False
         deleted_email = False
-        with self.db.session() as session:
-            existing = session.scalar(select(DbUser).where(DbUser.email == email).limit(1))
-            if existing:
-                existing.name = final_name
-                existing.google_sub = sub
-                existing.provider = "google"
-                existing.password_hash = None
-                session.flush()
-                user = _user_from_db(existing)
-            else:
-                deleted_email = self._email_was_deleted(email, session=session)
-                user = User(
-                    id=secrets.token_hex(8),
-                    email=email,
-                    name=final_name,
-                    provider="google",
-                    google_sub=sub,
-                    created_at=_utc_iso(),
+        try:
+            with self.db.session() as session:
+                existing_identity = session.scalar(
+                    select(DbUser).where(DbUser.google_sub == sub).limit(1)
                 )
-                session.add(
-                    DbUser(
-                        id=user.id,
-                        email=user.email,
-                        name=user.name,
-                        provider=user.provider,
-                        password_hash=None,
-                        google_sub=user.google_sub,
-                        created_at=user.created_at,
-                        email_verified=True,  # Google verifies emails
+                if existing_identity:
+                    existing_identity.name = final_name
+                    existing_identity.email_verified = True
+                    session.flush()
+                    user = _user_from_db(existing_identity)
+                else:
+                    existing_email = session.scalar(
+                        select(DbUser).where(DbUser.email == email).limit(1)
                     )
-                )
-                created = True
+                    if existing_email:
+                        raise GoogleAuthError(
+                            "Google login cannot automatically link an existing email. "
+                            "Log in with the existing account before linking Google."
+                        )
+                    deleted_email = self._email_was_deleted(email, session=session)
+                    user = User(
+                        id=secrets.token_hex(8),
+                        email=email,
+                        name=final_name,
+                        provider="google",
+                        google_sub=sub,
+                        created_at=_utc_iso(),
+                        email_verified=True,
+                    )
+                    session.add(
+                        DbUser(
+                            id=user.id,
+                            email=user.email,
+                            name=user.name,
+                            provider=user.provider,
+                            password_hash=None,
+                            google_sub=user.google_sub,
+                            created_at=user.created_at,
+                            email_verified=True,
+                        )
+                    )
+                    created = True
+        except IntegrityError as exc:
+            raise GoogleAuthError("Google account could not be linked safely.") from exc
 
         if created:
             PointsStore(db=self.db).ensure_account(
@@ -408,87 +429,119 @@ def _get_secret(key: str) -> str | None:
     return None
 
 
-def google_oauth_config() -> dict[str, str] | None:
-    """Read Google OAuth configuration from environment or a secrets file.
-
-    Required:
-        GOOGLE_CLIENT_ID
-        GOOGLE_CLIENT_SECRET
-        GOOGLE_REDIRECT_URI (should point back to the running frontend)
-    """
-    client_id = _get_secret("GOOGLE_CLIENT_ID")
-    client_secret = _get_secret("GOOGLE_CLIENT_SECRET")
-    redirect_uri = _get_secret("GOOGLE_REDIRECT_URI") or _derive_frontend_redirect()
-    if not (client_id and client_secret and redirect_uri):
-        return None
-    return {
-        "client_id": client_id,
-        "client_secret": client_secret,
-        "redirect_uri": redirect_uri,
-    }
+def google_client_id() -> str | None:
+    """Return the public Google Identity Services client ID, if configured."""
+    value = _get_secret("GOOGLE_CLIENT_ID")
+    return value.strip() if value and value.strip() else None
 
 
-def _derive_frontend_redirect() -> str | None:
-    """Best-effort fallback to build a redirect URI from a frontend base URL."""
-    base = (
-        os.getenv("FRONTEND_URL")
-        or os.getenv("NEXT_PUBLIC_SITE_URL")
-        or os.getenv("NEXT_PUBLIC_APP_URL")
-    )
-    if not base:
-        return None
-    return base.rstrip("/") + "/login"
+def create_google_auth_nonce() -> str:
+    """Create an unpredictable nonce for a single Google sign-in attempt."""
+    return secrets.token_urlsafe(32)
 
 
-def build_google_flow(cfg: dict[str, str]) -> Flow:
-    """Create a Google OAuth flow for the configured client."""
-    client_config = {
-        "web": {
-            "client_id": cfg["client_id"],
-            "client_secret": cfg["client_secret"],
-            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-            "token_uri": "https://oauth2.googleapis.com/token",
-            "redirect_uris": [cfg["redirect_uri"]],
-        }
-    }
-    flow = Flow.from_client_config(
-        client_config,
-        scopes=[
-            "openid",
-            "https://www.googleapis.com/auth/userinfo.email",
-            "https://www.googleapis.com/auth/userinfo.profile",
-        ],
-        redirect_uri=cfg["redirect_uri"],
-    )
-    return flow
+def google_auth_nonce_hash(nonce: str) -> str:
+    """Hash a browser-visible nonce before storing it in an HttpOnly cookie."""
+    return hashlib.sha256(nonce.encode("utf-8")).hexdigest()
 
 
-def exchange_google_code(cfg: dict[str, str], code: str) -> dict[str, str]:
-    """Exchange OAuth code for a verified profile dict."""
-    from google.auth.transport.requests import Request
-    from google.oauth2 import id_token
+def _assert_google_nonce(
+    payload: dict[str, Any],
+    *,
+    expected_nonce_hash: str | None,
+    require_nonce: bool,
+) -> None:
+    token_nonce = str(payload.get("nonce") or "")
+    if not expected_nonce_hash:
+        if require_nonce:
+            raise GoogleAuthError("Google login nonce is required.")
+        return
+    if not token_nonce or not hmac.compare_digest(
+        google_auth_nonce_hash(token_nonce),
+        expected_nonce_hash,
+    ):
+        raise GoogleAuthError("Google login nonce could not be verified.")
 
-    # Enforce timeout on cert verification requests (default is infinite)
-    class TimeoutRequest(Request):
+
+def _assert_google_payload_claims(
+    payload: dict[str, Any],
+    *,
+    client_id: str,
+) -> dict[str, str]:
+    if payload.get("aud") != client_id:
+        raise GoogleAuthError("Google token audience is not allowed.")
+    if payload.get("iss") not in {"accounts.google.com", "https://accounts.google.com"}:
+        raise GoogleAuthError("Google token issuer is not allowed.")
+    if payload.get("email_verified") not in {True, "true", "True", "1"}:
+        raise GoogleAuthError("Google email must be verified.")
+
+    raw_sub = payload.get("sub")
+    sub = raw_sub.strip() if isinstance(raw_sub, str) else ""
+    if not sub:
+        raise GoogleAuthError("Google token subject is missing.")
+    if len(sub) > 255:
+        raise GoogleAuthError("Google token subject is too long.")
+
+    exp = payload.get("exp")
+    if exp is None:
+        raise GoogleAuthError("Google token expiry is missing.")
+    try:
+        exp_timestamp = int(exp)
+    except (TypeError, ValueError) as exc:
+        raise GoogleAuthError("Google token expiry is invalid.") from exc
+    if exp_timestamp <= int(time.time()):
+        raise GoogleAuthError("Google token has expired.")
+
+    raw_email = payload.get("email")
+    if not isinstance(raw_email, str) or not raw_email.strip():
+        raise GoogleAuthError("Google profile is missing an email address.")
+    email = raw_email.strip().lower()
+    try:
+        _validate_email(email)
+    except ValueError as exc:
+        raise GoogleAuthError("Google profile email is invalid.") from exc
+
+    raw_name = payload.get("name")
+    name = raw_name.strip() if isinstance(raw_name, str) and raw_name.strip() else email
+    return {"email": email, "name": name[:100], "sub": sub}
+
+
+def verify_google_id_token(
+    token: str,
+    *,
+    expected_nonce_hash: str | None,
+    require_nonce: bool,
+) -> dict[str, str]:
+    """Verify a Google Identity Services ID token and return a safe profile."""
+    if not token:
+        raise GoogleAuthError("Google ID token is required.")
+    if len(token) > 16_384:
+        raise GoogleAuthError("Google ID token is too large.")
+    client_id = google_client_id()
+    if not client_id:
+        raise GoogleAuthError("Google login is not configured.")
+
+    from google.auth.transport.requests import Request as GoogleAuthRequest
+    from google.oauth2 import id_token as google_id_token
+
+    class TimeoutRequest(GoogleAuthRequest):
         def __call__(self, *args: Any, **kwargs: Any) -> Any:
             kwargs.setdefault("timeout", 30)
             return super().__call__(*args, **kwargs)  # type: ignore[no-untyped-call]
 
-    flow = build_google_flow(cfg)
-    # Enforce timeout on token exchange
-    flow.fetch_token(code=code, timeout=30)
-    creds = flow.credentials
-    if not creds or not creds.id_token:
-        raise ValueError("Missing Google ID token")
-    idinfo = id_token.verify_oauth2_token(  # type: ignore[no-untyped-call]
-        creds.id_token, TimeoutRequest(), cfg["client_id"]
+    try:
+        raw_payload = google_id_token.verify_oauth2_token(  # type: ignore[no-untyped-call]
+            token,
+            TimeoutRequest(),
+            client_id,
+            clock_skew_in_seconds=30,
+        )
+    except Exception as exc:
+        raise GoogleAuthError("Google token could not be verified.") from exc
+    payload = dict(raw_payload)
+    _assert_google_nonce(
+        payload,
+        expected_nonce_hash=expected_nonce_hash,
+        require_nonce=require_nonce,
     )
-    raw_email = idinfo.get("email")
-    if not isinstance(raw_email, str) or not raw_email.strip():
-        raise ValueError("Google profile is missing an email address")
-    email = raw_email.strip()
-    raw_name = idinfo.get("name")
-    name = raw_name.strip() if isinstance(raw_name, str) and raw_name.strip() else email
-    raw_sub = idinfo.get("sub")
-    sub = raw_sub.strip() if isinstance(raw_sub, str) else ""
-    return {"email": email, "name": name, "sub": sub}
+    return _assert_google_payload_claims(payload, client_id=client_id)

@@ -32,7 +32,12 @@ class DbUser(Base):
     name: Mapped[str] = mapped_column(String(100))
     provider: Mapped[str] = mapped_column(String(32))
     password_hash: Mapped[str | None] = mapped_column(Text, nullable=True)
-    google_sub: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
+    google_sub: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+        unique=True,
+        index=True,
+    )
     created_at: Mapped[str | None] = mapped_column(String(64), nullable=True)
     email_verified: Mapped[bool] = mapped_column(Boolean, default=False)
 

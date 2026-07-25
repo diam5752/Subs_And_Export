@@ -88,6 +88,12 @@ class Settings(BaseSettings):
         validation_alias="GSP_PROXY_TRUSTED_HOSTS",
     )
     force_https: bool = Field(default=False, validation_alias="GSP_FORCE_HTTPS")
+    google_auth_nonce_ttl_seconds: int = Field(
+        default=600,
+        ge=60,
+        le=900,
+        validation_alias="GSP_GOOGLE_AUTH_NONCE_TTL_SECONDS",
+    )
 
     # --- Database ---
     database_url: str = Field(

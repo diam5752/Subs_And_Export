@@ -57,6 +57,18 @@ describe('next.config', () => {
     expect(csp).toContain('frame-src https://accounts.google.com');
   });
 
+  it('keeps Google Identity popup communication available', async () => {
+    // REGRESSION: COOP "same-origin" severs the window.opener channel that
+    // Google Identity Services uses to return a popup credential.
+    const nextConfigModule = await import('../../next.config');
+    const headers = await nextConfigModule.default.headers?.();
+    const coop = headers?.[0]?.headers?.find(
+      (header) => header.key === 'Cross-Origin-Opener-Policy',
+    )?.value;
+
+    expect(coop).toBe('same-origin-allow-popups');
+  });
+
   it('allows local loopback dev origins for Next assets in CI', async () => {
     // REGRESSION: GitHub Actions Playwright runs can request dev assets from
     // 127.0.0.1 even when the main page uses localhost, which otherwise breaks
