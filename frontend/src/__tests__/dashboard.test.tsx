@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act, within } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import DashboardPage from '@/app/page';
 import { api } from '@/lib/api';
@@ -227,8 +227,10 @@ describe('DashboardPage', () => {
     it('renders the precision header and opens history from its navigation', () => {
         render(<DashboardPage />);
 
-        const studioHeader = screen.getByRole('banner', { name: 'Subframe studio' });
+        const studioHeader = screen.getByRole('banner', { name: 'gsubs studio' });
         expect(studioHeader).toBeInTheDocument();
+        expect(within(studioHeader).getByRole('img', { name: 'gsubs' }))
+            .toHaveAttribute('src', '/brand/gsubs-logo-light.svg');
         expect(screen.getByRole('navigation', { name: 'Workspace navigation' })).toBeInTheDocument();
         expect(screen.getByTestId('studio-intro')).toHaveClass('studio-intro');
         expect(screen.getByTestId('studio-header-credits')).toBeInTheDocument();
@@ -276,6 +278,8 @@ describe('DashboardPage', () => {
 
         expect(termsLink).toBeInTheDocument();
         expect(termsLink.closest('a')).toHaveAttribute('href', '/terms');
+        expect(screen.getByRole('link', { name: /gsubs by Ascentia/i }))
+            .toHaveAttribute('href', 'https://ascentia-gp.com/');
     });
 
     it('shows loading state when isLoading is true', () => {

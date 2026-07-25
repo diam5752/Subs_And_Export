@@ -21,7 +21,10 @@ describe('LegalPage', () => {
         // original uploads after 24 hours.
         renderPage('privacy');
 
+        expect(screen.getByRole('img', { name: 'gsubs' }))
+            .toHaveAttribute('src', '/brand/gsubs-logo-light.svg');
         expect(screen.getByRole('heading', { name: 'Πολιτική Απορρήτου' })).toBeInTheDocument();
+        expect(screen.getByText(/χρειάζεται το gsubs/)).toBeInTheDocument();
         expect(screen.getByText(/ElevenLabs Scribe v2/)).toBeInTheDocument();
         expect(screen.getByText(/αρχεία upload.*24 ώρες/)).toBeInTheDocument();
         expect(screen.queryByText(/Groq/)).not.toBeInTheDocument();
@@ -35,5 +38,7 @@ describe('LegalPage', () => {
         expect(screen.getByText(/AI-generated results/)).toBeInTheDocument();
         expect(screen.getByRole('link', { name: 'Home' })).toHaveAttribute('href', '/');
         expect(screen.getByRole('link', { name: 'Privacy Policy' })).toHaveAttribute('href', '/privacy');
+        expect(screen.getByRole('link', { name: 'gsubs by Ascentia ↗' }))
+            .toHaveAttribute('href', 'https://ascentia-gp.com/');
     });
 });

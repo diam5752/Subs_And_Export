@@ -1,6 +1,6 @@
-# SUBFRAME
+# gsubs
 
-Mock-first subtitle studio for turning a raw vertical clip into editable,
+gsubs is a mock-first subtitle studio for turning a raw vertical clip into editable,
 word-timed captions and an export-ready video. The current mode is deliberately
 zero-cost: it performs the complete workflow with deterministic mock transcript
 and intelligence services and never calls OpenAI, Groq, or another AI provider.

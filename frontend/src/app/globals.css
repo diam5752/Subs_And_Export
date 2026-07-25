@@ -686,8 +686,8 @@ select:focus-visible,
 }
 
 .footer-brand img {
-  width: 32px;
-  height: 32px;
+  width: 88px;
+  height: auto;
   object-fit: contain;
 }
 
@@ -929,7 +929,7 @@ select:focus-visible,
 }
 
 /* --------------------------------------------------------------------------
-   Subframe White Precision — concept 01
+   gsubs White Precision — production brand
    -------------------------------------------------------------------------- */
 
 :root,

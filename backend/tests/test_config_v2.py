@@ -18,6 +18,8 @@ def test_settings_defaults(monkeypatch) -> None:
     assert settings.paid_credits_enabled is False
     assert settings.stripe_automatic_tax_enabled is False
     assert settings.external_provider_price_safety_multiplier == 1.25
+    assert settings.watermark_path.name == "gsubs-logo.png"
+    assert settings.watermark_path.exists()
 
 
 def test_settings_environment_overrides(monkeypatch) -> None:

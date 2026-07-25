@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { useI18n } from '@/context/I18nContext';
 import { Spinner } from '@/components/Spinner';
+import { BrandLogo } from '@/components/BrandLogo';
 
 export default function RegisterPage() {
     const [name, setName] = useState('');
@@ -35,7 +36,9 @@ export default function RegisterPage() {
     return (
         <div className="auth-shell">
             <header className="auth-header">
-                <Link href="/" className="auth-wordmark">SUBFRAME</Link>
+                <Link href="/" className="auth-wordmark" aria-label={t('brandHomeLabel')}>
+                    <BrandLogo className="block h-auto w-[132px] sm:w-[164px]" />
+                </Link>
             </header>
 
             <main className="auth-main animate-fade-in">
@@ -129,7 +132,7 @@ export default function RegisterPage() {
             </main>
 
             <footer className="auth-footer">
-                <span>ASCENTIA</span>
+                <span>gsubs</span>
                 <span>{t('loginFooter', { year: new Date().getFullYear() })}</span>
             </footer>
         </div>

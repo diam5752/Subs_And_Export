@@ -150,6 +150,8 @@ describe('AccountView', () => {
         await waitFor(() => expect(api.exportData).toHaveBeenCalled());
         await waitFor(() => expect(mockCreateObjectURL).toHaveBeenCalled());
         expect(anchorClick).toHaveBeenCalledTimes(1);
+        expect(anchorClick.mock.contexts[0].download)
+            .toMatch(/^gsubs-data-\d{4}-\d{2}-\d{2}\.json$/);
         await waitFor(() => expect(mockRevokeObjectURL).toHaveBeenCalled());
 
         anchorClick.mockRestore();

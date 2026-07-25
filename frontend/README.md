@@ -1,6 +1,6 @@
-# SUBFRAME web app
+# gsubs web app
 
-Next.js 16 / React 19 / Tailwind CSS 4 frontend for the SUBFRAME subtitle
+Next.js 16 / React 19 / Tailwind CSS 4 frontend for the gsubs subtitle
 studio. `npm` and `package-lock.json` are the package-manager source of truth.
 
 ```bash

@@ -8,25 +8,26 @@ import { AppEnvProvider } from "@/context/AppEnvContext";
 import { normalizeAppEnv } from "@/lib/appEnv";
 import { PointsProvider } from "@/context/PointsContext";
 import { PwaRegistration } from "@/components/PwaRegistration";
+import { BRAND } from "@/lib/brand";
 
 
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  applicationName: "Subframe",
+  applicationName: BRAND.name,
   title: {
-    default: "Subframe · Subtitle Studio",
-    template: "%s · Subframe",
+    default: BRAND.productTitle,
+    template: `%s · ${BRAND.name}`,
   },
-  description: "Mobile-first subtitle studio for Greek and multilingual short-form video.",
+  description: BRAND.description,
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Subframe",
+    title: BRAND.name,
   },
   icons: {
-    icon: "/icon.png",
-    apple: "/icon.png",
+    icon: BRAND.assets.icon,
+    apple: BRAND.assets.appleIcon,
   },
 };
 

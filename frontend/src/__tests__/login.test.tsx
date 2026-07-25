@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import LoginPage from '@/app/login/page';
 import { api } from '@/lib/api';
@@ -60,6 +60,10 @@ describe('LoginPage', () => {
 
     it('renders login form by default', () => {
         render(<LoginPage />);
+        const homeLink = screen.getByRole('link', { name: 'brandHomeLabel' });
+        expect(within(homeLink).getByRole('img', { name: 'gsubs' }))
+            .toHaveAttribute('src', '/brand/gsubs-logo-light.svg');
+        expect(screen.getByText('gsubs')).toBeInTheDocument();
         expect(screen.getByText('loginHeading')).toBeInTheDocument();
         expect(screen.getByPlaceholderText('loginEmailPlaceholder')).toBeInTheDocument();
         expect(screen.queryByText(/Mock|€0/)).not.toBeInTheDocument();

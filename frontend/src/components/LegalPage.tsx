@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { LanguageToggle } from '@/components/LanguageToggle';
 import { useI18n } from '@/context/I18nContext';
 import type { MessageKey } from '@/context/i18nMessages';
+import { BrandLogo } from '@/components/BrandLogo';
 
 type LegalPageKind = 'privacy' | 'terms';
 
@@ -50,10 +51,10 @@ export function LegalPage({ kind }: LegalPageProps) {
                 <div className="mx-auto flex min-h-[72px] w-full max-w-5xl items-center justify-between gap-4 px-5 sm:px-8">
                     <Link
                         href="/"
-                        className="inline-flex min-h-11 items-center text-sm font-extrabold tracking-[0.15em]"
+                        className="inline-flex min-h-11 items-center"
                         aria-label={t('brandHomeLabel')}
                     >
-                        SUBFRAME
+                        <BrandLogo className="block h-auto w-[132px] sm:w-[164px]" />
                     </Link>
                     <LanguageToggle />
                 </div>
@@ -95,7 +96,7 @@ export function LegalPage({ kind }: LegalPageProps) {
                     rel="noopener noreferrer"
                     className="inline-flex min-h-11 items-center font-semibold hover:text-[var(--foreground)]"
                 >
-                    ASCENTIA ↗
+                    gsubs by Ascentia ↗
                 </a>
             </footer>
         </div>

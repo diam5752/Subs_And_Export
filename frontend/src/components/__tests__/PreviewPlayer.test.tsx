@@ -103,7 +103,9 @@ describe('PreviewPlayer', () => {
             />,
         );
 
-        expect(screen.getByAltText('Watermark')).toBeInTheDocument();
+        const watermark = screen.getByAltText('gsubs watermark');
+        expect(watermark).toHaveAttribute('src', '/gsubs-watermark.png');
+        expect(watermark.parentElement).toHaveClass('w-[30%]');
 
         const video = container.querySelector('video') as HTMLVideoElement;
         Object.defineProperty(video, 'currentTime', {

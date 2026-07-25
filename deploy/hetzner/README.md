@@ -1,9 +1,13 @@
 # Hetzner production lane
 
-SUBFRAME runs as an independent Docker Compose project on the MizAI Hetzner VM.
+gsubs runs as an independent Docker Compose project on the MizAI Hetzner VM.
 It shares only the existing edge network so a reverse proxy can reach the
 `subframe-edge` alias. PostgreSQL, media data, logs, images and the private
 network remain separate from MizAI and the other projects on the host.
+
+The `SUBFRAME_*`, `subframe-*`, and `/home/mizai/subframe` identifiers below are
+stable internal deployment contracts. The public product name is gsubs; these
+legacy infrastructure identifiers stay unchanged to preserve compatibility.
 
 ```bash
 cp deploy/hetzner/subframe.env.example .env.production
@@ -40,5 +44,5 @@ The frontend uses a same-origin API URL, so changing the domain does not require
 a separate frontend code change.
 
 Before every release, back up MizAI and copy that encrypted backup off-server.
-After SUBFRAME has user data, run `deploy/hetzner/backup.sh` and copy its output
+After gsubs has user data, run `deploy/hetzner/backup.sh` and copy its output
 off-server as well.

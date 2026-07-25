@@ -7,6 +7,7 @@ import {
 } from './SubtitleOverlay';
 import type { InlineSubtitleEditorLabels } from './InlineSubtitleEditor';
 import { findCueIndexAtTime } from '@/lib/subtitleUtils';
+import { BRAND } from '@/lib/brand';
 
 export interface PreviewPlayerHandle {
     seekTo: (time: number) => void;
@@ -324,13 +325,13 @@ export const PreviewPlayer = memo(forwardRef<PreviewPlayerHandle, PreviewPlayerP
                 {/* Watermark Overlay */}
                 {settings.watermarkEnabled && (
                     <div
-                        className="absolute bottom-[40px] right-[40px] z-20 w-[15%] animate-in fade-in duration-500"
+                        className="absolute bottom-[40px] right-[40px] z-20 w-[30%] animate-in fade-in duration-500"
                     >
                         <Image
-                            src="/ascentia-logo.png"
-                            alt="Watermark"
-                            width={1280}
-                            height={1280}
+                            src={BRAND.assets.watermark}
+                            alt="gsubs watermark"
+                            width={1360}
+                            height={304}
                             sizes="20vw"
                             className="w-full h-auto opacity-90"
                         />

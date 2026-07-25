@@ -8,6 +8,7 @@ import { api } from '@/lib/api';
 import { redirectTo } from '@/lib/navigation';
 import { useI18n } from '@/context/I18nContext';
 import { Spinner } from '@/components/Spinner';
+import { BrandLogo } from '@/components/BrandLogo';
 
 function LoginContent() {
     const [email, setEmail] = useState('');
@@ -92,7 +93,9 @@ function LoginContent() {
     return (
         <div className="auth-shell">
             <header className="auth-header">
-                <Link href="/" className="auth-wordmark">SUBFRAME</Link>
+                <Link href="/" className="auth-wordmark" aria-label={t('brandHomeLabel')}>
+                    <BrandLogo className="block h-auto w-[132px] sm:w-[164px]" />
+                </Link>
             </header>
 
             <main className="auth-main animate-fade-in">
@@ -193,7 +196,7 @@ function LoginContent() {
             </main>
 
             <footer className="auth-footer">
-                <span>ASCENTIA</span>
+                <span>gsubs</span>
                 <span>{t('loginFooter', { year: new Date().getFullYear() })}</span>
             </footer>
         </div>

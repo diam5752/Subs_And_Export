@@ -109,4 +109,4 @@ if [ ! -f "$STATE_FILE" ] || [ "$(cat "$STATE_FILE")" != "$release_sha" ]; then
   exit 1
 fi
 
-printf 'Verified SUBFRAME release %s on loopback port %s.\n' "$release_sha" "$preview_port"
+printf 'Verified gsubs release %s on loopback port %s.\n' "$release_sha" "$preview_port"

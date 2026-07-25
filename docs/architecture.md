@@ -1,4 +1,4 @@
-# SUBFRAME architecture
+# gsubs architecture
 
 ## Current runtime contract
 

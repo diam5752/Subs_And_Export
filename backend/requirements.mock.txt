@@ -1,4 +1,4 @@
-# Minimal production runtime for SUBFRAME's zero-cost mock mode.
+# Minimal production runtime for gsubs' zero-cost mock mode.
 # Live transcription/provider packages are deliberately excluded.
 fastapi>=0.110.0
 uvicorn[standard]>=0.27.0

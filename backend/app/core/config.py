@@ -72,7 +72,7 @@ class Settings(BaseSettings):
     # --- Project Paths ---
     project_root: Path = PROJECT_ROOT
     data_dir: Path = PROJECT_ROOT / "data"
-    watermark_path: Path = PROJECT_ROOT / "Ascentia_Logo.png"
+    watermark_path: Path = PROJECT_ROOT / "gsubs-logo.png"
 
     # --- API & Security ---
     allowed_origins: Annotated[list[str], NoDecode] = Field(

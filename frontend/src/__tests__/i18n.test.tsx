@@ -128,6 +128,10 @@ afterEach(() => {
 describe('i18n provider defaults and persistence', () => {
     it('keeps locale dictionaries in sync', () => {
         expect(Object.keys(messages.el).sort()).toEqual(Object.keys(messages.en).sort());
+        expect(messages.el.brandBadge).toBe('GSUBS STUDIO');
+        expect(messages.en.brandBadge).toBe('GSUBS STUDIO');
+        expect(messages.el.watermarkDesc).toContain('gsubs');
+        expect(messages.en.watermarkDesc).toContain('gsubs');
     });
 
     it('covers every translation key used by production source files', () => {

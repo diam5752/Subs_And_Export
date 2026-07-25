@@ -85,7 +85,7 @@ public class AppProperties {
     }
 
     public Path watermarkPath() {
-        return Path.of("Ascentia_Logo.png");
+        return Path.of("gsubs-logo.png");
     }
 
     public static List<String> csvToList(String raw) {

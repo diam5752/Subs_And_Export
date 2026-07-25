@@ -1,10 +1,11 @@
 import type { MetadataRoute } from 'next';
+import { BRAND } from '@/lib/brand';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Subframe · Subtitle Studio',
-    short_name: 'Subframe',
-    description: 'Create, edit and export mobile-first subtitles for short-form video.',
+    name: BRAND.productTitle,
+    short_name: BRAND.name,
+    description: BRAND.description,
     start_url: '/',
     display: 'standalone',
     background_color: '#08090c',
@@ -14,13 +15,13 @@ export default function manifest(): MetadataRoute.Manifest {
     categories: ['video', 'productivity', 'utilities'],
     icons: [
       {
-        src: '/icon.png',
+        src: BRAND.assets.icon,
         sizes: '1024x1024',
         type: 'image/png',
         purpose: 'any',
       },
       {
-        src: '/icon.png',
+        src: BRAND.assets.icon,
         sizes: '1024x1024',
         type: 'image/png',
         purpose: 'maskable',

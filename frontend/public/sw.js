@@ -1,4 +1,4 @@
-const CACHE_NAME = 'subframe-shell-v1';
+const CACHE_NAME = 'gsubs-shell-v2';
 const SHELL = ['/', '/login', '/offline', '/manifest.webmanifest', '/icon.png'];
 
 self.addEventListener('install', (event) => {

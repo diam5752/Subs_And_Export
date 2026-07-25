@@ -27,6 +27,7 @@ RUN pip install --no-cache-dir /wheels/* && rm -rf /wheels
 
 # Copy source code
 COPY backend/ .
+COPY gsubs-logo.png /gsubs-logo.png
 
 # Create directories for data and logs
 RUN mkdir -p /data/uploads /data/artifacts /logs /app/logs

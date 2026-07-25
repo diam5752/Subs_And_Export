@@ -69,6 +69,13 @@ def test_production_environment_defaults_do_not_prune_shared_cache() -> None:
     environment = deployment_text("subframe.env.example")
     deploy_script = deployment_text("deploy-production.sh")
 
+    assert "SUBFRAME_HOSTNAME=gsubs.gr" in environment
+    assert "GSP_ALLOWED_ORIGINS=https://gsubs.gr,https://www.gsubs.gr" in environment
+    assert (
+        "GSP_TRUSTED_HOSTS=gsubs.gr,www.gsubs.gr,backend,localhost,127.0.0.1"
+        in environment
+    )
+    assert "subframe.mizai.gr" not in environment
     assert "SUBFRAME_PREVIEW_PORT=18090" in environment
     assert "SUBFRAME_PRUNE_BUILD_CACHE=0" in environment
     assert '${SUBFRAME_PRUNE_BUILD_CACHE:-0}' in deploy_script
@@ -90,6 +97,43 @@ def test_docker_build_context_excludes_production_secrets_and_state() -> None:
     assert "**/.env*" in dockerignore.splitlines()
     assert ".runtime/" in dockerignore.splitlines()
     assert "backups/" in dockerignore.splitlines()
+
+
+def test_backend_image_contains_the_gsubs_watermark() -> None:
+    dockerfile = (REPOSITORY_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    watermark = REPOSITORY_ROOT / "gsubs-logo.png"
+
+    assert watermark.is_file()
+    assert "COPY gsubs-logo.png /gsubs-logo.png" in dockerfile
+
+
+def test_frontend_image_applies_the_patched_dependency_compatibility_export() -> None:
+    dockerfile = (REPOSITORY_ROOT / "frontend" / "Dockerfile").read_text(encoding="utf-8")
+    package = (REPOSITORY_ROOT / "frontend" / "package.json").read_text(encoding="utf-8")
+    patch_script = REPOSITORY_ROOT / "frontend" / "scripts" / "patch-brace-expansion.cjs"
+    script_copy = "COPY scripts/patch-brace-expansion.cjs"
+
+    assert '"brace-expansion": "5.0.8"' in package
+    assert '"postinstall": "node scripts/patch-brace-expansion.cjs"' in package
+    assert patch_script.is_file()
+    assert script_copy in dockerfile
+    assert dockerfile.index(script_copy) < dockerfile.index("RUN npm ci")
+
+
+def test_frontend_build_context_excludes_generated_and_local_state() -> None:
+    dockerignore = (REPOSITORY_ROOT / "frontend" / ".dockerignore").read_text(
+        encoding="utf-8",
+    ).splitlines()
+
+    for expected in (
+        "node_modules/",
+        ".next/",
+        "coverage/",
+        "test-results/",
+        "playwright-report/",
+        ".env*",
+    ):
+        assert expected in dockerignore
 
 
 def test_deployment_shell_scripts_have_valid_syntax() -> None:

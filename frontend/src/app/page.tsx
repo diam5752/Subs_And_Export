@@ -17,6 +17,7 @@ import { useJobs } from '@/hooks/useJobs';
 import { useJobPolling, JobPollingCallbacks } from '@/hooks/useJobPolling';
 import { processVideoCostForSelection } from '@/lib/points';
 import Link from 'next/link';
+import { BrandLogo } from '@/components/BrandLogo';
 
 const statusStyles: Record<string, string> = {
   completed: 'bg-green-500/15 text-green-300 border-green-500/30',
@@ -494,12 +495,12 @@ export default function DashboardPage() {
     <div className="app-shell min-h-dvh relative overflow-x-hidden">
       <header
         className="studio-header"
-        aria-label="Subframe studio"
+        aria-label="gsubs studio"
         aria-hidden={hasBlockingModal || undefined}
         inert={hasBlockingModal ? true : undefined}
       >
         <Link href="/" className="studio-brand" aria-label={t('brandHomeLabel')}>
-          <strong>SUBFRAME</strong>
+          <BrandLogo className="block h-auto w-[132px] sm:w-[164px]" />
         </Link>
 
         <nav className="studio-nav" aria-label="Workspace navigation">
@@ -599,7 +600,8 @@ export default function DashboardPage() {
 
         <footer className="studio-footer">
           <a href="https://ascentia-gp.com/" target="_blank" rel="noopener noreferrer" className="footer-brand">
-            <span><strong>ASCENTIA</strong><small>Built for creators</small></span>
+            <BrandLogo className="block h-auto w-[108px]" />
+            <span><small>by Ascentia</small></span>
           </a>
           <div className="footer-links">
             <a href="/privacy">{t('cookieLearnMore') || 'Privacy Policy'}</a>

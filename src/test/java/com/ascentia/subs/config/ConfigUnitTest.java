@@ -94,7 +94,7 @@ class ConfigUnitTest {
         assertThat(properties.getGcsSignerEmail()).isEqualTo("signer@example.com");
         assertThat(properties.getAdminEmails()).isEqualTo("admin@example.com");
         assertThat(properties.dataDir().toString()).isEqualTo("data");
-        assertThat(properties.watermarkPath().toString()).isEqualTo("Ascentia_Logo.png");
+        assertThat(properties.watermarkPath().toString()).isEqualTo("gsubs-logo.png");
         assertThat(AppProperties.csvToList(null)).isEmpty();
         assertThat(AppProperties.csvToList(" one, , two ")).containsExactly("one", "two");
     }

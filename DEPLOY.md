@@ -1,6 +1,6 @@
 # Optional Google Cloud Run lane
 
-The active SUBFRAME production procedure is documented in
+The active gsubs production procedure is documented in
 `deploy/hetzner/README.md`. The Cloud Build files remain available as an
 optional deployment lane:
 
