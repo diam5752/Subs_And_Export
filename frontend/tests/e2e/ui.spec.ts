@@ -603,7 +603,11 @@ test('unauthenticated users can open the upload workspace before login', async (
 
   await expect(page).toHaveURL(/\/$/);
   await expect(page.getByTestId('upload-section')).toBeVisible();
-  await expect(page.getByText(el.uploadDropFootnote.replace('{duration}', '10:00'))).toBeVisible();
+  await expect(page.getByText(
+    el.uploadDropFootnote
+      .replace('{size}', '500')
+      .replace('{duration}', '10:00'),
+  )).toBeVisible();
   await expect(page.getByRole('button', { name: el.guestSignIn })).toBeVisible();
   await expect(page.getByRole('button', { name: el.profileLabel })).toHaveCount(0);
 });

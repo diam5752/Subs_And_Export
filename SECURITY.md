@@ -9,7 +9,7 @@ This repository contains security hardening in code, but **production security a
 - Optionally set `GSP_PROXY_TRUSTED_HOSTS` to the proxy CIDRs/IPs that should be allowed to set `X-Forwarded-*`.
 
 ### Upload Limits
-- Backend enforces **max upload size 1GiB** and **max duration 3 minutes**.
+- Backend enforces a **500 MB maximum upload size** and **10-minute maximum duration** by default.
 - Cloud Run has request body limits; for large uploads use **direct-to-GCS uploads** (signed URL / resumable upload), then pass the object name to the backend.
 - When `GSP_GCS_BUCKET` is set, processed `/static/*` responses can be served via **signed GCS URLs** (redirect), so artifacts persist across Cloud Run restarts.
 

@@ -213,14 +213,27 @@ describe('UploadSection', () => {
         expect(contextValue.setOverrideStep).toHaveBeenCalledWith(null);
     });
 
-    it('rejects files above the configured upload ceiling before processing', () => {
+    it('accepts a file at the 500 MB upload ceiling', () => {
+        const atLimit = new File(['video'], 'at-limit.mp4', { type: 'video/mp4' });
+        Object.defineProperty(atLimit, 'size', { value: 500 * 1024 * 1024 });
+        const { container } = renderUpload();
+        const input = container.querySelector('input[type="file"]') as HTMLInputElement;
+
+        fireEvent.change(input, { target: { files: [atLimit] } });
+
+        expect(screen.queryByText('uploadFileTooLarge')).not.toBeInTheDocument();
+        expect(contextValue.onFileSelect).toHaveBeenCalledWith(atLimit);
+    });
+
+    it('rejects files above the 500 MB upload ceiling before processing', () => {
         const oversized = new File(['video'], 'oversized.mp4', { type: 'video/mp4' });
-        Object.defineProperty(oversized, 'size', { value: 1024 * 1024 * 1024 + 1 });
+        Object.defineProperty(oversized, 'size', { value: 500 * 1024 * 1024 + 1 });
         const { container } = renderUpload();
         const input = container.querySelector('input[type="file"]') as HTMLInputElement;
 
         fireEvent.change(input, { target: { files: [oversized] } });
 
+        // REGRESSION: the public release previously rejected files above 95 MB.
         expect(screen.getByText('uploadFileTooLarge')).toBeInTheDocument();
         expect(contextValue.onFileSelect).not.toHaveBeenCalled();
     });

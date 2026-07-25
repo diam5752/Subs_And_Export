@@ -38,7 +38,7 @@
   "statusCheckFailed": "Failed to check job status",
   "uploadDropTitle": "Choose video",
   "uploadDropSubtitle": "or drag the file here",
-  "uploadDropFootnote": "MP4, MOV or MKV · up to {duration}",
+  "uploadDropFootnote": "MP4, MOV or MKV · up to {size} MB · up to {duration}",
   "inputVideoTitle": "Input video",
   "inputVideoSummaryToggle": "Show or hide input video details",
   "uploadUnsupportedType": "Unsupported file type. Upload an MP4, MOV, or MKV video.",

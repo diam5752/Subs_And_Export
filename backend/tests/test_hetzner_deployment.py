@@ -67,9 +67,19 @@ def test_production_verifier_requires_every_fail_closed_runtime_setting() -> Non
 
 def test_production_environment_defaults_do_not_prune_shared_cache() -> None:
     environment = deployment_text("subframe.env.example")
+    compose = deployment_text("docker-compose.production.yml")
     deploy_script = deployment_text("deploy-production.sh")
+    frontend_dockerfile = (
+        REPOSITORY_ROOT / "frontend" / "Dockerfile"
+    ).read_text(encoding="utf-8")
 
     assert "SUBFRAME_HOSTNAME=gsubs.gr" in environment
+    # REGRESSION: the browser and backend production ceilings both used 95 MB
+    # while other runtime defaults silently allowed 1 GiB.
+    assert "SUBFRAME_MAX_UPLOAD_MB=500" in environment
+    assert "GSP_MAX_UPLOAD_MB=500" in environment
+    assert "NEXT_PUBLIC_MAX_UPLOAD_MB: ${SUBFRAME_MAX_UPLOAD_MB:-500}" in compose
+    assert "ARG NEXT_PUBLIC_MAX_UPLOAD_MB=500" in frontend_dockerfile
     assert "GSP_ALLOWED_ORIGINS=https://gsubs.gr,https://www.gsubs.gr" in environment
     assert (
         "GSP_TRUSTED_HOSTS=gsubs.gr,www.gsubs.gr,backend,localhost,127.0.0.1"

@@ -12,10 +12,11 @@ import {
 } from '@/lib/points';
 import { resolveTranscriptionTier } from '@/lib/transcription';
 
-const parsedMaxUploadMb = Number(process.env.NEXT_PUBLIC_MAX_UPLOAD_MB ?? '1024');
+const DEFAULT_MAX_UPLOAD_MB = 500;
+const parsedMaxUploadMb = Number(process.env.NEXT_PUBLIC_MAX_UPLOAD_MB ?? DEFAULT_MAX_UPLOAD_MB);
 const MAX_UPLOAD_MB = Number.isFinite(parsedMaxUploadMb) && parsedMaxUploadMb > 0
     ? Math.floor(parsedMaxUploadMb)
-    : 1024;
+    : DEFAULT_MAX_UPLOAD_MB;
 const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
 const parsedMaxVideoDurationSeconds = Number(process.env.NEXT_PUBLIC_MAX_VIDEO_DURATION_SECONDS ?? '600');
 const MAX_VIDEO_DURATION_SECONDS = Number.isFinite(parsedMaxVideoDurationSeconds) && parsedMaxVideoDurationSeconds > 0
@@ -578,7 +579,10 @@ export function UploadSection() {
                         {isDragOver ? t('dropFileHere') : t('uploadDropTitle')}
                     </span>
                     <p>{isDragOver ? t('releaseToUpload') : t('uploadDropSubtitle')}</p>
-                    <small>{t('uploadDropFootnote', { duration: MAX_VIDEO_DURATION_LABEL })}</small>
+                    <small>{t('uploadDropFootnote', {
+                        size: MAX_UPLOAD_MB,
+                        duration: MAX_VIDEO_DURATION_LABEL,
+                    })}</small>
                 </div>
 
                 {fileValidationError && (

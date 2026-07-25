@@ -14,6 +14,9 @@ def test_settings_defaults(monkeypatch) -> None:
     settings = Settings(_env_file=None)  # Disable .env loading for this test
     assert settings.app_env == AppEnv.PRODUCTION
     assert not settings.is_dev
+    # REGRESSION: production previously advertised 95 MB while local defaults
+    # silently allowed 1 GiB.
+    assert settings.max_upload_mb == 500
     assert settings.max_video_duration_seconds == 600
     assert settings.paid_credits_enabled is False
     assert settings.stripe_automatic_tax_enabled is False
@@ -42,6 +45,13 @@ def test_settings_environment_overrides(monkeypatch) -> None:
     assert settings.max_video_duration_seconds == 480
     assert settings.allowed_origins == ["https://one.example", "https://two.example"]
     assert settings.trusted_hosts == ["localhost", "127.0.0.1"]
+
+
+def test_settings_rejects_nonpositive_upload_limit(monkeypatch) -> None:
+    monkeypatch.setenv("GSP_MAX_UPLOAD_MB", "0")
+
+    with pytest.raises(ValueError, match="greater than 0"):
+        Settings(_env_file=None)
 
 
 def test_settings_pricing_integration() -> None:

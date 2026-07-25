@@ -252,7 +252,7 @@ class Settings(BaseSettings):
     max_llm_output_tokens_extraction: int = 1000
     max_llm_output_tokens_social: int = 3000
     max_llm_output_tokens_factcheck: int = 6000
-    max_upload_mb: int = Field(default=1024, validation_alias="GSP_MAX_UPLOAD_MB")
+    max_upload_mb: int = Field(default=500, gt=0, validation_alias="GSP_MAX_UPLOAD_MB")
     signup_limit_per_ip_per_day: int = 5
     static_rate_limit: int = 60
     static_rate_limit_window: int = 60

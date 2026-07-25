@@ -38,7 +38,7 @@
   "statusCheckFailed": "Αποτυχία ελέγχου κατάστασης",
   "uploadDropTitle": "Επιλογή βίντεο",
   "uploadDropSubtitle": "ή σύρε το αρχείο εδώ",
-  "uploadDropFootnote": "MP4, MOV ή MKV · έως {duration}",
+  "uploadDropFootnote": "MP4, MOV ή MKV · έως {size} MB · έως {duration}",
   "inputVideoTitle": "Βίντεο εισόδου",
   "inputVideoSummaryToggle": "Εμφάνιση ή απόκρυψη λεπτομερειών βίντεο",
   "uploadUnsupportedType": "Μη υποστηριζόμενος τύπος αρχείου. Ανέβασε βίντεο MP4, MOV ή MKV.",

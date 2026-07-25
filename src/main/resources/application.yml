@@ -63,7 +63,7 @@ app:
   trusted-hosts: ${GSP_TRUSTED_HOSTS:localhost,127.0.0.1,0.0.0.0,[::1],testserver}
   proxy-trusted-hosts: ${GSP_PROXY_TRUSTED_HOSTS:127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
   force-https: ${GSP_FORCE_HTTPS:false}
-  max-upload-mb: ${GSP_MAX_UPLOAD_MB:1024}
+  max-upload-mb: ${GSP_MAX_UPLOAD_MB:500}
   max-video-duration-seconds: ${GSP_MAX_VIDEO_DURATION_SECONDS:600}
   max-concurrent-jobs: 2
   static-rate-limit: 60

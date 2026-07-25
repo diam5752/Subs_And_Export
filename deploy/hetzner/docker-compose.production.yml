@@ -79,7 +79,7 @@ services:
       dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_API_URL: ""
-        NEXT_PUBLIC_MAX_UPLOAD_MB: ${SUBFRAME_MAX_UPLOAD_MB:-95}
+        NEXT_PUBLIC_MAX_UPLOAD_MB: ${SUBFRAME_MAX_UPLOAD_MB:-500}
         NEXT_PUBLIC_MAX_VIDEO_DURATION_SECONDS: ${SUBFRAME_MAX_VIDEO_DURATION_SECONDS:-600}
     environment:
       NODE_ENV: production
