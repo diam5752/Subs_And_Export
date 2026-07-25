@@ -34,6 +34,8 @@ describe('static application routes', () => {
         const assetPaths = [
             'brand/gsubs-logo-light.svg',
             'brand/gsubs-logo-dark.svg',
+            'brand/gsubs-logo-stacked-light.svg',
+            'brand/gsubs-logo-stacked-dark.svg',
             'brand/gsubs-mark.svg',
             'brand/gsubs-watermark.svg',
             'gsubs-watermark.png',

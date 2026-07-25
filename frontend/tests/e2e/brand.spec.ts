@@ -9,10 +9,17 @@ test('gsubs branding is visible across the public shell and metadata', async ({ 
   const header = page.getByRole('banner', { name: 'gsubs studio' });
   const headerLogo = header.getByRole('img', { name: 'gsubs' });
   await expect(headerLogo).toBeVisible();
-  await expect(headerLogo).toHaveAttribute('src', '/brand/gsubs-logo-light.svg');
+  // REGRESSION: The header logo should stack the wordmark below the symbol.
+  await expect(headerLogo).toHaveAttribute('src', '/brand/gsubs-logo-stacked-light.svg');
+  await expect(headerLogo).toHaveCSS('width', '80px');
   const footerLogo = page.locator('.footer-brand img');
   await expect(footerLogo).toBeVisible();
+  await expect(footerLogo).toHaveAttribute('src', '/brand/gsubs-logo-light.svg');
   await expect(footerLogo).toHaveCSS('width', '88px');
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(headerLogo).toHaveCSS('width', '68px');
+  await expect(headerLogo).toBeVisible();
   await expect(page).toHaveTitle('gsubs · Subtitle Studio');
 
   const manifestResponse = await page.request.get('/manifest.webmanifest');
@@ -26,6 +33,8 @@ test('gsubs branding is visible across the public shell and metadata', async ({ 
   for (const asset of [
     '/brand/gsubs-logo-light.svg',
     '/brand/gsubs-logo-dark.svg',
+    '/brand/gsubs-logo-stacked-light.svg',
+    '/brand/gsubs-logo-stacked-dark.svg',
     '/brand/gsubs-mark.svg',
     '/gsubs-watermark.png',
     '/icon.png',

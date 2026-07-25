@@ -9,6 +9,8 @@ describe('gsubs brand contract', () => {
             assets: {
                 logoLight: '/brand/gsubs-logo-light.svg',
                 logoDark: '/brand/gsubs-logo-dark.svg',
+                logoStackedLight: '/brand/gsubs-logo-stacked-light.svg',
+                logoStackedDark: '/brand/gsubs-logo-stacked-dark.svg',
                 mark: '/brand/gsubs-mark.svg',
                 watermark: '/gsubs-watermark.png',
                 icon: '/icon.png',
