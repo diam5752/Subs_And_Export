@@ -357,12 +357,6 @@ export default function DashboardPage() {
     pendingProcessingCost,
   ]);
 
-  const openOptionalSignIn = useCallback(() => {
-    setPendingProcessingAction(null);
-    setProcessingGateError('');
-    setProcessingGateStage('auth');
-  }, []);
-
   const closeCreditPurchase = useCallback(() => {
     setShowCreditPurchase(false);
     if (user) void refreshBalance();
@@ -545,13 +539,12 @@ export default function DashboardPage() {
               </button>
             </>
           ) : (
-            <button
-              type="button"
-              onClick={openOptionalSignIn}
-              className="min-h-10 rounded-full border border-[var(--border-strong)] bg-white px-4 text-sm font-semibold text-[var(--foreground)] transition-colors hover:bg-[#f5f5f4]"
+            <Link
+              href="/login"
+              className="inline-flex min-h-10 items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-4 text-sm font-semibold text-[var(--foreground)] transition-colors hover:bg-[#f5f5f4]"
             >
               {t('guestSignIn')}
-            </button>
+            </Link>
           )}
         </div>
       </header>

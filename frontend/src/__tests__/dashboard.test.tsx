@@ -342,7 +342,8 @@ describe('DashboardPage', () => {
         render(<DashboardPage />);
 
         expect(screen.getByTestId('process-view')).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: 'guestSignIn' })).toBeInTheDocument();
+        const signInLink = screen.getByRole('link', { name: 'guestSignIn' });
+        expect(signInLink).toHaveAttribute('href', '/login');
         expect(screen.queryByLabelText('profileLabel')).not.toBeInTheDocument();
         expect(screen.queryByTestId('studio-header-credits')).not.toBeInTheDocument();
     });

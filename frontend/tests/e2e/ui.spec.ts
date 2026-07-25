@@ -622,6 +622,10 @@ test('unauthenticated users can open the upload workspace before login', async (
       .replace('{size}', '500')
       .replace('{duration}', '10:00'),
   )).toBeVisible();
-  await expect(page.getByRole('button', { name: el.guestSignIn })).toBeVisible();
+  const signInLink = page.getByRole('link', { name: el.guestSignIn });
+  await expect(signInLink).toBeVisible();
+  await expect(signInLink).toHaveAttribute('href', '/login');
+  await signInLink.click();
+  await expect(page).toHaveURL(/\/login$/);
   await expect(page.getByRole('button', { name: el.profileLabel })).toHaveCount(0);
 });

@@ -518,7 +518,7 @@ export async function waitForUploadWorkspace(
   if (authenticated) {
     await waitForDashboardShell(page);
   } else {
-    await page.getByRole('button', { name: el.guestSignIn }).waitFor({
+    await page.getByRole('link', { name: el.guestSignIn }).waitFor({
       state: 'visible',
       timeout: 30_000,
     });

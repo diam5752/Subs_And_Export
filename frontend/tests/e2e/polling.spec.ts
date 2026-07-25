@@ -47,7 +47,7 @@ test.describe('Job Polling E2E', () => {
         await waitForUploadWorkspace(page, { authenticated: false });
         await expect(page).toHaveURL(/\/$/);
         await expect(page.getByTestId('upload-section')).toBeVisible();
-        await expect(page.getByRole('button', { name: el.guestSignIn })).toBeVisible();
+        await expect(page.getByRole('link', { name: el.guestSignIn })).toBeVisible();
     });
 
     test('job list displays different job statuses', async ({ page }) => {
