@@ -11,6 +11,7 @@ def test_settings_defaults(monkeypatch) -> None:
     # Clear env to ensure we get pure defaults
     monkeypatch.delenv("GSP_APP_ENV", raising=False)
     monkeypatch.delenv("APP_ENV", raising=False)
+    monkeypatch.delenv("GSP_RETENTION_CLEANUP_ENABLED", raising=False)
     settings = Settings(_env_file=None)  # Disable .env loading for this test
     assert settings.app_env == AppEnv.PRODUCTION
     assert not settings.is_dev
@@ -18,6 +19,12 @@ def test_settings_defaults(monkeypatch) -> None:
     # silently allowed 1 GiB.
     assert settings.max_upload_mb == 500
     assert settings.max_video_duration_seconds == 600
+    assert settings.workspace_retention_hours == 24
+    assert settings.stale_job_retention_hours == 6
+    assert settings.orphan_retention_hours == 1
+    assert settings.cleanup_interval_minutes == 15
+    assert settings.storage_min_free_mb == 2048
+    assert settings.retention_cleanup_enabled is True
     assert settings.paid_credits_enabled is False
     assert settings.stripe_automatic_tax_enabled is False
     assert settings.external_provider_price_safety_multiplier == 1.25
@@ -32,6 +39,12 @@ def test_settings_environment_overrides(monkeypatch) -> None:
     monkeypatch.setenv("GSP_LLM_TEMPERATURE", "0.42")
     monkeypatch.setenv("GSP_MAX_UPLOAD_MB", "123")
     monkeypatch.setenv("GSP_MAX_VIDEO_DURATION_SECONDS", "480")
+    monkeypatch.setenv("GSP_WORKSPACE_RETENTION_HOURS", "36")
+    monkeypatch.setenv("GSP_STALE_JOB_RETENTION_HOURS", "8")
+    monkeypatch.setenv("GSP_ORPHAN_RETENTION_HOURS", "2")
+    monkeypatch.setenv("GSP_CLEANUP_INTERVAL_MINUTES", "20")
+    monkeypatch.setenv("GSP_STORAGE_MIN_FREE_MB", "3072")
+    monkeypatch.setenv("GSP_RETENTION_CLEANUP_ENABLED", "false")
     monkeypatch.setenv("GSP_ALLOWED_ORIGINS", '["https://one.example", "https://two.example"]')
     monkeypatch.setenv("GSP_TRUSTED_HOSTS", "localhost, 127.0.0.1")
 
@@ -43,6 +56,12 @@ def test_settings_environment_overrides(monkeypatch) -> None:
     assert settings.llm_temperature == 0.42
     assert settings.max_upload_mb == 123
     assert settings.max_video_duration_seconds == 480
+    assert settings.workspace_retention_hours == 36
+    assert settings.stale_job_retention_hours == 8
+    assert settings.orphan_retention_hours == 2
+    assert settings.cleanup_interval_minutes == 20
+    assert settings.storage_min_free_mb == 3072
+    assert settings.retention_cleanup_enabled is False
     assert settings.allowed_origins == ["https://one.example", "https://two.example"]
     assert settings.trusted_hosts == ["localhost", "127.0.0.1"]
 

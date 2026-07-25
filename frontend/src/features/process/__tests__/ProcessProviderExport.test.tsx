@@ -121,7 +121,13 @@ const baseProps = {
     totalJobs: 1,
 };
 
-function ExportTestBed({ buildStaticUrl = baseProps.buildStaticUrl }: { buildStaticUrl?: (path?: string | null) => string | null }) {
+function ExportTestBed({
+    buildStaticUrl = baseProps.buildStaticUrl,
+    onRefreshJobs,
+}: {
+    buildStaticUrl?: (path?: string | null) => string | null;
+    onRefreshJobs?: () => Promise<void>;
+}) {
     const [selectedJob, setSelectedJob] = React.useState<JobResponse | null>(baseProps.selectedJob);
 
     return (
@@ -129,6 +135,7 @@ function ExportTestBed({ buildStaticUrl = baseProps.buildStaticUrl }: { buildSta
             {...baseProps}
             selectedJob={selectedJob}
             onJobSelect={setSelectedJob}
+            onRefreshJobs={onRefreshJobs}
             buildStaticUrl={buildStaticUrl}
         >
             <ExportHarness />
@@ -193,12 +200,16 @@ describe('ProcessProvider export handling', () => {
             },
         };
         const buildStaticUrl = jest.fn((path?: string | null) => path ? `https://static.local${path}` : null);
+        const onRefreshJobs = jest.fn(async () => { });
         const clickSpy = jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => { });
         (api.exportVideo as jest.Mock).mockResolvedValue(updatedJob);
         try {
             render(
                 <I18nProvider initialLocale="en">
-                    <ExportTestBed buildStaticUrl={buildStaticUrl} />
+                    <ExportTestBed
+                        onRefreshJobs={onRefreshJobs}
+                        buildStaticUrl={buildStaticUrl}
+                    />
                 </I18nProvider>,
             );
 
@@ -208,6 +219,7 @@ describe('ProcessProvider export handling', () => {
                 expect(screen.getByTestId('video-url')).toHaveTextContent('https://static.local/static/artifacts/job-1/processed-1080.mp4');
             });
             expect(api.exportVideo).toHaveBeenCalledWith('job-1', '1080x1920', expect.any(Object));
+            expect(onRefreshJobs).toHaveBeenCalled();
             expect(clickSpy).toHaveBeenCalled();
             const clickedLink = clickSpy.mock.instances.at(-1) as unknown as HTMLAnchorElement;
             expect(clickedLink.download).toBe('E Isous_subs.mp4');

@@ -88,6 +88,8 @@ def test_export_video_failure(client: TestClient, user_auth_headers: dict, monke
     app.dependency_overrides[deps.get_current_user] = mock_get_current_user
 
     try:
+        update_calls = []
+
         class MockJobStore:
             def get_job(self, job_id):
                 return Job(
@@ -97,6 +99,9 @@ def test_export_video_failure(client: TestClient, user_auth_headers: dict, monke
 
             def count_active_jobs_for_user(self, user_id):
                 return 0
+
+            def update_job(self, job_id, **kwargs):
+                update_calls.append((job_id, kwargs))
 
         app.dependency_overrides[deps.get_job_store] = lambda: MockJobStore()
 
@@ -126,6 +131,7 @@ def test_export_video_failure(client: TestClient, user_auth_headers: dict, monke
             )
             assert response.status_code == 500
             assert "Export failed" in response.json()["detail"]
+            assert update_calls == [("job1", {"status": "completed"})]
 
     finally:
         app.dependency_overrides = {}

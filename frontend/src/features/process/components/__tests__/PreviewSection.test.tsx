@@ -235,6 +235,9 @@ describe('PreviewSection', () => {
         expect(within(subtitleExports).getByTestId('vtt-btn')).toBeInTheDocument();
         expect(within(subtitleExports).getByTestId('txt-btn')).toBeInTheDocument();
         expect(within(subtitleExports).queryByTestId('download-1080p-btn')).not.toBeInTheDocument();
+        // REGRESSION: exporting used to give no indication that it refreshes
+        // the project's automatic deletion window.
+        expect(screen.getByText('temporaryWorkspaceExportNote')).toBeInTheDocument();
     });
 
     it('renders export errors when the provider surfaces one', () => {

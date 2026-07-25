@@ -21,6 +21,7 @@ interface ProcessViewProps {
     onCancelProcessing?: () => void;
     selectedJob: JobResponse | null;
     onJobSelect: (job: JobResponse | null) => void;
+    onRefreshJobs?: () => Promise<void>;
     statusStyles: Record<string, string>;
     buildStaticUrl: (path?: string | null) => string | null;
     totalJobs: number;

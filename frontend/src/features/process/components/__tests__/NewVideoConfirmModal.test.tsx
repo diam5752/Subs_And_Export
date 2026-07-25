@@ -20,13 +20,13 @@ describe('NewVideoConfirmModal', () => {
         jest.useRealTimers();
     });
 
-    it('accurately explains that the completed video remains in History', () => {
-        // REGRESSION: the modal used to claim that the completed video would be
-        // permanently deleted even though starting over only resets the editor.
+    it('accurately explains the temporary History window', () => {
+        // REGRESSION: the modal previously implied that completed media stayed
+        // indefinitely unless the user manually deleted it.
         render(<NewVideoConfirmModal isOpen onClose={jest.fn()} onConfirm={jest.fn()} />);
 
         expect(screen.getByRole('dialog', { name: 'Νέο project;' })).toHaveTextContent(
-            'Το ολοκληρωμένο βίντεο θα παραμείνει στο Ιστορικό',
+            'Το project θα μείνει στο Ιστορικό μέχρι την αυτόματη διαγραφή του',
         );
         expect(screen.queryByText(/δεν μπορεί να αναιρεθεί/i)).not.toBeInTheDocument();
     });

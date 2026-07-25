@@ -5,8 +5,11 @@ from typing import Any, cast
 from sqlalchemy import delete, func, select
 from sqlalchemy.engine import CursorResult
 
+from backend.app.core.config import settings
 from backend.app.core.database import Database
 from backend.app.db.models import DbJob
+
+TERMINAL_JOB_STATUSES = frozenset({"completed", "failed", "cancelled"})
 
 
 @dataclass(slots=True)
@@ -19,6 +22,14 @@ class Job:
     created_at: int
     updated_at: int
     result_data: dict[str, Any] | None
+
+    @property
+    def expires_at(self) -> int | None:
+        """Return the media-workspace expiry for terminal jobs."""
+        if self.status not in TERMINAL_JOB_STATUSES:
+            return None
+        return self.updated_at + (settings.workspace_retention_hours * 3600)
+
 
 class JobStore:
     def __init__(self, db: Database) -> None:
@@ -204,6 +215,34 @@ class JobStore:
         """List jobs created before a certain timestamp (for retention)."""
         with self.db.session() as session:
             stmt = select(DbJob).where(DbJob.created_at < timestamp)
+            rows = list(session.scalars(stmt).all())
+        return [
+            Job(
+                id=row.id,
+                user_id=row.user_id,
+                status=row.status,
+                progress=row.progress,
+                message=row.message,
+                created_at=row.created_at,
+                updated_at=row.updated_at,
+                result_data=row.result_data,
+            )
+            for row in rows
+        ]
+
+    def list_jobs_updated_before(
+        self,
+        timestamp: int,
+        statuses: set[str] | frozenset[str],
+    ) -> list[Job]:
+        """List jobs in selected states whose last meaningful activity is old."""
+        if not statuses:
+            return []
+        with self.db.session() as session:
+            stmt = select(DbJob).where(
+                DbJob.updated_at < timestamp,
+                DbJob.status.in_(statuses),
+            )
             rows = list(session.scalars(stmt).all())
         return [
             Job(

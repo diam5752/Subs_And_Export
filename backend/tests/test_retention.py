@@ -31,6 +31,8 @@ def test_job_store_retention(tmp_path):
         job = session.get(DbJob, old_id)
         assert job is not None
         job.created_at = old_time
+        job.updated_at = old_time
+        job.status = "completed"
 
     # Test query
     cutoff = now - (30 * 24 * 3600)
@@ -39,6 +41,10 @@ def test_job_store_retention(tmp_path):
     # Assert
     # Note: list_jobs_created_before returns list of Job objects
     assert any(j.id == old_id for j in old_jobs)
+    old_terminal_jobs = store.list_jobs_updated_before(cutoff, {"completed"})
+    assert any(j.id == old_id for j in old_terminal_jobs)
+    assert all(j.id != recent_id for j in old_terminal_jobs)
+    assert store.list_jobs_updated_before(cutoff, set()) == []
 
 def test_cleanup_api_integration(client, user_auth_headers):
     """Full integration test mocking the DB state."""

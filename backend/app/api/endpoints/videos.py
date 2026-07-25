@@ -15,6 +15,7 @@ Helper functions are extracted into separate modules for maintainability:
 
 from __future__ import annotations
 
+import errno
 import logging
 import uuid
 from pathlib import Path
@@ -42,7 +43,12 @@ from ..deps import (
     get_job_store,
     get_usage_ledger_store,
 )
-from .file_utils import MAX_UPLOAD_BYTES, data_roots, save_upload_with_limit
+from .file_utils import (
+    MAX_UPLOAD_BYTES,
+    data_roots,
+    require_storage_capacity,
+    save_upload_with_limit,
+)
 from .processing_tasks import (
     record_event_safe,
     refund_charge_best_effort,
@@ -137,16 +143,32 @@ async def process_video(
 
     input_path = uploads_dir / f"{job_id}_input{file_ext}"
     content_length = request.headers.get("content-length")
+    expected_upload_bytes = MAX_UPLOAD_BYTES
     if content_length:
         try:
-            if int(content_length) > MAX_UPLOAD_BYTES:
+            expected_upload_bytes = int(content_length)
+            if expected_upload_bytes > MAX_UPLOAD_BYTES:
                 raise HTTPException(
                     status_code=413,
                     detail=f"Request too large; limit is {settings.max_upload_mb}MB",
                 )
         except ValueError as exc:
             raise HTTPException(status_code=400, detail="Invalid Content-Length header") from exc
-    save_upload_with_limit(file, input_path)
+    require_storage_capacity(
+        data_dir,
+        required_bytes=expected_upload_bytes * 2,
+        db=db,
+    )
+    try:
+        save_upload_with_limit(file, input_path)
+    except OSError as exc:
+        input_path.unlink(missing_ok=True)
+        if exc.errno == errno.ENOSPC:
+            raise HTTPException(
+                status_code=507,
+                detail="Storage became temporarily unavailable. Please try again in a few minutes.",
+            ) from exc
+        raise
 
     # Validate Duration
     try:
@@ -247,8 +269,6 @@ async def process_video(
                 content_type=file.content_type or "application/octet-stream",
             )
 
-        from ...core.cleanup import cleanup_old_uploads
-        background_tasks.add_task(cleanup_old_uploads, uploads_dir, 24)
     except Exception as exc:
         refund_charge_best_effort(ledger_store, charge_plan, status="failed", error=sanitize_message(str(exc)))
         input_path.unlink(missing_ok=True)

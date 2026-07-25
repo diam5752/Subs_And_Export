@@ -253,6 +253,35 @@ class Settings(BaseSettings):
     max_llm_output_tokens_social: int = 3000
     max_llm_output_tokens_factcheck: int = 6000
     max_upload_mb: int = Field(default=500, gt=0, validation_alias="GSP_MAX_UPLOAD_MB")
+    workspace_retention_hours: int = Field(
+        default=24,
+        gt=0,
+        validation_alias="GSP_WORKSPACE_RETENTION_HOURS",
+    )
+    stale_job_retention_hours: int = Field(
+        default=6,
+        gt=0,
+        validation_alias="GSP_STALE_JOB_RETENTION_HOURS",
+    )
+    orphan_retention_hours: int = Field(
+        default=1,
+        gt=0,
+        validation_alias="GSP_ORPHAN_RETENTION_HOURS",
+    )
+    cleanup_interval_minutes: int = Field(
+        default=15,
+        gt=0,
+        validation_alias="GSP_CLEANUP_INTERVAL_MINUTES",
+    )
+    storage_min_free_mb: int = Field(
+        default=2048,
+        gt=0,
+        validation_alias="GSP_STORAGE_MIN_FREE_MB",
+    )
+    retention_cleanup_enabled: bool = Field(
+        default=True,
+        validation_alias="GSP_RETENTION_CLEANUP_ENABLED",
+    )
     signup_limit_per_ip_per_day: int = 5
     static_rate_limit: int = 60
     static_rate_limit_window: int = 60

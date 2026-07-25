@@ -289,6 +289,10 @@ const PreviewSectionLayout = memo(({
                                                 t={t}
                                             />
                                         </div>
+                                        <p className="mt-4 text-center text-[11px] font-medium leading-5 text-[var(--muted)]">
+                                            <span aria-hidden="true" className="mr-1.5 text-[var(--accent)]">↻</span>
+                                            {t('temporaryWorkspaceExportNote')}
+                                        </p>
 
                                         {exportError && (
                                             <p className="editor-export-error" role="alert">

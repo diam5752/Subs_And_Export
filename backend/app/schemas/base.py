@@ -14,6 +14,7 @@ class JobResponse(BaseModel):
     message: str | None
     created_at: int
     updated_at: int
+    expires_at: int | None = None
     result_data: dict[str, Any] | None
     balance: int | None = None
 

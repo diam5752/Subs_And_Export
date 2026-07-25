@@ -18,7 +18,7 @@ interface JobListItemProps {
     isDeleting: boolean;
     setConfirmDeleteId: (id: string | null) => void;
     onDeleteConfirmed: (id: string) => void;
-    t: (key: string) => string;
+    t: (key: string, params?: Record<string, string | number>) => string;
 }
 
 function arePropsEqual(prev: JobListItemProps, next: JobListItemProps) {
@@ -27,7 +27,8 @@ function arePropsEqual(prev: JobListItemProps, next: JobListItemProps) {
         prev.job.id !== next.job.id ||
         prev.job.status !== next.job.status ||
         prev.job.progress !== next.job.progress ||
-        prev.job.updated_at !== next.job.updated_at;
+        prev.job.updated_at !== next.job.updated_at ||
+        prev.job.expires_at !== next.job.expires_at;
 
     if (jobChanged) return false;
 
@@ -76,6 +77,9 @@ export const JobListItem = memo(function JobListItem({
     const displayFilename = job.result_data?.original_filename || job.id;
     const downloadFilename = buildSubtitleExportFilename(job.result_data?.original_filename, 'mp4');
     const downloadUrl = publicUrl ? withDownloadParameters(publicUrl, downloadFilename) : null;
+    const remainingHours = job.expires_at
+        ? Math.ceil(((job.expires_at * 1000) - Date.now()) / (60 * 60 * 1000))
+        : null;
 
     useEffect(() => {
         // If entering confirmation mode
@@ -142,6 +146,13 @@ export const JobListItem = memo(function JobListItem({
                 <div className="text-xs text-[var(--muted)]">
                     {formatDate(timestamp)}
                 </div>
+                {!isExpired && remainingHours !== null && remainingHours > 0 && (
+                    <div className="mt-0.5 text-[11px] font-medium text-[var(--muted)]">
+                        {remainingHours <= 1
+                            ? t('availableForLessThanHour')
+                            : t('availableForHours', { hours: remainingHours })}
+                    </div>
+                )}
             </div>
 
             <div className="flex items-center gap-2">

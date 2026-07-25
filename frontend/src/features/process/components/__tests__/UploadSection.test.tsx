@@ -225,6 +225,14 @@ describe('UploadSection', () => {
         expect(contextValue.onFileSelect).toHaveBeenCalledWith(atLimit);
     });
 
+    it('explains the temporary workspace before the user uploads', () => {
+        renderUpload();
+
+        // REGRESSION: users were not told that every upload and export shares
+        // one auto-deleting workspace whose timer refreshes after activity.
+        expect(screen.getByText('temporaryWorkspaceUploadNote')).toBeInTheDocument();
+    });
+
     it('rejects files above the 500 MB upload ceiling before processing', () => {
         const oversized = new File(['video'], 'oversized.mp4', { type: 'video/mp4' });
         Object.defineProperty(oversized, 'size', { value: 500 * 1024 * 1024 + 1 });

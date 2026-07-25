@@ -584,6 +584,12 @@ export function UploadSection() {
                         duration: MAX_VIDEO_DURATION_LABEL,
                     })}</small>
                 </div>
+                <p className="flex items-center justify-center gap-1.5 px-3 text-center text-[11px] font-medium leading-5 text-[var(--muted)]">
+                    <svg className="h-3.5 w-3.5 shrink-0 text-[var(--accent)]" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <path d="M7 10V8a5 5 0 0 1 10 0v2m-9 0h8a2 2 0 0 1 2 2v7H6v-7a2 2 0 0 1 2-2Z" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    {t('temporaryWorkspaceUploadNote')}
+                </p>
 
                 {fileValidationError && (
                     <div className="rounded-xl border border-[var(--danger)]/30 bg-[var(--danger)]/10 px-4 py-3 text-sm text-[var(--danger)] animate-fade-in">

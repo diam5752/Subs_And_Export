@@ -1,3 +1,4 @@
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from backend.main import app
@@ -62,6 +63,30 @@ def test_process_video_rejects_malformed_content_length(
 
     assert response.status_code == 400
     assert response.json()["detail"] == "Invalid Content-Length header"
+
+
+def test_process_video_rejects_before_writing_when_storage_reserve_is_low(
+    client: TestClient,
+    user_auth_headers: dict[str, str],
+    monkeypatch,
+) -> None:
+    from backend.app.api.endpoints import videos as videos_module
+
+    def reject_storage(*_args, **_kwargs) -> None:
+        raise HTTPException(status_code=507, detail="Storage is temporarily busy")
+
+    monkeypatch.setattr(videos_module, "require_storage_capacity", reject_storage)
+
+    response = client.post(
+        "/videos/process",
+        headers=user_auth_headers,
+        files={"file": ("test.mp4", b"data", "video/mp4")},
+    )
+
+    # REGRESSION: a low-disk server previously accepted the upload and failed
+    # only after it had started consuming storage and user time.
+    assert response.status_code == 507
+    assert response.json()["detail"] == "Storage is temporarily busy"
 
 def test_record_event_safe_exception(monkeypatch):
     """Verify that _record_event_safe suppresses exceptions."""

@@ -20,6 +20,7 @@ os.environ.setdefault("GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD", "1000")
 os.environ.setdefault("GSP_EXTERNAL_PROVIDER_DAILY_BUDGET_USD", "1000")
 os.environ.setdefault("GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD", "1000")
 os.environ.setdefault("GSP_MOCK_EXTERNAL_SERVICES", "0")
+os.environ.setdefault("GSP_RETENTION_CLEANUP_ENABLED", "0")
 
 # Mock modules that require compilation/heavy install
 sys.modules["faster_whisper"] = MagicMock()

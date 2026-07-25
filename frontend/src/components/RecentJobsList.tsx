@@ -227,7 +227,11 @@ export const RecentJobsList = memo(function RecentJobsList({
                 {jobs.map((job) => {
                     const publicUrl = buildStaticUrl(job.result_data?.public_url || job.result_data?.video_path);
                     const timestamp = (job.updated_at || job.created_at) * 1000;
-                    const isExpired = (Date.now() - timestamp) > 24 * 60 * 60 * 1000;
+                    const expiryTimestamp = job.expires_at
+                        ? job.expires_at * 1000
+                        : timestamp + (24 * 60 * 60 * 1000);
+                    const isExpired = Boolean(job.result_data?.files_missing)
+                        || Date.now() >= expiryTimestamp;
                     const isSelected = selectedJobIds.has(job.id);
 
                     return (
@@ -247,7 +251,10 @@ export const RecentJobsList = memo(function RecentJobsList({
                             isDeleting={deletingJobId === job.id}
                             setConfirmDeleteId={setConfirmDeleteId}
                             onDeleteConfirmed={handleDeleteJob}
-                            t={t as (key: string) => string}
+                            t={t as (
+                                key: string,
+                                params?: Record<string, string | number>,
+                            ) => string}
                         />
                     );
                 })}

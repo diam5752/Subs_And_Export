@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from backend.app.core.auth import User
 from backend.app.core.database import Database
@@ -93,6 +93,23 @@ class HistoryStore:
             )
             for row in rows
         ]
+
+    def delete_job_events(self, job_ids: list[str]) -> int:
+        """Remove history payloads tied to expired media workspaces."""
+        if not job_ids:
+            return 0
+        target_ids = set(job_ids)
+        with self.db.session() as session:
+            rows = session.execute(select(DbHistoryEvent.id, DbHistoryEvent.data)).all()
+            event_ids = [
+                int(event_id)
+                for event_id, data in rows
+                if isinstance(data, dict) and data.get("job_id") in target_ids
+            ]
+            if not event_ids:
+                return 0
+            session.execute(delete(DbHistoryEvent).where(DbHistoryEvent.id.in_(event_ids)))
+            return len(event_ids)
 
 
 def _utc_iso() -> str:

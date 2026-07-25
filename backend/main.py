@@ -1,5 +1,6 @@
 
-from contextlib import asynccontextmanager
+import asyncio
+from contextlib import asynccontextmanager, suppress
 
 from backend.app.core.errors import register_exception_handlers
 from backend.app.core.logging import setup_logging
@@ -32,6 +33,7 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from backend.app.api.endpoints import auth, billing, history, videos
 from backend.app.api.endpoints.file_utils import sanitize_download_filename
+from backend.app.core.cleanup import retention_worker
 from backend.app.core.config import settings
 from backend.app.core.database import Database
 from backend.app.core.gcs import GcsSettings, generate_signed_download_url, get_gcs_settings
@@ -43,11 +45,22 @@ async def lifespan(app: FastAPI):
     # Startup
     settings.assert_paid_credits_configuration()
     app.state.db = Database()
-    yield
-    # Shutdown
-    db: Database | None = getattr(app.state, "db", None)
-    if db is not None:
-        db.dispose()
+    retention_task: asyncio.Task[None] | None = None
+    if settings.retention_cleanup_enabled:
+        retention_task = asyncio.create_task(
+            retention_worker(app.state.db),
+            name="workspace-retention",
+        )
+    try:
+        yield
+    finally:
+        if retention_task is not None:
+            retention_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await retention_task
+        db: Database | None = getattr(app.state, "db", None)
+        if db is not None:
+            db.dispose()
 
 app = FastAPI(
     title="Greek Sub Publisher API",

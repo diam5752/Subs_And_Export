@@ -595,6 +595,7 @@ export default function DashboardPage() {
             onCancelProcessing={handleCancelProcessing}
             selectedJob={selectedJob}
             onJobSelect={setSelectedJob}
+            onRefreshJobs={refreshActivity}
             statusStyles={statusStyles}
             buildStaticUrl={buildStaticUrl}
             totalJobs={totalJobs}

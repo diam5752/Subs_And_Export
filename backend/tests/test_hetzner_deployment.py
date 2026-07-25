@@ -61,6 +61,12 @@ def test_production_verifier_requires_every_fail_closed_runtime_setting() -> Non
         "GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD=0",
         "GSP_EXTERNAL_PROVIDER_DAILY_BUDGET_USD=0",
         "GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD=0",
+        "GSP_WORKSPACE_RETENTION_HOURS=24",
+        "GSP_STALE_JOB_RETENTION_HOURS=6",
+        "GSP_ORPHAN_RETENTION_HOURS=1",
+        "GSP_CLEANUP_INTERVAL_MINUTES=15",
+        "GSP_STORAGE_MIN_FREE_MB=2048",
+        "GSP_RETENTION_CLEANUP_ENABLED=1",
     ):
         assert expected in verifier
 
@@ -78,6 +84,12 @@ def test_production_environment_defaults_do_not_prune_shared_cache() -> None:
     # while other runtime defaults silently allowed 1 GiB.
     assert "SUBFRAME_MAX_UPLOAD_MB=500" in environment
     assert "GSP_MAX_UPLOAD_MB=500" in environment
+    assert "GSP_WORKSPACE_RETENTION_HOURS=24" in environment
+    assert "GSP_STALE_JOB_RETENTION_HOURS=6" in environment
+    assert "GSP_ORPHAN_RETENTION_HOURS=1" in environment
+    assert "GSP_CLEANUP_INTERVAL_MINUTES=15" in environment
+    assert "GSP_STORAGE_MIN_FREE_MB=2048" in environment
+    assert "GSP_RETENTION_CLEANUP_ENABLED=1" in environment
     assert "NEXT_PUBLIC_MAX_UPLOAD_MB: ${SUBFRAME_MAX_UPLOAD_MB:-500}" in compose
     assert "ARG NEXT_PUBLIC_MAX_UPLOAD_MB=500" in frontend_dockerfile
     assert "GSP_ALLOWED_ORIGINS=https://gsubs.gr,https://www.gsubs.gr" in environment

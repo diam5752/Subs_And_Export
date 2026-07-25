@@ -38,6 +38,7 @@ export interface JobResponse {
     message: string | null;
     created_at: number;
     updated_at: number;
+    expires_at?: number | null;
     result_data: JobResultData | null;
     balance?: number | null;
 }

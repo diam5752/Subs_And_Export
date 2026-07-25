@@ -8,13 +8,13 @@ from __future__ import annotations
 
 import json
 import logging
-import shutil
 from typing import TypedDict
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from ...core.auth import User
+from ...core.cleanup import delete_job_workspace
 from ...core.ratelimit import limiter_content
 from ...schemas.base import BatchDeleteRequest, BatchDeleteResponse, JobResponse, PaginatedJobsResponse
 from ...services.history import HistoryStore
@@ -118,23 +118,20 @@ def batch_delete_jobs(
 
     for job in jobs:
         job_id = job.id
-        artifact_dir = artifacts_root / job_id
-        if artifact_dir.exists():
-            shutil.rmtree(artifact_dir, ignore_errors=True)
-
-        for ext in [".mp4", ".mov", ".mkv"]:
-            input_file = uploads_dir / f"{job_id}_input{ext}"
-            if input_file.exists():
-                input_file.unlink(missing_ok=True)
-
+        delete_job_workspace(
+            job_id=job_id,
+            uploads_dir=uploads_dir,
+            artifacts_dir=artifacts_root,
+        )
         deleted_ids.append(job_id)
 
+    history_store.delete_job_events(deleted_ids)
     deleted_count = job_store.delete_jobs(deleted_ids, current_user.id)
 
     if deleted_count > 0:
         record_event_safe(
             history_store, current_user, "jobs_batch_deleted",
-            f"Deleted {deleted_count} jobs", {"job_ids": deleted_ids, "count": deleted_count}
+            f"Deleted {deleted_count} projects", {"count": deleted_count}
         )
 
     return BatchDeleteResponse(status="deleted", deleted_count=deleted_count, job_ids=deleted_ids)
@@ -252,17 +249,14 @@ def delete_job(
 
     _, uploads_dir, artifacts_root = data_roots()
 
-    artifact_dir = artifacts_root / job_id
-    if artifact_dir.exists():
-        shutil.rmtree(artifact_dir, ignore_errors=True)
-
-    for ext in [".mp4", ".mov", ".mkv"]:
-        input_file = uploads_dir / f"{job_id}_input{ext}"
-        if input_file.exists():
-            input_file.unlink(missing_ok=True)
-
+    delete_job_workspace(
+        job_id=job_id,
+        uploads_dir=uploads_dir,
+        artifacts_dir=artifacts_root,
+    )
+    history_store.delete_job_events([job_id])
     job_store.delete_job(job_id)
-    record_event_safe(history_store, current_user, "job_deleted", f"Deleted job {job_id}", {"job_id": job_id})
+    record_event_safe(history_store, current_user, "job_deleted", "Deleted a project", {})
 
     return {"status": "deleted", "job_id": job_id}
 

@@ -6,6 +6,8 @@ from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, Field
 
 from ...core.auth import SessionStore, User, UserStore
+from ...core.cleanup import delete_job_workspace
+from ...core.config import settings
 from ...core.errors import sanitize_error
 from ...core.oauth_state import OAuthStateStore
 from ...core.ratelimit import limiter_auth_change, limiter_login, limiter_register, limiter_signup_daily
@@ -198,32 +200,21 @@ def delete_account(
     job_store: JobStore = Depends(get_job_store),
 ) -> Any:
     """Delete current user account and all associated data (GDPR compliance)."""
-    import shutil
-
-    from backend.app.core.config import settings
-
     try:
         # 1. Cleanup Filesystem Artifacts
         # Get all jobs to find their files
         jobs = job_store.list_jobs_for_user(current_user.id)
 
-        # Resolve data roots (simulating videos.py logic or reusing it if possible,
-        # but locally defining for safety is fine)
-        data_dir = settings.project_root / "data"
+        data_dir = settings.data_dir
         uploads_dir = data_dir / "uploads"
         artifacts_root = data_dir / "artifacts"
 
         for job in jobs:
-            # Delete artifact directory
-            artifact_dir = artifacts_root / job.id
-            if artifact_dir.exists():
-                shutil.rmtree(artifact_dir, ignore_errors=True)
-
-            # Delete input files
-            for ext in [".mp4", ".mov", ".mkv"]:
-                input_file = uploads_dir / f"{job.id}_input{ext}"
-                if input_file.exists():
-                    input_file.unlink(missing_ok=True)
+            delete_job_workspace(
+                job_id=job.id,
+                uploads_dir=uploads_dir,
+                artifacts_dir=artifacts_root,
+            )
 
         # 2. Revoke all sessions
         session_store.revoke_all_sessions(current_user.id)

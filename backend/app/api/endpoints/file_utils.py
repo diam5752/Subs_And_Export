@@ -11,7 +11,9 @@ from pathlib import Path
 
 from fastapi import HTTPException, UploadFile
 
+from ...core.cleanup import ensure_storage_capacity, run_configured_retention
 from ...core.config import settings
+from ...core.database import Database
 
 logger = logging.getLogger(__name__)
 
@@ -106,6 +108,29 @@ def save_upload_with_limit(upload: UploadFile, destination: Path) -> None:
     if total == 0:
         destination.unlink(missing_ok=True)
         raise HTTPException(status_code=400, detail="Empty upload")
+
+
+def require_storage_capacity(
+    data_dir: Path,
+    *,
+    required_bytes: int,
+    db: Database,
+) -> None:
+    """Reject before a media operation if its safety reserve is unavailable."""
+    has_capacity = ensure_storage_capacity(
+        data_dir,
+        required_bytes=required_bytes,
+        minimum_free_mb=settings.storage_min_free_mb,
+        cleanup_callback=lambda: run_configured_retention(db),
+    )
+    if not has_capacity:
+        raise HTTPException(
+            status_code=507,
+            detail=(
+                "Storage is temporarily busy. Existing projects are safe; "
+                "please try again in a few minutes."
+            ),
+        )
 
 
 # Initialize directories on import

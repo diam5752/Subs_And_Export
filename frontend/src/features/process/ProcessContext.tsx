@@ -55,6 +55,7 @@ interface ProcessContextType {
     onCancelProcessing?: () => void;
     selectedJob: JobResponse | null;
     onJobSelect: (job: JobResponse | null) => void;
+    onRefreshJobs?: () => Promise<void>;
     statusStyles: Record<string, string>;
     buildStaticUrl: (path?: string | null) => string | null;
     hasVideos: boolean;
@@ -154,6 +155,7 @@ interface ProcessProviderProps {
     onCancelProcessing?: () => void;
     selectedJob: JobResponse | null;
     onJobSelect: (job: JobResponse | null) => void;
+    onRefreshJobs?: () => Promise<void>;
     statusStyles: Record<string, string>;
     buildStaticUrl: (path?: string | null) => string | null;
     totalJobs: number;
@@ -173,6 +175,7 @@ export function ProcessProvider({
     onCancelProcessing,
     selectedJob,
     onJobSelect,
+    onRefreshJobs,
     statusStyles,
     buildStaticUrl,
     totalJobs,
@@ -559,6 +562,7 @@ export function ProcessProvider({
             });
             if (selectedJobIdRef.current !== exportJobId) return;
             onJobSelect(updatedJob);
+            void onRefreshJobs?.();
             if (!subtitleFileFormats.has(resolution) && updatedJob.result_data?.variants?.[resolution]) {
                 setActivePreviewVariant(resolution);
             }
@@ -603,6 +607,7 @@ export function ProcessProvider({
     }, [
         selectedJob,
         onJobSelect,
+        onRefreshJobs,
         buildStaticUrl,
         SUBTITLE_COLORS,
         subtitleColor,
@@ -667,6 +672,7 @@ export function ProcessProvider({
         try {
             await api.updateJobTranscription(editingJobId, updatedCues);
             if (selectedJobIdRef.current !== editingJobId) return;
+            void onRefreshJobs?.();
             setEditingCueIndex(null);
             setEditingCueSurface(null);
             setEditingCueDraft('');
@@ -684,7 +690,7 @@ export function ProcessProvider({
                 setIsSavingTranscript(false);
             }
         }
-    }, [selectedJob, setCues, t]);
+    }, [onRefreshJobs, selectedJob, setCues, t]);
 
     const handleUpdateDraft = useCallback((text: string) => {
         setEditingCueDraft(text);

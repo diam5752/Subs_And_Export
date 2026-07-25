@@ -17,8 +17,8 @@ describe('LegalPage', () => {
 
     it('describes the active Scribe v2 provider and the actual upload retention behavior', () => {
         // REGRESSION: the old policy named Groq and promised a blanket 30-day
-        // deletion even though the product currently uses Scribe v2 and cleans
-        // original uploads after 24 hours.
+        // deletion even though the product currently uses Scribe v2 and now
+        // expires the complete media workspace after its last activity.
         renderPage('privacy');
 
         expect(screen.getByRole('img', { name: 'gsubs' }))
@@ -26,7 +26,7 @@ describe('LegalPage', () => {
         expect(screen.getByRole('heading', { name: 'Πολιτική Απορρήτου' })).toBeInTheDocument();
         expect(screen.getByText(/χρειάζεται το gsubs/)).toBeInTheDocument();
         expect(screen.getByText(/ElevenLabs Scribe v2/)).toBeInTheDocument();
-        expect(screen.getByText(/αρχεία upload.*24 ώρες/)).toBeInTheDocument();
+        expect(screen.getByText(/αρχεία.*εξαγωγές.*24 ώρες.*τελευταία δραστηριότητα/)).toBeInTheDocument();
         expect(screen.queryByText(/Groq/)).not.toBeInTheDocument();
         expect(screen.getByRole('link', { name: 'Όροι Χρήσης' })).toHaveAttribute('href', '/terms');
     });

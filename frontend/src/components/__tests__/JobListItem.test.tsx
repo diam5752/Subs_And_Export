@@ -10,6 +10,7 @@ const mockJob: JobResponse = {
     message: null,
     created_at: 1625000000,
     updated_at: 1625000000,
+    expires_at: 1625086400,
     result_data: {
         video_path: '/path/to/video.mp4',
         artifacts_dir: '/artifacts',
@@ -51,6 +52,26 @@ describe('JobListItem', () => {
         render(<JobListItem {...mockProps} />);
         expect(screen.getByText('test-video.mp4')).toBeInTheDocument();
         expect(screen.getByText('2021-06-29')).toBeInTheDocument();
+    });
+
+    it('shows how long the temporary project remains available', () => {
+        jest.useFakeTimers().setSystemTime(new Date('2021-06-30T00:00:00Z'));
+        const expiresAt = Math.floor(Date.now() / 1000) + (3 * 3600);
+
+        render(
+            <JobListItem
+                {...mockProps}
+                job={{ ...mockJob, expires_at: expiresAt }}
+                t={(key, params) => key === 'availableForHours'
+                    ? `available ${params?.hours}h`
+                    : key}
+            />,
+        );
+
+        // REGRESSION: history previously hid an upload-only 24-hour cleanup
+        // rule and gave no deadline for generated exports.
+        expect(screen.getByText('available 3h')).toBeInTheDocument();
+        jest.useRealTimers();
     });
 
     it('shows download and view buttons with accessible labels when completed', () => {

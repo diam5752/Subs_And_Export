@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import os
-import shutil
 import time
 import uuid
 from pathlib import Path
@@ -13,7 +12,9 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from ...core.auth import User
+from ...core.cleanup import delete_job_workspace
 from ...core.config import settings
+from ...core.database import Database
 from ...core.errors import sanitize_message
 from ...core.gcs import get_gcs_settings
 from ...core.ratelimit import limiter_processing
@@ -25,8 +26,8 @@ from ...services.ffmpeg_utils import probe_media
 from ...services.history import HistoryStore
 from ...services.jobs import JobStore
 from ...services.usage_ledger import UsageLedgerStore
-from ..deps import get_current_user, get_history_store, get_job_store, get_usage_ledger_store
-from .file_utils import data_roots, link_or_copy_file
+from ..deps import get_current_user, get_db, get_history_store, get_job_store, get_usage_ledger_store
+from .file_utils import MAX_UPLOAD_BYTES, data_roots, link_or_copy_file, require_storage_capacity
 from .processing_tasks import (
     record_event_safe,
     refund_charge_best_effort,
@@ -86,6 +87,7 @@ def reprocess_job(
     job_store: JobStore = Depends(get_job_store),
     history_store: HistoryStore = Depends(get_history_store),
     ledger_store: UsageLedgerStore = Depends(get_usage_ledger_store),
+    db: Database = Depends(get_db),
 ) -> JobResponse:
     source_job = job_store.get_job(job_id)
     if not source_job or source_job.user_id != current_user.id:
@@ -128,6 +130,11 @@ def reprocess_job(
         and isinstance(source_gcs_object, str)
         and source_gcs_object.startswith(f"{gcs_settings.uploads_prefix}/{current_user.id}/")
     ):
+        require_storage_capacity(
+            data_dir,
+            required_bytes=MAX_UPLOAD_BYTES * 2,
+            db=db,
+        )
         file_ext = Path(source_gcs_object).suffix.lower()
         if file_ext not in ALLOWED_VIDEO_EXTENSIONS:
             raise HTTPException(status_code=400, detail="Invalid source video extension")
@@ -191,8 +198,6 @@ def reprocess_job(
                 charge_plan=charge_plan,
             )
 
-            from ...core.cleanup import cleanup_old_uploads
-            background_tasks.add_task(cleanup_old_uploads, uploads_dir, 24)
         except Exception as exc:
             refund_charge_best_effort(ledger_store, charge_plan, status="failed", error=sanitize_message(str(exc)))
             raise
@@ -227,6 +232,11 @@ def reprocess_job(
         raise HTTPException(status_code=400, detail="Empty source video")
     if size_bytes > (settings.max_upload_mb * 1024 * 1024):
         raise HTTPException(status_code=413, detail=f"File too large; limit is {settings.max_upload_mb}MB")
+    require_storage_capacity(
+        data_dir,
+        required_bytes=size_bytes * 2,
+        db=db,
+    )
 
     try:
         probe = probe_media(source_input)
@@ -291,8 +301,6 @@ def reprocess_job(
             source_probe=probe,
         )
 
-        from ...core.cleanup import cleanup_old_uploads
-        background_tasks.add_task(cleanup_old_uploads, uploads_dir, 24)
     except Exception as exc:
         refund_charge_best_effort(ledger_store, charge_plan, status="failed", error=sanitize_message(str(exc)))
         input_path.unlink(missing_ok=True)
@@ -325,17 +333,14 @@ def run_retention_policy(
     deleted_ids = []
 
     for job in old_jobs:
-        artifact_dir = artifacts_root / job.id
-        if artifact_dir.exists():
-            shutil.rmtree(artifact_dir, ignore_errors=True)
-
-        for ext in [".mp4", ".mov", ".mkv"]:
-            input_file = uploads_dir / f"{job.id}_input{ext}"
-            if input_file.exists():
-                input_file.unlink(missing_ok=True)
-
+        delete_job_workspace(
+            job_id=job.id,
+            uploads_dir=uploads_dir,
+            artifacts_dir=artifacts_root,
+        )
         deleted_ids.append(job.id)
 
+    history_store.delete_job_events(deleted_ids)
     for jid in deleted_ids:
         job_store.delete_job(jid)
 

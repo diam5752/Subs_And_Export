@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from ...core.auth import User
 from ...core.config import settings
+from ...core.database import Database
 from ...core.errors import sanitize_message
 from ...core.gcs import download_object, get_gcs_settings, upload_object
 from ...core.ratelimit import limiter_content
@@ -22,8 +23,8 @@ from ...services.subtitle_exports import (
     export_subtitle_file,
 )
 from ...services.video_processing import generate_video_variant
-from ..deps import get_current_user, get_job_store
-from .file_utils import MAX_UPLOAD_BYTES, data_roots, relpath_safe
+from ..deps import get_current_user, get_db, get_job_store
+from .file_utils import MAX_UPLOAD_BYTES, data_roots, relpath_safe, require_storage_capacity
 from .validation import (
     ALLOWED_VIDEO_EXTENSIONS,
     validate_highlight_style,
@@ -101,6 +102,7 @@ def export_video(
     request: ExportRequest,
     current_user: User = Depends(get_current_user),
     job_store: JobStore = Depends(get_job_store),
+    db: Database = Depends(get_db),
 ) -> JobResponse:
     """Export a video variant from an existing job."""
     job = job_store.get_job(job_id)
@@ -109,6 +111,10 @@ def export_video(
 
     if job.status != "completed":
         raise HTTPException(400, "Job must be completed to export")
+
+    # Refresh the workspace lease before any potentially long export work.
+    # The retention worker rechecks this timestamp immediately before deletion.
+    job_store.update_job(job_id, status="completed")
 
     active_jobs = job_store.count_active_jobs_for_user(current_user.id)
     if active_jobs >= settings.max_concurrent_jobs:
@@ -212,6 +218,14 @@ def export_video(
 
     if not input_video:
         raise HTTPException(404, "Original input video not found")
+
+    width, height = (int(part) for part in request.resolution.split("x"))
+    pixel_multiplier = max(1.0, (width * height) / (1080 * 1920))
+    require_storage_capacity(
+        data_dir,
+        required_bytes=int(input_video.stat().st_size * pixel_multiplier),
+        db=db,
+    )
 
     try:
         subtitle_settings = request.model_dump(exclude_defaults=True)

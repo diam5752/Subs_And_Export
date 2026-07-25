@@ -12,6 +12,7 @@ from backend.app.core import config
 from backend.app.core.database import Database
 from backend.app.services import jobs, pricing
 from backend.app.services.charge_plans import reserve_processing_charges
+from backend.app.services.history import HistoryStore
 from backend.app.services.points import PointsStore
 from backend.app.services.usage_ledger import UsageLedgerStore
 
@@ -83,6 +84,44 @@ def test_job_store_lifecycle(tmp_path: Path):
     assert store.get_job(j2.id) is None
     assert store.get_job(j3.id) is None
     assert len(store.list_jobs_for_user(user_id)) == 0
+
+
+def test_history_store_purges_expired_job_payloads_only() -> None:
+    db = Database()
+    user = backend_auth.UserStore(db=db).register_local_user(
+        f"history_{uuid.uuid4().hex}@example.com",
+        "testpassword123",
+        "History",
+    )
+    history_store = HistoryStore(db)
+    target_job_id = f"expired-{uuid.uuid4().hex}"
+    retained_job_id = f"retained-{uuid.uuid4().hex}"
+    history_store.record_event(
+        user,
+        "process_started",
+        "Expired media",
+        {"job_id": target_job_id},
+    )
+    history_store.record_event(
+        user,
+        "process_started",
+        "Recent media",
+        {"job_id": retained_job_id},
+    )
+    history_store.record_event(user, "login", "Signed in", {})
+
+    # REGRESSION: deleting a project previously left its filename-bearing
+    # processing history behind indefinitely.
+    assert history_store.delete_job_events([target_job_id]) == 1
+    remaining = history_store.recent_for_user(user)
+    remaining_job_ids = {
+        event.data.get("job_id")
+        for event in remaining
+        if event.data.get("job_id")
+    }
+    assert target_job_id not in remaining_job_ids
+    assert retained_job_id in remaining_job_ids
+    assert any(event.kind == "login" for event in remaining)
 
 
 def test_run_video_processing_success(monkeypatch, tmp_path: Path):

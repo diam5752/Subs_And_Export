@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 from ...core.auth import User
 from ...core.config import settings
+from ...core.database import Database
 from ...core.errors import sanitize_message
 from ...core.gcs import generate_signed_upload_url, get_gcs_settings
 from ...core.gcs_uploads import GcsUploadStore
@@ -22,8 +23,15 @@ from ...services.charge_plans import reserve_processing_charges
 from ...services.history import HistoryStore
 from ...services.jobs import JobStore
 from ...services.usage_ledger import UsageLedgerStore
-from ..deps import get_current_user, get_gcs_upload_store, get_history_store, get_job_store, get_usage_ledger_store
-from .file_utils import data_roots
+from ..deps import (
+    get_current_user,
+    get_db,
+    get_gcs_upload_store,
+    get_history_store,
+    get_job_store,
+    get_usage_ledger_store,
+)
+from .file_utils import MAX_UPLOAD_BYTES, data_roots, require_storage_capacity
 from .processing_tasks import record_event_safe, refund_charge_best_effort, run_gcs_video_processing
 from .settings import build_processing_settings
 from .validation import ALLOWED_VIDEO_EXTENSIONS, validate_upload_content_type
@@ -133,6 +141,7 @@ def process_video_from_gcs(
     history_store: HistoryStore = Depends(get_history_store),
     gcs_upload_store: GcsUploadStore = Depends(get_gcs_upload_store),
     ledger_store: UsageLedgerStore = Depends(get_usage_ledger_store),
+    db: Database = Depends(get_db),
 ) -> JobResponse:
     """Start processing for an already-uploaded GCS object."""
     gcs_settings = get_gcs_settings()
@@ -169,7 +178,12 @@ def process_video_from_gcs(
     )
 
     job_id = str(uuid.uuid4())
-    _, uploads_dir, artifacts_root = data_roots()
+    data_dir, uploads_dir, artifacts_root = data_roots()
+    require_storage_capacity(
+        data_dir,
+        required_bytes=MAX_UPLOAD_BYTES * 2,
+        db=db,
+    )
 
     file_ext = Path(session.original_filename).suffix.lower()
     if file_ext not in ALLOWED_VIDEO_EXTENSIONS:
@@ -225,8 +239,6 @@ def process_video_from_gcs(
             charge_plan=charge_plan,
         )
 
-        from ...core.cleanup import cleanup_old_uploads
-        background_tasks.add_task(cleanup_old_uploads, uploads_dir, 24)
     except Exception as exc:
         refund_charge_best_effort(ledger_store, charge_plan, status="failed", error=sanitize_message(str(exc)))
         raise
