@@ -159,9 +159,16 @@ class StripeSdkGateway:
                 "cancel_url": settings.stripe_cancel_url,
                 "client_reference_id": user_id,
                 "customer_email": customer_email,
+                "customer_creation": "always",
+                "billing_address_collection": "required",
+                "name_collection": {"individual": {"enabled": True}},
+                "integration_identifier": integration_identifier,
                 "metadata": metadata,
-                "payment_intent_data": {"metadata": metadata},
-                "expires_at": int(time.time()) + 30 * 60,
+                "payment_intent_data": {
+                    "metadata": metadata,
+                    "receipt_email": customer_email,
+                },
+                "expires_at": int(time.time()) + 60 * 60,
             },
             {"idempotency_key": idempotency_key},
         )
@@ -324,7 +331,7 @@ class BillingService:
         payload: bytes,
         signature: str,
     ) -> WebhookResult:
-        gateway = self._configured_gateway()
+        gateway = self._webhook_gateway()
         event = gateway.verify_webhook(payload, signature)
         event_id = str(event.get("id") or "")
         event_type = str(event.get("type") or "")
@@ -421,6 +428,12 @@ class BillingService:
             self._gateway = StripeSdkGateway()
         return self._gateway
 
+    def _webhook_gateway(self) -> BillingGateway:
+        """Keep signed reconciliation active even when new sales are paused."""
+        if self._gateway is None:
+            self._gateway = StripeSdkGateway()
+        return self._gateway
+
     def _ensure_purchase(
         self,
         *,
@@ -492,14 +505,20 @@ class BillingService:
         event_type: str,
         obj: dict[str, Any],
     ) -> str:
-        if event_type in {
-            "checkout.session.completed",
-            "checkout.session.async_payment_succeeded",
-        }:
+        if event_type == "checkout.session.completed":
+            if str(obj.get("payment_status") or "") == "unpaid":
+                self._await_checkout_payment(obj)
+            else:
+                self._fulfill_checkout(obj)
+            return "processed"
+        if event_type == "checkout.session.async_payment_succeeded":
             self._fulfill_checkout(obj)
             return "processed"
         if event_type == "checkout.session.expired":
             self._expire_checkout(obj)
+            return "processed"
+        if event_type == "checkout.session.async_payment_failed":
+            self._fail_async_checkout(obj)
             return "processed"
         if event_type == "charge.refunded":
             self._apply_reversal_event(
@@ -568,6 +587,30 @@ class BillingService:
             locked.error = None
             locked.updated_at = now
 
+    def _await_checkout_payment(self, obj: dict[str, Any]) -> None:
+        session_id = str(obj.get("id") or "")
+        metadata = obj.get("metadata")
+        if not isinstance(metadata, dict):
+            raise BillingValidationError("Checkout metadata is missing")
+        purchase_id = str(metadata.get("purchase_id") or "")
+        with self.db.session() as session:
+            purchase = session.scalar(
+                select(DbCreditPurchase)
+                .where(DbCreditPurchase.id == purchase_id)
+                .with_for_update()
+                .limit(1)
+            )
+            if purchase is None:
+                raise BillingValidationError("Checkout purchase is unknown")
+            self._validate_checkout_identity(obj, metadata, purchase, session_id)
+            if str(obj.get("payment_status") or "") != "unpaid":
+                raise BillingValidationError("Checkout payment state is invalid")
+            if purchase.fulfilled_at is not None or purchase.status in {"expired", "failed"}:
+                return
+            purchase.status = "awaiting_payment"
+            purchase.error = None
+            purchase.updated_at = int(time.time())
+
     def _expire_checkout(self, obj: dict[str, Any]) -> None:
         session_id = str(obj.get("id") or "")
         if not session_id:
@@ -581,6 +624,22 @@ class BillingService:
             )
             if purchase is not None and purchase.fulfilled_at is None:
                 purchase.status = "expired"
+                purchase.updated_at = int(time.time())
+
+    def _fail_async_checkout(self, obj: dict[str, Any]) -> None:
+        session_id = str(obj.get("id") or "")
+        if not session_id:
+            raise BillingValidationError("Checkout Session id is missing")
+        with self.db.session() as session:
+            purchase = session.scalar(
+                select(DbCreditPurchase)
+                .where(DbCreditPurchase.checkout_session_id == session_id)
+                .with_for_update()
+                .limit(1)
+            )
+            if purchase is not None and purchase.fulfilled_at is None:
+                purchase.status = "failed"
+                purchase.error = "Stripe asynchronous payment failed"
                 purchase.updated_at = int(time.time())
 
     @staticmethod
@@ -601,7 +660,10 @@ class BillingService:
                 return purchase_id if len(purchase_id) <= 32 else None
             return None
 
-        if event_type == "checkout.session.expired":
+        if event_type in {
+            "checkout.session.expired",
+            "checkout.session.async_payment_failed",
+        }:
             session_id = str(obj.get("id") or "")
             if not session_id:
                 return None
@@ -793,6 +855,28 @@ class BillingService:
         purchase: DbCreditPurchase,
         session_id: str,
     ) -> None:
+        BillingService._validate_checkout_identity(
+            obj,
+            metadata,
+            purchase,
+            session_id,
+        )
+        payment_intent_id = BillingService._stripe_id(obj.get("payment_intent"))
+        if (
+            not payment_intent_id.startswith("pi_")
+            or str(obj.get("payment_status") or "") != "paid"
+        ):
+            raise BillingValidationError(
+                "Checkout fulfillment does not match purchase snapshot"
+            )
+
+    @staticmethod
+    def _validate_checkout_identity(
+        obj: dict[str, Any],
+        metadata: dict[str, Any],
+        purchase: DbCreditPurchase,
+        session_id: str,
+    ) -> None:
         expected_metadata = {
             "purchase_id": purchase.id,
             "user_id": purchase.user_id,
@@ -801,12 +885,9 @@ class BillingService:
             "integration_identifier": purchase.integration_identifier,
             "catalog_version": CATALOG_VERSION,
         }
-        payment_intent_id = BillingService._stripe_id(obj.get("payment_intent"))
         if (
             not session_id
             or session_id != purchase.checkout_session_id
-            or not payment_intent_id.startswith("pi_")
-            or str(obj.get("payment_status") or "") != "paid"
             or str(obj.get("status") or "") != "complete"
             or int(obj.get("amount_total") or 0) != purchase.amount_eur_cents
             or str(obj.get("currency") or "").lower() != purchase.currency.lower()
@@ -887,7 +968,7 @@ class BillingService:
     @staticmethod
     def _integration_identifier() -> str:
         suffix = "".join(secrets.choice(_INTEGRATION_ALPHABET) for _ in range(8))
-        return f"subframe_credits_{suffix}"
+        return f"gsubs_credits_{suffix}"
 
     @staticmethod
     def _stripe_id(value: Any) -> str:

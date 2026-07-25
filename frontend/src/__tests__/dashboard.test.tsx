@@ -147,6 +147,7 @@ describe('DashboardPage', () => {
     beforeEach(() => {
         jest.clearAllMocks();
         window.localStorage.clear();
+        window.history.replaceState({}, '', '/');
         capturedOnReset = null;
         (useAppEnv as jest.Mock).mockReturnValue({ appEnv: 'dev' });
         (useAuth as jest.Mock).mockReturnValue({
@@ -293,6 +294,41 @@ describe('DashboardPage', () => {
         expect(api.getCreditCatalog).toHaveBeenCalledTimes(1);
         expect(screen.getByRole('radio', { name: /starter/i })).toBeInTheDocument();
     });
+
+    it.each([
+        ['failed', 'creditPurchaseFailed'],
+        ['expired', 'creditPurchaseExpired'],
+    ])(
+        'shows a terminal notice when Stripe checkout is %s',
+        async (status, expectedNotice) => {
+            window.history.replaceState(
+                {},
+                '',
+                `/?checkout=success&session_id=cs_test_${status}`,
+            );
+            (api.getCreditCheckoutStatus as jest.Mock).mockResolvedValue({
+                purchase_id: `purchase-${status}`,
+                package_key: 'starter',
+                credits: 100,
+                amount_eur_cents: 100,
+                status,
+                checkout_session_id: `cs_test_${status}`,
+                wallet: {
+                    balance: 100,
+                    paid_balance: 0,
+                    promotional_balance: 100,
+                    reversal_debt: 0,
+                    ai_spendable_balance: 0,
+                },
+            });
+
+            render(<DashboardPage />);
+
+            expect(await screen.findByRole('status')).toHaveTextContent(expectedNotice);
+            expect(api.getCreditCheckoutStatus).toHaveBeenCalledTimes(1);
+            expect(screen.queryByText('creditPurchasePending')).not.toBeInTheDocument();
+        },
+    );
 
     it('opens account settings only from the profile avatar', () => {
         render(<DashboardPage />);

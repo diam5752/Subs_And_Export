@@ -18,6 +18,7 @@ from sqlalchemy.exc import IntegrityError
 from backend.app.core import config
 from backend.app.core.database import Database
 from backend.app.db.models import DbCreditPurchase, DbUser
+from backend.app.services import billing as billing_module
 from backend.app.services.billing import (
     BillingConflictError,
     BillingProviderError,
@@ -110,30 +111,35 @@ def _checkout_event(
     purchase: DbCreditPurchase,
     *,
     event_id: str | None = None,
+    event_type: str = "checkout.session.completed",
+    payment_status: str = "paid",
     amount_total: int | None = None,
+    include_payment_intent: bool = True,
 ) -> bytes:
+    checkout_object: dict[str, Any] = {
+        "id": purchase.checkout_session_id,
+        "payment_status": payment_status,
+        "status": "complete",
+        "amount_total": (
+            purchase.amount_eur_cents if amount_total is None else amount_total
+        ),
+        "currency": purchase.currency,
+        "client_reference_id": purchase.user_id,
+        "metadata": {
+            "purchase_id": purchase.id,
+            "user_id": purchase.user_id,
+            "package_key": purchase.package_key,
+            "credits": str(purchase.credits),
+            "integration_identifier": purchase.integration_identifier,
+            "catalog_version": purchase.snapshot["catalog_version"],
+        },
+    }
+    if include_payment_intent:
+        checkout_object["payment_intent"] = f"pi_{purchase.id}"
     payload = {
         "id": event_id or f"evt_{uuid.uuid4().hex}",
-        "type": "checkout.session.completed",
-        "data": {
-            "object": {
-                "id": purchase.checkout_session_id,
-                "payment_status": "paid",
-                "status": "complete",
-                "amount_total": amount_total or purchase.amount_eur_cents,
-                "currency": purchase.currency,
-                "client_reference_id": purchase.user_id,
-                "payment_intent": f"pi_{purchase.id}",
-                "metadata": {
-                    "purchase_id": purchase.id,
-                    "user_id": purchase.user_id,
-                    "package_key": purchase.package_key,
-                    "credits": str(purchase.credits),
-                    "integration_identifier": purchase.integration_identifier,
-                    "catalog_version": purchase.snapshot["catalog_version"],
-                },
-            }
-        },
+        "type": event_type,
+        "data": {"object": checkout_object},
     }
     return json.dumps(payload, sort_keys=True).encode()
 
@@ -204,7 +210,7 @@ def test_checkout_is_idempotent_and_snapshot_conflicts_are_rejected(
     purchase = _purchase(db, first.purchase_id)
     assert purchase.snapshot["amount_eur_cents"] == 100
     assert purchase.snapshot["stripe_price_id"] == "price_test_starter"
-    assert purchase.integration_identifier.startswith("subframe_credits_")
+    assert purchase.integration_identifier.startswith("gsubs_credits_")
     assert len(purchase.integration_identifier.rsplit("_", 1)[-1]) == 8
 
     with pytest.raises(BillingConflictError):
@@ -268,6 +274,54 @@ def test_checkout_fulfillment_and_webhook_replay_credit_exactly_once(
     )
     assert status.status == "paid"
     assert status.wallet.paid_balance == 100
+
+
+def test_delayed_checkout_waits_for_async_success_without_early_credit(
+    billing_settings: None,
+) -> None:
+    db, user_id, points, _, service = _service()
+    checkout = service.create_checkout(
+        user_id=user_id,
+        customer_email=f"{user_id}@example.com",
+        package_key="starter",
+        idempotency_key=f"checkout-{uuid.uuid4().hex}",
+    )
+    purchase = _purchase(db, checkout.purchase_id)
+
+    unpaid_completion = _checkout_event(
+        purchase,
+        payment_status="unpaid",
+        include_payment_intent=False,
+    )
+    assert _process(service, unpaid_completion) == "processed"
+    assert _purchase(db, purchase.id).status == "awaiting_payment"
+    assert points.get_balances(user_id).paid_balance == 0
+
+    async_success = _checkout_event(
+        purchase,
+        event_type="checkout.session.async_payment_succeeded",
+    )
+    assert _process(service, async_success) == "processed"
+    assert _purchase(db, purchase.id).status == "paid"
+    assert points.get_balances(user_id).paid_balance == 100
+
+    late_unpaid_completion = _checkout_event(
+        purchase,
+        payment_status="unpaid",
+        include_payment_intent=False,
+    )
+    assert _process(service, late_unpaid_completion) == "processed"
+    assert _purchase(db, purchase.id).status == "paid"
+    assert points.get_balances(user_id).paid_balance == 100
+
+    late_failure = {
+        "id": f"evt_{uuid.uuid4().hex}",
+        "type": "checkout.session.async_payment_failed",
+        "data": {"object": {"id": purchase.checkout_session_id}},
+    }
+    assert _process(service, late_failure) == "processed"
+    assert _purchase(db, purchase.id).status == "paid"
+    assert points.get_balances(user_id).paid_balance == 100
 
 
 def test_concurrent_identical_webhooks_are_serialized(
@@ -410,6 +464,55 @@ def test_full_refund_claws_back_available_credits_and_creates_debt(
     assert wallet.paid_balance == 20
 
 
+def test_refund_reconciliation_continues_when_new_sales_are_disabled(
+    billing_settings: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db, user_id, points, _, service = _service()
+    checkout = service.create_checkout(
+        user_id=user_id,
+        customer_email=f"{user_id}@example.com",
+        package_key="starter",
+        idempotency_key=f"checkout-{uuid.uuid4().hex}",
+    )
+    purchase = _purchase(db, checkout.purchase_id)
+    assert _process(service, _checkout_event(purchase)) == "processed"
+    assert points.get_balances(user_id).paid_balance == 100
+
+    monkeypatch.setattr(config.settings, "paid_credits_enabled", False)
+    assert _process(service, _refund_event(purchase)) == "processed"
+    assert points.get_balances(user_id).paid_balance == 0
+    assert _purchase(db, purchase.id).status == "reversed"
+
+
+def test_cold_webhook_gateway_reconciles_when_new_sales_are_disabled(
+    billing_settings: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db, user_id, points, _, checkout_service = _service()
+    checkout = checkout_service.create_checkout(
+        user_id=user_id,
+        customer_email=f"{user_id}@example.com",
+        package_key="starter",
+        idempotency_key=f"checkout-{uuid.uuid4().hex}",
+    )
+    purchase = _purchase(db, checkout.purchase_id)
+    assert _process(checkout_service, _checkout_event(purchase)) == "processed"
+
+    cold_gateway = FakeBillingGateway()
+    monkeypatch.setattr(config.settings, "paid_credits_enabled", False)
+    monkeypatch.setattr(
+        billing_module,
+        "StripeSdkGateway",
+        lambda: cold_gateway,
+    )
+    cold_service = BillingService(db=db, points_store=points)
+
+    assert _process(cold_service, _refund_event(purchase)) == "processed"
+    assert points.get_balances(user_id).paid_balance == 0
+    assert _purchase(db, purchase.id).status == "reversed"
+
+
 def test_unknown_expired_checkout_is_a_safe_noop(
     billing_settings: None,
 ) -> None:
@@ -420,6 +523,39 @@ def test_unknown_expired_checkout_is_a_safe_noop(
         "data": {"object": {"id": "cs_test_unknown"}},
     }
     assert _process(service, event) == "processed"
+
+
+def test_async_payment_failure_marks_purchase_failed_without_crediting_wallet(
+    billing_settings: None,
+) -> None:
+    db, user_id, points, _, service = _service()
+    checkout = service.create_checkout(
+        user_id=user_id,
+        customer_email=f"{user_id}@example.com",
+        package_key="starter",
+        idempotency_key=f"checkout-{uuid.uuid4().hex}",
+    )
+    purchase = _purchase(db, checkout.purchase_id)
+    event = {
+        "id": f"evt_{uuid.uuid4().hex}",
+        "type": "checkout.session.async_payment_failed",
+        "data": {"object": {"id": purchase.checkout_session_id}},
+    }
+
+    # REGRESSION: a failed delayed payment previously remained checkout_created,
+    # even though Stripe had reported a terminal payment failure.
+    assert _process(service, event) == "processed"
+    assert _purchase(db, purchase.id).status == "failed"
+    assert points.get_balances(user_id).paid_balance == 0
+
+    late_unpaid_completion = _checkout_event(
+        purchase,
+        payment_status="unpaid",
+        include_payment_intent=False,
+    )
+    assert _process(service, late_unpaid_completion) == "processed"
+    assert _purchase(db, purchase.id).status == "failed"
+    assert points.get_balances(user_id).paid_balance == 0
 
 
 def test_payment_intent_cannot_fulfill_two_purchases(
@@ -595,6 +731,7 @@ def test_stripe_sdk_gateway_disables_retries_uses_fixed_price_and_verifies_signa
 
     monkeypatch.setattr(stripe, "StripeClient", _client_factory)
     gateway = StripeSdkGateway()
+    checkout_started_at = int(time.time())
     checkout = gateway.create_checkout_session(
         price_id="price_test_starter",
         user_id="user-1",
@@ -602,7 +739,7 @@ def test_stripe_sdk_gateway_disables_retries_uses_fixed_price_and_verifies_signa
         purchase_id="a" * 32,
         package_key="starter",
         credits=100,
-        integration_identifier="subframe_credits_abcdefgh",
+        integration_identifier="gsubs_credits_abcdefgh",
         idempotency_key="subframe-checkout-test",
     )
     assert checkout.id == "cs_test_fixed"
@@ -612,6 +749,15 @@ def test_stripe_sdk_gateway_disables_retries_uses_fixed_price_and_verifies_signa
     }
     params = captured["params"]
     assert params["line_items"] == [{"price": "price_test_starter", "quantity": 1}]
+    # REGRESSION: API 2026-03-25+ requires this as a first-class Checkout field,
+    # not only as duplicated metadata.
+    assert params["integration_identifier"] == "gsubs_credits_abcdefgh"
+    assert params["customer_creation"] == "always"
+    assert params["billing_address_collection"] == "required"
+    assert params["name_collection"] == {"individual": {"enabled": True}}
+    assert params["payment_intent_data"]["receipt_email"] == "person@example.com"
+    assert params["expires_at"] >= checkout_started_at + 60 * 60
+    assert params["expires_at"] <= int(time.time()) + 60 * 60
     assert "price_data" not in params["line_items"][0]
     assert "payment_method_types" not in params
     assert "automatic_tax" not in params

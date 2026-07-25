@@ -390,6 +390,14 @@ export default function DashboardPage() {
             setCheckoutNotice(t('creditPurchaseSuccess', { count: status.credits }));
             break;
           }
+          if (status.status === 'failed') {
+            setCheckoutNotice(t('creditPurchaseFailed'));
+            break;
+          }
+          if (status.status === 'expired') {
+            setCheckoutNotice(t('creditPurchaseExpired'));
+            break;
+          }
           setCheckoutNotice(t('creditPurchasePending'));
         } catch (checkoutError) {
           if (!active) return;

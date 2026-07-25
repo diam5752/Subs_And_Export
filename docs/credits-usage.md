@@ -1,10 +1,11 @@
 # Prepaid video credits and Stripe handoff
 
-Updated: 2026-07-23
+Updated: 2026-07-25
 
-Paid credits are implemented but fail closed until the owner completes the
-Stripe test-mode setup and explicitly enables them. No subscription or
-automatic renewal is used.
+Stripe test-mode setup and a card Checkout have been validated. Production
+paid credits remain fail closed until the owner completes the separate live
+setup and explicitly enables them. No subscription or automatic renewal is
+used.
 
 ## Customer prices
 
@@ -102,8 +103,8 @@ Current official references:
 
 Do this in **test mode first**:
 
-1. Create three one-time Products/Prices in EUR—Starter €1, Creator €3 and
-   Studio €10. Copy their `price_...` IDs.
+1. Create one `GSUBS Credits` Product with three one-time Prices in EUR:
+   Starter €1, Creator €3 and Studio €10. Copy their `price_...` IDs.
 2. Create a restricted test key. Grant only the minimum Checkout Session
    permissions needed to create and expire sessions; do not use the account
    secret key.
@@ -112,22 +113,61 @@ Do this in **test mode first**:
 4. Subscribe to:
    `checkout.session.completed`,
    `checkout.session.async_payment_succeeded`,
-   `checkout.session.expired`, `charge.refunded`,
+   `checkout.session.async_payment_failed`, `checkout.session.expired`,
+   `charge.refunded`,
    `charge.dispute.created`, `charge.dispute.funds_withdrawn`,
    `charge.dispute.funds_reinstated`, and `charge.dispute.closed`.
 5. Copy the endpoint signing secret (`whsec_...`) to the server secret store.
-6. Review the legal seller name, statement descriptor, support contact,
+6. Checkout creates a Stripe Customer and requires the buyer's individual name
+   and billing address so the payment can be reconciled with the manual
+   e-Timologio workflow. Stripe does not issue an AADE invoice.
+7. Pausing `GSP_PAID_CREDITS_ENABLED` blocks new Checkout Sessions only. Keep
+   the restricted key and webhook signing secret available so signed refunds,
+   disputes, expirations and delayed-payment results for existing purchases can
+   still be reconciled.
+8. Review the legal seller name, statement descriptor, support contact,
    refund policy and customer email behavior.
-7. Decide VAT treatment with the accountant. Automatic Tax deliberately fails
+9. Decide VAT treatment with the accountant. Automatic Tax deliberately fails
    startup while owner-gated; do not enable it until registrations and
    tax-inclusive prices are confirmed.
-8. Set test environment values, run migrations, enable paid credits, and use
+10. Set test environment values, run migrations, enable paid credits, and use
    Stripe test cards to cover success, cancellation, delayed payment, duplicate
    webhook, partial/full refund and dispute flows.
-9. Reconcile the Stripe payment total, `credit_purchases`,
+11. Reconcile the Stripe payment total, `credit_purchases`,
    `stripe_webhook_events`, point transactions and provider budget windows.
-10. Repeat with separate live Prices, restricted key and webhook secret only
+12. Repeat with separate live Prices, restricted key and webhook secret only
     after the test-mode reconciliation passes.
+
+## Current sandbox mapping
+
+This mapping is test-only and does not enable production sales or issue an
+AADE document:
+
+| GSUBS package | Credits | Gross amount | Stripe test Price |
+| --- | ---: | ---: | --- |
+| Starter | 100 | €1.00 | `price_1TxBTrFxotLWYrtgK2OtxFsN` |
+| Creator (`core`) | 350 | €3.00 | `price_1TxBTrFxotLWYrtgnB0Aq7Hp` |
+| Studio (`pro`) | 1,200 | €10.00 | `price_1TxBTrFxotLWYrtg7Hh8VEyR` |
+
+All three Prices belong to the Stripe sandbox Product
+`prod_Ux5fP4UP201f4y` (`GSUBS Credits`). For manual e-Timologio
+reconciliation, use the existing AADE service item with code `4`. Match one
+paid Stripe Checkout to one internal `credit_purchases` row by
+`checkout_session_id`, `payment_intent_id`, `purchase_id` and
+`integration_identifier`; then issue the appropriate AADE document manually.
+The integration must never infer that a Stripe payment already has a MARK.
+
+## Live activation blockers
+
+Keep production Checkout disabled until all of these are closed:
+
+- the accountant confirms VAT treatment and the manual e-Timologio document
+  workflow;
+- the owner approves Stripe receipt email and Customer/address retention;
+- dispute reconciliation becomes order-independent and has a reverse-delivery
+  regression test, because Stripe does not guarantee webhook delivery order;
+- separate live Prices, a least-privilege live restricted key and a signed live
+  webhook endpoint pass the complete reconciliation checklist.
 
 Required environment shape (secrets must not be committed):
 

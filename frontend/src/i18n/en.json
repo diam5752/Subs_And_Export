@@ -349,5 +349,7 @@
   "creditPurchaseCancelled": "Purchase cancelled — you were not charged.",
   "creditPurchaseSuccess": "{count} credits were added to your balance.",
   "creditPurchasePending": "Payment is being confirmed. Credits will appear automatically.",
+  "creditPurchaseFailed": "Payment failed. No credits were added. Please try another payment method.",
+  "creditPurchaseExpired": "The payment session expired. No credits were added. Start a new purchase.",
   "creditPurchaseStatusError": "The payment could not be confirmed."
 }
