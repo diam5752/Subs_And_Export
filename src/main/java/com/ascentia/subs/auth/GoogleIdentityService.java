@@ -135,10 +135,14 @@ public class GoogleIdentityService {
         if (name.isEmpty()) {
             name = email;
         }
+        String avatarUrl = GoogleAvatarUrl.normalize(
+                jwt.getClaimAsString("picture")
+        );
         return new GoogleProfile(
                 email,
                 name.substring(0, Math.min(100, name.length())),
-                subject
+                subject,
+                avatarUrl
         );
     }
 
@@ -175,6 +179,14 @@ public class GoogleIdentityService {
         return new ResponseStatusException(HttpStatus.UNAUTHORIZED, message);
     }
 
-    public record GoogleProfile(String email, String name, String subject) {
+    public record GoogleProfile(
+            String email,
+            String name,
+            String subject,
+            String avatarUrl
+    ) {
+        public GoogleProfile(String email, String name, String subject) {
+            this(email, name, subject, null);
+        }
     }
 }

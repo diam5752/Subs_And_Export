@@ -79,6 +79,16 @@ public class AuthStore {
 
     @Transactional
     public CurrentUser upsertGoogleUser(String email, String name, String sub) {
+        return upsertGoogleUser(email, name, sub, null);
+    }
+
+    @Transactional
+    public CurrentUser upsertGoogleUser(
+            String email,
+            String name,
+            String sub,
+            String avatarUrl
+    ) {
         String normalizedEmail = normalizeEmail(email);
         String finalName = normalizeName(name, normalizedEmail);
         String normalizedSubject = sub == null ? "" : sub.strip();
@@ -88,16 +98,31 @@ public class AuthStore {
         if (normalizedSubject.length() > 255) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Google token subject is too long.");
         }
+        String normalizedAvatarUrl = GoogleAvatarUrl.normalize(avatarUrl);
         Optional<CurrentUser> existingIdentity = findUserByGoogleSub(normalizedSubject);
         if (existingIdentity.isPresent()) {
-            jdbcClient.sql("""
-                    UPDATE users
-                    SET name = :name, email_verified = TRUE
-                    WHERE id = :id
-                    """)
-                    .param("name", finalName)
-                    .param("id", existingIdentity.get().id())
-                    .update();
+            if (normalizedAvatarUrl == null) {
+                jdbcClient.sql("""
+                        UPDATE users
+                        SET name = :name, email_verified = TRUE
+                        WHERE id = :id
+                        """)
+                        .param("name", finalName)
+                        .param("id", existingIdentity.get().id())
+                        .update();
+            } else {
+                jdbcClient.sql("""
+                        UPDATE users
+                        SET name = :name,
+                            email_verified = TRUE,
+                            avatar_url = :avatarUrl
+                        WHERE id = :id
+                        """)
+                        .param("name", finalName)
+                        .param("avatarUrl", normalizedAvatarUrl)
+                        .param("id", existingIdentity.get().id())
+                        .update();
+            }
             return findUserById(existingIdentity.get().id())
                     .map(AuthStore::withoutSecret)
                     .orElseThrow();
@@ -119,18 +144,40 @@ public class AuthStore {
                 "google",
                 null,
                 normalizedSubject,
+                normalizedAvatarUrl,
                 utcIso(),
                 true
         );
         try {
             jdbcClient.sql("""
-                    INSERT INTO users (id, email, name, provider, password_hash, google_sub, created_at, email_verified)
-                    VALUES (:id, :email, :name, 'google', NULL, :googleSub, :createdAt, TRUE)
+                    INSERT INTO users (
+                        id,
+                        email,
+                        name,
+                        provider,
+                        password_hash,
+                        google_sub,
+                        avatar_url,
+                        created_at,
+                        email_verified
+                    )
+                    VALUES (
+                        :id,
+                        :email,
+                        :name,
+                        'google',
+                        NULL,
+                        :googleSub,
+                        :avatarUrl,
+                        :createdAt,
+                        TRUE
+                    )
                     """)
                     .param("id", user.id())
                     .param("email", user.email())
                     .param("name", user.name())
                     .param("googleSub", normalizedSubject)
+                    .param("avatarUrl", normalizedAvatarUrl, java.sql.Types.VARCHAR)
                     .param("createdAt", user.createdAt())
                     .update();
         } catch (DataIntegrityViolationException exception) {
@@ -161,7 +208,16 @@ public class AuthStore {
         }
         int now = now();
         return jdbcClient.sql("""
-                SELECT u.id, u.email, u.name, u.provider, u.password_hash, u.google_sub, u.created_at, u.email_verified
+                SELECT
+                    u.id,
+                    u.email,
+                    u.name,
+                    u.provider,
+                    u.password_hash,
+                    u.google_sub,
+                    u.avatar_url,
+                    u.created_at,
+                    u.email_verified
                 FROM users u
                 JOIN sessions s ON s.user_id = u.id
                 WHERE s.token_hash = :tokenHash AND s.expires_at > :now
@@ -177,6 +233,7 @@ public class AuthStore {
                         rs.getString("provider"),
                         rs.getString("password_hash"),
                         rs.getString("google_sub"),
+                        rs.getString("avatar_url"),
                         rs.getString("created_at"),
                         rs.getBoolean("email_verified")
                 ))
@@ -243,7 +300,16 @@ public class AuthStore {
 
     public Optional<CurrentUser> findUserById(String userId) {
         return jdbcClient.sql("""
-                SELECT id, email, name, provider, password_hash, google_sub, created_at, email_verified
+                SELECT
+                    id,
+                    email,
+                    name,
+                    provider,
+                    password_hash,
+                    google_sub,
+                    avatar_url,
+                    created_at,
+                    email_verified
                 FROM users
                 WHERE id = :userId
                 """)
@@ -255,6 +321,7 @@ public class AuthStore {
                         rs.getString("provider"),
                         rs.getString("password_hash"),
                         rs.getString("google_sub"),
+                        rs.getString("avatar_url"),
                         rs.getString("created_at"),
                         rs.getBoolean("email_verified")
                 ))
@@ -263,7 +330,16 @@ public class AuthStore {
 
     public Optional<CurrentUser> findUserByEmail(String email) {
         return jdbcClient.sql("""
-                SELECT id, email, name, provider, password_hash, google_sub, created_at, email_verified
+                SELECT
+                    id,
+                    email,
+                    name,
+                    provider,
+                    password_hash,
+                    google_sub,
+                    avatar_url,
+                    created_at,
+                    email_verified
                 FROM users
                 WHERE email = :email
                 LIMIT 1
@@ -276,6 +352,7 @@ public class AuthStore {
                         rs.getString("provider"),
                         rs.getString("password_hash"),
                         rs.getString("google_sub"),
+                        rs.getString("avatar_url"),
                         rs.getString("created_at"),
                         rs.getBoolean("email_verified")
                 ))
@@ -284,7 +361,16 @@ public class AuthStore {
 
     public Optional<CurrentUser> findUserByGoogleSub(String subject) {
         return jdbcClient.sql("""
-                SELECT id, email, name, provider, password_hash, google_sub, created_at, email_verified
+                SELECT
+                    id,
+                    email,
+                    name,
+                    provider,
+                    password_hash,
+                    google_sub,
+                    avatar_url,
+                    created_at,
+                    email_verified
                 FROM users
                 WHERE google_sub = :subject
                 LIMIT 1
@@ -297,6 +383,7 @@ public class AuthStore {
                         rs.getString("provider"),
                         rs.getString("password_hash"),
                         rs.getString("google_sub"),
+                        rs.getString("avatar_url"),
                         rs.getString("created_at"),
                         rs.getBoolean("email_verified")
                 ))
@@ -366,7 +453,17 @@ public class AuthStore {
     }
 
     private static CurrentUser withoutSecret(CurrentUser user) {
-        return new CurrentUser(user.id(), user.email(), user.name(), user.provider(), null, user.googleSub(), user.createdAt(), user.emailVerified());
+        return new CurrentUser(
+                user.id(),
+                user.email(),
+                user.name(),
+                user.provider(),
+                null,
+                user.googleSub(),
+                user.avatarUrl(),
+                user.createdAt(),
+                user.emailVerified()
+        );
     }
 
     private static String normalizeEmail(String email) {

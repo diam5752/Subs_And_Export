@@ -86,6 +86,7 @@ def test_verify_google_id_token_enforces_nonce_and_claims(monkeypatch):
             "email": " User@Example.com ",
             "email_verified": True,
             "name": "Google User",
+            "picture": "https://lh3.googleusercontent.com/a/google-avatar=s96-c",
             "sub": "google-subject",
             "nonce": nonce,
             "exp": int(time.time()) + 300,
@@ -102,12 +103,59 @@ def test_verify_google_id_token_enforces_nonce_and_claims(monkeypatch):
     assert profile["email"] == "user@example.com"
     assert profile["name"] == "Google User"
     assert profile["sub"] == "google-subject"
+    # REGRESSION: Google profile pictures were discarded after token
+    # verification, so the authenticated header could only show an initial.
+    assert profile["avatar_url"] == (
+        "https://lh3.googleusercontent.com/a/google-avatar=s96-c"
+    )
     assert observed["token"] == "signed-id-token"
     assert observed["audience"] == "google-client"
     # REGRESSION: the production backend is intentionally isolated from direct
     # egress, so Google signing certificates must use the internal edge relay.
     assert observed["certs_url"] == "http://edge:8081/oauth2/v1/certs"
     assert observed["clock_skew_in_seconds"] == 30
+
+
+@pytest.mark.parametrize(
+    "picture",
+    [
+        "http://lh3.googleusercontent.com/a/avatar",
+        "https://evil.example/avatar.png",
+        "https://user@lh3.googleusercontent.com/a/avatar",
+        "https://lh3.googleusercontent.com:444/a/avatar",
+        "https://lh3.googleusercontent.com/a/avatar#tracking",
+        "x" * 2_049,
+    ],
+)
+def test_verify_google_id_token_drops_unsafe_profile_picture(
+    monkeypatch,
+    picture,
+):
+    monkeypatch.setenv("GSP_USE_FILE_SECRETS", "0")
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "google-client")
+    nonce = "nonce"
+    monkeypatch.setattr(
+        "google.oauth2.id_token.verify_token",
+        lambda *_args, **_kwargs: {
+            "aud": "google-client",
+            "iss": "accounts.google.com",
+            "email": "user@example.com",
+            "email_verified": True,
+            "name": "User",
+            "picture": picture,
+            "sub": "subject",
+            "nonce": nonce,
+            "exp": int(time.time()) + 300,
+        },
+    )
+
+    profile = auth.verify_google_id_token(
+        "signed-id-token",
+        expected_nonce_hash=auth.google_auth_nonce_hash(nonce),
+        require_nonce=True,
+    )
+
+    assert profile["avatar_url"] is None
 
 
 @pytest.mark.parametrize(

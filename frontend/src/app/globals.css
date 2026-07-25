@@ -394,10 +394,12 @@ select:focus-visible,
 }
 
 .profile-trigger {
+  position: relative;
   width: 38px;
   height: 38px;
   display: grid;
   place-items: center;
+  overflow: hidden;
   border: 1px solid var(--border);
   border-radius: 11px;
   background: var(--surface-elevated);
@@ -409,6 +411,23 @@ select:focus-visible,
 .profile-trigger:hover {
   border-color: rgb(var(--accent-rgb) / 0.6);
   transform: translateY(-1px);
+}
+
+.profile-avatar-fallback,
+.profile-avatar-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.profile-avatar-fallback {
+  display: grid;
+  place-items: center;
+}
+
+.profile-avatar-image {
+  object-fit: cover;
 }
 
 .studio-stage {

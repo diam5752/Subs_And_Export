@@ -65,6 +65,7 @@ interface UserResponse {
     email: string;
     name: string;
     provider: string;
+    avatar_url: string | null;
 }
 
 export interface PointsBalanceResponse {

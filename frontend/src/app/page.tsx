@@ -18,6 +18,7 @@ import { useJobPolling, JobPollingCallbacks } from '@/hooks/useJobPolling';
 import { processVideoCostForSelection } from '@/lib/points';
 import Link from 'next/link';
 import { BrandLogo } from '@/components/BrandLogo';
+import { ProfileAvatar } from '@/components/ProfileAvatar';
 
 const statusStyles: Record<string, string> = {
   completed: 'bg-green-500/15 text-green-300 border-green-500/30',
@@ -537,7 +538,10 @@ export default function DashboardPage() {
                 aria-label={t('profileLabel')}
                 title={t('accountSettingsTitle')}
               >
-                {user.name?.trim().charAt(0).toUpperCase() || 'A'}
+                <ProfileAvatar
+                  name={user.name}
+                  avatarUrl={user.avatar_url}
+                />
               </button>
             </>
           ) : (

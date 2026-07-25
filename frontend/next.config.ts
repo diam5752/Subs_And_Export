@@ -2,6 +2,15 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'lh3.googleusercontent.com',
+        pathname: '/**',
+      },
+    ],
+  },
   // Localhost is a user-facing QA surface in this project; keep framework
   // chrome out of responsive screenshots and touch interactions.
   devIndicators: false,
@@ -15,6 +24,7 @@ const nextConfig: NextConfig = {
     // Allow connecting to the API backend
     const isDev = process.env.NODE_ENV !== 'production';
     const googleIdentityOrigin = 'https://accounts.google.com';
+    const googleProfileImageOrigin = 'https://lh3.googleusercontent.com';
     const scriptSrc = isDev
       ? `script-src 'self' 'unsafe-eval' 'unsafe-inline' ${googleIdentityOrigin};`
       : `script-src 'self' 'unsafe-inline' ${googleIdentityOrigin};`;
@@ -23,7 +33,7 @@ const nextConfig: NextConfig = {
       `base-uri 'self';`,
       `object-src 'none';`,
       `frame-ancestors 'none';`,
-      `img-src 'self'${apiSource} blob: data:;`,
+      `img-src 'self'${apiSource} ${googleProfileImageOrigin} blob: data:;`,
       `media-src 'self'${apiSource} blob: data:;`,
       scriptSrc,
       `style-src 'self' 'unsafe-inline';`,

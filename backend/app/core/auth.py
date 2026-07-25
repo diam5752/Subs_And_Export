@@ -12,7 +12,8 @@ import time
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
+from urllib.parse import urlsplit
 
 from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
@@ -30,6 +31,15 @@ class GoogleAuthError(ValueError):
     """A public-safe Google authentication failure."""
 
 
+class GoogleProfile(TypedDict):
+    """Verified, normalized Google profile fields safe for persistence."""
+
+    email: str
+    name: str
+    sub: str
+    avatar_url: str | None
+
+
 @dataclass(slots=True)
 class User:
     """Represents an authenticated user profile."""
@@ -40,6 +50,7 @@ class User:
     provider: str  # "local" or "google"
     password_hash: str | None = None
     google_sub: str | None = None
+    avatar_url: str | None = None
     created_at: str | None = None
     email_verified: bool = False
 
@@ -112,7 +123,13 @@ class UserStore:
         )
         return user
 
-    def upsert_google_user(self, email: str, name: str, sub: str) -> User:
+    def upsert_google_user(
+        self,
+        email: str,
+        name: str,
+        sub: str,
+        avatar_url: str | None = None,
+    ) -> User:
         email = email.strip().lower()
         _validate_email(email)
         sub = sub.strip()
@@ -120,6 +137,7 @@ class UserStore:
             raise GoogleAuthError("Google token subject is missing.")
         if len(sub) > 255:
             raise GoogleAuthError("Google token subject is too long.")
+        normalized_avatar_url = _normalize_google_avatar_url(avatar_url)
         # Truncate name for external providers (don't fail)
         final_name = (name.strip() or email.split("@")[0])[:100]
         created = False
@@ -132,6 +150,8 @@ class UserStore:
                 if existing_identity:
                     existing_identity.name = final_name
                     existing_identity.email_verified = True
+                    if normalized_avatar_url is not None:
+                        existing_identity.avatar_url = normalized_avatar_url
                     session.flush()
                     user = _user_from_db(existing_identity)
                 else:
@@ -150,6 +170,7 @@ class UserStore:
                         name=final_name,
                         provider="google",
                         google_sub=sub,
+                        avatar_url=normalized_avatar_url,
                         created_at=_utc_iso(),
                         email_verified=True,
                     )
@@ -161,6 +182,7 @@ class UserStore:
                             provider=user.provider,
                             password_hash=None,
                             google_sub=user.google_sub,
+                            avatar_url=user.avatar_url,
                             created_at=user.created_at,
                             email_verified=True,
                         )
@@ -305,6 +327,7 @@ def _user_from_db(user: DbUser) -> User:
         provider=user.provider or "local",
         password_hash=user.password_hash,
         google_sub=user.google_sub,
+        avatar_url=getattr(user, "avatar_url", None),
         created_at=user.created_at,
         email_verified=getattr(user, "email_verified", False),
     )
@@ -391,6 +414,31 @@ def _validate_name(name: str) -> None:
         raise ValueError("Name must be at most 100 characters long")
 
 
+def _normalize_google_avatar_url(value: str | None) -> str | None:
+    """Accept only Google's HTTPS profile-image host."""
+    if not isinstance(value, str):
+        return None
+    candidate = value.strip()
+    if not candidate or len(candidate) > 2_048:
+        return None
+    try:
+        parsed = urlsplit(candidate)
+        port = parsed.port
+    except ValueError:
+        return None
+    if (
+        parsed.scheme.lower() != "https"
+        or parsed.hostname != "lh3.googleusercontent.com"
+        or parsed.username is not None
+        or parsed.password is not None
+        or port not in {None, 443}
+        or not parsed.path.startswith("/")
+        or parsed.fragment
+    ):
+        return None
+    return candidate
+
+
 def _utc_iso() -> str:
     from datetime import datetime, timezone
 
@@ -467,7 +515,7 @@ def _assert_google_payload_claims(
     payload: dict[str, Any],
     *,
     client_id: str,
-) -> dict[str, str]:
+) -> GoogleProfile:
     if payload.get("aud") != client_id:
         raise GoogleAuthError("Google token audience is not allowed.")
     if payload.get("iss") not in {"accounts.google.com", "https://accounts.google.com"}:
@@ -503,7 +551,18 @@ def _assert_google_payload_claims(
 
     raw_name = payload.get("name")
     name = raw_name.strip() if isinstance(raw_name, str) and raw_name.strip() else email
-    return {"email": email, "name": name[:100], "sub": sub}
+    raw_avatar_url = payload.get("picture")
+    avatar_url = (
+        _normalize_google_avatar_url(raw_avatar_url)
+        if isinstance(raw_avatar_url, str)
+        else None
+    )
+    return {
+        "email": email,
+        "name": name[:100],
+        "sub": sub,
+        "avatar_url": avatar_url,
+    }
 
 
 def verify_google_id_token(
@@ -511,7 +570,7 @@ def verify_google_id_token(
     *,
     expected_nonce_hash: str | None,
     require_nonce: bool,
-) -> dict[str, str]:
+) -> GoogleProfile:
     """Verify a Google Identity Services ID token and return a safe profile."""
     if not token:
         raise GoogleAuthError("Google ID token is required.")

@@ -295,7 +295,7 @@
   "privacyPageTitle": "Privacy Policy",
   "privacyPageIntro": "This policy explains in plain language which data gsubs needs to create transcripts, captions, and export files.",
   "privacyCollectionTitle": "1. Data we process",
-  "privacyCollectionBody": "We process the video you select, its audio, generated captions, and export settings. If you create an account, we also store basic profile details and the status of your jobs.",
+  "privacyCollectionBody": "We process the video you select, its audio, generated captions, and export settings. If you create an account, we also store basic profile details and the status of your jobs. When you sign in with Google, these details may include the name, email address, and profile-image URL provided by Google.",
   "privacyRetentionTitle": "2. Retention",
   "privacyRetentionBody": "All media files, captions, exports, and the project record are automatically deleted 24 hours after the last editing or export activity. Each new edit or export refreshes that window. You can also delete them immediately from History.",
   "privacyProvidersTitle": "3. Processing providers",

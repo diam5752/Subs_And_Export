@@ -57,6 +57,28 @@ describe('next.config', () => {
     expect(csp).toContain('frame-src https://accounts.google.com');
   });
 
+  it('allows only the Google profile-image host used by verified avatars', async () => {
+    const nextConfigModule = await import('../../next.config');
+    const headers = await nextConfigModule.default.headers?.();
+    const csp = headers?.[0]?.headers?.find(
+      (header) => header.key === 'Content-Security-Policy',
+    )?.value;
+
+    // REGRESSION: the restrictive production CSP blocked the profile picture
+    // even when the verified Google token supplied it.
+    expect(csp).toContain(
+      'img-src',
+    );
+    expect(csp).toContain('https://lh3.googleusercontent.com');
+    expect(nextConfigModule.default.images?.remotePatterns).toEqual([
+      {
+        protocol: 'https',
+        hostname: 'lh3.googleusercontent.com',
+        pathname: '/**',
+      },
+    ]);
+  });
+
   it('keeps Google Identity popup communication available', async () => {
     // REGRESSION: COOP "same-origin" severs the window.opener channel that
     // Google Identity Services uses to return a popup credential.

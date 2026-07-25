@@ -33,6 +33,10 @@ class GoogleIdentityServiceTest {
         assertThat(profile.email()).isEqualTo("user@example.com");
         assertThat(profile.name()).isEqualTo("Google User");
         assertThat(profile.subject()).isEqualTo("google-subject");
+        // REGRESSION: keep the Java compatibility surface aligned with the
+        // Python API when Google supplies a verified profile picture.
+        assertThat(profile.avatarUrl())
+                .isEqualTo("https://lh3.googleusercontent.com/a/avatar=s96-c");
     }
 
     @Test
@@ -222,7 +226,11 @@ class GoogleIdentityServiceTest {
                 .claim("iss", "https://accounts.google.com")
                 .claim("email", " User@Example.com ")
                 .claim("email_verified", true)
-                .claim("name", "Google User");
+                .claim("name", "Google User")
+                .claim(
+                        "picture",
+                        "https://lh3.googleusercontent.com/a/avatar=s96-c"
+                );
         if (nonce != null) {
             builder.claim("nonce", nonce);
         }

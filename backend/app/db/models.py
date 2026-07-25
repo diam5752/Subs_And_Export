@@ -38,6 +38,7 @@ class DbUser(Base):
         unique=True,
         index=True,
     )
+    avatar_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     created_at: Mapped[str | None] = mapped_column(String(64), nullable=True)
     email_verified: Mapped[bool] = mapped_column(Boolean, default=False)
 

@@ -88,7 +88,8 @@ class AuthControllerUnitTest {
                 new GoogleIdentityService.GoogleProfile(
                         "google@example.com",
                         "Google User",
-                        "google-subject"
+                        "google-subject",
+                        "https://lh3.googleusercontent.com/a/avatar=s96-c"
                 );
         CurrentUser user = new CurrentUser(
                 "google-user",
@@ -108,7 +109,8 @@ class AuthControllerUnitTest {
         when(authStore.upsertGoogleUser(
                 profile.email(),
                 profile.name(),
-                profile.subject()
+                profile.subject(),
+                profile.avatarUrl()
         )).thenReturn(user);
         when(authStore.issueSession(user, "JUnit")).thenReturn("session-token");
 
@@ -121,6 +123,12 @@ class AuthControllerUnitTest {
         assertThat(token.access_token()).isEqualTo("session-token");
         assertThat(token.user_id()).isEqualTo("google-user");
         verify(googleIdentityService).verify("signed-id-token", "nonce-hash", true);
+        verify(authStore).upsertGoogleUser(
+                profile.email(),
+                profile.name(),
+                profile.subject(),
+                profile.avatarUrl()
+        );
         assertThat(Objects.requireNonNull(response.getHeader("Set-Cookie")))
                 .contains("gsubs_google_nonce=")
                 .contains("Max-Age=0");
@@ -154,7 +162,8 @@ class AuthControllerUnitTest {
         when(authStore.upsertGoogleUser(
                 profile.email(),
                 profile.name(),
-                profile.subject()
+                profile.subject(),
+                profile.avatarUrl()
         )).thenReturn(user);
         when(authStore.issueSession(user, "JUnit")).thenReturn("session-token");
 

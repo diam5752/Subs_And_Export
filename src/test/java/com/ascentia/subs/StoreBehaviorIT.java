@@ -38,8 +38,15 @@ class StoreBehaviorIT extends IntegrationTestSupport {
         assertThat(authStore.consumeOauthState("google", oauthState, null, "JUnit", "127.0.0.1")).isTrue();
         assertThat(authStore.consumeOauthState("google", oauthState, null, "JUnit", "127.0.0.1")).isFalse();
 
-        CurrentUser google = authStore.upsertGoogleUser(uniqueEmail(), "Google User", "google-sub");
+        CurrentUser google = authStore.upsertGoogleUser(
+                uniqueEmail(),
+                "Google User",
+                "google-sub",
+                "https://lh3.googleusercontent.com/a/avatar=s96-c"
+        );
         assertThat(pointsStore.getBalance(google.id())).isEqualTo(PointsStore.STARTING_POINTS_BALANCE);
+        assertThat(google.avatarUrl())
+                .isEqualTo("https://lh3.googleusercontent.com/a/avatar=s96-c");
 
         authStore.deleteUser(local.id());
         assertThat(authStore.findUserById(local.id())).isEmpty();
@@ -348,15 +355,19 @@ class StoreBehaviorIT extends IntegrationTestSupport {
         CurrentUser googleUser = authStore.upsertGoogleUser(
                 uniqueEmail(),
                 "Google User",
-                "google-sub-updated"
+                "google-sub-updated",
+                "https://lh3.googleusercontent.com/a/avatar-one=s96-c"
         );
         assertThat(googleUser.provider()).isEqualTo("google");
         CurrentUser returningGoogleUser = authStore.upsertGoogleUser(
                 googleUser.email(),
                 "Updated Google User",
-                "google-sub-updated"
+                "google-sub-updated",
+                "https://lh3.googleusercontent.com/a/avatar-two=s96-c"
         );
         assertThat(returningGoogleUser.id()).isEqualTo(googleUser.id());
+        assertThat(returningGoogleUser.avatarUrl())
+                .isEqualTo("https://lh3.googleusercontent.com/a/avatar-two=s96-c");
         assertThat(authStore.findUserById(googleUser.id())).get()
                 .extracting(CurrentUser::provider, CurrentUser::passwordHash, CurrentUser::emailVerified)
                 .containsExactly("google", null, true);

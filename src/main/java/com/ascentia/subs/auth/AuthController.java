@@ -190,7 +190,8 @@ public class AuthController {
         CurrentUser user = authStore.upsertGoogleUser(
                 profile.email(),
                 profile.name(),
-                profile.subject()
+                profile.subject(),
+                profile.avatarUrl()
         );
         String token = authStore.issueSession(
                 user,
@@ -286,9 +287,21 @@ public class AuthController {
     public record TokenResponse(String access_token, String token_type, String user_id, String name) {
     }
 
-    public record UserResponse(String id, String email, String name, String provider) {
+    public record UserResponse(
+            String id,
+            String email,
+            String name,
+            String provider,
+            String avatar_url
+    ) {
         static UserResponse from(CurrentUser user) {
-            return new UserResponse(user.id(), user.email(), user.name(), user.provider());
+            return new UserResponse(
+                    user.id(),
+                    user.email(),
+                    user.name(),
+                    user.provider(),
+                    user.avatarUrl()
+            );
         }
     }
 
@@ -302,9 +315,23 @@ public class AuthController {
     ) {
     }
 
-    public record ExportProfileResponse(String id, String email, String name, String created_at, String provider) {
+    public record ExportProfileResponse(
+            String id,
+            String email,
+            String name,
+            String created_at,
+            String provider,
+            String avatar_url
+    ) {
         static ExportProfileResponse from(CurrentUser user) {
-            return new ExportProfileResponse(user.id(), user.email(), user.name(), user.createdAt(), user.provider());
+            return new ExportProfileResponse(
+                    user.id(),
+                    user.email(),
+                    user.name(),
+                    user.createdAt(),
+                    user.provider(),
+                    user.avatarUrl()
+            );
         }
     }
 

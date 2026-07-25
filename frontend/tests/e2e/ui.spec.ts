@@ -26,6 +26,9 @@ test('Google Identity Services login exchanges an ID token for a GSUBS session',
   await expect.poll(() => page.evaluate(() => localStorage.getItem('auth_token')))
     .toBe('google-token');
   await expect(page).toHaveURL('/');
+  // REGRESSION: the authenticated header must render the profile image
+  // returned after the Google session refresh.
+  await expect(page.getByTestId('profile-avatar-image')).toBeVisible();
 });
 
 async function expectNoHorizontalOverflow(page: Page, selector?: string) {

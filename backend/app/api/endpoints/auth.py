@@ -50,6 +50,7 @@ class UserResponse(BaseModel):
     email: str
     name: str
     provider: str
+    avatar_url: str | None = None
 
 @router.post("/register", response_model=UserResponse, dependencies=[Depends(limiter_register), Depends(limiter_signup_daily)])
 def register(
@@ -185,6 +186,7 @@ def export_my_data(
         "name": current_user.name,
         "created_at": current_user.created_at,
         "provider": current_user.provider,
+        "avatar_url": current_user.avatar_url,
     }
 
     # Jobs
@@ -307,6 +309,7 @@ def google_login(
             profile["email"],
             profile["name"],
             profile["sub"],
+            profile.get("avatar_url"),
         )
     except GoogleAuthError as exc:
         logger.warning("Google login rejected: %s", sanitize_error(exc))

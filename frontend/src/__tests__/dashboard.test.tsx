@@ -204,6 +204,39 @@ describe('DashboardPage', () => {
         expect(mockLoadJobs).not.toHaveBeenCalled();
     });
 
+    it('renders the Google profile picture with an initial fallback', () => {
+        // REGRESSION: authenticated Google users only saw their initial even
+        // though Google provided a verified profile picture.
+        (useAuth as jest.Mock).mockReturnValue({
+            user: {
+                ...mockUser,
+                provider: 'google',
+                avatar_url: 'https://lh3.googleusercontent.com/a/avatar=s96-c',
+            },
+            isLoading: false,
+            refreshUser: mockRefreshUser,
+            logout: jest.fn(),
+            login: mockLogin,
+            register: mockRegister,
+        });
+
+        render(<DashboardPage />);
+
+        const profileButton = screen.getByRole('button', { name: 'profileLabel' });
+        const avatar = within(profileButton).getByTestId('profile-avatar-image');
+        expect(avatar).toHaveAttribute(
+            'src',
+            'https://lh3.googleusercontent.com/a/avatar=s96-c',
+        );
+        expect(avatar).toHaveAttribute('referrerpolicy', 'no-referrer');
+
+        fireEvent.error(avatar);
+
+        expect(within(profileButton).queryByTestId('profile-avatar-image'))
+            .not.toBeInTheDocument();
+        expect(profileButton).toHaveTextContent('T');
+    });
+
     it('does not restore a completed job whose preview artifacts are missing', async () => {
         window.localStorage.setItem('lastActiveJobId', 'missing-job');
         (api.getJobStatus as jest.Mock).mockResolvedValue({

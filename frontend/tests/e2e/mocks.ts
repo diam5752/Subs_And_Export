@@ -47,6 +47,7 @@ const mockUser = {
   email: 'demo@futurist.studio',
   name: 'Eleni Papadopoulou',
   provider: 'local',
+  avatar_url: 'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2296%22 height=%2296%22%3E%3Crect width=%2296%22 height=%2296%22 fill=%22%231b6ca8%22/%3E%3C/svg%3E',
 };
 
 const mockTranscription = [

@@ -309,7 +309,7 @@ class TestGoogleOAuthEndpoints:
             *,
             expected_nonce_hash: str | None,
             require_nonce: bool,
-        ) -> dict[str, str]:
+        ) -> dict[str, str | None]:
             observed.update(
                 token=token,
                 expected_nonce_hash=expected_nonce_hash,
@@ -319,6 +319,7 @@ class TestGoogleOAuthEndpoints:
                 "email": "g@example.com",
                 "name": "Google User",
                 "sub": "subid",
+                "avatar_url": "https://lh3.googleusercontent.com/a/avatar=s96-c",
             }
 
         monkeypatch.setattr(auth_ep, "verify_google_id_token", fake_verify)
@@ -332,6 +333,16 @@ class TestGoogleOAuthEndpoints:
         }
         assert "gsubs_google_nonce=" in resp.headers["set-cookie"]
         assert "Max-Age=0" in resp.headers["set-cookie"]
+        me = client.get(
+            "/auth/me",
+            headers={"Authorization": f"Bearer {resp.json()['access_token']}"},
+        )
+        assert me.status_code == 200
+        # REGRESSION: the verified Google picture must survive the user upsert
+        # and be returned by the authenticated profile API.
+        assert me.json()["avatar_url"] == (
+            "https://lh3.googleusercontent.com/a/avatar=s96-c"
+        )
 
     def test_google_login_rejects_unverified_token_without_leaking_provider_error(
         self,
