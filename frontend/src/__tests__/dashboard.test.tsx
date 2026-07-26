@@ -130,11 +130,12 @@ jest.mock('@/features/process/ProcessView', () => ({
 }));
 
 jest.mock('@/components/AccountView', () => ({
-    AccountView: ({ onSaveProfile, onRefreshJobs }: { onSaveProfile: (name: string, pass1: string, pass2: string) => void; onRefreshJobs?: () => void | Promise<void> }) => (
+    AccountView: ({ onSaveProfile, onLogout, onRefreshJobs }: { onSaveProfile: (name: string, pass1: string, pass2: string) => void; onLogout: () => void; onRefreshJobs?: () => void | Promise<void> }) => (
         <div data-testid="account-view">
             <button data-testid="save-profile-btn" onClick={() => onSaveProfile('NewName', 'pass', 'pass')}>Save Profile</button>
             <button data-testid="save-mismatch-btn" onClick={() => onSaveProfile('Test User', 'pass', 'different')}>Save Mismatch</button>
             <button data-testid="save-name-only-btn" onClick={() => onSaveProfile('NewName', '', '')}>Save Name Only</button>
+            <button type="button" onClick={onLogout}>Sign out</button>
             <button data-testid="refresh-jobs-btn" onClick={() => onRefreshJobs?.()}>Refresh Jobs</button>
         </div>
     ),
@@ -365,6 +366,35 @@ describe('DashboardPage', () => {
         expect(screen.queryByText('accountSettingsTitle')).not.toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', { name: 'profileLabel' }));
         expect(screen.getByTestId('account-view')).toBeInTheDocument();
+    });
+
+    // REGRESSION: logging out from the open account panel left the header inert,
+    // so the guest "Sign in" link was visible but could not be clicked.
+    it('restores an interactive sign-in link after logout from the account panel', () => {
+        let currentUser: typeof mockUser | null = mockUser;
+        const logout = jest.fn(() => {
+            currentUser = null;
+        });
+        (useAuth as jest.Mock).mockImplementation(() => ({
+            user: currentUser,
+            isLoading: false,
+            refreshUser: mockRefreshUser,
+            logout,
+            login: mockLogin,
+            register: mockRegister,
+        }));
+
+        const { rerender } = render(<DashboardPage />);
+        fireEvent.click(screen.getByRole('button', { name: 'profileLabel' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
+        rerender(<DashboardPage />);
+
+        expect(logout).toHaveBeenCalledTimes(1);
+        const studioHeader = screen.getByLabelText('gsubs studio');
+        expect(studioHeader).not.toHaveAttribute('inert');
+        expect(studioHeader).not.toHaveAttribute('aria-hidden');
+        expect(screen.getByRole('link', { name: 'guestSignIn' }))
+            .toHaveAttribute('href', '/login');
     });
 
     it('renders footer with privacy and terms links', () => {

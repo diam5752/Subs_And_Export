@@ -341,7 +341,12 @@ class DbCreditPurchase(Base):
 
 
 class DbBillingInvoice(Base):
-    """Manual AADE document link retained with the immutable purchase record."""
+    """Manual AADE document link retained with its pseudonymous actor audit.
+
+    ``recorded_by_user_id`` intentionally has no user foreign key: it is an
+    internal pseudonymous identifier (never an email) that remains attached to
+    the statutory financial record when an operator account is deleted.
+    """
 
     __tablename__ = "billing_invoices"
 
@@ -379,6 +384,15 @@ class DbBillingInvoice(Base):
         nullable=True,
     )
     issued_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    recorded_by_user_id: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+        comment=(
+            "Pseudonymous internal actor ID retained without a user FK; "
+            "never stores an email."
+        ),
+    )
+    recorded_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     document_snapshot: Mapped[dict[str, Any]] = mapped_column(JSON_VALUE)
     financial_retention_until: Mapped[int] = mapped_column(BigInteger)
     created_at: Mapped[int] = mapped_column(BigInteger)
@@ -405,6 +419,8 @@ class DbBillingInvoice(Base):
                 AND aade_aa IS NULL
                 AND aade_mark IS NULL
                 AND issued_at IS NULL
+                AND recorded_by_user_id IS NULL
+                AND recorded_at IS NULL
             )
             OR (
                 document_status IN ('issued','cancelled')
@@ -416,7 +432,13 @@ class DbBillingInvoice(Base):
                 AND btrim(aade_aa) <> ''
                 AND aade_mark IS NOT NULL
                 AND btrim(aade_mark) <> ''
+                AND issued_at IS NOT NULL
                 AND issued_at > 0
+                AND recorded_by_user_id IS NOT NULL
+                AND btrim(recorded_by_user_id) <> ''
+                AND recorded_by_user_id ~ '^[0-9a-f]{16,64}$'
+                AND recorded_at IS NOT NULL
+                AND recorded_at > 0
                 AND financial_retention_until > issued_at
             )
             """,

@@ -87,6 +87,11 @@ export default function DashboardPage() {
     setShowAccountPanel(false);
   }, [setShowAccountPanel]);
 
+  const handleLogout = useCallback(() => {
+    setShowAccountPanel(false);
+    logout();
+  }, [logout]);
+
   // Restore session
   useEffect(() => {
     if (!user || selectedFile || didRestoreSession.current) return;
@@ -711,7 +716,7 @@ export default function DashboardPage() {
                 <AccountView
                   user={user}
                   onSaveProfile={handleProfileSave}
-                  onLogout={logout}
+                  onLogout={handleLogout}
                   accountMessage={accountMessage}
                   accountError={accountError}
                   accountSaving={accountSaving}

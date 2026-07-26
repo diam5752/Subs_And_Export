@@ -5,6 +5,18 @@
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL
     ?? (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:8080');
 
+export class ApiError extends Error {
+    readonly status: number;
+    readonly code: string | null;
+
+    constructor(message: string, status: number, code: string | null = null) {
+        super(message);
+        this.name = 'ApiError';
+        this.status = status;
+        this.code = code;
+    }
+}
+
 interface TokenResponse {
     access_token: string;
     token_type: string;
@@ -66,6 +78,10 @@ interface UserResponse {
     name: string;
     provider: string;
     avatar_url: string | null;
+}
+
+interface LogoutResponse {
+    status: 'success';
 }
 
 export interface PointsBalanceResponse {
@@ -184,6 +200,100 @@ export interface BillingPurchaseResponse {
     withdrawal_status: string | null;
     withdrawal_acknowledgement_available: boolean;
     withdrawal_acknowledgement_url: string | null;
+}
+
+export interface BillingAdminPackage {
+    key: string | null;
+    credits: number | null;
+}
+
+export interface BillingAdminPayment {
+    checkout_session_id: string | null;
+    payment_intent_id: string | null;
+    confirmed_at: number | null;
+    livemode: boolean | null;
+    amount_paid_cents: number | null;
+    currency: string | null;
+    payment_status: string | null;
+}
+
+export interface BillingAdminCustomer {
+    name: string | null;
+    email: string | null;
+    country: string | null;
+    city: string | null;
+    postal_code: string | null;
+    line1: string | null;
+    line2: string | null;
+    state: string | null;
+    status: string | null;
+    missing_required_fields: string[];
+}
+
+export interface BillingAdminTax {
+    gross_amount_cents: number | null;
+    net_amount_cents: number | null;
+    vat_amount_cents: number | null;
+    vat_rate_percent: number | null;
+}
+
+export interface BillingAdminService {
+    code: string | null;
+    name: string | null;
+}
+
+export interface BillingAdminPendingInvoice {
+    invoice_id: string;
+    purchase_id: string;
+    document_status: string;
+    purchase_status: string;
+    provider: string;
+    document_kind: string;
+    refunded_amount_cents: number;
+    reversed_amount_cents: number;
+    reversed_credits: number;
+    dispute_active: boolean;
+    requires_reversal_review: boolean;
+    aade_document_type: string | null;
+    aade_series: string | null;
+    aade_aa: string | null;
+    aade_mark: string | null;
+    issued_at: number | null;
+    recorded_at: number | null;
+    created_at: number;
+    financial_retention_until: number;
+    package: BillingAdminPackage;
+    payment: BillingAdminPayment | null;
+    customer: BillingAdminCustomer | null;
+    tax: BillingAdminTax;
+    service: BillingAdminService;
+}
+
+interface BillingAdminPendingInvoicesResponse {
+    items: BillingAdminPendingInvoice[];
+    count: number;
+    next_cursor: string | null;
+}
+
+interface RecordIssuedAadeDocumentPayload {
+    document_type: string;
+    series: string;
+    aa: string;
+    mark: string;
+    issued_at: number;
+}
+
+export interface RecordedAadeDocumentResponse {
+    invoice_id: string;
+    purchase_id: string;
+    document_status: string;
+    aade_document_type: string;
+    aade_series: string;
+    aade_aa: string;
+    aade_mark: string;
+    issued_at: number;
+    recorded_at: number;
+    financial_retention_until: number;
 }
 
 interface BillingWithdrawalResponse {
@@ -311,7 +421,13 @@ class ApiClient {
             } else if (errorData.message) {
                 errorMessage = errorData.message;
             }
-            throw new Error(errorMessage);
+            const errorCode = typeof errorData === 'object'
+                && errorData !== null
+                && 'code' in errorData
+                && typeof errorData.code === 'string'
+                ? errorData.code
+                : null;
+            throw new ApiError(errorMessage, response.status, errorCode);
         }
 
         return response.json();
@@ -340,6 +456,13 @@ class ApiClient {
 
     async getCurrentUser(): Promise<UserResponse> {
         return this.request<UserResponse>('/auth/me');
+    }
+
+    async revokeSession(): Promise<LogoutResponse> {
+        return this.request<LogoutResponse>('/auth/logout', {
+            method: 'POST',
+            keepalive: true,
+        });
     }
 
     async getPointsBalance(): Promise<PointsBalanceResponse> {
@@ -381,6 +504,34 @@ class ApiClient {
 
     async listBillingPurchases(): Promise<BillingPurchaseResponse[]> {
         return this.request<BillingPurchaseResponse[]>('/billing/purchases');
+    }
+
+    async listPendingBillingInvoices(
+        after?: string,
+        limit: number = 50,
+    ): Promise<BillingAdminPendingInvoicesResponse> {
+        const params = new URLSearchParams({ limit: String(limit) });
+        if (after) {
+            params.set('after', after);
+        }
+        return this.request<BillingAdminPendingInvoicesResponse>(
+            `/billing/admin/invoices/pending?${params.toString()}`,
+            { cache: 'no-store' },
+        );
+    }
+
+    async recordIssuedAadeDocument(
+        invoiceId: string,
+        payload: RecordIssuedAadeDocumentPayload,
+    ): Promise<RecordedAadeDocumentResponse> {
+        return this.request<RecordedAadeDocumentResponse>(
+            `/billing/admin/invoices/${encodeURIComponent(invoiceId)}/record-issued`,
+            {
+                method: 'POST',
+                cache: 'no-store',
+                body: JSON.stringify(payload),
+            },
+        );
     }
 
     async submitBillingWithdrawal(

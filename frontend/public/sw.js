@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gsubs-shell-v2';
+const CACHE_NAME = 'gsubs-shell-v3';
 const SHELL = ['/', '/login', '/offline', '/manifest.webmanifest', '/icon.png'];
 
 self.addEventListener('install', (event) => {
@@ -18,9 +18,15 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const request = event.request;
   if (request.method !== 'GET') return;
+  if (request.headers.get('Authorization') !== null) return;
 
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+  if (url.pathname === '/billing' || url.pathname.startsWith('/billing/')) return;
+  if (
+    request.mode === 'navigate'
+    && (url.pathname === '/admin' || url.pathname.startsWith('/admin/'))
+  ) return;
   if (
     url.pathname.startsWith('/videos/')
     || url.pathname.startsWith('/auth/')

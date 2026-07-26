@@ -390,6 +390,23 @@ class SessionStore:
                 return None
             return _user_from_db(user)
 
+    def get_valid_session_created_at(self, token: str) -> int | None:
+        """Return the issue time only while the bearer session is valid."""
+        if not token:
+            return None
+        token_hash = _hash_token(token)
+        now = int(time.time())
+        with self.db.session() as session:
+            stmt = (
+                select(DbSession.created_at)
+                .where(
+                    DbSession.token_hash == token_hash,
+                    DbSession.expires_at > now,
+                )
+                .limit(1)
+            )
+            return session.scalar(stmt)
+
     def revoke(self, token: str) -> None:
         token_hash = _hash_token(token)
         with self.db.session() as session:

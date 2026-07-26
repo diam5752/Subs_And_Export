@@ -84,8 +84,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, [refreshUser]);
 
     const logout = useCallback(() => {
-        api.clearToken();
         setUser(null);
+        const revokeSession = api.revokeSession();
+        api.clearToken();
+        void revokeSession.catch(() => {
+            // Local sign-out must still succeed while offline or if the
+            // server session has already expired.
+        });
     }, []);
 
     return (

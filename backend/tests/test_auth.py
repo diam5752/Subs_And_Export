@@ -98,6 +98,64 @@ class TestAuthEndpoints:
         response = client.get("/auth/me", headers={"Authorization": "Bearer invalid_token"})
         assert response.status_code == 401
 
+    def test_logout_revokes_only_the_presented_session(self, client, test_user_data):
+        """Logging out one device must not invalidate the user's other sessions."""
+        client.post("/auth/register", json=test_user_data)
+        current_login = client.post(
+            "/auth/token",
+            data={
+                "username": test_user_data["email"],
+                "password": test_user_data["password"],
+            },
+        )
+        other_login = client.post(
+            "/auth/token",
+            data={
+                "username": test_user_data["email"],
+                "password": test_user_data["password"],
+            },
+        )
+        current_token = current_login.json()["access_token"]
+        other_token = other_login.json()["access_token"]
+
+        # REGRESSION: clearing localStorage alone left the persistent 30-day
+        # bearer session valid on the server after the user signed out.
+        response = client.post(
+            "/auth/logout",
+            headers={"Authorization": f"Bearer {current_token}"},
+        )
+
+        assert response.status_code == 200
+        assert response.json() == {"status": "success"}
+        assert response.headers["cache-control"] == "no-store"
+        assert (
+            client.get(
+                "/auth/me",
+                headers={"Authorization": f"Bearer {current_token}"},
+            ).status_code
+            == 401
+        )
+        assert (
+            client.get(
+                "/auth/me",
+                headers={"Authorization": f"Bearer {other_token}"},
+            ).status_code
+            == 200
+        )
+
+    @pytest.mark.parametrize(
+        "headers",
+        [
+            {},
+            {"Authorization": "Bearer invalid_token"},
+        ],
+    )
+    def test_logout_requires_a_valid_bearer_session(self, client, headers):
+        """Anonymous and already-invalid sessions cannot call logout."""
+        response = client.post("/auth/logout", headers=headers)
+
+        assert response.status_code == 401
+
 
 class TestVideoEndpoints:
     """Test video processing endpoints."""

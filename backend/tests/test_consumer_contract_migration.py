@@ -422,21 +422,18 @@ def test_consumer_contract_migration_is_append_only_and_downgrade_safe() -> None
                 """
                 INSERT INTO public.billing_invoices (
                     id, purchase_id, provider, document_kind,
-                    document_status, aade_document_type, aade_series,
-                    aade_aa, aade_mark, issued_at, document_snapshot,
+                    document_status, document_snapshot,
                     financial_retention_until, created_at, updated_at
                 )
                 VALUES (
                     %s, %s, 'aade_etimologio',
-                    'retail_service_receipt', 'issued', '11.2', '0',
-                    'search-path', %s, %s, %s, 1, %s, %s
+                    'retail_service_receipt', 'manual_review_required',
+                    %s, 1, %s, %s
                 )
                 """,
                 (
                     spoof_guard_invoice_id,
                     purchase_id,
-                    f"4{spoof_guard_invoice_id[:15]}",
-                    CONCLUDED_AT,
                     Jsonb({"service_code": "4"}),
                     CONCLUDED_AT,
                     CONCLUDED_AT,
@@ -490,7 +487,7 @@ def test_consumer_contract_migration_is_append_only_and_downgrade_safe() -> None
                     purchase_id=second_purchase_id,
                     locale="fr",
                 )
-            # Defense in depth: activation requires a reviewed 0015 migration;
+            # Defense in depth: activation requires a later reviewed migration;
             # 0014 cannot store an "approved" delivery state.
             with pytest.raises(psycopg.errors.CheckViolation):
                 _insert_confirmation(

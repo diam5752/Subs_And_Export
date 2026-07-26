@@ -28,6 +28,12 @@ def get_user_store(db: Database = Depends(get_db)) -> UserStore:
 def get_session_store(db: Database = Depends(get_db)) -> SessionStore:
     return SessionStore(db=db)
 
+def get_current_session_token(
+    token: Annotated[str, Depends(oauth2_scheme)],
+) -> str:
+    """Return the presented bearer token for an already-authenticated request."""
+    return token
+
 def get_job_store(db: Database = Depends(get_db)) -> JobStore:
     return JobStore(db=db)
 

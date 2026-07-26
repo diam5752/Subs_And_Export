@@ -42,6 +42,7 @@ test.describe('Video Processing Flow', () => {
                 result_data = {
                     public_url: '/static/video.mp4',
                     artifact_url: '/static/artifacts',
+                    original_filename: 'demo_output.mp4',
                     output_size: 1024,
                     transcribe_tier: 'standard',
                     transcribe_provider: 'groq'
@@ -79,6 +80,7 @@ test.describe('Video Processing Flow', () => {
                     result_data: {
                         public_url: '/static/video.mp4',
                         artifact_url: '/static/artifacts',
+                        original_filename: 'demo_output.mp4',
                         output_size: 1024,
                         transcribe_tier: 'standard',
                         transcribe_provider: 'groq',
@@ -135,12 +137,12 @@ test.describe('Video Processing Flow', () => {
         const srtDownloadPromise = page.waitForEvent('download');
         await page.getByTestId('srt-btn').click();
         const srtDownload = await srtDownloadPromise;
-        expect(srtDownload.suggestedFilename()).toContain('processed_srt.srt');
+        expect(srtDownload.suggestedFilename()).toBe('demo_output_subs.srt');
 
         const mp4DownloadPromise = page.waitForEvent('download');
         await page.getByTestId('download-1080p-btn').click();
         const mp4Download = await mp4DownloadPromise;
-        expect(mp4Download.suggestedFilename()).toContain('processed_1080x1920.mp4');
+        expect(mp4Download.suggestedFilename()).toBe('demo_output_subs.mp4');
 
         expect(exportPayloads).toEqual([
             expect.objectContaining({

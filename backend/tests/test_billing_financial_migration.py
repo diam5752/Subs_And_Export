@@ -642,6 +642,8 @@ def test_durable_billing_migration_preserves_legacy_purchase_data() -> None:
                     aade_aa,
                     aade_mark,
                     issued_at,
+                    recorded_by_user_id,
+                    recorded_at,
                     document_snapshot
                 FROM billing_invoices
                 WHERE purchase_id IN (%s, %s, %s, %s)
@@ -667,19 +669,27 @@ def test_durable_billing_migration_preserves_legacy_purchase_data() -> None:
                     == hashlib.md5((f"gsubs-legacy-aade-invoice:v1:{legacy_purchase_id}").encode()).hexdigest()
                 )
                 assert invoice[2] == "manual_review_required"
-                assert invoice[3:8] == (None, None, None, None, None)
-                assert invoice[8]["record_origin"] == ("legacy_pre_0013_purchase")
-                assert invoice[8]["legacy_incomplete"] is True
-                assert invoice[8]["manual_review_required"] is True
-                assert invoice[8]["missing_evidence"] == [
+                assert invoice[3:10] == (
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                    None,
+                )
+                assert invoice[10]["record_origin"] == ("legacy_pre_0013_purchase")
+                assert invoice[10]["legacy_incomplete"] is True
+                assert invoice[10]["manual_review_required"] is True
+                assert invoice[10]["missing_evidence"] == [
                     "payment_snapshot",
                     "customer_snapshot",
                     "tax_snapshot",
                     "aade_document_identity",
                 ]
-                assert "net_amount_cents" not in invoice[8]
-                assert "vat_amount_cents" not in invoice[8]
-                assert "customer" not in invoice[8]
+                assert "net_amount_cents" not in invoice[10]
+                assert "vat_amount_cents" not in invoice[10]
+                assert "customer" not in invoice[10]
 
             baselines = connection.execute(
                 """
@@ -750,6 +760,36 @@ def test_durable_billing_migration_preserves_legacy_purchase_data() -> None:
                   AND column_name = 'payment_snapshot'
                 """
             ).fetchone() == ("payment_snapshot",)
+            assert connection.execute(
+                """
+                SELECT column_name, is_nullable, data_type
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                  AND table_name = 'billing_invoices'
+                  AND column_name IN (
+                      'recorded_by_user_id',
+                      'recorded_at'
+                  )
+                ORDER BY column_name
+                """
+            ).fetchall() == [
+                ("recorded_at", "YES", "bigint"),
+                ("recorded_by_user_id", "YES", "character varying"),
+            ]
+            assert connection.execute(
+                """
+                SELECT COUNT(*)
+                FROM information_schema.key_column_usage AS usage
+                JOIN information_schema.table_constraints AS constraint_info
+                  ON constraint_info.constraint_catalog = usage.constraint_catalog
+                 AND constraint_info.constraint_schema = usage.constraint_schema
+                 AND constraint_info.constraint_name = usage.constraint_name
+                WHERE usage.table_schema = 'public'
+                  AND usage.table_name = 'billing_invoices'
+                  AND usage.column_name = 'recorded_by_user_id'
+                  AND constraint_info.constraint_type = 'FOREIGN KEY'
+                """
+            ).fetchone() == (0,)
             assert connection.execute(
                 "SELECT fulfilled_at FROM credit_purchases WHERE id = %s",
                 (purchase_id,),
@@ -1378,18 +1418,21 @@ def test_durable_billing_database_guards_and_invoice_provenance() -> None:
                 INSERT INTO billing_invoices (
                     id, purchase_id, provider, document_kind,
                     document_status, aade_document_type, aade_series,
-                    aade_aa, aade_mark, issued_at, document_snapshot,
+                    aade_aa, aade_mark, issued_at, recorded_by_user_id,
+                    recorded_at, document_snapshot,
                     financial_retention_until, created_at, updated_at
                 )
                 VALUES (
                     %s, %s, 'aade_etimologio', 'retail_service_receipt',
                     'issued', '11.2', '0', '1', '4000000000000001',
-                    %s, %s, 1, %s, %s
+                    %s, %s, %s, %s, 1, %s, %s
                 )
                 """,
                 (
                     invoice_id,
                     paid_purchase_id,
+                    EXPIRED_FINANCIAL_AT,
+                    user_id,
                     EXPIRED_FINANCIAL_AT,
                     Jsonb({"service_code": "4", "gross_amount_cents": 100}),
                     EXPIRED_FINANCIAL_AT,
@@ -1411,6 +1454,8 @@ def test_durable_billing_database_guards_and_invoice_provenance() -> None:
             for column_name, replacement in (
                 ("provider", "different_provider"),
                 ("document_kind", "different_kind"),
+                ("recorded_by_user_id", uuid.uuid4().hex),
+                ("recorded_at", EXPIRED_FINANCIAL_AT + 1),
             ):
                 with pytest.raises(
                     psycopg.errors.RaiseException,
@@ -1478,10 +1523,33 @@ def test_durable_billing_database_guards_and_invoice_provenance() -> None:
                             aade_series = '   ',
                             aade_aa = '2',
                             aade_mark = '4000000000000002',
-                            issued_at = %s
+                            issued_at = %s,
+                            recorded_by_user_id = %s,
+                            recorded_at = %s
                         WHERE id = %s
                         """,
-                        (EXPIRED_FINANCIAL_AT, pending_invoice_id),
+                        (
+                            EXPIRED_FINANCIAL_AT,
+                            user_id,
+                            EXPIRED_FINANCIAL_AT,
+                            pending_invoice_id,
+                        ),
+                    )
+            with pytest.raises(psycopg.errors.CheckViolation):
+                with connection.transaction():
+                    connection.execute(
+                        """
+                        UPDATE billing_invoices
+                        SET
+                            recorded_by_user_id = %s,
+                            recorded_at = %s
+                        WHERE id = %s
+                        """,
+                        (
+                            user_id,
+                            EXPIRED_FINANCIAL_AT,
+                            pending_invoice_id,
+                        ),
                     )
             with pytest.raises(psycopg.errors.CheckViolation):
                 with connection.transaction():
@@ -1513,19 +1581,22 @@ def test_durable_billing_database_guards_and_invoice_provenance() -> None:
                         INSERT INTO billing_invoices (
                             id, purchase_id, provider, document_kind,
                             document_status, aade_document_type, aade_series,
-                            aade_aa, aade_mark, issued_at, document_snapshot,
+                            aade_aa, aade_mark, issued_at,
+                            recorded_by_user_id, recorded_at, document_snapshot,
                             financial_retention_until, created_at, updated_at
                         )
                         VALUES (
                             %s, %s, 'aade_etimologio',
                             'retail_service_receipt', 'issued',
                             NULL, '0', '3', '4000000000000003', %s,
-                            %s, 1, %s, %s
+                            %s, %s, %s, 1, %s, %s
                         )
                         """,
                         (
                             uuid.uuid4().hex,
                             unknown_status_purchase_id,
+                            EXPIRED_FINANCIAL_AT,
+                            user_id,
                             EXPIRED_FINANCIAL_AT,
                             Jsonb({"service_code": "4"}),
                             EXPIRED_FINANCIAL_AT,
@@ -1538,18 +1609,21 @@ def test_durable_billing_database_guards_and_invoice_provenance() -> None:
                 INSERT INTO billing_invoices (
                     id, purchase_id, provider, document_kind,
                     document_status, aade_document_type, aade_series,
-                    aade_aa, aade_mark, issued_at, document_snapshot,
+                    aade_aa, aade_mark, issued_at, recorded_by_user_id,
+                    recorded_at, document_snapshot,
                     financial_retention_until, created_at, updated_at
                 )
                 VALUES (
                     %s, %s, 'aade_etimologio', 'retail_service_receipt',
                     'issued', '11.2', '0', '4', '4000000000000004',
-                    %s, %s, 1, %s, %s
+                    %s, %s, %s, %s, 1, %s, %s
                 )
                 """,
                 (
                     late_invoice_id,
                     unknown_status_purchase_id,
+                    EXPIRED_FINANCIAL_AT,
+                    user_id,
                     EXPIRED_FINANCIAL_AT,
                     Jsonb({"service_code": "4"}),
                     EXPIRED_FINANCIAL_AT,

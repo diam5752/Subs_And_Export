@@ -261,6 +261,16 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
     }));
   });
 
+  await page.route('**/auth/logout', async (route) => {
+    if (await shortCircuitOptions(route)) return;
+    if (!signedIn) {
+      await route.fulfill(unauthorizedResponse);
+      return;
+    }
+    signedIn = false;
+    await route.fulfill(withCors({ status: 'success' }));
+  });
+
   await page.route('**/auth/points', async (route) => {
     if (await shortCircuitOptions(route)) return;
     if (!signedIn) {

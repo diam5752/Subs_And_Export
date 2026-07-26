@@ -125,6 +125,191 @@ describe('API Client', () => {
         });
     });
 
+    describe('revokeSession', () => {
+        it('posts the current bearer token to the server logout endpoint', async () => {
+            localStorage.setItem('auth_token', 'stored_token');
+            (fetch as jest.Mock).mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({ status: 'success' }),
+            });
+
+            jest.resetModules();
+            const { api } = await import('@/lib/api');
+            await expect(api.revokeSession()).resolves.toEqual({
+                status: 'success',
+            });
+
+            expect(fetch).toHaveBeenCalledWith(
+                expect.stringContaining('/auth/logout'),
+                expect.objectContaining({
+                    method: 'POST',
+                    keepalive: true,
+                    headers: expect.objectContaining({
+                        Authorization: 'Bearer stored_token',
+                    }),
+                }),
+            );
+            expect(localStorage.getItem('auth_token')).toBe('stored_token');
+        });
+
+        it('reports a failed server revocation to its caller', async () => {
+            localStorage.setItem('auth_token', 'stored_token');
+            (fetch as jest.Mock).mockResolvedValueOnce({
+                ok: false,
+                json: async () => ({ detail: 'Could not validate credentials' }),
+            });
+
+            jest.resetModules();
+            const { api } = await import('@/lib/api');
+
+            await expect(api.revokeSession()).rejects.toThrow(
+                'Could not validate credentials',
+            );
+        });
+
+        it('preserves the HTTP status in a typed API error', async () => {
+            (fetch as jest.Mock).mockResolvedValueOnce({
+                ok: false,
+                status: 403,
+                json: async () => ({
+                    detail: 'Not authorized',
+                    code: 'billing_admin_forbidden',
+                }),
+            });
+
+            const { ApiError, api } = await import('@/lib/api');
+            const request = api.listPendingBillingInvoices();
+
+            await expect(request).rejects.toEqual(expect.objectContaining({
+                name: 'ApiError',
+                message: 'Not authorized [billing_admin_forbidden]',
+                status: 403,
+                code: 'billing_admin_forbidden',
+            }));
+            await request.catch((error: unknown) => {
+                expect(error).toBeInstanceOf(ApiError);
+            });
+        });
+    });
+
+    describe('billing admin', () => {
+        it('lists the first page of pending AADE records with a bounded limit', async () => {
+            const response = {
+                items: [],
+                count: 0,
+                next_cursor: null,
+            };
+            (fetch as jest.Mock).mockResolvedValueOnce({
+                ok: true,
+                json: async () => response,
+            });
+
+            const { api } = await import('@/lib/api');
+            await expect(api.listPendingBillingInvoices()).resolves.toEqual(response);
+
+            expect(fetch).toHaveBeenCalledWith(
+                expect.stringContaining('/billing/admin/invoices/pending?limit=50'),
+                expect.objectContaining({
+                    cache: 'no-store',
+                }),
+            );
+        });
+
+        it('encodes the server cursor when requesting the next pending page', async () => {
+            (fetch as jest.Mock).mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({ items: [], count: 0, next_cursor: null }),
+            });
+
+            const { api } = await import('@/lib/api');
+            await api.listPendingBillingInvoices(
+                `${1_800_000_000}:${'a'.repeat(32)}`,
+                25,
+            );
+
+            const requestedUrl = (fetch as jest.Mock).mock.calls[0][0] as string;
+            expect(requestedUrl).toContain('/billing/admin/invoices/pending?');
+            expect(requestedUrl).toContain('limit=25');
+            expect(requestedUrl).toContain(
+                `after=1800000000%3A${'a'.repeat(32)}`,
+            );
+        });
+
+        it('records only the supplied already-issued AADE document data', async () => {
+            const invoiceId = 'a'.repeat(32);
+            const payload = {
+                document_type: '11.2',
+                series: '0',
+                aa: '123',
+                mark: '4000000000000123',
+                issued_at: 1_800_000_000,
+            };
+            const response = {
+                invoice_id: invoiceId,
+                purchase_id: 'b'.repeat(32),
+                document_status: 'issued',
+                aade_document_type: payload.document_type,
+                aade_series: payload.series,
+                aade_aa: payload.aa,
+                aade_mark: payload.mark,
+                issued_at: payload.issued_at,
+                recorded_at: 1_800_000_001,
+                financial_retention_until: 2_000_000_000,
+            };
+            (fetch as jest.Mock).mockResolvedValueOnce({
+                ok: true,
+                json: async () => response,
+            });
+
+            const { api } = await import('@/lib/api');
+            await expect(
+                api.recordIssuedAadeDocument(invoiceId, payload),
+            ).resolves.toEqual(response);
+
+            expect(fetch).toHaveBeenCalledWith(
+                expect.stringContaining(
+                    `/billing/admin/invoices/${invoiceId}/record-issued`,
+                ),
+                expect.objectContaining({
+                    method: 'POST',
+                    cache: 'no-store',
+                    body: JSON.stringify(payload),
+                }),
+            );
+        });
+
+        it('encodes an invoice identifier instead of interpolating path separators', async () => {
+            (fetch as jest.Mock).mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    invoice_id: 'invalid',
+                    purchase_id: 'b'.repeat(32),
+                    document_status: 'issued',
+                    aade_document_type: '11.2',
+                    aade_series: '0',
+                    aade_aa: '1',
+                    aade_mark: '2',
+                    issued_at: 1,
+                    recorded_at: 2,
+                    financial_retention_until: 2,
+                }),
+            });
+
+            const { api } = await import('@/lib/api');
+            await api.recordIssuedAadeDocument('unsafe/id', {
+                document_type: '11.2',
+                series: '0',
+                aa: '1',
+                mark: '2',
+                issued_at: 1,
+            });
+
+            expect((fetch as jest.Mock).mock.calls[0][0]).toContain(
+                '/billing/admin/invoices/unsafe%2Fid/record-issued',
+            );
+        });
+    });
+
     describe('processVideo', () => {
         it('handles request failure with message property', async () => {
             const { api } = await import('@/lib/api');

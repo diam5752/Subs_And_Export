@@ -95,9 +95,11 @@ def _invoice(
     purchase_id: str,
     suffix: str | None = None,
     document_status: str = "issued",
+    recorded_by_user_id: str | None = None,
 ) -> DbBillingInvoice:
     resolved_suffix = suffix or uuid.uuid4().hex
     has_aade_identity = document_status in {"issued", "cancelled"}
+    resolved_recorder = recorded_by_user_id or resolved_suffix
     return DbBillingInvoice(
         id=resolved_suffix[:32],
         purchase_id=purchase_id,
@@ -109,6 +111,8 @@ def _invoice(
         aade_aa=resolved_suffix[:12] if has_aade_identity else None,
         aade_mark=f"4{resolved_suffix[:15]}" if has_aade_identity else None,
         issued_at=REFERENCE_AT if has_aade_identity else None,
+        recorded_by_user_id=resolved_recorder if has_aade_identity else None,
+        recorded_at=REFERENCE_AT if has_aade_identity else None,
         document_snapshot={
             "description": "GSUBS Credits",
             "gross_amount_cents": 100,
@@ -139,6 +143,18 @@ def _seed_user(db: Database) -> str:
             )
         )
     return user_id
+
+
+def test_billing_invoice_actor_audit_model_is_pseudonymous_and_detached() -> None:
+    actor_column = DbBillingInvoice.__table__.c.recorded_by_user_id
+
+    # REGRESSION: tying the operator audit to users with a foreign key would
+    # either block account deletion or silently erase statutory audit evidence.
+    assert actor_column.nullable is True
+    assert not actor_column.foreign_keys
+    assert actor_column.type.length == 64
+    assert "never stores an email" in str(actor_column.comment)
+    assert DbBillingInvoice.__table__.c.recorded_at.nullable is True
 
 
 def _add_consumer_contract_snapshot(
@@ -226,6 +242,8 @@ def test_purchase_snapshots_are_write_once(
         ("aade_aa", "999"),
         ("aade_mark", "499999999999999"),
         ("issued_at", REFERENCE_AT + 1),
+        ("recorded_by_user_id", uuid.uuid4().hex),
+        ("recorded_at", REFERENCE_AT + 1),
         ("document_snapshot", {"gross_amount_cents": 999}),
         ("provider", "different_provider"),
         ("document_kind", "different_document_kind"),
@@ -280,6 +298,8 @@ def test_pending_invoice_accepts_exactly_one_complete_aade_link() -> None:
                 aade_aa=aade_aa,
                 aade_mark=aade_mark,
                 issued_at=REFERENCE_AT,
+                recorded_by_user_id=user_id,
+                recorded_at=REFERENCE_AT,
                 financial_retention_until=retained_until,
                 updated_at=REFERENCE_AT,
             )
@@ -294,6 +314,8 @@ def test_pending_invoice_accepts_exactly_one_complete_aade_link() -> None:
         assert linked.aade_aa == aade_aa
         assert linked.aade_mark == aade_mark
         assert linked.issued_at == REFERENCE_AT
+        assert linked.recorded_by_user_id == user_id
+        assert linked.recorded_at == REFERENCE_AT
 
 
 def test_invoice_retention_clamps_deliberately_short_non_null_value() -> None:
@@ -312,6 +334,29 @@ def test_invoice_retention_clamps_deliberately_short_non_null_value() -> None:
         assert stored is not None
         assert stored.financial_retention_until == financial_retention_deadline(
             REFERENCE_AT,
+        )
+
+
+def test_invoice_retention_includes_later_actor_recording_timestamp() -> None:
+    db = Database()
+    user_id = _seed_user(db)
+    purchase = _purchase(user_id=user_id)
+    invoice = _invoice(purchase_id=purchase.id)
+    later_recorded_at = REFERENCE_AT + 366 * 24 * 60 * 60
+    invoice.recorded_at = later_recorded_at
+    invoice.financial_retention_until = 1
+    with db.session() as session:
+        session.add(purchase)
+    with db.session() as session:
+        session.add(invoice)
+
+    with db.session() as session:
+        stored = session.get(DbBillingInvoice, invoice.id)
+        assert stored is not None
+        # The audit itself cannot expire earlier than the financial record
+        # derived from the server-side time at which it was attached.
+        assert stored.financial_retention_until == financial_retention_deadline(
+            later_recorded_at,
         )
 
 
@@ -372,6 +417,7 @@ def test_invoice_rejects_unknown_document_status() -> None:
         "aade_series",
         "aade_aa",
         "aade_mark",
+        "recorded_by_user_id",
     ),
 )
 def test_invoice_rejects_blank_terminal_aade_identity(
@@ -391,6 +437,8 @@ def test_invoice_rejects_blank_terminal_aade_identity(
         "aade_aa": uuid.uuid4().hex[:12],
         "aade_mark": f"4{uuid.uuid4().hex[:15]}",
         "issued_at": REFERENCE_AT,
+        "recorded_by_user_id": user_id,
+        "recorded_at": REFERENCE_AT,
     }
     terminal_identity[blank_field] = "   "
     with db.session() as session:
@@ -441,6 +489,67 @@ def test_invoice_cannot_be_marked_issued_without_complete_aade_identity() -> Non
     invoice.document_status = "issued"
     with db.session() as session:
         session.add(purchase)
+    with pytest.raises(IntegrityError):
+        with db.session() as session:
+            session.add(invoice)
+
+
+@pytest.mark.parametrize(
+    "missing_audit_field",
+    ("recorded_by_user_id", "recorded_at"),
+)
+@pytest.mark.parametrize("document_status", ("issued", "cancelled"))
+def test_invoice_terminal_state_requires_complete_actor_audit(
+    missing_audit_field: str,
+    document_status: str,
+) -> None:
+    db = Database()
+    user_id = _seed_user(db)
+    purchase = _purchase(user_id=user_id)
+    invoice = _invoice(
+        purchase_id=purchase.id,
+        document_status=document_status,
+    )
+    setattr(invoice, missing_audit_field, None)
+    with db.session() as session:
+        session.add(purchase)
+
+    # REGRESSION: a terminal AADE link without who recorded it and when cannot
+    # provide a durable manual-reconciliation audit trail.
+    with pytest.raises(IntegrityError):
+        with db.session() as session:
+            session.add(invoice)
+
+
+def test_pending_invoice_rejects_premature_actor_audit() -> None:
+    db = Database()
+    user_id = _seed_user(db)
+    purchase = _purchase(user_id=user_id)
+    invoice = _invoice(
+        purchase_id=purchase.id,
+        document_status="pending_manual_issue",
+    )
+    invoice.recorded_by_user_id = user_id
+    invoice.recorded_at = REFERENCE_AT
+    with db.session() as session:
+        session.add(purchase)
+
+    with pytest.raises(IntegrityError):
+        with db.session() as session:
+            session.add(invoice)
+
+
+def test_invoice_actor_audit_rejects_email_or_non_internal_identifier() -> None:
+    db = Database()
+    user_id = _seed_user(db)
+    purchase = _purchase(user_id=user_id)
+    invoice = _invoice(purchase_id=purchase.id)
+    invoice.recorded_by_user_id = "operator@example.com"
+    with db.session() as session:
+        session.add(purchase)
+
+    # The durable actor key is pseudonymous by contract; direct contact data
+    # such as an email must never enter this financial-audit field.
     with pytest.raises(IntegrityError):
         with db.session() as session:
             session.add(invoice)
@@ -573,7 +682,10 @@ def test_account_deletion_anonymizes_but_preserves_financial_records(
 
     db = Database()
     purchase = _purchase(user_id=user_id)
-    invoice = _invoice(purchase_id=purchase.id)
+    invoice = _invoice(
+        purchase_id=purchase.id,
+        recorded_by_user_id=user_id,
+    )
     reversal = DbCreditPurchaseReversal(
         id=uuid.uuid4().hex,
         purchase_id=purchase.id,
@@ -633,6 +745,10 @@ def test_account_deletion_anonymizes_but_preserves_financial_records(
         assert retained_purchase.financial_retention_until == financial_retention_deadline(REFERENCE_AT)
         assert retained_invoice is not None
         assert retained_invoice.aade_mark == invoice.aade_mark
+        # The ID is intentionally detached from users: it is pseudonymous
+        # financial-audit evidence, not an email or active account relation.
+        assert retained_invoice.recorded_by_user_id == user_id
+        assert retained_invoice.recorded_at == REFERENCE_AT
         assert retained_reversal is not None
 
 

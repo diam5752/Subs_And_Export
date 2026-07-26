@@ -1,7 +1,7 @@
 import logging
 import time
 from pathlib import PurePosixPath
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
@@ -54,6 +54,7 @@ from ...services.jobs import JobStore
 from ...services.points import PointsStore
 from ..deps import (
     get_billing_service,
+    get_current_session_token,
     get_current_user,
     get_db,
     get_history_store,
@@ -95,6 +96,10 @@ class UserResponse(BaseModel):
     avatar_url: str | None = None
 
 
+class LogoutResponse(BaseModel):
+    status: Literal["success"] = "success"
+
+
 @router.post(
     "/register", response_model=UserResponse, dependencies=[Depends(limiter_register), Depends(limiter_signup_daily)]
 )
@@ -132,6 +137,22 @@ def login_access_token(
 def read_users_me(current_user: User = Depends(get_current_user)) -> Any:
     """Get current user profile."""
     return current_user
+
+
+@router.post(
+    "/logout",
+    response_model=LogoutResponse,
+    dependencies=[Depends(get_current_user)],
+)
+def logout_current_session(
+    response: Response,
+    current_token: str = Depends(get_current_session_token),
+    session_store: SessionStore = Depends(get_session_store),
+) -> LogoutResponse:
+    """Revoke only the bearer session presented by the current client."""
+    session_store.revoke(current_token)
+    response.headers["Cache-Control"] = "no-store"
+    return LogoutResponse()
 
 
 class PointsBalanceResponse(BaseModel):

@@ -51,6 +51,7 @@ def _seed_pending_invoice(
     user_id: str,
     payment_confirmation_at: int | None = None,
     legacy_missing_payment_snapshot: bool = False,
+    purchase_fulfilled: bool = True,
 ) -> tuple[str, str, int]:
     suffix = uuid.uuid4().hex
     purchase_id = suffix[:32]
@@ -71,7 +72,7 @@ def _seed_pending_invoice(
         payment_intent_id=f"pi_{suffix}",
         integration_identifier="gsubs_credits_v1",
         status="paid",
-        fulfilled_at=created_at,
+        fulfilled_at=created_at if purchase_fulfilled else None,
         refunded_amount_cents=0,
         dispute_active=False,
         reversed_credits=0,
@@ -82,6 +83,9 @@ def _seed_pending_invoice(
             "credits": 100,
             "amount_eur_cents": 100,
             "currency": "eur",
+            "consumer_contract": {
+                "confirmed_name": "Must not reach the admin browser",
+            },
         },
         payment_snapshot=(
             None
@@ -89,9 +93,12 @@ def _seed_pending_invoice(
             else {
                 "checkout_session_id": f"cs_test_{suffix}",
                 "payment_intent_id": f"pi_{suffix}",
+                "stripe_customer_id": f"cus_{suffix}",
                 "stripe_event_created": (created_at if payment_confirmation_at is None else payment_confirmation_at),
+                "livemode": False,
                 "amount_paid_cents": 100,
                 "currency": "eur",
+                "payment_status": "paid",
             }
         ),
         customer_snapshot={
@@ -100,10 +107,17 @@ def _seed_pending_invoice(
             "country": "GR",
             "city": "Athens",
             "postal_code": "10558",
+            "line1": "1 Ermou Street",
+            "line2": "Floor 2",
+            "state": "Attica",
+            "status": "ready_for_manual_issue",
+            "missing_required_fields": [],
         },
         tax_snapshot={
             "tax_behavior": "inclusive",
+            "tax_ids": [{"type": "eu_vat", "value": "EL000000000"}],
             "vat_rate_percent": 24,
+            "gross_amount_cents": 100,
             "net_amount_cents": 81,
             "vat_amount_cents": 19,
         },
@@ -123,6 +137,8 @@ def _seed_pending_invoice(
         aade_aa=None,
         aade_mark=None,
         issued_at=None,
+        recorded_by_user_id=None,
+        recorded_at=None,
         document_snapshot=(
             {
                 "migration_source": "0013_durable_billing_records",
@@ -179,6 +195,13 @@ def _issued_payload(*, issued_at: int) -> dict[str, str | int]:
         "mark": f"4{uuid.uuid4().int % 10**15:015d}",
         "issued_at": issued_at,
     }
+
+
+def _assert_sensitive_admin_response_is_not_cacheable(
+    response: Any,
+) -> None:
+    assert response.headers["cache-control"] == "no-store"
+    assert response.headers["pragma"] == "no-cache"
 
 
 def _allow_billing_admin(
@@ -367,6 +390,57 @@ def test_pending_invoices_rejects_unverified_allowlisted_account(
     assert response.json()["detail"] == "Verified admin account required"
 
 
+@pytest.mark.parametrize(
+    "session_clock_offset",
+    (
+        -901,
+        3_600,
+    ),
+    ids=("older-than-fifteen-minutes", "future-dated"),
+)
+def test_record_issued_requires_a_recent_admin_session(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    session_clock_offset: int,
+) -> None:
+    now = int(time.time())
+    with monkeypatch.context() as session_clock:
+        session_clock.setattr(
+            "backend.app.core.auth.time.time",
+            lambda: now + session_clock_offset,
+        )
+        headers, user_id = _auth_headers(
+            client,
+            email=f"billing-admin-recent-{uuid.uuid4().hex}@example.com",
+        )
+    _allow_billing_admin(monkeypatch, user_id)
+    _, invoice_id, _ = _seed_pending_invoice(user_id=user_id)
+
+    # Reading the queue remains available to the allowlisted verified admin,
+    # but the irreversible tax-record mutation needs a fresh sign-in.
+    listed = client.get(
+        "/billing/admin/invoices/pending",
+        headers=headers,
+    )
+    response = client.post(
+        f"/billing/admin/invoices/{invoice_id}/record-issued",
+        headers=headers,
+        json=_issued_payload(issued_at=now - 30),
+    )
+
+    assert listed.status_code == 200
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Recent sign-in required"
+    db = Database()
+    with db.session() as session:
+        invoice = session.get(DbBillingInvoice, invoice_id)
+        assert invoice is not None
+        assert invoice.document_status == "pending_manual_issue"
+        assert invoice.aade_mark is None
+        assert invoice.recorded_by_user_id is None
+        assert invoice.recorded_at is None
+
+
 def test_re_registered_admin_email_does_not_inherit_user_id_access(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
@@ -401,7 +475,7 @@ def test_re_registered_admin_email_does_not_inherit_user_id_access(
     assert replacement_access.json()["detail"] == "Not authorized"
 
 
-def test_admin_can_list_pending_invoice_with_accounting_snapshots(
+def test_admin_lists_only_typed_privacy_minimized_reconciliation_fields(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -429,11 +503,98 @@ def test_admin_can_list_pending_invoice_with_accounting_snapshots(
     assert item["aade_aa"] is None
     assert item["aade_mark"] is None
     assert item["issued_at"] is None
-    assert item["package_snapshot"]["package_key"] == "starter"
-    assert item["payment_snapshot"]["payment_intent_id"].startswith("pi_")
-    assert item["customer_snapshot"]["country"] == "GR"
-    assert item["tax_snapshot"]["vat_rate_percent"] == 24
-    assert item["document_snapshot"]["service_code"] == "4"
+    assert "recorded_by_user_id" not in item
+    assert item["recorded_at"] is None
+    assert item["package"] == {
+        "key": "starter",
+        "credits": 100,
+    }
+    assert item["payment"] == {
+        "checkout_session_id": f"cs_test_{purchase_id}",
+        "payment_intent_id": f"pi_{purchase_id}",
+        "confirmed_at": 1_600_000_000,
+        "livemode": False,
+        "amount_paid_cents": 100,
+        "currency": "eur",
+        "payment_status": "paid",
+    }
+    assert item["customer"] == {
+        "name": "AADE Customer",
+        "email": f"{purchase_id}@example.com",
+        "country": "GR",
+        "city": "Athens",
+        "postal_code": "10558",
+        "line1": "1 Ermou Street",
+        "line2": "Floor 2",
+        "state": "Attica",
+        "status": "ready_for_manual_issue",
+        "missing_required_fields": [],
+    }
+    assert item["tax"] == {
+        "gross_amount_cents": 100,
+        "net_amount_cents": 81,
+        "vat_amount_cents": 19,
+        "vat_rate_percent": 24,
+    }
+    assert item["service"] == {
+        "code": "4",
+        "name": "GSUBS Credits",
+    }
+    assert {
+        "package_snapshot",
+        "payment_snapshot",
+        "customer_snapshot",
+        "tax_snapshot",
+        "document_snapshot",
+    }.isdisjoint(item)
+    assert "consumer_contract" not in item["package"]
+    assert "stripe_customer_id" not in item["payment"]
+    assert "tax_ids" not in item["tax"]
+
+
+def test_pending_invoice_response_disables_sensitive_snapshot_caching(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    email = f"billing-admin-{uuid.uuid4().hex}@example.com"
+    headers, user_id = _auth_headers(client, email=email)
+    _allow_billing_admin(monkeypatch, user_id)
+
+    response = client.get(
+        "/billing/admin/invoices/pending",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    # REGRESSION: Admin listings contain customer/payment reconciliation data
+    # and must never be retained by browser or intermediary caches.
+    _assert_sensitive_admin_response_is_not_cacheable(response)
+
+
+def test_pending_invoice_reconciliation_keeps_missing_legacy_payment_explicit(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    email = f"billing-admin-{uuid.uuid4().hex}@example.com"
+    headers, user_id = _auth_headers(client, email=email)
+    _allow_billing_admin(monkeypatch, user_id)
+    _, invoice_id, _ = _seed_pending_invoice(
+        user_id=user_id,
+        legacy_missing_payment_snapshot=True,
+    )
+
+    item = _find_pending_invoice(
+        client,
+        headers=headers,
+        invoice_id=invoice_id,
+    )
+
+    assert item["document_status"] == "manual_review_required"
+    assert item["payment"] is None
+    assert item["service"] == {
+        "code": "4",
+        "name": "GSUBS Credits",
+    }
 
 
 def test_pending_refunded_invoice_exposes_reversal_review_state(
@@ -506,6 +667,8 @@ def test_issued_invoice_with_active_reversal_remains_visible_for_review(
     assert item["aade_aa"] == payload["aa"]
     assert item["aade_mark"] == payload["mark"]
     assert item["issued_at"] == payload["issued_at"]
+    assert "recorded_by_user_id" not in item
+    assert item["recorded_at"] == issued.json()["recorded_at"]
 
 
 def test_resolved_issued_invoice_is_removed_from_reversal_review_queue(
@@ -617,14 +780,26 @@ def test_admin_records_already_issued_aade_document_once(
     issued_at = int(time.time()) - 30
     payload = _issued_payload(issued_at=issued_at)
 
+    request_started_at = int(time.time())
     response = client.post(
         f"/billing/admin/invoices/{invoice_id}/record-issued",
         headers=headers,
         json=payload,
     )
+    request_finished_at = int(time.time())
 
     assert response.status_code == 200, response.text
-    assert response.json() == {
+    # REGRESSION: The write response contains AADE/payment identifiers and
+    # needs the same cache prohibition as the snapshot listing.
+    _assert_sensitive_admin_response_is_not_cacheable(response)
+    response_body = response.json()
+    recorded_at = response_body["recorded_at"]
+    assert request_started_at <= recorded_at <= request_finished_at
+    expected_retention = max(
+        financial_retention_deadline(issued_at),
+        financial_retention_deadline(recorded_at),
+    )
+    assert response_body == {
         "invoice_id": invoice_id,
         "purchase_id": purchase_id,
         "document_status": "issued",
@@ -633,9 +808,10 @@ def test_admin_records_already_issued_aade_document_once(
         "aade_aa": payload["aa"],
         "aade_mark": payload["mark"],
         "issued_at": issued_at,
-        "financial_retention_until": financial_retention_deadline(issued_at),
+        "recorded_at": recorded_at,
+        "financial_retention_until": expected_retention,
     }
-    assert response.json()["financial_retention_until"] > original_retention
+    assert response_body["financial_retention_until"] > original_retention
 
     db = Database()
     with db.session() as session:
@@ -643,8 +819,10 @@ def test_admin_records_already_issued_aade_document_once(
         invoice = session.get(DbBillingInvoice, invoice_id)
         assert purchase is not None
         assert invoice is not None
-        assert purchase.financial_retention_until == financial_retention_deadline(issued_at)
-        assert invoice.financial_retention_until == financial_retention_deadline(issued_at)
+        assert purchase.financial_retention_until == expected_retention
+        assert invoice.financial_retention_until == expected_retention
+        assert invoice.recorded_by_user_id == user_id
+        assert invoice.recorded_at == recorded_at
 
 
 def test_record_issued_waits_on_purchase_without_locking_invoice(
@@ -810,11 +988,102 @@ def test_record_issued_blocks_active_or_inconsistent_reversal_state(
         assert invoice.aade_aa is None
         assert invoice.aade_mark is None
         assert invoice.issued_at is None
+        assert invoice.recorded_by_user_id is None
+        assert invoice.recorded_at is None
 
 
-def test_record_issued_replay_is_conflict_and_does_not_overwrite(
+def test_record_issued_exact_replay_returns_existing_without_mutation(
     client: TestClient,
     monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    email = f"billing-admin-{uuid.uuid4().hex}@example.com"
+    headers, user_id = _auth_headers(client, email=email)
+    replay_headers, replay_user_id = _auth_headers(
+        client,
+        email=f"billing-admin-replay-{uuid.uuid4().hex}@example.com",
+    )
+    monkeypatch.setenv(
+        "GSP_BILLING_ADMIN_USER_IDS",
+        f"{user_id},{replay_user_id}",
+    )
+    purchase_id, invoice_id, _ = _seed_pending_invoice(user_id=user_id)
+    payload = _issued_payload(issued_at=int(time.time()) - 30)
+    first = client.post(
+        f"/billing/admin/invoices/{invoice_id}/record-issued",
+        headers=headers,
+        json=payload,
+    )
+    assert first.status_code == 200
+
+    db = Database()
+    with db.session() as session:
+        purchase = session.get(DbCreditPurchase, purchase_id)
+        invoice = session.get(DbBillingInvoice, invoice_id)
+        assert purchase is not None
+        assert invoice is not None
+        assert invoice.recorded_by_user_id == user_id
+        assert invoice.recorded_at is not None
+        expected_recorded_by_user_id = invoice.recorded_by_user_id
+        expected_recorded_at = invoice.recorded_at
+        purchase.financial_retention_until += 172_800
+        invoice.financial_retention_until += 86_400
+        purchase.updated_at -= 19
+        invoice.updated_at -= 17
+        expected_purchase_retention = purchase.financial_retention_until
+        expected_invoice_retention = invoice.financial_retention_until
+        expected_purchase_updated_at = purchase.updated_at
+        expected_invoice_updated_at = invoice.updated_at
+
+    replay = client.post(
+        f"/billing/admin/invoices/{invoice_id}/record-issued",
+        headers=replay_headers,
+        json=payload,
+    )
+
+    # REGRESSION: A successful write whose HTTP response was lost must be
+    # recoverable by replaying the exact immutable AADE identity.
+    assert replay.status_code == 200, replay.text
+    _assert_sensitive_admin_response_is_not_cacheable(replay)
+    assert replay.json() == {
+        "invoice_id": invoice_id,
+        "purchase_id": purchase_id,
+        "document_status": "issued",
+        "aade_document_type": payload["document_type"],
+        "aade_series": payload["series"],
+        "aade_aa": payload["aa"],
+        "aade_mark": payload["mark"],
+        "issued_at": payload["issued_at"],
+        "recorded_at": expected_recorded_at,
+        "financial_retention_until": expected_invoice_retention,
+    }
+    with db.session() as session:
+        purchase = session.get(DbCreditPurchase, purchase_id)
+        invoice = session.get(DbBillingInvoice, invoice_id)
+        assert purchase is not None
+        assert invoice is not None
+        assert purchase.financial_retention_until == expected_purchase_retention
+        assert invoice.financial_retention_until == expected_invoice_retention
+        assert purchase.updated_at == expected_purchase_updated_at
+        assert invoice.updated_at == expected_invoice_updated_at
+        assert invoice.recorded_by_user_id == expected_recorded_by_user_id
+        assert invoice.recorded_at == expected_recorded_at
+
+
+@pytest.mark.parametrize(
+    ("field", "replacement"),
+    (
+        ("document_type", "1.1"),
+        ("series", "A"),
+        ("aa", "999999"),
+        ("mark", "9223372036854775807"),
+        ("issued_at", 1_600_000_001),
+    ),
+)
+def test_record_issued_mismatched_replay_is_conflict_and_does_not_overwrite(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    field: str,
+    replacement: str | int,
 ) -> None:
     email = f"billing-admin-{uuid.uuid4().hex}@example.com"
     headers, user_id = _auth_headers(client, email=email)
@@ -827,11 +1096,9 @@ def test_record_issued_replay_is_conflict_and_does_not_overwrite(
         json=first_payload,
     )
     assert first.status_code == 200
+    replay_payload = dict(first_payload)
+    replay_payload[field] = replacement
 
-    replay_payload = {
-        **_issued_payload(issued_at=int(time.time()) - 20),
-        "aa": "999999",
-    }
     replay = client.post(
         f"/billing/admin/invoices/{invoice_id}/record-issued",
         headers=headers,
@@ -844,8 +1111,67 @@ def test_record_issued_replay_is_conflict_and_does_not_overwrite(
     with db.session() as session:
         invoice = session.get(DbBillingInvoice, invoice_id)
         assert invoice is not None
+        assert invoice.aade_document_type == first_payload["document_type"]
+        assert invoice.aade_series == first_payload["series"]
         assert invoice.aade_aa == first_payload["aa"]
         assert invoice.aade_mark == first_payload["mark"]
+        assert invoice.issued_at == first_payload["issued_at"]
+        assert invoice.recorded_by_user_id == user_id
+        assert invoice.recorded_at == first.json()["recorded_at"]
+
+
+def test_record_issued_exact_replay_does_not_bypass_reversal_review(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    email = f"billing-admin-{uuid.uuid4().hex}@example.com"
+    headers, user_id = _auth_headers(client, email=email)
+    _allow_billing_admin(monkeypatch, user_id)
+    purchase_id, invoice_id, _ = _seed_pending_invoice(user_id=user_id)
+    payload = _issued_payload(issued_at=int(time.time()) - 30)
+    first = client.post(
+        f"/billing/admin/invoices/{invoice_id}/record-issued",
+        headers=headers,
+        json=payload,
+    )
+    assert first.status_code == 200
+    _set_purchase_reversal_state(
+        purchase_id=purchase_id,
+        status="disputed",
+        reversed_amount_cents=100,
+        reversed_credits=100,
+        dispute_active=True,
+    )
+    db = Database()
+    with db.session() as session:
+        purchase = session.get(DbCreditPurchase, purchase_id)
+        invoice = session.get(DbBillingInvoice, invoice_id)
+        assert purchase is not None
+        assert invoice is not None
+        expected_purchase_retention = purchase.financial_retention_until
+        expected_invoice_retention = invoice.financial_retention_until
+        expected_purchase_updated_at = purchase.updated_at
+        expected_invoice_updated_at = invoice.updated_at
+
+    replay = client.post(
+        f"/billing/admin/invoices/{invoice_id}/record-issued",
+        headers=headers,
+        json=payload,
+    )
+
+    assert replay.status_code == 409
+    assert replay.json()["detail"] == (
+        "Purchase requires reversal accounting review before recording an AADE document"
+    )
+    with db.session() as session:
+        purchase = session.get(DbCreditPurchase, purchase_id)
+        invoice = session.get(DbBillingInvoice, invoice_id)
+        assert purchase is not None
+        assert invoice is not None
+        assert purchase.financial_retention_until == expected_purchase_retention
+        assert invoice.financial_retention_until == expected_invoice_retention
+        assert purchase.updated_at == expected_purchase_updated_at
+        assert invoice.updated_at == expected_invoice_updated_at
 
 
 def test_record_issued_rejects_incomplete_identity_without_mutation(
@@ -872,6 +1198,65 @@ def test_record_issued_rejects_incomplete_identity_without_mutation(
         assert invoice is not None
         assert invoice.document_status == "pending_manual_issue"
         assert invoice.aade_mark is None
+
+
+@pytest.mark.parametrize(
+    ("field", "replacement"),
+    (
+        ("document_type", "1.1"),
+        ("series", "A"),
+    ),
+)
+def test_record_issued_rejects_non_mizai_accounting_baseline_without_mutation(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    field: str,
+    replacement: str,
+) -> None:
+    email = f"billing-admin-{uuid.uuid4().hex}@example.com"
+    headers, user_id = _auth_headers(client, email=email)
+    _allow_billing_admin(monkeypatch, user_id)
+    purchase_id, invoice_id, _ = _seed_pending_invoice(user_id=user_id)
+    payload = _issued_payload(issued_at=int(time.time()) - 30)
+    payload[field] = replacement
+    db = Database()
+    with db.session() as session:
+        purchase = session.get(DbCreditPurchase, purchase_id)
+        invoice = session.get(DbBillingInvoice, invoice_id)
+        assert purchase is not None
+        assert invoice is not None
+        expected_purchase_retention = purchase.financial_retention_until
+        expected_invoice_retention = invoice.financial_retention_until
+        expected_purchase_updated_at = purchase.updated_at
+        expected_invoice_updated_at = invoice.updated_at
+
+    response = client.post(
+        f"/billing/admin/invoices/{invoice_id}/record-issued",
+        headers=headers,
+        json=payload,
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == (
+        "AADE document type and series must match the approved Greek B2C baseline"
+    )
+    with db.session() as session:
+        purchase = session.get(DbCreditPurchase, purchase_id)
+        invoice = session.get(DbBillingInvoice, invoice_id)
+        assert purchase is not None
+        assert invoice is not None
+        assert purchase.financial_retention_until == expected_purchase_retention
+        assert invoice.financial_retention_until == expected_invoice_retention
+        assert purchase.updated_at == expected_purchase_updated_at
+        assert invoice.updated_at == expected_invoice_updated_at
+        assert invoice.document_status == "pending_manual_issue"
+        assert invoice.aade_document_type is None
+        assert invoice.aade_series is None
+        assert invoice.aade_aa is None
+        assert invoice.aade_mark is None
+        assert invoice.issued_at is None
+        assert invoice.recorded_by_user_id is None
+        assert invoice.recorded_at is None
 
 
 @pytest.mark.parametrize(
@@ -906,6 +1291,66 @@ def test_record_issued_strictly_validates_bounded_identity_fields(
     )
 
     assert response.status_code == 422
+
+
+@pytest.mark.parametrize(
+    "mark",
+    (
+        "0",
+        "0400014466064287",
+        "10000000000000000000",
+        "9223372036854775808",
+    ),
+)
+def test_record_issued_rejects_noncanonical_or_out_of_range_aade_mark(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    mark: str,
+) -> None:
+    email = f"billing-admin-{uuid.uuid4().hex}@example.com"
+    headers, user_id = _auth_headers(client, email=email)
+    _allow_billing_admin(monkeypatch, user_id)
+    _, invoice_id, _ = _seed_pending_invoice(user_id=user_id)
+    payload = _issued_payload(issued_at=int(time.time()) - 30)
+    payload["mark"] = mark
+
+    response = client.post(
+        f"/billing/admin/invoices/{invoice_id}/record-issued",
+        headers=headers,
+        json=payload,
+    )
+
+    # REGRESSION: AADE specifies MARK as xs:long. Accepting arbitrary digit
+    # strings allowed zero/leading-zero aliases and values outside int64.
+    assert response.status_code == 422
+    db = Database()
+    with db.session() as session:
+        invoice = session.get(DbBillingInvoice, invoice_id)
+        assert invoice is not None
+        assert invoice.document_status == "pending_manual_issue"
+        assert invoice.aade_mark is None
+
+
+def test_record_issued_accepts_canonical_existing_style_aade_mark(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    email = f"billing-admin-{uuid.uuid4().hex}@example.com"
+    headers, user_id = _auth_headers(client, email=email)
+    _allow_billing_admin(monkeypatch, user_id)
+    _, invoice_id, _ = _seed_pending_invoice(user_id=user_id)
+    existing_style_mark = f"4{uuid.uuid4().int % 10**14:014d}"
+    payload = _issued_payload(issued_at=int(time.time()) - 30)
+    payload["mark"] = existing_style_mark
+
+    response = client.post(
+        f"/billing/admin/invoices/{invoice_id}/record-issued",
+        headers=headers,
+        json=payload,
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["aade_mark"] == existing_style_mark
 
 
 def test_record_issued_rejects_future_timestamp(
@@ -986,9 +1431,8 @@ def test_legacy_manual_review_uses_fulfillment_timestamp_fallback(
     with db.session() as session:
         purchase = session.get(DbCreditPurchase, purchase_id)
         assert purchase is not None
-        fallback_confirmation_at = int(
-            purchase.fulfilled_at or purchase.created_at,
-        )
+        assert purchase.fulfilled_at is not None
+        fallback_confirmation_at = purchase.fulfilled_at
 
     response = client.post(
         f"/billing/admin/invoices/{invoice_id}/record-issued",
@@ -998,6 +1442,55 @@ def test_legacy_manual_review_uses_fulfillment_timestamp_fallback(
 
     assert response.status_code == 200
     assert response.json()["issued_at"] == fallback_confirmation_at
+
+
+def test_legacy_payment_intent_without_fulfillment_proof_stays_manual_review(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    email = f"billing-admin-{uuid.uuid4().hex}@example.com"
+    headers, user_id = _auth_headers(client, email=email)
+    _allow_billing_admin(monkeypatch, user_id)
+    purchase_id, invoice_id, original_retention = _seed_pending_invoice(
+        user_id=user_id,
+        legacy_missing_payment_snapshot=True,
+        purchase_fulfilled=False,
+    )
+    db = Database()
+    with db.session() as session:
+        purchase = session.get(DbCreditPurchase, purchase_id)
+        assert purchase is not None
+        assert purchase.payment_intent_id is not None
+        assert purchase.payment_snapshot is None
+        assert purchase.fulfilled_at is None
+
+    response = client.post(
+        f"/billing/admin/invoices/{invoice_id}/record-issued",
+        headers=headers,
+        json=_issued_payload(issued_at=int(time.time()) - 30),
+    )
+
+    # REGRESSION: A legacy payment-intent identifier and row creation time are
+    # not evidence that Stripe payment fulfillment actually completed.
+    assert response.status_code == 409
+    assert response.json()["detail"] == (
+        "Stripe payment fulfillment timestamp is unavailable"
+    )
+    with db.session() as session:
+        purchase = session.get(DbCreditPurchase, purchase_id)
+        invoice = session.get(DbBillingInvoice, invoice_id)
+        assert purchase is not None
+        assert invoice is not None
+        assert purchase.financial_retention_until == original_retention
+        assert invoice.financial_retention_until == original_retention
+        assert invoice.document_status == "manual_review_required"
+        assert invoice.aade_document_type is None
+        assert invoice.aade_series is None
+        assert invoice.aade_aa is None
+        assert invoice.aade_mark is None
+        assert invoice.issued_at is None
+        assert invoice.recorded_by_user_id is None
+        assert invoice.recorded_at is None
 
 
 def test_record_issued_returns_not_found_for_unknown_invoice(

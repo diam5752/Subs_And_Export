@@ -11,6 +11,9 @@ from backend.app.services.financial_records import financial_retention_deadline
 
 AADE_SERVICE_CODE = "4"
 AADE_SERVICE_NAME = "GSUBS Credits"
+AADE_GREEK_B2C_DOCUMENT_TYPE = "11.2"
+AADE_GREEK_B2C_SERIES = "0"
+AADE_GREEK_B2C_PAYMENT_METHOD = "domestic_professional_payment_account"
 ACCOUNTING_METHOD = "manual_aade_etimologio"
 STRIPE_PRODUCT_TAX_CODE = "txcd_10103001"
 VAT_RATE_PERCENT = 24
@@ -104,6 +107,9 @@ def build_paid_financial_record(
     invoice_snapshot = {
         "service_code": AADE_SERVICE_CODE,
         "service_name": AADE_SERVICE_NAME,
+        "expected_document_type": AADE_GREEK_B2C_DOCUMENT_TYPE,
+        "expected_series": AADE_GREEK_B2C_SERIES,
+        "expected_payment_method": AADE_GREEK_B2C_PAYMENT_METHOD,
         "package_key": purchase.package_key,
         "credits": purchase.credits,
         "currency": str(purchase.currency).lower(),
@@ -145,6 +151,8 @@ def new_pending_invoice(
         aade_aa=None,
         aade_mark=None,
         issued_at=None,
+        recorded_by_user_id=None,
+        recorded_at=None,
         document_snapshot=record.invoice_snapshot,
         financial_retention_until=record.retention_until,
         created_at=created_at,

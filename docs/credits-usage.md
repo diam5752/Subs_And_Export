@@ -150,14 +150,15 @@ Before enabling live paid Checkout:
 1. Deploy and verify the completed order-independent refund/dispute
    reconciliation and its reverse-delivery regression suite on `gsubs.gr`,
    while the tracked production Compose keeps Checkout disabled.
-2. Apply and verify migrations `0013_durable_billing_records` and
-   `0014_consumer_contract_records` while Checkout remains disabled. Confirm
+2. Apply and verify migrations `0013_durable_billing_records`,
+   `0014_consumer_contract_records` and
+   `0015_billing_invoice_actor_audit` while Checkout remains disabled. Confirm
    account deletion preserves only legally required financial evidence, still
    removes the 24-hour media workspace, and cannot orphan a pending withdrawal
    acknowledgement. Migration 0014 deliberately rejects any
    `available_approved` confirmation row and supports only pending withdrawal
-   requests. Durable-channel approval therefore requires a separate reviewed
-   0015 migration; changing a status string is insufficient.
+   requests. Durable-channel approval therefore requires a later, separately
+   reviewed migration; changing a status string is insufficient.
 3. Obtain an accountant-approved billing-country policy for the 24% VAT
    baseline. Enforce the permitted geography before creating a charge and
    verify the signed Checkout billing country again before fulfillment. A
@@ -237,7 +238,7 @@ Before enabling live paid Checkout:
    signed webhook, duplicate delivery and end-to-end reconciliation evidence
    are all green; otherwise return it to `0`. Activation is one atomic reviewed
    release: backend EL/EN manifest and implementation booleans, frontend legal
-   publication gate, 0015 durable-delivery/resolution schema, three environment
+   publication gate, future durable-delivery/resolution schema, three environment
    approval flags, Stripe secrets/Prices/webhook, and production verifier must
    agree in the same deployed version.
 
@@ -263,8 +264,14 @@ AADE document:
 All three Prices belong to the Stripe sandbox Product
 `prod_Ux5fP4UP201f4y` (`GSUBS Credits`), which uses the accountant-approved
 MizAI SaaS business-use tax code `txcd_10103001`. For manual e-Timologio
-reconciliation, use the existing AADE service item with code `4`. Match one
-paid Stripe Checkout to one internal `credit_purchases` row by
+reconciliation, use the existing AADE service item with code `4`. The live
+MizAI Greek-retail precedent verified in e-Timologio on 2026-07-26 is an
+`11.2 - ΑΠΥ` in series `0`, paid through the domestic professional payment
+account method, in EUR, with one service line and 24% VAT included in the gross
+price; it has no discount, withholding or other fee. GSUBS fixes the same
+document type and series for this Greek B2C flow, while using item `4 - GSUBS
+Credits` instead of item `2 - MizAI Credits`. Match one paid Stripe Checkout
+to one internal `credit_purchases` row by
 `checkout_session_id`, `payment_intent_id`, `purchase_id` and
 `integration_identifier`; then issue the appropriate AADE document manually.
 After real issuance, an authorized administrator may record the document
@@ -303,10 +310,11 @@ Keep production Checkout disabled until all of these are closed:
   manual timeliness assessment; until then no computed deadline or
   in-window/out-of-window claim is exposed and the online action remains
   available for every concluded contract that has no existing request;
-- migrations `0013_durable_billing_records` and
-  `0014_consumer_contract_records`, fiscal-year retention behavior and the
+- migrations `0013_durable_billing_records`,
+  `0014_consumer_contract_records` and
+  `0015_billing_invoice_actor_audit`, fiscal-year retention behavior and the
   account-deletion exceptions pass deployed verification, followed by a
-  separately reviewed 0015 migration replacing the deliberately pending-only
+  separately reviewed later migration replacing the deliberately pending-only
   delivery/resolution constraints;
 - the external Ascentia privacy and terms pages no longer contain stale
   third-party template names or support contacts;
@@ -354,6 +362,14 @@ internal `users.id` values. Email addresses, malformed entries, duplicates and
 unverified accounts are rejected fail closed. Leaving it empty disables the
 manual billing-admin endpoints.
 
+The protected reconciliation screen is `/admin/billing`. It only records the
+identity of a document that has already been issued finally in AADE
+e-Timologio; it never issues a document and never writes to Stripe or AADE.
+Recording is allowed only during the first 15 minutes of a freshly issued
+admin session. If that window expires, sign out, sign in again with the
+allowlisted account, refresh the queue, and re-check the final document before
+submitting.
+
 ## Operational verification
 
 ```bash
@@ -380,12 +396,13 @@ python3 -m pytest --no-cov backend/tests/services/test_billing.py \
 `make check-all` runs the repository contract, strict static analysis, backend
 and frontend coverage suites, integration and real-media export tests,
 architecture and Java 25 checks, dependency/security audits, and Playwright
-E2E. The separate `npm run build` validates the production Next.js build
-because the Playwright gate uses the development server.
+E2E. The Playwright gate builds and serves the production Next.js bundle so
+browser checks cannot be disrupted by development-server HMR.
 
 Migrations `0008_video_credits_and_billing`,
 `0009_reversal_debt_audit`, `0010_unique_payment_intent` and
-`0013_durable_billing_records` and `0014_consumer_contract_records` are required
-for this disabled scaffold. Live activation additionally requires the future,
-separately reviewed 0015 durable-delivery and withdrawal-resolution migration;
-0014 intentionally cannot represent an approved delivery or terminal outcome.
+`0013_durable_billing_records`, `0014_consumer_contract_records` and
+`0015_billing_invoice_actor_audit` are required for this disabled scaffold.
+Live activation additionally requires a future, separately reviewed
+durable-delivery and withdrawal-resolution migration; 0014 intentionally cannot
+represent an approved delivery or terminal outcome.

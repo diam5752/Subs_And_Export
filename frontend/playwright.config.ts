@@ -53,7 +53,12 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `npm run dev -- --hostname ${playwrightHost} --port ${playwrightPort}`,
+    // Exercise the production bundle and avoid development HMR replacing pages
+    // while the long, multi-page browser suite is still running.
+    command: (
+      `npm run build && npm run start -- `
+      + `--hostname ${playwrightHost} --port ${playwrightPort}`
+    ),
     url: playwrightBaseUrl,
     reuseExistingServer: false,
     timeout: 120_000,

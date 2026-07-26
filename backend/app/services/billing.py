@@ -1163,6 +1163,8 @@ class BillingService:
                 or invoice.aade_aa != expected_invoice.aade_aa
                 or invoice.aade_mark != expected_invoice.aade_mark
                 or invoice.issued_at != expected_invoice.issued_at
+                or invoice.recorded_by_user_id != expected_invoice.recorded_by_user_id
+                or invoice.recorded_at != expected_invoice.recorded_at
                 or invoice.document_snapshot != expected_invoice.document_snapshot
                 or invoice.financial_retention_until != expected_invoice.financial_retention_until
                 or invoice.created_at != expected_invoice.created_at

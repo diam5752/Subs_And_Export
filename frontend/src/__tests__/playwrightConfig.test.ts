@@ -16,7 +16,10 @@ describe('Playwright server isolation', () => {
     expect(DEFAULT_PLAYWRIGHT_PORT).toBe(31873);
     expect(config.use?.baseURL).toBe('http://127.0.0.1:31873');
     expect(webServer).toMatchObject({
-      command: 'npm run dev -- --hostname 127.0.0.1 --port 31873',
+      command: (
+        'npm run build && npm run start -- '
+        + '--hostname 127.0.0.1 --port 31873'
+      ),
       reuseExistingServer: false,
       url: 'http://127.0.0.1:31873',
     });

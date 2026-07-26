@@ -657,3 +657,28 @@ test('unauthenticated users can open the upload workspace before login', async (
   await expect(page).toHaveURL(/\/login$/);
   await expect(page.getByRole('button', { name: el.profileLabel })).toHaveCount(0);
 });
+
+// REGRESSION: signing out while the account dialog was open left the header
+// inert, making the newly rendered sign-in link impossible to click.
+test('sign-in remains interactive after logout from the account dialog', async ({ page }) => {
+  await mockApi(page);
+  await page.goto('/');
+  await waitForDashboardShell(page);
+
+  await page.getByRole('button', { name: el.profileLabel }).click();
+  const dialog = page.getByRole('dialog', { name: el.accountSettingsTitle });
+  const logoutRequestPromise = page.waitForRequest((request) => (
+    request.method() === 'POST' && request.url().endsWith('/auth/logout')
+  ));
+  await dialog.getByRole('button', { name: el.signOut }).click();
+  const logoutRequest = await logoutRequestPromise;
+
+  expect(logoutRequest.headers().authorization).toBe('Bearer test-token');
+  await expect.poll(
+    () => page.evaluate(() => localStorage.getItem('auth_token')),
+  ).toBeNull();
+  const signInLink = page.getByRole('link', { name: el.guestSignIn });
+  await expect(signInLink).toBeVisible();
+  await signInLink.click();
+  await expect(page).toHaveURL(/\/login$/);
+});

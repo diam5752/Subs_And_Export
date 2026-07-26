@@ -280,10 +280,15 @@ def test_paid_checkout_persists_immutable_financial_snapshots_and_pending_aade_r
         assert invoice.aade_aa is None
         assert invoice.aade_mark is None
         assert invoice.issued_at is None
+        assert invoice.recorded_by_user_id is None
+        assert invoice.recorded_at is None
         assert invoice.financial_retention_until == stored.financial_retention_until
         assert invoice.document_snapshot == {
             "service_code": "4",
             "service_name": "GSUBS Credits",
+            "expected_document_type": "11.2",
+            "expected_series": "0",
+            "expected_payment_method": "domestic_professional_payment_account",
             "package_key": "core",
             "credits": 350,
             "currency": "eur",
@@ -398,6 +403,8 @@ def test_fulfillment_rejects_conflicting_preexisting_financial_snapshots_before_
         "aade_aa",
         "aade_mark",
         "issued_at",
+        "recorded_by_user_id",
+        "recorded_at",
         "document_snapshot",
         "financial_retention_until",
         "created_at",
@@ -444,6 +451,8 @@ def test_fulfillment_rejects_conflicting_preexisting_invoice_before_credit(
         "aade_aa": f"test-{uuid.uuid4().hex[:8]}",
         "aade_mark": f"test-{uuid.uuid4().hex}",
         "issued_at": 1_767_225_601,
+        "recorded_by_user_id": uuid.uuid4().hex,
+        "recorded_at": 1_767_225_601,
         "document_snapshot": {"conflicting": True},
         "financial_retention_until": (
             invoice.financial_retention_until + 1
@@ -458,6 +467,8 @@ def test_fulfillment_rejects_conflicting_preexisting_invoice_before_credit(
         "aade_aa",
         "aade_mark",
         "issued_at",
+        "recorded_by_user_id",
+        "recorded_at",
     }
     if conflicting_field not in load_only_conflicts:
         setattr(invoice, conflicting_field, conflicting_value)
@@ -994,6 +1005,8 @@ def test_paid_checkout_after_account_deletion_is_retained_without_credit_grant(
         assert stored.payment_snapshot["amount_paid_cents"] == 100
         assert invoice is not None
         assert invoice.aade_mark is None
+        assert invoice.recorded_by_user_id is None
+        assert invoice.recorded_at is None
         assert session.get(DbUserPoints, user_id) is None
 
 

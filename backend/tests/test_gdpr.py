@@ -112,6 +112,8 @@ def _seed_financial_record(*, user_id: str) -> tuple[str, str]:
         aade_aa=suffix[:12],
         aade_mark=f"4{suffix[:15]}",
         issued_at=now,
+        recorded_by_user_id=user_id,
+        recorded_at=now,
         document_snapshot={
             "service_code": "4",
             "service_name": "GSUBS Credits",
@@ -660,6 +662,10 @@ def test_data_export_includes_current_users_financial_snapshots(
         },
         "financial_retention_until": exported["invoice"]["financial_retention_until"],
     }
+    # The operator pseudonym belongs to the internal financial audit, not the
+    # purchasing customer's portability payload.
+    assert "recorded_by_user_id" not in exported["invoice"]
+    assert "recorded_at" not in exported["invoice"]
 
 
 def test_delete_account_discloses_detached_financial_retention(
@@ -675,6 +681,31 @@ def test_delete_account_discloses_detached_financial_retention(
         "status": "deleted",
         "message": FINANCIAL_RECORDS_NOTICE,
     }
+
+
+def test_account_deletion_preserves_detached_pseudonymous_invoice_actor_audit(
+    client,
+    user_auth_headers,
+) -> None:
+    me = client.get("/auth/me", headers=user_auth_headers)
+    assert me.status_code == 200
+    user_id = me.json()["id"]
+    purchase_id, invoice_id = _seed_financial_record(user_id=user_id)
+
+    response = client.delete("/auth/me", headers=user_auth_headers)
+
+    assert response.status_code == 200
+    db = Database()
+    with db.session() as session:
+        purchase = session.get(DbCreditPurchase, purchase_id)
+        invoice = session.get(DbBillingInvoice, invoice_id)
+        assert purchase is not None
+        assert invoice is not None
+        assert purchase.user_id is None
+        # No user FK is intentional: only the non-email internal identifier is
+        # retained with the financial record for accountability.
+        assert invoice.recorded_by_user_id == user_id
+        assert invoice.recorded_at == invoice.issued_at
 
 
 def test_account_deletion_is_blocked_while_checkout_is_open(
