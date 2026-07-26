@@ -159,4 +159,33 @@ describe('ProcessingGateModal', () => {
         expect(onPurchaseCredits).toHaveBeenCalledTimes(1);
         expect(onConfirm).not.toHaveBeenCalled();
     });
+
+    // REGRESSION: a disabled paid-credit release still exposed a non-working
+    // "buy credits" call to action from the processing gate.
+    it('does not expose a purchase call to action without an approved callback', () => {
+        render(
+            <ProcessingGateModal
+                isOpen
+                stage="cost"
+                cost={25}
+                balance={10}
+                isBalanceLoading={false}
+                error=""
+                onClose={onClose}
+                onAuthenticated={onAuthenticated}
+                onConfirm={onConfirm}
+            />,
+        );
+
+        expect(screen.getByRole('alert')).toHaveTextContent('processingGateInsufficient');
+        expect(screen.queryByRole('button', {
+            name: 'processingGateBuyCredits',
+        })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', {
+            name: 'processingGateConfirm',
+        })).not.toBeInTheDocument();
+        expect(screen.getByRole('button', {
+            name: 'processingGateCancel',
+        })).toBeInTheDocument();
+    });
 });

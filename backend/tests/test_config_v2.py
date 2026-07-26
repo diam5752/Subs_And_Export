@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+from unittest.mock import Mock
+
 import pytest
 
 from backend.app.core.config import AppEnv, Settings
@@ -26,14 +29,45 @@ def test_settings_defaults(monkeypatch) -> None:
     assert settings.storage_min_free_mb == 2048
     assert settings.retention_cleanup_enabled is True
     assert settings.paid_credits_enabled is False
+    assert settings.consumer_policy_approved is False
+    assert settings.durable_confirmation_channel_ready is False
+    assert settings.adjustment_workflow_ready is False
+    assert settings.paid_credit_checkout_enabled is False
     assert settings.stripe_automatic_tax_enabled is False
-    assert (
-        settings.google_oauth_certs_url
-        == "https://www.googleapis.com/oauth2/v1/certs"
-    )
+    assert settings.google_oauth_certs_url == "https://www.googleapis.com/oauth2/v1/certs"
     assert settings.external_provider_price_safety_multiplier == 1.25
     assert settings.watermark_path.name == "gsubs-logo.png"
     assert settings.watermark_path.exists()
+
+
+def test_runtime_startup_rejects_environment_activation_of_draft_registry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from backend import main as main_module
+
+    environment_validation = Mock()
+    code_approval = Mock(
+        side_effect=RuntimeError("consumer registry is unapproved"),
+    )
+    monkeypatch.setattr(
+        main_module,
+        "settings",
+        SimpleNamespace(
+            assert_paid_credits_configuration=environment_validation,
+            paid_credit_checkout_enabled=True,
+        ),
+    )
+    monkeypatch.setattr(
+        main_module,
+        "assert_consumer_contract_registry_approved",
+        code_approval,
+    )
+
+    with pytest.raises(RuntimeError, match="registry is unapproved"):
+        main_module.assert_runtime_billing_configuration()
+
+    environment_validation.assert_called_once_with()
+    code_approval.assert_called_once_with()
 
 
 def test_settings_environment_overrides(monkeypatch) -> None:
@@ -92,6 +126,17 @@ def test_settings_rejects_unapproved_google_oauth_certs_url(monkeypatch) -> None
         Settings(_env_file=None)
 
 
+def test_settings_normalizers_handle_empty_and_malformed_inputs() -> None:
+    assert Settings.normalize_env(None) == AppEnv.PRODUCTION
+    assert Settings.parse_list("") == []
+    assert Settings.parse_list("[not-json]") == ["[not-json]"]
+    assert Settings.parse_list(("one.example", " ", "two.example")) == [
+        "one.example",
+        "two.example",
+    ]
+    assert Settings.parse_list(42) == []
+
+
 def test_settings_pricing_integration() -> None:
     settings = Settings()
     assert "gpt-5-mini" in settings.llm_pricing
@@ -102,10 +147,22 @@ def test_paid_credits_configuration_fails_closed_without_restricted_key(
     monkeypatch,
 ) -> None:
     monkeypatch.setenv("GSP_PAID_CREDITS_ENABLED", "true")
+    monkeypatch.setenv("GSP_CONSUMER_POLICY_APPROVED", "true")
+    monkeypatch.setenv("GSP_DURABLE_CONFIRMATION_CHANNEL_READY", "true")
+    monkeypatch.setenv("GSP_ADJUSTMENT_WORKFLOW_READY", "true")
     settings = Settings(_env_file=None)
 
     with pytest.raises(RuntimeError, match="restricted key"):
         settings.assert_paid_credits_configuration()
+
+
+def test_paid_credits_configuration_is_a_noop_while_sales_are_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("GSP_PAID_CREDITS_ENABLED", "false")
+    settings = Settings(_env_file=None)
+
+    settings.assert_paid_credits_configuration()
 
 
 def test_paid_credits_configuration_accepts_reviewed_test_mode(
@@ -113,6 +170,9 @@ def test_paid_credits_configuration_accepts_reviewed_test_mode(
 ) -> None:
     monkeypatch.setenv("GSP_APP_ENV", "dev")
     monkeypatch.setenv("GSP_PAID_CREDITS_ENABLED", "true")
+    monkeypatch.setenv("GSP_CONSUMER_POLICY_APPROVED", "true")
+    monkeypatch.setenv("GSP_DURABLE_CONFIRMATION_CHANNEL_READY", "true")
+    monkeypatch.setenv("GSP_ADJUSTMENT_WORKFLOW_READY", "true")
     monkeypatch.setenv("GSP_STRIPE_RESTRICTED_KEY", "rk_test_placeholder")
     monkeypatch.setenv("GSP_STRIPE_WEBHOOK_SECRET", "whsec_placeholder")
     monkeypatch.setenv("GSP_STRIPE_PRICE_STARTER", "price_starter")
@@ -123,10 +183,184 @@ def test_paid_credits_configuration_accepts_reviewed_test_mode(
     settings.assert_paid_credits_configuration()
 
 
+def test_paid_credits_configuration_accepts_live_key_outside_development(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("GSP_APP_ENV", "production")
+    monkeypatch.setenv("GSP_PAID_CREDITS_ENABLED", "true")
+    monkeypatch.setenv("GSP_CONSUMER_POLICY_APPROVED", "true")
+    monkeypatch.setenv("GSP_DURABLE_CONFIRMATION_CHANNEL_READY", "true")
+    monkeypatch.setenv("GSP_ADJUSTMENT_WORKFLOW_READY", "true")
+    monkeypatch.setenv("GSP_STRIPE_RESTRICTED_KEY", "rk_live_placeholder")
+    monkeypatch.setenv("GSP_STRIPE_WEBHOOK_SECRET", "whsec_placeholder")
+    monkeypatch.setenv("GSP_STRIPE_PRICE_STARTER", "price_starter")
+    monkeypatch.setenv("GSP_STRIPE_PRICE_CORE", "price_core")
+    monkeypatch.setenv("GSP_STRIPE_PRICE_PRO", "price_pro")
+    monkeypatch.setenv(
+        "GSP_STRIPE_SUCCESS_URL",
+        "https://gsubs.gr/?checkout=success&session_id={CHECKOUT_SESSION_ID}",
+    )
+    monkeypatch.setenv(
+        "GSP_STRIPE_CANCEL_URL",
+        "https://gsubs.gr/?checkout=cancelled",
+    )
+    settings = Settings(_env_file=None)
+
+    settings.assert_paid_credits_configuration()
+
+
+def _fully_gated_paid_credit_environment(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    app_env: str = "dev",
+) -> None:
+    monkeypatch.setenv("GSP_APP_ENV", app_env)
+    monkeypatch.setenv("GSP_PAID_CREDITS_ENABLED", "true")
+    monkeypatch.setenv("GSP_CONSUMER_POLICY_APPROVED", "true")
+    monkeypatch.setenv("GSP_DURABLE_CONFIRMATION_CHANNEL_READY", "true")
+    monkeypatch.setenv("GSP_ADJUSTMENT_WORKFLOW_READY", "true")
+    monkeypatch.setenv(
+        "GSP_STRIPE_RESTRICTED_KEY",
+        "rk_test_placeholder" if app_env == "dev" else "rk_live_placeholder",
+    )
+    monkeypatch.setenv("GSP_STRIPE_WEBHOOK_SECRET", "whsec_placeholder")
+    monkeypatch.setenv("GSP_STRIPE_PRICE_STARTER", "price_starter")
+    monkeypatch.setenv("GSP_STRIPE_PRICE_CORE", "price_core")
+    monkeypatch.setenv("GSP_STRIPE_PRICE_PRO", "price_pro")
+    if app_env != "dev":
+        monkeypatch.setenv(
+            "GSP_STRIPE_SUCCESS_URL",
+            "https://gsubs.gr/?checkout=success&session_id={CHECKOUT_SESSION_ID}",
+        )
+        monkeypatch.setenv(
+            "GSP_STRIPE_CANCEL_URL",
+            "https://gsubs.gr/?checkout=cancelled",
+        )
+
+
+@pytest.mark.parametrize(
+    ("app_env", "restricted_key", "expected_prefix"),
+    [
+        ("production", "rk_test_placeholder", "rk_live_"),
+        ("dev", "rk_live_placeholder", "rk_test_"),
+    ],
+)
+def test_paid_credits_configuration_rejects_restricted_key_mode_mismatch(
+    monkeypatch,
+    app_env: str,
+    restricted_key: str,
+    expected_prefix: str,
+) -> None:
+    monkeypatch.setenv("GSP_APP_ENV", app_env)
+    monkeypatch.setenv("GSP_PAID_CREDITS_ENABLED", "true")
+    monkeypatch.setenv("GSP_CONSUMER_POLICY_APPROVED", "true")
+    monkeypatch.setenv("GSP_DURABLE_CONFIRMATION_CHANNEL_READY", "true")
+    monkeypatch.setenv("GSP_ADJUSTMENT_WORKFLOW_READY", "true")
+    monkeypatch.setenv("GSP_STRIPE_RESTRICTED_KEY", restricted_key)
+    monkeypatch.setenv("GSP_STRIPE_WEBHOOK_SECRET", "whsec_placeholder")
+    monkeypatch.setenv("GSP_STRIPE_PRICE_STARTER", "price_starter")
+    monkeypatch.setenv("GSP_STRIPE_PRICE_CORE", "price_core")
+    monkeypatch.setenv("GSP_STRIPE_PRICE_PRO", "price_pro")
+    settings = Settings(_env_file=None)
+
+    with pytest.raises(RuntimeError, match=expected_prefix):
+        settings.assert_paid_credits_configuration()
+
+
 def test_stripe_automatic_tax_remains_owner_gated(monkeypatch) -> None:
     monkeypatch.setenv("GSP_PAID_CREDITS_ENABLED", "true")
+    monkeypatch.setenv("GSP_CONSUMER_POLICY_APPROVED", "true")
+    monkeypatch.setenv("GSP_DURABLE_CONFIRMATION_CHANNEL_READY", "true")
+    monkeypatch.setenv("GSP_ADJUSTMENT_WORKFLOW_READY", "true")
     monkeypatch.setenv("GSP_STRIPE_AUTOMATIC_TAX_ENABLED", "true")
     settings = Settings(_env_file=None)
 
     with pytest.raises(RuntimeError, match="owner-gated"):
+        settings.assert_paid_credits_configuration()
+
+
+@pytest.mark.parametrize(
+    ("missing_env", "message"),
+    [
+        ("GSP_CONSUMER_POLICY_APPROVED", "consumer policy approval"),
+        (
+            "GSP_DURABLE_CONFIRMATION_CHANNEL_READY",
+            "durable contract-confirmation channel",
+        ),
+        ("GSP_ADJUSTMENT_WORKFLOW_READY", "accountant-approved adjustment workflow"),
+    ],
+)
+def test_paid_credits_configuration_requires_each_independent_launch_gate(
+    monkeypatch,
+    missing_env: str,
+    message: str,
+) -> None:
+    monkeypatch.setenv("GSP_PAID_CREDITS_ENABLED", "true")
+    monkeypatch.setenv("GSP_CONSUMER_POLICY_APPROVED", "true")
+    monkeypatch.setenv("GSP_DURABLE_CONFIRMATION_CHANNEL_READY", "true")
+    monkeypatch.setenv("GSP_ADJUSTMENT_WORKFLOW_READY", "true")
+    monkeypatch.delenv(missing_env)
+    settings = Settings(_env_file=None)
+
+    assert settings.paid_credit_checkout_enabled is False
+    with pytest.raises(RuntimeError, match=message):
+        settings.assert_paid_credits_configuration()
+
+
+def test_stripe_gateway_configuration_rejects_missing_webhook_secret(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _fully_gated_paid_credit_environment(monkeypatch)
+    monkeypatch.delenv("GSP_STRIPE_WEBHOOK_SECRET")
+    settings = Settings(_env_file=None)
+
+    with pytest.raises(RuntimeError, match="webhook signing secret"):
+        settings.assert_stripe_gateway_configuration()
+
+
+@pytest.mark.parametrize(
+    ("invalid_env", "invalid_value", "message"),
+    [
+        ("GSP_STRIPE_PRICE_STARTER", "", "three Stripe credit Price IDs"),
+        (
+            "GSP_STRIPE_SUCCESS_URL",
+            "http://localhost:3000/?checkout=success",
+            r"\{CHECKOUT_SESSION_ID\}",
+        ),
+    ],
+)
+def test_paid_credits_configuration_rejects_incomplete_checkout_catalog(
+    monkeypatch: pytest.MonkeyPatch,
+    invalid_env: str,
+    invalid_value: str,
+    message: str,
+) -> None:
+    _fully_gated_paid_credit_environment(monkeypatch)
+    monkeypatch.setenv(invalid_env, invalid_value)
+    settings = Settings(_env_file=None)
+
+    with pytest.raises(RuntimeError, match=message):
+        settings.assert_paid_credits_configuration()
+
+
+@pytest.mark.parametrize(
+    ("insecure_env", "insecure_url"),
+    [
+        (
+            "GSP_STRIPE_SUCCESS_URL",
+            "http://gsubs.gr/?checkout=success&session_id={CHECKOUT_SESSION_ID}",
+        ),
+        ("GSP_STRIPE_CANCEL_URL", "http://gsubs.gr/?checkout=cancelled"),
+    ],
+)
+def test_paid_credits_configuration_requires_https_return_urls_in_production(
+    monkeypatch: pytest.MonkeyPatch,
+    insecure_env: str,
+    insecure_url: str,
+) -> None:
+    _fully_gated_paid_credit_environment(monkeypatch, app_env="production")
+    monkeypatch.setenv(insecure_env, insecure_url)
+    settings = Settings(_env_file=None)
+
+    with pytest.raises(RuntimeError, match="return URLs must use HTTPS"):
         settings.assert_paid_credits_configuration()

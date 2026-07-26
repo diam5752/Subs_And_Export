@@ -1,4 +1,3 @@
-
 import asyncio
 from contextlib import asynccontextmanager, suppress
 
@@ -31,19 +30,29 @@ from starlette.requests import Request
 from starlette.types import ASGIApp
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
-from backend.app.api.endpoints import auth, billing, history, videos
+from backend.app.api.endpoints import auth, billing, billing_admin, history, videos
 from backend.app.api.endpoints.file_utils import sanitize_download_filename
 from backend.app.core.cleanup import retention_worker
 from backend.app.core.config import settings
 from backend.app.core.database import Database
 from backend.app.core.gcs import GcsSettings, generate_signed_download_url, get_gcs_settings
 from backend.app.core.ratelimit import get_client_ip, limiter_static
+from backend.app.services.consumer_contracts import (
+    assert_consumer_contract_registry_approved,
+)
+
+
+def assert_runtime_billing_configuration() -> None:
+    """Validate both environment and code-owned paid-credit launch gates."""
+    settings.assert_paid_credits_configuration()
+    if settings.paid_credit_checkout_enabled:
+        assert_consumer_contract_registry_approved()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    settings.assert_paid_credits_configuration()
+    assert_runtime_billing_configuration()
     app.state.db = Database()
     retention_task: asyncio.Task[None] | None = None
     if settings.retention_cleanup_enabled:
@@ -62,6 +71,7 @@ async def lifespan(app: FastAPI):
         if db is not None:
             db.dispose()
 
+
 app = FastAPI(
     title="Greek Sub Publisher API",
     description="Backend API for Greek Sub Publisher Video Processing",
@@ -76,10 +86,6 @@ app = FastAPI(
 register_exception_handlers(app)
 
 
-
-
-
-
 def _env_list(key: str, default: list[str]) -> list[str]:
     if "PYTEST_CURRENT_TEST" in os.environ:
         return default
@@ -87,6 +93,7 @@ def _env_list(key: str, default: list[str]) -> list[str]:
     if not value:
         return default
     return [item.strip() for item in value.split(",") if item.strip()]
+
 
 # Configure CORS (secure-by-default in production)
 default_origins = (
@@ -117,9 +124,7 @@ app.add_middleware(
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 default_trusted_hosts = (
-    ["localhost", "127.0.0.1", "0.0.0.0", "[::1]", "testserver"]
-    if settings.is_dev
-    else ["*.run.app", "*.a.run.app"]
+    ["localhost", "127.0.0.1", "0.0.0.0", "[::1]", "testserver"] if settings.is_dev else ["*.run.app", "*.a.run.app"]
 )
 trusted_hosts = _env_list("GSP_TRUSTED_HOSTS", default_trusted_hosts)
 if not settings.is_dev and "*" in trusted_hosts:
@@ -194,6 +199,7 @@ import time as time_module
 _signed_url_cache: dict[tuple[str, str | None], tuple[str, float]] = {}
 _SIGNED_URL_CACHE_TTL = 300  # 5 minutes
 
+
 def _get_cached_signed_url(
     object_name: str,
     gcs_settings: GcsSettings,
@@ -249,7 +255,11 @@ async def serve_static(
     if full_path.is_file():
         # Force download for video files or when download=true
         force_download = download or full_path.suffix.lower() in {
-            ".mp4", ".mov", ".avi", ".webm", ".mkv",
+            ".mp4",
+            ".mov",
+            ".avi",
+            ".webm",
+            ".mkv",
         }
         if force_download:
             download_name = sanitize_download_filename(filename, full_path.name)
@@ -269,13 +279,13 @@ async def serve_static(
         object_name = f"{gcs_settings.static_prefix}/{file_path.strip('/')}"
         try:
             force_download = download or Path(file_path).suffix.lower() in {
-                ".mp4", ".mov", ".avi", ".webm", ".mkv",
+                ".mp4",
+                ".mov",
+                ".avi",
+                ".webm",
+                ".mkv",
             }
-            download_name = (
-                sanitize_download_filename(filename, Path(file_path).name)
-                if force_download
-                else None
-            )
+            download_name = sanitize_download_filename(filename, Path(file_path).name) if force_download else None
             signed_url = _get_cached_signed_url(
                 object_name,
                 gcs_settings,
@@ -290,15 +300,23 @@ async def serve_static(
 
     raise HTTPException(status_code=404, detail="Not found")
 
+
 # Include Routers
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(videos.router, prefix="/videos", tags=["videos"])
 app.include_router(history.router, prefix="/history", tags=["history"])
 app.include_router(billing.router, prefix="/billing", tags=["billing"])
+app.include_router(
+    billing_admin.router,
+    prefix="/billing",
+    tags=["billing-admin"],
+)
+
 
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "service": "greek-sub-publisher-api", "app_env": settings.app_env.value}
+
 
 @app.get("/")
 async def root():

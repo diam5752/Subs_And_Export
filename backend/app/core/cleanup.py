@@ -75,10 +75,7 @@ def cleanup_expired_workspaces(
         active_cutoff,
         ACTIVE_JOB_STATUSES,
     )
-    candidates = {
-        job.id: job
-        for job in (*terminal_jobs, *stale_active_jobs)
-    }
+    candidates = {job.id: job for job in (*terminal_jobs, *stale_active_jobs)}
 
     deleted_job_ids: list[str] = []
     failed_job_ids: list[str] = []
@@ -190,6 +187,10 @@ def ensure_storage_capacity(
 
 def run_configured_retention(db: Database) -> CleanupReport:
     """Run one retention pass using the live app configuration."""
+    from backend.app.core.auth import UserStore
+    from backend.app.services.billing_retention import (
+        cleanup_expired_billing_records,
+    )
     from backend.app.services.history import HistoryStore
     from backend.app.services.jobs import JobStore
 
@@ -197,7 +198,7 @@ def run_configured_retention(db: Database) -> CleanupReport:
     artifacts_dir = settings.data_dir / "artifacts"
     uploads_dir.mkdir(parents=True, exist_ok=True)
     artifacts_dir.mkdir(parents=True, exist_ok=True)
-    return cleanup_expired_workspaces(
+    report = cleanup_expired_workspaces(
         job_store=JobStore(db),
         history_store=HistoryStore(db),
         uploads_dir=uploads_dir,
@@ -206,6 +207,24 @@ def run_configured_retention(db: Database) -> CleanupReport:
         stale_job_retention_hours=settings.stale_job_retention_hours,
         orphan_retention_hours=settings.orphan_retention_hours,
     )
+    billing_report = cleanup_expired_billing_records(db)
+    if billing_report.deleted_unpaid_attempts or billing_report.deleted_financial_records:
+        logger.info(
+            "Billing retention complete",
+            extra={
+                "deleted_unpaid_attempts": (billing_report.deleted_unpaid_attempts),
+                "deleted_financial_records": (billing_report.deleted_financial_records),
+            },
+        )
+    deleted_email_markers = UserStore(
+        db,
+    ).cleanup_expired_deleted_email_markers()
+    if deleted_email_markers:
+        logger.info(
+            "Deleted-email retention complete",
+            extra={"deleted_email_markers": deleted_email_markers},
+        )
+    return report
 
 
 async def retention_worker(db: Database) -> None:

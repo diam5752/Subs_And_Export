@@ -5,6 +5,7 @@ import { LanguageToggle } from '@/components/LanguageToggle';
 import { useI18n } from '@/context/I18nContext';
 import type { MessageKey } from '@/context/i18nMessages';
 import { BrandLogo } from '@/components/BrandLogo';
+import { paidCreditLegalPublicationIsApproved } from '@/lib/paidCreditLegal';
 
 type LegalPageKind = 'privacy' | 'terms';
 
@@ -13,6 +14,7 @@ interface LegalPageProps {
 }
 
 interface LegalSection {
+    id?: string;
     title: MessageKey;
     body: MessageKey;
 }
@@ -21,6 +23,8 @@ const sections: Record<LegalPageKind, LegalSection[]> = {
     privacy: [
         { title: 'privacyCollectionTitle', body: 'privacyCollectionBody' },
         { title: 'privacyRetentionTitle', body: 'privacyRetentionBody' },
+        { title: 'privacyPaymentsTitle', body: 'privacyPaymentsBody' },
+        { title: 'privacyFinancialRetentionTitle', body: 'privacyFinancialRetentionBody' },
         { title: 'privacyProvidersTitle', body: 'privacyProvidersBody' },
         { title: 'privacyChoicesTitle', body: 'privacyChoicesBody' },
         { title: 'privacyCookiesTitle', body: 'privacyCookiesBody' },
@@ -44,6 +48,17 @@ export function LegalPage({ kind }: LegalPageProps) {
     const kickerKey: MessageKey = isPrivacy ? 'legalPrivacyKicker' : 'legalTermsKicker';
     const relatedHref = isPrivacy ? '/terms' : '/privacy';
     const relatedLabel = isPrivacy ? t('cookieTerms') : t('cookieLearnMore');
+    const visibleSections = isPrivacy
+        ? sections.privacy
+        : paidCreditLegalPublicationIsApproved()
+            ? sections.terms
+            : [
+                {
+                    title: 'termsPaidCreditsDraftTitle' as const,
+                    body: 'termsPaidCreditsDraftBody' as const,
+                },
+                ...sections.terms,
+            ];
 
     return (
         <div className="min-h-dvh bg-[#f7f7f5] text-[var(--foreground)]">
@@ -76,8 +91,12 @@ export function LegalPage({ kind }: LegalPageProps) {
                     <p className="mt-5 text-xs font-semibold uppercase tracking-[0.12em] text-[#95989f]">{t('legalLastUpdated')}</p>
 
                     <div className="mt-12 border-t border-[var(--border)]">
-                        {sections[kind].map((section) => (
-                            <section key={section.title} className="border-b border-[var(--border)] py-8 sm:py-10">
+                        {visibleSections.map((section) => (
+                            <section
+                                key={section.title}
+                                id={section.id}
+                                className="scroll-mt-24 border-b border-[var(--border)] py-8 sm:py-10"
+                            >
                                 <h2 className="text-xl font-bold tracking-[-0.02em] sm:text-2xl">{t(section.title)}</h2>
                                 <p className="mt-4 text-[15px] leading-7 text-[#5f636b] sm:text-base sm:leading-8">{t(section.body)}</p>
                             </section>

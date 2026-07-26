@@ -22,6 +22,7 @@ class TimeoutRequest(GoogleAuthRequest):
         kwargs.setdefault("timeout", 30)
         return super().__call__(*args, **kwargs)  # type: ignore[no-untyped-call]
 
+
 _BUCKET_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{1,220}[a-z0-9]$")
 _PREFIX_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9/_-]{0,250}[A-Za-z0-9]$")
 
@@ -248,7 +249,16 @@ def download_object(
 
 def delete_object(*, settings: GcsSettings, object_name: str) -> None:
     client = _storage_client()
-    client.bucket(settings.bucket).blob(object_name).delete()
+    try:
+        client.bucket(settings.bucket).blob(object_name).delete(timeout=60)
+    except Exception as exc:
+        try:
+            exceptions = importlib.import_module("google.api_core.exceptions")
+        except ModuleNotFoundError:
+            raise exc
+        if isinstance(exc, exceptions.NotFound):
+            return
+        raise
 
 
 class UploadSizeSettings(Protocol):

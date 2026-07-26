@@ -27,6 +27,7 @@ from .processing_tasks import record_event_safe
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+ACTIVE_JOB_STATUSES = frozenset({"pending", "processing"})
 
 
 class TranscriptionWordPayload(TypedDict):
@@ -63,8 +64,7 @@ def ensure_job_integrity(job: Job) -> Job:
 
 @router.get("/jobs", response_model=list[JobResponse])
 def list_jobs(
-    current_user: User = Depends(get_current_user),
-    job_store: JobStore = Depends(get_job_store)
+    current_user: User = Depends(get_current_user), job_store: JobStore = Depends(get_job_store)
 ) -> list[JobResponse]:
     """List all jobs for the current user."""
     jobs = job_store.list_jobs_for_user(current_user.id)
@@ -76,7 +76,7 @@ def list_jobs_paginated(
     page: int = 1,
     page_size: int = 5,
     current_user: User = Depends(get_current_user),
-    job_store: JobStore = Depends(get_job_store)
+    job_store: JobStore = Depends(get_job_store),
 ) -> PaginatedJobsResponse:
     """List jobs with pagination support."""
     if page < 1:
@@ -101,7 +101,7 @@ def batch_delete_jobs(
     request: BatchDeleteRequest,
     current_user: User = Depends(get_current_user),
     job_store: JobStore = Depends(get_job_store),
-    history_store: HistoryStore = Depends(get_history_store)
+    history_store: HistoryStore = Depends(get_history_store),
 ) -> BatchDeleteResponse:
     """Delete multiple jobs at once."""
     if not request.job_ids:
@@ -115,6 +115,13 @@ def batch_delete_jobs(
 
     # Optimize: Fetch all jobs in one query instead of N+1
     jobs = job_store.get_jobs(request.job_ids, current_user.id)
+    if any(job.status in ACTIVE_JOB_STATUSES for job in jobs):
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Active projects cannot be deleted. Cancel processing first and wait for cancellation to complete."
+            ),
+        )
 
     for job in jobs:
         job_id = job.id
@@ -130,8 +137,11 @@ def batch_delete_jobs(
 
     if deleted_count > 0:
         record_event_safe(
-            history_store, current_user, "jobs_batch_deleted",
-            f"Deleted {deleted_count} projects", {"count": deleted_count}
+            history_store,
+            current_user,
+            "jobs_batch_deleted",
+            f"Deleted {deleted_count} projects",
+            {"count": deleted_count},
         )
 
     return BatchDeleteResponse(status="deleted", deleted_count=deleted_count, job_ids=deleted_ids)
@@ -139,9 +149,7 @@ def batch_delete_jobs(
 
 @router.get("/jobs/{job_id}", response_model=JobResponse)
 def get_job(
-    job_id: str,
-    current_user: User = Depends(get_current_user),
-    job_store: JobStore = Depends(get_job_store)
+    job_id: str, current_user: User = Depends(get_current_user), job_store: JobStore = Depends(get_job_store)
 ) -> JobResponse:
     """Get a specific job."""
     job = job_store.get_job(job_id)
@@ -182,9 +190,7 @@ def _normalize_transcription_payload(
             for word in cue.words:
                 normalized_word = _normalize_transcription_text(word.text)
                 if normalized_word:
-                    words_payload.append(
-                        {"start": word.start, "end": word.end, "text": normalized_word}
-                    )
+                    words_payload.append({"start": word.start, "end": word.end, "text": normalized_word})
 
         normalized_text = _normalize_transcription_text(cue.text)
         if words_payload:
@@ -240,12 +246,19 @@ def delete_job(
     job_id: str,
     current_user: User = Depends(get_current_user),
     job_store: JobStore = Depends(get_job_store),
-    history_store: HistoryStore = Depends(get_history_store)
+    history_store: HistoryStore = Depends(get_history_store),
 ) -> dict[str, str]:
     """Delete a job and its associated files."""
     job = job_store.get_job(job_id)
     if not job or job.user_id != current_user.id:
         raise HTTPException(404, "Job not found")
+    if job.status in ACTIVE_JOB_STATUSES:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Active projects cannot be deleted. Cancel processing first and wait for cancellation to complete."
+            ),
+        )
 
     _, uploads_dir, artifacts_root = data_roots()
 
@@ -266,7 +279,7 @@ def cancel_job(
     job_id: str,
     current_user: User = Depends(get_current_user),
     job_store: JobStore = Depends(get_job_store),
-    history_store: HistoryStore = Depends(get_history_store)
+    history_store: HistoryStore = Depends(get_history_store),
 ) -> JobResponse:
     """Cancel a processing job."""
     job = job_store.get_job(job_id)

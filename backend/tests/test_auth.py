@@ -11,12 +11,9 @@ from backend.app.db.models import DbUser
 def test_user_data():
     """Test user data."""
     import uuid
+
     unique_id = uuid.uuid4().hex[:8]
-    return {
-        "email": f"testuser_{unique_id}@example.com",
-        "password": "testpassword123",
-        "name": "Test User"
-    }
+    return {"email": f"testuser_{unique_id}@example.com", "password": "testpassword123", "name": "Test User"}
 
 
 class TestAuthEndpoints:
@@ -54,11 +51,7 @@ class TestAuthEndpoints:
         client.post("/auth/register", json=test_user_data)
         # Login
         response = client.post(
-            "/auth/token",
-            data={
-                "username": test_user_data["email"],
-                "password": test_user_data["password"]
-            }
+            "/auth/token", data={"username": test_user_data["email"], "password": test_user_data["password"]}
         )
         assert response.status_code == 200
         data = response.json()
@@ -71,24 +64,12 @@ class TestAuthEndpoints:
         # Register first
         client.post("/auth/register", json=test_user_data)
         # Try to login with wrong password
-        response = client.post(
-            "/auth/token",
-            data={
-                "username": test_user_data["email"],
-                "password": "wrongpassword"
-            }
-        )
+        response = client.post("/auth/token", data={"username": test_user_data["email"], "password": "wrongpassword"})
         assert response.status_code == 400
 
     def test_login_nonexistent_user(self, client):
         """Test login with non-existent user."""
-        response = client.post(
-            "/auth/token",
-            data={
-                "username": "nonexistent@example.com",
-                "password": "anypassword"
-            }
-        )
+        response = client.post("/auth/token", data={"username": "nonexistent@example.com", "password": "anypassword"})
         assert response.status_code == 400
 
     def test_get_current_user(self, client, test_user_data):
@@ -96,19 +77,12 @@ class TestAuthEndpoints:
         # Register and login
         client.post("/auth/register", json=test_user_data)
         login_response = client.post(
-            "/auth/token",
-            data={
-                "username": test_user_data["email"],
-                "password": test_user_data["password"]
-            }
+            "/auth/token", data={"username": test_user_data["email"], "password": test_user_data["password"]}
         )
         token = login_response.json()["access_token"]
 
         # Get current user
-        response = client.get(
-            "/auth/me",
-            headers={"Authorization": f"Bearer {token}"}
-        )
+        response = client.get("/auth/me", headers={"Authorization": f"Bearer {token}"})
         assert response.status_code == 200
         data = response.json()
         assert data["email"] == test_user_data["email"]
@@ -121,10 +95,7 @@ class TestAuthEndpoints:
 
     def test_get_current_user_invalid_token(self, client):
         """Test getting current user with invalid token."""
-        response = client.get(
-            "/auth/me",
-            headers={"Authorization": "Bearer invalid_token"}
-        )
+        response = client.get("/auth/me", headers={"Authorization": "Bearer invalid_token"})
         assert response.status_code == 401
 
 
@@ -141,19 +112,12 @@ class TestVideoEndpoints:
         # Register and login
         client.post("/auth/register", json=test_user_data)
         login_response = client.post(
-            "/auth/token",
-            data={
-                "username": test_user_data["email"],
-                "password": test_user_data["password"]
-            }
+            "/auth/token", data={"username": test_user_data["email"], "password": test_user_data["password"]}
         )
         token = login_response.json()["access_token"]
 
         # List jobs
-        response = client.get(
-            "/videos/jobs",
-            headers={"Authorization": f"Bearer {token}"}
-        )
+        response = client.get("/videos/jobs", headers={"Authorization": f"Bearer {token}"})
         assert response.status_code == 200
         assert isinstance(response.json(), list)
 
@@ -166,29 +130,18 @@ class TestUserUpdates:
         # Register and login
         client.post("/auth/register", json=test_user_data)
         login_response = client.post(
-            "/auth/token",
-            data={
-                "username": test_user_data["email"],
-                "password": test_user_data["password"]
-            }
+            "/auth/token", data={"username": test_user_data["email"], "password": test_user_data["password"]}
         )
         token = login_response.json()["access_token"]
 
         # Update name
         new_name = "Updated Name"
-        response = client.put(
-            "/auth/me",
-            json={"name": new_name},
-            headers={"Authorization": f"Bearer {token}"}
-        )
+        response = client.put("/auth/me", json={"name": new_name}, headers={"Authorization": f"Bearer {token}"})
         assert response.status_code == 200
         assert response.json()["name"] == new_name
 
         # Verify persistence
-        response = client.get(
-            "/auth/me",
-            headers={"Authorization": f"Bearer {token}"}
-        )
+        response = client.get("/auth/me", headers={"Authorization": f"Bearer {token}"})
         assert response.json()["name"] == new_name
 
     def test_update_password(self, client, test_user_data):
@@ -196,11 +149,7 @@ class TestUserUpdates:
         # Register and login
         client.post("/auth/register", json=test_user_data)
         login_response = client.post(
-            "/auth/token",
-            data={
-                "username": test_user_data["email"],
-                "password": test_user_data["password"]
-            }
+            "/auth/token", data={"username": test_user_data["email"], "password": test_user_data["password"]}
         )
         token = login_response.json()["access_token"]
 
@@ -209,18 +158,12 @@ class TestUserUpdates:
         response = client.put(
             "/auth/password",
             json={"password": new_password, "confirm_password": new_password},
-            headers={"Authorization": f"Bearer {token}"}
+            headers={"Authorization": f"Bearer {token}"},
         )
         assert response.status_code == 200
 
         # Login with new password
-        response = client.post(
-            "/auth/token",
-            data={
-                "username": test_user_data["email"],
-                "password": new_password
-            }
-        )
+        response = client.post("/auth/token", data={"username": test_user_data["email"], "password": new_password})
         assert response.status_code == 200
 
     def test_update_password_mismatch(self, client, test_user_data):
@@ -228,11 +171,7 @@ class TestUserUpdates:
         # Register and login
         client.post("/auth/register", json=test_user_data)
         login_response = client.post(
-            "/auth/token",
-            data={
-                "username": test_user_data["email"],
-                "password": test_user_data["password"]
-            }
+            "/auth/token", data={"username": test_user_data["email"], "password": test_user_data["password"]}
         )
         token = login_response.json()["access_token"]
 
@@ -241,7 +180,7 @@ class TestUserUpdates:
         response = client.put(
             "/auth/password",
             json={"password": "validpassword123", "confirm_password": "mismatch"},
-            headers={"Authorization": f"Bearer {token}"}
+            headers={"Authorization": f"Bearer {token}"},
         )
         assert response.status_code == 400
 
@@ -249,11 +188,7 @@ class TestUserUpdates:
         """Password updates are not allowed for non-local users."""
         client.post("/auth/register", json=test_user_data)
         login_response = client.post(
-            "/auth/token",
-            data={
-                "username": test_user_data["email"],
-                "password": test_user_data["password"]
-            }
+            "/auth/token", data={"username": test_user_data["email"], "password": test_user_data["password"]}
         )
         token = login_response.json()["access_token"]
 
@@ -270,7 +205,7 @@ class TestUserUpdates:
         response = client.put(
             "/auth/password",
             json={"password": "newpassword123", "confirm_password": "newpassword123"},
-            headers={"Authorization": f"Bearer {token}"}
+            headers={"Authorization": f"Bearer {token}"},
         )
         assert response.status_code == 400
 
@@ -340,9 +275,7 @@ class TestGoogleOAuthEndpoints:
         assert me.status_code == 200
         # REGRESSION: the verified Google picture must survive the user upsert
         # and be returned by the authenticated profile API.
-        assert me.json()["avatar_url"] == (
-            "https://lh3.googleusercontent.com/a/avatar=s96-c"
-        )
+        assert me.json()["avatar_url"] == ("https://lh3.googleusercontent.com/a/avatar=s96-c")
 
     def test_google_login_rejects_unverified_token_without_leaking_provider_error(
         self,
@@ -409,30 +342,19 @@ class TestDeleteAccount:
         client.post("/auth/register", json=test_user_data)
         # Login
         login_response = client.post(
-            "/auth/token",
-            data={
-                "username": test_user_data["email"],
-                "password": test_user_data["password"]
-            }
+            "/auth/token", data={"username": test_user_data["email"], "password": test_user_data["password"]}
         )
         token = login_response.json()["access_token"]
 
         # Delete account
-        response = client.delete(
-            "/auth/me",
-            headers={"Authorization": f"Bearer {token}"}
-        )
+        response = client.delete("/auth/me", headers={"Authorization": f"Bearer {token}"})
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "deleted"
 
         # Verify user can't login anymore
         login_again = client.post(
-            "/auth/token",
-            data={
-                "username": test_user_data["email"],
-                "password": test_user_data["password"]
-            }
+            "/auth/token", data={"username": test_user_data["email"], "password": test_user_data["password"]}
         )
         assert login_again.status_code == 400
 
@@ -480,31 +402,37 @@ class TestDeleteAccount:
         assert response.status_code == 401
 
     def test_delete_account_error(self, client, test_user_data, monkeypatch):
-        """Test 500 error when delete account fails (e.g. session revocation fails)."""
+        """Test that a late deletion failure rolls back the account workflow."""
         # Register and login
         client.post("/auth/register", json=test_user_data)
         login_response = client.post(
-            "/auth/token",
-            data={
-                "username": test_user_data["email"],
-                "password": test_user_data["password"]
-            }
+            "/auth/token", data={"username": test_user_data["email"], "password": test_user_data["password"]}
         )
         token = login_response.json()["access_token"]
 
-        from backend.app.core.auth import SessionStore
+        from backend.app.core.auth import UserStore
 
-        def mock_revoke_all(*args, **kwargs):
-            raise Exception("Database connection failed")
+        def mock_delete_user_in_session(*args, **kwargs):
+            raise RuntimeError("Database connection failed")
 
-        monkeypatch.setattr(SessionStore, "revoke_all_sessions", mock_revoke_all)
-
-        response = client.delete(
-            "/auth/me",
-            headers={"Authorization": f"Bearer {token}"}
+        monkeypatch.setattr(
+            UserStore,
+            "delete_user_in_session",
+            mock_delete_user_in_session,
         )
+
+        response = client.delete("/auth/me", headers={"Authorization": f"Bearer {token}"})
         assert response.status_code == 500
         assert "Failed to delete account" in response.json()["detail"]
+        # REGRESSION: the legacy test mocked a SessionStore call that is no
+        # longer part of the caller-owned transaction. Exercise a late failure
+        # instead and prove the account/session were not partially erased.
+        still_authenticated = client.get(
+            "/auth/me",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert still_authenticated.status_code == 200
+        assert still_authenticated.json()["email"] == test_user_data["email"]
 
 
 class TestDeleteJob:
@@ -515,19 +443,12 @@ class TestDeleteJob:
         # Register and login
         client.post("/auth/register", json=test_user_data)
         login_response = client.post(
-            "/auth/token",
-            data={
-                "username": test_user_data["email"],
-                "password": test_user_data["password"]
-            }
+            "/auth/token", data={"username": test_user_data["email"], "password": test_user_data["password"]}
         )
         token = login_response.json()["access_token"]
 
         # Try to delete non-existent job
-        response = client.delete(
-            "/videos/jobs/nonexistent-job-id",
-            headers={"Authorization": f"Bearer {token}"}
-        )
+        response = client.delete("/videos/jobs/nonexistent-job-id", headers={"Authorization": f"Bearer {token}"})
         assert response.status_code == 404
 
     def test_delete_job_unauthorized(self, client):

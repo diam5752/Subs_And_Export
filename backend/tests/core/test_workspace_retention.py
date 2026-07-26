@@ -5,10 +5,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
 
+from backend.app.core import cleanup as cleanup_module
+from backend.app.core.auth import UserStore
 from backend.app.core.cleanup import (
     cleanup_expired_workspaces,
     ensure_storage_capacity,
+    run_configured_retention,
 )
+from backend.app.services import billing_retention
 from backend.app.services.jobs import Job
 
 
@@ -21,11 +25,7 @@ class FakeJobStore:
         timestamp: int,
         statuses: set[str] | frozenset[str],
     ) -> list[Job]:
-        return [
-            job
-            for job in self.jobs.values()
-            if job.updated_at < timestamp and job.status in statuses
-        ]
+        return [job for job in self.jobs.values() if job.updated_at < timestamp and job.status in statuses]
 
     def get_job(self, job_id: str) -> Job | None:
         return self.jobs.get(job_id)
@@ -134,9 +134,7 @@ def test_cleanup_rechecks_activity_before_deleting_candidate(tmp_path: Path) -> 
     uploads_dir.mkdir()
     artifacts_dir.mkdir()
     now = 1_800_000_000
-    job_store = FakeJobStore(
-        {"refreshed": _job("refreshed", status="completed", updated_at=now - 25 * 3600)}
-    )
+    job_store = FakeJobStore({"refreshed": _job("refreshed", status="completed", updated_at=now - 25 * 3600)})
     history_store = FakeHistoryStore([])
     _workspace(uploads_dir, artifacts_dir, "refreshed")
 
@@ -182,9 +180,7 @@ def test_cleanup_keeps_database_row_when_file_removal_fails(
     uploads_dir.mkdir()
     artifacts_dir.mkdir()
     now = 1_800_000_000
-    job_store = FakeJobStore(
-        {"retry-me": _job("retry-me", status="completed", updated_at=now - 25 * 3600)}
-    )
+    job_store = FakeJobStore({"retry-me": _job("retry-me", status="completed", updated_at=now - 25 * 3600)})
     history_store = FakeHistoryStore([])
     _workspace(uploads_dir, artifacts_dir, "retry-me")
 
@@ -253,3 +249,44 @@ def test_storage_guard_rejects_when_cleanup_cannot_free_enough_space(
         cleanup_callback=lambda: cleanup_calls.append("cleanup"),
     )
     assert cleanup_calls == ["cleanup"]
+
+
+def test_configured_retention_runs_media_billing_and_deleted_email_cleanup(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    calls: list[str] = []
+    monkeypatch.setattr(cleanup_module.settings, "data_dir", tmp_path)
+    monkeypatch.setattr(
+        cleanup_module,
+        "cleanup_expired_workspaces",
+        lambda **_kwargs: (
+            calls.append("media")
+            or SimpleNamespace(
+                deleted_job_ids=[],
+                failed_job_ids=[],
+                deleted_orphan_items=0,
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        billing_retention,
+        "cleanup_expired_billing_records",
+        lambda _db: (
+            calls.append("billing")
+            or SimpleNamespace(
+                deleted_unpaid_attempts=0,
+                deleted_financial_records=0,
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        UserStore,
+        "cleanup_expired_deleted_email_markers",
+        lambda self: calls.append("deleted_email") or 0,
+        raising=False,
+    )
+
+    run_configured_retention(object())  # type: ignore[arg-type]
+
+    assert calls == ["media", "billing", "deleted_email"]

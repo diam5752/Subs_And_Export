@@ -6,6 +6,14 @@
 :8080 {
 	encode zstd gzip
 
+	@stripe_webhook path /billing/webhook
+	handle @stripe_webhook {
+		request_body {
+			max_size 1MB
+		}
+		reverse_proxy backend:8080
+	}
+
 	@backend path /auth /auth/* /billing /billing/* /videos /videos/* /history /history/* /static/* /health
 	handle @backend {
 		reverse_proxy backend:8080

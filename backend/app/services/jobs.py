@@ -104,13 +104,23 @@ class JobStore:
             )
 
     def list_jobs_for_user(self, user_id: str, limit: int = 10) -> list[Job]:
+        """Return a bounded job list for interactive account surfaces."""
+        return self._list_jobs_for_user(user_id, limit=limit)
+
+    def list_all_jobs_for_user(self, user_id: str) -> list[Job]:
+        """Return every user-owned job for export and account erasure."""
+        return self._list_jobs_for_user(user_id, limit=None)
+
+    def _list_jobs_for_user(
+        self,
+        user_id: str,
+        *,
+        limit: int | None,
+    ) -> list[Job]:
         with self.db.session() as session:
-            stmt = (
-                select(DbJob)
-                .where(DbJob.user_id == user_id)
-                .order_by(DbJob.created_at.desc())
-                .limit(limit)
-            )
+            stmt = select(DbJob).where(DbJob.user_id == user_id).order_by(DbJob.created_at.desc(), DbJob.id.desc())
+            if limit is not None:
+                stmt = stmt.limit(limit)
             rows = list(session.scalars(stmt).all())
         return [
             Job(
@@ -173,15 +183,16 @@ class JobStore:
             )
             return int(count or 0)
 
-    def list_jobs_for_user_paginated(
-        self, user_id: str, offset: int = 0, limit: int = 10
-    ) -> list[Job]:
+    def list_jobs_for_user_paginated(self, user_id: str, offset: int = 0, limit: int = 10) -> list[Job]:
         """List jobs for a user with pagination support."""
         with self.db.session() as session:
             stmt = (
                 select(DbJob)
                 .where(DbJob.user_id == user_id)
-                .order_by(DbJob.created_at.desc())
+                .order_by(
+                    DbJob.created_at.desc(),
+                    DbJob.id.desc(),
+                )
                 .limit(limit)
                 .offset(offset)
             )

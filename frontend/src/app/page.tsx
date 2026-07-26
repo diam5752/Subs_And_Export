@@ -16,6 +16,7 @@ import { ProcessingGateModal, type ProcessingGateStage } from '@/components/Proc
 import { useJobs } from '@/hooks/useJobs';
 import { useJobPolling, JobPollingCallbacks } from '@/hooks/useJobPolling';
 import { processVideoCostForSelection } from '@/lib/points';
+import { paidCreditLegalPublicationIsApproved } from '@/lib/paidCreditLegal';
 import Link from 'next/link';
 import { BrandLogo } from '@/components/BrandLogo';
 import { ProfileAvatar } from '@/components/ProfileAvatar';
@@ -33,6 +34,7 @@ type PendingProcessingAction =
 
 export default function DashboardPage() {
   const { user, isLoading, logout, refreshUser } = useAuth();
+  const paidCreditSalesUiApproved = paidCreditLegalPublicationIsApproved();
   const {
     aiSpendableBalance,
     setBalance: setPointsBalance,
@@ -72,6 +74,7 @@ export default function DashboardPage() {
   const [isGateBalanceLoading, setIsGateBalanceLoading] = useState(false);
   const [showCreditPurchase, setShowCreditPurchase] = useState(false);
   const [checkoutNotice, setCheckoutNotice] = useState('');
+  const [checkoutContractAvailable, setCheckoutContractAvailable] = useState(false);
 
   // Account Modal State
   const [showAccountPanel, setShowAccountPanel] = useState(false);
@@ -388,6 +391,7 @@ export default function DashboardPage() {
           setWallet(status.wallet);
           if (status.status === 'paid' || status.status === 'partially_refunded') {
             setCheckoutNotice(t('creditPurchaseSuccess', { count: status.credits }));
+            setCheckoutContractAvailable(true);
             break;
           }
           if (status.status === 'failed') {
@@ -492,7 +496,9 @@ export default function DashboardPage() {
     );
   }
 
-  const hasBlockingModal = showAccountPanel || processingGateStage !== null || showCreditPurchase;
+  const hasBlockingModal = showAccountPanel
+    || processingGateStage !== null
+    || (paidCreditSalesUiApproved && showCreditPurchase);
 
   return (
     <div className="app-shell min-h-dvh relative overflow-x-hidden">
@@ -529,7 +535,13 @@ export default function DashboardPage() {
           {user ? (
             <>
               <div className="studio-header-credits" data-testid="studio-header-credits">
-                <CreditsBadge onClick={() => setShowCreditPurchase(true)} />
+                <CreditsBadge
+                  onClick={
+                    paidCreditSalesUiApproved
+                      ? () => setShowCreditPurchase(true)
+                      : undefined
+                  }
+                />
               </div>
               <button
                 onClick={() => {
@@ -576,6 +588,14 @@ export default function DashboardPage() {
               className="mb-5 flex items-center justify-between gap-4 rounded-2xl border border-sky-400/20 bg-sky-400/[0.07] px-4 py-3 text-sm text-[var(--foreground)]"
             >
               <span>{checkoutNotice}</span>
+              {checkoutContractAvailable && (
+                <Link
+                  href="/account/billing"
+                  className="font-semibold text-[var(--accent)] underline underline-offset-4"
+                >
+                  {t('billingContractDownload')}
+                </Link>
+              )}
               <button
                 type="button"
                 onClick={() => setCheckoutNotice('')}
@@ -630,20 +650,26 @@ export default function DashboardPage() {
           onClose={closeProcessingGate}
           onAuthenticated={handleGateAuthenticated}
           onConfirm={handleGateConfirm}
-          onPurchaseCredits={() => setShowCreditPurchase(true)}
+          onPurchaseCredits={
+            paidCreditSalesUiApproved
+              ? () => setShowCreditPurchase(true)
+              : undefined
+          }
         />
       )}
 
-      <CreditPurchaseDialog
-        isOpen={showCreditPurchase}
-        isAuthenticated={Boolean(user)}
-        requiredCredits={pendingProcessingCost}
-        onClose={closeCreditPurchase}
-        onRequireAuth={() => {
-          setShowCreditPurchase(false);
-          setProcessingGateStage('auth');
-        }}
-      />
+      {paidCreditSalesUiApproved && (
+        <CreditPurchaseDialog
+          isOpen={showCreditPurchase}
+          isAuthenticated={Boolean(user)}
+          requiredCredits={pendingProcessingCost}
+          onClose={closeCreditPurchase}
+          onRequireAuth={() => {
+            setShowCreditPurchase(false);
+            setProcessingGateStage('auth');
+          }}
+        />
+      )}
 
       {user && showAccountPanel && (
         <div className="fixed inset-0 z-50 flex items-end justify-center px-4 pt-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:items-start sm:pt-20">

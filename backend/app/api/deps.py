@@ -8,6 +8,7 @@ from ..core.database import Database
 from ..core.gcs_uploads import GcsUploadStore
 from ..core.oauth_state import OAuthStateStore
 from ..services.billing import BillingService
+from ..services.billing_consumer_records import BillingConsumerRecordStore
 from ..services.history import HistoryStore
 from ..services.jobs import JobStore
 from ..services.points import PointsStore
@@ -53,6 +54,12 @@ def get_billing_service(
     points_store: PointsStore = Depends(get_points_store),
 ) -> BillingService:
     return BillingService(db=db, points_store=points_store)
+
+
+def get_billing_consumer_record_store(
+    db: Database = Depends(get_db),
+) -> BillingConsumerRecordStore:
+    return BillingConsumerRecordStore(db=db)
 
 async def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],

@@ -513,16 +513,41 @@ for (const [label, viewport] of Object.entries(viewports)) {
         localStorage.setItem('cookie-consent', 'declined');
       });
 
-      for (const legalPage of [
-        { path: '/privacy', heading: el.privacyPageTitle },
-        { path: '/terms', heading: el.termsPageTitle },
-      ]) {
+      const legalPages: Array<{
+        path: string;
+        heading: string;
+        sectionHeadings: string[];
+        bodyText: string | RegExp;
+        absentBodyText?: RegExp;
+      }> = [
+        {
+          path: '/privacy',
+          heading: el.privacyPageTitle,
+          sectionHeadings: [el.privacyPaymentsTitle, el.privacyFinancialRetentionTitle],
+          bodyText: el.privacyFinancialRetentionBody,
+        },
+        {
+          path: '/terms',
+          heading: el.termsPageTitle,
+          sectionHeadings: [el.termsPaidCreditsDraftTitle],
+          bodyText: el.termsPaidCreditsDraftBody,
+          absentBodyText: /προπληρωμένες εσωτερικές μονάδες|αναλογικό ποσό|Προς Ascentia \/ GSUBS/,
+        },
+      ];
+      for (const legalPage of legalPages) {
         await page.goto(legalPage.path);
         await page.getByRole('heading', { name: legalPage.heading }).waitFor();
         await stabilizeUi(page);
         await expectNoHorizontalOverflow(page);
         await expect(page.getByRole('link', { name: el.brandHomeLabel })).toBeVisible();
         await expect(page.getByRole('button', { name: new RegExp(el.switchLanguage.split('{')[0]) })).toBeVisible();
+        for (const sectionHeading of legalPage.sectionHeadings) {
+          await expect(page.getByRole('heading', { name: sectionHeading })).toBeVisible();
+        }
+        await expect(page.getByText(legalPage.bodyText)).toBeVisible();
+        if (legalPage.absentBodyText) {
+          await expect(page.getByText(legalPage.absentBodyText)).toHaveCount(0);
+        }
       }
     });
 
@@ -598,6 +623,9 @@ for (const [label, viewport] of Object.entries(viewports)) {
       await stabilizeUi(page);
       await expectNoHorizontalOverflow(page);
       await expect(page.getByText(el.accountSettingsSubtitle)).toBeVisible();
+      await expect(dialog.getByText(el.deleteAccountDescription)).toBeVisible();
+      await dialog.getByRole('button', { name: el.deleteAccount }).click();
+      await expect(dialog.getByText(el.deleteAccountConfirm)).toBeVisible();
 
       const closeButton = dialog.getByRole('button', { name: el.closeLabel });
       const closeBounds = await closeButton.evaluate((element) => {

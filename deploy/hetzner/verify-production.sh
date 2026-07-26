@@ -1,7 +1,19 @@
 #!/bin/sh
 set -eu
 
-ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
+usage() {
+  echo "Usage: $0 [--candidate]" >&2
+  exit 2
+}
+
+candidate_mode=0
+if [ "${1:-}" = "--candidate" ]; then
+  candidate_mode=1
+  shift
+fi
+[ "$#" -eq 0 ] || usage
+
+ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd -P)
 COMPOSE_FILE="$ROOT_DIR/deploy/hetzner/docker-compose.production.yml"
 ENV_FILE="${SUBFRAME_ENV_FILE:-$ROOT_DIR/.env.production}"
 STATE_FILE="$ROOT_DIR/.runtime/last-successful-release"
@@ -33,12 +45,45 @@ if [ -z "$google_client_id" ]; then
   echo "Google client ID is required." >&2
   exit 1
 fi
-
 export SUBFRAME_ENV_FILE="$ENV_FILE"
 export SUBFRAME_RELEASE_SHA="$release_sha"
 
 compose() {
   docker compose --project-name subframe --env-file "$ENV_FILE" -f "$COMPOSE_FILE" "$@"
+}
+
+assert_no_open_stripe_purchases_without_consumer_contract() {
+  compose exec -T db sh -eu -c \
+    'exec psql -X --no-password -v ON_ERROR_STOP=1 --quiet --username "$POSTGRES_USER" --dbname "$POSTGRES_DB"' <<'SQL'
+BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY;
+DO $preflight$
+DECLARE
+    unsafe_count BIGINT;
+BEGIN
+    SELECT count(*)
+    INTO unsafe_count
+    FROM credit_purchases
+    WHERE provider = 'stripe'
+      AND fulfilled_at IS NULL
+      AND status NOT IN ('expired', 'failed')
+      AND (
+          jsonb_typeof((snapshot::jsonb)->'consumer_contract')
+              IS DISTINCT FROM 'object'
+          OR COALESCE(
+              (snapshot::jsonb)->>'consumer_contract_sha256',
+              ''
+          ) !~ '^[0-9a-f]{64}$'
+      );
+
+    IF unsafe_count <> 0 THEN
+        RAISE EXCEPTION
+            'Open Stripe purchase evidence preflight found % incompatible row(s).',
+            unsafe_count;
+    END IF;
+END
+$preflight$;
+COMMIT;
+SQL
 }
 
 compose config --quiet
@@ -70,15 +115,21 @@ frontend_image=$(docker inspect --format '{{.Config.Image}}' "$frontend_id")
 
 backend_environment=$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$backend_id")
 for expected in \
+  GSP_APP_ENV=production \
+  APP_ENV=production \
   GSP_MOCK_EXTERNAL_SERVICES=1 \
   GSP_ELEVENLABS_ENABLED=0 \
   GSP_PAID_CREDITS_ENABLED=0 \
+  GSP_CONSUMER_POLICY_APPROVED=0 \
+  GSP_DURABLE_CONFIRMATION_CHANNEL_READY=0 \
+  GSP_ADJUSTMENT_WORKFLOW_READY=0 \
   GSP_STRIPE_AUTOMATIC_TAX_ENABLED=0 \
   GSP_STRIPE_RESTRICTED_KEY= \
   GSP_STRIPE_WEBHOOK_SECRET= \
   GSP_STRIPE_PRICE_STARTER= \
   GSP_STRIPE_PRICE_CORE= \
   GSP_STRIPE_PRICE_PRO= \
+  GSP_BILLING_ADMIN_USER_IDS= \
   STRIPE_SECRET_KEY= \
   STRIPE_WEBHOOK_SECRET= \
   OPENAI_API_KEY= \
@@ -109,6 +160,14 @@ printf '%s\n' "$backend_environment" | grep -Fqx "GOOGLE_CLIENT_ID=$google_clien
   echo "Backend Google client ID does not match the release environment." >&2
   exit 1
 }
+if ! docker exec "$backend_id" alembic current --check-heads >/dev/null; then
+  echo "Production database is not at the Alembic head revision." >&2
+  exit 1
+fi
+if ! assert_no_open_stripe_purchases_without_consumer_contract; then
+  echo "Open Stripe purchase invariant failed after database migration." >&2
+  exit 1
+fi
 google_oauth_certs_http=$(docker exec "$backend_id" python -c \
   'import os, urllib.request; response = urllib.request.urlopen(os.environ["GSP_GOOGLE_OAUTH_CERTS_URL"], timeout=10); print(response.status)')
 [ "$google_oauth_certs_http" = 200 ] || {
@@ -116,22 +175,53 @@ google_oauth_certs_http=$(docker exec "$backend_id" python -c \
   exit 1
 }
 
+health_json=""
+catalog_json=""
 if command -v curl >/dev/null 2>&1; then
-  curl -fsS "http://127.0.0.1:$preview_port/health" >/dev/null
-  curl -fsS "http://127.0.0.1:$preview_port/billing/catalog" >/dev/null
+  health_json=$(curl -fsS "http://127.0.0.1:$preview_port/health")
+  catalog_json=$(curl -fsS "http://127.0.0.1:$preview_port/billing/catalog")
   curl -fsS "http://127.0.0.1:$preview_port/" >/dev/null
 elif command -v wget >/dev/null 2>&1; then
-  wget -qO- "http://127.0.0.1:$preview_port/health" >/dev/null
-  wget -qO- "http://127.0.0.1:$preview_port/billing/catalog" >/dev/null
+  health_json=$(wget -qO- "http://127.0.0.1:$preview_port/health")
+  catalog_json=$(wget -qO- "http://127.0.0.1:$preview_port/billing/catalog")
   wget -qO- "http://127.0.0.1:$preview_port/" >/dev/null
 else
   echo "curl or wget is required for loopback verification." >&2
   exit 1
 fi
+printf '%s' "$health_json" | docker exec -i "$backend_id" python -c '
+import json
+import sys
 
-if [ ! -f "$STATE_FILE" ] || [ "$(cat "$STATE_FILE")" != "$release_sha" ]; then
-  echo "Recorded release does not match $release_sha." >&2
-  exit 1
+health = json.load(sys.stdin)
+if health.get("status") != "ok":
+    raise SystemExit("Production health endpoint must report status=ok")
+if health.get("app_env") != "production":
+    raise SystemExit("Production health endpoint must report app_env=production")
+'
+printf '%s' "$catalog_json" | docker exec -i "$backend_id" python -c '
+import json
+import sys
+
+catalog = json.load(sys.stdin)
+if catalog.get("checkout_enabled") is not False:
+    raise SystemExit("Production billing catalog must keep checkout_enabled=false")
+'
+
+if [ "$candidate_mode" -eq 0 ]; then
+  if [ ! -f "$STATE_FILE" ] || [ -L "$STATE_FILE" ] ||
+    [ "$(cat "$STATE_FILE")" != "$release_sha" ]; then
+    echo "Recorded release does not match $release_sha." >&2
+    exit 1
+  fi
 fi
 
-printf 'Verified gsubs release %s on loopback port %s.\n' "$release_sha" "$preview_port"
+if [ "$candidate_mode" -eq 1 ]; then
+  printf 'Verified gsubs candidate release %s on loopback port %s.\n' \
+    "$release_sha" \
+    "$preview_port"
+else
+  printf 'Verified gsubs release %s on loopback port %s.\n' \
+    "$release_sha" \
+    "$preview_port"
+fi

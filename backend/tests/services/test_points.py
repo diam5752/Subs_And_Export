@@ -58,11 +58,7 @@ def test_ensure_account_creates_row_and_initial_transaction(tmp_path: Path) -> N
     assert created_again is False
 
     with db.session() as session:
-        txs = list(
-            session.scalars(
-                select(DbPointTransaction).where(DbPointTransaction.user_id == user_id)
-            ).all()
-        )
+        txs = list(session.scalars(select(DbPointTransaction).where(DbPointTransaction.user_id == user_id)).all())
         assert len(txs) == 1
         assert txs[0].delta == STARTING_POINTS_BALANCE
         assert txs[0].reason == "initial_balance"
@@ -78,11 +74,7 @@ def test_ensure_account_uses_trial_balance_for_unverified_user(tmp_path: Path) -
     assert store.get_balance(user_id) == TRIAL_CREDITS
 
     with db.session() as session:
-        txs = list(
-            session.scalars(
-                select(DbPointTransaction).where(DbPointTransaction.user_id == user_id)
-            ).all()
-        )
+        txs = list(session.scalars(select(DbPointTransaction).where(DbPointTransaction.user_id == user_id)).all())
         assert len(txs) == 1
         assert txs[0].delta == TRIAL_CREDITS
         assert txs[0].reason == "trial_balance"
@@ -98,11 +90,7 @@ def test_ensure_account_with_starting_balance_override_zero(tmp_path: Path) -> N
     assert store.get_balance(user_id) == 0
 
     with db.session() as session:
-        txs = list(
-            session.scalars(
-                select(DbPointTransaction).where(DbPointTransaction.user_id == user_id)
-            ).all()
-        )
+        txs = list(session.scalars(select(DbPointTransaction).where(DbPointTransaction.user_id == user_id)).all())
         assert txs == []
 
 
@@ -128,8 +116,12 @@ def test_spend_deducts_points_and_logs_transaction(tmp_path: Path) -> None:
                 .order_by(DbPointTransaction.created_at.asc())
             ).all()
         )
-        assert [tx.delta for tx in txs] == [STARTING_POINTS_BALANCE, -200]
-        assert txs[-1].reason == "process_video"
+        # Timestamps are stored at one-second resolution, so two legitimate
+        # append-only entries created in the same second have no defined order.
+        assert {tx.reason: tx.delta for tx in txs} == {
+            "initial_balance": STARTING_POINTS_BALANCE,
+            "process_video": -200,
+        }
 
 
 def test_spend_once_is_idempotent(tmp_path: Path) -> None:
@@ -294,6 +286,59 @@ def test_refund_clawback_creates_debt_and_next_purchase_repays_it(tmp_path: Path
     assert repaid.debt_delta == -80
 
 
+def test_paid_purchase_in_caller_session_rolls_back_and_retries_idempotently(
+    tmp_path: Path,
+) -> None:
+    db = Database()
+    user_id = _seed_user(db, email_verified=True)
+    store = PointsStore(db=db)
+    store.ensure_account(user_id, starting_balance_override=0)
+    purchase_id = uuid.uuid4().hex
+    transaction_id = make_idempotency_id("purchase", purchase_id)
+
+    with pytest.raises(RuntimeError, match="forced caller rollback"):
+        with db.session() as session:
+            mutation = store.apply_paid_purchase_once_in_session(
+                session,
+                user_id,
+                100,
+                purchase_id=purchase_id,
+                transaction_id=transaction_id,
+            )
+            assert mutation.applied is True
+            raise RuntimeError("forced caller rollback")
+
+    assert store.get_balances(user_id).paid_balance == 0
+    with db.session() as session:
+        assert session.get(DbPointTransaction, transaction_id) is None
+
+    with db.session() as session:
+        applied = store.apply_paid_purchase_once_in_session(
+            session,
+            user_id,
+            100,
+            purchase_id=purchase_id,
+            transaction_id=transaction_id,
+        )
+    with db.session() as session:
+        replayed = store.apply_paid_purchase_once_in_session(
+            session,
+            user_id,
+            100,
+            purchase_id=purchase_id,
+            transaction_id=transaction_id,
+        )
+
+    assert applied.applied is True
+    assert replayed.applied is False
+    assert store.get_balances(user_id).paid_balance == 100
+    with db.session() as session:
+        transaction_count = session.scalar(
+            select(func.count()).select_from(DbPointTransaction).where(DbPointTransaction.id == transaction_id)
+        )
+    assert transaction_count == 1
+
+
 def test_won_dispute_restore_relief_is_idempotent(tmp_path: Path) -> None:
     db = Database()
     user_id = _seed_user(db, email_verified=True)
@@ -394,9 +439,7 @@ def test_spend_insufficient_funds_is_atomic(tmp_path: Path) -> None:
         assert points.balance == STARTING_POINTS_BALANCE
 
         tx_count = session.scalar(
-            select(func.count())
-            .select_from(DbPointTransaction)
-            .where(DbPointTransaction.user_id == user_id)
+            select(func.count()).select_from(DbPointTransaction).where(DbPointTransaction.user_id == user_id)
         )
         assert int(tx_count or 0) == 1
 
@@ -444,13 +487,15 @@ def test_credit_and_refund_log_transactions(tmp_path: Path) -> None:
     with db.session() as session:
         txs = list(
             session.scalars(
-                select(DbPointTransaction)
-                .where(DbPointTransaction.user_id == user_id)
-                .order_by(DbPointTransaction.created_at.asc())
+                select(DbPointTransaction).where(DbPointTransaction.user_id == user_id)
             ).all()
         )
-        assert [tx.delta for tx in txs] == [STARTING_POINTS_BALANCE, 250, 250]
-        assert txs[-1].reason == "refund_purchase"
+        assert len(txs) == 3
+        assert {tx.reason: tx.delta for tx in txs} == {
+            "initial_balance": STARTING_POINTS_BALANCE,
+            "purchase": 250,
+            "refund_purchase": 250,
+        }
 
 
 def test_credit_rejects_invalid_inputs(tmp_path: Path) -> None:
@@ -513,9 +558,7 @@ def test_ensure_account_in_session_postgres_branch_is_covered(tmp_path: Path) ->
     created_result.scalar_one_or_none.return_value = "u1"
     session.execute.return_value = created_result
 
-    created = store._ensure_account_in_session(
-        session, user_id="u1", now=123, email_verified=True
-    )
+    created = store._ensure_account_in_session(session, user_id="u1", now=123, email_verified=True)
     assert created is True
     session.add.assert_called_once()
 
@@ -524,9 +567,7 @@ def test_ensure_account_in_session_postgres_branch_is_covered(tmp_path: Path) ->
     not_created_result.scalar_one_or_none.return_value = None
     session.execute.return_value = not_created_result
 
-    created = store._ensure_account_in_session(
-        session, user_id="u1", now=123, email_verified=True
-    )
+    created = store._ensure_account_in_session(session, user_id="u1", now=123, email_verified=True)
     assert created is False
     session.add.assert_not_called()
 
@@ -595,11 +636,7 @@ def test_refund_once_credits_balance_and_is_idempotent(tmp_path: Path) -> None:
         assert points is not None
         assert points.balance == STARTING_POINTS_BALANCE
 
-        txs = list(
-            session.scalars(
-                select(DbPointTransaction).where(DbPointTransaction.user_id == user_id)
-            ).all()
-        )
+        txs = list(session.scalars(select(DbPointTransaction).where(DbPointTransaction.user_id == user_id)).all())
         assert len(txs) == 3
         assert sorted((tx.reason, tx.delta) for tx in txs) == [
             ("initial_balance", STARTING_POINTS_BALANCE),

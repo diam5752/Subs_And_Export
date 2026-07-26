@@ -48,18 +48,7 @@ class HistoryStore:
         with self.db.session() as session:
             existing_user = session.get(DbUser, user.id)
             if not existing_user:
-                session.add(
-                    DbUser(
-                        id=user.id,
-                        email=user.email,
-                        name=user.name,
-                        provider=user.provider,
-                        password_hash=None,
-                        google_sub=None,
-                        created_at=user.created_at or event.ts,
-                    )
-                )
-                session.flush()
+                raise ValueError("Cannot record history for an account that no longer exists")
 
             session.add(
                 DbHistoryEvent(
@@ -74,13 +63,30 @@ class HistoryStore:
         return event
 
     def recent_for_user(self, user: User, limit: int = 20) -> list[HistoryEvent]:
+        """Return the newest bounded history used by the interactive UI."""
+        return self._for_user(user, limit=limit)
+
+    def all_for_user(self, user: User) -> list[HistoryEvent]:
+        """Return the complete, user-scoped history for a data export."""
+        return self._for_user(user, limit=None)
+
+    def _for_user(
+        self,
+        user: User,
+        *,
+        limit: int | None,
+    ) -> list[HistoryEvent]:
         with self.db.session() as session:
             stmt = (
                 select(DbHistoryEvent)
                 .where(DbHistoryEvent.user_id == user.id)
-                .order_by(DbHistoryEvent.ts.desc())
-                .limit(limit)
+                .order_by(
+                    DbHistoryEvent.ts.desc(),
+                    DbHistoryEvent.id.desc(),
+                )
             )
+            if limit is not None:
+                stmt = stmt.limit(limit)
             rows = list(session.scalars(stmt).all())
         return [
             HistoryEvent(
@@ -102,9 +108,7 @@ class HistoryStore:
         with self.db.session() as session:
             rows = session.execute(select(DbHistoryEvent.id, DbHistoryEvent.data)).all()
             event_ids = [
-                int(event_id)
-                for event_id, data in rows
-                if isinstance(data, dict) and data.get("job_id") in target_ids
+                int(event_id) for event_id, data in rows if isinstance(data, dict) and data.get("job_id") in target_ids
             ]
             if not event_ids:
                 return 0

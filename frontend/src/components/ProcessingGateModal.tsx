@@ -232,7 +232,9 @@ export function ProcessingGateModal({
 
                             <p className="text-xs leading-5 text-[var(--muted)]">{t('processingGateChargeNote')}</p>
 
-                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                            <div className={`grid grid-cols-1 gap-3 ${
+                                canAfford || onPurchaseCredits ? 'sm:grid-cols-2' : ''
+                            }`}>
                                 <button
                                     type="button"
                                     onClick={close}
@@ -249,16 +251,16 @@ export function ProcessingGateModal({
                                     >
                                         {t('processingGateConfirm', { cost })}
                                     </button>
-                                ) : (
+                                ) : onPurchaseCredits ? (
                                     <button
                                         type="button"
                                         onClick={onPurchaseCredits}
-                                        disabled={isBalanceLoading || !onPurchaseCredits}
+                                        disabled={isBalanceLoading}
                                         className="btn-primary min-h-12 px-4 disabled:cursor-not-allowed disabled:opacity-45"
                                     >
                                         {t('processingGateBuyCredits')}
                                     </button>
-                                )}
+                                ) : null}
                             </div>
                         </div>
                     )}

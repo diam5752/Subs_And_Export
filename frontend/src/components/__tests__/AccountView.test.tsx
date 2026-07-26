@@ -26,9 +26,12 @@ const mockUser = {
     provider: 'local',
 };
 
-const renderAccountView = (props: Partial<React.ComponentProps<typeof AccountView>> = {}) => {
+const renderAccountView = (
+    props: Partial<React.ComponentProps<typeof AccountView>> = {},
+    locale: 'el' | 'en' = 'en',
+) => {
     return render(
-        <I18nProvider initialLocale="en">
+        <I18nProvider initialLocale={locale}>
             <AccountView
                 user={mockUser}
                 onSaveProfile={jest.fn()}
@@ -45,12 +48,26 @@ const renderAccountView = (props: Partial<React.ComponentProps<typeof AccountVie
 describe('AccountView', () => {
     beforeEach(() => {
         jest.clearAllMocks();
+        localStorage.clear();
     });
 
     it('renders user details correctly', () => {
         renderAccountView();
         expect(screen.getByDisplayValue('Test User')).toBeInTheDocument();
         expect(screen.getByDisplayValue('test@example.com')).toBeInTheDocument();
+        expect(screen.getByRole('link', {
+            name: 'Open purchases and contracts',
+        })).toHaveAttribute('href', '/account/billing');
+    });
+
+    // REGRESSION: purchase records were only linked from a transient checkout
+    // success notice, leaving no durable route from the signed-in profile.
+    it('keeps purchases and contracts permanently accessible from the profile', () => {
+        renderAccountView();
+
+        expect(screen.getByRole('link', {
+            name: 'Open purchases and contracts',
+        })).toHaveAttribute('href', '/account/billing');
     });
 
     it('calls onSaveProfile with updated name and password', async () => {
@@ -94,7 +111,9 @@ describe('AccountView', () => {
 
         // Initial delete button shows confirmation
         fireEvent.click(screen.getByRole('button', { name: 'Delete Account' }));
-        expect(screen.getByText(/this action cannot be undone/i)).toBeInTheDocument();
+        expect(screen.getByText(
+            /Permanently delete your account, projects, and media files.*billing, contact, address, and tax-document data.*legally required period.*required by law.*cryptographic hash.*normalized email.*365 days.*signup credits/i,
+        )).toBeInTheDocument();
 
         // Confirm delete - click the confirm button directly
         fireEvent.click(screen.getByRole('button', { name: /confirm/i }));
@@ -125,7 +144,28 @@ describe('AccountView', () => {
         fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
 
         // Confirmation should disappear
-        expect(screen.queryByText(/this action cannot be undone/i)).not.toBeInTheDocument();
+        expect(screen.queryByText(
+            /Permanently delete your account, projects, and media files/i,
+        )).not.toBeInTheDocument();
+    });
+
+    it('discloses retained financial data before deletion in English and Greek', () => {
+        const { unmount } = renderAccountView();
+
+        expect(screen.getByText(
+            /account, projects, and media files are deleted.*billing, contact, address, and tax-document data.*legally required period.*required by law.*cryptographic hash.*normalized email.*365 days.*signup credits/i,
+        )).toBeInTheDocument();
+        unmount();
+        localStorage.clear();
+
+        renderAccountView({}, 'el');
+        expect(screen.getByText(
+            /λογαριασμός, τα projects και τα αρχεία πολυμέσων διαγράφονται.*στοιχεία χρέωσης, επικοινωνίας, διεύθυνσης και φορολογικών παραστατικών.*νόμιμης περιόδου.*απαιτείται από τον νόμο.*κρυπτογραφικό hash.*κανονικοποιημένου email.*365 ημέρες.*credits εγγραφής/i,
+        )).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'Διαγραφή λογαριασμού' }));
+        expect(screen.getByText(
+            /Να διαγραφούν οριστικά ο λογαριασμός, τα projects και τα αρχεία πολυμέσων.*στοιχεία χρέωσης, επικοινωνίας, διεύθυνσης και φορολογικών παραστατικών.*νόμιμης περιόδου.*απαιτείται από τον νόμο.*κρυπτογραφικό hash.*κανονικοποιημένου email.*365 ημέρες.*credits εγγραφής/i,
+        )).toBeInTheDocument();
     });
 
     it('handles data export', async () => {

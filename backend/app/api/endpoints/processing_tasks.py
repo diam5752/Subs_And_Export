@@ -8,10 +8,11 @@ from pathlib import Path
 from typing import Any
 
 from ...core.auth import User
+from ...core.cleanup import delete_job_workspace
 from ...core.config import settings as app_settings
 from ...core.database import Database
 from ...core.errors import sanitize_message
-from ...core.gcs import delete_object, download_object, get_gcs_settings, upload_object
+from ...core.gcs import GcsSettings, delete_object, download_object, get_gcs_settings, upload_object
 from ...services.ffmpeg_utils import MediaProbe, probe_media
 from ...services.history import HistoryStore
 from ...services.jobs import JobStore
@@ -21,6 +22,10 @@ from .file_utils import MAX_UPLOAD_BYTES, data_roots, relpath_safe
 from .settings import ProcessingSettings
 
 logger = logging.getLogger(__name__)
+
+
+class DeletedJobError(InterruptedError):
+    """Raised when account or job erasure wins a processing race."""
 
 
 def refund_charge_best_effort(
@@ -47,6 +52,77 @@ def refund_charge_best_effort(
                 reservation.action,
                 status,
             )
+
+
+def abort_deleted_job(
+    *,
+    job_id: str,
+    ledger_store: UsageLedgerStore | None,
+    charge_plan: ChargePlan | None,
+    error: str,
+) -> None:
+    """Refund once and remove the exact local workspace of a deleted job."""
+    try:
+        _, uploads_dir, artifacts_root = data_roots()
+        delete_job_workspace(
+            job_id=job_id,
+            uploads_dir=uploads_dir,
+            artifacts_dir=artifacts_root,
+        )
+    except Exception:
+        logger.exception(
+            "Failed to clean deleted-job workspace",
+            extra={"job_id": job_id},
+        )
+    refund_charge_best_effort(
+        ledger_store,
+        charge_plan,
+        status="cancelled",
+        error=error,
+    )
+
+
+def upload_source_for_active_job(
+    *,
+    job_id: str,
+    job_store: JobStore,
+    gcs_settings: GcsSettings,
+    object_name: str,
+    source: Path,
+    content_type: str,
+) -> None:
+    """Upload while the job is active and erase if cancellation wins."""
+    current = job_store.get_job(job_id)
+    if current is None or current.status == "cancelled":
+        return
+    try:
+        upload_object(
+            settings=gcs_settings,
+            object_name=object_name,
+            source=source,
+            content_type=content_type,
+        )
+    except Exception as exc:
+        logger.warning(
+            "Failed to upload source for job %s: %s",
+            job_id,
+            exc,
+        )
+        return
+
+    current = job_store.get_job(job_id)
+    if current is not None and current.status != "cancelled":
+        return
+    try:
+        delete_object(
+            settings=gcs_settings,
+            object_name=object_name,
+        )
+    except Exception:
+        logger.exception(
+            "Failed to erase source uploaded after job deletion",
+            extra={"job_id": job_id},
+        )
 
 
 def record_event_safe(
@@ -85,7 +161,15 @@ def run_video_processing(
     """Background task to run the heavy video processing."""
     try:
         current = job_store.get_job(job_id)
-        if current and current.status == "cancelled":
+        if current is None:
+            abort_deleted_job(
+                job_id=job_id,
+                ledger_store=ledger_store,
+                charge_plan=charge_plan,
+                error="Job was deleted",
+            )
+            return
+        if current.status == "cancelled":
             raise InterruptedError("Job cancelled by user")
 
         job_store.update_job(job_id, status="processing", progress=0, message="Starting processing...")
@@ -100,16 +184,18 @@ def run_video_processing(
                 job_store.update_job(job_id, progress=int(percent), message=msg)
                 last_update_time = now
 
-        def check_cancelled() -> None:
+        def check_cancelled(*, force: bool = False) -> None:
             """Check if job was cancelled by user."""
             nonlocal last_check_time
             now = time.monotonic()
-            if now - last_check_time < 0.5:
+            if not force and now - last_check_time < 0.5:
                 return
 
             current_job = job_store.get_job(job_id)
             last_check_time = now
-            if current_job and current_job.status == "cancelled":
+            if current_job is None:
+                raise DeletedJobError("Job was deleted")
+            if current_job.status == "cancelled":
                 raise InterruptedError("Job cancelled by user")
 
         data_dir, _, _ = data_roots()
@@ -169,6 +255,7 @@ def run_video_processing(
             charge_plan=charge_plan,
             media_probe=effective_probe,
         )
+        check_cancelled(force=True)
 
         # Result unpacking
         social = None
@@ -237,6 +324,8 @@ def run_video_processing(
             result_data["source_gcs_object"] = source_gcs_object_name
 
         job_store.update_job(job_id, status="completed", progress=100, message="Done!", result_data=result_data)
+        if job_store.get_job(job_id) is None:
+            raise DeletedJobError("Job was deleted")
         record_event_safe(
             history_store,
             user,
@@ -252,7 +341,22 @@ def run_video_processing(
             },
         )
 
+    except DeletedJobError as exc:
+        abort_deleted_job(
+            job_id=job_id,
+            ledger_store=ledger_store,
+            charge_plan=charge_plan,
+            error=sanitize_message(str(exc)),
+        )
     except InterruptedError as exc:
+        if job_store.get_job(job_id) is None:
+            abort_deleted_job(
+                job_id=job_id,
+                ledger_store=ledger_store,
+                charge_plan=charge_plan,
+                error=sanitize_message(str(exc)),
+            )
+            return
         job_store.update_job(job_id, status="cancelled", message="Cancelled by user")
         record_event_safe(
             history_store,
@@ -264,6 +368,14 @@ def run_video_processing(
         refund_charge_best_effort(ledger_store, charge_plan, status="cancelled", error=sanitize_message(str(exc)))
     except Exception as exc:
         safe_msg = sanitize_message(str(exc))
+        if job_store.get_job(job_id) is None:
+            abort_deleted_job(
+                job_id=job_id,
+                ledger_store=ledger_store,
+                charge_plan=charge_plan,
+                error=safe_msg,
+            )
+            return
         job_store.update_job(job_id, status="failed", message=safe_msg)
         record_event_safe(
             history_store,
@@ -291,6 +403,16 @@ def run_gcs_video_processing(
     charge_plan: ChargePlan | None = None,
 ) -> None:
     """Background task to process a video from GCS."""
+    current = job_store.get_job(job_id)
+    if current is None:
+        abort_deleted_job(
+            job_id=job_id,
+            ledger_store=ledger_store,
+            charge_plan=charge_plan,
+            error="Job was deleted",
+        )
+        return
+
     gcs_settings = get_gcs_settings()
     if not gcs_settings:
         job_store.update_job(job_id, status="failed", message="GCS is not configured")
@@ -298,8 +420,7 @@ def run_gcs_video_processing(
         return
 
     try:
-        current = job_store.get_job(job_id)
-        if current and current.status == "cancelled":
+        if current.status == "cancelled":
             refund_charge_best_effort(ledger_store, charge_plan, status="cancelled", error="Job cancelled by user")
             return
 
@@ -319,7 +440,7 @@ def run_gcs_video_processing(
         if probe.duration_s is None or probe.duration_s <= 0:
             raise ValueError("Could not determine video duration")
         if probe.duration_s > app_settings.max_video_duration_seconds:
-            raise ValueError(f"Video too long (max {app_settings.max_video_duration_seconds/60:.1f} minutes)")
+            raise ValueError(f"Video too long (max {app_settings.max_video_duration_seconds / 60:.1f} minutes)")
 
         run_video_processing(
             job_id,
@@ -347,6 +468,14 @@ def run_gcs_video_processing(
     except Exception as exc:
         input_path.unlink(missing_ok=True)
         safe_msg = sanitize_message(str(exc))
+        if job_store.get_job(job_id) is None:
+            abort_deleted_job(
+                job_id=job_id,
+                ledger_store=ledger_store,
+                charge_plan=charge_plan,
+                error=safe_msg,
+            )
+            return
         job_store.update_job(job_id, status="failed", message=safe_msg)
         record_event_safe(
             history_store,

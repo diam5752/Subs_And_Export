@@ -60,6 +60,7 @@ def refund_reason(original_reason: str) -> str:
     reason = f"{REFUND_REASON_PREFIX}{cleaned}" if cleaned else f"{REFUND_REASON_PREFIX}unknown"
     return reason[:64]
 
+
 def make_idempotency_id(*parts: str) -> str:
     payload = "|".join(parts).encode("utf-8")
     return hashlib.sha256(payload).hexdigest()[:32]
@@ -77,9 +78,7 @@ class PointsStore:
     def get_balances(self, user_id: str) -> PointsBalance:
         self.ensure_account(user_id)
         with self.db.session() as session:
-            wallet = session.scalar(
-                select(DbUserPoints).where(DbUserPoints.user_id == user_id).limit(1)
-            )
+            wallet = session.scalar(select(DbUserPoints).where(DbUserPoints.user_id == user_id).limit(1))
             if wallet is None:
                 raise RuntimeError("Points wallet could not be loaded")
             return PointsBalance(
@@ -372,6 +371,25 @@ class PointsStore:
             operation="purchase",
         )
 
+    def apply_paid_purchase_once_in_session(
+        self,
+        session: Session,
+        user_id: str,
+        amount: int,
+        *,
+        purchase_id: str,
+        transaction_id: str,
+    ) -> PaidWalletMutation:
+        """Credit a paid purchase inside the caller's accounting transaction."""
+        return self._mutate_paid_wallet_once_in_session(
+            session=session,
+            user_id=user_id,
+            amount=amount,
+            purchase_id=purchase_id,
+            transaction_id=transaction_id,
+            operation="purchase",
+        )
+
     def reverse_paid_purchase_once(
         self,
         user_id: str,
@@ -382,6 +400,25 @@ class PointsStore:
     ) -> PaidWalletMutation:
         """Claw back refundable paid credits and turn spent credits into debt."""
         return self._mutate_paid_wallet_once(
+            user_id=user_id,
+            amount=amount,
+            purchase_id=purchase_id,
+            transaction_id=transaction_id,
+            operation="reversal",
+        )
+
+    def reverse_paid_purchase_once_in_session(
+        self,
+        session: Session,
+        user_id: str,
+        amount: int,
+        *,
+        purchase_id: str,
+        transaction_id: str,
+    ) -> PaidWalletMutation:
+        """Apply a reversal inside the caller's accounting transaction."""
+        return self._mutate_paid_wallet_once_in_session(
+            session=session,
             user_id=user_id,
             amount=amount,
             purchase_id=purchase_id,
@@ -406,9 +443,48 @@ class PointsStore:
             operation="restore",
         )
 
+    def restore_paid_reversal_once_in_session(
+        self,
+        session: Session,
+        user_id: str,
+        amount: int,
+        *,
+        purchase_id: str,
+        transaction_id: str,
+    ) -> PaidWalletMutation:
+        """Restore a reversal inside the caller's accounting transaction."""
+        return self._mutate_paid_wallet_once_in_session(
+            session=session,
+            user_id=user_id,
+            amount=amount,
+            purchase_id=purchase_id,
+            transaction_id=transaction_id,
+            operation="restore",
+        )
+
     def _mutate_paid_wallet_once(
         self,
         *,
+        user_id: str,
+        amount: int,
+        purchase_id: str,
+        transaction_id: str,
+        operation: str,
+    ) -> PaidWalletMutation:
+        with self.db.session() as session:
+            return self._mutate_paid_wallet_once_in_session(
+                session=session,
+                user_id=user_id,
+                amount=amount,
+                purchase_id=purchase_id,
+                transaction_id=transaction_id,
+                operation=operation,
+            )
+
+    def _mutate_paid_wallet_once_in_session(
+        self,
+        *,
+        session: Session,
         user_id: str,
         amount: int,
         purchase_id: str,
@@ -430,81 +506,80 @@ class PointsStore:
             "restore": "stripe_reversal_restore",
         }[operation]
         now = int(time.time())
-        with self.db.session() as session:
-            resolved_email_verified = self._resolve_email_verified(session, user_id, None)
-            self._ensure_account_in_session(
+        resolved_email_verified = self._resolve_email_verified(session, user_id, None)
+        self._ensure_account_in_session(
+            session,
+            user_id=user_id,
+            now=now,
+            email_verified=resolved_email_verified,
+        )
+        existing = session.get(DbPointTransaction, transaction_id)
+        if existing is not None:
+            return self._existing_paid_wallet_mutation(
                 session,
+                existing,
                 user_id=user_id,
-                now=now,
-                email_verified=resolved_email_verified,
+                purchase_id=purchase_id,
+                operation=operation,
+                amount=amount,
             )
-            existing = session.get(DbPointTransaction, transaction_id)
-            if existing is not None:
-                return self._existing_paid_wallet_mutation(
-                    session,
-                    existing,
-                    user_id=user_id,
-                    purchase_id=purchase_id,
-                    operation=operation,
-                    amount=amount,
-                )
 
-            wallet = self._locked_wallet(session, user_id)
-            existing = session.get(DbPointTransaction, transaction_id)
-            if existing is not None:
-                return self._existing_paid_wallet_mutation(
-                    session,
-                    existing,
-                    user_id=user_id,
-                    purchase_id=purchase_id,
-                    operation=operation,
-                    amount=amount,
-                )
-
-            if operation == "purchase":
-                debt_repaid = min(amount, int(wallet.reversal_debt))
-                credit_delta = amount - debt_repaid
-                debt_delta = -debt_repaid
-            elif operation == "reversal":
-                available = min(amount, int(wallet.paid_balance))
-                credit_delta = -available
-                debt_delta = amount - available
-            else:
-                debt_relief = min(amount, int(wallet.reversal_debt))
-                credit_delta = amount - debt_relief
-                debt_delta = -debt_relief
-
-            wallet.balance += credit_delta
-            wallet.paid_balance += credit_delta
-            wallet.reversal_debt += debt_delta
-            wallet.updated_at = now
-            meta = {
-                "purchase_id": purchase_id,
-                "operation": operation,
-                "requested_credits": amount,
-                "credit_delta": credit_delta,
-                "debt_delta": debt_delta,
-            }
-            session.add(
-                DbPointTransaction(
-                    id=transaction_id,
-                    user_id=user_id,
-                    delta=credit_delta,
-                    paid_delta=credit_delta,
-                    reversal_debt_delta=debt_delta,
-                    reason=reason,
-                    meta=meta,
-                    created_at=now,
-                )
+        wallet = self._locked_wallet(session, user_id)
+        existing = session.get(DbPointTransaction, transaction_id)
+        if existing is not None:
+            return self._existing_paid_wallet_mutation(
+                session,
+                existing,
+                user_id=user_id,
+                purchase_id=purchase_id,
+                operation=operation,
+                amount=amount,
             )
-            return PaidWalletMutation(
-                balance=int(wallet.balance),
-                paid_balance=int(wallet.paid_balance),
-                reversal_debt=int(wallet.reversal_debt),
-                credit_delta=credit_delta,
-                debt_delta=debt_delta,
-                applied=True,
+
+        if operation == "purchase":
+            debt_repaid = min(amount, int(wallet.reversal_debt))
+            credit_delta = amount - debt_repaid
+            debt_delta = -debt_repaid
+        elif operation == "reversal":
+            available = min(amount, int(wallet.paid_balance))
+            credit_delta = -available
+            debt_delta = amount - available
+        else:
+            debt_relief = min(amount, int(wallet.reversal_debt))
+            credit_delta = amount - debt_relief
+            debt_delta = -debt_relief
+
+        wallet.balance += credit_delta
+        wallet.paid_balance += credit_delta
+        wallet.reversal_debt += debt_delta
+        wallet.updated_at = now
+        meta = {
+            "purchase_id": purchase_id,
+            "operation": operation,
+            "requested_credits": amount,
+            "credit_delta": credit_delta,
+            "debt_delta": debt_delta,
+        }
+        session.add(
+            DbPointTransaction(
+                id=transaction_id,
+                user_id=user_id,
+                delta=credit_delta,
+                paid_delta=credit_delta,
+                reversal_debt_delta=debt_delta,
+                reason=reason,
+                meta=meta,
+                created_at=now,
             )
+        )
+        return PaidWalletMutation(
+            balance=int(wallet.balance),
+            paid_balance=int(wallet.paid_balance),
+            reversal_debt=int(wallet.reversal_debt),
+            credit_delta=credit_delta,
+            debt_delta=debt_delta,
+            applied=True,
+        )
 
     def _ensure_account_in_session(
         self,
@@ -531,19 +606,20 @@ class PointsStore:
             starting_balance = STARTING_POINTS_BALANCE if email_verified else TRIAL_CREDITS
             reason = "initial_balance" if email_verified else "trial_balance"
 
-        insert_stmt = pg_insert(DbUserPoints).values(
-            user_id=user_id,
-            balance=starting_balance,
-            paid_balance=0,
-            reversal_debt=0,
-            updated_at=now,
-        ).on_conflict_do_nothing(index_elements=[DbUserPoints.user_id])
+        insert_stmt = (
+            pg_insert(DbUserPoints)
+            .values(
+                user_id=user_id,
+                balance=starting_balance,
+                paid_balance=0,
+                reversal_debt=0,
+                updated_at=now,
+            )
+            .on_conflict_do_nothing(index_elements=[DbUserPoints.user_id])
+        )
 
         # Use RETURNING to reliably detect insertion
-        created = (
-            session.execute(insert_stmt.returning(DbUserPoints.user_id)).scalar_one_or_none()
-            is not None
-        )
+        created = session.execute(insert_stmt.returning(DbUserPoints.user_id)).scalar_one_or_none() is not None
 
         if created and starting_balance > 0:
             session.add(
@@ -582,19 +658,12 @@ class PointsStore:
     ) -> bool:
         if email_verified is not None:
             return email_verified
-        stored_verified = session.scalar(
-            select(DbUser.email_verified).where(DbUser.id == user_id).limit(1)
-        )
+        stored_verified = session.scalar(select(DbUser.email_verified).where(DbUser.id == user_id).limit(1))
         return bool(stored_verified)
 
     @staticmethod
     def _locked_wallet(session: Session, user_id: str) -> DbUserPoints:
-        wallet = session.scalar(
-            select(DbUserPoints)
-            .where(DbUserPoints.user_id == user_id)
-            .with_for_update()
-            .limit(1)
-        )
+        wallet = session.scalar(select(DbUserPoints).where(DbUserPoints.user_id == user_id).with_for_update().limit(1))
         if wallet is None:
             raise RuntimeError("Points wallet could not be locked")
         return wallet
@@ -636,10 +705,7 @@ class PointsStore:
             transaction.user_id != user_id
             or int(transaction.delta) != expected_delta
             or transaction.reason != reason
-            or (
-                expected_paid_delta is not None
-                and int(transaction.paid_delta) != expected_paid_delta
-            )
+            or (expected_paid_delta is not None and int(transaction.paid_delta) != expected_paid_delta)
         ):
             raise HTTPException(status_code=409, detail="Idempotency key conflict")
 

@@ -1,0 +1,7 @@
+{
+  "approval_identity_sha256": null,
+  "public_terms_route": "/terms",
+  "schema_version": 1,
+  "status": "inactive_unapproved",
+  "terms_version": "2026-07-26-draft-v1"
+}

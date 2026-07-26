@@ -10,6 +10,7 @@ from backend.app.api.endpoints.settings import ProcessingSettings
 from backend.app.core import auth as backend_auth
 from backend.app.core import config
 from backend.app.core.database import Database
+from backend.app.db.models import DbJob
 from backend.app.services import jobs, pricing
 from backend.app.services.charge_plans import reserve_processing_charges
 from backend.app.services.history import HistoryStore
@@ -55,9 +56,11 @@ def test_job_store_lifecycle(tmp_path: Path):
     db = Database()
     store = jobs.JobStore(db)
 
-    user_id = backend_auth.UserStore(db=db).register_local_user(
-        f"job_{uuid.uuid4().hex}@example.com", "testpassword123", "Job"
-    ).id
+    user_id = (
+        backend_auth.UserStore(db=db)
+        .register_local_user(f"job_{uuid.uuid4().hex}@example.com", "testpassword123", "Job")
+        .id
+    )
 
     job_id = f"job-{uuid.uuid4().hex}"
     job = store.create_job(job_id, user_id)
@@ -66,7 +69,6 @@ def test_job_store_lifecycle(tmp_path: Path):
     assert updated and updated.status == "processing"
     assert updated.progress == 25
     assert updated.result_data["a"] == 1
-
 
     # Calling update with no changes is a no-op
     store.update_job(job.id)
@@ -84,6 +86,92 @@ def test_job_store_lifecycle(tmp_path: Path):
     assert store.get_job(j2.id) is None
     assert store.get_job(j3.id) is None
     assert len(store.list_jobs_for_user(user_id)) == 0
+
+
+def test_job_store_lists_are_scoped_unbounded_and_deterministic() -> None:
+    db = Database()
+    store = jobs.JobStore(db)
+    user_store = backend_auth.UserStore(db)
+    user_id = user_store.register_local_user(
+        f"job-list-{uuid.uuid4().hex}@example.com",
+        "testpassword123",
+        "Job List",
+    ).id
+    other_user_id = user_store.register_local_user(
+        f"job-list-other-{uuid.uuid4().hex}@example.com",
+        "testpassword123",
+        "Other Job List",
+    ).id
+    prefix = f"job-list-{uuid.uuid4().hex[:8]}"
+    job_ids = [f"{prefix}-{sequence:02d}" for sequence in range(12)]
+    for job_id in job_ids:
+        store.create_job(job_id, user_id)
+    other_job_id = f"{prefix}-other"
+    store.create_job(other_job_id, other_user_id)
+    with db.session() as session:
+        for sequence, job_id in enumerate(job_ids):
+            row = session.get(DbJob, job_id)
+            assert row is not None
+            row.created_at = 1_900_000_000
+            row.updated_at = 1_900_000_000 + sequence
+            row.status = "completed" if sequence % 2 == 0 else "processing"
+        other_row = session.get(DbJob, other_job_id)
+        assert other_row is not None
+        other_row.created_at = 1_900_000_000
+        other_row.updated_at = 1_900_000_000
+        other_row.status = "completed"
+
+    expected_ids = sorted(job_ids, reverse=True)
+    assert [job.id for job in store.list_jobs_for_user(user_id)] == expected_ids[:10]
+    assert [job.id for job in store.list_all_jobs_for_user(user_id)] == expected_ids
+    assert store.count_jobs_for_user(user_id) == len(job_ids)
+    assert store.count_active_jobs_for_user(user_id) == len(job_ids) // 2
+    # REGRESSION: second-resolution timestamps previously left pagination
+    # ordering nondeterministic and could duplicate or skip jobs across pages.
+    assert [
+        job.id
+        for job in store.list_jobs_for_user_paginated(
+            user_id,
+            offset=2,
+            limit=4,
+        )
+    ] == expected_ids[2:6]
+
+    assert store.get_jobs([], user_id) == []
+    owned = store.get_jobs(
+        [job_ids[0], other_job_id],
+        user_id,
+    )
+    assert [job.id for job in owned] == [job_ids[0]]
+
+    assert (
+        store.list_jobs_updated_before(
+            2_000_000_000,
+            set(),
+        )
+        == []
+    )
+    completed = store.list_jobs_updated_before(
+        2_000_000_000,
+        {"completed"},
+    )
+    assert {job.id for job in completed} >= {job_ids[sequence] for sequence in range(0, len(job_ids), 2)}
+    assert other_job_id in {job.id for job in completed}
+    created_before = store.list_jobs_created_before(1_900_000_001)
+    created_before_ids = {job.id for job in created_before if job.id.startswith(prefix)}
+    assert created_before_ids == {*job_ids, other_job_id}
+
+    assert store.delete_jobs([], user_id) == 0
+    assert (
+        store.delete_jobs(
+            [job_ids[0], other_job_id],
+            user_id,
+        )
+        == 1
+    )
+    assert store.get_job(job_ids[0]) is None
+    assert store.get_job(other_job_id) is not None
+    store.update_job(f"missing-{uuid.uuid4().hex}", status="failed")
 
 
 def test_history_store_purges_expired_job_payloads_only() -> None:
@@ -114,14 +202,31 @@ def test_history_store_purges_expired_job_payloads_only() -> None:
     # processing history behind indefinitely.
     assert history_store.delete_job_events([target_job_id]) == 1
     remaining = history_store.recent_for_user(user)
-    remaining_job_ids = {
-        event.data.get("job_id")
-        for event in remaining
-        if event.data.get("job_id")
-    }
+    remaining_job_ids = {event.data.get("job_id") for event in remaining if event.data.get("job_id")}
     assert target_job_id not in remaining_job_ids
     assert retained_job_id in remaining_job_ids
     assert any(event.kind == "login" for event in remaining)
+
+
+def test_history_store_empty_or_unmatched_purge_is_a_noop() -> None:
+    db = Database()
+    user = backend_auth.UserStore(db).register_local_user(
+        f"history-noop-{uuid.uuid4().hex}@example.com",
+        "testpassword123",
+        "History Noop",
+    )
+    history_store = HistoryStore(db)
+    event = history_store.record_event(
+        user,
+        "login",
+        "Signed in",
+        {"scope": "account"},
+    )
+
+    assert history_store.delete_job_events([]) == 0
+    assert history_store.delete_job_events(["unknown-job"]) == 0
+    remaining = history_store.all_for_user(user)
+    assert [item.summary for item in remaining] == [event.summary]
 
 
 def test_run_video_processing_success(monkeypatch, tmp_path: Path):
@@ -130,9 +235,11 @@ def test_run_video_processing_success(monkeypatch, tmp_path: Path):
 
     db = Database()
     store = jobs.JobStore(db)
-    user_id = backend_auth.UserStore(db=db).register_local_user(
-        f"runner_{uuid.uuid4().hex}@example.com", "testpassword123", "Runner"
-    ).id
+    user_id = (
+        backend_auth.UserStore(db=db)
+        .register_local_user(f"runner_{uuid.uuid4().hex}@example.com", "testpassword123", "Runner")
+        .id
+    )
     job = store.create_job(f"job-success-{uuid.uuid4().hex}", user_id)
 
     input_path = tmp_path / "input.mp4"
@@ -163,9 +270,11 @@ def test_run_video_processing_failure(monkeypatch, tmp_path: Path):
 
     db = Database()
     store = jobs.JobStore(db)
-    user_id = backend_auth.UserStore(db=db).register_local_user(
-        f"runner_{uuid.uuid4().hex}@example.com", "testpassword123", "Runner"
-    ).id
+    user_id = (
+        backend_auth.UserStore(db=db)
+        .register_local_user(f"runner_{uuid.uuid4().hex}@example.com", "testpassword123", "Runner")
+        .id
+    )
     job = store.create_job(f"job-fail-{uuid.uuid4().hex}", user_id)
 
     input_path = tmp_path / "input2.mp4"
@@ -189,9 +298,11 @@ def test_run_video_processing_handles_path_only(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(config.settings, "project_root", tmp_path)
     db = Database()
     store = jobs.JobStore(db)
-    user_id = backend_auth.UserStore(db=db).register_local_user(
-        f"runner_{uuid.uuid4().hex}@example.com", "testpassword123", "Runner"
-    ).id
+    user_id = (
+        backend_auth.UserStore(db=db)
+        .register_local_user(f"runner_{uuid.uuid4().hex}@example.com", "testpassword123", "Runner")
+        .id
+    )
     job = store.create_job(f"job-path-{uuid.uuid4().hex}", user_id)
 
     input_path = tmp_path / "input3.mp4"
@@ -215,9 +326,11 @@ def test_run_video_processing_records_duration_and_empty_resolution(monkeypatch,
     monkeypatch.setattr(config.settings, "project_root", tmp_path)
     db = Database()
     store = jobs.JobStore(db)
-    user_id = backend_auth.UserStore(db=db).register_local_user(
-        f"runner_{uuid.uuid4().hex}@example.com", "testpassword123", "Runner"
-    ).id
+    user_id = (
+        backend_auth.UserStore(db=db)
+        .register_local_user(f"runner_{uuid.uuid4().hex}@example.com", "testpassword123", "Runner")
+        .id
+    )
     job = store.create_job(f"job-duration-{uuid.uuid4().hex}", user_id)
 
     input_path = tmp_path / "input-duration.mp4"
@@ -254,9 +367,11 @@ def test_run_video_processing_does_not_restart_cancelled_job_and_refunds(monkeyp
     points_store = PointsStore(db=db)
     ledger_store = UsageLedgerStore(db=db, points_store=points_store)
 
-    user_id = backend_auth.UserStore(db=db).register_local_user(
-        f"cancelled_{uuid.uuid4().hex}@example.com", "testpassword123", "Runner"
-    ).id
+    user_id = (
+        backend_auth.UserStore(db=db)
+        .register_local_user(f"cancelled_{uuid.uuid4().hex}@example.com", "testpassword123", "Runner")
+        .id
+    )
     job = job_store.create_job(f"job-cancelled-{uuid.uuid4().hex}", user_id)
     points_store.credit(
         user_id,
@@ -328,9 +443,11 @@ def test_run_gcs_video_processing_does_not_restart_cancelled_job_and_refunds(mon
     points_store = PointsStore(db=db)
     ledger_store = UsageLedgerStore(db=db, points_store=points_store)
 
-    user_id = backend_auth.UserStore(db=db).register_local_user(
-        f"cancelled_gcs_{uuid.uuid4().hex}@example.com", "testpassword123", "Runner"
-    ).id
+    user_id = (
+        backend_auth.UserStore(db=db)
+        .register_local_user(f"cancelled_gcs_{uuid.uuid4().hex}@example.com", "testpassword123", "Runner")
+        .id
+    )
     job = job_store.create_job(f"job-cancelled-gcs-{uuid.uuid4().hex}", user_id)
     points_store.credit(
         user_id,
@@ -382,9 +499,11 @@ def test_run_gcs_video_processing_uses_app_settings_for_duration_limit(monkeypat
 
     db = Database()
     job_store = jobs.JobStore(db)
-    user_id = backend_auth.UserStore(db=db).register_local_user(
-        f"gcs_limit_{uuid.uuid4().hex}@example.com", "testpassword123", "Runner"
-    ).id
+    user_id = (
+        backend_auth.UserStore(db=db)
+        .register_local_user(f"gcs_limit_{uuid.uuid4().hex}@example.com", "testpassword123", "Runner")
+        .id
+    )
     job = job_store.create_job(f"job-gcs-limit-{uuid.uuid4().hex}", user_id)
 
     monkeypatch.setattr(
@@ -608,6 +727,7 @@ def test_reprocess_job_creates_new_job(client: TestClient, monkeypatch):
 
     # Must patch at the location where the function is CALLED, not where it's defined
     from backend.app.api.endpoints import reprocess_routes
+
     monkeypatch.setattr(reprocess_routes, "run_video_processing", fake_run)
     monkeypatch.setattr(videos, "run_video_processing", fake_run)
 
@@ -619,6 +739,7 @@ def test_reprocess_job_creates_new_job(client: TestClient, monkeypatch):
     # Top up points to avoid 402
     from backend.app.core.database import Database
     from backend.app.services.points import PointsStore
+
     user_resp = client.get("/auth/me", headers=headers)
     assert user_resp.status_code == 200
     user_id = user_resp.json()["id"]
@@ -650,6 +771,7 @@ def test_reprocess_job_creates_new_job(client: TestClient, monkeypatch):
     assert len(calls) == 2
     assert calls[0] == source_job_id
     assert calls[1] == new_job_id
+
 
 def test_reprocess_job_requires_completed_source_job(client: TestClient, monkeypatch):
     headers = _auth_header(client, email="reprocess_pending@example.com")

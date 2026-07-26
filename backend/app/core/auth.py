@@ -12,10 +12,11 @@ import time
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import Any, TypedDict, cast
 from urllib.parse import urlsplit
 
 from sqlalchemy import delete, select
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -25,6 +26,10 @@ from .config import settings
 from .database import Database
 
 logger = logging.getLogger(__name__)
+
+DELETED_EMAIL_RETENTION_DAYS = 365
+DELETED_EMAIL_RETENTION_SECONDS = DELETED_EMAIL_RETENTION_DAYS * 24 * 60 * 60
+DELETED_EMAIL_MARKER_PURPOSE = "prevent_repeat_signup_credit_grants"
 
 
 class GoogleAuthError(ValueError):
@@ -144,9 +149,7 @@ class UserStore:
         deleted_email = False
         try:
             with self.db.session() as session:
-                existing_identity = session.scalar(
-                    select(DbUser).where(DbUser.google_sub == sub).limit(1)
-                )
+                existing_identity = session.scalar(select(DbUser).where(DbUser.google_sub == sub).limit(1))
                 if existing_identity:
                     existing_identity.name = final_name
                     existing_identity.email_verified = True
@@ -155,9 +158,7 @@ class UserStore:
                     session.flush()
                     user = _user_from_db(existing_identity)
                 else:
-                    existing_email = session.scalar(
-                        select(DbUser).where(DbUser.email == email).limit(1)
-                    )
+                    existing_email = session.scalar(select(DbUser).where(DbUser.email == email).limit(1))
                     if existing_email:
                         raise GoogleAuthError(
                             "Google login cannot automatically link an existing email. "
@@ -241,28 +242,109 @@ class UserStore:
     def delete_user(self, user_id: str) -> None:
         """Delete a user and all associated data (GDPR compliance)."""
         with self.db.session() as session:
-            user = session.get(DbUser, user_id)
-            if not user:
-                return
-            self._record_deleted_email(session, user.email or "")
-            session.delete(user)
+            self.delete_user_in_session(session, user_id)
+
+    def delete_user_in_session(
+        self,
+        session: Session,
+        user_id: str,
+    ) -> None:
+        """Delete a user inside a caller-owned atomic workflow."""
+        user = session.get(DbUser, user_id)
+        if not user:
+            return
+        self._record_deleted_email(session, user.email or "")
+        session.delete(user)
 
     def _email_was_deleted(self, email: str, *, session: Session | None = None) -> bool:
-        email_hash = _email_fingerprint(email)
         if session:
-            return session.get(DbDeletedEmail, email_hash) is not None
+            return (
+                self._deleted_email_marker(
+                    session,
+                    email,
+                    now=int(time.time()),
+                )
+                is not None
+            )
         with self.db.session() as local_session:
-            return local_session.get(DbDeletedEmail, email_hash) is not None
+            return (
+                self._deleted_email_marker(
+                    local_session,
+                    email,
+                    now=int(time.time()),
+                )
+                is not None
+            )
+
+    def deleted_email_marker_for_email(
+        self,
+        email: str,
+    ) -> dict[str, str | int] | None:
+        """Return the bounded, pseudonymous marker associated with an email."""
+        with self.db.session() as session:
+            marker = self._deleted_email_marker(
+                session,
+                email,
+                now=int(time.time()),
+            )
+            if marker is None:
+                return None
+            return {
+                "fingerprint": marker.email_hash,
+                "fingerprint_algorithm": "sha256_normalized_email",
+                "deleted_at": marker.deleted_at,
+                "expires_at": marker.deleted_at + DELETED_EMAIL_RETENTION_SECONDS,
+                "purpose": DELETED_EMAIL_MARKER_PURPOSE,
+            }
+
+    def cleanup_expired_deleted_email_markers(
+        self,
+        *,
+        now: int | None = None,
+    ) -> int:
+        """Delete normalized-email hashes after the documented retention period."""
+        current_time = int(time.time()) if now is None else now
+        cutoff = current_time - DELETED_EMAIL_RETENTION_SECONDS
+        with self.db.session() as session:
+            result = cast(
+                CursorResult[Any],
+                session.execute(
+                    delete(DbDeletedEmail).where(
+                        DbDeletedEmail.deleted_at <= cutoff,
+                    )
+                ),
+            )
+            return int(result.rowcount or 0)
 
     def _record_deleted_email(self, session: Session, email: str) -> None:
         email_hash = _email_fingerprint(email)
         now = int(time.time())
+        session.execute(
+            delete(DbDeletedEmail).where(
+                DbDeletedEmail.deleted_at <= (now - DELETED_EMAIL_RETENTION_SECONDS),
+            )
+        )
         session.merge(
             DbDeletedEmail(
                 email_hash=email_hash,
                 deleted_at=now,
             )
         )
+
+    @staticmethod
+    def _deleted_email_marker(
+        session: Session,
+        email: str,
+        *,
+        now: int,
+    ) -> DbDeletedEmail | None:
+        marker = session.get(DbDeletedEmail, _email_fingerprint(email))
+        if marker is None:
+            return None
+        if marker.deleted_at + DELETED_EMAIL_RETENTION_SECONDS <= now:
+            session.delete(marker)
+            return None
+        return marker
 
 
 class SessionStore:
@@ -336,7 +418,7 @@ def _user_from_db(user: DbUser) -> User:
 def _hash_password(password: str, salt: str | None = None) -> str:
     salt_bytes = bytes.fromhex(salt) if salt else secrets.token_bytes(16)
     params = {
-        "n": 2 ** 14,
+        "n": 2**14,
         "r": 8,
         "p": 1,
         "dklen": 64,
@@ -552,11 +634,7 @@ def _assert_google_payload_claims(
     raw_name = payload.get("name")
     name = raw_name.strip() if isinstance(raw_name, str) and raw_name.strip() else email
     raw_avatar_url = payload.get("picture")
-    avatar_url = (
-        _normalize_google_avatar_url(raw_avatar_url)
-        if isinstance(raw_avatar_url, str)
-        else None
-    )
+    avatar_url = _normalize_google_avatar_url(raw_avatar_url) if isinstance(raw_avatar_url, str) else None
     return {
         "email": email,
         "name": name[:100],

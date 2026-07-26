@@ -1,6 +1,25 @@
 import { defineConfig } from '@playwright/test';
 
-const playwrightPort = Number(process.env.PLAYWRIGHT_PORT ?? 3000);
+export const DEFAULT_PLAYWRIGHT_PORT = 31873;
+
+export function resolvePlaywrightPort(rawPort: string | undefined): number {
+  if (rawPort === undefined) {
+    return DEFAULT_PLAYWRIGHT_PORT;
+  }
+
+  if (!/^\d+$/.test(rawPort)) {
+    throw new Error('PLAYWRIGHT_PORT must be an integer between 1 and 65535.');
+  }
+
+  const port = Number(rawPort);
+  if (!Number.isSafeInteger(port) || port < 1 || port > 65535) {
+    throw new Error('PLAYWRIGHT_PORT must be an integer between 1 and 65535.');
+  }
+
+  return port;
+}
+
+const playwrightPort = resolvePlaywrightPort(process.env.PLAYWRIGHT_PORT);
 const playwrightHost = '127.0.0.1';
 const playwrightBaseUrl = `http://${playwrightHost}:${playwrightPort}`;
 
@@ -36,7 +55,7 @@ export default defineConfig({
   webServer: {
     command: `npm run dev -- --hostname ${playwrightHost} --port ${playwrightPort}`,
     url: playwrightBaseUrl,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     timeout: 120_000,
   },
 });

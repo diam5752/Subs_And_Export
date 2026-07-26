@@ -17,6 +17,7 @@ class MockDbUser:
         self.created_at = "now"
         self.email_verified = True
 
+
 def test_update_name_enforces_limit():
     """Verify that UserStore REJECTS names longer than 100 chars."""
     mock_db = MagicMock(spec=Database)
@@ -38,12 +39,14 @@ def test_update_name_enforces_limit():
     # Name should NOT be updated
     assert mock_user.name == "Old Name"
 
+
 def test_upsert_google_user_truncates_long_name():
     """Verify that UserStore TRUNCATES names longer than 100 chars for Google users."""
     mock_db = MagicMock(spec=Database)
     mock_session = MagicMock()
     mock_db.session.return_value.__enter__.return_value = mock_session
-    mock_session.scalar.return_value = None # New user
+    mock_session.scalar.return_value = None  # New user
+    mock_session.get.return_value = None  # No prior deleted-email marker
 
     store = UserStore(mock_db)
     # 150 chars
@@ -51,8 +54,10 @@ def test_upsert_google_user_truncates_long_name():
 
     # Capture what is added
     added_users = []
+
     def capture_add(obj):
         added_users.append(obj)
+
     mock_session.add.side_effect = capture_add
 
     user = store.upsert_google_user("test@example.com", long_name, "sub123")

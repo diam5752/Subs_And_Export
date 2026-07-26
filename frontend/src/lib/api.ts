@@ -83,6 +83,58 @@ export interface CreditPackage {
     featured: boolean;
 }
 
+type ConsumerContractLocale = 'el' | 'en';
+
+export interface ConsumerContractDisclosure {
+    schema_version: number;
+    status: string;
+    classification: string;
+    disclosure_id: string;
+    disclosure_sha256: string;
+    locale: ConsumerContractLocale;
+    policy_version: string;
+    terms_version: string;
+    withdrawal_notice_version: string;
+    confirmation_template_version: string;
+    terms_url: string;
+    withdrawal_url: string;
+    model_withdrawal_form_url: string;
+    trader: {
+        name: string;
+        service: string;
+        support_email: string;
+    };
+    content: {
+        title: string;
+        service_description: string;
+        credit_description: string;
+        purchase_terms: string;
+        delivery_timing: string;
+        validity_and_transfer: string;
+        functionality: string;
+        compatibility: string;
+        withdrawal_notice: string;
+        manual_review_notice: string;
+    };
+    required_acceptances: {
+        terms: string;
+        immediate_performance: string;
+        withdrawal_consequences: string;
+    };
+}
+
+interface ConsumerContractAcceptanceRequest {
+    disclosure_id: string;
+    disclosure_sha256: string;
+    locale: ConsumerContractLocale;
+    policy_version: string;
+    terms_version: string;
+    withdrawal_notice_version: string;
+    terms_accepted: true;
+    immediate_performance_requested: true;
+    withdrawal_consequences_acknowledged: true;
+}
+
 export interface VideoCreditBracket {
     key: string;
     max_duration_seconds: number;
@@ -93,6 +145,8 @@ export interface CreditCatalogResponse {
     catalog_version: string;
     currency: string;
     checkout_enabled: boolean;
+    consumer_contract_status: 'approved' | 'unavailable_unapproved';
+    consumer_contract: ConsumerContractDisclosure | null;
     packages: CreditPackage[];
     video_pricing: VideoCreditBracket[];
 }
@@ -114,10 +168,49 @@ interface CreditCheckoutStatusResponse {
     wallet: PointsBalanceResponse;
 }
 
+export interface BillingPurchaseResponse {
+    purchase_id: string;
+    package_key: string;
+    credits: number;
+    amount_eur_cents: number;
+    currency: string;
+    status: string;
+    created_at: number;
+    fulfilled_at: number | null;
+    contract_confirmation_available: boolean;
+    contract_confirmation_url: string | null;
+    contract_concluded_at: number | null;
+    withdrawal_action_available: boolean;
+    withdrawal_status: string | null;
+    withdrawal_acknowledgement_available: boolean;
+    withdrawal_acknowledgement_url: string | null;
+}
+
+interface BillingWithdrawalResponse {
+    withdrawal_id: string;
+    purchase_id: string;
+    status: string;
+    submitted_at: number;
+    timeliness_assessment_status: 'pending_manual_review';
+    acknowledgement_sha256: string;
+    acknowledgement_url: string;
+}
+
 interface ExportDataResponse {
     profile: UserResponse;
     jobs: JobResponse[];
     history: HistoryEvent[];
+    billing_purchases: Record<string, unknown>[];
+    wallet: Record<string, unknown> | null;
+    point_transactions: Record<string, unknown>[];
+    usage_ledger: Record<string, unknown>[];
+    token_usage: Record<string, unknown>[];
+    provider_budget_reservations: Record<string, unknown>[];
+    gcs_uploads: Record<string, unknown>[];
+    sessions: Record<string, unknown>[];
+    oauth_states: Record<string, unknown>[];
+    deleted_email_marker: Record<string, unknown> | null;
+    deleted_email_marker_policy: Record<string, unknown>;
 }
 
 
@@ -253,18 +346,28 @@ class ApiClient {
         return this.request<PointsBalanceResponse>('/auth/points');
     }
 
-    async getCreditCatalog(): Promise<CreditCatalogResponse> {
-        return this.request<CreditCatalogResponse>('/billing/catalog');
+    async getCreditCatalog(
+        locale: ConsumerContractLocale = 'el',
+    ): Promise<CreditCatalogResponse> {
+        return this.request<CreditCatalogResponse>(
+            `/billing/catalog?locale=${encodeURIComponent(locale)}`,
+        );
     }
 
     async createCreditCheckout(
         packageKey: string,
         idempotencyKey: string,
+        catalogVersion: string,
+        consumerContract: ConsumerContractAcceptanceRequest,
     ): Promise<CreditCheckoutResponse> {
         return this.request<CreditCheckoutResponse>('/billing/checkout', {
             method: 'POST',
             headers: { 'Idempotency-Key': idempotencyKey },
-            body: JSON.stringify({ package_key: packageKey }),
+            body: JSON.stringify({
+                package_key: packageKey,
+                catalog_version: catalogVersion,
+                consumer_contract: consumerContract,
+            }),
         });
     }
 
@@ -274,6 +377,52 @@ class ApiClient {
         return this.request<CreditCheckoutStatusResponse>(
             `/billing/checkout/${encodeURIComponent(checkoutSessionId)}`,
         );
+    }
+
+    async listBillingPurchases(): Promise<BillingPurchaseResponse[]> {
+        return this.request<BillingPurchaseResponse[]>('/billing/purchases');
+    }
+
+    async submitBillingWithdrawal(
+        purchaseId: string,
+        payload: {
+            locale: ConsumerContractLocale;
+            withdrawal_requested: true;
+            confirmed_name: string;
+            confirmation_email: string;
+        },
+        idempotencyKey: string,
+    ): Promise<BillingWithdrawalResponse> {
+        return this.request<BillingWithdrawalResponse>(
+            `/billing/purchases/${encodeURIComponent(purchaseId)}/withdrawals`,
+            {
+                method: 'POST',
+                headers: { 'Idempotency-Key': idempotencyKey },
+                body: JSON.stringify(payload),
+            },
+        );
+    }
+
+    async downloadBillingArtifact(endpoint: string): Promise<Blob> {
+        if (!endpoint.startsWith('/billing/purchases/')) {
+            throw new Error('Invalid billing artifact path');
+        }
+        const headers: Record<string, string> = {};
+        if (this.token) {
+            headers.Authorization = `Bearer ${this.token}`;
+        }
+        const response = await fetch(`${API_BASE}${endpoint}`, { headers });
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({
+                detail: 'Billing artifact download failed',
+            }));
+            throw new Error(
+                typeof errorData.detail === 'string'
+                    ? errorData.detail
+                    : 'Billing artifact download failed',
+            );
+        }
+        return response.blob();
     }
 
     async processVideo(file: File, settings: {

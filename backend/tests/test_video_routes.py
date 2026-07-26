@@ -8,27 +8,27 @@ def test_upload_limit_exceeded(client: TestClient, user_auth_headers: dict, monk
     """Test that uploading a file larger than the limit raises 413."""
     # Patch MAX_UPLOAD_BYTES to a small value (1MB)
     from backend.app.api.endpoints import file_utils
+
     monkeypatch.setattr(file_utils, "MAX_UPLOAD_BYTES", 1024 * 1024)
 
     # Create a dummy file > 1MB
     large_content = b"0" * (1024 * 1024 + 100)
     files = {"file": ("large.mp4", large_content, "video/mp4")}
 
-    response = client.post(
-        "/videos/process",
-        headers=user_auth_headers,
-        files=files
-    )
+    response = client.post("/videos/process", headers=user_auth_headers, files=files)
     assert response.status_code == 413
     assert "too large" in response.json()["detail"]
+
 
 def test_process_video_content_length_error(client: TestClient, user_auth_headers: dict, monkeypatch):
     """Test 413 based on Content-Length header check."""
     # Patch MAX_UPLOAD_BYTES to a small value (1MB)
     from backend.app.api.endpoints import file_utils
+
     monkeypatch.setattr(file_utils, "MAX_UPLOAD_BYTES", 1024 * 1024)
     # Also patch the videos module's import of the constant
     from backend.app.api.endpoints import videos as videos_module
+
     monkeypatch.setattr(videos_module, "MAX_UPLOAD_BYTES", 1024 * 1024)
 
     # We can't easily fake Content-Length with TestClient in a way that the Starlette Request sees it
@@ -41,11 +41,7 @@ def test_process_video_content_length_error(client: TestClient, user_auth_header
     # Just need a valid file for the multipart to form
     files = {"file": ("test.mp4", b"data", "video/mp4")}
 
-    response = client.post(
-        "/videos/process",
-        headers=headers,
-        files=files
-    )
+    response = client.post("/videos/process", headers=headers, files=files)
     assert response.status_code == 413
     assert "too large" in response.json()["detail"]
 
@@ -88,6 +84,7 @@ def test_process_video_rejects_before_writing_when_storage_reserve_is_low(
     assert response.status_code == 507
     assert response.json()["detail"] == "Storage is temporarily busy"
 
+
 def test_record_event_safe_exception(monkeypatch):
     """Verify that _record_event_safe suppresses exceptions."""
     from backend.app.api.endpoints.processing_tasks import record_event_safe
@@ -104,6 +101,7 @@ def test_record_event_safe_exception(monkeypatch):
     # Should not raise
     record_event_safe(MockHistoryStore(), user, "test", "summary", {})
 
+
 def test_parse_resolution():
     """Unit tests for _parse_resolution helper."""
     from backend.app.api.endpoints.settings import parse_resolution
@@ -111,9 +109,10 @@ def test_parse_resolution():
     assert parse_resolution(None) == (None, None)
     assert parse_resolution("") == (None, None)
     assert parse_resolution("1080x1920") == (1080, 1920)
-    assert parse_resolution("2160×3840") == (2160, 3840) # Mixed char
+    assert parse_resolution("2160×3840") == (2160, 3840)  # Mixed char
     assert parse_resolution("invalid") == (None, None)
     assert parse_resolution("-100x100") == (None, None)
+
 
 def test_ensure_job_integrity(monkeypatch, tmp_path):
     """Completed jobs expose current local artifact availability and size."""
@@ -127,30 +126,46 @@ def test_ensure_job_integrity(monkeypatch, tmp_path):
     video_path.write_bytes(b"video")
 
     job_with_size = Job(
-        id="j1", user_id="u1", status="completed", progress=100, message="done",
-        created_at=0, updated_at=0,
-        result_data={"output_size": 12345, "video_path": "artifacts/j1/processed.mp4"}
+        id="j1",
+        user_id="u1",
+        status="completed",
+        progress=100,
+        message="done",
+        created_at=0,
+        updated_at=0,
+        result_data={"output_size": 12345, "video_path": "artifacts/j1/processed.mp4"},
     )
     result = job_routes.ensure_job_integrity(job_with_size)
     assert result.result_data["output_size"] == 5
     assert result.result_data["files_missing"] is False
 
     job_missing_file = Job(
-        id="j2", user_id="u1", status="completed", progress=100, message="done",
-        created_at=0, updated_at=0,
-        result_data={"video_path": "nonexistent.mp4"}
+        id="j2",
+        user_id="u1",
+        status="completed",
+        progress=100,
+        message="done",
+        created_at=0,
+        updated_at=0,
+        result_data={"video_path": "nonexistent.mp4"},
     )
     res = job_routes.ensure_job_integrity(job_missing_file)
     assert res.result_data["files_missing"] is True
     assert "output_size" not in res.result_data
 
     traversal_job = Job(
-        id="j3", user_id="u1", status="completed", progress=100, message="done",
-        created_at=0, updated_at=0,
+        id="j3",
+        user_id="u1",
+        status="completed",
+        progress=100,
+        message="done",
+        created_at=0,
+        updated_at=0,
         result_data={"video_path": "../outside.mp4"},
     )
     res = job_routes.ensure_job_integrity(traversal_job)
     assert res.result_data["files_missing"] is True
+
 
 def test_delete_job(client: TestClient, user_auth_headers: dict, monkeypatch):
     """Test deleting a job and its artifacts."""
@@ -162,19 +177,28 @@ def test_delete_job(client: TestClient, user_auth_headers: dict, monkeypatch):
     # Mock user dependency
     async def mock_get_current_user():
         return User(id="test_user_id", email="test@example.com", name="Test", provider="local")
+
     app.dependency_overrides[deps.get_current_user] = mock_get_current_user
 
     try:
         # Mock JobStore
         deleted_ids = []
+
         class MockJobStore:
             def get_job(self, job_id):
                 if job_id == "job1":
                     return Job(
-                        id="job1", user_id="test_user_id", status="completed", progress=100,
-                        message="done", created_at=0, updated_at=0, result_data={}
+                        id="job1",
+                        user_id="test_user_id",
+                        status="completed",
+                        progress=100,
+                        message="done",
+                        created_at=0,
+                        updated_at=0,
+                        result_data={},
                     )
                 return None
+
             def delete_job(self, job_id):
                 deleted_ids.append(job_id)
 
@@ -183,6 +207,7 @@ def test_delete_job(client: TestClient, user_auth_headers: dict, monkeypatch):
         # Mock file system
         import tempfile
         from pathlib import Path
+
         with tempfile.TemporaryDirectory() as td:
             tpath = Path(td)
             data_root = tpath / "data"
@@ -192,8 +217,12 @@ def test_delete_job(client: TestClient, user_auth_headers: dict, monkeypatch):
             for p in [data_root, uploads_root, artifacts_root]:
                 p.mkdir()
 
-            monkeypatch.setattr("backend.app.api.endpoints.job_routes.data_roots", lambda: (data_root, uploads_root, artifacts_root))
-            monkeypatch.setattr("backend.app.api.endpoints.job_routes.data_roots", lambda: (data_root, uploads_root, artifacts_root))
+            monkeypatch.setattr(
+                "backend.app.api.endpoints.job_routes.data_roots", lambda: (data_root, uploads_root, artifacts_root)
+            )
+            monkeypatch.setattr(
+                "backend.app.api.endpoints.job_routes.data_roots", lambda: (data_root, uploads_root, artifacts_root)
+            )
 
             # Create dummy artifacts
             job_artifact_dir = artifacts_root / "job1"
@@ -214,6 +243,82 @@ def test_delete_job(client: TestClient, user_auth_headers: dict, monkeypatch):
     finally:
         app.dependency_overrides = {}
 
+
+def test_delete_active_job_is_blocked_and_preserves_workspace(
+    client: TestClient,
+    user_auth_headers: dict,
+    monkeypatch,
+    tmp_path,
+):
+    """Pending or processing work must be cancelled before deletion."""
+    from backend.app.api import deps
+    from backend.app.core.auth import User
+    from backend.app.services.jobs import Job
+
+    async def mock_get_current_user():
+        return User(
+            id="active-delete-user",
+            email="active-delete@example.com",
+            name="Active",
+            provider="local",
+        )
+
+    status = {"value": "pending"}
+    deleted_ids: list[str] = []
+
+    class MockJobStore:
+        def get_job(self, job_id):
+            return Job(
+                id=job_id,
+                user_id="active-delete-user",
+                status=status["value"],
+                progress=10,
+                message="active",
+                created_at=0,
+                updated_at=0,
+                result_data={},
+            )
+
+        def delete_job(self, job_id):
+            deleted_ids.append(job_id)
+
+    app.dependency_overrides[deps.get_current_user] = mock_get_current_user
+    app.dependency_overrides[deps.get_job_store] = lambda: MockJobStore()
+
+    try:
+        uploads_root = tmp_path / "uploads"
+        artifacts_root = tmp_path / "artifacts"
+        uploads_root.mkdir()
+        artifacts_root.mkdir()
+        monkeypatch.setattr(
+            "backend.app.api.endpoints.job_routes.data_roots",
+            lambda: (tmp_path, uploads_root, artifacts_root),
+        )
+
+        for active_status in ("pending", "processing"):
+            status["value"] = active_status
+            job_id = f"active-{active_status}"
+            input_file = uploads_root / f"{job_id}_input.mp4"
+            artifact_file = artifacts_root / job_id / "processed.mp4"
+            input_file.write_bytes(b"keep")
+            artifact_file.parent.mkdir()
+            artifact_file.write_bytes(b"keep")
+
+            response = client.delete(
+                f"/videos/jobs/{job_id}",
+                headers=user_auth_headers,
+            )
+
+            assert response.status_code == 409
+            assert "cancel" in response.json()["detail"].lower()
+            assert input_file.exists()
+            assert artifact_file.exists()
+
+        assert deleted_ids == []
+    finally:
+        app.dependency_overrides = {}
+
+
 def test_list_jobs_paginated(client: TestClient, user_auth_headers: dict, monkeypatch):
     """Test paginated jobs endpoint."""
     from backend.app.api import deps
@@ -222,13 +327,22 @@ def test_list_jobs_paginated(client: TestClient, user_auth_headers: dict, monkey
 
     async def mock_get_current_user():
         return User(id="test_user_id", email="test@example.com", name="Test", provider="local")
+
     app.dependency_overrides[deps.get_current_user] = mock_get_current_user
 
     try:
         # Create mock jobs
         mock_jobs = [
-            Job(id=f"job{i}", user_id="test_user_id", status="completed", progress=100,
-                message="done", created_at=i, updated_at=i, result_data={})
+            Job(
+                id=f"job{i}",
+                user_id="test_user_id",
+                status="completed",
+                progress=100,
+                message="done",
+                created_at=i,
+                updated_at=i,
+                result_data={},
+            )
             for i in range(15)
         ]
 
@@ -237,7 +351,7 @@ def test_list_jobs_paginated(client: TestClient, user_auth_headers: dict, monkey
                 return len(mock_jobs)
 
             def list_jobs_for_user_paginated(self, user_id, offset=0, limit=10):
-                return mock_jobs[offset:offset+limit]
+                return mock_jobs[offset : offset + limit]
 
         app.dependency_overrides[deps.get_job_store] = lambda: MockJobStore()
 
@@ -269,9 +383,11 @@ def test_list_jobs_paginated_validation(client: TestClient, user_auth_headers: d
 
     async def mock_get_current_user():
         return User(id="test_user_id", email="test@example.com", name="Test", provider="local")
+
     app.dependency_overrides[deps.get_current_user] = mock_get_current_user
 
     try:
+
         class MockJobStore:
             def count_jobs_for_user(self, user_id):
                 return 5
@@ -303,6 +419,7 @@ def test_batch_delete_jobs(client: TestClient, user_auth_headers: dict, monkeypa
 
     async def mock_get_current_user():
         return User(id="test_user_id", email="test@example.com", name="Test", provider="local")
+
     app.dependency_overrides[deps.get_current_user] = mock_get_current_user
 
     try:
@@ -312,13 +429,25 @@ def test_batch_delete_jobs(client: TestClient, user_auth_headers: dict, monkeypa
             def get_job(self, job_id):
                 if job_id in ["job1", "job2", "job3"]:
                     return Job(
-                        id=job_id, user_id="test_user_id", status="completed", progress=100,
-                        message="done", created_at=0, updated_at=0, result_data={}
+                        id=job_id,
+                        user_id="test_user_id",
+                        status="completed",
+                        progress=100,
+                        message="done",
+                        created_at=0,
+                        updated_at=0,
+                        result_data={},
                     )
                 elif job_id == "job_other_user":
                     return Job(
-                        id=job_id, user_id="other_user", status="completed", progress=100,
-                        message="done", created_at=0, updated_at=0, result_data={}
+                        id=job_id,
+                        user_id="other_user",
+                        status="completed",
+                        progress=100,
+                        message="done",
+                        created_at=0,
+                        updated_at=0,
+                        result_data={},
                     )
                 return None
 
@@ -335,6 +464,7 @@ def test_batch_delete_jobs(client: TestClient, user_auth_headers: dict, monkeypa
         # Mock file system
         import tempfile
         from pathlib import Path
+
         with tempfile.TemporaryDirectory() as td:
             tpath = Path(td)
             uploads_root = tpath / "uploads"
@@ -348,14 +478,16 @@ def test_batch_delete_jobs(client: TestClient, user_auth_headers: dict, monkeypa
                 job_dir.mkdir()
                 (job_dir / "file.txt").touch()
 
-            monkeypatch.setattr("backend.app.api.endpoints.job_routes.data_roots", lambda: (tpath, uploads_root, artifacts_root))
-            monkeypatch.setattr("backend.app.api.endpoints.job_routes.data_roots", lambda: (tpath, uploads_root, artifacts_root))
+            monkeypatch.setattr(
+                "backend.app.api.endpoints.job_routes.data_roots", lambda: (tpath, uploads_root, artifacts_root)
+            )
+            monkeypatch.setattr(
+                "backend.app.api.endpoints.job_routes.data_roots", lambda: (tpath, uploads_root, artifacts_root)
+            )
 
             # Test batch delete
             response = client.post(
-                "/videos/jobs/batch-delete",
-                headers=user_auth_headers,
-                json={"job_ids": ["job1", "job2", "job3"]}
+                "/videos/jobs/batch-delete", headers=user_auth_headers, json={"job_ids": ["job1", "job2", "job3"]}
             )
             assert response.status_code == 200
             data = response.json()
@@ -377,14 +509,11 @@ def test_batch_delete_empty_list(client: TestClient, user_auth_headers: dict, mo
 
     async def mock_get_current_user():
         return User(id="test_user_id", email="test@example.com", name="Test", provider="local")
+
     app.dependency_overrides[deps.get_current_user] = mock_get_current_user
 
     try:
-        response = client.post(
-            "/videos/jobs/batch-delete",
-            headers=user_auth_headers,
-            json={"job_ids": []}
-        )
+        response = client.post("/videos/jobs/batch-delete", headers=user_auth_headers, json={"job_ids": []})
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "success"
@@ -401,16 +530,13 @@ def test_batch_delete_limit(client: TestClient, user_auth_headers: dict, monkeyp
 
     async def mock_get_current_user():
         return User(id="test_user_id", email="test@example.com", name="Test", provider="local")
+
     app.dependency_overrides[deps.get_current_user] = mock_get_current_user
 
     try:
         # Try to delete 51 jobs
         job_ids = [f"job{i}" for i in range(51)]
-        response = client.post(
-            "/videos/jobs/batch-delete",
-            headers=user_auth_headers,
-            json={"job_ids": job_ids}
-        )
+        response = client.post("/videos/jobs/batch-delete", headers=user_auth_headers, json={"job_ids": job_ids})
         assert response.status_code == 400
         assert "Cannot delete more than 50" in response.json()["detail"]
 

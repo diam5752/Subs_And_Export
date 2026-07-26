@@ -1,4 +1,5 @@
 import React, { useState, memo, useId } from 'react';
+import Link from 'next/link';
 import { useI18n } from '@/context/I18nContext';
 import { User } from '@/context/AuthContext';
 import { api, JobResponse } from '@/lib/api';
@@ -220,6 +221,26 @@ export const AccountView = memo(function AccountView({
                         </button>
                     </div>
                 </form>
+            </div>
+
+            <div className="card space-y-4">
+                <div>
+                    <p className="text-xs uppercase tracking-[0.28em] text-[var(--muted)]">
+                        {t('billingAccountAccessKicker')}
+                    </p>
+                    <h3 className="text-lg font-semibold">
+                        {t('billingAccountAccessTitle')}
+                    </h3>
+                    <p className="text-sm text-[var(--muted)]">
+                        {t('billingAccountAccessDescription')}
+                    </p>
+                </div>
+                <Link
+                    href="/account/billing"
+                    className="inline-flex min-h-11 items-center rounded-lg border border-[var(--border)] px-4 py-2 font-semibold text-[var(--foreground)] transition-colors hover:bg-white/5"
+                >
+                    {t('billingAccountAccessLink')}
+                </Link>
             </div>
 
             {/* Data Management */}

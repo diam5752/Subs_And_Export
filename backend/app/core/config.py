@@ -59,10 +59,7 @@ class Settings(BaseSettings):
     def validate_google_oauth_certs_url(cls, value: object) -> str:
         normalized = str(value).strip()
         if normalized not in APPROVED_GOOGLE_OAUTH_CERTS_URLS:
-            raise ValueError(
-                "GSP_GOOGLE_OAUTH_CERTS_URL must use an approved "
-                "Google OAuth certificate endpoint"
-            )
+            raise ValueError("GSP_GOOGLE_OAUTH_CERTS_URL must use an approved Google OAuth certificate endpoint")
         return normalized
 
     @field_validator("allowed_origins", "trusted_hosts", "proxy_trusted_hosts", mode="before")
@@ -210,6 +207,18 @@ class Settings(BaseSettings):
         default=False,
         validation_alias="GSP_PAID_CREDITS_ENABLED",
     )
+    consumer_policy_approved: bool = Field(
+        default=False,
+        validation_alias="GSP_CONSUMER_POLICY_APPROVED",
+    )
+    durable_confirmation_channel_ready: bool = Field(
+        default=False,
+        validation_alias="GSP_DURABLE_CONFIRMATION_CHANNEL_READY",
+    )
+    adjustment_workflow_ready: bool = Field(
+        default=False,
+        validation_alias="GSP_ADJUSTMENT_WORKFLOW_READY",
+    )
     stripe_restricted_key: SecretStr | None = Field(
         default=None,
         validation_alias=AliasChoices("GSP_STRIPE_RESTRICTED_KEY", "STRIPE_SECRET_KEY"),
@@ -331,26 +340,30 @@ class Settings(BaseSettings):
         """Fail closed before a runtime can create real Checkout Sessions."""
         if not self.paid_credits_enabled:
             return
+        missing_launch_gates = [
+            gate
+            for gate, ready in (
+                ("consumer policy approval", self.consumer_policy_approved),
+                (
+                    "durable contract-confirmation channel",
+                    self.durable_confirmation_channel_ready,
+                ),
+                ("accountant-approved adjustment workflow", self.adjustment_workflow_ready),
+            )
+            if not ready
+        ]
+        if missing_launch_gates:
+            raise RuntimeError(
+                "Paid credit Checkout remains fail closed until these independent "
+                f"launch gates are ready: {', '.join(missing_launch_gates)}."
+            )
         if self.stripe_automatic_tax_enabled:
             raise RuntimeError(
                 "Stripe Automatic Tax is owner-gated until active tax registrations "
                 "and the tax-inclusive catalog are reviewed."
             )
 
-        restricted_key = (
-            self.stripe_restricted_key.get_secret_value().strip()
-            if self.stripe_restricted_key is not None
-            else ""
-        )
-        webhook_secret = (
-            self.stripe_webhook_secret.get_secret_value().strip()
-            if self.stripe_webhook_secret is not None
-            else ""
-        )
-        if not restricted_key.startswith(("rk_test_", "rk_live_")):
-            raise RuntimeError("A Stripe restricted key is required for paid credits.")
-        if not webhook_secret.startswith("whsec_"):
-            raise RuntimeError("A Stripe webhook signing secret is required for paid credits.")
+        self.assert_stripe_gateway_configuration()
         for price_id in (
             self.stripe_price_starter,
             self.stripe_price_core,
@@ -361,9 +374,37 @@ class Settings(BaseSettings):
         if "{CHECKOUT_SESSION_ID}" not in self.stripe_success_url:
             raise RuntimeError("Stripe success URL must include {CHECKOUT_SESSION_ID}.")
         if not self.is_dev and (
-            not self.stripe_success_url.startswith("https://")
-            or not self.stripe_cancel_url.startswith("https://")
+            not self.stripe_success_url.startswith("https://") or not self.stripe_cancel_url.startswith("https://")
         ):
             raise RuntimeError("Stripe return URLs must use HTTPS outside development.")
+
+    def assert_stripe_gateway_configuration(self) -> None:
+        """Require mode-matched, non-empty secrets before any Stripe SDK use."""
+        restricted_key = (
+            self.stripe_restricted_key.get_secret_value().strip() if self.stripe_restricted_key is not None else ""
+        )
+        webhook_secret = (
+            self.stripe_webhook_secret.get_secret_value().strip() if self.stripe_webhook_secret is not None else ""
+        )
+        expected_key_prefix = "rk_test_" if self.is_dev else "rk_live_"
+        if not restricted_key.startswith(expected_key_prefix):
+            raise RuntimeError(
+                "A Stripe restricted key with an "
+                f"{expected_key_prefix} prefix is required for paid credits "
+                "in this runtime environment."
+            )
+        if not webhook_secret.startswith("whsec_"):
+            raise RuntimeError("A Stripe webhook signing secret is required for paid credits.")
+
+    @property
+    def paid_credit_checkout_enabled(self) -> bool:
+        """Expose the complete launch gate without activating any side effect."""
+        return (
+            self.paid_credits_enabled
+            and self.consumer_policy_approved
+            and self.durable_confirmation_channel_ready
+            and self.adjustment_workflow_ready
+        )
+
 
 settings = Settings()

@@ -27,7 +27,7 @@ from ...core.auth import User
 from ...core.config import settings
 from ...core.database import Database
 from ...core.errors import sanitize_message
-from ...core.gcs import get_gcs_settings, upload_object
+from ...core.gcs import get_gcs_settings
 from ...core.ratelimit import limiter_processing
 from ...schemas.base import JobResponse
 from ...services import pricing
@@ -53,6 +53,7 @@ from .processing_tasks import (
     record_event_safe,
     refund_charge_best_effort,
     run_video_processing,
+    upload_source_for_active_job,
 )
 from .settings import build_processing_settings
 from .validation import ALLOWED_VIDEO_EXTENSIONS
@@ -129,7 +130,7 @@ async def process_video(
     if active_jobs >= settings.max_concurrent_jobs:
         raise HTTPException(
             status_code=429,
-            detail=f"Too many active jobs. Please wait for your current jobs to finish (max {settings.max_concurrent_jobs})."
+            detail=f"Too many active jobs. Please wait for your current jobs to finish (max {settings.max_concurrent_jobs}).",
         )
 
     job_id = str(uuid.uuid4())
@@ -186,7 +187,7 @@ async def process_video(
         input_path.unlink(missing_ok=True)
         raise HTTPException(
             status_code=400,
-            detail=f"Video too long (max {settings.max_video_duration_seconds/60:.1f} minutes)",
+            detail=f"Video too long (max {settings.max_video_duration_seconds / 60:.1f} minutes)",
         )
 
     job = job_store.create_job(job_id, current_user.id)
@@ -226,7 +227,8 @@ async def process_video(
             {
                 "job_id": job_id,
                 "transcribe_tier": proc_settings.transcribe_tier,
-                "provider": proc_settings.transcribe_provider or settings.transcribe_tier_provider[settings.default_transcribe_tier],
+                "provider": proc_settings.transcribe_provider
+                or settings.transcribe_tier_provider[settings.default_transcribe_tier],
                 "video_quality": proc_settings.video_quality,
                 "video_resolution": video_resolution,
                 "use_llm": proc_settings.use_llm,
@@ -241,6 +243,17 @@ async def process_video(
         processing_kwargs: dict[str, Any] = {}
         if source_gcs_object_name:
             processing_kwargs["source_gcs_object_name"] = source_gcs_object_name
+
+        if gcs_settings and source_gcs_object_name:
+            background_tasks.add_task(
+                upload_source_for_active_job,
+                job_id=job_id,
+                job_store=job_store,
+                gcs_settings=gcs_settings,
+                object_name=source_gcs_object_name,
+                source=input_path,
+                content_type=file.content_type or "application/octet-stream",
+            )
 
         background_tasks.add_task(
             run_video_processing,
@@ -259,15 +272,6 @@ async def process_video(
             source_probe=probe,
             **processing_kwargs,
         )
-
-        if gcs_settings and source_gcs_object_name:
-            background_tasks.add_task(
-                upload_object,
-                settings=gcs_settings,
-                object_name=source_gcs_object_name,
-                source=input_path,
-                content_type=file.content_type or "application/octet-stream",
-            )
 
     except Exception as exc:
         refund_charge_best_effort(ledger_store, charge_plan, status="failed", error=sanitize_message(str(exc)))

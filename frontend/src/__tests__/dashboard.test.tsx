@@ -7,6 +7,8 @@ import { useAuth } from '@/context/AuthContext';
 import { useJobs } from '@/hooks/useJobs';
 import { useAppEnv } from '@/context/AppEnvContext';
 
+const mockPaidCreditLegalPublication = { approved: false };
+
 // Mocks
 jest.mock('@/lib/api', () => ({
     api: {
@@ -66,6 +68,12 @@ jest.mock('@/context/I18nContext', () => {
 
 jest.mock('@/context/AppEnvContext', () => ({
     useAppEnv: jest.fn(),
+}));
+
+jest.mock('@/lib/paidCreditLegal', () => ({
+    paidCreditLegalPublicationIsApproved: () => (
+        mockPaidCreditLegalPublication.approved
+    ),
 }));
 
 jest.mock('@/hooks/useJobs', () => ({
@@ -149,6 +157,7 @@ describe('DashboardPage', () => {
         window.localStorage.clear();
         window.history.replaceState({}, '', '/');
         capturedOnReset = null;
+        mockPaidCreditLegalPublication.approved = false;
         (useAppEnv as jest.Mock).mockReturnValue({ appEnv: 'dev' });
         (useAuth as jest.Mock).mockReturnValue({
             user: mockUser,
@@ -163,6 +172,8 @@ describe('DashboardPage', () => {
             catalog_version: 'video-credits-v1',
             currency: 'eur',
             checkout_enabled: false,
+            consumer_contract_status: 'unavailable_unapproved',
+            consumer_contract: null,
             packages: [
                 { key: 'starter', credits: 100, amount_eur_cents: 100, featured: false },
             ],
@@ -285,14 +296,32 @@ describe('DashboardPage', () => {
         expect(screen.queryByRole('button', { name: 'switchLanguage' })).not.toBeInTheDocument();
     });
 
-    it('opens the credit packages from the authenticated header balance', async () => {
+    // REGRESSION: the disabled production UI exposed prices and a purchase
+    // dialog even though paid-credit legal publication was not approved.
+    it('keeps the balance visible without exposing a purchase entry point', () => {
         render(<DashboardPage />);
 
         fireEvent.click(screen.getByRole('button', { name: 'creditsLabel: 125' }));
 
-        expect(await screen.findByRole('dialog', { name: 'creditPurchaseTitle' })).toBeInTheDocument();
+        expect(screen.getByTestId('credits-balance')).toHaveTextContent('125');
+        expect(__refreshBalanceMock).toHaveBeenCalledTimes(1);
+        expect(screen.queryByRole('dialog', {
+            name: 'creditPurchaseTitle',
+        })).not.toBeInTheDocument();
+        expect(screen.queryByText(/€(?:1|3|10)\.00/)).not.toBeInTheDocument();
+        expect(api.getCreditCatalog).not.toHaveBeenCalled();
+    });
+
+    it('opens the purchase dialog only after code-owned publication approval', async () => {
+        mockPaidCreditLegalPublication.approved = true;
+        render(<DashboardPage />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'creditsLabel: 125' }));
+
+        expect(await screen.findByRole('dialog', {
+            name: 'creditPurchaseTitle',
+        })).toBeInTheDocument();
         expect(api.getCreditCatalog).toHaveBeenCalledTimes(1);
-        expect(screen.getByRole('radio', { name: /starter/i })).toBeInTheDocument();
     });
 
     it.each([

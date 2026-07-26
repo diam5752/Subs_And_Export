@@ -241,7 +241,7 @@
     },
     "check:e2e": {
       "kind": "shell",
-      "shell": "cd frontend && npm run e2e",
+      "shell": "cd frontend && PLAYWRIGHT_PORT=31873 npm run e2e",
       "status": "enabled"
     },
     "check:integration": {
@@ -266,7 +266,7 @@
     },
     "check:security": {
       "kind": "shell",
-      "shell": "cd backend && rm -rf .audit-venv && python3 -m venv .audit-venv && . .audit-venv/bin/activate && python -m pip install --upgrade pip >/dev/null && pip install -r requirements.txt bandit pip-audit >/dev/null && bandit -r app -ll && pip-audit --local && deactivate && rm -rf .audit-venv && cd ../frontend && npm audit --audit-level=high",
+      "shell": "bash .codex/scripts/run_security_gate.sh",
       "status": "enabled"
     },
     "check:mutation": {

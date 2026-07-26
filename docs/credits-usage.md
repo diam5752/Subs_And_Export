@@ -1,11 +1,11 @@
 # Prepaid video credits and Stripe handoff
 
-Updated: 2026-07-25
+Updated: 2026-07-26
 
 Stripe test-mode setup and a card Checkout have been validated. Production
-paid credits remain fail closed until the owner completes the separate live
-setup and explicitly enables them. No subscription or automatic renewal is
-used.
+paid credits remain fail closed until the separate live infrastructure and
+verification are complete and an authorized operator explicitly enables them.
+No subscription or automatic renewal is used.
 
 ## Customer prices
 
@@ -99,44 +99,155 @@ Current official references:
 9. The visible 30/60/100 video charge includes optional social-copy generation;
    it is not deducted a second time.
 
-## Stripe dashboard setup to do with the owner
+## Validated accounting baseline and remaining consumer handoff
 
-Do this in **test mode first**:
+The accountant-reviewed MizAI workflow is the GSUBS accounting baseline:
 
-1. Create one `GSUBS Credits` Product with three one-time Prices in EUR:
-   Starter €1, Creator €3 and Studio €10. Copy their `price_...` IDs.
-2. Create a restricted test key. Grant only the minimum Checkout Session
-   permissions needed to create and expire sessions; do not use the account
-   secret key.
-3. Add a webhook endpoint:
-   `https://<host>/billing/webhook`.
-4. Subscribe to:
+- Starter €1, Creator €3 and Studio €10 are final gross prices inclusive of
+  24% VAT for the accountant-reviewed Greek B2C baseline. Stripe Automatic Tax
+  remains disabled. This baseline does not approve sales to every billing
+  country that Stripe Checkout can collect.
+- In the tested sandbox, Checkout is hosted by Stripe and collects the buyer's
+  individual name, email and billing address. Stripe handles card details;
+  GSUBS never stores the full card number or CVC. This does not describe an
+  active public sale.
+- The Stripe receipt is payment evidence, not an AADE tax document. Ascentia
+  issues the tax document manually through e-Timologio and records its series,
+  number and MARK against the internal purchase.
+- Credits are prepaid internal units used only to pay for GSUBS digital
+  processing; they are not, by themselves, downloadable digital content. The
+  final consumer-law classification, withdrawal wording and proportional
+  refund treatment remain subject to legal review. The application must not
+  publish a blanket “used credits are non-refundable” rule or infer that
+  crediting the wallet alone ends a mandatory withdrawal right.
+- Media workspaces still expire after 24 hours. The minimum payment, invoice
+  and MARK snapshot is retained through the end of the fifth full year after
+  the relevant tax year, and longer only when required by law or an active tax
+  or payment dispute.
+
+The sandbox has one `GSUBS Credits` Product, three one-time EUR Prices, a
+least-privilege restricted test key and a successful €1 card Checkout with a
+signed webhook and exactly one 100-credit fulfillment. This proves test mode;
+it does not configure or authorize live sales.
+
+The payment reconciliation, durable original-document snapshot, consumer
+contract evidence and retention foundation is implemented in this release
+candidate. Consumer-contract wording and delivery are deliberately marked
+draft/unapproved in code. The public Terms page says paid-credit sales are not
+active and does not publish the draft sale/withdrawal text as operative terms;
+the unauthenticated catalog returns `consumer_contract: null` until the full
+backend approval manifest matches. The approval predicate also rejects any
+policy, terms, withdrawal, confirmation-template or disclosure identifier that
+still contains `draft`; status and manifest flips cannot approve draft
+versions.
+The separate AADE adjustment-document workflow for refunds, disputes and
+chargebacks remains a live-activation blocker. None of this is production
+evidence until the full gates pass and the exact clean commit is deployed and
+verified on `gsubs.gr`.
+
+Before enabling live paid Checkout:
+
+1. Deploy and verify the completed order-independent refund/dispute
+   reconciliation and its reverse-delivery regression suite on `gsubs.gr`,
+   while the tracked production Compose keeps Checkout disabled.
+2. Apply and verify migrations `0013_durable_billing_records` and
+   `0014_consumer_contract_records` while Checkout remains disabled. Confirm
+   account deletion preserves only legally required financial evidence, still
+   removes the 24-hour media workspace, and cannot orphan a pending withdrawal
+   acknowledgement. Migration 0014 deliberately rejects any
+   `available_approved` confirmation row and supports only pending withdrawal
+   requests. Durable-channel approval therefore requires a separate reviewed
+   0015 migration; changing a status string is insufficient.
+3. Obtain an accountant-approved billing-country policy for the 24% VAT
+   baseline. Enforce the permitted geography before creating a charge and
+   verify the signed Checkout billing country again before fulfillment. A
+   populated country field alone is not tax readiness; any mismatch or
+   unapproved country must fail closed without granting credits.
+4. Confirm with the accountant how every refund, dispute and chargeback is
+   represented in AADE. Add the reviewed one-to-many adjustment workflow so
+   each required correction has its own immutable identity and MARK, without
+   mutating the original document. AADE supports associated retail credit
+   documents (11.4), but the application must not infer that every Stripe
+   reversal requires that treatment:
+   [official AADE update](https://aade.gr/teleytaia-nea-mydata/timologio-update-ekdosi-syshetizomenon-pistotikon-lianikis-114).
+5. Obtain consumer-law review of the exact localized disclosures, complete
+   model withdrawal form, full legal trader identity, geographical address and
+   telephone number. Approve a real durable delivery channel for both the
+   contract confirmation and withdrawal acknowledgement, plus an account
+   deletion design that preserves access during the applicable period. Bind the
+   exact EL/EN disclosure IDs, policy/terms/withdrawal/template versions and
+   canonical SHA-256 values in the code-owned backend approval manifest, and
+   separately review the byte-identical backend/frontend
+   `paid_credit_legal_publication.json` identity. Its non-draft Terms version
+   and digest must bind `/terms` to that exact backend manifest; the current
+   inactive identity has a null digest, so backend activation and frontend
+   publication both remain impossible. Do not approve that identity until the
+   frontend actually publishes the complete counsel-approved localized
+   paid-credit sale terms at `/terms`, a real `id="withdrawal"` section
+   containing the complete localized model withdrawal form, and reviewed
+   conditional Privacy wording for the Stripe/payment/accounting processing
+   that becomes active with paid sales. Browser tests must prove the approved
+   `/terms#withdrawal` deep link resolves to that real content in both locales;
+   an approval JSON/status change by itself is not publication.
+6. Replace the current append-only, pending-only withdrawal placeholder with a
+   reviewed append-only decision/outcome workflow. It must bind any Stripe
+   refund and any accountant-approved AADE adjustment/MARK without mutating the
+   original request or original tax-document evidence, and must release the
+   retention hold only after a terminal reviewed outcome. Keep the code-owned
+   `ADJUSTMENT_WORKFLOW_IMPLEMENTED = False` until that implementation and its
+   durable customer notification are verified.
+7. Implement and have counsel review an explicit Europe/Athens legal calendar,
+   including exclusion of the contract-conclusion day and any applicable
+   weekend or Greek public-holiday extension. Until then the application must
+   not calculate or publish a 14-day deadline or eligibility boolean. It keeps
+   the online action available for every concluded contract without an
+   existing request, timestamps every request and records only
+   `timeliness_assessment_status = pending_manual_review`.
+8. Confirm the deployed database contains no historical fulfilled live Stripe
+   purchase requiring an adjustment before relying on the disabled foundation.
+9. Create separate live Prices and a least-privilege live restricted key. It
+   must grant Checkout Sessions Write, PaymentIntents Read and Refunds Read;
+   Refunds Read is required for authoritative, fully paginated reconciliation
+   before any refund-driven wallet mutation. Store the key only in the
+   production secret store. Treat a permission error, incomplete page or
+   provider error as an activation blocker.
+10. Prepare a separate reviewed Compose/verifier release that can receive live
+   secrets while `GSP_PAID_CREDITS_ENABLED=0`. Add
+   `https://gsubs.gr/billing/webhook`, store its live `whsec_...` secret, and
+   subscribe to:
    `checkout.session.completed`,
    `checkout.session.async_payment_succeeded`,
    `checkout.session.async_payment_failed`, `checkout.session.expired`,
-   `charge.refunded`,
-   `charge.dispute.created`, `charge.dispute.funds_withdrawn`,
-   `charge.dispute.funds_reinstated`, and `charge.dispute.closed`.
-5. Copy the endpoint signing secret (`whsec_...`) to the server secret store.
-6. Checkout creates a Stripe Customer and requires the buyer's individual name
-   and billing address so the payment can be reconciled with the manual
-   e-Timologio workflow. Stripe does not issue an AADE invoice.
-7. Pausing `GSP_PAID_CREDITS_ENABLED` blocks new Checkout Sessions only. Keep
-   the restricted key and webhook signing secret available so signed refunds,
-   disputes, expirations and delayed-payment results for existing purchases can
-   still be reconciled.
-8. Review the legal seller name, statement descriptor, support contact,
-   refund policy and customer email behavior.
-9. Decide VAT treatment with the accountant. Automatic Tax deliberately fails
-   startup while owner-gated; do not enable it until registrations and
-   tax-inclusive prices are confirmed.
-10. Set test environment values, run migrations, enable paid credits, and use
-   Stripe test cards to cover success, cancellation, delayed payment, duplicate
-   webhook, partial/full refund and dispute flows.
-11. Reconcile the Stripe payment total, `credit_purchases`,
-   `stripe_webhook_events`, point transactions and provider budget windows.
-12. Repeat with separate live Prices, restricted key and webhook secret only
-    after the test-mode reconciliation passes.
+   `charge.refunded`, `refund.created`, `refund.updated`, `refund.failed`,
+   `charge.dispute.created`, `charge.dispute.updated`,
+   `charge.dispute.funds_withdrawn`, `charge.dispute.funds_reinstated`, and
+   `charge.dispute.closed`.
+11. Verify the live Stripe seller identity, statement descriptor, support
+   contact and receipt settings match the published GSUBS terms.
+12. Replace the stale template legal pages currently published on the
+    Ascentia site before using them as the trader's official legal destination:
+    [privacy](https://ascentia-gp.com/privacy) and
+    [terms](https://ascentia-gp.com/terms).
+13. Only with explicit authorization for a real charge, enable
+   `GSP_PAID_CREDITS_ENABLED=1` in that reviewed deployment contract, run one
+   smallest-package Checkout and reconcile Stripe total, `credit_purchases`,
+   `stripe_webhook_events`, point transactions and the manual AADE record.
+   Verify that MARK remains empty until the tax document is actually issued.
+14. Keep paid Checkout enabled only after the deployed endpoint, migrations,
+   signed webhook, duplicate delivery and end-to-end reconciliation evidence
+   are all green; otherwise return it to `0`. Activation is one atomic reviewed
+   release: backend EL/EN manifest and implementation booleans, frontend legal
+   publication gate, 0015 durable-delivery/resolution schema, three environment
+   approval flags, Stripe secrets/Prices/webhook, and production verifier must
+   agree in the same deployed version.
+
+The current Hetzner Compose file hard-forces paid Checkout and Automatic Tax
+off, hard-forces every consumer-contract/confirmation/adjustment approval to
+off, and replaces every Stripe credential, Price ID and billing-admin allowlist
+with an empty value. A live or AADE-admin handoff therefore requires a separate
+reviewed commit changing both `deploy/hetzner/docker-compose.production.yml`
+and its corresponding `verify-production.sh` assertions. Editing
+`.env.production` alone cannot enable or approve either capability.
 
 ## Current sandbox mapping
 
@@ -150,37 +261,81 @@ AADE document:
 | Studio (`pro`) | 1,200 | €10.00 | `price_1TxBTrFxotLWYrtg7Hh8VEyR` |
 
 All three Prices belong to the Stripe sandbox Product
-`prod_Ux5fP4UP201f4y` (`GSUBS Credits`). For manual e-Timologio
+`prod_Ux5fP4UP201f4y` (`GSUBS Credits`), which uses the accountant-approved
+MizAI SaaS business-use tax code `txcd_10103001`. For manual e-Timologio
 reconciliation, use the existing AADE service item with code `4`. Match one
 paid Stripe Checkout to one internal `credit_purchases` row by
 `checkout_session_id`, `payment_intent_id`, `purchase_id` and
 `integration_identifier`; then issue the appropriate AADE document manually.
-The integration must never infer that a Stripe payment already has a MARK.
+After real issuance, an authorized administrator may record the document
+type, series, AA, MARK and issue time exactly once through
+`POST /billing/admin/invoices/{invoice_id}/record-issued`. That endpoint only
+records an already-issued document; it never calls AADE or Stripe. The
+integration must never infer that a Stripe payment already has a MARK.
 
 ## Live activation blockers
 
 Keep production Checkout disabled until all of these are closed:
 
-- the accountant confirms VAT treatment and the manual e-Timologio document
-  workflow;
-- the owner approves Stripe receipt email and Customer/address retention;
-- dispute reconciliation becomes order-independent and has a reverse-delivery
-  regression test, because Stripe does not guarantee webhook delivery order;
-- separate live Prices, a least-privilege live restricted key and a signed live
-  webhook endpoint pass the complete reconciliation checklist.
+- the accountant approves the exact billing-country scope for the 24% VAT
+  model, and the application enforces that scope before Checkout plus verifies
+  the signed billing country again before fulfillment;
+- the completed order-independent dispute/refund reconciliation and
+  reverse-delivery regression suite pass against the deployed release;
+- the accountant confirms the exact AADE treatment of refunds, disputes and
+  chargebacks, and the application can queue and retain every required
+  adjustment or credit document with its own immutable identity and MARK;
+- a consumer-law reviewer approves the complete localized sale/withdrawal
+  terms, model form, full trader identity/address/telephone, durable delivery
+  channel and account-deletion behavior, and the exact EL/EN manifest plus
+  the byte-identical backend/frontend public-Terms approval identity and digest
+  are one reviewed code change;
+- the approved frontend actually renders those digest-bound localized
+  paid-credit terms at `/terms`, a real `#withdrawal` section with the complete
+  model form, and matching conditional Stripe/payment/accounting wording on
+  `/privacy`; browser tests verify both locales and the deep link before the
+  publication identity can become approved;
+- the pending-only withdrawal placeholder has an append-only terminal outcome
+  linked to any Stripe refund and accountant-approved AADE adjustment, so its
+  retention hold is bounded after resolution, durable notification is recorded,
+  and `ADJUSTMENT_WORKFLOW_IMPLEMENTED` can truthfully become `True`;
+- the reviewed Europe/Athens legal calendar and Greek holiday rules replace
+  manual timeliness assessment; until then no computed deadline or
+  in-window/out-of-window claim is exposed and the online action remains
+  available for every concluded contract that has no existing request;
+- migrations `0013_durable_billing_records` and
+  `0014_consumer_contract_records`, fiscal-year retention behavior and the
+  account-deletion exceptions pass deployed verification, followed by a
+  separately reviewed 0015 migration replacing the deliberately pending-only
+  delivery/resolution constraints;
+- the external Ascentia privacy and terms pages no longer contain stale
+  third-party template names or support contacts;
+- a separate reviewed deployment change replaces the tracked fail-closed
+  Compose and verifier contract; live activation is never an environment-only
+  change;
+- separate live Prices, a least-privilege live restricted key with Checkout
+  Sessions Write, PaymentIntents Read and Refunds Read, and a signed live
+  webhook endpoint pass the complete reconciliation checklist, including a
+  successful fully paginated Refund list probe;
+- one explicitly authorized live Starter transaction is reconciled end to end,
+  while the AADE MARK remains manual and is never inferred from Stripe.
 
 Required environment shape (secrets must not be committed):
 
 ```dotenv
 GSP_PAID_CREDITS_ENABLED=0
+GSP_CONSUMER_POLICY_APPROVED=0
+GSP_DURABLE_CONFIRMATION_CHANNEL_READY=0
+GSP_ADJUSTMENT_WORKFLOW_READY=0
 GSP_STRIPE_RESTRICTED_KEY=
 GSP_STRIPE_WEBHOOK_SECRET=
 GSP_STRIPE_PRICE_STARTER=
 GSP_STRIPE_PRICE_CORE=
 GSP_STRIPE_PRICE_PRO=
-GSP_STRIPE_SUCCESS_URL=https://example.com/?checkout=success&session_id={CHECKOUT_SESSION_ID}
-GSP_STRIPE_CANCEL_URL=https://example.com/?checkout=cancelled
+GSP_STRIPE_SUCCESS_URL=https://gsubs.gr/?checkout=success&session_id={CHECKOUT_SESSION_ID}
+GSP_STRIPE_CANCEL_URL=https://gsubs.gr/?checkout=cancelled
 GSP_STRIPE_AUTOMATIC_TAX_ENABLED=0
+GSP_BILLING_ADMIN_USER_IDS=
 
 GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD=0
 GSP_EXTERNAL_PROVIDER_DAILY_BUDGET_USD=0
@@ -190,27 +345,47 @@ GSP_EXTERNAL_PROVIDER_PRICE_SAFETY_MULTIPLIER=1.25
 
 With `GSP_PAID_CREDITS_ENABLED=1`, startup rejects a missing/ordinary Stripe
 key, missing webhook secret, missing Price ID, unsafe production return URL or
-owner-unapproved Automatic Tax. Provider budgets should remain zero until real
-provider activation is approved separately.
+Automatic Tax enabled against the approved manual tax workflow. Provider
+budgets should remain zero until real provider activation is approved
+separately.
+
+`GSP_BILLING_ADMIN_USER_IDS` accepts a comma-separated allowlist of immutable
+internal `users.id` values. Email addresses, malformed entries, duplicates and
+unverified accounts are rejected fail closed. Leaving it empty disables the
+manual billing-admin endpoints.
 
 ## Operational verification
 
 ```bash
-# From repository root
+# Canonical release gates, from the repository root
+make check-all
+(cd frontend && npm run build)
+
+# Focused billing regression suite for iteration
 python3 -m pytest --no-cov backend/tests/services/test_billing.py \
+  backend/tests/services/test_consumer_contracts.py \
+  backend/tests/services/test_billing_snapshots.py \
   backend/tests/services/test_points.py \
+  backend/tests/services/test_financial_records.py \
   backend/tests/services/test_provider_budget.py \
   backend/tests/services/test_usage_ledger.py \
   backend/tests/services/test_charge_plans.py \
+  backend/tests/test_billing_admin_api.py \
+  backend/tests/test_billing_financial_migration.py \
+  backend/tests/test_consumer_contract_migration.py \
+  backend/tests/test_billing_financial_retention.py \
   backend/tests/test_billing_endpoints.py -q
-
-cd frontend
-npm test -- --runInBand
-npm run lint
-npm run build
-npx playwright test --project=chromium
 ```
 
-Migrations `0008_video_credits_and_billing` and
-`0009_reversal_debt_audit`, followed by `0010_unique_payment_intent`, must be
-applied before enabling checkout.
+`make check-all` runs the repository contract, strict static analysis, backend
+and frontend coverage suites, integration and real-media export tests,
+architecture and Java 25 checks, dependency/security audits, and Playwright
+E2E. The separate `npm run build` validates the production Next.js build
+because the Playwright gate uses the development server.
+
+Migrations `0008_video_credits_and_billing`,
+`0009_reversal_debt_audit`, `0010_unique_payment_intent` and
+`0013_durable_billing_records` and `0014_consumer_contract_records` are required
+for this disabled scaffold. Live activation additionally requires the future,
+separately reviewed 0015 durable-delivery and withdrawal-resolution migration;
+0014 intentionally cannot represent an approved delivery or terminal outcome.

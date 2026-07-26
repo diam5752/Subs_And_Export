@@ -92,7 +92,9 @@ def test_gcs_process_consumes_upload_id(client: TestClient, user_auth_headers: d
     assert process_again.status_code == 404
 
 
-def test_export_falls_back_to_gcs_when_input_missing(client: TestClient, user_auth_headers: dict[str, str], monkeypatch, tmp_path) -> None:
+def test_export_falls_back_to_gcs_when_input_missing(
+    client: TestClient, user_auth_headers: dict[str, str], monkeypatch, tmp_path
+) -> None:
     monkeypatch.setenv("GSP_GCS_BUCKET", "test-bucket")
     dummy_settings = videos.get_gcs_settings()
     assert dummy_settings is not None
@@ -118,7 +120,11 @@ def test_export_falls_back_to_gcs_when_input_missing(client: TestClient, user_au
     monkeypatch.setattr(export_routes, "download_object", fake_download)
     monkeypatch.setattr(export_routes, "upload_object", lambda **_kwargs: None)
     monkeypatch.setattr(export_routes, "get_gcs_settings", lambda: dummy_settings)
-    monkeypatch.setattr(videos, "upload_object", lambda **_kwargs: None)
+    monkeypatch.setattr(
+        videos,
+        "upload_source_for_active_job",
+        lambda **_kwargs: None,
+    )
 
     def fake_run_processing(
         job_id: str,
