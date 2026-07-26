@@ -34,6 +34,7 @@ def test_settings_defaults(monkeypatch) -> None:
     assert settings.adjustment_workflow_ready is False
     assert settings.paid_credit_checkout_enabled is False
     assert settings.stripe_automatic_tax_enabled is False
+    assert settings.stripe_api_base == "https://api.stripe.com"
     assert settings.google_oauth_certs_url == "https://www.googleapis.com/oauth2/v1/certs"
     assert settings.external_provider_price_safety_multiplier == 1.25
     assert settings.watermark_path.name == "gsubs-logo.png"
@@ -45,6 +46,7 @@ def test_runtime_startup_rejects_environment_activation_of_draft_registry(
 ) -> None:
     from backend import main as main_module
 
+    stage_validation = Mock()
     environment_validation = Mock()
     code_approval = Mock(
         side_effect=RuntimeError("consumer registry is unapproved"),
@@ -53,6 +55,7 @@ def test_runtime_startup_rejects_environment_activation_of_draft_registry(
         main_module,
         "settings",
         SimpleNamespace(
+            assert_stripe_stage_configuration=stage_validation,
             assert_paid_credits_configuration=environment_validation,
             paid_credit_checkout_enabled=True,
         ),
@@ -66,6 +69,7 @@ def test_runtime_startup_rejects_environment_activation_of_draft_registry(
     with pytest.raises(RuntimeError, match="registry is unapproved"):
         main_module.assert_runtime_billing_configuration()
 
+    stage_validation.assert_called_once_with()
     environment_validation.assert_called_once_with()
     code_approval.assert_called_once_with()
 
@@ -89,6 +93,10 @@ def test_settings_environment_overrides(monkeypatch) -> None:
         "GSP_GOOGLE_OAUTH_CERTS_URL",
         "http://edge:8081/oauth2/v1/certs",
     )
+    monkeypatch.setenv(
+        "GSP_STRIPE_API_BASE",
+        "http://edge:8081/stripe",
+    )
 
     settings = Settings(_env_file=None)
 
@@ -107,6 +115,7 @@ def test_settings_environment_overrides(monkeypatch) -> None:
     assert settings.allowed_origins == ["https://one.example", "https://two.example"]
     assert settings.trusted_hosts == ["localhost", "127.0.0.1"]
     assert settings.google_oauth_certs_url == "http://edge:8081/oauth2/v1/certs"
+    assert settings.stripe_api_base == "http://edge:8081/stripe"
 
 
 def test_settings_rejects_nonpositive_upload_limit(monkeypatch) -> None:
@@ -123,6 +132,16 @@ def test_settings_rejects_unapproved_google_oauth_certs_url(monkeypatch) -> None
     )
 
     with pytest.raises(ValueError, match="approved Google OAuth certificate endpoint"):
+        Settings(_env_file=None)
+
+
+def test_settings_rejects_unapproved_stripe_api_base(monkeypatch) -> None:
+    monkeypatch.setenv(
+        "GSP_STRIPE_API_BASE",
+        "https://attacker.example/stripe",
+    )
+
+    with pytest.raises(ValueError, match="approved Stripe API endpoint"):
         Settings(_env_file=None)
 
 
@@ -163,6 +182,73 @@ def test_paid_credits_configuration_is_a_noop_while_sales_are_disabled(
     settings = Settings(_env_file=None)
 
     settings.assert_paid_credits_configuration()
+
+
+def test_stripe_stage_configuration_accepts_absent_bundle(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for variable in (
+        "GSP_STRIPE_RESTRICTED_KEY",
+        "GSP_STRIPE_WEBHOOK_SECRET",
+        "GSP_STRIPE_PRICE_STARTER",
+        "GSP_STRIPE_PRICE_CORE",
+        "GSP_STRIPE_PRICE_PRO",
+    ):
+        monkeypatch.delenv(variable, raising=False)
+    settings = Settings(_env_file=None)
+
+    assert settings.assert_stripe_stage_configuration() is False
+
+
+def test_stripe_stage_configuration_accepts_complete_live_bundle_while_sales_are_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("GSP_APP_ENV", "production")
+    monkeypatch.setenv("GSP_PAID_CREDITS_ENABLED", "false")
+    monkeypatch.setenv("GSP_STRIPE_RESTRICTED_KEY", "rk_live_placeholder")
+    monkeypatch.setenv("GSP_STRIPE_WEBHOOK_SECRET", "whsec_placeholder")
+    monkeypatch.setenv("GSP_STRIPE_PRICE_STARTER", "price_starter")
+    monkeypatch.setenv("GSP_STRIPE_PRICE_CORE", "price_core")
+    monkeypatch.setenv("GSP_STRIPE_PRICE_PRO", "price_pro")
+    monkeypatch.setenv("GSP_STRIPE_API_BASE", "http://edge:8081/stripe")
+    monkeypatch.setenv(
+        "GSP_STRIPE_SUCCESS_URL",
+        "https://gsubs.gr/?checkout=success&session_id={CHECKOUT_SESSION_ID}",
+    )
+    monkeypatch.setenv(
+        "GSP_STRIPE_CANCEL_URL",
+        "https://gsubs.gr/?checkout=cancelled",
+    )
+    settings = Settings(_env_file=None)
+
+    assert settings.assert_stripe_stage_configuration() is True
+    assert settings.paid_credit_checkout_enabled is False
+
+
+@pytest.mark.parametrize(
+    "missing_env",
+    (
+        "GSP_STRIPE_WEBHOOK_SECRET",
+        "GSP_STRIPE_PRICE_STARTER",
+        "GSP_STRIPE_PRICE_CORE",
+        "GSP_STRIPE_PRICE_PRO",
+    ),
+)
+def test_stripe_stage_configuration_rejects_partial_bundle(
+    monkeypatch: pytest.MonkeyPatch,
+    missing_env: str,
+) -> None:
+    monkeypatch.setenv("GSP_APP_ENV", "production")
+    monkeypatch.setenv("GSP_STRIPE_RESTRICTED_KEY", "rk_live_placeholder")
+    monkeypatch.setenv("GSP_STRIPE_WEBHOOK_SECRET", "whsec_placeholder")
+    monkeypatch.setenv("GSP_STRIPE_PRICE_STARTER", "price_starter")
+    monkeypatch.setenv("GSP_STRIPE_PRICE_CORE", "price_core")
+    monkeypatch.setenv("GSP_STRIPE_PRICE_PRO", "price_pro")
+    monkeypatch.delenv(missing_env)
+    settings = Settings(_env_file=None)
+
+    with pytest.raises(RuntimeError, match="complete or entirely absent"):
+        settings.assert_stripe_stage_configuration()
 
 
 def test_paid_credits_configuration_accepts_reviewed_test_mode(

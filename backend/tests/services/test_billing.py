@@ -3342,6 +3342,7 @@ def test_stripe_sdk_gateway_disables_retries_uses_fixed_price_and_verifies_signa
     assert checkout.id == "cs_test_fixed"
     assert captured["client_kwargs"] == {
         "stripe_version": "2026-06-24.dahlia",
+        "base_addresses": {"api": "https://api.stripe.com"},
         "max_network_retries": 0,
     }
     params = captured["params"]

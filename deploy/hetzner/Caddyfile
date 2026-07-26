@@ -31,6 +31,50 @@
 }
 
 :8081 {
+	@stripe_checkout_create {
+		method POST
+		path /stripe/v1/checkout/sessions
+	}
+	handle @stripe_checkout_create {
+		uri strip_prefix /stripe
+		reverse_proxy https://api.stripe.com {
+			header_up Host api.stripe.com
+		}
+	}
+
+	@stripe_checkout_expire {
+		method POST
+		path_regexp stripe_checkout_expire ^/stripe/v1/checkout/sessions/cs_(?:test|live)_[A-Za-z0-9_]+/expire$
+	}
+	handle @stripe_checkout_expire {
+		uri strip_prefix /stripe
+		reverse_proxy https://api.stripe.com {
+			header_up Host api.stripe.com
+		}
+	}
+
+	@stripe_payment_intent_retrieve {
+		method GET
+		path_regexp stripe_payment_intent ^/stripe/v1/payment_intents/pi_[A-Za-z0-9_]+$
+	}
+	handle @stripe_payment_intent_retrieve {
+		uri strip_prefix /stripe
+		reverse_proxy https://api.stripe.com {
+			header_up Host api.stripe.com
+		}
+	}
+
+	@stripe_refund_list {
+		method GET
+		path /stripe/v1/refunds
+	}
+	handle @stripe_refund_list {
+		uri strip_prefix /stripe
+		reverse_proxy https://api.stripe.com {
+			header_up Host api.stripe.com
+		}
+	}
+
 	@google_oauth_certs path /oauth2/v1/certs
 	handle @google_oauth_certs {
 		reverse_proxy https://www.googleapis.com {

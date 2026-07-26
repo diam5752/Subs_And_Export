@@ -17,10 +17,17 @@ provider budgets, `GSP_PAID_CREDITS_ENABLED=0`, and
 `GSP_STRIPE_AUTOMATIC_TAX_ENABLED=0`. It separately forces the consumer-policy,
 durable-confirmation-channel and adjustment-workflow approvals to `0`, so an
 environment-file change cannot approve an unfinished legal or operational
-workflow. It also forces
-`GSP_GCS_BUCKET=""` and replaces every Stripe key, webhook secret, Price ID
-and the billing-admin allowlist with an empty value.
-Values placed only in `.env.production` cannot bypass these tracked overrides.
+workflow. It also forces `GSP_GCS_BUCKET=""` and the billing-admin allowlist
+to an empty value.
+
+The Compose contract can stage one complete live Stripe bundle (restricted
+key, webhook signing secret and all three Price IDs) from the untracked
+production environment while sales remain disabled. Partial bundles fail the
+production verifier. Stripe API traffic leaves the internal-only backend only
+through an edge relay limited to Checkout Session creation/expiry,
+PaymentIntent retrieval and Refund listing. Values placed only in
+`.env.production` still cannot bypass the tracked Checkout, Automatic Tax or
+approval overrides.
 
 GCS activation has a separate privacy blocker: individual and batch terminal
 project deletion must first delete every exact static artifact object before
@@ -29,14 +36,14 @@ its exact known GCS objects, but that does not close the per-project deletion
 gap. Keep `GSP_GCS_BUCKET` empty until this behavior and its cross-user
 isolation tests are implemented and reviewed.
 
-The first billing-aware release must therefore apply and verify its database
-migrations while paid Checkout remains unavailable. Enabling live sales later
-requires a separate reviewed commit that changes both the tracked Compose
+The billing-aware release must apply and verify its database migrations while
+paid Checkout remains unavailable. Enabling live sales later requires a
+separate reviewed commit that changes both the tracked Checkout/approval
 overrides and the matching fail-closed assertions in `verify-production.sh`.
 Enabling the manual AADE/MARK record endpoint likewise requires a reviewed
 change to both files after the accountant workflow is confirmed. Both actions
-require explicit operator authorization; do not add live Stripe credentials or
-an admin allowlist as part of this release.
+require explicit operator authorization; staging a complete Stripe bundle does
+not authorize a charge or an admin allowlist.
 
 ## Release procedure
 
@@ -198,8 +205,9 @@ ssh -N -L 127.0.0.1:18090:127.0.0.1:18090 root@SERVER
 ```
 
 `verify-production.sh` checks container health and image SHAs, every fail-closed
-payment/provider setting, the Google certificate relay, the Alembic head, and
-that `/billing/catalog` returns `checkout_enabled=false`.
+payment/provider setting, the complete-or-absent Stripe staging bundle, the
+method/path-scoped Stripe relay, the Google certificate relay, the Alembic head,
+and that `/billing/catalog` returns `checkout_enabled=false`.
 `deploy-production.sh` runs that complete verifier in candidate mode before it
 atomically replaces `.runtime/last-successful-release`. A candidate-verification
 failure leaves the previously recorded SHA unchanged and follows the documented

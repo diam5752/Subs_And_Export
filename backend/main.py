@@ -44,6 +44,7 @@ from backend.app.services.consumer_contracts import (
 
 def assert_runtime_billing_configuration() -> None:
     """Validate both environment and code-owned paid-credit launch gates."""
+    settings.assert_stripe_stage_configuration()
     settings.assert_paid_credits_configuration()
     if settings.paid_credit_checkout_enabled:
         assert_consumer_contract_registry_approved()

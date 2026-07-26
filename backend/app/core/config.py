@@ -19,6 +19,14 @@ APPROVED_GOOGLE_OAUTH_CERTS_URLS = frozenset(
         GOOGLE_INTERNAL_OAUTH_CERTS_URL,
     }
 )
+STRIPE_PUBLIC_API_BASE = "https://api.stripe.com"
+STRIPE_INTERNAL_API_BASE = "http://edge:8081/stripe"
+APPROVED_STRIPE_API_BASES = frozenset(
+    {
+        STRIPE_PUBLIC_API_BASE,
+        STRIPE_INTERNAL_API_BASE,
+    }
+)
 
 
 class AppEnv(StrEnum):
@@ -60,6 +68,14 @@ class Settings(BaseSettings):
         normalized = str(value).strip()
         if normalized not in APPROVED_GOOGLE_OAUTH_CERTS_URLS:
             raise ValueError("GSP_GOOGLE_OAUTH_CERTS_URL must use an approved Google OAuth certificate endpoint")
+        return normalized
+
+    @field_validator("stripe_api_base", mode="before")
+    @classmethod
+    def validate_stripe_api_base(cls, value: object) -> str:
+        normalized = str(value).strip().rstrip("/")
+        if normalized not in APPROVED_STRIPE_API_BASES:
+            raise ValueError("GSP_STRIPE_API_BASE must use an approved Stripe API endpoint")
         return normalized
 
     @field_validator("allowed_origins", "trusted_hosts", "proxy_trusted_hosts", mode="before")
@@ -219,6 +235,10 @@ class Settings(BaseSettings):
         default=False,
         validation_alias="GSP_ADJUSTMENT_WORKFLOW_READY",
     )
+    stripe_api_base: str = Field(
+        default=STRIPE_PUBLIC_API_BASE,
+        validation_alias="GSP_STRIPE_API_BASE",
+    )
     stripe_restricted_key: SecretStr | None = Field(
         default=None,
         validation_alias=AliasChoices("GSP_STRIPE_RESTRICTED_KEY", "STRIPE_SECRET_KEY"),
@@ -363,20 +383,61 @@ class Settings(BaseSettings):
                 "and the tax-inclusive catalog are reviewed."
             )
 
+        if not self.assert_stripe_stage_configuration():
+            raise RuntimeError(
+                "A Stripe restricted key, webhook signing secret and all three "
+                "Stripe credit Price IDs are required."
+            )
+
+    def assert_stripe_stage_configuration(self) -> bool:
+        """Validate an all-or-nothing Stripe bundle without enabling Checkout."""
+        restricted_key = (
+            self.stripe_restricted_key.get_secret_value().strip()
+            if self.stripe_restricted_key is not None
+            else ""
+        )
+        webhook_secret = (
+            self.stripe_webhook_secret.get_secret_value().strip()
+            if self.stripe_webhook_secret is not None
+            else ""
+        )
+        price_ids = (
+            self.stripe_price_starter.strip(),
+            self.stripe_price_core.strip(),
+            self.stripe_price_pro.strip(),
+        )
+        if not any((restricted_key, webhook_secret, *price_ids)):
+            return False
+        if not restricted_key:
+            raise RuntimeError(
+                "Stripe staging configuration must be complete or entirely absent; "
+                "a Stripe restricted key is required."
+            )
+        if not webhook_secret:
+            raise RuntimeError(
+                "Stripe staging configuration must be complete or entirely absent; "
+                "a Stripe webhook signing secret is required."
+            )
+        if not all(price_id.startswith("price_") for price_id in price_ids):
+            raise RuntimeError(
+                "Stripe staging configuration must be complete or entirely absent; "
+                "all three Stripe credit Price IDs are required."
+            )
+        if self.stripe_automatic_tax_enabled:
+            raise RuntimeError(
+                "Stripe Automatic Tax is owner-gated until active tax registrations "
+                "and the tax-inclusive catalog are reviewed."
+            )
+
         self.assert_stripe_gateway_configuration()
-        for price_id in (
-            self.stripe_price_starter,
-            self.stripe_price_core,
-            self.stripe_price_pro,
-        ):
-            if not price_id.strip().startswith("price_"):
-                raise RuntimeError("All three Stripe credit Price IDs are required.")
         if "{CHECKOUT_SESSION_ID}" not in self.stripe_success_url:
             raise RuntimeError("Stripe success URL must include {CHECKOUT_SESSION_ID}.")
         if not self.is_dev and (
-            not self.stripe_success_url.startswith("https://") or not self.stripe_cancel_url.startswith("https://")
+            not self.stripe_success_url.startswith("https://")
+            or not self.stripe_cancel_url.startswith("https://")
         ):
             raise RuntimeError("Stripe return URLs must use HTTPS outside development.")
+        return True
 
     def assert_stripe_gateway_configuration(self) -> None:
         """Require mode-matched, non-empty secrets before any Stripe SDK use."""

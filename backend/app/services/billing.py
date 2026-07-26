@@ -251,6 +251,7 @@ class StripeSdkGateway:
         self._client = stripe.StripeClient(
             settings.stripe_restricted_key.get_secret_value().strip(),
             stripe_version=STRIPE_API_VERSION,
+            base_addresses={"api": settings.stripe_api_base},
             max_network_retries=0,
         )
 

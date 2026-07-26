@@ -124,11 +124,7 @@ for expected in \
   GSP_DURABLE_CONFIRMATION_CHANNEL_READY=0 \
   GSP_ADJUSTMENT_WORKFLOW_READY=0 \
   GSP_STRIPE_AUTOMATIC_TAX_ENABLED=0 \
-  GSP_STRIPE_RESTRICTED_KEY= \
-  GSP_STRIPE_WEBHOOK_SECRET= \
-  GSP_STRIPE_PRICE_STARTER= \
-  GSP_STRIPE_PRICE_CORE= \
-  GSP_STRIPE_PRICE_PRO= \
+  GSP_STRIPE_API_BASE=http://edge:8081/stripe \
   GSP_BILLING_ADMIN_USER_IDS= \
   STRIPE_SECRET_KEY= \
   STRIPE_WEBHOOK_SECRET= \
@@ -160,6 +156,24 @@ printf '%s\n' "$backend_environment" | grep -Fqx "GOOGLE_CLIENT_ID=$google_clien
   echo "Backend Google client ID does not match the release environment." >&2
   exit 1
 }
+if ! docker exec "$backend_id" python -c '
+from backend.app.core.config import settings
+
+if settings.paid_credits_enabled:
+    raise SystemExit("Paid Checkout must remain disabled during Stripe staging.")
+if settings.consumer_policy_approved:
+    raise SystemExit("Consumer policy approval must remain disabled during Stripe staging.")
+if settings.durable_confirmation_channel_ready:
+    raise SystemExit("Durable confirmation approval must remain disabled during Stripe staging.")
+if settings.adjustment_workflow_ready:
+    raise SystemExit("Adjustment workflow approval must remain disabled during Stripe staging.")
+if settings.stripe_automatic_tax_enabled:
+    raise SystemExit("Stripe Automatic Tax must remain disabled during Stripe staging.")
+settings.assert_stripe_stage_configuration()
+'; then
+  echo "Stripe staging configuration is incomplete or unsafe." >&2
+  exit 1
+fi
 if ! docker exec "$backend_id" alembic current --check-heads >/dev/null; then
   echo "Production database is not at the Alembic head revision." >&2
   exit 1
@@ -172,6 +186,26 @@ google_oauth_certs_http=$(docker exec "$backend_id" python -c \
   'import os, urllib.request; response = urllib.request.urlopen(os.environ["GSP_GOOGLE_OAUTH_CERTS_URL"], timeout=10); print(response.status)')
 [ "$google_oauth_certs_http" = 200 ] || {
   echo "Google OAuth certificate relay is unavailable: $google_oauth_certs_http" >&2
+  exit 1
+}
+stripe_relay_http=$(docker exec "$backend_id" python -c '
+import urllib.error
+import urllib.request
+
+request = urllib.request.Request(
+    "http://edge:8081/stripe/v1/payment_intents/pi_gsubs_relay_probe",
+)
+try:
+    response = urllib.request.urlopen(request, timeout=10)
+except urllib.error.HTTPError as exc:
+    print(exc.code)
+except urllib.error.URLError:
+    print("unavailable")
+else:
+    print(response.status)
+')
+[ "$stripe_relay_http" = 401 ] || {
+  echo "Stripe API relay is unavailable or unexpectedly permissive: $stripe_relay_http" >&2
   exit 1
 }
 

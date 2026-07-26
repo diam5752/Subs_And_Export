@@ -244,11 +244,14 @@ Before enabling live paid Checkout:
 
 The current Hetzner Compose file hard-forces paid Checkout and Automatic Tax
 off, hard-forces every consumer-contract/confirmation/adjustment approval to
-off, and replaces every Stripe credential, Price ID and billing-admin allowlist
-with an empty value. A live or AADE-admin handoff therefore requires a separate
-reviewed commit changing both `deploy/hetzner/docker-compose.production.yml`
-and its corresponding `verify-production.sh` assertions. Editing
-`.env.production` alone cannot enable or approve either capability.
+off, and keeps the billing-admin allowlist empty. It permits only an
+all-or-nothing Stripe staging bundle from the untracked production environment
+and routes the SDK through a method/path-scoped internal relay. A partial bundle
+fails verification, and editing `.env.production` alone still cannot enable or
+approve live sales or the AADE-admin capability. Actual activation requires a
+separate reviewed commit changing both
+`deploy/hetzner/docker-compose.production.yml` and its corresponding
+`verify-production.sh` assertions.
 
 ## Current sandbox mapping
 
@@ -318,8 +321,9 @@ Keep production Checkout disabled until all of these are closed:
   delivery/resolution constraints;
 - the external Ascentia privacy and terms pages no longer contain stale
   third-party template names or support contacts;
-- a separate reviewed deployment change replaces the tracked fail-closed
-  Compose and verifier contract; live activation is never an environment-only
+- the reviewed Stage 1 deployment safely stages the complete Stripe bundle
+  while preserving every fail-closed activation gate, followed by a separate
+  reviewed activation change; live activation is never an environment-only
   change;
 - separate live Prices, a least-privilege live restricted key with Checkout
   Sessions Write, PaymentIntents Read and Refunds Read, and a signed live
@@ -335,6 +339,7 @@ GSP_PAID_CREDITS_ENABLED=0
 GSP_CONSUMER_POLICY_APPROVED=0
 GSP_DURABLE_CONFIRMATION_CHANNEL_READY=0
 GSP_ADJUSTMENT_WORKFLOW_READY=0
+GSP_STRIPE_API_BASE=http://edge:8081/stripe
 GSP_STRIPE_RESTRICTED_KEY=
 GSP_STRIPE_WEBHOOK_SECRET=
 GSP_STRIPE_PRICE_STARTER=

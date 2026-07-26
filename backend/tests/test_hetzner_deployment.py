@@ -220,11 +220,12 @@ def test_production_compose_is_mock_only_and_loopback_bound() -> None:
     assert 'GSP_DURABLE_CONFIRMATION_CHANNEL_READY: "0"' in compose
     assert 'GSP_ADJUSTMENT_WORKFLOW_READY: "0"' in compose
     assert 'GSP_STRIPE_AUTOMATIC_TAX_ENABLED: "0"' in compose
-    assert 'GSP_STRIPE_RESTRICTED_KEY: ""' in compose
-    assert 'GSP_STRIPE_WEBHOOK_SECRET: ""' in compose
-    assert 'GSP_STRIPE_PRICE_STARTER: ""' in compose
-    assert 'GSP_STRIPE_PRICE_CORE: ""' in compose
-    assert 'GSP_STRIPE_PRICE_PRO: ""' in compose
+    assert 'GSP_STRIPE_API_BASE: "http://edge:8081/stripe"' in compose
+    assert 'GSP_STRIPE_RESTRICTED_KEY: "${GSP_STRIPE_RESTRICTED_KEY:-}"' in compose
+    assert 'GSP_STRIPE_WEBHOOK_SECRET: "${GSP_STRIPE_WEBHOOK_SECRET:-}"' in compose
+    assert 'GSP_STRIPE_PRICE_STARTER: "${GSP_STRIPE_PRICE_STARTER:-}"' in compose
+    assert 'GSP_STRIPE_PRICE_CORE: "${GSP_STRIPE_PRICE_CORE:-}"' in compose
+    assert 'GSP_STRIPE_PRICE_PRO: "${GSP_STRIPE_PRICE_PRO:-}"' in compose
     assert 'GSP_BILLING_ADMIN_USER_IDS: ""' in compose
     assert 'STRIPE_SECRET_KEY: ""' in compose
     assert 'STRIPE_WEBHOOK_SECRET: ""' in compose
@@ -256,11 +257,7 @@ def test_production_verifier_requires_every_fail_closed_runtime_setting() -> Non
         "GSP_DURABLE_CONFIRMATION_CHANNEL_READY=0",
         "GSP_ADJUSTMENT_WORKFLOW_READY=0",
         "GSP_STRIPE_AUTOMATIC_TAX_ENABLED=0",
-        "GSP_STRIPE_RESTRICTED_KEY=",
-        "GSP_STRIPE_WEBHOOK_SECRET=",
-        "GSP_STRIPE_PRICE_STARTER=",
-        "GSP_STRIPE_PRICE_CORE=",
-        "GSP_STRIPE_PRICE_PRO=",
+        "GSP_STRIPE_API_BASE=http://edge:8081/stripe",
         "GSP_BILLING_ADMIN_USER_IDS=",
         "STRIPE_SECRET_KEY=",
         "STRIPE_WEBHOOK_SECRET=",
@@ -284,6 +281,8 @@ def test_production_verifier_requires_every_fail_closed_runtime_setting() -> Non
         "GSP_RETENTION_CLEANUP_ENABLED=1",
     ):
         assert expected in verifier
+    assert "settings.assert_stripe_stage_configuration()" in verifier
+    assert "Stripe API relay is unavailable" in verifier
 
 
 def test_production_environment_defaults_do_not_prune_shared_cache() -> None:
@@ -312,6 +311,7 @@ def test_production_environment_defaults_do_not_prune_shared_cache() -> None:
     assert "GSP_CONSUMER_POLICY_APPROVED=0" in environment
     assert "GSP_DURABLE_CONFIRMATION_CHANNEL_READY=0" in environment
     assert "GSP_ADJUSTMENT_WORKFLOW_READY=0" in environment
+    assert "GSP_STRIPE_API_BASE=http://edge:8081/stripe" in environment
     assert "GSP_BILLING_ADMIN_USER_IDS=" in environment
     assert "google_client_id=$(env_value GOOGLE_CLIENT_ID)" in verifier
     assert "billing_admin_user_ids=$(env_value GSP_BILLING_ADMIN_USER_IDS)" not in verifier
@@ -1077,6 +1077,32 @@ def test_google_oauth_certificates_use_a_scoped_internal_edge_relay() -> None:
     assert "compose run --rm --no-deps --entrypoint caddy edge validate" in deploy_script
     assert "compose up -d --force-recreate edge" in deploy_script
     assert "google_oauth_certs_http=" in verifier
+
+
+def test_stripe_api_uses_a_method_and_path_scoped_internal_edge_relay() -> None:
+    compose = deployment_text("docker-compose.production.yml")
+    caddyfile = deployment_text("Caddyfile")
+    verifier = deployment_text("verify-production.sh")
+
+    assert "internal: true" in compose
+    assert 'GSP_STRIPE_API_BASE: "http://edge:8081/stripe"' in compose
+    for matcher in (
+        "@stripe_checkout_create",
+        "@stripe_checkout_expire",
+        "@stripe_payment_intent_retrieve",
+        "@stripe_refund_list",
+    ):
+        assert matcher in caddyfile
+    assert "method POST" in caddyfile
+    assert "method GET" in caddyfile
+    assert "/stripe/v1/checkout/sessions" in caddyfile
+    assert "/stripe/v1/payment_intents/" in caddyfile
+    assert "/stripe/v1/refunds" in caddyfile
+    assert "uri strip_prefix /stripe" in caddyfile
+    assert "reverse_proxy https://api.stripe.com" in caddyfile
+    assert "header_up Host api.stripe.com" in caddyfile
+    assert "stripe_relay_http=" in verifier
+    assert "GSP_STRIPE_RESTRICTED_KEY" not in caddyfile
 
 
 def test_docker_build_context_excludes_production_secrets_and_state() -> None:
