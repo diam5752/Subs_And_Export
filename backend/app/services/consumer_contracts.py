@@ -16,17 +16,18 @@ from typing import Any, Literal
 ConsumerLocale = Literal["el", "en"]
 
 CONSUMER_CONTRACT_SCHEMA_VERSION = 1
-CONSUMER_POLICY_VERSION = "2026-07-26-draft-v1"
-TERMS_VERSION = "2026-07-26-draft-v1"
-WITHDRAWAL_NOTICE_VERSION = "2026-07-26-draft-v1"
-CONFIRMATION_TEMPLATE_VERSION = "2026-07-26-draft-v1"
+CONSUMER_POLICY_VERSION = "2026-07-26-draft-v4"
+TERMS_VERSION = "2026-07-26-draft-v4"
+WITHDRAWAL_NOTICE_VERSION = "2026-07-26-draft-v4"
+CONFIRMATION_TEMPLATE_VERSION = "2026-07-26-draft-v4"
 CONSUMER_CONTRACT_CLASSIFICATION = "digital_service_with_prepaid_internal_units"
 CONSUMER_CONTRACT_STATUS = "draft_unapproved"
 DURABLE_CONFIRMATION_CHANNEL_STATUS = "pending_external_approval"
 ADJUSTMENT_WORKFLOW_STATUS = "pending_accountant_approval"
-# A status string is not proof that the still-missing append-only resolution,
-# notification, Stripe-reference, and AADE-reference workflow exists.
-ADJUSTMENT_WORKFLOW_IMPLEMENTED = False
+# Technical readiness is separate from accountant approval: the append-only
+# resolution and exact Stripe/AADE reference workflow exists, while launch
+# remains fail-closed until its independent status is explicitly approved.
+ADJUSTMENT_WORKFLOW_IMPLEMENTED = True
 CONTRACT_CONFIRMATION_DELIVERY_CHANNEL = "account_vault"
 CONTRACT_CONFIRMATION_DELIVERY_STATUS = "available_pending_external_approval"
 APPROVED_CONTRACT_CONFIRMATION_DELIVERY_STATUS = "available_approved"
@@ -80,7 +81,7 @@ class _Disclosure:
 _DISCLOSURES: tuple[_Disclosure, ...] = (
     _Disclosure(
         locale="el",
-        disclosure_id="gsubs-b2c-el-2026-07-26-draft-v1",
+        disclosure_id="gsubs-b2c-el-2026-07-26-draft-v4",
         title="Προσυμβατικές πληροφορίες αγοράς GSUBS credits",
         service_description=(
             "Το GSUBS παρέχει ψηφιακή υπηρεσία επεξεργασίας αρχείων βίντεο και "
@@ -94,9 +95,18 @@ _DISCLOSURES: tuple[_Disclosure, ...] = (
             "downloadable ψηφιακό περιεχόμενο."
         ),
         purchase_terms=(
-            "Η αγορά είναι εφάπαξ, χωρίς συνδρομή ή αυτόματη ανανέωση. Το "
-            "επιλεγμένο πακέτο, ο αριθμός credits και η συνολική τελική τιμή "
-            "σε ευρώ εμφανίζονται πριν από την εντολή πληρωμής."
+            "Η online αγορά είναι διαθέσιμη μόνο σε καταναλωτές με διεύθυνση "
+            "χρέωσης στην Ελλάδα. Είναι εφάπαξ, χωρίς συνδρομή ή αυτόματη "
+            "ανανέωση. Το επιλεγμένο πακέτο, ο αριθμός credits και η συνολική "
+            "τελική τιμή σε ευρώ, με ΦΠΑ 24%, εμφανίζονται πριν από την εντολή "
+            "πληρωμής. Ένα επιλέξιμο μέσο πληρωμής προεγκρίνεται προσωρινά στο "
+            "Stripe Checkout. Η είσπραξη ολοκληρώνεται και τα credits "
+            "πιστώνονται μόνο αφού το "
+            "GSUBS επιβεβαιώσει από το υπογεγραμμένο Stripe συμβάν την ελληνική "
+            "διεύθυνση χρέωσης και τα ακριβή στοιχεία της αγοράς. Αν ο έλεγχος "
+            "αποτύχει, η προέγκριση ακυρώνεται· η προσωρινή δέσμευση μπορεί να "
+            "παραμένει ορατή για διάστημα που καθορίζει ο εκδότης ή ο πάροχος "
+            "του μέσου πληρωμής."
         ),
         delivery_timing=(
             "Μετά την επιβεβαίωση της πληρωμής και τη δημιουργία της "
@@ -127,9 +137,15 @@ _DISCLOSURES: tuple[_Disclosure, ...] = (
             "νόμιμες προϋποθέσεις."
         ),
         manual_review_notice=(
-            "Κάθε αίτημα υπαναχώρησης καταγράφεται και παραμένει σε εκκρεμή "
-            "χειροκίνητη εξέταση. Η υποβολή δεν εκτελεί αυτόματα επιστροφή "
-            "Stripe ή φορολογική διόρθωση στην ΑΑΔΕ."
+            "Δεν παρέχεται αυτόματη επιστροφή ή προαιρετική επιστροφή μόνο "
+            "επειδή ο χρήστης άλλαξε γνώμη ή δεν χρησιμοποίησε τα credits. "
+            "Αυτό δεν περιορίζει δικαιώματα που επιβάλλει ο νόμος, όπως όπου "
+            "ισχύουν η υπαναχώρηση, η μη σύμφωνη παροχή ή η διπλή ή μη "
+            "εξουσιοδοτημένη χρέωση. Κάθε αίτημα καταγράφεται και εξετάζεται "
+            "χειροκίνητα. Αν εγκριθεί, η επιστροφή Stripe και το απαιτούμενο "
+            "διορθωτικό παραστατικό ΑΑΔΕ εκτελούνται και καταχωρίζονται "
+            "χειροκίνητα· η υποβολή του αιτήματος δεν εκτελεί καμία από αυτές "
+            "τις ενέργειες αυτόματα."
         ),
         terms_acceptance=(
             "Έχω διαβάσει και αποδέχομαι τους Όρους Πώλησης και τις προσυμβατικές πληροφορίες για το επιλεγμένο πακέτο."
@@ -147,7 +163,7 @@ _DISCLOSURES: tuple[_Disclosure, ...] = (
     ),
     _Disclosure(
         locale="en",
-        disclosure_id="gsubs-b2c-en-2026-07-26-draft-v1",
+        disclosure_id="gsubs-b2c-en-2026-07-26-draft-v4",
         title="Pre-contract information for a GSUBS credit purchase",
         service_description=(
             "GSUBS provides a digital service that processes video and audio "
@@ -159,9 +175,17 @@ _DISCLOSURES: tuple[_Disclosure, ...] = (
             "downloadable digital content."
         ),
         purchase_terms=(
-            "The purchase is one-off, with no subscription or automatic "
-            "renewal. The selected package, number of credits, and total final "
-            "price in euros are shown before the order with an obligation to pay."
+            "Online purchase is available only to consumers with a billing "
+            "address in Greece. It is one-off, with no subscription or "
+            "automatic renewal. The selected package, number of credits, and "
+            "total final price in euros, including 24% VAT, are shown before "
+            "the order with an obligation to pay. An eligible payment method "
+            "is temporarily authorized in Stripe Checkout. Capture and credit "
+            "delivery occur only after GSUBS validates the Greek billing "
+            "address and exact purchase evidence from the signed Stripe event. "
+            "If validation fails, the authorization is canceled; the temporary "
+            "hold may remain visible for a period determined by the payment "
+            "method provider or issuer."
         ),
         delivery_timing=(
             "After payment is confirmed and the contract confirmation is "
@@ -191,9 +215,14 @@ _DISCLOSURES: tuple[_Disclosure, ...] = (
             "conditions are met."
         ),
         manual_review_notice=(
-            "Every withdrawal request is recorded and remains pending manual "
-            "review. Submission does not automatically execute a Stripe refund "
-            "or an AADE tax adjustment."
+            "There is no automatic refund or discretionary refund merely "
+            "because the user changed their mind or did not use the credits. "
+            "This does not restrict rights required by law, including where "
+            "applicable withdrawal, non-conforming performance, or a duplicate "
+            "or unauthorized charge. Every request is recorded and reviewed "
+            "manually. If approved, the Stripe refund and required AADE "
+            "adjustment document are performed and recorded manually; "
+            "submitting the request does not execute either action automatically."
         ),
         terms_acceptance=(
             "I have read and accept the Terms of Sale and the pre-contract information for the selected package."

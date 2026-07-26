@@ -7,6 +7,7 @@ import threading
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from typing import Any
 
 import pytest
@@ -38,6 +39,7 @@ from backend.app.services.billing import (
     BillingValidationError,
     CheckoutResult,
     StripeCheckoutSession,
+    StripePaymentIntentState,
     StripeRefundState,
     StripeSdkGateway,
     public_credit_catalog,
@@ -61,6 +63,13 @@ class FakeBillingGateway:
         self.payment_intent_metadata: dict[str, dict[str, str]] = {}
         self.payment_intent_lookup_calls: list[str] = []
         self.payment_intent_lookup_error: Exception | None = None
+        self.payment_intent_states: dict[
+            str,
+            StripePaymentIntentState,
+        ] = {}
+        self.payment_intent_state_lookup_calls: list[str] = []
+        self.capture_calls: list[tuple[str, str]] = []
+        self.cancel_calls: list[tuple[str, str]] = []
         self.refund_pages_by_payment_intent: dict[
             str,
             list[list[StripeRefundState]],
@@ -78,6 +87,30 @@ class FakeBillingGateway:
 
     def create_checkout_session(self, **kwargs: Any) -> StripeCheckoutSession:
         self.create_calls += 1
+        payment_intent_id = f"pi_{kwargs['purchase_id']}"
+        metadata = {
+            "purchase_id": kwargs["purchase_id"],
+            "user_id": kwargs["user_id"],
+            "package_key": kwargs["package_key"],
+            "credits": str(kwargs["credits"]),
+            "integration_identifier": kwargs["integration_identifier"],
+            "catalog_version": billing_module.CATALOG_VERSION,
+            "consumer_disclosure_id": kwargs["consumer_disclosure_id"],
+            "consumer_disclosure_sha256": kwargs["consumer_disclosure_sha256"],
+            "consumer_contract_sha256": kwargs["consumer_contract_sha256"],
+            "consumer_locale": kwargs["consumer_locale"],
+            "billing_country": "GR",
+            "capture_policy": billing_module.MANUAL_CAPTURE_POLICY,
+        }
+        self.payment_intent_states[payment_intent_id] = StripePaymentIntentState(
+            id=payment_intent_id,
+            status="requires_capture",
+            capture_method="manual",
+            amount_cents=self.amount_total,
+            amount_received_cents=0,
+            currency=self.currency,
+            metadata=metadata,
+        )
         return StripeCheckoutSession(
             id=f"{self.checkout_session_prefix}{kwargs['purchase_id']}",
             url=f"https://checkout.stripe.com/c/pay/{kwargs['purchase_id']}",
@@ -96,6 +129,80 @@ class FakeBillingGateway:
         if self.payment_intent_lookup_error is not None:
             raise self.payment_intent_lookup_error
         return dict(self.payment_intent_metadata.get(payment_intent_id, {}))
+
+    def retrieve_payment_intent_state(
+        self,
+        payment_intent_id: str,
+    ) -> StripePaymentIntentState:
+        self.payment_intent_state_lookup_calls.append(
+            payment_intent_id,
+        )
+        state = self.payment_intent_states.get(payment_intent_id)
+        if state is None:
+            raise BillingProviderError(
+                "Stripe PaymentIntent lookup is temporarily unavailable",
+            )
+        return state
+
+    def capture_authorized_payment(
+        self,
+        payment_intent_id: str,
+        *,
+        idempotency_key: str,
+    ) -> StripePaymentIntentState:
+        state = self.retrieve_payment_intent_state(
+            payment_intent_id,
+        )
+        if state.status == "succeeded":
+            return state
+        if state.status != "requires_capture":
+            raise BillingProviderError(
+                "Stripe payment authorization is not capturable",
+            )
+        self.capture_calls.append(
+            (payment_intent_id, idempotency_key),
+        )
+        captured = StripePaymentIntentState(
+            id=state.id,
+            status="succeeded",
+            capture_method=state.capture_method,
+            amount_cents=state.amount_cents,
+            amount_received_cents=state.amount_cents,
+            currency=state.currency,
+            metadata=dict(state.metadata),
+        )
+        self.payment_intent_states[payment_intent_id] = captured
+        return captured
+
+    def cancel_authorized_payment(
+        self,
+        payment_intent_id: str,
+        *,
+        idempotency_key: str,
+    ) -> StripePaymentIntentState:
+        state = self.retrieve_payment_intent_state(
+            payment_intent_id,
+        )
+        if state.status == "canceled":
+            return state
+        if state.status != "requires_capture":
+            raise BillingProviderError(
+                "Stripe payment authorization is not cancelable",
+            )
+        self.cancel_calls.append(
+            (payment_intent_id, idempotency_key),
+        )
+        canceled = StripePaymentIntentState(
+            id=state.id,
+            status="canceled",
+            capture_method=state.capture_method,
+            amount_cents=state.amount_cents,
+            amount_received_cents=0,
+            currency=state.currency,
+            metadata=dict(state.metadata),
+        )
+        self.payment_intent_states[payment_intent_id] = canceled
+        return canceled
 
     def list_payment_intent_refunds(
         self,
@@ -261,6 +368,7 @@ class _TestBillingService(BillingService):
         package_key: str,
         idempotency_key: str,
         consumer_contract: ConsumerContractAcceptance | None = None,
+        billing_country: str = "GR",
     ) -> CheckoutResult:
         return super().create_checkout(
             user_id=user_id,
@@ -268,6 +376,7 @@ class _TestBillingService(BillingService):
             package_key=package_key,
             idempotency_key=idempotency_key,
             consumer_contract=(consumer_contract or _consumer_contract_acceptance()),
+            billing_country=billing_country,
         )
 
 
@@ -350,7 +459,7 @@ def _checkout_event(
     event_id: str | None = None,
     event_type: str = "checkout.session.completed",
     created: int = 1_700_000_000,
-    payment_status: str = "paid",
+    payment_status: str = "unpaid",
     amount_total: int | None = None,
     include_payment_intent: bool = True,
     livemode: bool = False,
@@ -362,6 +471,11 @@ def _checkout_event(
         "credits": str(purchase.credits),
         "integration_identifier": purchase.integration_identifier,
         "catalog_version": purchase.snapshot["catalog_version"],
+        "billing_country": purchase.snapshot["billing_country"],
+        "capture_policy": purchase.snapshot.get(
+            "capture_policy",
+            "",
+        ),
     }
     consumer_contract = purchase.snapshot.get("consumer_contract")
     if isinstance(consumer_contract, dict):
@@ -535,12 +649,45 @@ def test_public_catalog_matches_video_brackets_and_packages(
 ) -> None:
     catalog = public_credit_catalog()
     assert catalog["checkout_enabled"] is True
+    assert catalog["billing_country_scope"] == ["GR"]
     assert [(item["credits"], item["amount_eur_cents"]) for item in catalog["packages"]] == [
         (100, 100),
         (350, 300),
         (1200, 1000),
     ]
     assert [item["credits"] for item in catalog["video_pricing"]] == [30, 60, 100]
+
+
+def test_checkout_rejects_non_greek_billing_country_before_provider_call(
+    billing_settings: None,
+) -> None:
+    gateway = FakeBillingGateway()
+    db, user_id, _, _, service = _service(gateway=gateway)
+
+    with pytest.raises(
+        BillingValidationError,
+        match="available only.*Greek billing address",
+    ):
+        service.create_checkout(
+            user_id=user_id,
+            customer_email=f"{user_id}@example.com",
+            package_key="starter",
+            idempotency_key=f"checkout-{uuid.uuid4().hex}",
+            billing_country="CY",
+        )
+
+    assert gateway.create_calls == 0
+    with db.session() as session:
+        assert (
+            list(
+                session.scalars(
+                    select(DbCreditPurchase.id).where(
+                        DbCreditPurchase.user_id == user_id,
+                    )
+                )
+            )
+            == []
+        )
 
 
 @pytest.mark.parametrize(
@@ -1108,7 +1255,7 @@ def test_misconfigured_stripe_price_session_is_expired_and_never_returned(
 def test_checkout_fulfillment_and_webhook_replay_credit_exactly_once(
     billing_settings: None,
 ) -> None:
-    db, user_id, points, _, service = _service()
+    db, user_id, points, gateway, service = _service()
     checkout = service.create_checkout(
         user_id=user_id,
         customer_email=f"{user_id}@example.com",
@@ -1120,6 +1267,13 @@ def test_checkout_fulfillment_and_webhook_replay_credit_exactly_once(
 
     assert _process(service, payload) == "processed"
     assert _process(service, payload) == "duplicate"
+    assert gateway.capture_calls == [
+        (
+            f"pi_{purchase.id}",
+            f"gsubs-capture-{purchase.id}",
+        )
+    ]
+    assert gateway.cancel_calls == []
     wallet = points.get_balances(user_id)
     assert wallet.paid_balance == 100
     assert wallet.promotional_balance == 500
@@ -1134,13 +1288,25 @@ def test_checkout_fulfillment_and_webhook_replay_credit_exactly_once(
 
 def test_delayed_checkout_waits_for_async_success_without_early_credit(
     billing_settings: None,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     db, user_id, points, _, service = _service()
+    current_capture_policy = billing_module.MANUAL_CAPTURE_POLICY
+    monkeypatch.setattr(
+        billing_module,
+        "MANUAL_CAPTURE_POLICY",
+        "legacy_automatic_capture",
+    )
     checkout = service.create_checkout(
         user_id=user_id,
         customer_email=f"{user_id}@example.com",
         package_key="starter",
         idempotency_key=f"checkout-{uuid.uuid4().hex}",
+    )
+    monkeypatch.setattr(
+        billing_module,
+        "MANUAL_CAPTURE_POLICY",
+        current_capture_policy,
     )
     purchase = _purchase(db, checkout.purchase_id)
 
@@ -1156,6 +1322,7 @@ def test_delayed_checkout_waits_for_async_success_without_early_credit(
     async_success = _checkout_event(
         purchase,
         event_type="checkout.session.async_payment_succeeded",
+        payment_status="paid",
     )
     assert _process(service, async_success) == "processed"
     assert _purchase(db, purchase.id).status == "paid"
@@ -1293,6 +1460,259 @@ def test_fulfillment_snapshot_mismatch_never_credits_wallet(
     with pytest.raises(Exception, match="snapshot"):
         _process(service, _checkout_event(purchase, amount_total=101))
     assert points.get_balances(user_id).paid_balance == 0
+
+
+def test_manual_capture_rejects_payment_intent_metadata_before_capture(
+    billing_settings: None,
+) -> None:
+    # REGRESSION: Checkout metadata alone must never authorize capture when the
+    # PaymentIntent is not bound to the exact same immutable purchase.
+    db, user_id, points, gateway, service = _service()
+    checkout = service.create_checkout(
+        user_id=user_id,
+        customer_email=f"{user_id}@example.com",
+        package_key="starter",
+        idempotency_key=f"checkout-{uuid.uuid4().hex}",
+    )
+    purchase = _purchase(db, checkout.purchase_id)
+    payment_intent_id = f"pi_{purchase.id}"
+    state = gateway.payment_intent_states[payment_intent_id]
+    gateway.payment_intent_states[payment_intent_id] = replace(
+        state,
+        metadata={
+            **state.metadata,
+            "purchase_id": uuid.uuid4().hex,
+        },
+    )
+
+    with pytest.raises(
+        BillingProviderError,
+        match="does not match the authorized purchase",
+    ):
+        _process(service, _checkout_event(purchase))
+
+    assert gateway.capture_calls == []
+    assert gateway.cancel_calls == []
+    assert points.get_balances(user_id).paid_balance == 0
+    persisted = _purchase(db, purchase.id)
+    assert persisted.fulfilled_at is None
+    assert persisted.payment_intent_id is None
+
+
+def test_manual_capture_does_not_contact_payment_intent_on_checkout_identity_mismatch(
+    billing_settings: None,
+) -> None:
+    db, user_id, points, gateway, service = _service()
+    checkout = service.create_checkout(
+        user_id=user_id,
+        customer_email=f"{user_id}@example.com",
+        package_key="starter",
+        idempotency_key=f"checkout-{uuid.uuid4().hex}",
+    )
+    purchase = _purchase(db, checkout.purchase_id)
+    payload = json.loads(_checkout_event(purchase))
+    payload["data"]["object"]["metadata"]["package_key"] = "pro"
+
+    with pytest.raises(
+        BillingValidationError,
+        match="purchase snapshot",
+    ):
+        _process(service, payload)
+
+    assert gateway.payment_intent_state_lookup_calls == []
+    assert gateway.capture_calls == []
+    assert gateway.cancel_calls == []
+    assert points.get_balances(user_id).paid_balance == 0
+
+
+def test_manual_capture_rejects_automatic_payment_intent_before_capture(
+    billing_settings: None,
+) -> None:
+    db, user_id, points, gateway, service = _service()
+    checkout = service.create_checkout(
+        user_id=user_id,
+        customer_email=f"{user_id}@example.com",
+        package_key="starter",
+        idempotency_key=f"checkout-{uuid.uuid4().hex}",
+    )
+    purchase = _purchase(db, checkout.purchase_id)
+    payment_intent_id = f"pi_{purchase.id}"
+    gateway.payment_intent_states[payment_intent_id] = replace(
+        gateway.payment_intent_states[payment_intent_id],
+        capture_method="automatic",
+    )
+
+    with pytest.raises(
+        BillingProviderError,
+        match="does not match the authorized purchase",
+    ):
+        _process(service, _checkout_event(purchase))
+
+    assert gateway.capture_calls == []
+    assert gateway.cancel_calls == []
+    assert points.get_balances(user_id).paid_balance == 0
+
+
+def test_manual_capture_replay_after_local_failure_captures_once_and_recovers(
+    billing_settings: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # REGRESSION: Stripe can complete capture even when the following local
+    # transaction fails. Replay must observe succeeded and grant exactly once.
+    db, user_id, points, gateway, service = _service()
+    checkout = service.create_checkout(
+        user_id=user_id,
+        customer_email=f"{user_id}@example.com",
+        package_key="starter",
+        idempotency_key=f"checkout-{uuid.uuid4().hex}",
+    )
+    purchase = _purchase(db, checkout.purchase_id)
+    payload = _checkout_event(purchase)
+    original_apply = points.apply_paid_purchase_once_in_session
+    failures_remaining = 1
+
+    def fail_once(
+        session: Any,
+        user_id_arg: str,
+        amount: int,
+        *,
+        purchase_id: str,
+        transaction_id: str,
+    ) -> Any:
+        nonlocal failures_remaining
+        if failures_remaining:
+            failures_remaining -= 1
+            raise RuntimeError("simulated local commit failure")
+        return original_apply(
+            session,
+            user_id_arg,
+            amount,
+            purchase_id=purchase_id,
+            transaction_id=transaction_id,
+        )
+
+    monkeypatch.setattr(
+        points,
+        "apply_paid_purchase_once_in_session",
+        fail_once,
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="simulated local commit failure",
+    ):
+        _process(service, payload)
+    assert gateway.capture_calls == [
+        (
+            f"pi_{purchase.id}",
+            f"gsubs-capture-{purchase.id}",
+        )
+    ]
+    assert points.get_balances(user_id).paid_balance == 0
+    assert _purchase(db, purchase.id).payment_snapshot is None
+
+    assert _process(service, payload) == "processed"
+    assert len(gateway.capture_calls) == 1
+    assert points.get_balances(user_id).paid_balance == 100
+    assert _purchase(db, purchase.id).status == "paid"
+
+
+def test_manual_cancellation_replay_after_local_failure_cancels_once_and_recovers(
+    billing_settings: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # REGRESSION: a successful provider cancellation must remain locally
+    # recoverable when persisting the terminal failed state initially fails.
+    db, user_id, points, gateway, service = _service()
+    checkout = service.create_checkout(
+        user_id=user_id,
+        customer_email=f"{user_id}@example.com",
+        package_key="starter",
+        idempotency_key=f"checkout-{uuid.uuid4().hex}",
+    )
+    purchase = _purchase(db, checkout.purchase_id)
+    payload = json.loads(_checkout_event(purchase))
+    payload["data"]["object"]["customer_details"]["address"]["country"] = "CY"
+    original_mark = service._mark_ineligible_authorization_canceled
+    failures_remaining = 1
+
+    def fail_once(purchase_id: str) -> None:
+        nonlocal failures_remaining
+        if failures_remaining:
+            failures_remaining -= 1
+            raise RuntimeError("simulated cancellation persistence failure")
+        original_mark(purchase_id)
+
+    monkeypatch.setattr(
+        service,
+        "_mark_ineligible_authorization_canceled",
+        fail_once,
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="simulated cancellation persistence failure",
+    ):
+        _process(service, payload)
+    assert gateway.cancel_calls == [
+        (
+            f"pi_{purchase.id}",
+            f"gsubs-cancel-{purchase.id}",
+        )
+    ]
+    assert gateway.capture_calls == []
+    assert _purchase(db, purchase.id).status == "checkout_created"
+
+    assert _process(service, payload) == "processed"
+    assert len(gateway.cancel_calls) == 1
+    assert _purchase(db, purchase.id).status == "failed"
+    assert points.get_balances(user_id).paid_balance == 0
+
+
+def test_manual_capture_response_mismatch_never_grants_credits(
+    billing_settings: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db, user_id, points, gateway, service = _service()
+    checkout = service.create_checkout(
+        user_id=user_id,
+        customer_email=f"{user_id}@example.com",
+        package_key="starter",
+        idempotency_key=f"checkout-{uuid.uuid4().hex}",
+    )
+    purchase = _purchase(db, checkout.purchase_id)
+    original_capture = gateway.capture_authorized_payment
+
+    def mismatched_capture(
+        payment_intent_id: str,
+        *,
+        idempotency_key: str,
+    ) -> StripePaymentIntentState:
+        captured = original_capture(
+            payment_intent_id,
+            idempotency_key=idempotency_key,
+        )
+        return replace(
+            captured,
+            amount_received_cents=captured.amount_received_cents - 1,
+        )
+
+    monkeypatch.setattr(
+        gateway,
+        "capture_authorized_payment",
+        mismatched_capture,
+    )
+
+    with pytest.raises(
+        BillingProviderError,
+        match="Captured Stripe payment amount is invalid",
+    ):
+        _process(service, _checkout_event(purchase))
+
+    assert len(gateway.capture_calls) == 1
+    assert gateway.cancel_calls == []
+    assert points.get_balances(user_id).paid_balance == 0
+    assert _purchase(db, purchase.id).payment_snapshot is None
 
 
 def test_full_refund_claws_back_available_credits_and_creates_debt(
@@ -2962,13 +3382,25 @@ def test_local_refund_lookup_failure_is_fail_closed_and_retryable(
 
 def test_async_payment_failure_marks_purchase_failed_without_crediting_wallet(
     billing_settings: None,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     db, user_id, points, _, service = _service()
+    current_capture_policy = billing_module.MANUAL_CAPTURE_POLICY
+    monkeypatch.setattr(
+        billing_module,
+        "MANUAL_CAPTURE_POLICY",
+        "legacy_automatic_capture",
+    )
     checkout = service.create_checkout(
         user_id=user_id,
         customer_email=f"{user_id}@example.com",
         package_key="starter",
         idempotency_key=f"checkout-{uuid.uuid4().hex}",
+    )
+    monkeypatch.setattr(
+        billing_module,
+        "MANUAL_CAPTURE_POLICY",
+        current_capture_policy,
     )
     purchase = _purchase(db, checkout.purchase_id)
     event = {
@@ -3273,18 +3705,76 @@ def test_stripe_sdk_gateway_disables_retries_uses_fixed_price_and_verifies_signa
             return None
 
     class _PaymentIntents:
-        def retrieve(self, payment_intent_id: str) -> Any:
-            captured["retrieved_payment_intent_id"] = payment_intent_id
+        def retrieve(
+            self,
+            payment_intent_id: str,
+            params: dict[str, Any] | None = None,
+            options: dict[str, Any] | None = None,
+        ) -> Any:
+            captured.setdefault(
+                "retrieved_payment_intent_ids",
+                [],
+            ).append(payment_intent_id)
             return type(
                 "PaymentIntent",
                 (),
                 {
+                    "id": payment_intent_id,
+                    "status": "requires_capture",
+                    "capture_method": "manual",
+                    "amount": 100,
+                    "amount_received": 0,
+                    "currency": "eur",
                     "metadata": {
                         "purchase_id": "a" * 32,
                         "integration_identifier": "gsubs_credits_abcdefgh",
                     },
                 },
             )()
+
+        def capture(
+            self,
+            payment_intent_id: str,
+            params: dict[str, Any],
+            options: dict[str, Any],
+        ) -> Any:
+            captured["captured_payment_intent_id"] = payment_intent_id
+            captured["capture_params"] = params
+            captured["capture_options"] = options
+            return {
+                "id": payment_intent_id,
+                "status": "succeeded",
+                "capture_method": "manual",
+                "amount": 100,
+                "amount_received": 100,
+                "currency": "eur",
+                "metadata": {
+                    "purchase_id": "a" * 32,
+                    "integration_identifier": "gsubs_credits_abcdefgh",
+                },
+            }
+
+        def cancel(
+            self,
+            payment_intent_id: str,
+            params: dict[str, Any],
+            options: dict[str, Any],
+        ) -> Any:
+            captured["canceled_payment_intent_id"] = payment_intent_id
+            captured["cancel_params"] = params
+            captured["cancel_options"] = options
+            return {
+                "id": payment_intent_id,
+                "status": "canceled",
+                "capture_method": "manual",
+                "amount": 100,
+                "amount_received": 0,
+                "currency": "eur",
+                "metadata": {
+                    "purchase_id": "a" * 32,
+                    "integration_identifier": "gsubs_credits_abcdefgh",
+                },
+            }
 
     class _RefundPage:
         def auto_paging_iter(self) -> Any:
@@ -3354,21 +3844,49 @@ def test_stripe_sdk_gateway_disables_retries_uses_fixed_price_and_verifies_signa
     assert params["metadata"]["consumer_disclosure_sha256"] == (consumer_acceptance.disclosure_sha256)
     assert params["metadata"]["consumer_contract_sha256"] == "f" * 64
     assert params["metadata"]["consumer_locale"] == consumer_acceptance.locale
+    assert params["metadata"]["billing_country"] == "GR"
+    assert params["metadata"]["capture_policy"] == billing_module.MANUAL_CAPTURE_POLICY
     assert params["customer_creation"] == "always"
     assert params["billing_address_collection"] == "required"
     assert params["name_collection"] == {"individual": {"enabled": True}}
+    # REGRESSION: Stripe must apply dynamic eligibility filtering instead of
+    # forcing an unsupported method into a manual-capture Checkout Session.
+    assert "payment_method_types" not in params
+    assert params["payment_intent_data"]["capture_method"] == "manual"
     assert params["payment_intent_data"]["receipt_email"] == "person@example.com"
+    assert params["payment_intent_data"]["statement_descriptor_suffix"] == "GSUBS"
     assert params["expires_at"] >= checkout_started_at + 60 * 60
     assert params["expires_at"] <= int(time.time()) + 60 * 60
     assert "price_data" not in params["line_items"][0]
-    assert "payment_method_types" not in params
     assert "automatic_tax" not in params
     assert captured["options"] == {"idempotency_key": "subframe-checkout-test"}
     assert gateway.retrieve_payment_intent_metadata("pi_lookup") == {
         "purchase_id": "a" * 32,
         "integration_identifier": "gsubs_credits_abcdefgh",
     }
-    assert captured["retrieved_payment_intent_id"] == "pi_lookup"
+    assert captured["retrieved_payment_intent_ids"] == ["pi_lookup"]
+    captured_state = gateway.capture_authorized_payment(
+        "pi_capture",
+        idempotency_key="gsubs-capture-test",
+    )
+    assert captured_state.status == "succeeded"
+    assert captured["captured_payment_intent_id"] == "pi_capture"
+    assert captured["capture_params"] == {}
+    assert captured["capture_options"] == {
+        "idempotency_key": "gsubs-capture-test",
+    }
+    canceled_state = gateway.cancel_authorized_payment(
+        "pi_cancel",
+        idempotency_key="gsubs-cancel-test",
+    )
+    assert canceled_state.status == "canceled"
+    assert captured["canceled_payment_intent_id"] == "pi_cancel"
+    assert captured["cancel_params"] == {
+        "cancellation_reason": "abandoned",
+    }
+    assert captured["cancel_options"] == {
+        "idempotency_key": "gsubs-cancel-test",
+    }
     refunds = gateway.list_payment_intent_refunds("pi_lookup")
     assert len(refunds) == 101
     assert refunds[0].payment_intent_id == "pi_lookup"

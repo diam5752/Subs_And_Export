@@ -40,6 +40,28 @@ const sections: Record<LegalPageKind, LegalSection[]> = {
     ],
 };
 
+const paidCreditSections: LegalSection[] = [
+    {
+        id: 'paid-credits',
+        title: 'termsPaidCreditsScopeTitle',
+        body: 'termsPaidCreditsScopeBody',
+    },
+    {
+        id: 'refunds',
+        title: 'termsRefundsTitle',
+        body: 'termsRefundsBody',
+    },
+    {
+        title: 'termsWithdrawalTitle',
+        body: 'termsWithdrawalBody',
+    },
+    {
+        id: 'withdrawal',
+        title: 'termsWithdrawalFormTitle',
+        body: 'termsWithdrawalFormBody',
+    },
+];
+
 export function LegalPage({ kind }: LegalPageProps) {
     const { t } = useI18n();
     const isPrivacy = kind === 'privacy';
@@ -51,13 +73,14 @@ export function LegalPage({ kind }: LegalPageProps) {
     const visibleSections = isPrivacy
         ? sections.privacy
         : paidCreditLegalPublicationIsApproved()
-            ? sections.terms
+            ? [...sections.terms, ...paidCreditSections]
             : [
                 {
                     title: 'termsPaidCreditsDraftTitle' as const,
                     body: 'termsPaidCreditsDraftBody' as const,
                 },
                 ...sections.terms,
+                ...paidCreditSections,
             ];
 
     return (

@@ -308,6 +308,159 @@ describe('API Client', () => {
                 '/billing/admin/invoices/unsafe%2Fid/record-issued',
             );
         });
+
+        it('lists completed Stripe refunds awaiting AADE accounting without caching', async () => {
+            const response = {
+                items: [],
+                count: 0,
+                next_cursor: null,
+            };
+            (fetch as jest.Mock).mockResolvedValueOnce({
+                ok: true,
+                json: async () => response,
+            });
+
+            const { api } = await import('@/lib/api');
+            await expect(
+                api.listPendingBillingRefunds(
+                    `${1_800_000_000}:${'c'.repeat(32)}`,
+                    25,
+                ),
+            ).resolves.toEqual(response);
+
+            expect(fetch).toHaveBeenCalledWith(
+                expect.stringContaining(
+                    `/billing/admin/refunds/pending?limit=25&after=1800000000%3A${'c'.repeat(32)}`,
+                ),
+                expect.objectContaining({
+                    cache: 'no-store',
+                }),
+            );
+        });
+
+        it('records only the exact completed refund and AADE evidence payload', async () => {
+            const reversalId = 'unsafe/reversal';
+            const payload = {
+                original_document: null,
+                adjustment_document: {
+                    document_type: '11.4',
+                    series: 'ΠΙΣ',
+                    aa: '42',
+                    mark: '5000000000000042',
+                    issued_at: 1_800_000_100,
+                },
+                final_manual_actions_confirmed: true as const,
+            };
+            const response = {
+                adjustment_id: 'd'.repeat(32),
+                purchase_id: 'e'.repeat(32),
+                reversal_id: 'f'.repeat(32),
+                stripe_refund_id: 're_completed',
+                amount_cents: 100,
+                currency: 'eur',
+                aade_document_type: '11.4',
+                aade_series: 'ΠΙΣ',
+                aade_aa: '42',
+                aade_mark: '5000000000000042',
+                issued_at: 1_800_000_100,
+                recorded_at: 1_800_000_101,
+                financial_retention_until: 2_000_000_000,
+                original_invoice_status: 'issued',
+                original_invoice_mark: '4000000000000042',
+            };
+            (fetch as jest.Mock).mockResolvedValueOnce({
+                ok: true,
+                json: async () => response,
+            });
+
+            const { api } = await import('@/lib/api');
+            await expect(
+                api.recordManualRefundAccounting(reversalId, payload),
+            ).resolves.toEqual(response);
+
+            expect(fetch).toHaveBeenCalledWith(
+                expect.stringContaining(
+                    '/billing/admin/refunds/unsafe%2Freversal/record-aade-adjustment',
+                ),
+                expect.objectContaining({
+                    method: 'POST',
+                    cache: 'no-store',
+                    body: JSON.stringify(payload),
+                }),
+            );
+        });
+
+        it('lists unresolved withdrawal requests without caching', async () => {
+            const response = {
+                items: [],
+                count: 0,
+                next_cursor: null,
+            };
+            (fetch as jest.Mock).mockResolvedValueOnce({
+                ok: true,
+                json: async () => response,
+            });
+
+            const { api } = await import('@/lib/api');
+            await expect(
+                api.listPendingBillingWithdrawals(
+                    `${1_800_000_200}:${'1'.repeat(32)}`,
+                    10,
+                ),
+            ).resolves.toEqual(response);
+
+            expect(fetch).toHaveBeenCalledWith(
+                expect.stringContaining(
+                    `/billing/admin/withdrawals/pending?limit=10&after=1800000200%3A${'1'.repeat(32)}`,
+                ),
+                expect.objectContaining({
+                    cache: 'no-store',
+                }),
+            );
+        });
+
+        it('records one explicit human withdrawal decision without side effects', async () => {
+            const withdrawalId = 'unsafe/withdrawal';
+            const payload = {
+                decision: 'accepted_refunded' as const,
+                adjustment_id: '2'.repeat(32),
+                customer_explanation: (
+                    'Το εγκεκριμένο refund και το διορθωτικό ολοκληρώθηκαν.'
+                ),
+                final_manual_review_confirmed: true as const,
+            };
+            const response = {
+                resolution_id: '3'.repeat(32),
+                withdrawal_id: '4'.repeat(32),
+                purchase_id: '5'.repeat(32),
+                decision: 'accepted_refunded' as const,
+                reason_code: 'accepted_after_manual_review',
+                adjustment_id: payload.adjustment_id,
+                resolved_at: 1_800_000_300,
+                resolution_sha256: 'a'.repeat(64),
+                resolution_url: '/billing/withdrawals/resolution',
+            };
+            (fetch as jest.Mock).mockResolvedValueOnce({
+                ok: true,
+                json: async () => response,
+            });
+
+            const { api } = await import('@/lib/api');
+            await expect(
+                api.resolveBillingWithdrawal(withdrawalId, payload),
+            ).resolves.toEqual(response);
+
+            expect(fetch).toHaveBeenCalledWith(
+                expect.stringContaining(
+                    '/billing/admin/withdrawals/unsafe%2Fwithdrawal/resolve',
+                ),
+                expect.objectContaining({
+                    method: 'POST',
+                    cache: 'no-store',
+                    body: JSON.stringify(payload),
+                }),
+            );
+        });
     });
 
     describe('processVideo', () => {

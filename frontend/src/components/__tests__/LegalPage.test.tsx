@@ -51,53 +51,63 @@ describe('LegalPage', () => {
         expect(screen.getByText(/cryptographic hash.*normalized email.*365 days.*signup credits/)).toBeInTheDocument();
     });
 
-    it('renders the Greek digital-service withdrawal policy without a content waiver', () => {
+    it('publishes the inactive Greek candidate policy without a blanket rights waiver', () => {
         renderPage('terms');
 
         const inactiveHeading = screen.getByRole('heading', {
-            name: 'Οι πωλήσεις paid credits και η υπαναχώρηση δεν είναι ενεργές',
+            name: 'Προτεινόμενοι όροι paid credits — οι πωλήσεις παραμένουν ανενεργές',
         });
         expect(inactiveHeading).toBeInTheDocument();
         expect(screen.getByText(
-            /δεν προσφέρει ούτε πωλεί.*δεν δημοσιεύονται εδώ ως ισχύοντες όροι.*δεν ανακοινώνει διαθεσιμότητα.*οριστικούς όρους πώλησης/,
+            /δεν προσφέρει ούτε πωλεί.*σαφώς ανενεργό κείμενο.*όχι ως ισχύουσα προσφορά.*checkout θα παραμείνει κλειστό/,
         )).toBeInTheDocument();
         expect(inactiveHeading.closest('section')).not.toHaveAttribute('id');
-        expect(screen.queryByRole('heading', {
-            name: '5. Credits, πληρωμές και παραστατικά',
-        })).not.toBeInTheDocument();
-        expect(screen.queryByRole('heading', {
+        expect(screen.getByRole('heading', {
+            name: '7. Paid credits, Ελλάδα και πληρωμή',
+        })).toBeInTheDocument();
+        expect(screen.getByText(
+            /μόνο σε καταναλωτές με διεύθυνση χρέωσης στην Ελλάδα.*ΦΠΑ 24%.*επιλέξιμο μέσο πληρωμής.*προεγκρίνεται προσωρινά.*είσπραξη.*ελληνικής διεύθυνσης.*προέγκριση θα ακυρώνεται.*MARK/,
+        )).toBeInTheDocument();
+        expect(screen.getByText(
+            /Δεν θα γίνονται αυτόματες επιστροφές.*δεν περιορίζει κανένα υποχρεωτικό δικαίωμα.*χειροκίνητα στη Stripe.*λογιστής στην ΑΑΔΕ/,
+        )).toBeInTheDocument();
+        expect(screen.getByText(
+            /14 ημέρες.*αναλογικό ποσό.*μόνο μετά την πλήρη εκτέλεση.*νόμιμες προϋποθέσεις/,
+        )).toBeInTheDocument();
+        expect(screen.getByRole('heading', {
             name: 'Υπόδειγμα δήλωσης υπαναχώρησης',
-        })).not.toBeInTheDocument();
-        expect(document.querySelector('#withdrawal')).toBeNull();
+        })).toBeInTheDocument();
+        expect(document.querySelector('#withdrawal')).not.toBeNull();
     });
 
     it('renders the localized English refund policy with studio navigation', () => {
         renderPage('terms', 'en');
 
         expect(screen.getByRole('heading', { name: 'Terms of Service' })).toBeInTheDocument();
-        expect(screen.getByText(/does not currently offer or sell.*intentionally not published here as operative terms.*does not announce availability or final sale terms/)).toBeInTheDocument();
+        expect(screen.getByText(/does not currently offer or sell.*clearly inactive text.*not as an operative offer.*Checkout will remain closed/)).toBeInTheDocument();
         expect(screen.getByText(/AI-generated results/)).toBeInTheDocument();
-        expect(screen.queryByText(/prepaid internal units.*downloadable digital content/)).not.toBeInTheDocument();
-        expect(screen.queryByRole('heading', {
+        expect(screen.getByText(/only to consumers with a billing address in Greece.*24% VAT.*eligible payment method.*temporarily authorized.*Capture.*Greek billing address.*authorization will be canceled/)).toBeInTheDocument();
+        expect(screen.getByText(/no automatic refunds or discretionary refunds.*does not restrict any mandatory consumer right.*manually in Stripe.*manually in AADE/)).toBeInTheDocument();
+        expect(screen.getByRole('heading', {
             name: 'Model withdrawal statement',
-        })).not.toBeInTheDocument();
-        expect(document.querySelector('#withdrawal')).toBeNull();
+        })).toBeInTheDocument();
+        expect(document.querySelector('#withdrawal')).not.toBeNull();
         expect(screen.getByRole('link', { name: 'Home' })).toHaveAttribute('href', '/');
         expect(screen.getByRole('link', { name: 'Privacy Policy' })).toHaveAttribute('href', '/privacy');
         expect(screen.getByRole('link', { name: 'gsubs by Ascentia ↗' }))
             .toHaveAttribute('href', 'https://ascentia-gp.com/');
     });
 
-    // REGRESSION: unpublished paid-credit terms were hidden from the page but
-    // still shipped to every browser inside the locale JSON bundles.
-    it('does not bundle unpublished paid-credit terms in either locale', () => {
+    it('keeps the same inactive paid-credit policy structure in both locales', () => {
         for (const localeMessages of [el, en]) {
-            expect(localeMessages).not.toHaveProperty('termsPaymentsTitle');
-            expect(localeMessages).not.toHaveProperty('termsPaymentsBody');
-            expect(localeMessages).not.toHaveProperty('termsRefundsTitle');
-            expect(localeMessages).not.toHaveProperty('termsRefundsBody');
-            expect(localeMessages).not.toHaveProperty('termsWithdrawalTitle');
-            expect(localeMessages).not.toHaveProperty('termsWithdrawalBody');
+            expect(localeMessages).toHaveProperty('termsPaidCreditsScopeTitle');
+            expect(localeMessages).toHaveProperty('termsPaidCreditsScopeBody');
+            expect(localeMessages).toHaveProperty('termsRefundsTitle');
+            expect(localeMessages).toHaveProperty('termsRefundsBody');
+            expect(localeMessages).toHaveProperty('termsWithdrawalTitle');
+            expect(localeMessages).toHaveProperty('termsWithdrawalBody');
+            expect(localeMessages).toHaveProperty('termsWithdrawalFormTitle');
+            expect(localeMessages).toHaveProperty('termsWithdrawalFormBody');
         }
     });
 });

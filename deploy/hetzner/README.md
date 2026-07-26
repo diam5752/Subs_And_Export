@@ -25,7 +25,7 @@ key, webhook signing secret and all three Price IDs) from the untracked
 production environment while sales remain disabled. Partial bundles fail the
 production verifier. Stripe API traffic leaves the internal-only backend only
 through an edge relay limited to Checkout Session creation/expiry,
-PaymentIntent retrieval and Refund listing. Values placed only in
+PaymentIntent retrieval/capture/cancellation and Refund listing. Values placed only in
 `.env.production` still cannot bypass the tracked Checkout, Automatic Tax or
 approval overrides.
 

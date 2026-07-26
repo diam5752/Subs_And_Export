@@ -100,6 +100,7 @@ export interface CreditPackage {
 }
 
 type ConsumerContractLocale = 'el' | 'en';
+type BillingCountry = 'GR';
 
 export interface ConsumerContractDisclosure {
     schema_version: number;
@@ -160,6 +161,7 @@ export interface VideoCreditBracket {
 export interface CreditCatalogResponse {
     catalog_version: string;
     currency: string;
+    billing_country_scope: BillingCountry[];
     checkout_enabled: boolean;
     consumer_contract_status: 'approved' | 'unavailable_unapproved';
     consumer_contract: ConsumerContractDisclosure | null;
@@ -200,6 +202,9 @@ export interface BillingPurchaseResponse {
     withdrawal_status: string | null;
     withdrawal_acknowledgement_available: boolean;
     withdrawal_acknowledgement_url: string | null;
+    withdrawal_resolution_available: boolean;
+    withdrawal_resolution_decision: BillingWithdrawalResolutionDecision | null;
+    withdrawal_resolution_url: string | null;
 }
 
 export interface BillingAdminPackage {
@@ -294,6 +299,99 @@ export interface RecordedAadeDocumentResponse {
     issued_at: number;
     recorded_at: number;
     financial_retention_until: number;
+}
+
+export interface BillingAdminPendingRefund {
+    reversal_id: string;
+    stripe_refund_id: string;
+    stripe_refund_status: string;
+    stripe_refund_created_at: number;
+    amount_cents: number;
+    currency: string;
+    linked_withdrawal_id: string | null;
+    original_invoice: BillingAdminPendingInvoice;
+}
+
+interface BillingAdminPendingRefundsResponse {
+    items: BillingAdminPendingRefund[];
+    count: number;
+    next_cursor: string | null;
+}
+
+interface RecordManualRefundAccountingPayload {
+    original_document: RecordIssuedAadeDocumentPayload | null;
+    adjustment_document: RecordIssuedAadeDocumentPayload;
+    final_manual_actions_confirmed: true;
+}
+
+export interface RecordedManualRefundAccountingResponse {
+    adjustment_id: string;
+    purchase_id: string;
+    reversal_id: string;
+    stripe_refund_id: string;
+    amount_cents: number;
+    currency: string;
+    aade_document_type: string;
+    aade_series: string;
+    aade_aa: string;
+    aade_mark: string;
+    issued_at: number;
+    recorded_at: number;
+    financial_retention_until: number;
+    original_invoice_status: string;
+    original_invoice_mark: string;
+}
+
+export interface BillingAdminWithdrawalAdjustment {
+    adjustment_id: string;
+    stripe_refund_id: string;
+    amount_cents: number;
+    currency: string;
+    aade_document_type: string;
+    aade_series: string;
+    aade_aa: string;
+    aade_mark: string;
+    issued_at: number;
+}
+
+export interface BillingAdminPendingWithdrawal {
+    withdrawal_id: string;
+    purchase_id: string;
+    locale: ConsumerContractLocale;
+    submitted_at: number;
+    contract_concluded_at: number;
+    confirmed_name: string;
+    confirmation_email: string;
+    available_adjustments: BillingAdminWithdrawalAdjustment[];
+}
+
+interface BillingAdminPendingWithdrawalsResponse {
+    items: BillingAdminPendingWithdrawal[];
+    count: number;
+    next_cursor: string | null;
+}
+
+export type BillingWithdrawalResolutionDecision =
+    | 'accepted_refunded'
+    | 'rejected';
+
+interface ResolveBillingWithdrawalPayload {
+    decision: BillingWithdrawalResolutionDecision;
+    adjustment_id: string | null;
+    customer_explanation: string;
+    final_manual_review_confirmed: true;
+}
+
+export interface BillingWithdrawalResolutionResponse {
+    resolution_id: string;
+    withdrawal_id: string;
+    purchase_id: string;
+    decision: BillingWithdrawalResolutionDecision;
+    reason_code: string;
+    adjustment_id: string | null;
+    resolved_at: number;
+    resolution_sha256: string;
+    resolution_url: string;
 }
 
 interface BillingWithdrawalResponse {
@@ -481,6 +579,7 @@ class ApiClient {
         packageKey: string,
         idempotencyKey: string,
         catalogVersion: string,
+        billingCountry: BillingCountry,
         consumerContract: ConsumerContractAcceptanceRequest,
     ): Promise<CreditCheckoutResponse> {
         return this.request<CreditCheckoutResponse>('/billing/checkout', {
@@ -489,6 +588,7 @@ class ApiClient {
             body: JSON.stringify({
                 package_key: packageKey,
                 catalog_version: catalogVersion,
+                billing_country: billingCountry,
                 consumer_contract: consumerContract,
             }),
         });
@@ -526,6 +626,62 @@ class ApiClient {
     ): Promise<RecordedAadeDocumentResponse> {
         return this.request<RecordedAadeDocumentResponse>(
             `/billing/admin/invoices/${encodeURIComponent(invoiceId)}/record-issued`,
+            {
+                method: 'POST',
+                cache: 'no-store',
+                body: JSON.stringify(payload),
+            },
+        );
+    }
+
+    async listPendingBillingRefunds(
+        after?: string,
+        limit: number = 50,
+    ): Promise<BillingAdminPendingRefundsResponse> {
+        const params = new URLSearchParams({ limit: String(limit) });
+        if (after) {
+            params.set('after', after);
+        }
+        return this.request<BillingAdminPendingRefundsResponse>(
+            `/billing/admin/refunds/pending?${params.toString()}`,
+            { cache: 'no-store' },
+        );
+    }
+
+    async recordManualRefundAccounting(
+        reversalId: string,
+        payload: RecordManualRefundAccountingPayload,
+    ): Promise<RecordedManualRefundAccountingResponse> {
+        return this.request<RecordedManualRefundAccountingResponse>(
+            `/billing/admin/refunds/${encodeURIComponent(reversalId)}/record-aade-adjustment`,
+            {
+                method: 'POST',
+                cache: 'no-store',
+                body: JSON.stringify(payload),
+            },
+        );
+    }
+
+    async listPendingBillingWithdrawals(
+        after?: string,
+        limit: number = 50,
+    ): Promise<BillingAdminPendingWithdrawalsResponse> {
+        const params = new URLSearchParams({ limit: String(limit) });
+        if (after) {
+            params.set('after', after);
+        }
+        return this.request<BillingAdminPendingWithdrawalsResponse>(
+            `/billing/admin/withdrawals/pending?${params.toString()}`,
+            { cache: 'no-store' },
+        );
+    }
+
+    async resolveBillingWithdrawal(
+        withdrawalId: string,
+        payload: ResolveBillingWithdrawalPayload,
+    ): Promise<BillingWithdrawalResolutionResponse> {
+        return this.request<BillingWithdrawalResolutionResponse>(
+            `/billing/admin/withdrawals/${encodeURIComponent(withdrawalId)}/resolve`,
             {
                 method: 'POST',
                 cache: 'no-store',

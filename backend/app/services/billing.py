@@ -20,9 +20,11 @@ from sqlalchemy.orm import Session
 from backend.app.core.config import settings
 from backend.app.core.database import Database
 from backend.app.db.models import (
+    DbBillingAdjustmentRecord,
     DbBillingContractConfirmation,
     DbBillingInvoice,
     DbBillingWithdrawalRequest,
+    DbBillingWithdrawalResolution,
     DbCreditPurchase,
     DbCreditPurchaseReversal,
     DbStripeWebhookEvent,
@@ -36,8 +38,13 @@ from backend.app.services.billing_consumer_records import (
     verify_contract_confirmation,
 )
 from backend.app.services.billing_records import (
+    GREEK_B2C_BILLING_COUNTRY,
+    MANUAL_CAPTURE_POLICY,
+    CheckoutAccountingIneligibleError,
+    PaymentCaptureEvidence,
     build_paid_financial_record,
     new_pending_invoice,
+    validate_checkout_accounting_eligibility,
 )
 from backend.app.services.consumer_contracts import (
     ConsumerContractAcceptance,
@@ -161,6 +168,17 @@ class StripeRefundState:
 
 
 @dataclass(frozen=True, slots=True)
+class StripePaymentIntentState:
+    id: str
+    status: str
+    capture_method: str
+    amount_cents: int
+    amount_received_cents: int
+    currency: str
+    metadata: dict[str, str]
+
+
+@dataclass(frozen=True, slots=True)
 class CheckoutResult:
     purchase_id: str
     checkout_session_id: str | None
@@ -218,6 +236,25 @@ class BillingGateway(Protocol):
         self,
         payment_intent_id: str,
     ) -> dict[str, str]: ...
+
+    def retrieve_payment_intent_state(
+        self,
+        payment_intent_id: str,
+    ) -> StripePaymentIntentState: ...
+
+    def capture_authorized_payment(
+        self,
+        payment_intent_id: str,
+        *,
+        idempotency_key: str,
+    ) -> StripePaymentIntentState: ...
+
+    def cancel_authorized_payment(
+        self,
+        payment_intent_id: str,
+        *,
+        idempotency_key: str,
+    ) -> StripePaymentIntentState: ...
 
     def list_payment_intent_refunds(
         self,
@@ -282,6 +319,8 @@ class StripeSdkGateway:
             "consumer_disclosure_sha256": consumer_disclosure_sha256,
             "consumer_contract_sha256": consumer_contract_sha256,
             "consumer_locale": consumer_locale,
+            "billing_country": GREEK_B2C_BILLING_COUNTRY,
+            "capture_policy": MANUAL_CAPTURE_POLICY,
         }
         session = self._client.v1.checkout.sessions.create(
             {
@@ -297,8 +336,10 @@ class StripeSdkGateway:
                 "integration_identifier": integration_identifier,
                 "metadata": metadata,
                 "payment_intent_data": {
+                    "capture_method": "manual",
                     "metadata": metadata,
                     "receipt_email": customer_email,
+                    "statement_descriptor_suffix": "GSUBS",
                 },
                 "expires_at": int(time.time()) + 60 * 60,
             },
@@ -322,6 +363,14 @@ class StripeSdkGateway:
         self,
         payment_intent_id: str,
     ) -> dict[str, str]:
+        return self.retrieve_payment_intent_state(
+            payment_intent_id,
+        ).metadata
+
+    def retrieve_payment_intent_state(
+        self,
+        payment_intent_id: str,
+    ) -> StripePaymentIntentState:
         try:
             payment_intent = self._client.v1.payment_intents.retrieve(
                 payment_intent_id,
@@ -330,18 +379,147 @@ class StripeSdkGateway:
             raise BillingProviderError(
                 "Stripe PaymentIntent lookup is temporarily unavailable",
             ) from exc
-        metadata = getattr(payment_intent, "metadata", None)
-        if metadata is None:
-            return {}
+        return self._normalize_payment_intent_state(
+            payment_intent,
+            expected_payment_intent_id=payment_intent_id,
+        )
+
+    def capture_authorized_payment(
+        self,
+        payment_intent_id: str,
+        *,
+        idempotency_key: str,
+    ) -> StripePaymentIntentState:
+        current = self.retrieve_payment_intent_state(payment_intent_id)
+        if current.status == "succeeded":
+            return current
+        if current.status != "requires_capture":
+            raise BillingProviderError(
+                "Stripe payment authorization is not capturable",
+            )
+        try:
+            captured = self._client.v1.payment_intents.capture(
+                payment_intent_id,
+                {},
+                {"idempotency_key": idempotency_key},
+            )
+        except Exception as exc:
+            raise BillingProviderError(
+                "Stripe payment capture is temporarily unavailable",
+            ) from exc
+        return self._normalize_payment_intent_state(
+            captured,
+            expected_payment_intent_id=payment_intent_id,
+        )
+
+    def cancel_authorized_payment(
+        self,
+        payment_intent_id: str,
+        *,
+        idempotency_key: str,
+    ) -> StripePaymentIntentState:
+        current = self.retrieve_payment_intent_state(payment_intent_id)
+        if current.status == "canceled":
+            return current
+        if current.status != "requires_capture":
+            raise BillingProviderError(
+                "Stripe payment authorization is not cancelable",
+            )
+        try:
+            canceled = self._client.v1.payment_intents.cancel(
+                payment_intent_id,
+                {"cancellation_reason": "abandoned"},
+                {"idempotency_key": idempotency_key},
+            )
+        except Exception as exc:
+            raise BillingProviderError(
+                "Stripe payment authorization cancellation is temporarily unavailable",
+            ) from exc
+        return self._normalize_payment_intent_state(
+            canceled,
+            expected_payment_intent_id=payment_intent_id,
+        )
+
+    @staticmethod
+    def _normalize_payment_intent_state(
+        raw_payment_intent: Any,
+        *,
+        expected_payment_intent_id: str,
+    ) -> StripePaymentIntentState:
+        if hasattr(raw_payment_intent, "to_dict"):
+            raw_payment_intent = raw_payment_intent.to_dict()
+        if not isinstance(raw_payment_intent, dict):
+            raw_payment_intent = {
+                key: getattr(raw_payment_intent, key, None)
+                for key in (
+                    "id",
+                    "status",
+                    "capture_method",
+                    "amount",
+                    "amount_received",
+                    "currency",
+                    "metadata",
+                )
+            }
+        payment_intent_id = BillingService._stripe_id(
+            raw_payment_intent.get("id"),
+        )
+        status = str(raw_payment_intent.get("status") or "").strip()
+        capture_method = str(
+            raw_payment_intent.get("capture_method") or "",
+        ).strip()
+        currency = str(raw_payment_intent.get("currency") or "").lower().strip()
+        raw_amount = raw_payment_intent.get("amount")
+        raw_amount_received = raw_payment_intent.get("amount_received")
+        if isinstance(raw_amount, bool) or isinstance(raw_amount_received, bool):
+            raise BillingProviderError(
+                "Stripe PaymentIntent state is invalid",
+            )
+        try:
+            amount_cents = int(raw_amount)
+            amount_received_cents = int(raw_amount_received)
+        except (TypeError, ValueError) as exc:
+            raise BillingProviderError(
+                "Stripe PaymentIntent state is invalid",
+            ) from exc
+        metadata = raw_payment_intent.get("metadata")
         if hasattr(metadata, "to_dict"):
             metadata = metadata.to_dict()
-        if not isinstance(metadata, dict):
+        if metadata is None:
+            metadata = {}
+        if (
+            payment_intent_id != expected_payment_intent_id
+            or not payment_intent_id.startswith("pi_")
+            or len(payment_intent_id) > 255
+            or not status
+            or len(status) > 64
+            or capture_method not in {"automatic", "manual"}
+            or amount_cents <= 0
+            or amount_received_cents < 0
+            or amount_received_cents > amount_cents
+            or not currency
+            or len(currency) > 8
+            or not isinstance(metadata, dict)
+        ):
             raise BillingProviderError(
-                "Stripe PaymentIntent metadata is unavailable",
+                "Stripe PaymentIntent state is invalid",
             )
-        return {
+        normalized_metadata = {
             str(key): str(value) for key, value in metadata.items() if isinstance(key, str) and isinstance(value, str)
         }
+        if len(normalized_metadata) != len(metadata):
+            raise BillingProviderError(
+                "Stripe PaymentIntent metadata is invalid",
+            )
+        return StripePaymentIntentState(
+            id=payment_intent_id,
+            status=status,
+            capture_method=capture_method,
+            amount_cents=amount_cents,
+            amount_received_cents=amount_received_cents,
+            currency=currency,
+            metadata=normalized_metadata,
+        )
 
     def list_payment_intent_refunds(
         self,
@@ -487,6 +665,7 @@ def public_credit_catalog(locale: str = "el") -> dict[str, Any]:
     return {
         "catalog_version": CATALOG_VERSION,
         "currency": "eur",
+        "billing_country_scope": [GREEK_B2C_BILLING_COUNTRY],
         "checkout_enabled": (settings.paid_credit_checkout_enabled and consumer_contract_approved),
         "consumer_contract_status": ("approved" if consumer_contract_approved else "unavailable_unapproved"),
         "consumer_contract": (public_consumer_contract(locale) if consumer_contract_approved else None),
@@ -523,7 +702,13 @@ class BillingService:
         package_key: str,
         idempotency_key: str,
         consumer_contract: ConsumerContractAcceptance,
+        billing_country: str = GREEK_B2C_BILLING_COUNTRY,
     ) -> CheckoutResult:
+        normalized_billing_country = billing_country.strip().upper()
+        if normalized_billing_country != GREEK_B2C_BILLING_COUNTRY:
+            raise BillingValidationError(
+                "Paid credit purchases are available only to customers with a Greek billing address",
+            )
         with self.db.session() as lock_session:
             self._lock_account_billing(lock_session, user_id)
             if lock_session.get(DbUser, user_id) is None:
@@ -534,6 +719,7 @@ class BillingService:
                 package_key=package_key,
                 idempotency_key=idempotency_key,
                 consumer_contract=consumer_contract,
+                billing_country=normalized_billing_country,
             )
 
     def _create_checkout_locked(
@@ -544,6 +730,7 @@ class BillingService:
         package_key: str,
         idempotency_key: str,
         consumer_contract: ConsumerContractAcceptance,
+        billing_country: str,
     ) -> CheckoutResult:
         gateway = self._configured_gateway()
         incoming_key = self._validate_idempotency_key(idempotency_key)
@@ -553,6 +740,7 @@ class BillingService:
             package=package,
             idempotency_key=incoming_key,
             consumer_contract=consumer_contract,
+            billing_country=billing_country,
         )
         if purchase.status == "checkout_created" and purchase.checkout_url:
             return self._checkout_result(purchase)
@@ -654,6 +842,11 @@ class BillingService:
                         purchase_ids,
                     ),
                     DbBillingWithdrawalRequest.status == "pending_manual_review",
+                    ~select(DbBillingWithdrawalResolution.id)
+                    .where(
+                        DbBillingWithdrawalResolution.withdrawal_id == DbBillingWithdrawalRequest.id,
+                    )
+                    .exists(),
                 )
                 .with_for_update()
                 .limit(1)
@@ -695,6 +888,24 @@ class BillingService:
                 session.scalars(
                     select(DbBillingWithdrawalRequest.purchase_id).where(
                         DbBillingWithdrawalRequest.purchase_id.in_(
+                            purchase_ids,
+                        ),
+                    )
+                )
+            )
+            durable_child_purchase_ids.update(
+                session.scalars(
+                    select(DbBillingAdjustmentRecord.purchase_id).where(
+                        DbBillingAdjustmentRecord.purchase_id.in_(
+                            purchase_ids,
+                        ),
+                    )
+                )
+            )
+            durable_child_purchase_ids.update(
+                session.scalars(
+                    select(DbBillingWithdrawalResolution.purchase_id).where(
+                        DbBillingWithdrawalResolution.purchase_id.in_(
                             purchase_ids,
                         ),
                     )
@@ -898,6 +1109,7 @@ class BillingService:
         package: CreditPackage,
         idempotency_key: str,
         consumer_contract: ConsumerContractAcceptance,
+        billing_country: str,
     ) -> DbCreditPurchase:
         now = self._consumer_acceptance_timestamp()
         purchase_id = uuid.uuid4().hex
@@ -917,6 +1129,8 @@ class BillingService:
             "amount_eur_cents": package.amount_eur_cents,
             "currency": "eur",
             "stripe_price_id": package.price_id,
+            "billing_country": billing_country,
+            "capture_policy": MANUAL_CAPTURE_POLICY,
             "consumer_contract": consumer_snapshot,
             "consumer_contract_sha256": consumer_contract_snapshot_sha256(
                 consumer_snapshot,
@@ -987,6 +1201,8 @@ class BillingService:
                 "amount_eur_cents": package.amount_eur_cents,
                 "currency": "eur",
                 "stripe_price_id": package.price_id,
+                "billing_country": billing_country,
+                "capture_policy": MANUAL_CAPTURE_POLICY,
                 "consumer_contract": expected_consumer_snapshot,
                 "consumer_contract_sha256": (
                     consumer_contract_snapshot_sha256(
@@ -1018,7 +1234,19 @@ class BillingService:
         if event_type in _RECOGNIZED_EVENT_TYPES and not event_scope.is_local:
             return "ignored"
         if event_type == "checkout.session.completed":
-            if str(obj.get("payment_status") or "") == "unpaid":
+            if self._manual_capture_required(
+                purchase_id=event_scope.purchase_id,
+                obj=obj,
+            ):
+                self._capture_and_fulfill_checkout(
+                    obj,
+                    purchase_id=event_scope.purchase_id,
+                    provider_event_created=self._provider_event_created(
+                        provider_event_created,
+                    ),
+                    livemode=self._event_livemode(livemode),
+                )
+            elif str(obj.get("payment_status") or "") == "unpaid":
                 self._await_checkout_payment(
                     obj,
                     purchase_id=event_scope.purchase_id,
@@ -1034,6 +1262,13 @@ class BillingService:
                 )
             return "processed"
         if event_type == "checkout.session.async_payment_succeeded":
+            if self._manual_capture_required(
+                purchase_id=event_scope.purchase_id,
+                obj=obj,
+            ):
+                raise BillingValidationError(
+                    "Manual-capture Checkout cannot use asynchronous fulfillment",
+                )
             self._fulfill_checkout(
                 obj,
                 purchase_id=event_scope.purchase_id,
@@ -1076,6 +1311,139 @@ class BillingService:
             return "processed"
         return "ignored"
 
+    def _manual_capture_required(
+        self,
+        *,
+        purchase_id: str | None,
+        obj: dict[str, Any],
+    ) -> bool:
+        if purchase_id:
+            with self.db.session() as session:
+                purchase = session.get(DbCreditPurchase, purchase_id)
+                if purchase is not None and isinstance(
+                    purchase.snapshot,
+                    dict,
+                ):
+                    return purchase.snapshot.get("capture_policy") == MANUAL_CAPTURE_POLICY
+        metadata = obj.get("metadata")
+        return isinstance(metadata, dict) and metadata.get("capture_policy") == MANUAL_CAPTURE_POLICY
+
+    def _capture_and_fulfill_checkout(
+        self,
+        obj: dict[str, Any],
+        *,
+        purchase_id: str | None,
+        provider_event_created: int,
+        livemode: bool,
+    ) -> None:
+        session_id = str(obj.get("id") or "")
+        metadata = obj.get("metadata")
+        if not isinstance(metadata, dict):
+            raise BillingValidationError("Checkout metadata is missing")
+        if not purchase_id:
+            raise BillingProviderError(
+                "Local Checkout purchase is not available yet",
+            )
+
+        with self.db.session() as session:
+            purchase = session.scalar(
+                select(DbCreditPurchase).where(DbCreditPurchase.id == purchase_id).with_for_update().limit(1)
+            )
+            if purchase is None:
+                raise BillingProviderError(
+                    "Local Checkout purchase is not available yet",
+                )
+            self._validate_manual_capture_checkout(
+                obj,
+                metadata,
+                purchase,
+                session_id,
+            )
+            if purchase.fulfilled_at is not None:
+                return
+            payment_intent_id = self._stripe_id(
+                obj.get("payment_intent"),
+            )
+
+        gateway = self._webhook_gateway()
+        authorized = gateway.retrieve_payment_intent_state(
+            payment_intent_id,
+        )
+        self._validate_manual_payment_intent(
+            authorized,
+            purchase=purchase,
+            expected_payment_intent_id=payment_intent_id,
+            expected_user_id=str(metadata.get("user_id") or ""),
+            allowed_statuses=frozenset(
+                {"requires_capture", "succeeded", "canceled"},
+            ),
+        )
+
+        try:
+            validate_checkout_accounting_eligibility(
+                purchase=purchase,
+                checkout=obj,
+                stripe_event_created=provider_event_created,
+                livemode=livemode,
+            )
+        except CheckoutAccountingIneligibleError:
+            canceled = gateway.cancel_authorized_payment(
+                payment_intent_id,
+                idempotency_key=f"gsubs-cancel-{purchase.id}",
+            )
+            self._validate_manual_payment_intent(
+                canceled,
+                purchase=purchase,
+                expected_payment_intent_id=payment_intent_id,
+                expected_user_id=str(metadata.get("user_id") or ""),
+                allowed_statuses=frozenset({"canceled"}),
+            )
+            if canceled.amount_received_cents != 0:
+                raise BillingProviderError(
+                    "Canceled Stripe authorization reports received funds",
+                )
+            self._mark_ineligible_authorization_canceled(
+                purchase.id,
+            )
+            return
+        except ValueError as exc:
+            raise BillingValidationError(str(exc)) from exc
+
+        if authorized.status == "canceled":
+            raise BillingProviderError(
+                "Stripe payment authorization was canceled before capture",
+            )
+        captured = gateway.capture_authorized_payment(
+            payment_intent_id,
+            idempotency_key=f"gsubs-capture-{purchase.id}",
+        )
+        self._validate_manual_payment_intent(
+            captured,
+            purchase=purchase,
+            expected_payment_intent_id=payment_intent_id,
+            expected_user_id=str(metadata.get("user_id") or ""),
+            allowed_statuses=frozenset({"succeeded"}),
+        )
+        if captured.amount_received_cents != purchase.amount_eur_cents:
+            raise BillingProviderError(
+                "Captured Stripe payment amount is invalid",
+            )
+        self._fulfill_checkout(
+            obj,
+            purchase_id=purchase.id,
+            provider_event_created=provider_event_created,
+            livemode=livemode,
+            capture_evidence=PaymentCaptureEvidence(
+                payment_intent_id=captured.id,
+                status=captured.status,
+                amount_cents=captured.amount_cents,
+                amount_received_cents=captured.amount_received_cents,
+                currency=captured.currency,
+                capture_method="manual",
+                capture_policy=MANUAL_CAPTURE_POLICY,
+            ),
+        )
+
     def _fulfill_checkout(
         self,
         obj: dict[str, Any],
@@ -1083,6 +1451,7 @@ class BillingService:
         purchase_id: str | None,
         provider_event_created: int,
         livemode: bool,
+        capture_evidence: PaymentCaptureEvidence | None = None,
     ) -> None:
         session_id = str(obj.get("id") or "")
         metadata = obj.get("metadata")
@@ -1098,7 +1467,13 @@ class BillingService:
                 raise BillingProviderError(
                     "Local Checkout purchase is not available yet",
                 )
-            self._validate_fulfillment_object(obj, metadata, purchase, session_id)
+            self._validate_fulfillment_object(
+                obj,
+                metadata,
+                purchase,
+                session_id,
+                manual_capture=capture_evidence is not None,
+            )
             if purchase.fulfilled_at is not None:
                 return
             try:
@@ -1107,6 +1482,7 @@ class BillingService:
                     checkout=obj,
                     stripe_event_created=provider_event_created,
                     livemode=livemode,
+                    capture_evidence=capture_evidence,
                 )
             except ValueError as exc:
                 raise BillingValidationError(str(exc)) from exc
@@ -1845,8 +2221,7 @@ class BillingService:
 
         if active_refund_cents < charge_refunded_amount_cents:
             raise BillingProviderError(
-                "Stripe refund reconciliation returned an incomplete "
-                "active cumulative refund total",
+                "Stripe refund reconciliation returned an incomplete active cumulative refund total",
             )
         if active_refund_cents > purchase.amount_eur_cents:
             raise BillingProviderError(
@@ -2079,6 +2454,8 @@ class BillingService:
         metadata: dict[str, Any],
         purchase: DbCreditPurchase,
         session_id: str,
+        *,
+        manual_capture: bool = False,
     ) -> None:
         BillingService._validate_checkout_identity(
             obj,
@@ -2087,8 +2464,148 @@ class BillingService:
             session_id,
         )
         payment_intent_id = BillingService._stripe_id(obj.get("payment_intent"))
-        if not payment_intent_id.startswith("pi_") or str(obj.get("payment_status") or "") != "paid":
+        payment_status = str(obj.get("payment_status") or "")
+        purchase_capture_policy = (
+            purchase.snapshot.get("capture_policy") if isinstance(purchase.snapshot, dict) else None
+        )
+        valid_payment_status = payment_status in {"paid", "unpaid"} if manual_capture else payment_status == "paid"
+        valid_capture_policy = (
+            purchase_capture_policy == MANUAL_CAPTURE_POLICY
+            if manual_capture
+            else purchase_capture_policy != MANUAL_CAPTURE_POLICY
+        )
+        if not payment_intent_id.startswith("pi_") or not valid_payment_status or not valid_capture_policy:
             raise BillingValidationError("Checkout fulfillment does not match purchase snapshot")
+
+    @staticmethod
+    def _validate_manual_capture_checkout(
+        obj: dict[str, Any],
+        metadata: dict[str, Any],
+        purchase: DbCreditPurchase,
+        session_id: str,
+    ) -> None:
+        BillingService._validate_checkout_identity(
+            obj,
+            metadata,
+            purchase,
+            session_id,
+        )
+        payment_intent_id = BillingService._stripe_id(
+            obj.get("payment_intent"),
+        )
+        purchase_capture_policy = (
+            purchase.snapshot.get("capture_policy") if isinstance(purchase.snapshot, dict) else None
+        )
+        if (
+            purchase_capture_policy != MANUAL_CAPTURE_POLICY
+            or not payment_intent_id.startswith("pi_")
+            or str(obj.get("payment_status") or "") not in {"paid", "unpaid"}
+        ):
+            raise BillingValidationError(
+                "Checkout authorization does not match purchase snapshot",
+            )
+
+    @staticmethod
+    def _validate_manual_payment_intent(
+        payment_intent: StripePaymentIntentState,
+        *,
+        purchase: DbCreditPurchase,
+        expected_payment_intent_id: str,
+        expected_user_id: str,
+        allowed_statuses: frozenset[str],
+    ) -> None:
+        expected_metadata = BillingService._expected_purchase_metadata(
+            purchase,
+        )
+        if (
+            payment_intent.id != expected_payment_intent_id
+            or payment_intent.status not in allowed_statuses
+            or payment_intent.capture_method != "manual"
+            or payment_intent.amount_cents != purchase.amount_eur_cents
+            or (payment_intent.status == "requires_capture" and payment_intent.amount_received_cents != 0)
+            or payment_intent.currency.lower() != purchase.currency.lower()
+            or payment_intent.metadata.get("user_id") != expected_user_id
+            or any(payment_intent.metadata.get(key) != value for key, value in expected_metadata.items())
+        ):
+            raise BillingProviderError(
+                "Stripe PaymentIntent does not match the authorized purchase",
+            )
+
+    def _mark_ineligible_authorization_canceled(
+        self,
+        purchase_id: str,
+    ) -> None:
+        with self.db.session() as session:
+            purchase = session.scalar(
+                select(DbCreditPurchase).where(DbCreditPurchase.id == purchase_id).with_for_update().limit(1)
+            )
+            if purchase is None:
+                raise BillingProviderError(
+                    "Local Checkout purchase is not available yet",
+                )
+            if purchase.fulfilled_at is not None:
+                raise BillingConflictError(
+                    "A fulfilled purchase cannot become ineligible",
+                )
+            if (
+                purchase.payment_intent_id is not None
+                or purchase.payment_snapshot is not None
+                or purchase.customer_snapshot is not None
+                or purchase.tax_snapshot is not None
+            ):
+                raise BillingConflictError(
+                    "Canceled authorization conflicts with financial evidence",
+                )
+            purchase.status = "failed"
+            purchase.error = (
+                "Payment authorization canceled: billing details are outside the supported Greece-only payment flow"
+            )
+            purchase.checkout_url = None
+            purchase.updated_at = int(time.time())
+
+    @staticmethod
+    def _expected_purchase_metadata(
+        purchase: DbCreditPurchase,
+    ) -> dict[str, str]:
+        expected_metadata = {
+            "purchase_id": purchase.id,
+            "package_key": purchase.package_key,
+            "credits": str(purchase.credits),
+            "integration_identifier": purchase.integration_identifier,
+            "catalog_version": str(
+                purchase.snapshot.get("catalog_version") if isinstance(purchase.snapshot, dict) else ""
+            ),
+            "billing_country": str(
+                purchase.snapshot.get("billing_country") if isinstance(purchase.snapshot, dict) else ""
+            ),
+            "capture_policy": str(
+                purchase.snapshot.get("capture_policy") if isinstance(purchase.snapshot, dict) else ""
+            ),
+        }
+        consumer_contract = purchase.snapshot.get("consumer_contract") if isinstance(purchase.snapshot, dict) else None
+        if isinstance(consumer_contract, dict):
+            expected_metadata.update(
+                {
+                    "consumer_disclosure_id": str(
+                        consumer_contract.get("disclosure_id") or "",
+                    ),
+                    "consumer_disclosure_sha256": str(
+                        consumer_contract.get("disclosure_sha256") or "",
+                    ),
+                    "consumer_contract_sha256": str(
+                        purchase.snapshot.get(
+                            "consumer_contract_sha256",
+                        )
+                        or "",
+                    ),
+                    "consumer_locale": str(
+                        consumer_contract.get("locale") or "",
+                    ),
+                }
+            )
+        else:
+            expected_metadata["consumer_contract_sha256"] = ""
+        return expected_metadata
 
     @staticmethod
     def _validate_checkout_identity(
@@ -2110,35 +2627,9 @@ class BillingService:
                 )
             except ValueError:
                 account_identity_matches = False
-        expected_metadata = {
-            "purchase_id": purchase.id,
-            "package_key": purchase.package_key,
-            "credits": str(purchase.credits),
-            "integration_identifier": purchase.integration_identifier,
-            "catalog_version": str(
-                purchase.snapshot.get("catalog_version") if isinstance(purchase.snapshot, dict) else ""
-            ),
-        }
-        consumer_contract = purchase.snapshot.get("consumer_contract") if isinstance(purchase.snapshot, dict) else None
-        if isinstance(consumer_contract, dict):
-            expected_metadata.update(
-                {
-                    "consumer_disclosure_id": str(
-                        consumer_contract.get("disclosure_id") or "",
-                    ),
-                    "consumer_disclosure_sha256": str(
-                        consumer_contract.get("disclosure_sha256") or "",
-                    ),
-                    "consumer_contract_sha256": str(
-                        purchase.snapshot.get("consumer_contract_sha256") or "",
-                    ),
-                    "consumer_locale": str(
-                        consumer_contract.get("locale") or "",
-                    ),
-                }
-            )
-        else:
-            expected_metadata["consumer_contract_sha256"] = ""
+        expected_metadata = BillingService._expected_purchase_metadata(
+            purchase,
+        )
         if (
             not session_id
             or session_id != purchase.checkout_session_id

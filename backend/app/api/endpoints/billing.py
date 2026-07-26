@@ -22,6 +22,9 @@ from backend.app.services.billing_consumer_records import (
     BillingConsumerRecordStore,
     BillingConsumerRecordValidationError,
 )
+from backend.app.services.billing_manual_records import (
+    WithdrawalResolutionDecision,
+)
 from backend.app.services.consumer_contracts import ConsumerContractAcceptance
 
 from ..deps import (
@@ -61,6 +64,7 @@ class CheckoutRequest(BaseModel):
 
     package_key: str = Field(..., min_length=1, max_length=32)
     catalog_version: str = Field(..., min_length=1, max_length=64)
+    billing_country: Literal["GR"]
     consumer_contract: ConsumerContractRequest
 
 
@@ -139,6 +143,9 @@ class BillingPurchaseResponse(BaseModel):
     withdrawal_status: str | None
     withdrawal_acknowledgement_available: bool
     withdrawal_acknowledgement_url: str | None
+    withdrawal_resolution_available: bool
+    withdrawal_resolution_decision: WithdrawalResolutionDecision | None
+    withdrawal_resolution_url: str | None
 
 
 @router.get("/catalog")
@@ -162,6 +169,7 @@ def create_checkout(
             customer_email=current_user.email,
             package_key=payload.package_key,
             idempotency_key=idempotency_key,
+            billing_country=payload.billing_country,
             consumer_contract=ConsumerContractAcceptance(
                 catalog_version=payload.catalog_version,
                 disclosure_id=payload.consumer_contract.disclosure_id,
@@ -290,6 +298,13 @@ def list_billing_purchases(
                 if purchase.withdrawal_acknowledgement_available
                 else None
             ),
+            withdrawal_resolution_available=(purchase.withdrawal_resolution_available),
+            withdrawal_resolution_decision=(purchase.withdrawal_resolution_decision),
+            withdrawal_resolution_url=(
+                f"/billing/purchases/{purchase.purchase_id}/withdrawal-resolution"
+                if purchase.withdrawal_resolution_available
+                else None
+            ),
         )
         for purchase in purchases
     ]
@@ -374,6 +389,34 @@ def download_withdrawal_acknowledgement(
         mime_type=withdrawal.acknowledgement_mime_type,
         filename=withdrawal.acknowledgement_filename,
         sha256=withdrawal.acknowledgement_sha256,
+    )
+
+
+@router.get("/purchases/{purchase_id}/withdrawal-resolution")
+def download_withdrawal_resolution(
+    purchase_id: str = Path(
+        ...,
+        min_length=32,
+        max_length=32,
+        pattern=r"^[0-9a-f]{32}$",
+    ),
+    current_user: User = Depends(get_current_user),
+    record_store: BillingConsumerRecordStore = Depends(
+        get_billing_consumer_record_store,
+    ),
+) -> Response:
+    try:
+        resolution = record_store.get_withdrawal_resolution(
+            user_id=current_user.id,
+            purchase_id=purchase_id,
+        )
+    except Exception as exc:
+        raise _http_billing_error(exc) from exc
+    return _artifact_response(
+        content=resolution.resolution_bytes,
+        mime_type=resolution.resolution_mime_type,
+        filename=resolution.resolution_filename,
+        sha256=resolution.resolution_sha256,
     )
 
 

@@ -291,6 +291,7 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
     await route.fulfill(withCors({
       catalog_version: '2026-07-23-v1',
       currency: 'eur',
+      billing_country_scope: ['GR'],
       checkout_enabled: false,
       consumer_contract_status: 'unavailable_unapproved',
       consumer_contract: null,

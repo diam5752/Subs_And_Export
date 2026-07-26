@@ -10,6 +10,8 @@ import {
     ApiError,
     api,
     type BillingAdminPendingInvoice,
+    type BillingAdminPendingRefund,
+    type BillingAdminPendingWithdrawal,
     type RecordedAadeDocumentResponse,
 } from '@/lib/api';
 
@@ -32,6 +34,10 @@ jest.mock('@/lib/api', () => {
         api: {
             listPendingBillingInvoices: jest.fn(),
             recordIssuedAadeDocument: jest.fn(),
+            listPendingBillingRefunds: jest.fn(),
+            recordManualRefundAccounting: jest.fn(),
+            listPendingBillingWithdrawals: jest.fn(),
+            resolveBillingWithdrawal: jest.fn(),
         },
     };
 });
@@ -55,6 +61,16 @@ const listPendingInvoices = (
 const recordIssuedDocument = (
     api.recordIssuedAadeDocument as jest.MockedFunction<
         typeof api.recordIssuedAadeDocument
+    >
+);
+const listPendingRefunds = (
+    api.listPendingBillingRefunds as jest.MockedFunction<
+        typeof api.listPendingBillingRefunds
+    >
+);
+const listPendingWithdrawals = (
+    api.listPendingBillingWithdrawals as jest.MockedFunction<
+        typeof api.listPendingBillingWithdrawals
     >
 );
 
@@ -138,14 +154,47 @@ function makeInvoice(
     };
 }
 
-function pendingResponse(
-    items: BillingAdminPendingInvoice[],
+function pendingResponse<T>(
+    items: T[],
     nextCursor: string | null = null,
 ) {
     return {
         items,
         count: items.length,
         next_cursor: nextCursor,
+    };
+}
+
+function makeRefundReview(): BillingAdminPendingRefund {
+    return {
+        reversal_id: 'r'.repeat(32),
+        stripe_refund_id: 're_completed_refund',
+        stripe_refund_status: 'succeeded',
+        stripe_refund_created_at: PAYMENT_CONFIRMED_AT + 60,
+        amount_cents: 1240,
+        currency: 'eur',
+        linked_withdrawal_id: 'w'.repeat(32),
+        original_invoice: makeInvoice({
+            invoice_id: 'i'.repeat(32),
+            purchase_id: 'p'.repeat(32),
+            purchase_status: 'refunded',
+            refunded_amount_cents: 1240,
+            reversed_amount_cents: 1240,
+            requires_reversal_review: true,
+        }),
+    };
+}
+
+function makeWithdrawalReview(): BillingAdminPendingWithdrawal {
+    return {
+        withdrawal_id: 'w'.repeat(32),
+        purchase_id: 'p'.repeat(32),
+        locale: 'en',
+        submitted_at: PAYMENT_CONFIRMED_AT + 30,
+        contract_concluded_at: PAYMENT_CONFIRMED_AT,
+        confirmed_name: 'Ada Example',
+        confirmation_email: 'ada@example.com',
+        available_adjustments: [],
     };
 }
 
@@ -226,6 +275,8 @@ describe('BillingAdminPage', () => {
         jest.spyOn(Date, 'now').mockReturnValue(NOW_MILLISECONDS);
         mockUseAuth.mockReturnValue(signedInAuth());
         listPendingInvoices.mockResolvedValue(pendingResponse([]));
+        listPendingRefunds.mockResolvedValue(pendingResponse([]));
+        listPendingWithdrawals.mockResolvedValue(pendingResponse([]));
     });
 
     afterEach(() => {
@@ -284,6 +335,28 @@ describe('BillingAdminPage', () => {
         expect(screen.getByText(
             '1 Example Street, 10558 Athens, GR',
         )).toBeInTheDocument();
+    });
+
+    it('loads the independent refund and withdrawal review queues', async () => {
+        listPendingRefunds.mockResolvedValueOnce(
+            pendingResponse([makeRefundReview()]),
+        );
+        listPendingWithdrawals.mockResolvedValueOnce(
+            pendingResponse([makeWithdrawalReview()]),
+        );
+
+        render(<BillingAdminPage />);
+
+        expect(await screen.findByTestId(
+            `billing-admin-refund-${'r'.repeat(32)}`,
+        )).toBeInTheDocument();
+        expect(screen.getByText('re_completed_refund')).toBeInTheDocument();
+        expect(screen.getByTestId(
+            `billing-admin-withdrawal-${'w'.repeat(32)}`,
+        )).toBeInTheDocument();
+        expect(listPendingInvoices).toHaveBeenCalledWith(undefined);
+        expect(listPendingRefunds).toHaveBeenCalledWith();
+        expect(listPendingWithdrawals).toHaveBeenCalledWith();
     });
 
     it('locks the verified MizAI document type and series defaults', async () => {
@@ -516,7 +589,7 @@ describe('BillingAdminPage', () => {
         await screen.findByTestId('billing-admin-invoice-invoice-1');
 
         fireEvent.click(screen.getByRole('button', {
-            name: 'adminBillingLoadMore',
+            name: 'adminBillingLoadMoreInvoices',
         }));
 
         await screen.findByTestId('billing-admin-invoice-invoice-2');

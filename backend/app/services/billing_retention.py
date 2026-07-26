@@ -9,9 +9,11 @@ from sqlalchemy import JSON, and_, delete, func, or_, select, text
 
 from backend.app.core.database import Database
 from backend.app.db.models import (
+    DbBillingAdjustmentRecord,
     DbBillingContractConfirmation,
     DbBillingInvoice,
     DbBillingWithdrawalRequest,
+    DbBillingWithdrawalResolution,
     DbCreditPurchase,
     DbCreditPurchaseReversal,
 )
@@ -142,6 +144,27 @@ def cleanup_expired_billing_records(
             .where(
                 DbBillingWithdrawalRequest.purchase_id == DbCreditPurchase.id,
                 DbBillingWithdrawalRequest.status == "pending_manual_review",
+                ~select(DbBillingWithdrawalResolution.id)
+                .where(
+                    DbBillingWithdrawalResolution.withdrawal_id == DbBillingWithdrawalRequest.id,
+                )
+                .exists(),
+            )
+            .exists()
+        )
+        unexpired_adjustment_exists = (
+            select(DbBillingAdjustmentRecord.id)
+            .where(
+                DbBillingAdjustmentRecord.purchase_id == DbCreditPurchase.id,
+                DbBillingAdjustmentRecord.financial_retention_until > current_time,
+            )
+            .exists()
+        )
+        unexpired_resolution_exists = (
+            select(DbBillingWithdrawalResolution.id)
+            .where(
+                DbBillingWithdrawalResolution.purchase_id == DbCreditPurchase.id,
+                DbBillingWithdrawalResolution.financial_retention_until > current_time,
             )
             .exists()
         )
@@ -172,6 +195,8 @@ def cleanup_expired_billing_records(
                     ~blocking_reversal_exists,
                     ~unexpired_reversal_exists,
                     ~pending_withdrawal_exists,
+                    ~unexpired_adjustment_exists,
+                    ~unexpired_resolution_exists,
                     ~unexpired_confirmation_exists,
                     or_(
                         DbCreditPurchase.fulfilled_at.is_not(None),
@@ -186,6 +211,25 @@ def cleanup_expired_billing_records(
             )
         )
         if financial_ids:
+            # Resolved requests are the retention root. Their database FK
+            # cascades to the matching expired resolution, while the trigger
+            # refuses this delete when no completed resolution exists.
+            session.execute(
+                delete(DbBillingWithdrawalRequest).where(
+                    DbBillingWithdrawalRequest.purchase_id.in_(
+                        financial_ids,
+                    ),
+                    DbBillingWithdrawalRequest.financial_retention_until <= current_time,
+                )
+            )
+            session.execute(
+                delete(DbBillingAdjustmentRecord).where(
+                    DbBillingAdjustmentRecord.purchase_id.in_(
+                        financial_ids,
+                    ),
+                    DbBillingAdjustmentRecord.financial_retention_until <= current_time,
+                )
+            )
             session.execute(
                 delete(DbBillingContractConfirmation).where(
                     DbBillingContractConfirmation.purchase_id.in_(

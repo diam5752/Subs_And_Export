@@ -47,6 +47,14 @@ def test_registry_is_localized_versioned_and_content_addressed() -> None:
     assert len(str(greek["disclosure_sha256"])) == 64
     assert "14" in str(greek["content"]["withdrawal_notice"])
     assert "downloadable" in str(greek["content"]["credit_description"])
+    assert "επιλέξιμο μέσο πληρωμής προεγκρίνεται προσωρινά" in str(
+        greek["content"]["purchase_terms"],
+    )
+    assert "authorization is canceled" in str(
+        english["content"]["purchase_terms"],
+    )
+    assert greek["launch_review_status"]["adjustment_workflow"] == ("pending_accountant_approval")
+    assert greek["launch_review_status"]["adjustment_workflow_implemented"] is True
     assert consumer_contract_registry_is_approved() is False
 
 
@@ -62,7 +70,7 @@ def test_backend_and_frontend_share_one_fail_closed_publication_identity() -> No
         "public_terms_route": "/terms",
         "schema_version": 1,
         "status": "inactive_unapproved",
-        "terms_version": "2026-07-26-draft-v1",
+        "terms_version": "2026-07-26-draft-v4",
     }
 
 
@@ -166,7 +174,7 @@ def test_registry_approval_requires_reviewed_code_status(
             replace(
                 disclosure,
                 disclosure_id=disclosure.disclosure_id.replace(
-                    "-draft-v1",
+                    "-draft-v4",
                     "-reviewed-v1",
                 ),
             )
