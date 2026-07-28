@@ -15,6 +15,9 @@ def test_transcription_engine_catalog_exposes_capabilities(
     monkeypatch,
 ) -> None:
     monkeypatch.setattr(engine_routes.settings, "mock_external_services", False)
+    # REGRESSION: Capability discovery depended on the developer's local
+    # Scribe feature flag instead of declaring the disabled scenario itself.
+    monkeypatch.setattr(engine_routes.settings, "elevenlabs_enabled", False)
     response = client.get("/videos/transcription-engines", headers=user_auth_headers)
 
     assert response.status_code == 200

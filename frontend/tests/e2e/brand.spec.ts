@@ -9,16 +9,17 @@ test('gsubs branding is visible across the public shell and metadata', async ({ 
   const header = page.getByRole('banner', { name: 'gsubs studio' });
   const headerLogo = header.getByRole('img', { name: 'gsubs' });
   await expect(headerLogo).toBeVisible();
-  // REGRESSION: The header logo should stack the wordmark below the symbol.
-  await expect(headerLogo).toHaveAttribute('src', '/brand/gsubs-logo-stacked-light.svg');
-  await expect(headerLogo).toHaveCSS('width', '80px');
+  // REGRESSION: Header, footer and auth routes used different historical logo
+  // variants instead of the selected compact split identity.
+  await expect(headerLogo).toHaveAttribute('src', '/brand/gsubs-logo.svg');
+  await expect(headerLogo).toHaveCSS('width', '136px');
   const footerLogo = page.locator('.footer-brand img');
   await expect(footerLogo).toBeVisible();
-  await expect(footerLogo).toHaveAttribute('src', '/brand/gsubs-logo-light.svg');
+  await expect(footerLogo).toHaveAttribute('src', '/brand/gsubs-logo.svg');
   await expect(footerLogo).toHaveCSS('width', '88px');
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(headerLogo).toHaveCSS('width', '68px');
+  await expect(headerLogo).toHaveCSS('width', '104px');
   await expect(headerLogo).toBeVisible();
   await expect(page).toHaveTitle('gsubs · Subtitle Studio');
 
@@ -31,10 +32,7 @@ test('gsubs branding is visible across the public shell and metadata', async ({ 
   });
 
   for (const asset of [
-    '/brand/gsubs-logo-light.svg',
-    '/brand/gsubs-logo-dark.svg',
-    '/brand/gsubs-logo-stacked-light.svg',
-    '/brand/gsubs-logo-stacked-dark.svg',
+    '/brand/gsubs-logo.svg',
     '/brand/gsubs-mark.svg',
     '/gsubs-watermark.png',
     '/icon.png',
@@ -53,7 +51,7 @@ test('gsubs identity remains visible on auth and legal routes', async ({ page })
     await page.goto(route);
     await expect(page.getByRole('img', { name: 'gsubs' }).first()).toBeVisible();
     await expect(page.getByRole('img', { name: 'gsubs' }).first())
-      .toHaveAttribute('src', '/brand/gsubs-logo-light.svg');
+      .toHaveAttribute('src', '/brand/gsubs-logo.svg');
   }
 });
 

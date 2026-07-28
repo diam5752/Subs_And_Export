@@ -22,7 +22,7 @@ describe('RegisterPage', () => {
 
         const homeLink = screen.getByRole('link', { name: 'brandHomeLabel' });
         expect(within(homeLink).getByRole('img', { name: 'gsubs' }))
-            .toHaveAttribute('src', '/brand/gsubs-logo-light.svg');
+            .toHaveAttribute('src', '/brand/gsubs-logo.svg');
         expect(screen.getByText('gsubs')).toBeInTheDocument();
         expect(screen.getByText('registerTitle')).toBeInTheDocument();
     });

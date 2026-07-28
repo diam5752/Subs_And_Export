@@ -482,8 +482,16 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
 
     const headers: Record<string, string> = { ...corsHeaders };
     if (url.searchParams.get('download') === 'true') {
-      const filename = url.pathname.split('/').pop() || 'processed.txt';
-      headers['content-disposition'] = `attachment; filename="${filename}"`;
+      // REGRESSION: The static-artifact mock ignored the public filename query
+      // contract and exposed the internal processed_<format> artifact name.
+      const filename = (
+        url.searchParams.get('filename')
+        || url.pathname.split('/').pop()
+        || 'processed.txt'
+      );
+      headers['content-disposition'] = (
+        `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`
+      );
     }
 
     await route.fulfill({

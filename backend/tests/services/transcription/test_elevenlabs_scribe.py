@@ -22,7 +22,13 @@ class FakeResponse:
         return self.payload
 
 
-def test_scribe_is_fail_closed_while_feature_flag_is_disabled(tmp_path: Path) -> None:
+def test_scribe_is_fail_closed_while_feature_flag_is_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    # REGRESSION: A developer's enabled local Scribe flag leaked into this
+    # fail-closed test and allowed the fake transport to run.
+    monkeypatch.setattr(settings, "elevenlabs_enabled", False)
     audio_path = tmp_path / "audio.wav"
     audio_path.write_bytes(b"audio")
     transport_called = False

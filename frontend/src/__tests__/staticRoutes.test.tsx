@@ -32,10 +32,7 @@ describe('static application routes', () => {
     it('ships the production logo, mark, icon and watermark assets', () => {
         const publicRoot = path.join(process.cwd(), 'public');
         const assetPaths = [
-            'brand/gsubs-logo-light.svg',
-            'brand/gsubs-logo-dark.svg',
-            'brand/gsubs-logo-stacked-light.svg',
-            'brand/gsubs-logo-stacked-dark.svg',
+            'brand/gsubs-logo.svg',
             'brand/gsubs-mark.svg',
             'brand/gsubs-watermark.svg',
             'gsubs-watermark.png',
@@ -45,13 +42,25 @@ describe('static application routes', () => {
         for (const assetPath of assetPaths) {
             expect(fs.statSync(path.join(publicRoot, assetPath)).size).toBeGreaterThan(0);
         }
+        for (const retiredAssetPath of [
+            'brand/gsubs-logo-light.svg',
+            'brand/gsubs-logo-dark.svg',
+            'brand/gsubs-logo-stacked-light.svg',
+            'brand/gsubs-logo-stacked-dark.svg',
+        ]) {
+            expect(fs.existsSync(path.join(publicRoot, retiredAssetPath))).toBe(false);
+        }
 
-        const lightLogo = fs.readFileSync(
-            path.join(publicRoot, 'brand/gsubs-logo-light.svg'),
+        const canonicalLogo = fs.readFileSync(
+            path.join(publicRoot, 'brand/gsubs-logo.svg'),
             'utf8',
         );
-        expect(lightLogo).toContain('Audio waveform becoming subtitle lines');
-        expect(lightLogo).toContain('#166095');
-        expect(lightLogo).toContain('#c66a21');
+        // REGRESSION: The shipped SVG described the rejected direct-morph
+        // arrow concept instead of the selected compact split mark.
+        expect(canonicalLogo).toContain('Compact split mark with waveform and subtitle lines');
+        expect(canonicalLogo).toContain('data-brand-mark="compact-split"');
+        expect(canonicalLogo).toContain('#166095');
+        expect(canonicalLogo).toContain('#c66a21');
+        expect(canonicalLogo).not.toContain('M158 48L176 64L158 80');
     });
 });

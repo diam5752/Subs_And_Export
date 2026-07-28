@@ -7,8 +7,11 @@ import subprocess
 import time
 from pathlib import Path
 
+from PIL import Image
+
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 DEPLOYMENT_ROOT = REPOSITORY_ROOT / "deploy" / "hetzner"
+SUBPROCESS_START_TIMEOUT_SECONDS = 15.0
 
 
 def deployment_text(filename: str) -> str:
@@ -828,7 +831,9 @@ def test_restore_drill_signal_exits_nonzero_without_a_receipt(
     )
 
     try:
-        deadline = time.monotonic() + 5
+        # REGRESSION: Five seconds was too tight for the verifier's checksum
+        # preflight on a loaded local runner, before the fake age process starts.
+        deadline = time.monotonic() + SUBPROCESS_START_TIMEOUT_SECONDS
         while not marker.exists() and process.poll() is None:
             if time.monotonic() >= deadline:
                 break
@@ -916,7 +921,7 @@ exec sleep 30
     )
 
     try:
-        deadline = time.monotonic() + 5
+        deadline = time.monotonic() + SUBPROCESS_START_TIMEOUT_SECONDS
         while not marker.exists() and process.poll() is None:
             if time.monotonic() >= deadline:
                 break
@@ -1126,6 +1131,13 @@ def test_backend_image_contains_the_gsubs_watermark() -> None:
 
     assert watermark.is_file()
     assert "COPY gsubs-logo.png /gsubs-logo.png" in dockerfile
+    # REGRESSION: The export watermark used the rejected waveform-arrow artwork
+    # instead of the selected compact split mark with its framed icon.
+    with Image.open(watermark) as image:
+        rgba = image.convert("RGBA")
+        assert rgba.size == (1360, 304)
+        assert rgba.getpixel((60, 152)) == (231, 237, 244, 255)
+        assert rgba.getpixel((240, 136)) == (198, 106, 33, 255)
 
 
 def test_frontend_image_applies_the_patched_dependency_compatibility_export() -> None:

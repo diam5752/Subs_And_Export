@@ -33,7 +33,7 @@ describe('LegalPage', () => {
         renderPage('privacy');
 
         expect(screen.getByRole('img', { name: 'gsubs' }))
-            .toHaveAttribute('src', '/brand/gsubs-logo-light.svg');
+            .toHaveAttribute('src', '/brand/gsubs-logo.svg');
         expect(screen.getByRole('heading', { name: 'Πολιτική Απορρήτου' })).toBeInTheDocument();
         expect(screen.getByText(/χρειάζεται το gsubs/)).toBeInTheDocument();
         expect(screen.getByText(/ElevenLabs Scribe v2/)).toBeInTheDocument();

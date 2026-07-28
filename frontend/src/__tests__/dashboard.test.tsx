@@ -276,10 +276,10 @@ describe('DashboardPage', () => {
 
         const studioHeader = screen.getByRole('banner', { name: 'gsubs studio' });
         expect(studioHeader).toBeInTheDocument();
-        // REGRESSION: Keep the homepage header compact by stacking the name
-        // underneath the waveform-to-subtitles symbol.
+        // REGRESSION: The homepage header used a separate stacked logo instead
+        // of the canonical compact-split identity used on the other routes.
         expect(within(studioHeader).getByRole('img', { name: 'gsubs' }))
-            .toHaveAttribute('src', '/brand/gsubs-logo-stacked-light.svg');
+            .toHaveAttribute('src', '/brand/gsubs-logo.svg');
         expect(screen.getByRole('navigation', { name: 'Workspace navigation' })).toBeInTheDocument();
         expect(screen.getByTestId('studio-intro')).toHaveClass('studio-intro');
         expect(screen.getByTestId('studio-header-credits')).toBeInTheDocument();

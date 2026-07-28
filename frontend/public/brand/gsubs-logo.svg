@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 152" role="img" aria-labelledby="title desc">
-  <title id="title">gsubs watermark</title>
-  <desc id="desc">High-contrast compact split gsubs logo for exported video.</desc>
-  <rect x="4" y="4" width="672" height="144" rx="32" fill="#05070a" fill-opacity=".88"/>
+  <title id="title">gsubs</title>
+  <desc id="desc">Compact split mark with waveform and subtitle lines, followed by the gsubs wordmark.</desc>
+  <rect x="4" y="4" width="672" height="144" rx="32" fill="#05070a"/>
   <g transform="translate(30 20)" data-brand-mark="compact-split" aria-hidden="true">
     <rect x="0" y="0" width="112" height="112" rx="25" fill="none" stroke="#e7edf4" stroke-width="10"/>
     <rect x="27" y="42" width="10" height="30" rx="5" fill="#166095"/>

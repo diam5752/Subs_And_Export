@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gsubs-shell-v3';
+const CACHE_NAME = 'gsubs-shell-v4';
 const SHELL = ['/', '/login', '/offline', '/manifest.webmanifest', '/icon.png'];
 
 self.addEventListener('install', (event) => {
