@@ -80,7 +80,6 @@ export function LegalPage({ kind }: LegalPageProps) {
                     body: 'termsPaidCreditsDraftBody' as const,
                 },
                 ...sections.terms,
-                ...paidCreditSections,
             ];
 
     return (
