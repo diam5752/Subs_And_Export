@@ -20,6 +20,9 @@ const mockTranslate = (
         billingWithdrawalConfirm: 'Confirm withdrawal',
         billingWithdrawalConcludedAt: 'Contract concluded',
         billingWithdrawalDownload: 'Download withdrawal acknowledgement',
+        billingWithdrawalResolutionDownload: 'Download final decision',
+        billingWithdrawalAccepted: 'Withdrawal accepted and refunded',
+        billingWithdrawalRejected: 'Withdrawal reviewed and rejected',
         billingWithdrawalEmail: 'Email for confirmation',
         billingWithdrawalError: 'The withdrawal could not be submitted.',
         billingWithdrawalName: 'Consumer name',
@@ -84,6 +87,9 @@ const eligiblePurchase: BillingPurchaseResponse = {
     withdrawal_status: null,
     withdrawal_acknowledgement_available: false,
     withdrawal_acknowledgement_url: null,
+    withdrawal_resolution_available: false,
+    withdrawal_resolution_decision: null,
+    withdrawal_resolution_url: null,
 };
 
 const withdrawalResponse = {
@@ -274,6 +280,66 @@ describe('BillingAccountPage', () => {
 
         clickSpy.mockRestore();
     });
+
+    it.each([
+        ['accepted_refunded', 'Withdrawal accepted and refunded'],
+        ['rejected', 'Withdrawal reviewed and rejected'],
+    ])(
+        'shows and downloads the immutable %s resolution',
+        async (decision, expectedMessage) => {
+            const resolutionUrl = (
+                `/billing/purchases/${eligiblePurchase.purchase_id}/`
+                + 'withdrawal-resolution'
+            );
+            (api.listBillingPurchases as jest.Mock).mockResolvedValue([
+                {
+                    ...eligiblePurchase,
+                    withdrawal_action_available: false,
+                    withdrawal_status: decision,
+                    withdrawal_acknowledgement_available: true,
+                    withdrawal_acknowledgement_url: (
+                        `/billing/purchases/`
+                        + `${eligiblePurchase.purchase_id}/`
+                        + 'withdrawal-acknowledgement'
+                    ),
+                    withdrawal_resolution_available: true,
+                    withdrawal_resolution_decision: decision,
+                    withdrawal_resolution_url: resolutionUrl,
+                },
+            ]);
+            (api.downloadBillingArtifact as jest.Mock).mockResolvedValue(
+                new Blob(['resolution']),
+            );
+            Object.defineProperty(window.URL, 'createObjectURL', {
+                configurable: true,
+                value: jest.fn(() => 'blob:resolution'),
+            });
+            Object.defineProperty(window.URL, 'revokeObjectURL', {
+                configurable: true,
+                value: jest.fn(),
+            });
+            const clickSpy = jest.spyOn(
+                HTMLAnchorElement.prototype,
+                'click',
+            ).mockImplementation(() => undefined);
+
+            render(<BillingAccountPage />);
+
+            expect(
+                await screen.findByText(expectedMessage),
+            ).toBeInTheDocument();
+            fireEvent.click(screen.getByRole('button', {
+                name: 'Download final decision',
+            }));
+            await waitFor(() => {
+                expect(api.downloadBillingArtifact).toHaveBeenCalledWith(
+                    resolutionUrl,
+                );
+            });
+
+            clickSpy.mockRestore();
+        },
+    );
 
     it.each([
         [new Error('Artifact vault unavailable'), 'Artifact vault unavailable'],

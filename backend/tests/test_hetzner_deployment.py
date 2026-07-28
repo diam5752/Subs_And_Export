@@ -1090,6 +1090,8 @@ def test_stripe_api_uses_a_method_and_path_scoped_internal_edge_relay() -> None:
         "@stripe_checkout_create",
         "@stripe_checkout_expire",
         "@stripe_payment_intent_retrieve",
+        "@stripe_payment_intent_capture",
+        "@stripe_payment_intent_cancel",
         "@stripe_refund_list",
     ):
         assert matcher in caddyfile
@@ -1097,11 +1099,15 @@ def test_stripe_api_uses_a_method_and_path_scoped_internal_edge_relay() -> None:
     assert "method GET" in caddyfile
     assert "/stripe/v1/checkout/sessions" in caddyfile
     assert "/stripe/v1/payment_intents/" in caddyfile
+    assert "^/stripe/v1/payment_intents/pi_[A-Za-z0-9_]+/capture$" in caddyfile
+    assert "^/stripe/v1/payment_intents/pi_[A-Za-z0-9_]+/cancel$" in caddyfile
     assert "/stripe/v1/refunds" in caddyfile
     assert "uri strip_prefix /stripe" in caddyfile
     assert "reverse_proxy https://api.stripe.com" in caddyfile
     assert "header_up Host api.stripe.com" in caddyfile
     assert "stripe_relay_http=" in verifier
+    assert '[ "$stripe_relay_http" = "401,401,401" ]' in verifier
+    assert 'probes = ((base, "GET"), (f"{base}/capture", "POST"), (f"{base}/cancel", "POST"))' in verifier
     assert "GSP_STRIPE_RESTRICTED_KEY" not in caddyfile
 
 

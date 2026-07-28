@@ -120,6 +120,7 @@ def _checkout_payload(
     return {
         "package_key": package_key,
         "catalog_version": catalog["catalog_version"],
+        "billing_country": "GR",
         "consumer_contract": {
             "disclosure_id": disclosure["disclosure_id"],
             "disclosure_sha256": disclosure["disclosure_sha256"],
@@ -132,6 +133,34 @@ def _checkout_payload(
             "withdrawal_consequences_acknowledged": True,
         },
     }
+
+
+def test_checkout_rejects_non_greek_or_missing_billing_country(
+    client: TestClient,
+    user_auth_headers: dict[str, str],
+) -> None:
+    payload = _checkout_payload(client)
+    non_greek = client.post(
+        "/billing/checkout",
+        headers={
+            **user_auth_headers,
+            "Idempotency-Key": f"checkout-{uuid.uuid4().hex}",
+        },
+        json={**payload, "billing_country": "CY"},
+    )
+    assert non_greek.status_code == 422
+
+    missing = dict(payload)
+    missing.pop("billing_country")
+    no_country = client.post(
+        "/billing/checkout",
+        headers={
+            **user_auth_headers,
+            "Idempotency-Key": f"checkout-{uuid.uuid4().hex}",
+        },
+        json=missing,
+    )
+    assert no_country.status_code == 422
 
 
 def _canonical_consumer_acceptance(
@@ -187,6 +216,7 @@ def _seed_paid_contract_purchase(
         "amount_eur_cents": 100,
         "currency": "eur",
         "stripe_price_id": "price_test_starter",
+        "billing_country": "GR",
         "consumer_contract": consumer_snapshot,
         "consumer_contract_sha256": consumer_contract_snapshot_sha256(
             consumer_snapshot,

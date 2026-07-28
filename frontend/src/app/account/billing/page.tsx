@@ -261,7 +261,51 @@ export default function BillingAccountPage() {
                                 </div>
 
                                 <div className="mt-5 border-t border-[var(--border)] pt-5">
-                                    {purchase.withdrawal_status ? (
+                                    {purchase.withdrawal_resolution_available ? (
+                                        <div className="space-y-3">
+                                            <p
+                                                className={`rounded-xl border p-4 text-sm font-semibold leading-6 ${
+                                                    purchase.withdrawal_resolution_decision
+                                                    === 'accepted_refunded'
+                                                        ? 'border-emerald-300 bg-emerald-50 text-emerald-950'
+                                                        : 'border-amber-300 bg-amber-50 text-amber-950'
+                                                }`}
+                                            >
+                                                {t(
+                                                    purchase.withdrawal_resolution_decision
+                                                    === 'accepted_refunded'
+                                                        ? 'billingWithdrawalAccepted'
+                                                        : 'billingWithdrawalRejected',
+                                                )}
+                                            </p>
+                                            <div className="flex flex-wrap gap-3">
+                                                {purchase.withdrawal_acknowledgement_url && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => void downloadArtifact(
+                                                            purchase.withdrawal_acknowledgement_url,
+                                                            `gsubs-withdrawal-${purchase.purchase_id}.json`,
+                                                        )}
+                                                        className="min-h-11 rounded-xl border border-[var(--border)] px-4 text-sm font-semibold hover:bg-black/[0.03]"
+                                                    >
+                                                        {t('billingWithdrawalDownload')}
+                                                    </button>
+                                                )}
+                                                {purchase.withdrawal_resolution_url && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => void downloadArtifact(
+                                                            purchase.withdrawal_resolution_url,
+                                                            `gsubs-withdrawal-resolution-${purchase.purchase_id}.json`,
+                                                        )}
+                                                        className="min-h-11 rounded-xl border border-[var(--border)] px-4 text-sm font-semibold hover:bg-black/[0.03]"
+                                                    >
+                                                        {t('billingWithdrawalResolutionDownload')}
+                                                    </button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ) : purchase.withdrawal_status ? (
                                         <div className="space-y-3">
                                             <p className="text-sm leading-6 text-amber-800">
                                                 {t('billingWithdrawalPending')}

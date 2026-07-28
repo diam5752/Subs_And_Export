@@ -6,9 +6,10 @@ import datetime as dt
 import importlib
 import os
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 from google.auth.transport.requests import Request as GoogleAuthRequest
 
@@ -17,6 +18,10 @@ from .config import settings
 
 class TimeoutRequest(GoogleAuthRequest):
     """Google auth transport with a bounded network timeout."""
+
+    def __init__(self) -> None:
+        request_init = cast(Callable[[], None], super().__init__)
+        request_init()
 
     def __call__(self, *args: Any, **kwargs: Any) -> Any:
         kwargs.setdefault("timeout", 30)

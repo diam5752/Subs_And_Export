@@ -64,6 +64,28 @@
 		}
 	}
 
+	@stripe_payment_intent_capture {
+		method POST
+		path_regexp stripe_payment_intent_capture ^/stripe/v1/payment_intents/pi_[A-Za-z0-9_]+/capture$
+	}
+	handle @stripe_payment_intent_capture {
+		uri strip_prefix /stripe
+		reverse_proxy https://api.stripe.com {
+			header_up Host api.stripe.com
+		}
+	}
+
+	@stripe_payment_intent_cancel {
+		method POST
+		path_regexp stripe_payment_intent_cancel ^/stripe/v1/payment_intents/pi_[A-Za-z0-9_]+/cancel$
+	}
+	handle @stripe_payment_intent_cancel {
+		uri strip_prefix /stripe
+		reverse_proxy https://api.stripe.com {
+			header_up Host api.stripe.com
+		}
+	}
+
 	@stripe_refund_list {
 		method GET
 		path /stripe/v1/refunds

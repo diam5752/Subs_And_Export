@@ -10,9 +10,11 @@ from sqlalchemy.exc import DBAPIError, IntegrityError
 
 from backend.app.core.database import Database
 from backend.app.db.models import (
+    DbBillingAdjustmentRecord,
     DbBillingContractConfirmation,
     DbBillingInvoice,
     DbBillingWithdrawalRequest,
+    DbBillingWithdrawalResolution,
     DbCreditPurchase,
     DbCreditPurchaseReversal,
     DbJob,
@@ -21,6 +23,10 @@ from backend.app.db.models import (
 from backend.app.services.billing_consumer_records import (
     BillingConsumerRecordStore,
     new_contract_confirmation,
+)
+from backend.app.services.billing_manual_records import (
+    new_billing_adjustment_record,
+    new_withdrawal_resolution,
 )
 from backend.app.services.billing_retention import cleanup_expired_billing_records
 from backend.app.services.consumer_contracts import (
@@ -1035,6 +1041,140 @@ def test_cleanup_preserves_pending_withdrawal_and_account_vault_evidence() -> No
             )
             is not None
         )
+
+
+def test_cleanup_removes_only_a_fully_resolved_expired_withdrawal_graph() -> None:
+    db = Database()
+    user_id = _seed_user(db)
+    purchase = _purchase(user_id=user_id)
+    _add_consumer_contract_snapshot(purchase)
+    invoice = _invoice(
+        purchase_id=purchase.id,
+        recorded_by_user_id=user_id,
+    )
+    with db.session() as session:
+        session.add(purchase)
+        session.flush()
+        confirmation = new_contract_confirmation(
+            purchase=purchase,
+            contract_concluded_at=REFERENCE_AT,
+            generated_at=REFERENCE_AT + 1,
+        )
+        session.add(confirmation)
+    with db.session() as session:
+        session.add(invoice)
+
+    BillingConsumerRecordStore(db=db).submit_withdrawal(
+        user_id=user_id,
+        purchase_id=purchase.id,
+        idempotency_key=f"withdrawal-{uuid.uuid4().hex}",
+        locale="el",
+        withdrawal_requested=True,
+        confirmed_name="Financial Records",
+        confirmation_email=f"{user_id}@example.com",
+        submitted_at=REFERENCE_AT + 2,
+    )
+    reversal = DbCreditPurchaseReversal(
+        id=uuid.uuid4().hex,
+        purchase_id=purchase.id,
+        provider="stripe",
+        provider_reversal_id=f"re_{uuid.uuid4().hex}",
+        provider_event_id=f"evt_{uuid.uuid4().hex}",
+        provider_event_created=REFERENCE_AT + 3,
+        kind="refund",
+        amount_cents=100,
+        currency="eur",
+        status="succeeded",
+        active=True,
+        created_at=REFERENCE_AT + 3,
+        updated_at=REFERENCE_AT + 3,
+    )
+    with db.session() as session:
+        session.add(reversal)
+    adjustment = new_billing_adjustment_record(
+        purchase=purchase,
+        reversal=reversal,
+        document_type="11.4",
+        series="RET-1",
+        aa="1",
+        mark=f"5{uuid.uuid4().int % 10**15:015d}",
+        issued_at=REFERENCE_AT + 4,
+        actor_user_id=user_id,
+        recorded_at=REFERENCE_AT + 5,
+    )
+    with db.session() as session:
+        session.add(adjustment)
+    with db.session() as session:
+        withdrawal = session.scalar(
+            select(DbBillingWithdrawalRequest).where(
+                DbBillingWithdrawalRequest.purchase_id == purchase.id,
+            )
+        )
+        stored_adjustment = session.get(
+            DbBillingAdjustmentRecord,
+            adjustment.id,
+        )
+        assert withdrawal is not None
+        assert stored_adjustment is not None
+        resolution = new_withdrawal_resolution(
+            withdrawal=withdrawal,
+            purchase=purchase,
+            decision="accepted_refunded",
+            customer_explanation=(
+                "The completed refund and AADE adjustment were reviewed."
+            ),
+            actor_user_id=user_id,
+            resolved_at=REFERENCE_AT + 6,
+            adjustment=stored_adjustment,
+            reversal=reversal,
+        )
+        session.add(resolution)
+    with db.session() as session:
+        stored_purchase = session.get(DbCreditPurchase, purchase.id)
+        stored_invoice = session.get(DbBillingInvoice, invoice.id)
+        stored_confirmation = session.get(
+            DbBillingContractConfirmation,
+            confirmation.id,
+        )
+        stored_withdrawal = session.get(
+            DbBillingWithdrawalRequest,
+            withdrawal.id,
+        )
+        stored_adjustment = session.get(
+            DbBillingAdjustmentRecord,
+            adjustment.id,
+        )
+        stored_resolution = session.get(
+            DbBillingWithdrawalResolution,
+            resolution.id,
+        )
+        assert stored_purchase is not None
+        assert stored_invoice is not None
+        assert stored_confirmation is not None
+        assert stored_withdrawal is not None
+        assert stored_adjustment is not None
+        assert stored_resolution is not None
+        cleanup_at = max(
+            stored_purchase.financial_retention_until,
+            stored_invoice.financial_retention_until,
+            stored_confirmation.financial_retention_until,
+            stored_withdrawal.financial_retention_until,
+            stored_adjustment.financial_retention_until,
+            stored_resolution.financial_retention_until,
+            financial_retention_deadline(reversal.updated_at),
+        ) + 1
+
+    report = cleanup_expired_billing_records(db, now=cleanup_at)
+
+    assert report.deleted_financial_records >= 1
+    with db.session() as session:
+        assert session.get(DbBillingWithdrawalResolution, resolution.id) is None
+        assert session.get(DbBillingWithdrawalRequest, withdrawal.id) is None
+        assert session.get(DbBillingAdjustmentRecord, adjustment.id) is None
+        assert session.get(DbBillingContractConfirmation, confirmation.id) is None
+        assert session.get(DbCreditPurchaseReversal, reversal.id) is None
+        assert session.get(DbBillingInvoice, invoice.id) is None
+        assert session.get(DbCreditPurchase, purchase.id) is None
 
 
 @pytest.mark.parametrize(

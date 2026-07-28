@@ -42,6 +42,7 @@ interface OpenCreditPurchaseDialogProps
 
 interface ContractConsentState {
     disclosureIdentity: string;
+    greekBillingAddressConfirmed: boolean;
     termsAccepted: boolean;
     immediatePerformanceRequested: boolean;
     withdrawalConsequencesAcknowledged: boolean;
@@ -146,6 +147,7 @@ function OpenCreditPurchaseDialog({
         Math.max(0, requiredCredits - (aiSpendableBalance ?? 0)),
     );
     const termsAcceptanceId = useId();
+    const greekBillingAddressId = useId();
     const immediatePerformanceId = useId();
     const withdrawalConsequencesId = useId();
 
@@ -241,6 +243,9 @@ function OpenCreditPurchaseDialog({
     const consumerContract = catalog?.consumer_contract ?? null;
     const paidSalesAvailable = Boolean(
         catalog?.checkout_enabled
+        && Array.isArray(catalog.billing_country_scope)
+        && catalog.billing_country_scope.length === 1
+        && catalog.billing_country_scope[0] === 'GR'
         && catalog.consumer_contract_status === 'approved'
         && consumerContract?.status === 'approved'
         && consumerContract.locale === locale
@@ -255,6 +260,10 @@ function OpenCreditPurchaseDialog({
     );
     const termsAccepted = Boolean(
         consentMatchesDisclosure && consentState?.termsAccepted,
+    );
+    const greekBillingAddressConfirmed = Boolean(
+        consentMatchesDisclosure
+        && consentState?.greekBillingAddressConfirmed,
     );
     const immediatePerformanceRequested = Boolean(
         consentMatchesDisclosure
@@ -280,6 +289,7 @@ function OpenCreditPurchaseDialog({
                 ? current
                 : {
                     disclosureIdentity,
+                    greekBillingAddressConfirmed: false,
                     termsAccepted: false,
                     immediatePerformanceRequested: false,
                     withdrawalConsequencesAcknowledged: false,
@@ -329,6 +339,7 @@ function OpenCreditPurchaseDialog({
             || !paidSalesAvailable
             || !disclosureIdentity
             || consentState?.disclosureIdentity !== disclosureIdentity
+            || !greekBillingAddressConfirmed
             || !termsAccepted
             || !immediatePerformanceRequested
             || !withdrawalConsequencesAcknowledged
@@ -340,6 +351,7 @@ function OpenCreditPurchaseDialog({
                 selectedPackage.key,
                 idempotencyKeyRef.current,
                 catalog.catalog_version,
+                'GR',
                 {
                     disclosure_id: consumerContract.disclosure_id,
                     disclosure_sha256: (
@@ -540,6 +552,29 @@ function OpenCreditPurchaseDialog({
 
                     {catalog && consumerContract && paidSalesAvailable && (
                         <div className="space-y-3">
+                            <p
+                                role="note"
+                                className="rounded-2xl border border-sky-400/25 bg-sky-400/[0.07] px-4 py-3 text-sm leading-6 text-sky-100"
+                            >
+                                {t('creditPurchaseGreeceOnlyNotice')}
+                            </p>
+                            <div className="flex items-start gap-3 rounded-2xl border border-sky-400/25 p-4 text-sm leading-6 text-[#d7e6f4]">
+                                <input
+                                    id={greekBillingAddressId}
+                                    type="checkbox"
+                                    checked={greekBillingAddressConfirmed}
+                                    onChange={(event) => {
+                                        updateConsent(
+                                            'greekBillingAddressConfirmed',
+                                            event.target.checked,
+                                        );
+                                    }}
+                                    className="mt-1 h-4 w-4 rounded border-white/20 accent-sky-400"
+                                />
+                                <label htmlFor={greekBillingAddressId} className="cursor-pointer">
+                                    {t('creditPurchaseGreeceBillingConfirmation')}
+                                </label>
+                            </div>
                             <div className="flex items-start gap-3 rounded-2xl border border-white/10 p-4 text-sm leading-6 text-[#b8c0cb]">
                                 <input
                                     id={termsAcceptanceId}
@@ -610,6 +645,7 @@ function OpenCreditPurchaseDialog({
                                         isAuthenticated
                                         && (
                                             !selectedPackage
+                                            || !greekBillingAddressConfirmed
                                             || !termsAccepted
                                             || !immediatePerformanceRequested
                                             || !withdrawalConsequencesAcknowledged

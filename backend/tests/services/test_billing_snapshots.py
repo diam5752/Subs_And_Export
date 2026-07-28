@@ -25,7 +25,9 @@ from backend.app.services.billing import (
     CheckoutResult,
 )
 from backend.app.services.billing_records import (
+    MANUAL_CAPTURE_POLICY,
     PaidFinancialRecord,
+    PaymentCaptureEvidence,
     build_paid_financial_record,
     new_pending_invoice,
 )
@@ -148,7 +150,7 @@ def _paid_checkout_event(
         "data": {
             "object": {
                 "id": purchase.checkout_session_id,
-                "payment_status": "paid",
+                "payment_status": "unpaid",
                 "status": "complete",
                 "amount_total": purchase.amount_eur_cents,
                 "currency": purchase.currency,
@@ -165,6 +167,8 @@ def _paid_checkout_event(
                     "credits": str(purchase.credits),
                     "integration_identifier": purchase.integration_identifier,
                     "catalog_version": purchase.snapshot["catalog_version"],
+                    "billing_country": purchase.snapshot["billing_country"],
+                    "capture_policy": purchase.snapshot["capture_policy"],
                     **consumer_metadata,
                 },
             }
@@ -178,11 +182,21 @@ def _financial_record_for_event(
     payload: bytes,
 ) -> PaidFinancialRecord:
     event = json.loads(payload)
+    payment_intent_id = f"pi_{purchase.id}"
     return build_paid_financial_record(
         purchase=purchase,
         checkout=event["data"]["object"],
         stripe_event_created=event["created"],
         livemode=event["livemode"],
+        capture_evidence=PaymentCaptureEvidence(
+            payment_intent_id=payment_intent_id,
+            status="succeeded",
+            amount_cents=purchase.amount_eur_cents,
+            amount_received_cents=purchase.amount_eur_cents,
+            currency=purchase.currency,
+            capture_method="manual",
+            capture_policy=MANUAL_CAPTURE_POLICY,
+        ),
     )
 
 
@@ -197,7 +211,11 @@ def _detached_purchase_for_record_tests() -> DbCreditPurchase:
         currency="eur",
         checkout_session_id=f"cs_test_{purchase_id}",
         integration_identifier="gsubs_credits_snapshot",
-        snapshot={"catalog_version": "2026-07-23-v1"},
+        snapshot={
+            "catalog_version": "2026-07-23-v1",
+            "billing_country": "GR",
+            "capture_policy": MANUAL_CAPTURE_POLICY,
+        },
     )
 
 
@@ -239,7 +257,12 @@ def test_paid_checkout_persists_immutable_financial_snapshots_and_pending_aade_r
             "livemode": False,
             "amount_paid_cents": 300,
             "currency": "eur",
-            "payment_status": "paid",
+            "payment_status": "unpaid",
+            "capture_method": "manual",
+            "capture_policy": MANUAL_CAPTURE_POLICY,
+            "capture_status": "succeeded",
+            "payment_intent_amount_cents": 300,
+            "payment_intent_amount_received_cents": 300,
         }
         assert stored.customer_snapshot == {
             "source": "stripe_checkout_session",
@@ -308,10 +331,7 @@ def test_paid_checkout_persists_immutable_financial_snapshots_and_pending_aade_r
         assert confirmation.contract_concluded_at == 1_767_225_600
         assert confirmation.available_at > confirmation.contract_concluded_at
         assert confirmation.created_at == confirmation.available_at
-        assert (
-            confirmation_content["available_at"]
-            == confirmation.available_at
-        )
+        assert confirmation_content["available_at"] == confirmation.available_at
 
     assert points.get_balances(user_id).paid_balance == 350
 
@@ -330,7 +350,7 @@ def test_fulfillment_rejects_conflicting_preexisting_financial_snapshots_before_
     field_name: str,
     conflicting_value: Any,
 ) -> None:
-    db, user_id, points, _, service = _service()
+    db, user_id, points, gateway, service = _service()
     checkout = _create_checkout(
         service,
         user_id=user_id,
@@ -363,11 +383,7 @@ def test_fulfillment_rejects_conflicting_preexisting_financial_snapshots_before_
 
     with db.session() as session:
         stored = session.get(DbCreditPurchase, purchase.id)
-        invoice = session.scalar(
-            select(DbBillingInvoice)
-            .where(DbBillingInvoice.purchase_id == purchase.id)
-            .limit(1)
-        )
+        invoice = session.scalar(select(DbBillingInvoice).where(DbBillingInvoice.purchase_id == purchase.id).limit(1))
         confirmation = session.scalar(
             select(DbBillingContractConfirmation)
             .where(
@@ -454,9 +470,7 @@ def test_fulfillment_rejects_conflicting_preexisting_invoice_before_credit(
         "recorded_by_user_id": uuid.uuid4().hex,
         "recorded_at": 1_767_225_601,
         "document_snapshot": {"conflicting": True},
-        "financial_retention_until": (
-            invoice.financial_retention_until + 1
-        ),
+        "financial_retention_until": (invoice.financial_retention_until + 1),
         "created_at": invoice.created_at + 1,
         "updated_at": invoice.updated_at + 1,
     }
@@ -732,10 +746,76 @@ def test_incomplete_billing_details_grant_paid_credits_but_flag_manual_review(
     assert points.get_balances(user_id).paid_balance == 100
 
 
+def test_non_greek_signed_billing_country_fails_closed_without_credits(
+    billing_settings: None,
+) -> None:
+    # REGRESSION: a client-side Greece acknowledgement alone cannot prove the
+    # signed Stripe billing address used for the actual payment.
+    db, user_id, points, gateway, service = _service()
+    checkout = _create_checkout(
+        service,
+        user_id=user_id,
+        customer_email=f"{user_id}@example.com",
+        package_key="starter",
+        idempotency_key=f"checkout-{uuid.uuid4().hex}",
+    )
+    purchase = _purchase(db, checkout.purchase_id)
+    non_greek_details = {
+        "name": "Billing Person",
+        "email": f"{user_id}@example.com",
+        "address": {
+            "country": "CY",
+            "city": "Nicosia",
+            "postal_code": "1010",
+            "line1": "Test Street 1",
+            "line2": None,
+            "state": None,
+        },
+        "tax_ids": [],
+    }
+
+    payload = _paid_checkout_event(
+        purchase,
+        customer_details=non_greek_details,
+    )
+    assert (
+        _process(
+            service,
+            payload,
+        )
+        == "processed"
+    )
+    assert _process(service, payload) == "duplicate"
+    assert gateway.capture_calls == []
+    assert gateway.cancel_calls == [
+        (
+            f"pi_{purchase.id}",
+            f"gsubs-cancel-{purchase.id}",
+        )
+    ]
+
+    with db.session() as session:
+        stored = session.get(DbCreditPurchase, purchase.id)
+        assert stored is not None
+        assert stored.fulfilled_at is None
+        assert stored.status == "failed"
+        assert stored.payment_intent_id is None
+        assert stored.payment_snapshot is None
+        assert (
+            session.scalar(
+                select(DbBillingInvoice).where(
+                    DbBillingInvoice.purchase_id == purchase.id,
+                )
+            )
+            is None
+        )
+    assert points.get_balances(user_id).paid_balance == 0
+
+
 def test_manual_tax_workflow_rejects_unexpected_automatic_tax_checkout(
     billing_settings: None,
 ) -> None:
-    db, user_id, points, _, service = _service()
+    db, user_id, points, gateway, service = _service()
     checkout = _create_checkout(
         service,
         user_id=user_id,
@@ -745,7 +825,7 @@ def test_manual_tax_workflow_rejects_unexpected_automatic_tax_checkout(
     )
     purchase = _purchase(db, checkout.purchase_id)
 
-    with pytest.raises(BillingValidationError, match="Automatic Tax"):
+    assert (
         _process(
             service,
             _paid_checkout_event(
@@ -754,6 +834,15 @@ def test_manual_tax_workflow_rejects_unexpected_automatic_tax_checkout(
                 stripe_amount_tax_cents=19,
             ),
         )
+        == "processed"
+    )
+    assert gateway.capture_calls == []
+    assert gateway.cancel_calls == [
+        (
+            f"pi_{purchase.id}",
+            f"gsubs-cancel-{purchase.id}",
+        )
+    ]
 
     with db.session() as session:
         stored = session.get(DbCreditPurchase, purchase.id)
@@ -768,7 +857,7 @@ def test_manual_tax_workflow_rejects_unexpected_automatic_tax_checkout(
 def test_manual_tax_workflow_rejects_nonzero_stripe_tax_total(
     billing_settings: None,
 ) -> None:
-    db, user_id, points, _, service = _service()
+    db, user_id, points, gateway, service = _service()
     checkout = _create_checkout(
         service,
         user_id=user_id,
@@ -778,7 +867,7 @@ def test_manual_tax_workflow_rejects_nonzero_stripe_tax_total(
     )
     purchase = _purchase(db, checkout.purchase_id)
 
-    with pytest.raises(BillingValidationError, match="Stripe tax totals are incompatible"):
+    assert (
         _process(
             service,
             _paid_checkout_event(
@@ -787,7 +876,16 @@ def test_manual_tax_workflow_rejects_nonzero_stripe_tax_total(
                 stripe_amount_tax_cents=1,
             ),
         )
+        == "processed"
+    )
 
+    assert gateway.capture_calls == []
+    assert gateway.cancel_calls == [
+        (
+            f"pi_{purchase.id}",
+            f"gsubs-cancel-{purchase.id}",
+        )
+    ]
     assert points.get_balances(user_id).paid_balance == 0
 
 

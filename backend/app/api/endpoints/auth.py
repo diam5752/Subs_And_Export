@@ -27,9 +27,11 @@ from ...core.errors import sanitize_error
 from ...core.gcs import delete_object, get_gcs_settings
 from ...core.ratelimit import limiter_auth_change, limiter_login, limiter_register, limiter_signup_daily
 from ...db.models import (
+    DbBillingAdjustmentRecord,
     DbBillingContractConfirmation,
     DbBillingInvoice,
     DbBillingWithdrawalRequest,
+    DbBillingWithdrawalResolution,
     DbCreditPurchase,
     DbCreditPurchaseReversal,
     DbGcsUploadSession,
@@ -48,6 +50,11 @@ from ...services.billing_consumer_records import (
     BillingConsumerRecordConflictError,
     verify_contract_confirmation,
     verify_withdrawal_record,
+)
+from ...services.billing_manual_records import (
+    BillingManualRecordError,
+    verify_billing_adjustment_record,
+    verify_withdrawal_resolution,
 )
 from ...services.history import HistoryStore
 from ...services.jobs import JobStore
@@ -453,6 +460,15 @@ def export_my_data(
             str,
             DbBillingWithdrawalRequest,
         ] = {}
+        adjustment_rows_by_purchase: dict[
+            str,
+            list[DbBillingAdjustmentRecord],
+        ] = {}
+        resolution_rows_by_purchase: dict[
+            str,
+            DbBillingWithdrawalResolution,
+        ] = {}
+        reversal_models_by_id: dict[str, DbCreditPurchaseReversal] = {}
         purchase_ids = [purchase.id for purchase, _invoice in billing_rows]
         if purchase_ids:
             reversal_rows = session.scalars(
@@ -464,6 +480,7 @@ def export_my_data(
                     DbCreditPurchaseReversal.id.asc(),
                 )
             ).all()
+            reversal_models_by_id = {reversal.id: reversal for reversal in reversal_rows}
             for reversal in reversal_rows:
                 reversal_rows_by_purchase.setdefault(
                     reversal.purchase_id,
@@ -498,8 +515,7 @@ def export_my_data(
                 )
             ).all()
             confirmation_rows_by_purchase = {
-                confirmation.purchase_id: confirmation
-                for confirmation in confirmation_rows
+                confirmation.purchase_id: confirmation for confirmation in confirmation_rows
             }
             withdrawal_rows = session.scalars(
                 select(DbBillingWithdrawalRequest)
@@ -513,10 +529,37 @@ def export_my_data(
                     DbBillingWithdrawalRequest.id.asc(),
                 )
             ).all()
-            withdrawal_rows_by_purchase = {
-                withdrawal.purchase_id: withdrawal
-                for withdrawal in withdrawal_rows
-            }
+            withdrawal_rows_by_purchase = {withdrawal.purchase_id: withdrawal for withdrawal in withdrawal_rows}
+            adjustment_rows = session.scalars(
+                select(DbBillingAdjustmentRecord)
+                .where(
+                    DbBillingAdjustmentRecord.purchase_id.in_(
+                        purchase_ids,
+                    )
+                )
+                .order_by(
+                    DbBillingAdjustmentRecord.recorded_at.asc(),
+                    DbBillingAdjustmentRecord.id.asc(),
+                )
+            ).all()
+            for adjustment in adjustment_rows:
+                adjustment_rows_by_purchase.setdefault(
+                    adjustment.purchase_id,
+                    [],
+                ).append(adjustment)
+            resolution_rows = session.scalars(
+                select(DbBillingWithdrawalResolution)
+                .where(
+                    DbBillingWithdrawalResolution.purchase_id.in_(
+                        purchase_ids,
+                    )
+                )
+                .order_by(
+                    DbBillingWithdrawalResolution.resolved_at.asc(),
+                    DbBillingWithdrawalResolution.id.asc(),
+                )
+            ).all()
+            resolution_rows_by_purchase = {resolution.purchase_id: resolution for resolution in resolution_rows}
 
         try:
             for purchase, _invoice in billing_rows:
@@ -524,6 +567,13 @@ def export_my_data(
                     purchase.id,
                 )
                 withdrawal = withdrawal_rows_by_purchase.get(
+                    purchase.id,
+                )
+                adjustments = adjustment_rows_by_purchase.get(
+                    purchase.id,
+                    [],
+                )
+                resolution = resolution_rows_by_purchase.get(
                     purchase.id,
                 )
                 if confirmation is not None:
@@ -541,13 +591,53 @@ def export_my_data(
                         purchase=purchase,
                         confirmation=confirmation,
                     )
-        except BillingConsumerRecordConflictError as exc:
+                for adjustment_record in adjustments:
+                    adjustment_reversal = reversal_models_by_id.get(
+                        adjustment_record.reversal_id,
+                    )
+                    if adjustment_reversal is None:
+                        raise BillingManualRecordError(
+                            "AADE adjustment Stripe evidence is unavailable",
+                        )
+                    verify_billing_adjustment_record(
+                        adjustment_record,
+                        purchase=purchase,
+                        reversal=adjustment_reversal,
+                    )
+                if resolution is not None:
+                    if withdrawal is None:
+                        raise BillingManualRecordError(
+                            "Withdrawal resolution request is unavailable",
+                        )
+                    resolution_adjustment = (
+                        next(
+                            (item for item in adjustments if item.id == resolution.adjustment_id),
+                            None,
+                        )
+                        if resolution.adjustment_id is not None
+                        else None
+                    )
+                    resolution_reversal = (
+                        reversal_models_by_id.get(
+                            resolution_adjustment.reversal_id,
+                        )
+                        if resolution_adjustment is not None
+                        else None
+                    )
+                    verify_withdrawal_resolution(
+                        resolution,
+                        withdrawal=withdrawal,
+                        purchase=purchase,
+                        adjustment=resolution_adjustment,
+                        reversal=resolution_reversal,
+                    )
+        except (
+            BillingConsumerRecordConflictError,
+            BillingManualRecordError,
+        ) as exc:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=(
-                    "Billing export is unavailable because durable billing "
-                    "record integrity validation failed."
-                ),
+                detail=("Billing export is unavailable because durable billing record integrity validation failed."),
             ) from exc
 
         billing_purchases = [
@@ -571,27 +661,44 @@ def export_my_data(
                     purchase.id,
                     [],
                 ),
+                "aade_adjustment_records": [
+                    {
+                        "id": adjustment.id,
+                        "reversal_id": adjustment.reversal_id,
+                        "schema_version": adjustment.schema_version,
+                        "provider": adjustment.provider,
+                        "document_kind": adjustment.document_kind,
+                        "aade_document_type": (adjustment.aade_document_type),
+                        "aade_series": adjustment.aade_series,
+                        "aade_aa": adjustment.aade_aa,
+                        "aade_mark": adjustment.aade_mark,
+                        "issued_at": adjustment.issued_at,
+                        "amount_cents": adjustment.amount_cents,
+                        "currency": adjustment.currency,
+                        "recorded_at": adjustment.recorded_at,
+                        "document_snapshot": (adjustment.document_snapshot),
+                        "financial_retention_until": (adjustment.financial_retention_until),
+                    }
+                    for adjustment in adjustment_rows_by_purchase.get(
+                        purchase.id,
+                        [],
+                    )
+                ],
                 "contract_confirmation": (
                     {
                         "id": confirmation.id,
                         "schema_version": confirmation.schema_version,
                         "locale": confirmation.locale,
-                        "contract_concluded_at": (
-                            confirmation.contract_concluded_at
-                        ),
+                        "contract_concluded_at": (confirmation.contract_concluded_at),
                         "mime_type": confirmation.mime_type,
                         "filename": confirmation.filename,
                         "content": confirmation.content_bytes.decode("utf-8"),
                         "content_sha256": confirmation.content_sha256,
-                        "consumer_contract_sha256": (
-                            confirmation.consumer_contract_sha256
-                        ),
+                        "consumer_contract_sha256": (confirmation.consumer_contract_sha256),
                         "delivery_channel": confirmation.delivery_channel,
                         "delivery_status": confirmation.delivery_status,
                         "available_at": confirmation.available_at,
-                        "financial_retention_until": (
-                            confirmation.financial_retention_until
-                        ),
+                        "financial_retention_until": (confirmation.financial_retention_until),
                     }
                     if (
                         confirmation := confirmation_rows_by_purchase.get(
@@ -610,25 +717,38 @@ def export_my_data(
                         "request_snapshot": withdrawal.request_snapshot,
                         "request_sha256": withdrawal.request_sha256,
                         "submitted_at": withdrawal.submitted_at,
-                        "acknowledgement_mime_type": (
-                            withdrawal.acknowledgement_mime_type
-                        ),
-                        "acknowledgement_filename": (
-                            withdrawal.acknowledgement_filename
-                        ),
-                        "acknowledgement": (
-                            withdrawal.acknowledgement_bytes.decode("utf-8")
-                        ),
-                        "acknowledgement_sha256": (
-                            withdrawal.acknowledgement_sha256
-                        ),
+                        "acknowledgement_mime_type": (withdrawal.acknowledgement_mime_type),
+                        "acknowledgement_filename": (withdrawal.acknowledgement_filename),
+                        "acknowledgement": (withdrawal.acknowledgement_bytes.decode("utf-8")),
+                        "acknowledgement_sha256": (withdrawal.acknowledgement_sha256),
                         "available_at": withdrawal.available_at,
-                        "financial_retention_until": (
-                            withdrawal.financial_retention_until
-                        ),
+                        "financial_retention_until": (withdrawal.financial_retention_until),
                     }
                     if (
                         withdrawal := withdrawal_rows_by_purchase.get(
+                            purchase.id,
+                        )
+                    )
+                    is not None
+                    else None
+                ),
+                "withdrawal_resolution": (
+                    {
+                        "id": resolution.id,
+                        "withdrawal_id": resolution.withdrawal_id,
+                        "schema_version": resolution.schema_version,
+                        "locale": resolution.locale,
+                        "decision": resolution.decision,
+                        "reason_code": resolution.reason_code,
+                        "adjustment_id": resolution.adjustment_id,
+                        "resolution": (resolution.resolution_bytes.decode("utf-8")),
+                        "resolution_sha256": (resolution.resolution_sha256),
+                        "resolved_at": resolution.resolved_at,
+                        "available_at": resolution.available_at,
+                        "financial_retention_until": (resolution.financial_retention_until),
+                    }
+                    if (
+                        resolution := resolution_rows_by_purchase.get(
                             purchase.id,
                         )
                     )

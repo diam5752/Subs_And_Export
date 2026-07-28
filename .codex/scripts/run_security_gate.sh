@@ -14,7 +14,7 @@ trap cleanup EXIT
 python3 -m venv "${audit_venv_dir}"
 # shellcheck disable=SC1091
 source "${audit_venv_dir}/bin/activate"
-python -m pip install --upgrade pip >/dev/null
+python -m pip install --upgrade pip "setuptools>=83.0.0" wheel >/dev/null
 pip install -r "${repo_root}/backend/requirements.txt" bandit pip-audit >/dev/null
 bandit -r "${repo_root}/backend/app" -ll
 PIPAPI_PYTHON_LOCATION="${audit_venv_dir}/bin/python" pip-audit --local

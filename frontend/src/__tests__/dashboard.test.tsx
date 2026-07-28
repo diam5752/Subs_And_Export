@@ -172,6 +172,7 @@ describe('DashboardPage', () => {
         (api.getCreditCatalog as jest.Mock).mockResolvedValue({
             catalog_version: 'video-credits-v1',
             currency: 'eur',
+            billing_country_scope: ['GR'],
             checkout_enabled: false,
             consumer_contract_status: 'unavailable_unapproved',
             consumer_contract: null,

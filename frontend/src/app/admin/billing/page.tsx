@@ -15,7 +15,11 @@ import {
     ApiError,
     api,
     type BillingAdminPendingInvoice,
+    type BillingAdminPendingRefund,
+    type BillingAdminPendingWithdrawal,
+    type BillingWithdrawalResolutionResponse,
     type RecordedAadeDocumentResponse,
+    type RecordedManualRefundAccountingResponse,
 } from '@/lib/api';
 import {
     AADE_GREEK_B2C_DOCUMENT_TYPE,
@@ -27,6 +31,8 @@ import {
     parseAthensDateTime,
     toAthensDateTimeValue,
 } from '@/lib/billingAdmin';
+import { ManualRefundCard } from './ManualRefundCard';
+import { WithdrawalReviewCard } from './WithdrawalReviewCard';
 
 type DocumentFormValues = {
     documentType: string;
@@ -542,9 +548,24 @@ export default function BillingAdminPage() {
     const { user, isLoading: authLoading } = useAuth();
     const { t } = useI18n();
     const [items, setItems] = useState<BillingAdminPendingInvoice[]>([]);
+    const [refunds, setRefunds] = useState<BillingAdminPendingRefund[]>([]);
+    const [withdrawals, setWithdrawals] = useState<
+        BillingAdminPendingWithdrawal[]
+    >([]);
     const [nextCursor, setNextCursor] = useState<string | null>(null);
+    const [refundNextCursor, setRefundNextCursor] = useState<string | null>(
+        null,
+    );
+    const [withdrawalNextCursor, setWithdrawalNextCursor] = useState<
+        string | null
+    >(null);
     const [loading, setLoading] = useState(true);
     const [loadingMore, setLoadingMore] = useState(false);
+    const [loadingMoreRefunds, setLoadingMoreRefunds] = useState(false);
+    const [
+        loadingMoreWithdrawals,
+        setLoadingMoreWithdrawals,
+    ] = useState(false);
     const [accessDenied, setAccessDenied] = useState(false);
     const [loadError, setLoadError] = useState('');
     const [notice, setNotice] = useState('');
@@ -558,7 +579,11 @@ export default function BillingAdminPage() {
     } = {}) => {
         if (!user) {
             setItems([]);
+            setRefunds([]);
+            setWithdrawals([]);
             setNextCursor(null);
+            setRefundNextCursor(null);
+            setWithdrawalNextCursor(null);
             setLoading(false);
             return;
         }
@@ -584,6 +609,20 @@ export default function BillingAdminPage() {
                 ];
             });
             setNextCursor(response.next_cursor);
+            if (!append) {
+                const [refundResponse, withdrawalResponse] = (
+                    await Promise.all([
+                        api.listPendingBillingRefunds(),
+                        api.listPendingBillingWithdrawals(),
+                    ])
+                );
+                setRefunds(refundResponse.items);
+                setRefundNextCursor(refundResponse.next_cursor);
+                setWithdrawals(withdrawalResponse.items);
+                setWithdrawalNextCursor(
+                    withdrawalResponse.next_cursor,
+                );
+            }
         } catch (error) {
             if (error instanceof ApiError && error.status === 403) {
                 setAccessDenied(true);
@@ -595,6 +634,62 @@ export default function BillingAdminPage() {
             setLoadingMore(false);
         }
     }, [t, user]);
+
+    const loadMoreRefunds = useCallback(async () => {
+        if (!refundNextCursor) {
+            return;
+        }
+        setLoadingMoreRefunds(true);
+        try {
+            const response = await api.listPendingBillingRefunds(
+                refundNextCursor,
+            );
+            setRefunds((current) => {
+                const existing = new Set(
+                    current.map((item) => item.reversal_id),
+                );
+                return [
+                    ...current,
+                    ...response.items.filter(
+                        (item) => !existing.has(item.reversal_id),
+                    ),
+                ];
+            });
+            setRefundNextCursor(response.next_cursor);
+        } catch {
+            setLoadError(t('adminBillingLoadError'));
+        } finally {
+            setLoadingMoreRefunds(false);
+        }
+    }, [refundNextCursor, t]);
+
+    const loadMoreWithdrawals = useCallback(async () => {
+        if (!withdrawalNextCursor) {
+            return;
+        }
+        setLoadingMoreWithdrawals(true);
+        try {
+            const response = await api.listPendingBillingWithdrawals(
+                withdrawalNextCursor,
+            );
+            setWithdrawals((current) => {
+                const existing = new Set(
+                    current.map((item) => item.withdrawal_id),
+                );
+                return [
+                    ...current,
+                    ...response.items.filter(
+                        (item) => !existing.has(item.withdrawal_id),
+                    ),
+                ];
+            });
+            setWithdrawalNextCursor(response.next_cursor);
+        } catch {
+            setLoadError(t('adminBillingLoadError'));
+        } finally {
+            setLoadingMoreWithdrawals(false);
+        }
+    }, [t, withdrawalNextCursor]);
 
     useEffect(() => {
         if (authLoading) {
@@ -612,6 +707,65 @@ export default function BillingAdminPage() {
                 (item) => item.invoice_id !== record.invoice_id,
             ));
             setNotice(t('adminBillingRecorded', { mark: record.aade_mark }));
+        },
+        [t],
+    );
+
+    const handleRefundRecorded = useCallback(
+        (record: RecordedManualRefundAccountingResponse) => {
+            setRefunds((current) => current.filter(
+                (item) => item.reversal_id !== record.reversal_id,
+            ));
+            setWithdrawals((current) => current.map((withdrawal) => {
+                if (withdrawal.purchase_id !== record.purchase_id) {
+                    return withdrawal;
+                }
+                const alreadyPresent = (
+                    withdrawal.available_adjustments.some(
+                        (item) => item.adjustment_id
+                            === record.adjustment_id,
+                    )
+                );
+                if (alreadyPresent) {
+                    return withdrawal;
+                }
+                return {
+                    ...withdrawal,
+                    available_adjustments: [
+                        ...withdrawal.available_adjustments,
+                        {
+                            adjustment_id: record.adjustment_id,
+                            stripe_refund_id: (
+                                record.stripe_refund_id
+                            ),
+                            amount_cents: record.amount_cents,
+                            currency: record.currency,
+                            aade_document_type: (
+                                record.aade_document_type
+                            ),
+                            aade_series: record.aade_series,
+                            aade_aa: record.aade_aa,
+                            aade_mark: record.aade_mark,
+                            issued_at: record.issued_at,
+                        },
+                    ],
+                };
+            }));
+            setNotice(t('adminBillingRefundRecorded', {
+                mark: record.aade_mark,
+            }));
+        },
+        [t],
+    );
+
+    const handleWithdrawalResolved = useCallback(
+        (resolution: BillingWithdrawalResolutionResponse) => {
+            setWithdrawals((current) => current.filter(
+                (item) => (
+                    item.withdrawal_id !== resolution.withdrawal_id
+                ),
+            ));
+            setNotice(t('adminBillingWithdrawalResolved'));
         },
         [t],
     );
@@ -695,7 +849,11 @@ export default function BillingAdminPage() {
                             {t('adminBillingRefresh')}
                         </button>
                     </div>
-                ) : items.length === 0 ? (
+                ) : (
+                    items.length === 0
+                    && refunds.length === 0
+                    && withdrawals.length === 0
+                ) ? (
                     <div className="mt-8 rounded-2xl border border-[var(--border)] bg-white p-6">
                         <p>{t('adminBillingEmpty')}</p>
                         <button
@@ -708,15 +866,109 @@ export default function BillingAdminPage() {
                     </div>
                 ) : (
                     <>
-                        <div className="mt-8 space-y-6">
-                            {items.map((invoice) => (
-                                <BillingInvoiceCard
-                                    key={invoice.invoice_id}
-                                    invoice={invoice}
-                                    onRecorded={handleRecorded}
-                                />
-                            ))}
-                        </div>
+                        {refunds.length > 0 && (
+                            <section className="mt-10" aria-labelledby="refund-accounting-title">
+                                <h2
+                                    id="refund-accounting-title"
+                                    className="text-3xl font-extrabold tracking-[-0.035em]"
+                                >
+                                    {t('adminBillingRefundQueueTitle')}
+                                </h2>
+                                <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)]">
+                                    {t('adminBillingRefundQueueDescription')}
+                                </p>
+                                <div className="mt-6 space-y-6">
+                                    {refunds.map((review) => (
+                                        <ManualRefundCard
+                                            key={review.reversal_id}
+                                            review={review}
+                                            onRecorded={
+                                                handleRefundRecorded
+                                            }
+                                        />
+                                    ))}
+                                </div>
+                                {refundNextCursor && (
+                                    <button
+                                        type="button"
+                                        disabled={loadingMoreRefunds}
+                                        onClick={() => void loadMoreRefunds()}
+                                        className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl bg-red-800 px-4 font-bold text-white disabled:opacity-60"
+                                    >
+                                        {loadingMoreRefunds && (
+                                            <Spinner className="h-4 w-4" />
+                                        )}
+                                        {t('adminBillingLoadMoreRefunds')}
+                                    </button>
+                                )}
+                            </section>
+                        )}
+
+                        {withdrawals.length > 0 && (
+                            <section className="mt-10" aria-labelledby="withdrawal-review-title">
+                                <h2
+                                    id="withdrawal-review-title"
+                                    className="text-3xl font-extrabold tracking-[-0.035em]"
+                                >
+                                    {t('adminBillingWithdrawalQueueTitle')}
+                                </h2>
+                                <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--muted)]">
+                                    {t(
+                                        'adminBillingWithdrawalQueueDescription',
+                                    )}
+                                </p>
+                                <div className="mt-6 space-y-6">
+                                    {withdrawals.map((review) => (
+                                        <WithdrawalReviewCard
+                                            key={review.withdrawal_id}
+                                            review={review}
+                                            onResolved={
+                                                handleWithdrawalResolved
+                                            }
+                                        />
+                                    ))}
+                                </div>
+                                {withdrawalNextCursor && (
+                                    <button
+                                        type="button"
+                                        disabled={
+                                            loadingMoreWithdrawals
+                                        }
+                                        onClick={() => (
+                                            void loadMoreWithdrawals()
+                                        )}
+                                        className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-xl bg-amber-800 px-4 font-bold text-white disabled:opacity-60"
+                                    >
+                                        {loadingMoreWithdrawals && (
+                                            <Spinner className="h-4 w-4" />
+                                        )}
+                                        {t(
+                                            'adminBillingLoadMoreWithdrawals',
+                                        )}
+                                    </button>
+                                )}
+                            </section>
+                        )}
+
+                        {items.length > 0 && (
+                            <section className="mt-10" aria-labelledby="original-invoice-title">
+                                <h2
+                                    id="original-invoice-title"
+                                    className="text-3xl font-extrabold tracking-[-0.035em]"
+                                >
+                                    {t('adminBillingOriginalQueueTitle')}
+                                </h2>
+                                <div className="mt-6 space-y-6">
+                                    {items.map((invoice) => (
+                                        <BillingInvoiceCard
+                                            key={invoice.invoice_id}
+                                            invoice={invoice}
+                                            onRecorded={handleRecorded}
+                                        />
+                                    ))}
+                                </div>
+                            </section>
+                        )}
                         <div className="mt-8 flex flex-wrap gap-3">
                             <button
                                 type="button"
@@ -736,7 +988,7 @@ export default function BillingAdminPage() {
                                     className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[var(--foreground)] px-4 font-bold text-white disabled:opacity-60"
                                 >
                                     {loadingMore && <Spinner className="h-4 w-4" />}
-                                    {t('adminBillingLoadMore')}
+                                    {t('adminBillingLoadMoreInvoices')}
                                 </button>
                             )}
                         </div>

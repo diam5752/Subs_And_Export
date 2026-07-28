@@ -17,7 +17,24 @@ AADE_GREEK_B2C_PAYMENT_METHOD = "domestic_professional_payment_account"
 ACCOUNTING_METHOD = "manual_aade_etimologio"
 STRIPE_PRODUCT_TAX_CODE = "txcd_10103001"
 VAT_RATE_PERCENT = 24
+GREEK_B2C_BILLING_COUNTRY = "GR"
+MANUAL_CAPTURE_POLICY = "validate_gr_billing_before_capture_v1"
 _REQUIRED_CUSTOMER_FIELDS = ("name", "email", "country", "city", "postal_code")
+
+
+class CheckoutAccountingIneligibleError(ValueError):
+    """The signed Checkout data cannot enter the Greece-only accounting flow."""
+
+
+@dataclass(frozen=True, slots=True)
+class PaymentCaptureEvidence:
+    payment_intent_id: str
+    status: str
+    amount_cents: int
+    amount_received_cents: int
+    currency: str
+    capture_method: str
+    capture_policy: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,6 +53,7 @@ def build_paid_financial_record(
     checkout: dict[str, Any],
     stripe_event_created: int,
     livemode: bool,
+    capture_evidence: PaymentCaptureEvidence | None = None,
 ) -> PaidFinancialRecord:
     """Build the write-once accounting record from one signed Checkout event."""
     if isinstance(stripe_event_created, bool) or stripe_event_created <= 0:
@@ -60,6 +78,10 @@ def build_paid_financial_record(
         "line2": _clean_string(address.get("line2")),
         "state": _clean_string(address.get("state")),
     }
+    if customer_snapshot["country"] != GREEK_B2C_BILLING_COUNTRY:
+        raise CheckoutAccountingIneligibleError(
+            "Paid credit purchases require a Greek billing address",
+        )
     missing = [field for field in _REQUIRED_CUSTOMER_FIELDS if not customer_snapshot[field]]
     customer_status = "ready_for_manual_issue" if not missing else "manual_review_required"
     customer_snapshot["missing_required_fields"] = missing
@@ -73,11 +95,15 @@ def build_paid_financial_record(
     vat_cents = gross_cents - net_cents
     automatic_tax = _mapping(checkout.get("automatic_tax"))
     if automatic_tax.get("enabled") is True:
-        raise ValueError("Stripe Automatic Tax is incompatible with the approved manual tax workflow")
+        raise CheckoutAccountingIneligibleError(
+            "Stripe Automatic Tax is incompatible with the approved manual tax workflow",
+        )
     total_details = _mapping(checkout.get("total_details"))
     stripe_amount_tax_cents = _optional_nonnegative_int(total_details.get("amount_tax"))
     if stripe_amount_tax_cents not in {None, 0}:
-        raise ValueError("Stripe tax totals are incompatible with the approved manual tax workflow")
+        raise CheckoutAccountingIneligibleError(
+            "Stripe tax totals are incompatible with the approved manual tax workflow",
+        )
     tax_snapshot = {
         "accounting_method": ACCOUNTING_METHOD,
         "customer_type": "individual",
@@ -104,6 +130,29 @@ def build_paid_financial_record(
         "currency": str(purchase.currency).lower(),
         "payment_status": _clean_string(checkout.get("payment_status")),
     }
+    if capture_evidence is not None:
+        payment_intent_id = _stripe_id(checkout.get("payment_intent"))
+        if (
+            capture_evidence.payment_intent_id != payment_intent_id
+            or capture_evidence.status != "succeeded"
+            or capture_evidence.amount_cents != gross_cents
+            or capture_evidence.amount_received_cents != gross_cents
+            or capture_evidence.currency.lower() != str(purchase.currency).lower()
+            or capture_evidence.capture_method != "manual"
+            or capture_evidence.capture_policy != MANUAL_CAPTURE_POLICY
+        ):
+            raise ValueError(
+                "Captured Stripe payment does not match the purchase",
+            )
+        payment_snapshot.update(
+            {
+                "capture_method": capture_evidence.capture_method,
+                "capture_policy": capture_evidence.capture_policy,
+                "capture_status": capture_evidence.status,
+                "payment_intent_amount_cents": capture_evidence.amount_cents,
+                "payment_intent_amount_received_cents": (capture_evidence.amount_received_cents),
+            }
+        )
     invoice_snapshot = {
         "service_code": AADE_SERVICE_CODE,
         "service_name": AADE_SERVICE_NAME,
@@ -129,6 +178,22 @@ def build_paid_financial_record(
             "pending_manual_issue" if customer_status == "ready_for_manual_issue" else "manual_review_required"
         ),
         retention_until=financial_retention_deadline(stripe_event_created),
+    )
+
+
+def validate_checkout_accounting_eligibility(
+    *,
+    purchase: DbCreditPurchase,
+    checkout: dict[str, Any],
+    stripe_event_created: int,
+    livemode: bool,
+) -> None:
+    """Validate Greece/tax evidence before any authorized payment is captured."""
+    build_paid_financial_record(
+        purchase=purchase,
+        checkout=checkout,
+        stripe_event_created=stripe_event_created,
+        livemode=livemode,
     )
 
 

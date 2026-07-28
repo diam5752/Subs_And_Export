@@ -82,21 +82,29 @@ Current official references:
 2. Each checkout request has a client idempotency key and an immutable database
    snapshot. The Stripe SDK also receives a server-derived idempotency key.
 3. The browser follows only the exact `https://checkout.stripe.com` origin.
-4. Credits are granted only by a signed webhook whose session ID, PaymentIntent,
-   amount, currency, user, package, credits and catalog metadata match the
-   stored snapshot.
-5. Stripe event IDs are receipt-hashed and serialized with a PostgreSQL
+4. Checkout uses Stripe's dynamic payment-method eligibility and creates a
+   manual-capture PaymentIntent. The selected eligible method is authorized
+   first; capture occurs only after the signed event proves a Greek billing
+   address and the exact session, PaymentIntent, amount, currency, user,
+   package, credit, catalog and consumer-contract metadata. An ineligible
+   authorization is canceled and grants no credits.
+5. Credits are granted only after the captured PaymentIntent reports
+   `succeeded` with the exact received amount. A provider capture can be replayed
+   safely after a local transaction failure and cannot grant twice.
+6. The signed webhook's session ID, PaymentIntent, amount, currency, user,
+   package, credits and catalog metadata must match the stored snapshot.
+7. Stripe event IDs are receipt-hashed and serialized with a PostgreSQL
    advisory lock. Duplicate or conflicting payloads cannot grant twice.
-6. Every fulfillment, expiry, refund and dispute event affecting the same
+8. Every fulfillment, expiry, refund and dispute event affecting the same
    purchase is serialized under a second purchase lock. A PaymentIntent is
    database-unique, and refund/dispute wallet mutations remain event-idempotent,
    including reinstate-then-lost transitions.
-7. A provider call reserves paid credits plus daily/monthly USD budget before
+9. A provider call reserves paid credits plus daily/monthly USD budget before
    dispatch. Zero budgets mean closed.
-8. Provider estimates reserve 25% headroom. Paid calls use zero SDK retries and
+10. Provider estimates reserve 25% headroom. Paid calls use zero SDK retries and
    bounded output tokens. Once a call is marked dispatched, a network failure
    cannot trigger another paid attempt or a credit refund.
-9. The visible 30/60/100 video charge includes optional social-copy generation;
+11. The visible 30/60/100 video charge includes optional social-copy generation;
    it is not deducted a second time.
 
 ## Validated accounting baseline and remaining consumer handoff
@@ -207,7 +215,9 @@ Before enabling live paid Checkout:
 8. Confirm the deployed database contains no historical fulfilled live Stripe
    purchase requiring an adjustment before relying on the disabled foundation.
 9. Create separate live Prices and a least-privilege live restricted key. It
-   must grant Checkout Sessions Write, PaymentIntents Read and Refunds Read;
+   must grant Checkout Sessions Write, PaymentIntents Write and Refunds Read;
+   PaymentIntents Write is required for manual capture and cancellation after
+   the Greece-only signed billing-address check;
    Refunds Read is required for authoritative, fully paginated reconciliation
    before any refund-driven wallet mutation. Store the key only in the
    production secret store. Treat a permission error, incomplete page or
@@ -326,7 +336,7 @@ Keep production Checkout disabled until all of these are closed:
   reviewed activation change; live activation is never an environment-only
   change;
 - separate live Prices, a least-privilege live restricted key with Checkout
-  Sessions Write, PaymentIntents Read and Refunds Read, and a signed live
+  Sessions Write, PaymentIntents Write and Refunds Read, and a signed live
   webhook endpoint pass the complete reconciliation checklist, including a
   successful fully paginated Refund list probe;
 - one explicitly authorized live Starter transaction is reconciled end to end,

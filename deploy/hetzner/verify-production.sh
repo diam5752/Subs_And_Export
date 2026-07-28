@@ -192,19 +192,22 @@ stripe_relay_http=$(docker exec "$backend_id" python -c '
 import urllib.error
 import urllib.request
 
-request = urllib.request.Request(
-    "http://edge:8081/stripe/v1/payment_intents/pi_gsubs_relay_probe",
-)
-try:
-    response = urllib.request.urlopen(request, timeout=10)
-except urllib.error.HTTPError as exc:
-    print(exc.code)
-except urllib.error.URLError:
-    print("unavailable")
-else:
-    print(response.status)
+base = "http://edge:8081/stripe/v1/payment_intents/pi_gsubs_relay_probe"
+probes = ((base, "GET"), (f"{base}/capture", "POST"), (f"{base}/cancel", "POST"))
+statuses = []
+for url, method in probes:
+    request = urllib.request.Request(url, data=(b"" if method == "POST" else None), method=method)
+    try:
+        response = urllib.request.urlopen(request, timeout=10)
+    except urllib.error.HTTPError as exc:
+        statuses.append(str(exc.code))
+    except urllib.error.URLError:
+        statuses.append("unavailable")
+    else:
+        statuses.append(str(response.status))
+print(",".join(statuses))
 ')
-[ "$stripe_relay_http" = 401 ] || {
+[ "$stripe_relay_http" = "401,401,401" ] || {
   echo "Stripe API relay is unavailable or unexpectedly permissive: $stripe_relay_http" >&2
   exit 1
 }

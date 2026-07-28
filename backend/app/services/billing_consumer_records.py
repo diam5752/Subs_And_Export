@@ -13,9 +13,19 @@ from sqlalchemy import select, text
 
 from backend.app.core.database import Database
 from backend.app.db.models import (
+    DbBillingAdjustmentRecord,
     DbBillingContractConfirmation,
     DbBillingWithdrawalRequest,
+    DbBillingWithdrawalResolution,
     DbCreditPurchase,
+    DbCreditPurchaseReversal,
+)
+from backend.app.services.billing_manual_records import (
+    BillingManualRecordError,
+    WithdrawalResolutionDecision,
+)
+from backend.app.services.billing_manual_records import (
+    verify_withdrawal_resolution as verify_manual_withdrawal_resolution,
 )
 from backend.app.services.financial_records import financial_retention_deadline
 
@@ -83,6 +93,8 @@ class BillingPurchaseSummary:
     withdrawal_action_available: bool
     withdrawal_status: str | None
     withdrawal_acknowledgement_available: bool
+    withdrawal_resolution_available: bool
+    withdrawal_resolution_decision: WithdrawalResolutionDecision | None
 
 
 def _canonical_json_bytes(value: dict[str, Any], *, pretty: bool = False) -> bytes:
@@ -636,11 +648,50 @@ class BillingConsumerRecordStore:
                     )
                 )
             }
+            resolutions = {
+                resolution.purchase_id: resolution
+                for resolution in session.scalars(
+                    select(DbBillingWithdrawalResolution).where(
+                        DbBillingWithdrawalResolution.purchase_id.in_(
+                            purchase_ids,
+                        )
+                    )
+                )
+            }
+            adjustment_ids = [
+                resolution.adjustment_id for resolution in resolutions.values() if resolution.adjustment_id is not None
+            ]
+            adjustments = (
+                {
+                    adjustment.id: adjustment
+                    for adjustment in session.scalars(
+                        select(DbBillingAdjustmentRecord).where(
+                            DbBillingAdjustmentRecord.id.in_(
+                                adjustment_ids,
+                            )
+                        )
+                    )
+                }
+                if adjustment_ids
+                else {}
+            )
+            reversal_ids = [adjustment.reversal_id for adjustment in adjustments.values()]
+            reversals = (
+                {
+                    reversal.id: reversal
+                    for reversal in session.scalars(
+                        select(DbCreditPurchaseReversal).where(DbCreditPurchaseReversal.id.in_(reversal_ids))
+                    )
+                }
+                if reversal_ids
+                else {}
+            )
 
         summaries: list[BillingPurchaseSummary] = []
         for purchase in purchases:
             confirmation = confirmations.get(purchase.id)
             withdrawal = withdrawals.get(purchase.id)
+            resolution = resolutions.get(purchase.id)
             if confirmation is not None:
                 verify_contract_confirmation(
                     confirmation,
@@ -652,6 +703,25 @@ class BillingConsumerRecordStore:
                     purchase=purchase,
                     confirmation=confirmation,
                 )
+            if resolution is not None:
+                if withdrawal is None:
+                    raise BillingConsumerRecordConflictError(
+                        "Withdrawal resolution request is unavailable",
+                    )
+                adjustment = adjustments.get(resolution.adjustment_id) if resolution.adjustment_id is not None else None
+                reversal = reversals.get(adjustment.reversal_id) if adjustment is not None else None
+                try:
+                    verify_manual_withdrawal_resolution(
+                        resolution,
+                        withdrawal=withdrawal,
+                        purchase=purchase,
+                        adjustment=adjustment,
+                        reversal=reversal,
+                    )
+                except BillingManualRecordError as exc:
+                    raise BillingConsumerRecordConflictError(
+                        "Withdrawal resolution evidence is invalid",
+                    ) from exc
             concluded_at = confirmation.contract_concluded_at if confirmation is not None else None
             summaries.append(
                 BillingPurchaseSummary(
@@ -666,8 +736,21 @@ class BillingConsumerRecordStore:
                     contract_confirmation_available=confirmation is not None,
                     contract_concluded_at=concluded_at,
                     withdrawal_action_available=(confirmation is not None and withdrawal is None),
-                    withdrawal_status=(withdrawal.status if withdrawal is not None else None),
+                    withdrawal_status=(
+                        resolution.decision
+                        if resolution is not None
+                        else (withdrawal.status if withdrawal is not None else None)
+                    ),
                     withdrawal_acknowledgement_available=(withdrawal is not None),
+                    withdrawal_resolution_available=(resolution is not None),
+                    withdrawal_resolution_decision=(
+                        cast(
+                            WithdrawalResolutionDecision,
+                            resolution.decision,
+                        )
+                        if resolution is not None
+                        else None
+                    ),
                 )
             )
         return tuple(summaries)
@@ -733,11 +816,7 @@ class BillingConsumerRecordStore:
                     DbCreditPurchase,
                     existing_by_key.purchase_id,
                 )
-                if (
-                    purchase is None
-                    or purchase.user_id != user_id
-                    or existing_by_key.purchase_id != purchase_id
-                ):
+                if purchase is None or purchase.user_id != user_id or existing_by_key.purchase_id != purchase_id:
                     raise BillingConsumerRecordConflictError(
                         "Idempotency key was used for another withdrawal request",
                     )
@@ -759,9 +838,7 @@ class BillingConsumerRecordStore:
                     locale=locale,
                     normalized_name=normalized_name,
                     normalized_email=normalized_email,
-                    conflict_message=(
-                        "Idempotency key was used for another withdrawal request"
-                    ),
+                    conflict_message=("Idempotency key was used for another withdrawal request"),
                 )
                 return self._withdrawal_result(
                     existing_by_key,
@@ -810,10 +887,7 @@ class BillingConsumerRecordStore:
                     locale=locale,
                     normalized_name=normalized_name,
                     normalized_email=normalized_email,
-                    conflict_message=(
-                        "A withdrawal request already exists for this purchase "
-                        "with different details"
-                    ),
+                    conflict_message=("A withdrawal request already exists for this purchase with different details"),
                 )
                 return self._withdrawal_result(
                     existing_for_purchase,
@@ -931,6 +1005,68 @@ class BillingConsumerRecordStore:
             confirmation=confirmation,
         )
         return cast(DbBillingWithdrawalRequest, withdrawal)
+
+    def get_withdrawal_resolution(
+        self,
+        *,
+        user_id: str,
+        purchase_id: str,
+    ) -> DbBillingWithdrawalResolution:
+        with self.db.session() as session:
+            owned_record = session.execute(
+                select(
+                    DbBillingWithdrawalResolution,
+                    DbBillingWithdrawalRequest,
+                    DbCreditPurchase,
+                )
+                .join(
+                    DbBillingWithdrawalRequest,
+                    DbBillingWithdrawalRequest.id == DbBillingWithdrawalResolution.withdrawal_id,
+                )
+                .join(
+                    DbCreditPurchase,
+                    DbCreditPurchase.id == DbBillingWithdrawalResolution.purchase_id,
+                )
+                .where(
+                    DbBillingWithdrawalResolution.purchase_id == purchase_id,
+                    DbCreditPurchase.user_id == user_id,
+                )
+                .limit(1)
+            ).one_or_none()
+            if owned_record is None:
+                raise BillingConsumerRecordNotFoundError(
+                    "Withdrawal resolution not found",
+                )
+            resolution, withdrawal, purchase = owned_record
+            adjustment = (
+                session.get(
+                    DbBillingAdjustmentRecord,
+                    resolution.adjustment_id,
+                )
+                if resolution.adjustment_id is not None
+                else None
+            )
+            reversal = (
+                session.get(
+                    DbCreditPurchaseReversal,
+                    adjustment.reversal_id,
+                )
+                if adjustment is not None
+                else None
+            )
+            try:
+                verify_manual_withdrawal_resolution(
+                    resolution,
+                    withdrawal=withdrawal,
+                    purchase=purchase,
+                    adjustment=adjustment,
+                    reversal=reversal,
+                )
+            except BillingManualRecordError as exc:
+                raise BillingConsumerRecordConflictError(
+                    "Withdrawal resolution evidence is invalid",
+                ) from exc
+            return cast(DbBillingWithdrawalResolution, resolution)
 
     @staticmethod
     def _validate_idempotency_key(value: str) -> str:
@@ -1217,12 +1353,9 @@ class BillingConsumerRecordStore:
             != {
                 "type": "email",
                 "address": normalized_email,
-                "delivery_status": (
-                    "not_sent_transactional_channel_not_ready"
-                ),
+                "delivery_status": ("not_sent_transactional_channel_not_ready"),
             }
-            or request_snapshot.get("contract_concluded_at")
-            != confirmation.contract_concluded_at
+            or request_snapshot.get("contract_concluded_at") != confirmation.contract_concluded_at
         ):
             raise BillingConsumerRecordConflictError(conflict_message)
 
