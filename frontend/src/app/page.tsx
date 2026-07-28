@@ -514,10 +514,7 @@ export default function DashboardPage() {
         inert={hasBlockingModal ? true : undefined}
       >
         <Link href="/" className="studio-brand" aria-label={t('brandHomeLabel')}>
-          <BrandLogo
-            layout="stacked"
-            className="block h-auto w-[68px] sm:w-[80px]"
-          />
+          <BrandLogo className="block h-auto w-[104px] sm:w-[136px]" />
         </Link>
 
         <nav className="studio-nav" aria-label="Workspace navigation">
