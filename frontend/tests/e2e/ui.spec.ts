@@ -606,6 +606,10 @@ for (const [label, viewport] of Object.entries(viewports)) {
       await mockApi(page);
       await page.goto('/');
       await waitForDashboardShell(page);
+      await expect(
+        page.getByRole('banner', { name: 'gsubs studio' })
+          .getByRole('button', { name: el.historyTitle }),
+      ).toHaveCount(0);
       await page.getByRole('button', { name: el.profileLabel }).click();
       await page.getByRole('button', { name: el.historyTitle }).click();
       await page.getByRole('heading', { name: el.historyTitle }).waitFor();

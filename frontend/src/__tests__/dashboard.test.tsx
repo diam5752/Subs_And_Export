@@ -271,16 +271,19 @@ describe('DashboardPage', () => {
         expect(window.localStorage.getItem('lastActiveJobId')).toBeNull();
     });
 
-    it('renders the precision header and opens history from its navigation', () => {
+    it('keeps history out of the header and opens it from the profile panel', () => {
         render(<DashboardPage />);
 
         const studioHeader = screen.getByRole('banner', { name: 'gsubs studio' });
         expect(studioHeader).toBeInTheDocument();
-        // REGRESSION: The homepage header used a separate stacked logo instead
-        // of the canonical compact-split identity used on the other routes.
+        // REGRESSION: The owner-selected stacked logo was replaced by a
+        // horizontal compact-split pill.
         expect(within(studioHeader).getByRole('img', { name: 'gsubs' }))
             .toHaveAttribute('src', '/brand/gsubs-logo.svg');
-        expect(screen.getByRole('navigation', { name: 'Workspace navigation' })).toBeInTheDocument();
+        expect(screen.queryByRole('navigation', { name: 'Workspace navigation' }))
+            .not.toBeInTheDocument();
+        expect(within(studioHeader).queryByRole('button', { name: 'historyTitle' }))
+            .not.toBeInTheDocument();
         expect(screen.getByTestId('studio-intro')).toHaveClass('studio-intro');
         expect(screen.getByTestId('studio-header-credits')).toBeInTheDocument();
         expect(screen.getByTestId('credits-coin-icon')).toBeInTheDocument();
@@ -291,6 +294,7 @@ describe('DashboardPage', () => {
         expect(screen.queryByText('2026 REMAKE')).not.toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'switchLanguage' })).toBeInTheDocument();
 
+        fireEvent.click(screen.getByRole('button', { name: 'profileLabel' }));
         fireEvent.click(screen.getByRole('button', { name: 'historyTitle' }));
         expect(screen.getByTestId('account-view')).toBeInTheDocument();
         expect(studioHeader).toHaveAttribute('aria-hidden', 'true');

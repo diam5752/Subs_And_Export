@@ -780,7 +780,7 @@ export default function BillingAdminPage() {
             <header className="border-b border-[#deded9] bg-[#f7f7f5]">
                 <div className="mx-auto flex min-h-[72px] w-full max-w-6xl items-center justify-between gap-4 px-5 sm:px-8">
                     <Link href="/" aria-label={t('brandHomeLabel')}>
-                        <BrandLogo className="block h-auto w-[132px] sm:w-[164px]" />
+                        <BrandLogo className="block h-auto w-[68px] sm:w-[80px]" />
                     </Link>
                     <Link
                         href="/"

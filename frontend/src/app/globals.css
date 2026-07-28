@@ -705,7 +705,7 @@ select:focus-visible,
 }
 
 .footer-brand img {
-  width: 88px;
+  width: 68px;
   height: auto;
   object-fit: contain;
 }
@@ -1095,6 +1095,7 @@ body {
 }
 
 .studio-header-account {
+  grid-column: 3;
   display: flex;
   align-items: center;
   justify-self: end;

@@ -9,17 +9,17 @@ test('gsubs branding is visible across the public shell and metadata', async ({ 
   const header = page.getByRole('banner', { name: 'gsubs studio' });
   const headerLogo = header.getByRole('img', { name: 'gsubs' });
   await expect(headerLogo).toBeVisible();
-  // REGRESSION: Header, footer and auth routes used different historical logo
-  // variants instead of the selected compact split identity.
+  // REGRESSION: The owner-selected stacked logo was replaced by a horizontal
+  // compact-split pill across the public routes.
   await expect(headerLogo).toHaveAttribute('src', '/brand/gsubs-logo.svg');
-  await expect(headerLogo).toHaveCSS('width', '136px');
+  await expect(headerLogo).toHaveCSS('width', '80px');
   const footerLogo = page.locator('.footer-brand img');
   await expect(footerLogo).toBeVisible();
   await expect(footerLogo).toHaveAttribute('src', '/brand/gsubs-logo.svg');
-  await expect(footerLogo).toHaveCSS('width', '88px');
+  await expect(footerLogo).toHaveCSS('width', '68px');
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(headerLogo).toHaveCSS('width', '104px');
+  await expect(headerLogo).toHaveCSS('width', '68px');
   await expect(headerLogo).toBeVisible();
   await expect(page).toHaveTitle('gsubs · Subtitle Studio');
 

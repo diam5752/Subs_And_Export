@@ -91,7 +91,7 @@ export function LegalPage({ kind }: LegalPageProps) {
                         className="inline-flex min-h-11 items-center"
                         aria-label={t('brandHomeLabel')}
                     >
-                        <BrandLogo className="block h-auto w-[132px] sm:w-[164px]" />
+                        <BrandLogo className="block h-auto w-[68px] sm:w-[80px]" />
                     </Link>
                     <LanguageToggle />
                 </div>

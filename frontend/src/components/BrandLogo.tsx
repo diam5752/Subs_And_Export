@@ -15,7 +15,7 @@ export function BrandLogo({
     const src = markOnly ? BRAND.assets.mark : BRAND.assets.logo;
     const dimensions = markOnly
         ? { width: 256, height: 256 }
-        : { width: 680, height: 152 };
+        : { width: 280, height: 208 };
 
     return (
         <img

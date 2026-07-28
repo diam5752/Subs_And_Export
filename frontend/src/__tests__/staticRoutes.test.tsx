@@ -55,12 +55,14 @@ describe('static application routes', () => {
             path.join(publicRoot, 'brand/gsubs-logo.svg'),
             'utf8',
         );
-        // REGRESSION: The shipped SVG described the rejected direct-morph
-        // arrow concept instead of the selected compact split mark.
-        expect(canonicalLogo).toContain('Compact split mark with waveform and subtitle lines');
-        expect(canonicalLogo).toContain('data-brand-mark="compact-split"');
+        // REGRESSION: The owner-selected stacked logo was replaced by a
+        // horizontal compact-split pill.
+        expect(canonicalLogo).toContain('Audio waveform becoming subtitle lines above the gsubs wordmark');
+        expect(canonicalLogo).toContain('data-brand-mark="waveform-to-subtitles"');
+        expect(canonicalLogo).toContain('viewBox="0 0 280 208"');
         expect(canonicalLogo).toContain('#166095');
         expect(canonicalLogo).toContain('#c66a21');
-        expect(canonicalLogo).not.toContain('M158 48L176 64L158 80');
+        expect(canonicalLogo).toContain('M160 36L178 52L160 68');
+        expect(canonicalLogo).not.toContain('data-brand-mark="compact-split"');
     });
 });
