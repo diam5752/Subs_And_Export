@@ -1,13 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
   <title id="title">gsubs mark</title>
-  <desc id="desc">Compact split mark with a waveform and two subtitle lines.</desc>
+  <desc id="desc">Audio waveform becoming subtitle lines.</desc>
   <rect width="256" height="256" rx="54" fill="#05070a"/>
-  <g data-brand-mark="compact-split" aria-hidden="true">
-    <rect x="35" y="35" width="186" height="186" rx="44" fill="none" stroke="#e7edf4" stroke-width="14"/>
-    <rect x="75" y="99" width="14" height="58" rx="7" fill="#166095"/>
-    <rect x="101" y="72" width="14" height="112" rx="7" fill="#166095"/>
-    <rect x="127" y="92" width="14" height="72" rx="7" fill="#166095"/>
-    <rect x="156" y="101" width="43" height="14" rx="7" fill="#c66a21"/>
-    <rect x="156" y="133" width="43" height="14" rx="7" fill="#c66a21"/>
+  <g aria-hidden="true">
+    <rect x="18" y="108" width="10" height="40" rx="5" fill="#166095"/>
+    <rect x="36" y="94" width="10" height="68" rx="5" fill="#166095"/>
+    <rect x="54" y="78" width="10" height="100" rx="5" fill="#166095"/>
+    <rect x="72" y="94" width="10" height="68" rx="5" fill="#166095"/>
+    <rect x="90" y="108" width="10" height="40" rx="5" fill="#166095"/>
+    <path d="M116 128H152M138 112L154 128L138 144" fill="none" stroke="#c66a21" stroke-linecap="round" stroke-linejoin="round" stroke-width="10"/>
+    <rect x="174" y="106" width="64" height="14" rx="7" fill="#e7edf4"/>
+    <rect x="174" y="136" width="48" height="14" rx="7" fill="#e7edf4"/>
   </g>
 </svg>

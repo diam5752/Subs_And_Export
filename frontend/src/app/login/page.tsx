@@ -144,7 +144,7 @@ export default function LoginPage() {
         <div className="auth-shell">
             <header className="auth-header">
                 <Link href="/" className="auth-wordmark" aria-label={t('brandHomeLabel')}>
-                    <BrandLogo className="block h-auto w-[132px] sm:w-[164px]" />
+                    <BrandLogo className="block h-auto w-[68px] sm:w-[80px]" />
                 </Link>
             </header>
 

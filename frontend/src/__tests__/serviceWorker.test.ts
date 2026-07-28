@@ -138,11 +138,16 @@ describe('service worker cache boundaries', () => {
         expect(harness.fetch).not.toHaveBeenCalled();
     });
 
-    it('purges previous shell caches during v4 activation', async () => {
-        // REGRESSION: Installed clients kept the old icon after the canonical
-        // compact-split brand assets replaced the direct-morph artwork.
+    it('purges previous shell caches during v5 activation', async () => {
+        // REGRESSION: Installed clients kept the compact-split icon after the
+        // selected waveform-to-subtitles identity was restored.
         const harness = createHarness({
-            cacheKeys: ['gsubs-shell-v2', 'gsubs-shell-v3', 'gsubs-shell-v4'],
+            cacheKeys: [
+                'gsubs-shell-v2',
+                'gsubs-shell-v3',
+                'gsubs-shell-v4',
+                'gsubs-shell-v5',
+            ],
         });
         const event: LifecycleEvent = {
             waitUntil: jest.fn(),
@@ -152,10 +157,11 @@ describe('service worker cache boundaries', () => {
 
         expect(event.waitUntil).toHaveBeenCalledTimes(1);
         await event.waitUntil.mock.calls[0][0];
-        expect(harness.caches.delete).toHaveBeenCalledTimes(2);
+        expect(harness.caches.delete).toHaveBeenCalledTimes(3);
         expect(harness.caches.delete).toHaveBeenCalledWith('gsubs-shell-v2');
         expect(harness.caches.delete).toHaveBeenCalledWith('gsubs-shell-v3');
-        expect(harness.caches.delete).not.toHaveBeenCalledWith('gsubs-shell-v4');
+        expect(harness.caches.delete).toHaveBeenCalledWith('gsubs-shell-v4');
+        expect(harness.caches.delete).not.toHaveBeenCalledWith('gsubs-shell-v5');
         expect(harness.clients.claim).toHaveBeenCalledTimes(1);
     });
 
@@ -175,7 +181,7 @@ describe('service worker cache boundaries', () => {
         await Promise.resolve();
         expect(harness.caches.match).toHaveBeenCalledWith(event.request);
         expect(harness.fetch).toHaveBeenCalledWith(event.request);
-        expect(harness.caches.open).toHaveBeenCalledWith('gsubs-shell-v4');
+        expect(harness.caches.open).toHaveBeenCalledWith('gsubs-shell-v5');
         expect(response.clone).toHaveBeenCalledTimes(1);
         expect(harness.cache.put).toHaveBeenCalledWith(
             event.request,

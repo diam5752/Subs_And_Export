@@ -7,8 +7,6 @@ import subprocess
 import time
 from pathlib import Path
 
-from PIL import Image
-
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 DEPLOYMENT_ROOT = REPOSITORY_ROOT / "deploy" / "hetzner"
 SUBPROCESS_START_TIMEOUT_SECONDS = 15.0
@@ -1131,13 +1129,11 @@ def test_backend_image_contains_the_gsubs_watermark() -> None:
 
     assert watermark.is_file()
     assert "COPY gsubs-logo.png /gsubs-logo.png" in dockerfile
-    # REGRESSION: The export watermark used the rejected waveform-arrow artwork
-    # instead of the selected compact split mark with its framed icon.
-    with Image.open(watermark) as image:
-        rgba = image.convert("RGBA")
-        assert rgba.size == (1360, 304)
-        assert rgba.getpixel((60, 152)) == (231, 237, 244, 255)
-        assert rgba.getpixel((240, 136)) == (198, 106, 33, 255)
+    # REGRESSION: The selected waveform-to-subtitles watermark was replaced by
+    # an unapproved compact-split asset.
+    assert hashlib.sha256(watermark.read_bytes()).hexdigest() == (
+        "9c71785c9716ad152b97d7691a7445fd0219d1da00f44fd691261cee35e874d0"
+    )
 
 
 def test_frontend_image_applies_the_patched_dependency_compatibility_export() -> None:

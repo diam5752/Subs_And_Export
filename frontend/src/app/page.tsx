@@ -514,23 +514,8 @@ export default function DashboardPage() {
         inert={hasBlockingModal ? true : undefined}
       >
         <Link href="/" className="studio-brand" aria-label={t('brandHomeLabel')}>
-          <BrandLogo className="block h-auto w-[104px] sm:w-[136px]" />
+          <BrandLogo className="block h-auto w-[68px] sm:w-[80px]" />
         </Link>
-
-        <nav className="studio-nav" aria-label="Workspace navigation">
-          {user && (
-            <button
-              type="button"
-              className="studio-nav-item"
-              onClick={() => {
-                setActiveAccountTab('history');
-                setShowAccountPanel(true);
-              }}
-            >
-              <span>{t('historyTitle') || 'History'}</span>
-            </button>
-          )}
-        </nav>
 
         <div className="studio-header-account">
           <LanguageToggle />
@@ -631,7 +616,7 @@ export default function DashboardPage() {
 
         <footer className="studio-footer">
           <a href="https://ascentia-gp.com/" target="_blank" rel="noopener noreferrer" className="footer-brand">
-            <BrandLogo className="block h-auto w-[108px]" />
+            <BrandLogo className="block h-auto w-[68px]" />
             <span><small>by Ascentia</small></span>
           </a>
           <div className="footer-links">
