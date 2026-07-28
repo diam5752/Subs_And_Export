@@ -10,6 +10,7 @@ import re
 import secrets
 import time
 import tomllib
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TypedDict, cast
@@ -679,12 +680,20 @@ def verify_google_id_token(
     from google.oauth2 import id_token as google_id_token
 
     class TimeoutRequest(GoogleAuthRequest):
+        def __init__(self) -> None:
+            request_init = cast(Callable[[], None], super().__init__)
+            request_init()
+
         def __call__(self, *args: Any, **kwargs: Any) -> Any:
             kwargs.setdefault("timeout", 30)
             return super().__call__(*args, **kwargs)  # type: ignore[no-untyped-call]
 
+    verify_token = cast(
+        Callable[..., Mapping[str, Any]],
+        google_id_token.verify_token,
+    )
     try:
-        raw_payload = google_id_token.verify_token(
+        raw_payload = verify_token(
             token,
             TimeoutRequest(),
             client_id,
