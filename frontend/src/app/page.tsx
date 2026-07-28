@@ -15,7 +15,10 @@ import { CreditPurchaseDialog } from '@/components/CreditPurchaseDialog';
 import { ProcessingGateModal, type ProcessingGateStage } from '@/components/ProcessingGateModal';
 import { useJobs } from '@/hooks/useJobs';
 import { useJobPolling, JobPollingCallbacks } from '@/hooks/useJobPolling';
-import { processVideoCostForSelection } from '@/lib/points';
+import {
+  processVideoCostForSelection,
+  transcribeProviderRequiresPaidCredits,
+} from '@/lib/points';
 import { paidCreditLegalPublicationIsApproved } from '@/lib/paidCreditLegal';
 import Link from 'next/link';
 import { BrandLogo } from '@/components/BrandLogo';
@@ -36,6 +39,7 @@ export default function DashboardPage() {
   const { user, isLoading, logout, refreshUser } = useAuth();
   const paidCreditSalesUiApproved = paidCreditLegalPublicationIsApproved();
   const {
+    balance,
     aiSpendableBalance,
     setBalance: setPointsBalance,
     setWallet,
@@ -44,6 +48,7 @@ export default function DashboardPage() {
   const { t } = useI18n();
   const { appEnv } = useAppEnv();
   const didRestoreSession = useRef(false);
+  const activeUploadAbortRef = useRef<AbortController | null>(null);
 
   // Custom Hooks
   const {
@@ -68,6 +73,7 @@ export default function DashboardPage() {
   const [progress, setProgress] = useState(0);
   const [statusMessage, setStatusMessage] = useState('');
   const [processError, setProcessError] = useState('');
+  const [canCancelProcessing, setCanCancelProcessing] = useState(false);
   const [pendingProcessingAction, setPendingProcessingAction] = useState<PendingProcessingAction | null>(null);
   const [processingGateStage, setProcessingGateStage] = useState<ProcessingGateStage | null>(null);
   const [processingGateError, setProcessingGateError] = useState('');
@@ -140,6 +146,7 @@ export default function DashboardPage() {
     },
     onComplete: (job: JobResponse) => {
       setIsProcessing(false);
+      setCanCancelProcessing(false);
       setJobId(null);
       setSelectedJob(job);
       setProcessError('');
@@ -148,21 +155,33 @@ export default function DashboardPage() {
     onFailed: (errorMessage: string) => {
       setProcessError(errorMessage);
       setIsProcessing(false);
+      setCanCancelProcessing(false);
       setJobId(null);
       refreshActivity();
     },
     onError: (errorMessage: string) => {
       setIsProcessing(false);
+      setCanCancelProcessing(false);
       setProcessError(errorMessage);
     },
   }), [refreshActivity, setSelectedJob]);
 
   // Cancel processing handler
   const handleCancelProcessing = useCallback(async () => {
+    const activeUpload = activeUploadAbortRef.current;
+    if (activeUpload) {
+      activeUploadAbortRef.current = null;
+      activeUpload.abort();
+      setCanCancelProcessing(false);
+      setIsProcessing(false);
+      setProcessError(t('processingCancelled'));
+      return;
+    }
     if (!jobId) return;
     try {
       await api.cancelJob(jobId);
       setIsProcessing(false);
+      setCanCancelProcessing(false);
       setJobId(null);
       setProcessError(t('processingCancelled'));
       refreshActivity();
@@ -182,7 +201,10 @@ export default function DashboardPage() {
   const executeStartProcessing = useCallback(async (options: ProcessingOptions) => {
     if (!selectedFile) return;
 
+    const uploadController = new AbortController();
+    activeUploadAbortRef.current = uploadController;
     setIsProcessing(true);
+    setCanCancelProcessing(true);
     setProcessError('');
     setProgress(0);
     setSelectedJob(null);
@@ -190,6 +212,18 @@ export default function DashboardPage() {
 
     const provider = options.transcribeProvider || 'mock';
     const selectedModel = options.transcribeMode || 'standard';
+    const reportUploadProgress = (percent: number) => {
+      setProgress(percent);
+      setStatusMessage(`${t('statusUploading')} ${percent}%`);
+    };
+    const markUploadComplete = () => {
+      if (activeUploadAbortRef.current === uploadController) {
+        activeUploadAbortRef.current = null;
+      }
+      setCanCancelProcessing(false);
+      setProgress(0);
+      setStatusMessage(t('statusProcessing'));
+    };
 
     try {
       const settings = {
@@ -222,29 +256,59 @@ export default function DashboardPage() {
             upload.upload_url,
             selectedFile,
             upload.required_headers['Content-Type'],
-            (percent) => {
-              setProgress(percent);
-              setStatusMessage(`${t('statusUploading')} ${percent}%`);
+            {
+              signal: uploadController.signal,
+              onProgress: reportUploadProgress,
+              onRetry: (nextAttempt, maxAttempts) => {
+                setStatusMessage(t('statusUploadRetrying', {
+                  attempt: nextAttempt,
+                  total: maxAttempts,
+                }));
+              },
+              onUploadComplete: markUploadComplete,
             },
           );
-          setStatusMessage(t('statusProcessing'));
-          setProgress(0);
           return api.processVideoFromGcs(upload.upload_id, settings);
         })()
-        : await api.processVideo(selectedFile, settings);
+        : await api.processVideo(selectedFile, settings, {
+          signal: uploadController.signal,
+          onProgress: reportUploadProgress,
+          onUploadComplete: markUploadComplete,
+        });
       setJobId(result.id);
+      setCanCancelProcessing(true);
       if (typeof result.balance === 'number') {
         setPointsBalance(result.balance);
       }
       void refreshBalance();
     } catch (err) {
-      setProcessError(err instanceof Error ? err.message : t('startProcessingError'));
+      const uploadErrorCode = typeof err === 'object'
+        && err !== null
+        && 'code' in err
+        && typeof err.code === 'string'
+        ? err.code
+        : null;
+      if (uploadController.signal.aborted || uploadErrorCode === 'upload_cancelled') {
+        setProcessError(t('processingCancelled'));
+      } else if (uploadErrorCode === 'upload_network_error' || uploadErrorCode === 'upload_timeout') {
+        setProcessError(t('uploadConnectionError'));
+      } else if (uploadErrorCode === 'upload_http_error') {
+        setProcessError(t('uploadFailed'));
+      } else {
+        setProcessError(err instanceof Error ? err.message : t('startProcessingError'));
+      }
       setIsProcessing(false);
+      setCanCancelProcessing(false);
+    } finally {
+      if (activeUploadAbortRef.current === uploadController) {
+        activeUploadAbortRef.current = null;
+      }
     }
   }, [appEnv, refreshBalance, selectedFile, setPointsBalance, t, setSelectedJob]);
 
   const executeReprocessJob = useCallback(async (sourceJobId: string, options: ProcessingOptions) => {
     setIsProcessing(true);
+    setCanCancelProcessing(false);
     setProcessError('');
     setProgress(0);
     setStatusMessage(t('statusProcessing'));
@@ -272,6 +336,7 @@ export default function DashboardPage() {
 
       const result = await api.reprocessJob(sourceJobId, settings);
       setJobId(result.id);
+      setCanCancelProcessing(true);
       if (typeof result.balance === 'number') {
         setPointsBalance(result.balance);
       }
@@ -279,6 +344,7 @@ export default function DashboardPage() {
     } catch (err) {
       setProcessError(err instanceof Error ? err.message : t('startProcessingError'));
       setIsProcessing(false);
+      setCanCancelProcessing(false);
     }
   }, [refreshBalance, setPointsBalance, t]);
 
@@ -290,6 +356,16 @@ export default function DashboardPage() {
       pendingProcessingAction.options.sourceDurationSeconds,
     );
   }, [pendingProcessingAction]);
+
+  const pendingProcessingRequiresPaidCredits = useMemo(
+    () => transcribeProviderRequiresPaidCredits(
+      pendingProcessingAction?.options.transcribeProvider,
+    ),
+    [pendingProcessingAction],
+  );
+  const processingGateBalance = pendingProcessingRequiresPaidCredits
+    ? aiSpendableBalance
+    : balance;
 
   const closeProcessingGate = useCallback(() => {
     setProcessingGateStage(null);
@@ -345,8 +421,8 @@ export default function DashboardPage() {
   const handleGateConfirm = useCallback(async () => {
     if (
       !pendingProcessingAction
-      || aiSpendableBalance === null
-      || aiSpendableBalance < pendingProcessingCost
+      || processingGateBalance === null
+      || processingGateBalance < pendingProcessingCost
     ) return;
 
     const action = pendingProcessingAction;
@@ -357,12 +433,12 @@ export default function DashboardPage() {
     }
     await executeReprocessJob(action.sourceJobId, action.options);
   }, [
-    aiSpendableBalance,
     closeProcessingGate,
     executeReprocessJob,
     executeStartProcessing,
     pendingProcessingAction,
     pendingProcessingCost,
+    processingGateBalance,
   ]);
 
   const closeCreditPurchase = useCallback(() => {
@@ -464,8 +540,12 @@ export default function DashboardPage() {
 
   // Memoized to prevent unnecessary re-renders of ProcessView and its children (JobListItem)
   const resetProcessing = useCallback(() => {
+    activeUploadAbortRef.current?.abort();
+    activeUploadAbortRef.current = null;
     setSelectedFile(null);
     setSelectedJob(null);
+    setIsProcessing(false);
+    setCanCancelProcessing(false);
     setProgress(0);
     setJobId(null);
     setStatusMessage('');
@@ -604,7 +684,7 @@ export default function DashboardPage() {
             onStartProcessing={requestStartProcessing}
             onReprocessJob={requestReprocessJob}
             onReset={resetProcessing}
-            onCancelProcessing={handleCancelProcessing}
+            onCancelProcessing={canCancelProcessing ? handleCancelProcessing : undefined}
             selectedJob={selectedJob}
             onJobSelect={setSelectedJob}
             onRefreshJobs={refreshActivity}
@@ -631,7 +711,8 @@ export default function DashboardPage() {
           isOpen
           stage={processingGateStage}
           cost={pendingProcessingCost}
-          balance={aiSpendableBalance}
+          balance={processingGateBalance}
+          requiresPaidCredits={pendingProcessingRequiresPaidCredits}
           isBalanceLoading={isGateBalanceLoading}
           error={processingGateError}
           onClose={closeProcessingGate}

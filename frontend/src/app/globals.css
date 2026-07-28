@@ -1433,25 +1433,32 @@ body {
 }
 
 .editor-sidebar-body {
+  --editor-sidebar-padding: 16px;
   min-height: 0;
   display: flex;
   flex: 1;
   flex-direction: column;
-  padding: 16px;
+  padding: var(--editor-sidebar-padding);
   overflow: auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
 }
 
-.editor-tabs {
+.editor-tabs-sticky {
   position: sticky;
   top: 0;
-  z-index: 2;
+  z-index: 3;
+  margin: calc(var(--editor-sidebar-padding) * -1);
+  margin-bottom: 0;
+  background: #fff;
+  padding: var(--editor-sidebar-padding);
+}
+
+.editor-tabs {
   min-height: 52px;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 3px;
-  margin-bottom: 16px;
   border: 1px solid #e0e1e4;
   border-radius: 10px;
   background: #f4f4f3;
@@ -1724,7 +1731,7 @@ body {
   }
 
   .editor-sidebar-body {
-    padding: 12px;
+    --editor-sidebar-padding: 12px;
   }
 
   .editor-tab svg {
@@ -1759,14 +1766,6 @@ body {
 
   .editor-export-grid-subtitles .editor-export-action:last-child {
     grid-column: 1 / -1;
-  }
-
-  .style-preset-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .style-preset-card {
-    min-height: 86px;
   }
 
   .editor-new-video span {

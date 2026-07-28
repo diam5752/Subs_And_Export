@@ -14,6 +14,7 @@ interface ProcessingGateModalProps {
     stage: ProcessingGateStage;
     cost: number;
     balance: number | null;
+    requiresPaidCredits?: boolean;
     isBalanceLoading: boolean;
     error: string;
     onClose: () => void;
@@ -27,6 +28,7 @@ export function ProcessingGateModal({
     stage,
     cost,
     balance,
+    requiresPaidCredits = true,
     isBalanceLoading,
     error,
     onClose,
@@ -212,7 +214,11 @@ export function ProcessingGateModal({
                                 </div>
                                 <div className="my-4 h-px bg-[#ece4c8]" />
                                 <div className="flex items-center justify-between gap-4 text-sm">
-                                    <span className="text-[var(--muted)]">{t('processingGateBalanceLabel')}</span>
+                                    <span className="text-[var(--muted)]">
+                                        {t(requiresPaidCredits
+                                            ? 'processingGateBalanceLabel'
+                                            : 'processingGateTotalBalanceLabel')}
+                                    </span>
                                     <strong className="text-[var(--foreground)]">
                                         {isBalanceLoading || balance === null ? '—' : formatPoints(balance)}
                                     </strong>
@@ -230,7 +236,11 @@ export function ProcessingGateModal({
                                 </p>
                             )}
 
-                            <p className="text-xs leading-5 text-[var(--muted)]">{t('processingGateChargeNote')}</p>
+                            <p className="text-xs leading-5 text-[var(--muted)]">
+                                {t(requiresPaidCredits
+                                    ? 'processingGateChargeNote'
+                                    : 'processingGateLocalChargeNote')}
+                            </p>
 
                             <div className={`grid grid-cols-1 gap-3 ${
                                 canAfford || onPurchaseCredits ? 'sm:grid-cols-2' : ''

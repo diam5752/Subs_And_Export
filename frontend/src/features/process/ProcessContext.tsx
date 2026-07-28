@@ -9,7 +9,7 @@ import {
     updateCueText,
 } from '@/lib/subtitleUtils';
 import { PreviewPlayerHandle } from '@/components/PreviewPlayer';
-import type { LastUsedSettings, StylePreset, TranscribeMode, TranscribeProvider } from './processTypes';
+import type { LastUsedSettings, TranscribeMode, TranscribeProvider } from './processTypes';
 import { resolveConfiguredTranscription } from '@/lib/transcription';
 import { buildSubtitleExportFilename, withDownloadParameters } from '@/lib/exportFilename';
 
@@ -73,14 +73,10 @@ interface ProcessContextType {
     subtitleSize: number;
     setSubtitleSize: (v: number) => void;
     karaokeEnabled: boolean;
-    setKaraokeEnabled: (v: boolean) => void;
     watermarkEnabled: boolean;
-    setWatermarkEnabled: (v: boolean) => void;
     shadowStrength: number;
     activeSidebarTab: 'transcript' | 'styles' | 'intelligence';
     setActiveSidebarTab: (v: 'transcript' | 'styles' | 'intelligence') => void;
-    activePreset: string | null;
-    setActivePreset: (v: string | null) => void;
     videoInfo: VideoInfo | null;
     setVideoInfo: (v: VideoInfo | null) => void;
     previewVideoUrl: string | null;
@@ -106,8 +102,6 @@ interface ProcessContextType {
     handleExport: (resolution: string) => Promise<void>;
     exportingResolutions: Record<string, boolean>;
     exportError: string | null;
-    saveLastUsedSettings: () => void;
-    lastUsedSettings: LastUsedSettings | null;
 
     // Transcript editing
     editingCueIndex: number | null;
@@ -127,7 +121,6 @@ interface ProcessContextType {
 
     // Constants
     SUBTITLE_COLORS: Array<{ label: string; value: string; ass: string }>;
-    STYLE_PRESETS: StylePreset[];
 }
 
 const ProcessContext = createContext<ProcessContextType | undefined>(undefined);
@@ -195,17 +188,6 @@ export function ProcessProvider({
         return Math.max(min, Math.min(max, num));
     };
 
-    const parseBoolean = (value: unknown): boolean | null => {
-        if (typeof value === 'boolean') return value;
-        if (typeof value === 'number') return value !== 0;
-        if (typeof value === 'string') {
-            const cleaned = value.trim().toLowerCase();
-            if (['1', 'true', 'yes', 'on'].includes(cleaned)) return true;
-            if (['0', 'false', 'no', 'off'].includes(cleaned)) return false;
-        }
-        return null;
-    };
-
     // Helper to get initial value from localStorage or default
     const getInitialValue = <T,>(key: keyof LastUsedSettings, defaultValue: T): T => {
         if (typeof window === 'undefined') return defaultValue;
@@ -226,9 +208,6 @@ export function ProcessProvider({
                     }
                     if (key === 'lines') {
                         return (clampNumber(rawValue, 0, 4) ?? defaultValue) as T;
-                    }
-                    if (key === 'karaoke' || key === 'watermark') {
-                        return (parseBoolean(rawValue) ?? defaultValue) as T;
                     }
                     if (key === 'color') {
                         return (typeof rawValue === 'string' && rawValue.trim() ? rawValue : defaultValue) as T;
@@ -253,18 +232,18 @@ export function ProcessProvider({
     const transcribeProvider: TranscribeProvider = configuredTranscription.provider;
 
     // Initial values with priority: LocalStorage > Defaults
-    // Defaults: Position: 30 (Middle), Size: 85 (Medium), Lines: 2 (Double), Color: Yellow, Karaoke: True
+    // User-adjustable settings load from localStorage. Advanced output behavior
+    // stays fixed so hidden controls cannot leave surprising persisted states.
     const [subtitlePosition, setSubtitlePosition] = useState<number>(() => getInitialValue('position', 20));
     const [maxSubtitleLines, setMaxSubtitleLines] = useState(() => getInitialValue('lines', 2));
     const [subtitleColor, setSubtitleColor] = useState<string>(() => getInitialValue('color', '#FFFF00'));
     const [subtitleSize, setSubtitleSize] = useState<number>(() => getInitialValue('size', 85));
-    const [karaokeEnabled, setKaraokeEnabled] = useState(() => getInitialValue('karaoke', true));
-    const [watermarkEnabled, setWatermarkEnabled] = useState(() => getInitialValue('watermark', false));
+    const karaokeEnabled = true;
+    const watermarkEnabled = false;
 
     const [shadowStrength] = useState<number>(4);
 
     const [activeSidebarTab, setActiveSidebarTab] = useState<'transcript' | 'styles' | 'intelligence'>('transcript');
-    const [activePreset, setActivePreset] = useState<string | null>(null); // No preset active by default if we load custom settings
 
     const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null);
     const [previewVideoUrl, setPreviewVideoUrl] = useState<string | null>(null);
@@ -368,34 +347,20 @@ export function ProcessProvider({
         return buildStaticUrl(variantPath || selectedJob?.result_data?.public_url || selectedJob?.result_data?.video_path);
     }, [activePreviewVariant, buildStaticUrl, selectedJob]);
 
-    // Last Used Settings State (synced with above, mainly for context access if needed directly)
-    const [lastUsedSettings, setLastUsedSettings] = useState<LastUsedSettings | null>(() => {
-        if (typeof window === 'undefined') return null;
-        try {
-            const stored = localStorage.getItem(LAST_USED_SETTINGS_KEY);
-            return stored ? JSON.parse(stored) : null;
-        } catch {
-            return null;
-        }
-    });
-
-    const saveLastUsedSettings = useCallback(() => {
+    const persistSubtitleSettings = useCallback(() => {
         const settings: LastUsedSettings = {
             position: subtitlePosition,
             size: subtitleSize,
             lines: maxSubtitleLines,
             color: subtitleColor,
-            karaoke: karaokeEnabled,
-            watermark: watermarkEnabled,
             timestamp: Date.now(),
         };
         try {
             localStorage.setItem(LAST_USED_SETTINGS_KEY, JSON.stringify(settings));
-            setLastUsedSettings(settings);
         } catch {
             // Ignore localStorage errors
         }
-    }, [subtitlePosition, subtitleSize, maxSubtitleLines, subtitleColor, karaokeEnabled, watermarkEnabled]);
+    }, [subtitlePosition, subtitleSize, maxSubtitleLines, subtitleColor]);
 
     // Constants
     const SUBTITLE_COLORS = useMemo(() => [
@@ -404,54 +369,6 @@ export function ProcessProvider({
         { label: t('colorCyan'), value: '#00FFFF', ass: '&H00FFFF00' },
         { label: t('colorGreen'), value: '#00FF00', ass: '&H0000FF00' },
         { label: t('colorMagenta'), value: '#FF00FF', ass: '&H00FF00FF' },
-    ], [t]);
-
-    const STYLE_PRESETS = useMemo<StylePreset[]>(() => [
-        {
-            id: 'tiktok',
-            name: t('styleTiktokName'),
-            description: t('styleTiktokDesc'),
-            emoji: '🔥',
-            settings: {
-                position: 30,
-                size: 100,
-                lines: 0,
-                color: '#FFFF00',
-                karaoke: true,
-                watermark: false,
-            },
-            colorClass: 'from-pink-500 to-orange-500',
-        },
-        {
-            id: 'cinematic',
-            name: t('styleCinematicName'),
-            description: t('styleCinematicDesc'),
-            emoji: '🎬',
-            settings: {
-                position: 15,
-                size: 85,
-                lines: 2,
-                color: '#FFFFFF',
-                karaoke: false,
-                watermark: false,
-            },
-            colorClass: 'from-slate-500 to-zinc-600',
-        },
-        {
-            id: 'podcast',
-            name: t('styleMinimalName'),
-            description: t('styleMinimalDesc'),
-            emoji: '🎙️',
-            settings: {
-                position: 15,
-                size: 70,
-                lines: 3,
-                color: '#00FFFF',
-                karaoke: false,
-                watermark: false,
-            },
-            colorClass: 'from-cyan-500 to-teal-500',
-        },
     ], [t]);
 
     // Scroll to results when job completes, BUT only if we are not overriding navigation (e.g. user clicked Step 1/2)
@@ -567,7 +484,7 @@ export function ProcessProvider({
                 setActivePreviewVariant(resolution);
             }
 
-            saveLastUsedSettings();
+            persistSubtitleSettings();
 
             if (updatedJob.result_data?.variants?.[resolution]) {
                 const url = buildStaticUrl(updatedJob.result_data.variants[resolution]);
@@ -617,7 +534,7 @@ export function ProcessProvider({
         subtitleSize,
         karaokeEnabled,
         watermarkEnabled,
-        saveLastUsedSettings,
+        persistSubtitleSettings,
         t,
     ]);
 
@@ -756,11 +673,10 @@ export function ProcessProvider({
         maxSubtitleLines, setMaxSubtitleLines,
         subtitleColor, setSubtitleColor,
         subtitleSize, setSubtitleSize,
-        karaokeEnabled, setKaraokeEnabled,
-        watermarkEnabled, setWatermarkEnabled,
+        karaokeEnabled,
+        watermarkEnabled,
         shadowStrength,
         activeSidebarTab, setActiveSidebarTab,
-        activePreset, setActivePreset,
         videoInfo, setVideoInfo,
         previewVideoUrl, setPreviewVideoUrl,
         videoUrl,
@@ -770,13 +686,12 @@ export function ProcessProvider({
         currentStep, setOverrideStep, overrideStep,
         handleStart, handleExport, exportingResolutions,
         exportError,
-        saveLastUsedSettings, lastUsedSettings,
         editingCueIndex, setEditingCueIndex,
         editingCueSurface,
         editingCueDraft, setEditingCueDraft,
         isSavingTranscript, transcriptLoadError, transcriptSaveError, setTranscriptSaveError,
         beginEditingCue, cancelEditingCue, saveEditingCue, updateCueText, handleUpdateDraft,
-        SUBTITLE_COLORS, STYLE_PRESETS,
+        SUBTITLE_COLORS,
     };
 
     return <ProcessContext.Provider value={value}>{children}</ProcessContext.Provider>;

@@ -137,6 +137,28 @@ describe('ProcessingGateModal', () => {
         expect(onConfirm).toHaveBeenCalledTimes(1);
     });
 
+    it('labels mock processing as local and does not claim an external call', () => {
+        render(
+            <ProcessingGateModal
+                isOpen
+                stage="cost"
+                cost={25}
+                balance={100}
+                requiresPaidCredits={false}
+                isBalanceLoading={false}
+                error=""
+                onClose={onClose}
+                onAuthenticated={onAuthenticated}
+                onConfirm={onConfirm}
+            />,
+        );
+
+        expect(screen.getByText('processingGateTotalBalanceLabel')).toBeInTheDocument();
+        expect(screen.getByText('processingGateLocalChargeNote')).toBeInTheDocument();
+        expect(screen.queryByText('processingGateBalanceLabel')).not.toBeInTheDocument();
+        expect(screen.queryByText('processingGateChargeNote')).not.toBeInTheDocument();
+    });
+
     it('routes an insufficient balance to credit purchase without starting processing', () => {
         render(
             <ProcessingGateModal

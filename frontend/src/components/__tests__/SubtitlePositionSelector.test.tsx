@@ -16,13 +16,9 @@ describe('SubtitlePositionSelector', () => {
         onChangeLines: jest.fn(),
         subtitleSize: 100,
         onChangeSize: jest.fn(),
-        karaokeEnabled: true,
-        onChangeKaraoke: jest.fn(),
         subtitleColor: '#FFFFFF',
         onChangeColor: jest.fn(),
         colors: [{ label: 'White', value: '#FFFFFF', ass: '&H00FFFFFF' }],
-        watermarkEnabled: false,
-        onChangeWatermark: jest.fn(),
     };
 
     beforeEach(() => {
@@ -79,15 +75,12 @@ describe('SubtitlePositionSelector', () => {
         expect(defaultProps.onChangeLines).toHaveBeenCalledWith(1);
     });
 
-    it('renders and updates the karaoke toggle', () => {
+    it('does not expose advanced output toggles', () => {
         render(<SubtitlePositionSelector {...defaultProps} />);
 
-        const switchControl = screen.getByRole('switch', { name: 'karaokeLabel' });
-        expect(switchControl).toBeInTheDocument();
-        expect(switchControl).toHaveAttribute('aria-checked', 'true');
-
-        fireEvent.click(switchControl);
-        expect(defaultProps.onChangeKaraoke).toHaveBeenCalledWith(false); // toggles
+        expect(screen.queryByRole('switch')).not.toBeInTheDocument();
+        expect(screen.queryByText('karaokeLabel')).not.toBeInTheDocument();
+        expect(screen.queryByText('watermarkLabel')).not.toBeInTheDocument();
     });
 
     it('shows info tooltips for subtitle controls', () => {
@@ -114,7 +107,6 @@ describe('SubtitlePositionSelector', () => {
         assertTooltip('infoPrefix positionLabel', 'tooltipPositionDesc');
         assertTooltip('infoPrefix maxLinesLabel', 'tooltipMaxLinesDesc');
         assertTooltip('infoPrefix colorLabel', 'tooltipColorDesc');
-        assertTooltip('infoPrefix karaokeLabel', 'tooltipKaraokeDesc');
     });
 
     it('renders color selector if colors provided', () => {

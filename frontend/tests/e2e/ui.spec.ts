@@ -136,7 +136,10 @@ test('completed editor remains readable across the responsive viewport matrix', 
       await stabilizeUi(page);
       await expectNoHorizontalOverflow(page);
       await expectNoHorizontalOverflow(page, '[data-testid="editor-sidebar"]');
-      await expect(page.getByRole('radio', { name: 'TikTok Pro' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: el.customSettings })).toBeVisible();
+      for (const removedPreset of ['TikTok Pro', 'Cinematic Master', 'Podcast Style', 'Τελευταία Χρήση']) {
+        await expect(page.getByText(removedPreset, { exact: true })).toHaveCount(0);
+      }
       await page.getByRole('tab', { name: el.tabTranscript }).click();
     }
   }
@@ -158,10 +161,19 @@ test('desktop style controls scroll internally without stretching the preview', 
     const preview = document.querySelector<HTMLElement>('[data-testid="editor-preview-panel"]');
     const sidebar = document.querySelector<HTMLElement>('[data-testid="editor-sidebar"]');
     const sidebarBody = document.querySelector<HTMLElement>('.editor-sidebar-body');
+    const tabsSticky = document.querySelector<HTMLElement>('.editor-tabs-sticky');
+    const tabs = document.querySelector<HTMLElement>('.editor-tabs');
 
-    if (!workspace || !preview || !sidebar || !sidebarBody) {
+    if (!workspace || !preview || !sidebar || !sidebarBody || !tabsSticky || !tabs) {
       throw new Error('Missing completed editor layout element');
     }
+
+    // The streamlined form now fits at this viewport. Constrain the workspace
+    // to reproduce the internal-scroll state where the sticky tabs previously
+    // allowed controls to show through their surrounding padding.
+    workspace.style.height = '480px';
+    sidebarBody.scrollTop = sidebarBody.scrollHeight;
+    const tabsStickyStyle = getComputedStyle(tabsSticky);
 
     return {
       workspaceHeight: workspace.getBoundingClientRect().height,
@@ -170,6 +182,10 @@ test('desktop style controls scroll internally without stretching the preview', 
       sidebarHeight: sidebar.getBoundingClientRect().height,
       sidebarBodyClientHeight: sidebarBody.clientHeight,
       sidebarBodyScrollHeight: sidebarBody.scrollHeight,
+      tabsStickyPosition: tabsStickyStyle.position,
+      tabsStickyBackground: tabsStickyStyle.backgroundColor,
+      tabsStickyWidth: tabsSticky.getBoundingClientRect().width,
+      tabsWidth: tabs.getBoundingClientRect().width,
     };
   });
 
@@ -179,6 +195,11 @@ test('desktop style controls scroll internally without stretching the preview', 
   expect(Math.abs(metrics.previewHeight - metrics.sidebarHeight)).toBeLessThanOrEqual(1);
   expect(metrics.previewBackgroundColor).toBe('rgba(0, 0, 0, 0)');
   expect(metrics.sidebarBodyScrollHeight).toBeGreaterThan(metrics.sidebarBodyClientHeight);
+  // REGRESSION: scrolled controls must not show through the sticky tab bar or
+  // the padding around it.
+  expect(metrics.tabsStickyPosition).toBe('sticky');
+  expect(metrics.tabsStickyBackground).toBe('rgb(255, 255, 255)');
+  expect(metrics.tabsStickyWidth).toBeGreaterThan(metrics.tabsWidth);
 });
 
 test('up-to-three-line karaoke layout keeps explicit rows and non-overlapping words', async ({ page }) => {

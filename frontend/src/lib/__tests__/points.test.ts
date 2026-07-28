@@ -5,6 +5,7 @@ import {
     processVideoCostForDuration,
     processVideoCostForTranscribeModel,
     resolveTranscribeModelForSelection,
+    transcribeProviderRequiresPaidCredits,
     videoCreditQuoteForDuration,
 } from '@/lib/points';
 
@@ -35,6 +36,16 @@ describe('points pricing helpers', () => {
         expect(processVideoCostForDuration(360.001)).toBe(100);
         expect(processVideoCostForDuration(600)).toBe(100);
         expect(videoCreditQuoteForDuration(null).key).toBe('up_to_10m');
+    });
+
+    it('requires paid credits only for external transcription providers', () => {
+        // REGRESSION: the frontend required purchased credits in mock mode even
+        // though the backend intentionally allows promotional credits locally.
+        expect(transcribeProviderRequiresPaidCredits('mock')).toBe(false);
+        expect(transcribeProviderRequiresPaidCredits('local')).toBe(false);
+        expect(transcribeProviderRequiresPaidCredits(null)).toBe(false);
+        expect(transcribeProviderRequiresPaidCredits('groq')).toBe(true);
+        expect(transcribeProviderRequiresPaidCredits('elevenlabs')).toBe(true);
     });
 
     it('exposes fact check cost constant', () => {

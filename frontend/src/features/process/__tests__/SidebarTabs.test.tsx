@@ -32,24 +32,16 @@ const mockContextValue = {
     saveEditingCue: jest.fn(),
     cancelEditingCue: jest.fn(),
     playerRef: { current: null },
-    STYLE_PRESETS: [],
-    activePreset: null,
-    setActivePreset: jest.fn(),
     setSubtitlePosition: jest.fn(),
     setSubtitleSize: jest.fn(),
     setMaxSubtitleLines: jest.fn(),
     setSubtitleColor: jest.fn(),
-    setKaraokeEnabled: jest.fn(),
-    setWatermarkEnabled: jest.fn(),
-    lastUsedSettings: null,
     subtitlePosition: 16,
     maxSubtitleLines: 1,
     videoInfo: null,
     subtitleColor: '#FFFF00',
     SUBTITLE_COLORS: [],
     subtitleSize: 100,
-    karaokeEnabled: false,
-    watermarkEnabled: false,
     previewVideoUrl: null,
     transcriptContainerRef: { current: null },
     isSavingTranscript: false,
@@ -76,6 +68,8 @@ describe('Sidebar Tabs', () => {
         expect(screen.getByRole('tab', { name: /intelligence/i })).toBeInTheDocument();
 
         // Check for SVG icons in tabs (they are visible because they are inside the buttons)
+        const tabList = screen.getByRole('tablist');
+        expect(tabList.parentElement).toHaveClass('editor-tabs-sticky');
         const buttons = screen.getAllByRole('tab');
         buttons.forEach(button => {
             expect(button.querySelector('svg')).toBeInTheDocument();
@@ -120,20 +114,10 @@ describe('Sidebar Tabs', () => {
         expect(screen.getByTestId('viral-intelligence')).toBeInTheDocument();
     });
 
-    it('treats an absent optional watermark setting as disabled', () => {
-        const setWatermarkEnabled = jest.fn();
+    it('shows manual style settings without preset cards', () => {
         (useProcessContext as jest.Mock).mockReturnValue({
             ...mockContextValue,
             activeSidebarTab: 'styles',
-            lastUsedSettings: {
-                position: 20,
-                size: 85,
-                lines: 2,
-                color: '#FFFF00',
-                karaoke: true,
-                timestamp: 1,
-            },
-            setWatermarkEnabled,
         });
 
         render(
@@ -144,7 +128,11 @@ describe('Sidebar Tabs', () => {
             </I18nProvider>
         );
 
-        fireEvent.click(screen.getByRole('radio', { name: /last used/i }));
-        expect(setWatermarkEnabled).toHaveBeenCalledWith(false);
+        expect(screen.getByRole('heading', { name: /custom settings/i })).toBeInTheDocument();
+        expect(screen.queryByText('TikTok Pro')).not.toBeInTheDocument();
+        expect(screen.queryByText('Cinematic Master')).not.toBeInTheDocument();
+        expect(screen.queryByText('Podcast Style')).not.toBeInTheDocument();
+        expect(screen.queryByText('Last Used')).not.toBeInTheDocument();
+        expect(screen.queryByRole('switch')).not.toBeInTheDocument();
     });
 });

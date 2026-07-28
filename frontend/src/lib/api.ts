@@ -17,6 +17,94 @@ export class ApiError extends Error {
     }
 }
 
+interface UploadCallbacks {
+    onProgress?: (percent: number) => void;
+    onRetry?: (nextAttempt: number, maxAttempts: number) => void;
+    onUploadComplete?: () => void;
+    signal?: AbortSignal;
+}
+
+const SIGNED_UPLOAD_MAX_ATTEMPTS = 3;
+const SIGNED_UPLOAD_RETRY_BASE_DELAY_MS = 500;
+
+function uploadCancelledError(): ApiError {
+    return new ApiError('Upload cancelled', 0, 'upload_cancelled');
+}
+
+function uploadNetworkError(): ApiError {
+    return new ApiError('Upload failed', 0, 'upload_network_error');
+}
+
+function parseXhrPayload(xhr: XMLHttpRequest): unknown {
+    if (typeof xhr.response === 'object' && xhr.response !== null) {
+        return xhr.response;
+    }
+    const responseText = typeof xhr.responseText === 'string' ? xhr.responseText : '';
+    if (!responseText) return null;
+    try {
+        return JSON.parse(responseText) as unknown;
+    } catch {
+        return responseText;
+    }
+}
+
+function apiErrorFromPayload(
+    payload: unknown,
+    status: number,
+    fallbackMessage: string,
+): ApiError {
+    let message = fallbackMessage;
+    let code: string | null = null;
+
+    if (typeof payload === 'string' && payload) {
+        message = payload;
+    } else if (typeof payload === 'object' && payload !== null) {
+        const errorData = payload as Record<string, unknown>;
+        if (typeof errorData.detail === 'string') {
+            message = errorData.detail;
+        } else if (errorData.detail !== undefined) {
+            message = JSON.stringify(errorData.detail);
+        } else if (typeof errorData.message === 'string') {
+            message = errorData.message;
+        }
+        if (typeof errorData.code === 'string') {
+            code = errorData.code;
+            if (errorData.detail !== undefined) {
+                message += ` [${errorData.code}]`;
+            }
+        }
+    }
+
+    return new ApiError(message, status, code);
+}
+
+function isRetryableSignedUploadError(error: unknown): boolean {
+    return error instanceof ApiError
+        && (
+            error.code === 'upload_network_error'
+            || error.code === 'upload_timeout'
+            || error.status === 408
+            || error.status === 429
+            || error.status >= 500
+        );
+}
+
+async function waitForUploadRetry(delayMs: number, signal?: AbortSignal): Promise<void> {
+    if (signal?.aborted) throw uploadCancelledError();
+
+    await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+            signal?.removeEventListener('abort', handleAbort);
+            resolve();
+        }, delayMs);
+        const handleAbort = () => {
+            clearTimeout(timeout);
+            reject(uploadCancelledError());
+        };
+        signal?.addEventListener('abort', handleAbort, { once: true });
+    });
+}
+
 interface TokenResponse {
     access_token: string;
     token_type: string;
@@ -504,31 +592,130 @@ class ApiClient {
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({ detail: 'Request failed' }));
-            // Handle various error formats
-            let errorMessage = 'Request failed';
-            if (typeof errorData === 'string') {
-                errorMessage = errorData;
-            } else if (errorData.detail) {
-                errorMessage = typeof errorData.detail === 'string'
-                    ? errorData.detail
-                    : JSON.stringify(errorData.detail);
-
-                if (errorData.code) {
-                    errorMessage += ` [${errorData.code}]`;
-                }
-            } else if (errorData.message) {
-                errorMessage = errorData.message;
-            }
-            const errorCode = typeof errorData === 'object'
-                && errorData !== null
-                && 'code' in errorData
-                && typeof errorData.code === 'string'
-                ? errorData.code
-                : null;
-            throw new ApiError(errorMessage, response.status, errorCode);
+            throw apiErrorFromPayload(errorData, response.status, 'Request failed');
         }
 
         return response.json();
+    }
+
+    private async uploadFormData<T>(
+        endpoint: string,
+        body: FormData,
+        callbacks: UploadCallbacks,
+    ): Promise<T> {
+        return new Promise<T>((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            const { onProgress, onUploadComplete, signal } = callbacks;
+            let settled = false;
+
+            const cleanup = () => {
+                signal?.removeEventListener('abort', handleAbortSignal);
+            };
+            const resolveOnce = (value: T) => {
+                if (settled) return;
+                settled = true;
+                cleanup();
+                resolve(value);
+            };
+            const rejectOnce = (error: unknown) => {
+                if (settled) return;
+                settled = true;
+                cleanup();
+                reject(error);
+            };
+            const handleAbortSignal = () => xhr.abort();
+
+            xhr.open('POST', `${API_BASE}${endpoint}`);
+            if (this.token) {
+                xhr.setRequestHeader('Authorization', `Bearer ${this.token}`);
+            }
+
+            xhr.upload.onprogress = (event) => {
+                if (!onProgress || !event.lengthComputable || event.total <= 0) return;
+                onProgress(Math.min(100, Math.round((event.loaded / event.total) * 100)));
+            };
+            xhr.upload.onload = () => onUploadComplete?.();
+            xhr.onload = () => {
+                const payload = parseXhrPayload(xhr);
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    if (payload === null) {
+                        rejectOnce(new ApiError('Invalid server response', xhr.status, 'invalid_response'));
+                        return;
+                    }
+                    resolveOnce(payload as T);
+                    return;
+                }
+                rejectOnce(apiErrorFromPayload(payload, xhr.status, 'Upload failed'));
+            };
+            xhr.onerror = () => rejectOnce(signal?.aborted ? uploadCancelledError() : uploadNetworkError());
+            xhr.ontimeout = () => rejectOnce(new ApiError('Upload timed out', 0, 'upload_timeout'));
+            xhr.onabort = () => rejectOnce(uploadCancelledError());
+
+            if (signal?.aborted) {
+                rejectOnce(uploadCancelledError());
+                return;
+            }
+            signal?.addEventListener('abort', handleAbortSignal, { once: true });
+            xhr.send(body);
+        });
+    }
+
+    private async uploadSignedUrlAttempt(
+        uploadUrl: string,
+        file: File,
+        contentType: string,
+        callbacks: UploadCallbacks,
+    ): Promise<void> {
+        return new Promise<void>((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            const { onProgress, signal } = callbacks;
+            let settled = false;
+
+            const cleanup = () => {
+                signal?.removeEventListener('abort', handleAbortSignal);
+            };
+            const resolveOnce = () => {
+                if (settled) return;
+                settled = true;
+                cleanup();
+                resolve();
+            };
+            const rejectOnce = (error: unknown) => {
+                if (settled) return;
+                settled = true;
+                cleanup();
+                reject(error);
+            };
+            const handleAbortSignal = () => xhr.abort();
+
+            xhr.open('PUT', uploadUrl);
+            xhr.setRequestHeader('Content-Type', contentType);
+            xhr.upload.onprogress = (event) => {
+                if (!onProgress || !event.lengthComputable || event.total <= 0) return;
+                onProgress(Math.min(100, Math.round((event.loaded / event.total) * 100)));
+            };
+            xhr.onload = () => {
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    resolveOnce();
+                    return;
+                }
+                rejectOnce(new ApiError(
+                    `Upload failed with status ${xhr.status}`,
+                    xhr.status,
+                    'upload_http_error',
+                ));
+            };
+            xhr.onerror = () => rejectOnce(signal?.aborted ? uploadCancelledError() : uploadNetworkError());
+            xhr.ontimeout = () => rejectOnce(new ApiError('Upload timed out', 0, 'upload_timeout'));
+            xhr.onabort = () => rejectOnce(uploadCancelledError());
+
+            if (signal?.aborted) {
+                rejectOnce(uploadCancelledError());
+                return;
+            }
+            signal?.addEventListener('abort', handleAbortSignal, { once: true });
+            xhr.send(file);
+        });
     }
 
     async login(email: string, password: string): Promise<TokenResponse> {
@@ -748,7 +935,7 @@ class ApiClient {
         subtitle_size?: number;
         karaoke_enabled?: boolean;
         watermark_enabled?: boolean;
-    }): Promise<JobResponse> {
+    }, callbacks: UploadCallbacks = {}): Promise<JobResponse> {
         const formData = new FormData();
         formData.append('file', file);
         formData.append('transcribe_tier', settings.transcribe_tier || 'standard');
@@ -773,10 +960,7 @@ class ApiClient {
         formData.append('karaoke_enabled', String(settings.karaoke_enabled ?? true));
         formData.append('watermark_enabled', String(settings.watermark_enabled ?? false));
 
-        return this.request<JobResponse>('/videos/process', {
-            method: 'POST',
-            body: formData,
-        });
+        return this.uploadFormData<JobResponse>('/videos/process', formData, callbacks);
     }
 
     async createGcsUploadUrl(file: File): Promise<GcsUploadUrlResponse> {
@@ -795,29 +979,31 @@ class ApiClient {
         uploadUrl: string,
         file: File,
         contentType: string,
-        onProgress?: (percent: number) => void,
+        callbacks: UploadCallbacks = {},
     ): Promise<void> {
-        await new Promise<void>((resolve, reject) => {
-            const xhr = new XMLHttpRequest();
-            xhr.open('PUT', uploadUrl);
-            xhr.setRequestHeader('Content-Type', contentType);
-
-            xhr.upload.onprogress = (event) => {
-                if (!onProgress) return;
-                if (!event.lengthComputable || event.total <= 0) return;
-                onProgress(Math.round((event.loaded / event.total) * 100));
-            };
-
-            xhr.onload = () => {
-                if (xhr.status >= 200 && xhr.status < 300) {
-                    resolve();
-                    return;
+        for (let attempt = 1; attempt <= SIGNED_UPLOAD_MAX_ATTEMPTS; attempt += 1) {
+            try {
+                await this.uploadSignedUrlAttempt(uploadUrl, file, contentType, callbacks);
+                callbacks.onUploadComplete?.();
+                return;
+            } catch (error) {
+                if (
+                    callbacks.signal?.aborted
+                    || (error instanceof ApiError && error.code === 'upload_cancelled')
+                    || !isRetryableSignedUploadError(error)
+                    || attempt === SIGNED_UPLOAD_MAX_ATTEMPTS
+                ) {
+                    throw error;
                 }
-                reject(new Error(`Upload failed with status ${xhr.status}`));
-            };
-            xhr.onerror = () => reject(new Error('Upload failed'));
-            xhr.send(file);
-        });
+
+                callbacks.onProgress?.(0);
+                callbacks.onRetry?.(attempt + 1, SIGNED_UPLOAD_MAX_ATTEMPTS);
+                await waitForUploadRetry(
+                    SIGNED_UPLOAD_RETRY_BASE_DELAY_MS * (2 ** (attempt - 1)),
+                    callbacks.signal,
+                );
+            }
+        }
     }
 
     async processVideoFromGcs(uploadId: string, settings: {

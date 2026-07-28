@@ -464,48 +464,96 @@ describe('API Client', () => {
     });
 
     describe('processVideo', () => {
+        function installProcessXhr(status: number, payload: unknown) {
+            const upload: {
+                onprogress: ((event: {
+                    lengthComputable: boolean;
+                    loaded: number;
+                    total: number;
+                }) => void) | null;
+                onload: (() => void) | null;
+            } = {
+                onprogress: null,
+                onload: null,
+            };
+            const xhrMock = {
+                open: jest.fn(),
+                setRequestHeader: jest.fn(),
+                send: jest.fn(),
+                abort: jest.fn(),
+                upload,
+                status,
+                responseText: typeof payload === 'string' ? payload : JSON.stringify(payload),
+                onload: null as null | (() => void),
+                onerror: null as null | (() => void),
+                ontimeout: null as null | (() => void),
+                onabort: null as null | (() => void),
+            };
+            xhrMock.abort.mockImplementation(() => xhrMock.onabort?.());
+            global.XMLHttpRequest = jest.fn(() => xhrMock) as unknown as typeof XMLHttpRequest;
+            return xhrMock;
+        }
+
         it('handles request failure with message property', async () => {
+            const xhrMock = installProcessXhr(400, { message: 'Custom error message' });
             const { api } = await import('@/lib/api');
-            (global.fetch as jest.Mock).mockResolvedValue({
-                ok: false,
-                json: async () => ({ message: 'Custom error message' }),
-            });
             const file = new File(['video'], 'test.mp4', { type: 'video/mp4' });
-            await expect(api.processVideo(file, {})).rejects.toThrow('Custom error message');
+            const promise = api.processVideo(file, {});
+
+            xhrMock.onload?.();
+
+            await expect(promise).rejects.toThrow('Custom error message');
         });
 
         it('handles request failure with string error', async () => {
+            const xhrMock = installProcessXhr(400, 'Generic error string');
             const { api } = await import('@/lib/api');
-            (global.fetch as jest.Mock).mockResolvedValue({
-                ok: false,
-                json: jest.fn().mockResolvedValue('Generic error string'),
-            });
             const file = new File(['video'], 'test.mp4', { type: 'video/mp4' });
-            await expect(api.processVideo(file, {})).rejects.toThrow('Generic error string');
+            const promise = api.processVideo(file, {});
+
+            xhrMock.onload?.();
+
+            await expect(promise).rejects.toThrow('Generic error string');
         });
 
-        it('should upload video with settings', async () => {
+        it('uploads video with settings and reports browser upload progress', async () => {
             const mockResponse = { id: 'job-123', status: 'pending', progress: 0, message: null, created_at: Date.now(), updated_at: Date.now(), result_data: null };
-            (fetch as jest.Mock).mockResolvedValueOnce({ ok: true, json: async () => mockResponse });
-
+            const xhrMock = installProcessXhr(200, mockResponse);
             const { api } = await import('@/lib/api');
             const file = new File(['video'], 'test.mp4', { type: 'video/mp4' });
-            const result = await api.processVideo(file, { transcribe_tier: 'standard', video_quality: 'high' });
+            const onProgress = jest.fn();
+            const onUploadComplete = jest.fn();
+            const promise = api.processVideo(
+                file,
+                { transcribe_tier: 'standard', video_quality: 'high' },
+                { onProgress, onUploadComplete },
+            );
 
-            expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/videos/process'), expect.objectContaining({ method: 'POST' }));
+            xhrMock.upload.onprogress?.({ lengthComputable: true, loaded: 51, total: 100 });
+            xhrMock.upload.onload?.();
+            xhrMock.onload?.();
+            const result = await promise;
+
+            expect(xhrMock.open).toHaveBeenCalledWith(
+                'POST',
+                expect.stringContaining('/videos/process'),
+            );
+            expect(xhrMock.send).toHaveBeenCalledWith(expect.any(FormData));
+            expect(onProgress).toHaveBeenCalledWith(51);
+            expect(onUploadComplete).toHaveBeenCalledTimes(1);
             expect(result.id).toBe('job-123');
         });
 
         it('should use default settings when optional values are missing', async () => {
             const mockResponse = { id: 'job-def', status: 'pending', progress: 0, message: null, created_at: Date.now(), updated_at: Date.now(), result_data: null };
-            (fetch as jest.Mock).mockResolvedValueOnce({ ok: true, json: async () => mockResponse });
-
+            const xhrMock = installProcessXhr(200, mockResponse);
             const { api } = await import('@/lib/api');
             const file = new File(['video'], 'default.mp4', { type: 'video/mp4' });
-            await api.processVideo(file, {});
+            const promise = api.processVideo(file, {});
 
-            const callArgs = (fetch as jest.Mock).mock.calls[0];
-            const formData = callArgs[1].body as FormData;
+            xhrMock.onload?.();
+            await promise;
+            const formData = xhrMock.send.mock.calls[0][0] as FormData;
 
             // Check defaults
             expect(formData.get('transcribe_tier')).toBe('standard');
@@ -515,6 +563,21 @@ describe('API Client', () => {
             expect(formData.get('max_subtitle_lines')).toBe('2');
             expect(formData.get('subtitle_size')).toBe('100');
             expect(formData.get('karaoke_enabled')).toBe('true');
+        });
+
+        it('aborts an in-flight upload without starting a second request', async () => {
+            const xhrMock = installProcessXhr(200, { id: 'never-used' });
+            const controller = new AbortController();
+            const { api } = await import('@/lib/api');
+            const file = new File(['video'], 'cancel.mp4', { type: 'video/mp4' });
+            const promise = api.processVideo(file, {}, { signal: controller.signal });
+
+            controller.abort();
+
+            await expect(promise).rejects.toMatchObject({ code: 'upload_cancelled' });
+            expect(xhrMock.abort).toHaveBeenCalledTimes(1);
+            expect(xhrMock.send).toHaveBeenCalledTimes(1);
+            expect(global.XMLHttpRequest).toHaveBeenCalledTimes(1);
         });
     });
 
@@ -553,81 +616,105 @@ describe('API Client', () => {
     });
 
     describe('uploadToSignedUrl', () => {
-        it('should upload via XMLHttpRequest with progress', async () => {
-            const open = jest.fn();
-            const setRequestHeader = jest.fn();
-            const send = jest.fn();
-            const upload: Record<string, unknown> = {};
-            let onload: (() => void) | null = null;
-
-            const xhrMock = {
-                open,
-                setRequestHeader,
-                send,
-                upload,
-                status: 200,
-                set onload(fn: (() => void) | null) {
-                    onload = fn;
+        function createSignedUploadXhr(status: number) {
+            return {
+                open: jest.fn(),
+                setRequestHeader: jest.fn(),
+                send: jest.fn(),
+                abort: jest.fn(),
+                upload: {
+                    onprogress: null as null | ((event: {
+                        lengthComputable: boolean;
+                        loaded: number;
+                        total: number;
+                    }) => void),
                 },
-                get onload() {
-                    return onload;
-                },
+                status,
+                onload: null as null | (() => void),
                 onerror: null as null | (() => void),
+                ontimeout: null as null | (() => void),
+                onabort: null as null | (() => void),
             };
+        }
 
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (global as any).XMLHttpRequest = jest.fn(() => xhrMock);
-
+        it('should upload via XMLHttpRequest with progress', async () => {
+            const xhrMock = createSignedUploadXhr(200);
+            global.XMLHttpRequest = jest.fn(() => xhrMock) as unknown as typeof XMLHttpRequest;
             const { api } = await import('@/lib/api');
             const file = new File(['video'], 'test.mp4', { type: 'video/mp4' });
             const onProgress = jest.fn();
+            const onUploadComplete = jest.fn();
 
-            const promise = api.uploadToSignedUrl('https://signed.example/upload', file, 'video/mp4', onProgress);
+            const promise = api.uploadToSignedUrl(
+                'https://signed.example/upload',
+                file,
+                'video/mp4',
+                { onProgress, onUploadComplete },
+            );
 
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (xhrMock.upload as any).onprogress({ lengthComputable: true, loaded: 50, total: 100 });
-            (onload as unknown as () => void)?.();
+            xhrMock.upload.onprogress?.({ lengthComputable: true, loaded: 50, total: 100 });
+            xhrMock.onload?.();
 
             await promise;
 
-            expect(open).toHaveBeenCalledWith('PUT', 'https://signed.example/upload');
-            expect(setRequestHeader).toHaveBeenCalledWith('Content-Type', 'video/mp4');
-            expect(send).toHaveBeenCalledWith(file);
+            expect(xhrMock.open).toHaveBeenCalledWith('PUT', 'https://signed.example/upload');
+            expect(xhrMock.setRequestHeader).toHaveBeenCalledWith('Content-Type', 'video/mp4');
+            expect(xhrMock.send).toHaveBeenCalledWith(file);
             expect(onProgress).toHaveBeenCalledWith(50);
+            expect(onUploadComplete).toHaveBeenCalledTimes(1);
         });
 
         it('should reject on non-2xx status', async () => {
-            const open = jest.fn();
-            const setRequestHeader = jest.fn();
-            const send = jest.fn();
-            const upload: Record<string, unknown> = {};
-            let onload: (() => void) | null = null;
-
-            const xhrMock = {
-                open,
-                setRequestHeader,
-                send,
-                upload,
-                status: 403,
-                set onload(fn: (() => void) | null) {
-                    onload = fn;
-                },
-                get onload() {
-                    return onload;
-                },
-                onerror: null as null | (() => void),
-            };
-
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            (global as any).XMLHttpRequest = jest.fn(() => xhrMock);
-
+            const xhrMock = createSignedUploadXhr(403);
+            global.XMLHttpRequest = jest.fn(() => xhrMock) as unknown as typeof XMLHttpRequest;
             const { api } = await import('@/lib/api');
             const file = new File(['video'], 'test.mp4', { type: 'video/mp4' });
 
             const promise = api.uploadToSignedUrl('https://signed.example/upload', file, 'video/mp4');
-            (onload as unknown as () => void)?.();
+            xhrMock.onload?.();
 
             await expect(promise).rejects.toThrow('Upload failed with status 403');
+            expect(global.XMLHttpRequest).toHaveBeenCalledTimes(1);
+        });
+
+        it('retries a transient signed upload failure and preserves progress callbacks', async () => {
+            jest.useFakeTimers();
+            try {
+                const firstAttempt = createSignedUploadXhr(503);
+                const secondAttempt = createSignedUploadXhr(200);
+                const attempts = [firstAttempt, secondAttempt];
+                global.XMLHttpRequest = jest.fn(
+                    () => attempts.shift() as typeof firstAttempt,
+                ) as unknown as typeof XMLHttpRequest;
+                const { api } = await import('@/lib/api');
+                const file = new File(['video'], 'retry.mp4', { type: 'video/mp4' });
+                const onProgress = jest.fn();
+                const onRetry = jest.fn();
+                const promise = api.uploadToSignedUrl(
+                    'https://signed.example/upload',
+                    file,
+                    'video/mp4',
+                    { onProgress, onRetry },
+                );
+
+                firstAttempt.upload.onprogress?.({
+                    lengthComputable: true,
+                    loaded: 30,
+                    total: 100,
+                });
+                firstAttempt.onload?.();
+                await Promise.resolve();
+                await jest.advanceTimersByTimeAsync(500);
+                secondAttempt.onload?.();
+
+                await promise;
+                expect(global.XMLHttpRequest).toHaveBeenCalledTimes(2);
+                expect(onProgress).toHaveBeenNthCalledWith(1, 30);
+                expect(onProgress).toHaveBeenNthCalledWith(2, 0);
+                expect(onRetry).toHaveBeenCalledWith(2, 3);
+            } finally {
+                jest.useRealTimers();
+            }
         });
     });
 

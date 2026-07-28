@@ -20,6 +20,7 @@ jest.mock('@/lib/api', () => ({
         uploadToSignedUrl: jest.fn(),
         processVideoFromGcs: jest.fn(),
         reprocessJob: jest.fn(),
+        cancelJob: jest.fn(),
         getPointsBalance: jest.fn(),
         getCreditCatalog: jest.fn(),
         createCreditCheckout: jest.fn(),
@@ -39,13 +40,17 @@ jest.mock('@/context/PointsContext', () => ({
         const setBalanceMock = jest.fn();
         const setWalletMock = jest.fn();
         const refreshBalanceMock = jest.fn();
+        const defaultPointsState = {
+            balance: 125,
+            paidBalance: 125,
+            promotionalBalance: 0,
+            reversalDebt: 0,
+            aiSpendableBalance: 125,
+        };
+        const pointsState = { ...defaultPointsState };
         return {
             usePoints: () => ({
-                balance: 125,
-                paidBalance: 125,
-                promotionalBalance: 0,
-                reversalDebt: 0,
-                aiSpendableBalance: 125,
+                ...pointsState,
                 isLoading: false,
                 error: null,
                 setBalance: setBalanceMock,
@@ -55,6 +60,12 @@ jest.mock('@/context/PointsContext', () => ({
             __setBalanceMock: setBalanceMock,
             __setWalletMock: setWalletMock,
             __refreshBalanceMock: refreshBalanceMock,
+            __setPointsStateMock: (nextState: Partial<typeof defaultPointsState>) => {
+                Object.assign(pointsState, nextState);
+            },
+            __resetPointsStateMock: () => {
+                Object.assign(pointsState, defaultPointsState);
+            },
         };
     })(),
 }));
@@ -92,10 +103,31 @@ jest.mock('@/hooks/useJobPolling', () => ({
 let capturedOnReset: (() => void) | null = null;
 
 jest.mock('@/features/process/ProcessView', () => ({
-    ProcessView: ({ onStartProcessing, onFileSelect, onReset, onReprocessJob }: { onStartProcessing: (options: unknown) => void; onFileSelect: (file: File) => void; onReset: () => void; onReprocessJob: (jobId: string, options: unknown) => void; }) => {
+    ProcessView: ({
+        onStartProcessing,
+        onFileSelect,
+        onReset,
+        onReprocessJob,
+        progress,
+        statusMessage,
+        error,
+        onCancelProcessing,
+    }: {
+        onStartProcessing: (options: unknown) => void;
+        onFileSelect: (file: File) => void;
+        onReset: () => void;
+        onReprocessJob: (jobId: string, options: unknown) => void;
+        progress: number;
+        statusMessage: string;
+        error: string;
+        onCancelProcessing?: () => void;
+    }) => {
         capturedOnReset = onReset;
         return (
             <div data-testid="process-view">
+                <div data-testid="process-progress">{progress}</div>
+                <div data-testid="process-status">{statusMessage}</div>
+                <div data-testid="process-error">{error}</div>
                 <button onClick={() => onFileSelect(new File(['dummy'], 'test.mp4', { type: 'video/mp4' }))}>Select File</button>
                 <button onClick={() => onStartProcessing({
                     transcribeMode: 'standard',
@@ -110,6 +142,19 @@ jest.mock('@/features/process/ProcessView', () => ({
                     max_subtitle_lines: 2,
                     watermark_enabled: true,
                 })}>Start Process</button>
+                <button onClick={() => onStartProcessing({
+                    transcribeMode: 'standard',
+                    transcribeProvider: 'groq',
+                    outputQuality: 'balanced',
+                    outputResolution: '1080x1920',
+                    width: 1920,
+                    height: 1080,
+                    duration: 10,
+                    sourceDurationSeconds: 10,
+                    subtitle_position: 16,
+                    max_subtitle_lines: 2,
+                    watermark_enabled: true,
+                })}>Start External Process</button>
                 <button onClick={() => onReprocessJob('job1', {
                     transcribeMode: 'standard',
                     transcribeProvider: 'groq',
@@ -123,6 +168,9 @@ jest.mock('@/features/process/ProcessView', () => ({
                     max_subtitle_lines: 2,
                     watermark_enabled: true,
                 })}>Reprocess</button>
+                {onCancelProcessing && (
+                    <button onClick={onCancelProcessing}>Cancel Active Process</button>
+                )}
                 <button onClick={onReset}>Reset</button>
             </div>
         );
@@ -148,9 +196,22 @@ describe('DashboardPage', () => {
     const mockLogin = jest.fn();
     const mockRegister = jest.fn();
     const mockSetSelectedJob = jest.fn();
-    const { __setBalanceMock, __refreshBalanceMock } = jest.requireMock('@/context/PointsContext') as {
+    const {
+        __setBalanceMock,
+        __refreshBalanceMock,
+        __setPointsStateMock,
+        __resetPointsStateMock,
+    } = jest.requireMock('@/context/PointsContext') as {
         __setBalanceMock: jest.Mock;
         __refreshBalanceMock: jest.Mock;
+        __setPointsStateMock: (state: {
+            balance?: number;
+            paidBalance?: number;
+            promotionalBalance?: number;
+            reversalDebt?: number;
+            aiSpendableBalance?: number;
+        }) => void;
+        __resetPointsStateMock: () => void;
     };
 
     beforeEach(() => {
@@ -159,6 +220,7 @@ describe('DashboardPage', () => {
         window.history.replaceState({}, '', '/');
         capturedOnReset = null;
         mockPaidCreditLegalPublication.approved = false;
+        __resetPointsStateMock();
         (useAppEnv as jest.Mock).mockReturnValue({ appEnv: 'dev' });
         (useAuth as jest.Mock).mockReturnValue({
             user: mockUser,
@@ -481,7 +543,11 @@ describe('DashboardPage', () => {
 
         await confirmProcessingCost();
 
-        await waitFor(() => expect(api.processVideo).toHaveBeenCalledWith(expect.any(File), expect.any(Object)));
+        await waitFor(() => expect(api.processVideo).toHaveBeenCalledWith(
+            expect.any(File),
+            expect.any(Object),
+            expect.any(Object),
+        ));
     });
 
     it('handles start processing success', async () => {
@@ -500,8 +566,65 @@ describe('DashboardPage', () => {
             expect.objectContaining({
                 watermark_enabled: true,
             }),
+            expect.objectContaining({
+                onProgress: expect.any(Function),
+                onUploadComplete: expect.any(Function),
+                signal: expect.any(AbortSignal),
+            }),
         );
         expect(__setBalanceMock).toHaveBeenCalledWith(800);
+    });
+
+    it('uses promotional credits for mock processing', async () => {
+        // REGRESSION: mock processing used aiSpendableBalance and blocked a
+        // user with 100 promotional credits and zero purchased credits.
+        __setPointsStateMock({
+            balance: 100,
+            paidBalance: 0,
+            promotionalBalance: 100,
+            reversalDebt: 0,
+            aiSpendableBalance: 0,
+        });
+        (api.processVideo as jest.Mock).mockResolvedValue({
+            id: 'job-mock',
+            status: 'pending',
+            balance: 70,
+        });
+        render(<DashboardPage />);
+
+        fireEvent.click(screen.getByText('Select File'));
+        fireEvent.click(screen.getByText('Start Process'));
+
+        expect(screen.getByText('processingGateTotalBalanceLabel')).toBeInTheDocument();
+        expect(screen.queryByText('processingGateBalanceLabel')).not.toBeInTheDocument();
+        await confirmProcessingCost();
+
+        await waitFor(() => {
+            expect(api.processVideo).toHaveBeenCalledWith(
+                expect.any(File),
+                expect.objectContaining({ transcribe_provider: 'mock' }),
+                expect.any(Object),
+            );
+        });
+    });
+
+    it('still requires purchased credits for an external provider', () => {
+        __setPointsStateMock({
+            balance: 100,
+            paidBalance: 0,
+            promotionalBalance: 100,
+            reversalDebt: 0,
+            aiSpendableBalance: 0,
+        });
+        render(<DashboardPage />);
+
+        fireEvent.click(screen.getByText('Reprocess'));
+
+        expect(screen.getByText('processingGateBalanceLabel')).toBeInTheDocument();
+        expect(screen.queryByRole('button', {
+            name: 'processingGateConfirm',
+        })).not.toBeInTheDocument();
+        expect(api.reprocessJob).not.toHaveBeenCalled();
     });
 
     it('keeps production mock uploads on the local processing endpoint', async () => {
@@ -517,11 +640,118 @@ describe('DashboardPage', () => {
             expect(api.processVideo).toHaveBeenCalledWith(
                 expect.any(File),
                 expect.objectContaining({ transcribe_provider: 'mock' }),
+                expect.any(Object),
             );
         });
         expect(api.createGcsUploadUrl).not.toHaveBeenCalled();
         expect(api.uploadToSignedUrl).not.toHaveBeenCalled();
         expect(api.processVideoFromGcs).not.toHaveBeenCalled();
+    });
+
+    it('shows direct-upload progress and only exposes cancellation while it is safe', async () => {
+        type UploadCallbacks = {
+            onProgress?: (percent: number) => void;
+            onUploadComplete?: () => void;
+            signal?: AbortSignal;
+        };
+        let uploadCallbacks: UploadCallbacks | undefined;
+        let resolveProcess: ((job: { id: string; status: string }) => void) | undefined;
+        (api.processVideo as jest.Mock).mockImplementation(
+            (_file: File, _settings: unknown, callbacks: UploadCallbacks) => {
+                uploadCallbacks = callbacks;
+                return new Promise((resolve) => {
+                    resolveProcess = resolve;
+                });
+            },
+        );
+        render(<DashboardPage />);
+
+        fireEvent.click(screen.getByText('Select File'));
+        fireEvent.click(screen.getByText('Start Process'));
+        await confirmProcessingCost();
+        await waitFor(() => expect(uploadCallbacks).toBeDefined());
+
+        expect(screen.getByText('Cancel Active Process')).toBeInTheDocument();
+        act(() => uploadCallbacks?.onProgress?.(37));
+        expect(screen.getByTestId('process-progress')).toHaveTextContent('37');
+        expect(screen.getByTestId('process-status')).toHaveTextContent('statusUploading 37%');
+
+        act(() => uploadCallbacks?.onUploadComplete?.());
+        expect(screen.queryByText('Cancel Active Process')).not.toBeInTheDocument();
+        expect(screen.getByTestId('process-status')).toHaveTextContent('statusProcessing');
+
+        await act(async () => {
+            resolveProcess?.({ id: 'job-progress', status: 'pending' });
+            await Promise.resolve();
+        });
+        expect(screen.getByText('Cancel Active Process')).toBeInTheDocument();
+    });
+
+    it('aborts a slow direct upload and keeps the selected file available', async () => {
+        type UploadCallbacks = { signal?: AbortSignal };
+        let uploadSignal: AbortSignal | undefined;
+        (api.processVideo as jest.Mock).mockImplementation(
+            (_file: File, _settings: unknown, callbacks: UploadCallbacks) => {
+                uploadSignal = callbacks.signal;
+                return new Promise((_resolve, reject) => {
+                    callbacks.signal?.addEventListener('abort', () => {
+                        reject(Object.assign(new Error('Upload cancelled'), {
+                            code: 'upload_cancelled',
+                        }));
+                    }, { once: true });
+                });
+            },
+        );
+        render(<DashboardPage />);
+
+        fireEvent.click(screen.getByText('Select File'));
+        fireEvent.click(screen.getByText('Start Process'));
+        await confirmProcessingCost();
+        const cancelButton = await screen.findByText('Cancel Active Process');
+        fireEvent.click(cancelButton);
+
+        await waitFor(() => expect(uploadSignal?.aborted).toBe(true));
+        expect(screen.getByTestId('process-error')).toHaveTextContent('processingCancelled');
+        expect(screen.queryByText('Cancel Active Process')).not.toBeInTheDocument();
+        expect(api.cancelJob).not.toHaveBeenCalled();
+    });
+
+    it('uses resilient signed uploads for a production external provider', async () => {
+        (useAppEnv as jest.Mock).mockReturnValue({ appEnv: 'production' });
+        (api.createGcsUploadUrl as jest.Mock).mockResolvedValue({
+            upload_id: 'upload-1',
+            upload_url: 'https://storage.example/upload',
+            required_headers: { 'Content-Type': 'video/mp4' },
+        });
+        (api.uploadToSignedUrl as jest.Mock).mockResolvedValue(undefined);
+        (api.processVideoFromGcs as jest.Mock).mockResolvedValue({
+            id: 'job-gcs',
+            status: 'pending',
+        });
+        render(<DashboardPage />);
+
+        fireEvent.click(screen.getByText('Select File'));
+        fireEvent.click(screen.getByText('Start External Process'));
+        await confirmProcessingCost();
+
+        await waitFor(() => {
+            expect(api.uploadToSignedUrl).toHaveBeenCalledWith(
+                'https://storage.example/upload',
+                expect.any(File),
+                'video/mp4',
+                expect.objectContaining({
+                    onProgress: expect.any(Function),
+                    onRetry: expect.any(Function),
+                    onUploadComplete: expect.any(Function),
+                    signal: expect.any(AbortSignal),
+                }),
+            );
+        });
+        expect(api.processVideoFromGcs).toHaveBeenCalledWith(
+            'upload-1',
+            expect.objectContaining({ transcribe_provider: 'groq' }),
+        );
+        expect(api.processVideo).not.toHaveBeenCalled();
     });
 
     it('refreshes balance when process response has no balance', async () => {
@@ -539,7 +769,9 @@ describe('DashboardPage', () => {
     });
 
     it('handles start processing error', async () => {
-        (api.processVideo as jest.Mock).mockRejectedValue(new Error('Processing failed'));
+        (api.processVideo as jest.Mock).mockRejectedValue(
+            Object.assign(new Error('Upload failed'), { code: 'upload_network_error' }),
+        );
         render(<DashboardPage />);
 
         fireEvent.click(screen.getByText('Select File'));
@@ -549,6 +781,7 @@ describe('DashboardPage', () => {
         await waitFor(() => {
             expect(api.processVideo).toHaveBeenCalled();
         });
+        expect(screen.getByTestId('process-error')).toHaveTextContent('uploadConnectionError');
     });
 
     it('updates balance on reprocess success', async () => {

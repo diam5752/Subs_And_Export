@@ -20,9 +20,16 @@ describe('Playwright server isolation', () => {
         'npm run build && npm run start -- '
         + '--hostname 127.0.0.1 --port 31873'
       ),
+      env: {
+        NEXT_PUBLIC_API_URL: '',
+        NEXT_PUBLIC_TRANSCRIBE_PROVIDER: 'mock',
+        NEXT_PUBLIC_TRANSCRIBE_MODE: 'standard',
+      },
       reuseExistingServer: false,
       url: 'http://127.0.0.1:31873',
     });
+    // REGRESSION: an ignored local provider override made the mock E2E suite
+    // execute the external-provider flow and fail nondeterministically.
   });
 
   test('rejects invalid port overrides before a browser server can start', () => {

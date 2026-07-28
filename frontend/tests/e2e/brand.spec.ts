@@ -55,7 +55,7 @@ test('gsubs identity remains visible on auth and legal routes', async ({ page })
   }
 });
 
-test('the editor preview uses the selected gsubs watermark', async ({ page }) => {
+test('the editor keeps advanced output toggles out of the style workspace', async ({ page }) => {
   await mockApi(page);
   await page.addInitScript(() => {
     localStorage.setItem('lastActiveJobId', 'job-futurist');
@@ -64,12 +64,8 @@ test('the editor preview uses the selected gsubs watermark', async ({ page }) =>
   await page.goto('/');
   await page.getByText(el.subtitlesReady).waitFor({ timeout: 30_000 });
   await page.getByRole('tab', { name: el.tabStyles }).click();
-  await page.getByRole('switch', { name: el.watermarkLabel }).click();
-
-  const watermark = page.getByRole('img', { name: 'gsubs watermark' });
-  await expect(watermark).toBeVisible();
-  await expect(watermark).toHaveAttribute(
-    'src',
-    /\/_next\/image\?url=%2Fgsubs-watermark\.png/,
-  );
+  await expect(page.getByRole('switch')).toHaveCount(0);
+  await expect(page.getByText('Λειτουργία Karaoke', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('Badge Συνεργάτη', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('img', { name: 'gsubs watermark' })).toHaveCount(0);
 });

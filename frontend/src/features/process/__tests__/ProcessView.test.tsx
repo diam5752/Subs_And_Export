@@ -35,18 +35,6 @@ const mockContextValue = {
     selectedJob: null,
     activeSidebarTab: 'transcript',
     setActiveSidebarTab: jest.fn(),
-    STYLE_PRESETS: [
-        {
-            id: 'tiktok',
-            name: 'TikTok Pro',
-            description: 'Viral, attention-grabbing',
-            emoji: '🎵',
-            colorClass: 'from-yellow-500 to-orange-500',
-            settings: { position: 16, lines: 1, size: 100, color: '#FFFF00', karaoke: true }
-        }
-    ],
-    activePreset: 'tiktok',
-    setActivePreset: jest.fn(),
     cues: [],
     currentTime: 0,
     videoUrl: null,
@@ -63,8 +51,6 @@ const mockContextValue = {
     subtitleColor: '#FFFF00',
     setSubtitleColor: jest.fn(),
     karaokeEnabled: false,
-    setKaraokeEnabled: jest.fn(),
-    lastUsedSettings: null,
     SUBTITLE_COLORS: [],
     playerRef: { current: null },
     transcriptContainerRef: { current: null },
@@ -96,7 +82,6 @@ const mockContextValue = {
     setCurrentTime: jest.fn(),
     fileInputRef: { current: null },
     handleStart: jest.fn(),
-    saveLastUsedSettings: jest.fn(),
     setEditingCueIndex: jest.fn(),
     setEditingCueDraft: jest.fn(),
     isSavingTranscript: false,
@@ -225,8 +210,12 @@ describe('ProcessView', () => {
         );
 
         await waitFor(() => {
-            expect(screen.getAllByText(/TikTok Pro/i).length).toBeGreaterThan(0);
+            expect(screen.getByRole('heading', { name: /custom settings/i })).toBeInTheDocument();
         });
+        expect(screen.queryByText('TikTok Pro')).not.toBeInTheDocument();
+        expect(screen.queryByText('Cinematic Master')).not.toBeInTheDocument();
+        expect(screen.queryByText('Podcast Style')).not.toBeInTheDocument();
+        expect(screen.queryByText('Last Used')).not.toBeInTheDocument();
     });
 
     it('renders accessible progress bar during processing', () => {

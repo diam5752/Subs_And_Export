@@ -5,6 +5,43 @@ import { mockApi, waitForUploadWorkspace } from './mocks';
 import el from '@/i18n/el.json';
 
 test.describe('Video Processing Flow', () => {
+    test('mock processing accepts promotional credits without claiming a provider call', async ({ page }) => {
+        // REGRESSION: the mock route read only ai_spendable_balance and blocked
+        // users whose local promotional balance fully covered the job.
+        await mockApi(page);
+        await page.route('**/auth/points', async route => {
+            await route.fulfill({
+                json: {
+                    balance: 100,
+                    paid_balance: 0,
+                    promotional_balance: 100,
+                    reversal_debt: 0,
+                    ai_spendable_balance: 0,
+                },
+            });
+        });
+
+        await page.goto('/');
+        await waitForUploadWorkspace(page);
+        await page.locator('input[type="file"]').setInputFiles(
+            resolve(process.cwd(), '../backend/tests/data/demo_output.mp4'),
+        );
+        await page.getByRole('button', {
+            name: new RegExp(el.startProcessing),
+        }).click();
+
+        const costDialog = page.getByRole('dialog', {
+            name: el.processingGateCostTitle,
+        });
+        await expect(costDialog).toBeVisible();
+        await expect(costDialog.getByText(el.processingGateTotalBalanceLabel)).toBeVisible();
+        await expect(costDialog.getByText(el.processingGateLocalChargeNote)).toBeVisible();
+        await expect(costDialog.getByText(el.processingGateBalanceLabel)).toHaveCount(0);
+        await expect(costDialog.getByRole('button', {
+            name: new RegExp(el.processingGateConfirm.replace('{cost}', '\\d+')),
+        })).toBeEnabled();
+    });
+
     test('complete flow: upload -> processing -> completed -> download', async ({ page }) => {
         // 1. Mock API with specific job sequence
         await mockApi(page);
@@ -160,6 +197,81 @@ test.describe('Video Processing Flow', () => {
                 karaoke_enabled: true,
             }),
         ]);
+    });
+
+    test('slow mobile upload uses progress-capable XHR, stays responsive, and submits once', async ({ page }) => {
+        test.setTimeout(60_000);
+        await mockApi(page);
+        let processRequests = 0;
+        await page.route('**/videos/process', async route => {
+            processRequests += 1;
+            await route.fulfill({
+                json: {
+                    id: 'job-slow-upload',
+                    status: 'pending',
+                    user_id: 'test-user',
+                    created_at: Date.now(),
+                    updated_at: Date.now(),
+                    progress: 0,
+                    message: 'Queued',
+                    result_data: {},
+                },
+            });
+        });
+
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.goto('/');
+        await waitForUploadWorkspace(page);
+        await page.locator('input[type="file"]').setInputFiles(
+            resolve(process.cwd(), '../backend/tests/data/demo_output.mp4'),
+        );
+        await page.getByRole('button', {
+            name: new RegExp(el.startProcessing),
+        }).click();
+
+        const costDialog = page.getByRole('dialog', {
+            name: el.processingGateCostTitle,
+        });
+        await expect(costDialog).toBeVisible();
+        const processRequest = page.waitForRequest(
+            request => request.method() === 'POST' && request.url().endsWith('/videos/process'),
+        );
+        const cdp = await page.context().newCDPSession(page);
+        await cdp.send('Network.enable');
+        await cdp.send('Network.emulateNetworkConditions', {
+            offline: false,
+            latency: 350,
+            downloadThroughput: 512 * 1024,
+            uploadThroughput: 384 * 1024,
+            connectionType: 'cellular3g',
+        });
+
+        try {
+            await costDialog.getByRole('button', {
+                name: new RegExp(el.processingGateConfirm.replace('{cost}', '\\d+')),
+            }).click();
+
+            const progressBar = page.getByRole('progressbar');
+            await expect(progressBar).toBeVisible();
+            expect(await page.evaluate(
+                () => document.documentElement.scrollWidth <= window.innerWidth,
+            )).toBe(true);
+        } finally {
+            await cdp.send('Network.emulateNetworkConditions', {
+                offline: false,
+                latency: 0,
+                downloadThroughput: -1,
+                uploadThroughput: -1,
+                connectionType: 'none',
+            });
+            await cdp.detach();
+        }
+
+        const request = await processRequest;
+        // REGRESSION: fetch-based uploads could not expose browser upload
+        // progress, while XHR exposes both progress and abort hooks.
+        expect(request.resourceType()).toBe('xhr');
+        await expect.poll(() => processRequests).toBe(1);
     });
 
     test('guest keeps the uploaded file through login and sees cost before start', async ({ page }) => {

@@ -8,8 +8,6 @@ import { Cue } from '@/components/SubtitleOverlay';
 import { findCueIndexAtTime } from '@/lib/subtitleUtils';
 import { SubtitlePositionSelector } from '@/components/SubtitlePositionSelector';
 import { ViralIntelligence } from '@/components/ViralIntelligence';
-import { StylePresetTiles } from './StylePresetTiles';
-import type { StylePreset } from '../processTypes';
 
 interface CueListProps {
     cues: Cue[];
@@ -213,60 +211,16 @@ export function Sidebar() {
         progress,
         activeSidebarTab,
         setActiveSidebarTab,
-        STYLE_PRESETS,
-        activePreset,
-        setActivePreset,
         setSubtitlePosition,
         setSubtitleSize,
         setMaxSubtitleLines,
         setSubtitleColor,
-        setKaraokeEnabled,
-        lastUsedSettings,
         subtitlePosition,
         maxSubtitleLines,
         subtitleColor,
         SUBTITLE_COLORS,
         subtitleSize,
-        karaokeEnabled,
-        watermarkEnabled,
-        setWatermarkEnabled,
     } = useProcessContext();
-
-    // Stable callbacks for StylePresetTiles
-    const handlePresetSelect = useCallback((preset: StylePreset) => {
-        setActivePreset(preset.id);
-        setSubtitlePosition(preset.settings.position as number);
-        setSubtitleSize(preset.settings.size);
-        setMaxSubtitleLines(preset.settings.lines);
-        setSubtitleColor(preset.settings.color);
-        setKaraokeEnabled(preset.settings.karaoke);
-    }, [setActivePreset, setSubtitlePosition, setSubtitleSize, setMaxSubtitleLines, setSubtitleColor, setKaraokeEnabled]);
-
-    const handleLastUsedSelect = useCallback(() => {
-        if (!lastUsedSettings) return;
-        setActivePreset('lastUsed');
-        setSubtitlePosition(lastUsedSettings.position);
-        setSubtitleSize(lastUsedSettings.size);
-        setMaxSubtitleLines(lastUsedSettings.lines);
-        setSubtitleColor(lastUsedSettings.color);
-        setKaraokeEnabled(lastUsedSettings.karaoke);
-        setWatermarkEnabled(lastUsedSettings.watermark ?? false);
-    }, [lastUsedSettings, setActivePreset, setSubtitlePosition, setSubtitleSize, setMaxSubtitleLines, setSubtitleColor, setKaraokeEnabled, setWatermarkEnabled]);
-
-    // Stable callbacks for SubtitlePositionSelector
-    const handlePositionChange = useCallback((v: number) => { setSubtitlePosition(v); setActivePreset(null); }, [setSubtitlePosition, setActivePreset]);
-    const handleLinesChange = useCallback((v: number) => { setMaxSubtitleLines(v); setActivePreset(null); }, [setMaxSubtitleLines, setActivePreset]);
-    const handleColorChange = useCallback((v: string) => { setSubtitleColor(v); setActivePreset(null); }, [setSubtitleColor, setActivePreset]);
-    const handleSizeChange = useCallback((v: number) => { setSubtitleSize(v); setActivePreset(null); }, [setSubtitleSize, setActivePreset]);
-    const handleKaraokeChange = useCallback((enabled: boolean) => {
-        setKaraokeEnabled(enabled);
-        setActivePreset(null);
-    }, [setKaraokeEnabled, setActivePreset]);
-
-    const handleWatermarkChange = useCallback((enabled: boolean) => {
-        setWatermarkEnabled(enabled);
-        setActivePreset(null);
-    }, [setWatermarkEnabled, setActivePreset]);
 
     const jobId = selectedJob?.id;
 
@@ -278,51 +232,29 @@ export function Sidebar() {
             aria-labelledby="tab-styles"
             className="animate-fade-in pr-2"
         >
-            {/* Style Presets Grid */}
-            <StylePresetTiles
-                presets={STYLE_PRESETS}
-                activePreset={activePreset}
-                lastUsedSettings={lastUsedSettings}
-                onSelectPreset={handlePresetSelect}
-                onSelectLastUsed={handleLastUsedSelect}
-            />
-
             <h4 className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-3">{t('customSettings')}</h4>
             <SubtitlePositionSelector
                 value={subtitlePosition}
-                onChange={handlePositionChange}
+                onChange={setSubtitlePosition}
                 lines={maxSubtitleLines}
-                onChangeLines={handleLinesChange}
+                onChangeLines={setMaxSubtitleLines}
                 subtitleColor={subtitleColor}
-                onChangeColor={handleColorChange}
+                onChangeColor={setSubtitleColor}
                 colors={SUBTITLE_COLORS}
                 subtitleSize={subtitleSize}
-                onChangeSize={handleSizeChange}
-                karaokeEnabled={karaokeEnabled}
-                onChangeKaraoke={handleKaraokeChange}
-                watermarkEnabled={watermarkEnabled}
-                onChangeWatermark={handleWatermarkChange}
+                onChangeSize={setSubtitleSize}
             />
         </div>
     ), [
-        activePreset,
-        lastUsedSettings,
-        STYLE_PRESETS,
         subtitlePosition,
         maxSubtitleLines,
         subtitleColor,
         SUBTITLE_COLORS,
         subtitleSize,
-        karaokeEnabled,
-        watermarkEnabled,
-        handlePresetSelect,
-        handleLastUsedSelect,
-        handlePositionChange,
-        handleLinesChange,
-        handleColorChange,
-        handleSizeChange,
-        handleKaraokeChange,
-        handleWatermarkChange,
+        setSubtitlePosition,
+        setMaxSubtitleLines,
+        setSubtitleColor,
+        setSubtitleSize,
         t,
     ]);
 
@@ -365,7 +297,7 @@ export function Sidebar() {
                 </div>
 
                 <div className="editor-sidebar-body custom-scrollbar">
-
+                    <div className="editor-tabs-sticky">
                     <div
                         role="tablist"
                         className="editor-tabs"
@@ -414,6 +346,7 @@ export function Sidebar() {
                             </svg>
                             <span className="truncate">{t('tabIntelligence') || 'Intelligence'}</span>
                         </button>
+                    </div>
                     </div>
 
                     {/* Tab Content */}

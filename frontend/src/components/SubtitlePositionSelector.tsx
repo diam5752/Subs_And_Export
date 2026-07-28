@@ -37,13 +37,9 @@ interface SubtitlePositionSelectorProps {
     onChangeLines: (lines: number) => void;
     subtitleSize: number;
     onChangeSize: (size: number) => void;
-    karaokeEnabled: boolean;
-    onChangeKaraoke: (enabled: boolean) => void;
     subtitleColor: string;
     onChangeColor: (color: string) => void;
     colors: Array<{ label: string; value: string; ass: string }>;
-    watermarkEnabled: boolean;
-    onChangeWatermark: (enabled: boolean) => void;
 }
 
 export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps>(({
@@ -56,17 +52,11 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
     colors,
     subtitleSize,
     onChangeSize,
-    karaokeEnabled,
-    onChangeKaraoke,
-    watermarkEnabled,
-    onChangeWatermark,
 }) => {
     const { t } = useI18n();
     const colorLabelId = useId();
     const sizeLabelId = useId();
     const positionLabelId = useId();
-    const karaokeLabelId = useId();
-    const watermarkLabelId = useId();
     const linesLabelId = useId();
 
     const [showColorGrid, setShowColorGrid] = useState(false);
@@ -469,138 +459,6 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
                             </div>
                         </div>
 
-                    {/* Bottom Row: Toggles (Karaoke & Watermark) */}
-                    <div className="flex flex-col sm:flex-row gap-4">
-                        {/* Karaoke Toggle */}
-                        <div className="flex-1 min-w-[200px]">
-                                <div className="flex items-center gap-2 mb-3">
-                                    <label id={karaokeLabelId} className="block text-sm font-medium text-[var(--muted)]">
-                                        {t('karaokeLabel') || 'Karaoke'}
-                                    </label>
-                                    <InfoTooltip ariaLabel={`${t('infoPrefix')} ${t('karaokeLabel') || 'Karaoke'}`}>
-                                        <div className="space-y-2">
-                                            <div className="font-semibold text-[11px]">{t('karaokeMode')}</div>
-                                            <p className="text-[var(--muted)] leading-snug">{t('tooltipKaraokeDesc')}</p>
-                                            <div className="rounded-lg border border-white/10 bg-black/20 p-2">
-                                                <div className="flex items-center justify-between text-[9px] font-semibold text-white/60 uppercase tracking-wide">
-                                                    <span>{t('karaokeStatic')}</span>
-                                                    <span className="text-white/40">→</span>
-                                                    <span className="text-orange-300">{t('karaokeActive')}</span>
-                                                </div>
-                                                <div className="mt-2 rounded-md bg-white/5 px-2 py-1 text-[10px] font-black uppercase tracking-wide">
-                                                    <span className="rounded bg-orange-500 px-1 text-white">HELLO</span>{' '}
-                                                    <span className="text-white/50">WORLD</span>
-                                                </div>
-                                                <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-white/10">
-                                                    <div className="h-full w-1/2 rounded-full bg-orange-500" />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </InfoTooltip>
-                                </div>
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        onChangeKaraoke(!karaokeEnabled);
-                                    }}
-                                    role="switch"
-                                    aria-checked={karaokeEnabled}
-                                    aria-labelledby={karaokeLabelId}
-                                    className={`w-full p-4 rounded-xl border text-left transition-all duration-300 flex items-center justify-between group min-h-[88px] relative overflow-hidden ${karaokeEnabled
-                                        ? 'border-orange-500/50 bg-gradient-to-r from-orange-500/10 to-transparent shadow-[0_0_20px_rgba(249,115,22,0.1)]'
-                                        : 'border-[var(--border)] hover:border-[var(--accent)]/50 hover:bg-[var(--surface-elevated)]'
-                                        }`}
-                                >
-                                    {/* Active Indicator Line */}
-                                    {karaokeEnabled && (
-                                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-orange-500 shadow-[0_0_10px_rgba(249,115,22,0.5)]" />
-                                    )}
-
-                                    <div className="flex flex-col gap-1 pl-2">
-                                        <div className={`font-semibold text-base transition-colors ${karaokeEnabled ? 'text-orange-500' : 'text-[var(--foreground)]'}`}>
-                                            {t('karaokeMode')}
-                                        </div>
-                                        <div className={`text-xs ${karaokeEnabled ? 'text-[var(--muted)]' : 'text-[var(--muted)]/70'}`}>
-                                            {karaokeEnabled ? (t('activeWordsHighlighted') || 'Active words highlighted') : (t('standardCaptions') || 'Standard captions')}
-                                        </div>
-                                    </div>
-
-                                    {/* Animated Icon */}
-                                    <div className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 ${karaokeEnabled ? 'bg-orange-500 text-white rotate-6 scale-110 shadow-lg shadow-orange-500/30' : 'bg-[var(--surface-elevated)] text-[var(--muted)] group-hover:scale-105'}`}>
-                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-                                        </svg>
-                                    </div>
-                                </button>
-                            </div>
-
-                        {/* Watermark Toggle - Nano Banana Sleek */}
-                        <div className="flex-1 min-w-[200px]">
-                                <div className="flex items-center gap-2 mb-3">
-                                    <label id={watermarkLabelId} className="block text-sm font-medium text-[var(--muted)]">
-                                        {t('watermarkLabel')}
-                                    </label>
-                                    <InfoTooltip ariaLabel={t('watermarkLabel')}>
-                                        <div className="space-y-2">
-                                            <div className="font-semibold text-[11px]">{t('watermarkBrand')}</div>
-                                            <p className="text-[var(--muted)] leading-snug">{t('watermarkDesc')}</p>
-                                        </div>
-                                    </InfoTooltip>
-                                </div>
-                                <button
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        onChangeWatermark(!watermarkEnabled);
-                                    }}
-                                    role="switch"
-                                    aria-checked={watermarkEnabled}
-                                    aria-labelledby={watermarkLabelId}
-                                    className={`w-full h-[88px] rounded-xl border text-left transition-all duration-300 flex items-center justify-between px-6 group relative overflow-hidden ${watermarkEnabled
-                                        ? 'border-[var(--accent)]/30 bg-[var(--accent)]/[0.03]'
-                                        : 'border-[var(--border)] hover:border-[var(--foreground)]/20 hover:bg-white/[0.02]'
-                                        }`}
-                                >
-                                    {/* Content */}
-                                    <div className="flex flex-col gap-0.5 z-10">
-                                        <div className={`font-semibold text-base tracking-tight transition-colors ${watermarkEnabled ? 'text-[var(--foreground)]' : 'text-[var(--foreground)]/80'}`}>
-                                            {t('watermarkAffiliate')}
-                                        </div>
-                                        <div className="flex items-center gap-1.5">
-                                            <span className={`text-[10px] uppercase tracking-wider font-mono ${watermarkEnabled ? 'text-[var(--accent)]' : 'text-[var(--muted)]'}`}>
-                                                {watermarkEnabled ? t('statusActive') : t('statusDisabled')}
-                                            </span>
-                                            {watermarkEnabled && (
-                                                <span className="w-1 h-1 rounded-full bg-[var(--accent)] shadow-[0_0_5px_var(--accent)]" />
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* Sleek Toggle Switch */}
-                                    <div className="relative w-12 h-6 rounded-full bg-black/40 border border-white/10 shadow-inner overflow-hidden">
-                                        {/* Track Fill */}
-                                        <div
-                                            className={`absolute inset-0 bg-[var(--accent)]/20 transition-transform duration-300 origin-left ${watermarkEnabled ? 'scale-x-100' : 'scale-x-0'}`}
-                                        />
-
-                                        {/* Thumb */}
-                                        <div
-                                            className={`absolute top-[2px] w-5 h-5 rounded-full shadow-md border transition-all duration-300 ease-out flex items-center justify-center ${watermarkEnabled
-                                                ? 'left-[calc(100%-22px)] bg-[var(--accent)] border-[var(--accent)] shadow-[0_0_10px_rgba(var(--accent-rgb),0.3)]'
-                                                : 'left-[2px] bg-[#222] border-white/10'}`}
-                                        >
-                                            {watermarkEnabled && (
-                                                <div className="w-1.5 h-1.5 rounded-full bg-[#031018]" />
-                                            )}
-                                        </div>
-                                    </div>
-
-                                    {/* Subtle Ambient Glow when active */}
-                                    {watermarkEnabled && (
-                                        <div className="absolute top-1/2 right-6 -translate-y-1/2 w-20 h-20 bg-[var(--accent)]/10 blur-2xl -z-0 pointer-events-none" />
-                                    )}
-                                </button>
-                            </div>
-                    </div>
                 </div>
 
             </div>

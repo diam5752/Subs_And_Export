@@ -74,6 +74,13 @@ export function processVideoCostForSelection(
     return processVideoCostForDuration(durationSeconds);
 }
 
+export function transcribeProviderRequiresPaidCredits(
+    provider: string | null | undefined,
+): boolean {
+    const normalizedProvider = (provider ?? 'mock').trim().toLowerCase();
+    return normalizedProvider !== 'mock' && normalizedProvider !== 'local';
+}
+
 export function formatPoints(value: number): string {
     return value.toLocaleString();
 }

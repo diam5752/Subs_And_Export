@@ -59,6 +59,13 @@ export default defineConfig({
       `npm run build && npm run start -- `
       + `--hostname ${playwrightHost} --port ${playwrightPort}`
     ),
+    env: {
+      // Keep release E2E deterministic even when a developer has an
+      // ignored .env.local configured for a real paid provider.
+      NEXT_PUBLIC_API_URL: '',
+      NEXT_PUBLIC_TRANSCRIBE_PROVIDER: 'mock',
+      NEXT_PUBLIC_TRANSCRIBE_MODE: 'standard',
+    },
     url: playwrightBaseUrl,
     reuseExistingServer: false,
     timeout: 120_000,
