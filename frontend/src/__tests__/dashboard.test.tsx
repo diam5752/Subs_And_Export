@@ -431,8 +431,29 @@ describe('DashboardPage', () => {
         render(<DashboardPage />);
 
         expect(screen.queryByText('accountSettingsTitle')).not.toBeInTheDocument();
-        fireEvent.click(screen.getByRole('button', { name: 'profileLabel' }));
+        const opener = screen.getByRole('button', { name: 'profileLabel' });
+        opener.focus();
+        fireEvent.click(opener);
         expect(screen.getByTestId('account-view')).toBeInTheDocument();
+    });
+
+    it('closes the account dialog with Escape and restores focus to its opener', async () => {
+        render(<DashboardPage />);
+
+        const opener = screen.getByRole('button', { name: 'profileLabel' });
+        opener.focus();
+        fireEvent.click(opener);
+        const dialog = screen.getByRole('dialog', { name: 'accountSettingsTitle' });
+        const closeButton = within(dialog).getByRole('button', { name: 'closeLabel' });
+
+        await waitFor(() => expect(closeButton).toHaveFocus());
+        fireEvent.keyDown(document, { key: 'Escape' });
+
+        await waitFor(() => {
+            expect(screen.queryByRole('dialog', { name: 'accountSettingsTitle' }))
+                .not.toBeInTheDocument();
+            expect(opener).toHaveFocus();
+        });
     });
 
     // REGRESSION: logging out from the open account panel left the header inert,
@@ -488,7 +509,11 @@ describe('DashboardPage', () => {
         });
 
         render(<DashboardPage />);
-        expect(screen.getByText('loading')).toBeInTheDocument();
+        const loadingState = screen.getByRole('status');
+        expect(loadingState).toHaveAttribute('aria-live', 'polite');
+        expect(loadingState).toHaveAttribute('aria-busy', 'true');
+        expect(within(loadingState).getByRole('img', { name: 'gsubs' })).toBeInTheDocument();
+        expect(within(loadingState).getByText('loading')).toBeInTheDocument();
     });
 
     it('renders the upload workspace for guests without redirecting', () => {

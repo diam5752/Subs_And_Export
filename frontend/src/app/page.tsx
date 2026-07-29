@@ -88,10 +88,64 @@ export default function DashboardPage() {
   const [accountMessage, setAccountMessage] = useState('');
   const [accountError, setAccountError] = useState('');
   const [accountSaving, setAccountSaving] = useState(false);
+  const accountDialogRef = useRef<HTMLDivElement>(null);
+  const accountCloseButtonRef = useRef<HTMLButtonElement>(null);
+  const accountReturnFocusRef = useRef<HTMLElement | null>(null);
 
   const handleCloseAccountPanel = useCallback(() => {
     setShowAccountPanel(false);
   }, [setShowAccountPanel]);
+
+  useEffect(() => {
+    if (!showAccountPanel) return;
+
+    const handleAccountDialogKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        handleCloseAccountPanel();
+        return;
+      }
+      if (event.key !== 'Tab' || !accountDialogRef.current) return;
+
+      const focusable = Array.from(
+        accountDialogRef.current.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), '
+          + 'select:not([disabled]), textarea:not([disabled]), '
+          + '[tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((element) => (
+        element.getAttribute('aria-hidden') !== 'true'
+        && element.getClientRects().length > 0
+      ));
+      if (focusable.length === 0) {
+        event.preventDefault();
+        accountDialogRef.current.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const activeElement = document.activeElement;
+      if (event.shiftKey && (activeElement === first || !accountDialogRef.current.contains(activeElement))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (activeElement === last || !accountDialogRef.current.contains(activeElement))) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleAccountDialogKeyDown);
+    queueMicrotask(() => accountCloseButtonRef.current?.focus());
+
+    return () => {
+      document.removeEventListener('keydown', handleAccountDialogKeyDown);
+      const returnTarget = accountReturnFocusRef.current;
+      queueMicrotask(() => {
+        if (returnTarget?.isConnected) returnTarget.focus();
+      });
+    };
+  }, [handleCloseAccountPanel, showAccountPanel]);
 
   const handleLogout = useCallback(() => {
     setShowAccountPanel(false);
@@ -575,8 +629,23 @@ export default function DashboardPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-dvh flex items-center justify-center">
-        <div className="text-[var(--muted)]">{t('loading')}</div>
+      <div
+        className="studio-loading-screen"
+        role="status"
+        aria-live="polite"
+        aria-busy="true"
+      >
+        <div className="studio-loading-content">
+          <BrandLogo className="studio-loading-logo block h-auto" />
+          <div className="studio-loading-wave" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+            <span />
+            <span />
+          </div>
+          <p>{t('loading')}</p>
+        </div>
       </div>
     );
   }
@@ -612,6 +681,9 @@ export default function DashboardPage() {
               </div>
               <button
                 onClick={() => {
+                  accountReturnFocusRef.current = document.activeElement instanceof HTMLElement
+                    ? document.activeElement
+                    : null;
                   setActiveAccountTab('profile');
                   setShowAccountPanel(!showAccountPanel);
                 }}
@@ -628,7 +700,7 @@ export default function DashboardPage() {
           ) : (
             <Link
               href="/login"
-              className="inline-flex min-h-10 items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-4 text-sm font-semibold text-[var(--foreground)] transition-colors hover:bg-[#f5f5f4]"
+              className="guest-sign-in inline-flex min-h-10 items-center justify-center rounded-full border border-[var(--border-strong)] bg-white px-4 text-sm font-semibold text-[var(--foreground)] transition-colors hover:bg-[#f5f5f4]"
             >
               {t('guestSignIn')}
             </Link>
@@ -641,7 +713,11 @@ export default function DashboardPage() {
         aria-hidden={hasBlockingModal || undefined}
         inert={hasBlockingModal ? true : undefined}
       >
-        <main className="studio-main">
+        <main
+          className={`studio-main ${
+            selectedJob?.status === 'completed' ? 'studio-main-workspace' : ''
+          }`}
+        >
           <section className="studio-intro" data-testid="studio-intro">
             <div className="studio-intro-copy">
               <h1>{t('heroTitle')}</h1>
@@ -746,10 +822,12 @@ export default function DashboardPage() {
             onClick={handleCloseAccountPanel}
           />
           <div
+            ref={accountDialogRef}
             className="relative z-10 w-full max-w-2xl animate-fade-in"
             role="dialog"
             aria-modal="true"
             aria-label={activeAccountTab === 'profile' ? t('accountSettingsTitle') : t('historyTitle')}
+            tabIndex={-1}
           >
             <div className="bg-[var(--surface-elevated)] border border-[var(--border)] rounded-2xl shadow-2xl overflow-hidden max-h-[90dvh] sm:max-h-[85dvh] flex flex-col">
               <div className="flex items-center justify-between gap-1 p-4 border-b border-[var(--border)] sm:gap-3">
@@ -768,6 +846,7 @@ export default function DashboardPage() {
                   </button>
                 </div>
                 <button
+                  ref={accountCloseButtonRef}
                   onClick={handleCloseAccountPanel}
                   className="flex min-h-11 min-w-11 flex-none items-center justify-center rounded-lg transition-colors hover:bg-black/5"
                   aria-label={t('closeLabel')}

@@ -41,21 +41,25 @@ export default function CookieConsent() {
 
     return (
         <div
-            className="fixed inset-x-4 bottom-[calc(env(safe-area-inset-bottom)_+_1rem)] z-50 animate-fade-in sm:right-auto sm:w-[420px]"
+            className="cookie-consent fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)_+_0.75rem)] z-50 animate-fade-in sm:left-5 sm:right-auto sm:w-[390px]"
             role="dialog"
             aria-label={t('cookieTitle')}
+            aria-describedby="cookie-consent-description"
         >
-            <div className="glass rounded-2xl px-4 py-4 shadow-2xl">
-                <div className="flex items-start gap-3">
+            <div className="cookie-consent-card glass rounded-2xl px-3 py-3 shadow-2xl sm:px-4 sm:py-4">
+                <div className="flex items-start gap-2.5 sm:gap-3">
                     <div
-                        className="mt-0.5 h-10 w-10 rounded-2xl bg-white/5 border border-[var(--border)] flex items-center justify-center text-lg shadow-inner"
+                        className="mt-0.5 hidden h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[var(--border)] bg-white/5 text-base shadow-inner sm:flex"
                         aria-hidden="true"
                     >
                         🍪
                     </div>
                     <div className="min-w-0 flex-1">
-                        <div className="font-semibold">{t('cookieTitle')}</div>
-                        <p className="mt-1 text-sm text-[var(--muted)] leading-relaxed">
+                        <div className="text-sm font-semibold sm:text-base">{t('cookieTitle')}</div>
+                        <p
+                            id="cookie-consent-description"
+                            className="mt-0.5 text-xs leading-[1.45] text-[var(--muted)] sm:mt-1 sm:text-sm sm:leading-relaxed"
+                        >
                             {t('cookieText')}{' '}
                             <Link href="/privacy" className="text-[var(--accent)] hover:underline">
                                 {t('cookieLearnMore')}
@@ -66,18 +70,18 @@ export default function CookieConsent() {
                             </Link>
                             .
                         </p>
-                        <div className="mt-3 flex items-center justify-end gap-2">
+                        <div className="mt-2 flex items-center justify-end gap-1.5 sm:mt-3 sm:gap-2">
                             <button
                                 type="button"
                                 onClick={decline}
-                                className="px-3 py-2 text-sm text-[var(--muted)] hover:text-[var(--foreground)] transition-colors"
+                                className="min-h-11 rounded-lg px-3 py-2 text-xs text-[var(--muted)] transition-colors hover:bg-black/[0.03] hover:text-[var(--foreground)] sm:text-sm"
                             >
                                 {t('cookieDecline')}
                             </button>
                             <button
                                 type="button"
                                 onClick={accept}
-                                className="btn-secondary !px-4 !py-2 text-sm"
+                                className="btn-secondary min-h-11 !px-4 !py-2 text-xs sm:text-sm"
                             >
                                 {t('cookieAccept')}
                             </button>

@@ -171,7 +171,9 @@ describe('SubtitleOverlay', () => {
             />,
         );
 
-        fireEvent.click(screen.getByRole('button', { name: 'Edit active subtitle' }));
+        const inlineTrigger = screen.getByRole('button', { name: 'Edit active subtitle' });
+        expect(inlineTrigger).toHaveClass('subtitle-inline-trigger');
+        fireEvent.click(inlineTrigger);
         expect(onBeginEdit).toHaveBeenCalledTimes(1);
         expect(document.querySelector('.subtitle-edit-affordance')).not.toBeInTheDocument();
 

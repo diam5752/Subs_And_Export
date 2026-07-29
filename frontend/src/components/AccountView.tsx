@@ -258,7 +258,7 @@ export const AccountView = memo(function AccountView({
                 <button
                     onClick={handleExport}
                     disabled={exporting}
-                    className="px-4 py-2 rounded-lg border border-[var(--border)] text-[var(--foreground)] hover:bg-white/5 transition-colors disabled:opacity-50 flex items-center gap-2"
+                    className="min-h-11 px-4 py-2 rounded-lg border border-[var(--border)] text-[var(--foreground)] hover:bg-white/5 transition-colors disabled:opacity-50 flex items-center gap-2"
                     aria-busy={exporting}
                 >
                     {exporting && <Spinner className="w-4 h-4 text-current" />}
@@ -291,7 +291,7 @@ export const AccountView = memo(function AccountView({
                 {!showDeleteConfirm ? (
                     <button
                         onClick={() => setShowDeleteConfirm(true)}
-                        className="px-4 py-2 rounded-lg border border-[var(--danger)]/50 text-[var(--danger)] hover:bg-[var(--danger)]/10 transition-colors"
+                        className="min-h-11 px-4 py-2 rounded-lg border border-[var(--danger)]/50 text-[var(--danger)] hover:bg-[var(--danger)]/10 transition-colors"
                     >
                         {t('deleteAccount')}
                     </button>
@@ -302,7 +302,7 @@ export const AccountView = memo(function AccountView({
                             <button
                                 onClick={handleDeleteAccount}
                                 disabled={deleting}
-                                className="px-4 py-2 rounded-lg bg-[var(--danger)] text-white font-medium hover:bg-[var(--danger)]/90 transition-colors disabled:opacity-50 flex items-center gap-2"
+                                className="min-h-11 px-4 py-2 rounded-lg bg-[var(--danger)] text-white font-medium hover:bg-[var(--danger)]/90 transition-colors disabled:opacity-50 flex items-center gap-2"
                                 aria-busy={deleting}
                             >
                                 {deleting && <Spinner className="w-4 h-4 text-white" />}
@@ -311,7 +311,7 @@ export const AccountView = memo(function AccountView({
                             <button
                                 onClick={() => setShowDeleteConfirm(false)}
                                 disabled={deleting}
-                                className="px-4 py-2 rounded-lg border border-[var(--border)] hover:bg-white/5 transition-colors"
+                                className="min-h-11 px-4 py-2 rounded-lg border border-[var(--border)] hover:bg-white/5 transition-colors"
                             >
                                 {t('cancel')}
                             </button>

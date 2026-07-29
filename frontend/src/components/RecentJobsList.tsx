@@ -105,7 +105,7 @@ export const RecentJobsList = memo(function RecentJobsList({
     }, []);
 
     return (
-        <div className="card mt-6 border-none bg-transparent shadow-none p-0">
+        <div className="recent-jobs-list card mt-6 border-none bg-transparent shadow-none p-0">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                 <div>
                     <h3 className="text-lg font-semibold">{t('historyTitle') || 'History'}</h3>
@@ -122,7 +122,7 @@ export const RecentJobsList = memo(function RecentJobsList({
                                     setConfirmBatchDelete(false);
                                 }
                             }}
-                            className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${selectionMode
+                            className={`min-h-11 text-xs px-3 py-1.5 rounded-lg border transition-colors ${selectionMode
                                 ? 'border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--accent)]'
                                 : 'border-[var(--border)] hover:border-[var(--accent)]/50'
                                 }`}
@@ -136,7 +136,7 @@ export const RecentJobsList = memo(function RecentJobsList({
             {/* Selection mode controls */}
             {selectionMode && jobs.length > 0 && (
                 <div className="flex flex-wrap items-center gap-3 mb-3 p-3 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)]">
-                    <label className="flex items-center gap-2 cursor-pointer text-sm">
+                    <label className="flex min-h-11 items-center gap-2 cursor-pointer text-sm">
                         <input
                             type="checkbox"
                             checked={selectedJobIds.size === jobs.length && jobs.length > 0}
@@ -184,13 +184,13 @@ export const RecentJobsList = memo(function RecentJobsList({
                                     }
                                 }}
                                 disabled={isBatchDeleting}
-                                className="text-xs px-3 py-1.5 rounded bg-[var(--danger)] text-white hover:bg-[var(--danger)]/80 disabled:opacity-50 min-w-[60px]"
+                                className="min-h-11 min-w-[60px] rounded bg-[var(--danger)] px-3 py-1.5 text-xs text-white hover:bg-[var(--danger)]/80 disabled:opacity-50"
                             >
                                 {isBatchDeleting ? '...' : (t('confirmDelete') || 'Confirm')}
                             </button>
                             <button
                                 onClick={() => setConfirmBatchDelete(false)}
-                                className="text-xs px-3 py-1.5 rounded border border-[var(--border)] hover:bg-white/5"
+                                className="min-h-11 rounded border border-[var(--border)] px-3 py-1.5 text-xs hover:bg-white/5"
                             >
                                 {t('cancel') || 'Cancel'}
                             </button>
@@ -200,7 +200,7 @@ export const RecentJobsList = memo(function RecentJobsList({
                             ref={batchDeleteBtnRef}
                             onClick={() => setConfirmBatchDelete(true)}
                             disabled={selectedJobIds.size === 0}
-                            className="text-xs px-3 py-1.5 rounded border border-[var(--danger)] text-[var(--danger)] hover:bg-[var(--danger)]/10 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="min-h-11 rounded border border-[var(--danger)] px-3 py-1.5 text-xs text-[var(--danger)] hover:bg-[var(--danger)]/10 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                             🗑️ {t('deleteSelected') || 'Delete Selected'} ({selectedJobIds.size})
                         </button>
@@ -266,7 +266,7 @@ export const RecentJobsList = memo(function RecentJobsList({
                     <button
                         onClick={onPrevPage}
                         disabled={currentPage <= 1}
-                        className="text-sm px-4 py-2 rounded-lg border border-[var(--border)] hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        className="min-h-11 rounded-lg border border-[var(--border)] px-4 py-2 text-sm transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                         ← {t('previousPage') || 'Previous'}
                     </button>
@@ -282,7 +282,7 @@ export const RecentJobsList = memo(function RecentJobsList({
                     <button
                         onClick={onNextPage}
                         disabled={currentPage >= totalPages}
-                        className="text-sm px-4 py-2 rounded-lg border border-[var(--border)] hover:bg-white/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        className="min-h-11 rounded-lg border border-[var(--border)] px-4 py-2 text-sm transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                         {t('nextPage') || 'Next'} →
                     </button>

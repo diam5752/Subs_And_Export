@@ -202,6 +202,23 @@ describe('Sidebar Tabs', () => {
         expect(setActiveSidebarTab).toHaveBeenCalledWith('styles');
     });
 
+    it('keeps the full transcript label accessible while exposing a compact mobile label', () => {
+        render(
+            <I18nProvider initialLocale="en">
+                <PlaybackProvider>
+                    <Sidebar />
+                </PlaybackProvider>
+            </I18nProvider>
+        );
+
+        const transcriptTab = screen.getByRole('tab', { name: 'Transcript' });
+        expect(transcriptTab).toHaveAttribute('aria-label', 'Transcript');
+        expect(transcriptTab.querySelector('.editor-tab-label-full'))
+            .toHaveTextContent('Transcript');
+        expect(transcriptTab.querySelector('.editor-tab-label-short'))
+            .toHaveTextContent('Captions');
+    });
+
     it('shows manual style settings without preset cards', () => {
         (useProcessContext as jest.Mock).mockReturnValue({
             ...mockContextValue,

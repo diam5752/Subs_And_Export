@@ -155,7 +155,7 @@ export const JobListItem = memo(function JobListItem({
                 )}
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="recent-job-actions flex w-full items-center justify-end gap-2 sm:w-auto sm:justify-start">
                 {/* Checkbox for selection mode - Moved to right */}
                 {selectionMode && (
                     <input
@@ -176,7 +176,7 @@ export const JobListItem = memo(function JobListItem({
                         {job.status === 'completed' && downloadUrl && !selectionMode && (
                             <>
                                 <a
-                                    className="text-xs btn-primary py-1.5 px-3 h-auto"
+                                    className="recent-job-action text-xs btn-primary min-h-11 px-3 py-1.5"
                                     href={downloadUrl}
                                     download={downloadFilename}
                                     onClick={(e) => e.stopPropagation()}
@@ -190,7 +190,7 @@ export const JobListItem = memo(function JobListItem({
                                         onJobSelect(job);
                                         setShowPreview(true);
                                     }}
-                                    className="text-xs btn-secondary py-1.5 px-3 h-auto"
+                                    className="recent-job-action text-xs btn-secondary min-h-11 px-3 py-1.5"
                                     aria-label={`${t('view') || 'View'} ${displayFilename}`}
                                 >
                                     {t('view') || 'View'}
@@ -208,7 +208,7 @@ export const JobListItem = memo(function JobListItem({
                                             onDeleteConfirmed(job.id);
                                         }}
                                         disabled={isDeleting}
-                                        className="text-xs px-2 py-1 rounded bg-[var(--danger)] text-white hover:bg-[var(--danger)]/80 disabled:opacity-50 min-w-[28px] flex items-center justify-center"
+                                        className="recent-job-icon-action flex h-11 min-w-11 items-center justify-center rounded bg-[var(--danger)] px-2 text-xs text-white hover:bg-[var(--danger)]/80 disabled:opacity-50"
                                         aria-label={isDeleting
                                             ? `${t('deleting') || 'Deleting'} ${displayFilename}`
                                             : `${t('confirmDelete') || 'Confirm delete'} ${displayFilename}`
@@ -229,7 +229,7 @@ export const JobListItem = memo(function JobListItem({
                                             wasCancelledRef.current = true;
                                             setConfirmDeleteId(null);
                                         }}
-                                        className="text-xs px-2 py-1 rounded border border-[var(--border)] hover:bg-white/5 flex items-center justify-center min-w-[28px]"
+                                        className="recent-job-icon-action flex h-11 min-w-11 items-center justify-center rounded border border-[var(--border)] px-2 text-xs hover:bg-white/5"
                                         aria-label={t('cancel') || 'Cancel'}
                                     >
                                         <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -244,7 +244,7 @@ export const JobListItem = memo(function JobListItem({
                                         e.stopPropagation();
                                         setConfirmDeleteId(job.id);
                                     }}
-                                    className="text-xs px-2 py-1 rounded border border-[var(--border)] hover:border-[var(--danger)] hover:text-[var(--danger)] transition-colors flex items-center justify-center min-w-[28px]"
+                                    className="recent-job-icon-action flex h-11 min-w-11 items-center justify-center rounded border border-[var(--border)] px-2 text-xs transition-colors hover:border-[var(--danger)] hover:text-[var(--danger)]"
                                     title={t('deleteJob')}
                                     aria-label={`${t('deleteJob') || 'Delete job'} ${displayFilename}`}
                                 >

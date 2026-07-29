@@ -449,7 +449,7 @@ export const SubtitleOverlay = memo<SubtitleOverlayProps>(({
                             data-testid="inline-subtitle-trigger"
                             aria-label={inlineEditor.labels.editAction}
                             onClick={inlineEditor.onBeginEdit}
-                            className={`relative m-0 inline-block max-w-full rounded-md border-0 bg-transparent p-0 text-inherit outline-none transition-[box-shadow,background-color] hover:bg-black/20 hover:shadow-[0_0_0_2px_rgba(255,255,255,0.72),0_8px_22px_rgba(0,0,0,0.28)] focus-visible:bg-black/20 focus-visible:shadow-[0_0_0_2px_rgba(255,255,255,0.72),0_8px_22px_rgba(0,0,0,0.28)] ${
+                            className={`subtitle-inline-trigger relative m-0 inline-block max-w-full rounded-md border-0 bg-transparent p-0 text-inherit outline-none transition-[box-shadow,background-color] hover:bg-black/20 hover:shadow-[0_0_0_2px_rgba(255,255,255,0.72),0_8px_22px_rgba(0,0,0,0.28)] focus-visible:bg-black/20 focus-visible:shadow-[0_0_0_2px_rgba(255,255,255,0.72),0_8px_22px_rgba(0,0,0,0.28)] ${
                                 transformControls ? 'cursor-grab active:cursor-grabbing' : 'cursor-text'
                             }`}
                         >
