@@ -2044,6 +2044,7 @@ body {
 }
 
 .auth-card {
+  min-width: 0;
   border: 1px solid var(--border);
   border-radius: 16px;
   background: #fff;
@@ -2070,11 +2071,14 @@ body {
 .auth-google-shell {
   position: relative;
   min-height: 44px;
+  min-width: 0;
   width: 100%;
 }
 
 .auth-google-official {
   min-height: 44px;
+  min-width: 0;
+  max-width: 100%;
   opacity: 0;
   transition: opacity 120ms ease;
 }
@@ -2084,7 +2088,18 @@ body {
 }
 
 .auth-google-official > div {
+  min-width: 0;
+  max-width: 100%;
   margin-inline: auto;
+}
+
+.auth-google-official iframe {
+  /*
+   * Google renders a transparent 10px gutter on both sides of the requested
+   * button width. Keep that gutter responsive after rotation or viewport
+   * resizing instead of allowing its original desktop width to widen the grid.
+   */
+  max-width: calc(100% + 20px) !important;
 }
 
 .auth-google-placeholder,

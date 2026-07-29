@@ -53,6 +53,9 @@ describe('next.config', () => {
 
     expect(csp).toContain("script-src 'self'");
     expect(csp).toContain('https://accounts.google.com');
+    expect(csp).toContain(
+      "style-src 'self' 'unsafe-inline' https://accounts.google.com",
+    );
     expect(csp).toContain('connect-src');
     expect(csp).toContain('frame-src https://accounts.google.com');
   });

@@ -36,7 +36,7 @@ const nextConfig: NextConfig = {
       `img-src 'self'${apiSource} ${googleProfileImageOrigin} blob: data:;`,
       `media-src 'self'${apiSource} blob: data:;`,
       scriptSrc,
-      `style-src 'self' 'unsafe-inline';`,
+      `style-src 'self' 'unsafe-inline' ${googleIdentityOrigin};`,
       `connect-src 'self'${apiSource} ${googleIdentityOrigin};`,
       `frame-src ${googleIdentityOrigin};`,
       `font-src 'self' data:;`,
