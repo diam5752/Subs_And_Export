@@ -15,6 +15,7 @@ describe('Playwright server isolation', () => {
 
     expect(DEFAULT_PLAYWRIGHT_PORT).toBe(31873);
     expect(config.use?.baseURL).toBe('http://127.0.0.1:31873');
+    expect(config.failOnFlakyTests).toBe(Boolean(process.env.CI));
     expect(webServer).toMatchObject({
       command: (
         'npm run build && npm run start -- '
