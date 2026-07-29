@@ -31,6 +31,69 @@ test('Google Identity Services login exchanges an ID token for a GSUBS session',
   await expect(page.getByTestId('profile-avatar-image')).toBeVisible();
 });
 
+test('Google sign-in stays contained when the auth viewport shrinks', async ({ page }) => {
+  await page.setViewportSize(viewports.desktop);
+  await mockApi(page, { authenticated: false });
+  await page.goto('/login');
+
+  const googleContainer = page.getByTestId('google-button-container');
+  await expect(googleContainer).toBeVisible();
+
+  // Match the important part of the real GSI markup: its iframe can retain the
+  // desktop width and includes a transparent 10px gutter on both sides.
+  await googleContainer.evaluate((container) => {
+    const wrapper = document.createElement('div');
+    const iframe = document.createElement('iframe');
+    iframe.title = 'Google sign-in';
+    iframe.style.width = '370px';
+    iframe.style.height = '44px';
+    wrapper.appendChild(iframe);
+    container.replaceChildren(wrapper);
+  });
+
+  for (const viewport of [
+    { width: 320, height: 568 },
+    { width: 390, height: 844 },
+    { width: 430, height: 932 },
+    { width: 768, height: 1024 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.evaluate(() => new Promise<void>((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+    }));
+
+    const metrics = await page.evaluate(() => {
+      const bounds = (selector: string) => {
+        const element = document.querySelector<HTMLElement>(selector);
+        if (!element) throw new Error(`Missing responsive auth element: ${selector}`);
+        const rect = element.getBoundingClientRect();
+        return { left: rect.left, right: rect.right, width: rect.width };
+      };
+
+      return {
+        documentOverflow: document.documentElement.scrollWidth
+          - document.documentElement.clientWidth,
+        main: bounds('.auth-main'),
+        card: bounds('.auth-card'),
+        googleContainer: bounds('[data-testid="google-button-container"]'),
+        googleIframe: bounds('[data-testid="google-button-container"] iframe'),
+      };
+    });
+
+    expect(metrics.documentOverflow, `${viewport.width}px document overflow`)
+      .toBeLessThanOrEqual(1);
+    for (const region of [metrics.main, metrics.card, metrics.googleIframe]) {
+      expect(region.left, `${viewport.width}px left containment`).toBeGreaterThanOrEqual(0);
+      expect(region.right, `${viewport.width}px right containment`)
+        .toBeLessThanOrEqual(viewport.width + 1);
+    }
+    expect(
+      metrics.googleIframe.width,
+      `${viewport.width}px Google iframe width`,
+    ).toBeLessThanOrEqual(metrics.googleContainer.width + 20.5);
+  }
+});
+
 async function expectNoHorizontalOverflow(page: Page, selector?: string) {
   const overflow = await page.evaluate((sel) => {
     const target = sel ? document.querySelector<HTMLElement>(sel) : document.documentElement;
