@@ -205,6 +205,10 @@ test.describe('Video Processing Flow', () => {
         let processRequests = 0;
         await page.route('**/videos/process', async route => {
             processRequests += 1;
+            // Playwright route interception can bypass Chromium's emulated
+            // upload throughput. Keep the XHR pending long enough to assert
+            // the in-flight mobile UI deterministically.
+            await new Promise(resolve => setTimeout(resolve, 750));
             await route.fulfill({
                 json: {
                     id: 'job-slow-upload',
