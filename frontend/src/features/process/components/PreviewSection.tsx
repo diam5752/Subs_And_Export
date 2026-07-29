@@ -3,6 +3,7 @@ import { PhoneFrame } from '@/components/PhoneFrame';
 import {
     PreviewPlayer,
     type InlineSubtitleEditorConfig,
+    type PreviewPlaybackStatus,
     type PreviewPlayerHandle,
     type SubtitleTransformConfig,
 } from '@/components/PreviewPlayer';
@@ -27,6 +28,12 @@ type PreviewSectionLayoutProps = {
     subtitleEditor: InlineSubtitleEditorConfig;
     subtitleTransformControls: SubtitleTransformConfig;
     handlePlayerTimeUpdate: (time: number) => void;
+    playbackStatus: PreviewPlaybackStatus;
+    currentTime: number;
+    onPlaybackStatusChange: (status: PreviewPlaybackStatus) => void;
+    onTogglePlayback: () => void;
+    onToggleMuted: () => void;
+    onSeek: (time: number) => void;
     handleExport: (resolution: string) => Promise<void>;
     exportingResolutions: Record<string, boolean>;
     exportError: string | null;
@@ -180,6 +187,12 @@ const PreviewSectionLayout = memo(({
     subtitleEditor,
     subtitleTransformControls,
     handlePlayerTimeUpdate,
+    playbackStatus,
+    currentTime,
+    onPlaybackStatusChange,
+    onTogglePlayback,
+    onToggleMuted,
+    onSeek,
     handleExport,
     exportingResolutions,
     exportError,
@@ -240,6 +253,8 @@ const PreviewSectionLayout = memo(({
                                                             subtitleEditor={subtitleEditor}
                                                             subtitleTransformControls={subtitleTransformControls}
                                                             onTimeUpdate={handlePlayerTimeUpdate}
+                                                            onPlaybackStatusChange={onPlaybackStatusChange}
+                                                            playbackToggleLabel={t('previewVideoToggle')}
                                                             initialTime={processedCues && processedCues.length > 0 ? processedCues[0].start : 0}
                                                         />
                                                     ) : (
@@ -253,13 +268,63 @@ const PreviewSectionLayout = memo(({
                                                 </PhoneFrame>
                                             </div>
                                             {videoUrl && (
-                                                <p
-                                                    data-testid="subtitle-direct-manipulation-hint"
-                                                    className="mt-5 max-w-[278px] text-center text-[11px] font-semibold leading-5 text-[var(--muted)]"
-                                                >
-                                                    <span aria-hidden="true" className="mr-1 text-[var(--accent)]">↕</span>
-                                                    {t('subtitleDirectManipulationHint')}
-                                                </p>
+                                                <>
+                                                    <div
+                                                        className="editor-preview-controls"
+                                                        data-testid="editor-preview-controls"
+                                                    >
+                                                        <button
+                                                            type="button"
+                                                            className="editor-preview-control-button"
+                                                            aria-label={t(playbackStatus.isPlaying ? 'pausePreview' : 'playPreview')}
+                                                            onClick={onTogglePlayback}
+                                                        >
+                                                            {playbackStatus.isPlaying ? (
+                                                                <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                                                                    <path d="M7 5h3.5v14H7V5zm6.5 0H17v14h-3.5V5z" />
+                                                                </svg>
+                                                            ) : (
+                                                                <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                                                                    <path d="M8 5.5v13l10-6.5L8 5.5z" />
+                                                                </svg>
+                                                            )}
+                                                        </button>
+                                                        <input
+                                                            type="range"
+                                                            className="editor-preview-scrubber"
+                                                            min={0}
+                                                            max={Math.max(playbackStatus.duration, 0)}
+                                                            step={0.1}
+                                                            value={Math.min(currentTime, playbackStatus.duration || 0)}
+                                                            disabled={playbackStatus.duration <= 0}
+                                                            aria-label={t('seekVideo')}
+                                                            onChange={(event) => onSeek(Number(event.currentTarget.value))}
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            className="editor-preview-control-button"
+                                                            aria-label={t(playbackStatus.isMuted ? 'unmutePreview' : 'mutePreview')}
+                                                            onClick={onToggleMuted}
+                                                        >
+                                                            {playbackStatus.isMuted ? (
+                                                                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5 6.8 8.5H4v7h2.8L11 19V5Zm4.5 5.2 4 4m0-4-4 4" />
+                                                                </svg>
+                                                            ) : (
+                                                                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5 6.8 8.5H4v7h2.8L11 19V5Zm4 3.5a5 5 0 0 1 0 7m2.5-9.5a8.5 8.5 0 0 1 0 12" />
+                                                                </svg>
+                                                            )}
+                                                        </button>
+                                                    </div>
+                                                    <p
+                                                        data-testid="subtitle-direct-manipulation-hint"
+                                                        className="mt-4 max-w-[278px] text-center text-[11px] font-semibold leading-5 text-[var(--muted)]"
+                                                    >
+                                                        <span aria-hidden="true" className="mr-1 text-[var(--accent)]">↕</span>
+                                                        {t('subtitleDirectManipulationHint')}
+                                                    </p>
+                                                </>
                                             )}
                                         </section>
 
@@ -349,8 +414,13 @@ export function PreviewSection() {
         saveEditingCue,
         cancelEditingCue,
     } = useProcessContext();
-    const { setCurrentTime } = usePlaybackContext();
+    const { currentTime, setCurrentTime } = usePlaybackContext();
     const [showNewVideoModal, setShowNewVideoModal] = React.useState(false);
+    const [playbackStatus, setPlaybackStatus] = React.useState<PreviewPlaybackStatus>({
+        duration: 0,
+        isPlaying: false,
+        isMuted: false,
+    });
 
     const handleNewVideoConfirm = useCallback(() => {
         onReset();
@@ -415,6 +485,19 @@ export function PreviewSection() {
         setCurrentTime(time);
     }, [setCurrentTime]);
 
+    const handleSeek = useCallback((time: number) => {
+        playerRef.current?.seekTo(time);
+        setCurrentTime(time);
+    }, [playerRef, setCurrentTime]);
+
+    const handleTogglePlayback = useCallback(() => {
+        playerRef.current?.togglePlayback();
+    }, [playerRef]);
+
+    const handleToggleMuted = useCallback(() => {
+        playerRef.current?.toggleMuted();
+    }, [playerRef]);
+
     return (
         <PreviewSectionLayout
             resultsRef={resultsRef}
@@ -428,6 +511,12 @@ export function PreviewSection() {
             subtitleEditor={subtitleEditor}
             subtitleTransformControls={subtitleTransformControls}
             handlePlayerTimeUpdate={handlePlayerTimeUpdate}
+            playbackStatus={playbackStatus}
+            currentTime={currentTime}
+            onPlaybackStatusChange={setPlaybackStatus}
+            onTogglePlayback={handleTogglePlayback}
+            onToggleMuted={handleToggleMuted}
+            onSeek={handleSeek}
             handleExport={handleExport}
             exportingResolutions={exportingResolutions}
             exportError={exportError}

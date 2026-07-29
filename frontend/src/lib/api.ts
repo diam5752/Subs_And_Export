@@ -24,8 +24,60 @@ interface UploadCallbacks {
     signal?: AbortSignal;
 }
 
+interface ProcessVideoSettings {
+    transcribe_tier?: string;
+    transcribe_provider?: string;
+    openai_model?: string;
+    video_quality?: string;
+    video_resolution?: string;
+    use_llm?: boolean;
+    context_prompt?: string;
+    subtitle_position?: number;
+    max_subtitle_lines?: number;
+    subtitle_color?: string;
+    shadow_strength?: number;
+    highlight_style?: string;
+    subtitle_size?: number;
+    karaoke_enabled?: boolean;
+    watermark_enabled?: boolean;
+}
+
 const SIGNED_UPLOAD_MAX_ATTEMPTS = 3;
 const SIGNED_UPLOAD_RETRY_BASE_DELAY_MS = 500;
+const STREAM_UPLOAD_METADATA_HEADER_MAX_CHARS = 8_000;
+
+function encodeUtf8Base64(value: string): string | null {
+    try {
+        const binary = encodeURIComponent(value).replace(
+            /%([0-9A-F]{2})/g,
+            (_match, hex: string) => String.fromCharCode(Number.parseInt(hex, 16)),
+        );
+        return btoa(binary);
+    } catch {
+        return null;
+    }
+}
+
+function normalizedProcessVideoSettings(settings: ProcessVideoSettings) {
+    return {
+        transcribe_tier: settings.transcribe_tier || 'standard',
+        transcribe_provider: settings.transcribe_provider || 'mock',
+        openai_model: settings.openai_model || '',
+        video_quality: settings.video_quality || 'balanced',
+        video_resolution: settings.video_resolution || '',
+        use_llm: Boolean(settings.use_llm),
+        context_prompt: settings.context_prompt || '',
+        subtitle_position: settings.subtitle_position ?? 16,
+        max_subtitle_lines: settings.max_subtitle_lines ?? 2,
+        subtitle_color: settings.subtitle_color ?? null,
+        shadow_strength: settings.shadow_strength ?? 4,
+        highlight_style: settings.highlight_style || 'karaoke',
+        subtitle_size: settings.subtitle_size ?? 100,
+        karaoke_enabled: settings.karaoke_enabled ?? true,
+        watermark_enabled: settings.watermark_enabled ?? false,
+    };
+}
+
 
 function uploadCancelledError(): ApiError {
     return new ApiError('Upload cancelled', 0, 'upload_cancelled');
@@ -598,10 +650,11 @@ class ApiClient {
         return response.json();
     }
 
-    private async uploadFormData<T>(
+    private async uploadBody<T>(
         endpoint: string,
-        body: FormData,
+        body: FormData | Blob,
         callbacks: UploadCallbacks,
+        headers: Record<string, string> = {},
     ): Promise<T> {
         return new Promise<T>((resolve, reject) => {
             const xhr = new XMLHttpRequest();
@@ -629,6 +682,9 @@ class ApiClient {
             if (this.token) {
                 xhr.setRequestHeader('Authorization', `Bearer ${this.token}`);
             }
+            Object.entries(headers).forEach(([name, value]) => {
+                xhr.setRequestHeader(name, value);
+            });
 
             xhr.upload.onprogress = (event) => {
                 if (!onProgress || !event.lengthComputable || event.total <= 0) return;
@@ -919,48 +975,52 @@ class ApiClient {
         return response.blob();
     }
 
-    async processVideo(file: File, settings: {
-        transcribe_tier?: string;
-        transcribe_provider?: string;
-        openai_model?: string;
-        video_quality?: string;
-        video_resolution?: string;
-        use_llm?: boolean;
-        context_prompt?: string;
-        subtitle_position?: number;
-        max_subtitle_lines?: number;
-        subtitle_color?: string;
-        shadow_strength?: number;
-        highlight_style?: string;
-        subtitle_size?: number;
-        karaoke_enabled?: boolean;
-        watermark_enabled?: boolean;
-    }, callbacks: UploadCallbacks = {}): Promise<JobResponse> {
+    async processVideo(
+        file: File,
+        settings: ProcessVideoSettings,
+        callbacks: UploadCallbacks = {},
+    ): Promise<JobResponse> {
+        const normalizedSettings = normalizedProcessVideoSettings(settings);
+        const encodedMetadata = encodeUtf8Base64(JSON.stringify({
+            filename: file.name,
+            ...normalizedSettings,
+        }));
+        if (
+            encodedMetadata
+            && encodedMetadata.length <= STREAM_UPLOAD_METADATA_HEADER_MAX_CHARS
+        ) {
+            return this.uploadBody<JobResponse>(
+                '/videos/process-stream',
+                file,
+                callbacks,
+                {
+                    'Content-Type': file.type || 'application/octet-stream',
+                    'X-Gsubs-Upload-Metadata': encodedMetadata,
+                },
+            );
+        }
+
         const formData = new FormData();
         formData.append('file', file);
-        formData.append('transcribe_tier', settings.transcribe_tier || 'standard');
-        formData.append('transcribe_provider', settings.transcribe_provider || 'mock');
-        formData.append('openai_model', settings.openai_model || '');
-        formData.append('video_quality', settings.video_quality || 'balanced');
-        formData.append('video_resolution', settings.video_resolution || '');
-        formData.append('use_llm', String(settings.use_llm || false));
-        formData.append('context_prompt', settings.context_prompt || '');
-        formData.append('subtitle_position', String(settings.subtitle_position ?? 16));
-        formData.append('max_subtitle_lines', String(settings.max_subtitle_lines ?? 2));
-        if (settings.subtitle_color) {
-            formData.append('subtitle_color', settings.subtitle_color);
+        formData.append('transcribe_tier', normalizedSettings.transcribe_tier);
+        formData.append('transcribe_provider', normalizedSettings.transcribe_provider);
+        formData.append('openai_model', normalizedSettings.openai_model);
+        formData.append('video_quality', normalizedSettings.video_quality);
+        formData.append('video_resolution', normalizedSettings.video_resolution);
+        formData.append('use_llm', String(normalizedSettings.use_llm));
+        formData.append('context_prompt', normalizedSettings.context_prompt);
+        formData.append('subtitle_position', String(normalizedSettings.subtitle_position));
+        formData.append('max_subtitle_lines', String(normalizedSettings.max_subtitle_lines));
+        if (normalizedSettings.subtitle_color) {
+            formData.append('subtitle_color', normalizedSettings.subtitle_color);
         }
-        if (settings.shadow_strength !== undefined) {
-            formData.append('shadow_strength', String(settings.shadow_strength));
-        }
-        if (settings.highlight_style) {
-            formData.append('highlight_style', settings.highlight_style);
-        }
-        formData.append('subtitle_size', String(settings.subtitle_size ?? 100));
-        formData.append('karaoke_enabled', String(settings.karaoke_enabled ?? true));
-        formData.append('watermark_enabled', String(settings.watermark_enabled ?? false));
+        formData.append('shadow_strength', String(normalizedSettings.shadow_strength));
+        formData.append('highlight_style', normalizedSettings.highlight_style);
+        formData.append('subtitle_size', String(normalizedSettings.subtitle_size));
+        formData.append('karaoke_enabled', String(normalizedSettings.karaoke_enabled));
+        formData.append('watermark_enabled', String(normalizedSettings.watermark_enabled));
 
-        return this.uploadFormData<JobResponse>('/videos/process', formData, callbacks);
+        return this.uploadBody<JobResponse>('/videos/process', formData, callbacks);
     }
 
     async createGcsUploadUrl(file: File): Promise<GcsUploadUrlResponse> {

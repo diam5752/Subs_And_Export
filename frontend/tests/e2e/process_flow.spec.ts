@@ -49,7 +49,7 @@ test.describe('Video Processing Flow', () => {
 
         // Override job creation to return a specific ID
         let processRequests = 0;
-        await page.route('**/videos/process', async route => {
+        await page.route('**/videos/process*', async route => {
             processRequests += 1;
             const json = {
                 id: 'job-123',
@@ -155,7 +155,8 @@ test.describe('Video Processing Flow', () => {
         expect(processRequests).toBe(0);
 
         const processRequest = page.waitForRequest(
-            request => request.method() === 'POST' && request.url().endsWith('/videos/process'),
+            request => request.method() === 'POST'
+                && /\/videos\/process(?:-stream)?$/.test(request.url()),
         );
         await costDialog.getByRole('button', {
             name: new RegExp(el.processingGateConfirm.replace('{cost}', '\\d+')),
@@ -167,6 +168,21 @@ test.describe('Video Processing Flow', () => {
         // Once completed, the SRT export button should appear in PreviewSection
         await expect(page.getByTestId('srt-btn')).toBeVisible({ timeout: 25000 });
         expect(pollCount).toBeGreaterThanOrEqual(3);
+
+        await page.setViewportSize({ width: 390, height: 844 });
+        const phone = page.getByTestId('editor-phone');
+        const previewVideo = phone.locator('video');
+        const previewControls = page.getByTestId('editor-preview-controls');
+        expect(await previewVideo.getAttribute('controls')).toBeNull();
+        await expect(previewControls).toBeVisible();
+        const phoneBox = await phone.boundingBox();
+        const controlsBox = await previewControls.boundingBox();
+        expect(phoneBox).not.toBeNull();
+        expect(controlsBox).not.toBeNull();
+        expect(controlsBox!.y).toBeGreaterThanOrEqual(phoneBox!.y + phoneBox!.height);
+        expect(await page.evaluate(
+            () => document.documentElement.scrollWidth <= window.innerWidth,
+        )).toBe(true);
 
         // 5. Check Download Options
         await expect(page.getByTestId('download-1080p-btn')).toBeVisible();
@@ -203,7 +219,7 @@ test.describe('Video Processing Flow', () => {
         test.setTimeout(60_000);
         await mockApi(page);
         let processRequests = 0;
-        await page.route('**/videos/process', async route => {
+        await page.route('**/videos/process*', async route => {
             processRequests += 1;
             // Playwright route interception can bypass Chromium's emulated
             // upload throughput. Keep the XHR pending long enough to assert
@@ -238,7 +254,8 @@ test.describe('Video Processing Flow', () => {
         });
         await expect(costDialog).toBeVisible();
         const processRequest = page.waitForRequest(
-            request => request.method() === 'POST' && request.url().endsWith('/videos/process'),
+            request => request.method() === 'POST'
+                && /\/videos\/process(?:-stream)?$/.test(request.url()),
         );
         const cdp = await page.context().newCDPSession(page);
         await cdp.send('Network.enable');
@@ -273,15 +290,19 @@ test.describe('Video Processing Flow', () => {
 
         const request = await processRequest;
         // REGRESSION: fetch-based uploads could not expose browser upload
-        // progress, while XHR exposes both progress and abort hooks.
+        // progress, while multipart uploads forced the server to spool and
+        // copy the complete file before processing could begin.
         expect(request.resourceType()).toBe('xhr');
+        expect(request.url()).toMatch(/\/videos\/process-stream$/);
+        expect(request.headers()['content-type']).toContain('video/mp4');
+        expect(request.headers()['x-gsubs-upload-metadata']).toBeTruthy();
         await expect.poll(() => processRequests).toBe(1);
     });
 
     test('guest keeps the uploaded file through login and sees cost before start', async ({ page }) => {
         await mockApi(page, { authenticated: false });
         let processRequests = 0;
-        await page.route('**/videos/process', async route => {
+        await page.route('**/videos/process*', async route => {
             processRequests += 1;
             await route.fulfill({
                 json: {
@@ -328,7 +349,8 @@ test.describe('Video Processing Flow', () => {
         expect(processRequests).toBe(0);
 
         const processRequest = page.waitForRequest(
-            request => request.method() === 'POST' && request.url().endsWith('/videos/process'),
+            request => request.method() === 'POST'
+                && /\/videos\/process(?:-stream)?$/.test(request.url()),
         );
         await page.getByRole('dialog', { name: el.processingGateCostTitle }).getByRole('button', {
             name: new RegExp(el.processingGateConfirm.replace('{cost}', '\\d+')),

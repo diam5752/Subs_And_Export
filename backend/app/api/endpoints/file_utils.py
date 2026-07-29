@@ -9,7 +9,9 @@ import shutil
 import unicodedata
 from pathlib import Path
 
+import anyio
 from fastapi import HTTPException, UploadFile
+from starlette.requests import Request
 
 from ...core.cleanup import ensure_storage_capacity, run_configured_retention
 from ...core.config import settings
@@ -108,6 +110,44 @@ def save_upload_with_limit(upload: UploadFile, destination: Path) -> None:
     if total == 0:
         destination.unlink(missing_ok=True)
         raise HTTPException(status_code=400, detail="Empty upload")
+
+
+async def save_request_stream_with_limit(
+    request: Request,
+    destination: Path,
+    *,
+    expected_size: int | None,
+) -> int:
+    """Stream a raw request body directly to disk with a strict size limit.
+
+    Unlike ``UploadFile``, this path does not ask Starlette to spool the full
+    multipart body before copying it into the application's upload directory.
+    """
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    total = 0
+    try:
+        async with await anyio.open_file(destination, "wb") as buffer:
+            async for chunk in request.stream():
+                if not chunk:
+                    continue
+                total += len(chunk)
+                if total > MAX_UPLOAD_BYTES:
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"File too large; limit is {settings.max_upload_mb}MB",
+                    )
+                await buffer.write(chunk)
+    except BaseException:
+        destination.unlink(missing_ok=True)
+        raise
+
+    if total == 0:
+        destination.unlink(missing_ok=True)
+        raise HTTPException(status_code=400, detail="Empty upload")
+    if expected_size is not None and total != expected_size:
+        destination.unlink(missing_ok=True)
+        raise HTTPException(status_code=400, detail="Incomplete upload")
+    return total
 
 
 def require_storage_capacity(

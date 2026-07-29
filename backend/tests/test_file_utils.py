@@ -1,8 +1,87 @@
 from pathlib import Path
 
+import anyio
 import pytest
+from fastapi import HTTPException
+from starlette.requests import Request
 
 from backend.app.api.endpoints import file_utils
+
+
+def _streaming_request(chunks: list[bytes]) -> Request:
+    pending = list(chunks)
+
+    async def receive() -> dict[str, object]:
+        body = pending.pop(0) if pending else b""
+        return {
+            "type": "http.request",
+            "body": body,
+            "more_body": bool(pending),
+        }
+
+    return Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/videos/process-stream",
+            "headers": [],
+        },
+        receive,
+    )
+
+
+def test_save_request_stream_removes_incomplete_upload(tmp_path: Path) -> None:
+    destination = tmp_path / "upload.mp4"
+
+    async def run() -> None:
+        with pytest.raises(HTTPException) as exc_info:
+            await file_utils.save_request_stream_with_limit(
+                _streaming_request([b"abc"]),
+                destination,
+                expected_size=4,
+            )
+        assert exc_info.value.status_code == 400
+        assert exc_info.value.detail == "Incomplete upload"
+
+    anyio.run(run)
+    assert not destination.exists()
+
+
+def test_save_request_stream_enforces_limit_while_receiving(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    destination = tmp_path / "upload.mp4"
+    monkeypatch.setattr(file_utils, "MAX_UPLOAD_BYTES", 3)
+
+    async def run() -> None:
+        with pytest.raises(HTTPException) as exc_info:
+            await file_utils.save_request_stream_with_limit(
+                _streaming_request([b"ab", b"cd"]),
+                destination,
+                expected_size=None,
+            )
+        assert exc_info.value.status_code == 413
+
+    anyio.run(run)
+    assert not destination.exists()
+
+
+def test_save_request_stream_rejects_empty_body(tmp_path: Path) -> None:
+    destination = tmp_path / "upload.mp4"
+
+    async def run() -> None:
+        with pytest.raises(HTTPException) as exc_info:
+            await file_utils.save_request_stream_with_limit(
+                _streaming_request([]),
+                destination,
+                expected_size=None,
+            )
+        assert exc_info.value.status_code == 400
+        assert exc_info.value.detail == "Empty upload"
+
+    anyio.run(run)
+    assert not destination.exists()
 
 
 def test_link_or_copy_file_uses_hard_link_when_available(tmp_path: Path) -> None:

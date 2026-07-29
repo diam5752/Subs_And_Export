@@ -27,12 +27,18 @@ jest.mock('@/components/PreviewPlayer', () => ({
             videoUrl,
             cues,
             onTimeUpdate,
+            onPlaybackStatusChange,
             subtitleEditor,
             subtitleTransformControls,
         }: {
             videoUrl: string;
             cues: Array<{ text: string }>;
             onTimeUpdate?: (time: number) => void;
+            onPlaybackStatusChange?: (status: {
+                duration: number;
+                isPlaying: boolean;
+                isMuted: boolean;
+            }) => void;
             subtitleEditor?: {
                 cues: Array<{ text: string }>;
                 onBeginEdit: (index: number) => void;
@@ -44,7 +50,12 @@ jest.mock('@/components/PreviewPlayer', () => ({
         },
         ref,
     ) {
-        void ref;
+        React.useImperativeHandle(ref, () => ({
+            seekTo: mockSeekTo,
+            pause: jest.fn(),
+            togglePlayback: mockTogglePlayback,
+            toggleMuted: mockToggleMuted,
+        }));
         return (
             <div>
                 <button type="button" data-testid="preview-player" onClick={() => onTimeUpdate?.(12.5)}>
@@ -72,10 +83,25 @@ jest.mock('@/components/PreviewPlayer', () => ({
                 >
                     resize-on-video
                 </button>
+                <button
+                    type="button"
+                    data-testid="playback-status-bridge"
+                    onClick={() => onPlaybackStatusChange?.({
+                        duration: 30,
+                        isPlaying: true,
+                        isMuted: false,
+                    })}
+                >
+                    playback-status
+                </button>
             </div>
         );
     }),
 }));
+
+const mockSeekTo = jest.fn();
+const mockTogglePlayback = jest.fn();
+const mockToggleMuted = jest.fn();
 
 jest.mock('../Sidebar', () => ({
     Sidebar: () => <div data-testid="sidebar">sidebar</div>,
@@ -166,7 +192,7 @@ describe('PreviewSection', () => {
         jest.clearAllMocks();
         contextValue = buildContext();
         (useProcessContext as jest.Mock).mockImplementation(() => contextValue);
-        (usePlaybackContext as jest.Mock).mockReturnValue({ setCurrentTime });
+        (usePlaybackContext as jest.Mock).mockReturnValue({ currentTime: 0, setCurrentTime });
         window.scrollTo = jest.fn();
     });
 
@@ -201,6 +227,21 @@ describe('PreviewSection', () => {
         expect(contextValue.setSubtitlePosition).toHaveBeenCalledWith(42);
         expect(contextValue.setSubtitleSize).toHaveBeenCalledWith(115);
         expect(screen.getByText('subtitleDirectManipulationHint')).toBeInTheDocument();
+
+        // REGRESSION: playback controls must live outside the phone viewport so
+        // mobile browser chrome can never cover editable subtitles.
+        const playbackControls = screen.getByTestId('editor-preview-controls');
+        fireEvent.click(within(playbackControls).getByRole('button', { name: 'playPreview' }));
+        expect(mockTogglePlayback).toHaveBeenCalledTimes(1);
+        fireEvent.click(within(playbackControls).getByRole('button', { name: 'mutePreview' }));
+        expect(mockToggleMuted).toHaveBeenCalledTimes(1);
+        fireEvent.click(screen.getByTestId('playback-status-bridge'));
+        expect(within(playbackControls).getByRole('button', { name: 'pausePreview' })).toBeInTheDocument();
+        fireEvent.change(within(playbackControls).getByRole('slider', { name: 'seekVideo' }), {
+            target: { value: '7.5' },
+        });
+        expect(mockSeekTo).toHaveBeenCalledWith(7.5);
+        expect(setCurrentTime).toHaveBeenCalledWith(7.5);
 
         fireEvent.click(screen.getByTestId('srt-btn'));
         fireEvent.click(screen.getByTestId('vtt-btn'));

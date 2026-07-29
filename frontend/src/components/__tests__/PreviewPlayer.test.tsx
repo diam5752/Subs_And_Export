@@ -152,6 +152,39 @@ describe('PreviewPlayer', () => {
         expect(video.pause).toHaveBeenCalled();
     });
 
+    it('keeps native mobile controls disabled and exposes unobtrusive custom playback actions', () => {
+        // REGRESSION: iOS Safari's native transport overlay covered the
+        // subtitles with play, skip, volume, and progress controls.
+        const playerRef = React.createRef<PreviewPlayerHandle>();
+        const onPlaybackStatusChange = jest.fn();
+        const { container } = render(
+            <PreviewPlayer
+                {...baseProps}
+                ref={playerRef}
+                playbackToggleLabel="Toggle preview"
+                onPlaybackStatusChange={onPlaybackStatusChange}
+            />,
+        );
+
+        const video = container.querySelector('video') as HTMLVideoElement;
+        expect(video).not.toHaveAttribute('controls');
+        expect(video).toHaveAttribute('playsinline');
+        expect(video).toHaveAttribute('preload', 'metadata');
+        expect(video).toHaveAttribute('aria-label', 'Toggle preview');
+        expect(video).toHaveAttribute('disablepictureinpicture');
+
+        fireEvent.click(video);
+        expect(video.play).toHaveBeenCalled();
+
+        act(() => {
+            playerRef.current?.toggleMuted();
+        });
+        expect(video.muted).toBe(true);
+
+        fireEvent.play(video);
+        expect(onPlaybackStatusChange).toHaveBeenCalled();
+    });
+
     it('pauses playback and maps the visible subtitle to its editable source cue', () => {
         const onBeginEdit = jest.fn();
         const cue = {

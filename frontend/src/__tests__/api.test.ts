@@ -536,9 +536,21 @@ describe('API Client', () => {
 
             expect(xhrMock.open).toHaveBeenCalledWith(
                 'POST',
-                expect.stringContaining('/videos/process'),
+                expect.stringContaining('/videos/process-stream'),
             );
-            expect(xhrMock.send).toHaveBeenCalledWith(expect.any(FormData));
+            expect(xhrMock.send).toHaveBeenCalledWith(file);
+            expect(xhrMock.setRequestHeader).toHaveBeenCalledWith('Content-Type', 'video/mp4');
+            const metadataHeader = xhrMock.setRequestHeader.mock.calls.find(
+                ([name]) => name === 'X-Gsubs-Upload-Metadata',
+            )?.[1] as string;
+            const metadata = JSON.parse(
+                Buffer.from(metadataHeader, 'base64').toString('utf8'),
+            ) as Record<string, unknown>;
+            expect(metadata).toEqual(expect.objectContaining({
+                filename: 'test.mp4',
+                transcribe_tier: 'standard',
+                video_quality: 'high',
+            }));
             expect(onProgress).toHaveBeenCalledWith(51);
             expect(onUploadComplete).toHaveBeenCalledTimes(1);
             expect(result.id).toBe('job-123');
@@ -553,16 +565,44 @@ describe('API Client', () => {
 
             xhrMock.onload?.();
             await promise;
-            const formData = xhrMock.send.mock.calls[0][0] as FormData;
+            const metadataHeader = xhrMock.setRequestHeader.mock.calls.find(
+                ([name]) => name === 'X-Gsubs-Upload-Metadata',
+            )?.[1] as string;
+            const metadata = JSON.parse(
+                Buffer.from(metadataHeader, 'base64').toString('utf8'),
+            ) as Record<string, unknown>;
 
             // Check defaults
-            expect(formData.get('transcribe_tier')).toBe('standard');
-            expect(formData.get('transcribe_provider')).toBe('mock');
-            expect(formData.get('video_quality')).toBe('balanced');
-            expect(formData.get('subtitle_position')).toBe('16');
-            expect(formData.get('max_subtitle_lines')).toBe('2');
-            expect(formData.get('subtitle_size')).toBe('100');
-            expect(formData.get('karaoke_enabled')).toBe('true');
+            expect(metadata.transcribe_tier).toBe('standard');
+            expect(metadata.transcribe_provider).toBe('mock');
+            expect(metadata.video_quality).toBe('balanced');
+            expect(metadata.subtitle_position).toBe(16);
+            expect(metadata.max_subtitle_lines).toBe(2);
+            expect(metadata.subtitle_size).toBe(100);
+            expect(metadata.karaoke_enabled).toBe(true);
+        });
+
+        it('falls back to multipart when metadata cannot safely fit in a request header', async () => {
+            const mockResponse = { id: 'job-fallback', status: 'pending', progress: 0, message: null, created_at: Date.now(), updated_at: Date.now(), result_data: null };
+            const xhrMock = installProcessXhr(200, mockResponse);
+            const { api } = await import('@/lib/api');
+            const file = new File(['video'], 'fallback.mp4', { type: 'video/mp4' });
+            const promise = api.processVideo(file, {
+                context_prompt: 'α'.repeat(5000),
+            });
+
+            xhrMock.onload?.();
+            await promise;
+
+            expect(xhrMock.open).toHaveBeenCalledWith(
+                'POST',
+                expect.stringContaining('/videos/process'),
+            );
+            expect(xhrMock.open).not.toHaveBeenCalledWith(
+                'POST',
+                expect.stringContaining('/videos/process-stream'),
+            );
+            expect(xhrMock.send).toHaveBeenCalledWith(expect.any(FormData));
         });
 
         it('aborts an in-flight upload without starting a second request', async () => {

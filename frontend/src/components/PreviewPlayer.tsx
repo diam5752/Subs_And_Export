@@ -12,6 +12,14 @@ import { BRAND } from '@/lib/brand';
 export interface PreviewPlayerHandle {
     seekTo: (time: number) => void;
     pause: () => void;
+    togglePlayback: () => void;
+    toggleMuted: () => void;
+}
+
+export interface PreviewPlaybackStatus {
+    duration: number;
+    isPlaying: boolean;
+    isMuted: boolean;
 }
 
 export interface InlineSubtitleEditorConfig {
@@ -46,6 +54,8 @@ interface PreviewPlayerProps {
     initialTime?: number;
     subtitleEditor?: InlineSubtitleEditorConfig;
     subtitleTransformControls?: SubtitleTransformConfig;
+    playbackToggleLabel?: string;
+    onPlaybackStatusChange?: (status: PreviewPlaybackStatus) => void;
 }
 
 type VideoWithFrameCallback = HTMLVideoElement & {
@@ -63,6 +73,8 @@ export const PreviewPlayer = memo(forwardRef<PreviewPlayerHandle, PreviewPlayerP
     initialTime = 0,
     subtitleEditor,
     subtitleTransformControls,
+    playbackToggleLabel = 'Toggle video playback',
+    onPlaybackStatusChange,
 }, ref) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -72,6 +84,39 @@ export const PreviewPlayer = memo(forwardRef<PreviewPlayerHandle, PreviewPlayerP
     const frameCallbackIdRef = useRef<number | null>(null);
     const frameCallbackVideoRef = useRef<VideoWithFrameCallback | null>(null);
     const isTimeSyncRunningRef = useRef(false);
+
+    const reportPlaybackStatus = useCallback(() => {
+        const video = videoRef.current;
+        if (!video || !onPlaybackStatusChange) return;
+        onPlaybackStatusChange({
+            duration: Number.isFinite(video.duration) ? video.duration : 0,
+            isPlaying: !video.paused && !video.ended,
+            isMuted: video.muted,
+        });
+    }, [onPlaybackStatusChange]);
+
+    const togglePlayback = useCallback(() => {
+        const video = videoRef.current;
+        if (!video) return;
+        if (video.paused || video.ended) {
+            if (video.ended) {
+                video.currentTime = 0;
+                setCurrentTime(0);
+            }
+            void video.play().catch(() => {
+                reportPlaybackStatus();
+            });
+            return;
+        }
+        video.pause();
+    }, [reportPlaybackStatus]);
+
+    const toggleMuted = useCallback(() => {
+        const video = videoRef.current;
+        if (!video) return;
+        video.muted = !video.muted;
+        reportPlaybackStatus();
+    }, [reportPlaybackStatus]);
 
     const pauseForSubtitleInteraction = useCallback(() => {
         const video = videoRef.current;
@@ -92,7 +137,9 @@ export const PreviewPlayer = memo(forwardRef<PreviewPlayerHandle, PreviewPlayerP
             videoRef.current.pause();
             setCurrentTime(videoRef.current.currentTime);
         },
-    }));
+        togglePlayback,
+        toggleMuted,
+    }), [toggleMuted, togglePlayback]);
 
     const editableCues = subtitleEditor?.cues;
     const activeEditableCueIndex = useMemo(() => {
@@ -258,23 +305,33 @@ export const PreviewPlayer = memo(forwardRef<PreviewPlayerHandle, PreviewPlayerP
         const video = videoRef.current as VideoWithFrameCallback | null;
         if (!video) return;
 
-        const handlePlay = () => startHighResTimeSync();
+        const handlePlay = () => {
+            startHighResTimeSync();
+            reportPlaybackStatus();
+        };
         const handlePause = () => {
             setCurrentTime(video.currentTime);
             stopHighResTimeSync();
+            reportPlaybackStatus();
         };
         const handleSeeked = () => setCurrentTime(video.currentTime);
         const handleEnded = () => {
             setCurrentTime(video.currentTime);
             stopHighResTimeSync();
+            reportPlaybackStatus();
         };
+        const handleDurationChange = () => reportPlaybackStatus();
+        const handleVolumeChange = () => reportPlaybackStatus();
 
         video.addEventListener('play', handlePlay);
         video.addEventListener('pause', handlePause);
         video.addEventListener('seeked', handleSeeked);
         video.addEventListener('ended', handleEnded);
+        video.addEventListener('durationchange', handleDurationChange);
+        video.addEventListener('volumechange', handleVolumeChange);
 
         if (!video.paused && !video.ended) startHighResTimeSync();
+        reportPlaybackStatus();
 
         return () => {
             stopHighResTimeSync();
@@ -282,8 +339,10 @@ export const PreviewPlayer = memo(forwardRef<PreviewPlayerHandle, PreviewPlayerP
             video.removeEventListener('pause', handlePause);
             video.removeEventListener('seeked', handleSeeked);
             video.removeEventListener('ended', handleEnded);
+            video.removeEventListener('durationchange', handleDurationChange);
+            video.removeEventListener('volumechange', handleVolumeChange);
         };
-    }, [startHighResTimeSync, stopHighResTimeSync]);
+    }, [reportPlaybackStatus, startHighResTimeSync, stopHighResTimeSync]);
 
     // OPTIMIZATION: Removed redundant re-segmentation logic.
     // The cues passed to PreviewPlayer are expected to be already processed/segmented
@@ -297,9 +356,21 @@ export const PreviewPlayer = memo(forwardRef<PreviewPlayerHandle, PreviewPlayerP
             <video
                 ref={videoRef}
                 src={videoUrl}
-                className="w-full h-full object-contain"
-                controls
+                className="preview-video h-full w-full cursor-pointer object-contain"
                 playsInline
+                preload="metadata"
+                disablePictureInPicture
+                controlsList="nodownload noplaybackrate noremoteplayback"
+                role="button"
+                tabIndex={0}
+                aria-label={playbackToggleLabel}
+                onClick={togglePlayback}
+                onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        togglePlayback();
+                    }
+                }}
                 onTimeUpdate={handleTimeUpdate}
                 onLoadedMetadata={() => {
                     updateContentRect();
@@ -309,6 +380,7 @@ export const PreviewPlayer = memo(forwardRef<PreviewPlayerHandle, PreviewPlayerP
                         }
                         setCurrentTime(videoRef.current.currentTime);
                     }
+                    reportPlaybackStatus();
                 }}
             />
 

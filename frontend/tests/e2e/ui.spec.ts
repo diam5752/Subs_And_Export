@@ -146,6 +146,9 @@ test('completed editor remains readable across the responsive viewport matrix', 
         preview: bounds('[data-testid="editor-preview-panel"]'),
         phone: bounds('[data-testid="editor-phone"]'),
         sidebar: bounds('[data-testid="editor-sidebar"]'),
+        tabsSticky: bounds('.editor-tabs-sticky'),
+        transcriptList: bounds('.editor-transcript-list'),
+        firstCueIdCount: document.querySelectorAll('#cue-0').length,
         exportPanel: bounds('.editor-export-panel'),
         videoExportGroup: bounds('[data-testid="video-export-group"]'),
         subtitleExportGroup: bounds('[data-testid="subtitle-export-group"]'),
@@ -174,6 +177,11 @@ test('completed editor remains readable across the responsive viewport matrix', 
     expect(metrics.subtitleExportGroup.right, `${viewport.width}px subtitle export containment`).toBeLessThanOrEqual(metrics.exportPanel.right + 1);
     expect(metrics.phone.width, `${viewport.width}px phone width`).toBeGreaterThanOrEqual(190);
     expect(metrics.phone.width, `${viewport.width}px phone width`).toBeLessThanOrEqual(280);
+    // REGRESSION: the sticky tab header overlapped the beginning of the
+    // transcript, clipping the timestamp and first subtitle row.
+    expect(metrics.transcriptList.y, `${viewport.width}px transcript below sticky tabs`)
+      .toBeGreaterThanOrEqual(metrics.tabsSticky.bottom - 1);
+    expect(metrics.firstCueIdCount, `${viewport.width}px unique first cue id`).toBe(1);
 
     for (const action of [...metrics.exportActions, ...metrics.tabs, metrics.newVideo]) {
       expect(action.height, `${viewport.width}px touch target height`).toBeGreaterThanOrEqual(44);

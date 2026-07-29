@@ -1,7 +1,98 @@
+import base64
+import json
+
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from backend.main import app
+
+
+def _stream_upload_headers(
+    auth_headers: dict[str, str],
+    metadata: dict[str, object],
+    *,
+    content_type: str = "video/mp4",
+) -> dict[str, str]:
+    encoded_metadata = base64.b64encode(
+        json.dumps(metadata, ensure_ascii=False).encode("utf-8"),
+    ).decode("ascii")
+    return {
+        **auth_headers,
+        "Content-Type": content_type,
+        "X-Gsubs-Upload-Metadata": encoded_metadata,
+    }
+
+
+def test_stream_upload_writes_the_browser_body_directly_once(
+    client: TestClient,
+    user_auth_headers: dict[str, str],
+    monkeypatch,
+) -> None:
+    from backend.app.api.endpoints import videos as videos_module
+
+    captured: dict[str, object] = {}
+
+    def capture_processing(_job_id, input_path, *_args, **_kwargs) -> None:
+        captured["path"] = input_path
+        captured["content"] = input_path.read_bytes()
+
+    monkeypatch.setattr(videos_module, "run_video_processing", capture_processing)
+    raw_video = b"direct-stream-video"
+
+    response = client.post(
+        "/videos/process-stream",
+        headers=_stream_upload_headers(
+            user_auth_headers,
+            {
+                "filename": "κινητό.mp4",
+                "transcribe_tier": "standard",
+                "transcribe_provider": "mock",
+            },
+        ),
+        content=raw_video,
+    )
+
+    # REGRESSION: multipart parsing first spooled the complete request and then
+    # copied it again. The optimized route streams the raw browser body into
+    # the canonical upload path consumed by processing.
+    assert response.status_code == 200
+    assert captured["content"] == raw_video
+    assert str(captured["path"]).endswith("_input.mp4")
+
+
+def test_stream_upload_rejects_invalid_metadata_before_writing(
+    client: TestClient,
+    user_auth_headers: dict[str, str],
+) -> None:
+    response = client.post(
+        "/videos/process-stream",
+        headers={
+            **user_auth_headers,
+            "Content-Type": "video/mp4",
+            "X-Gsubs-Upload-Metadata": "not-base64",
+        },
+        content=b"video",
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid upload metadata"
+
+
+def test_stream_upload_cors_preflight_allows_metadata_header(client: TestClient) -> None:
+    response = client.options(
+        "/videos/process-stream",
+        headers={
+            "Origin": "http://localhost:3000",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": (
+                "authorization,content-type,x-gsubs-upload-metadata"
+            ),
+        },
+    )
+
+    assert response.status_code == 200
+    allowed_headers = response.headers["access-control-allow-headers"].lower()
+    assert "x-gsubs-upload-metadata" in allowed_headers
 
 
 def test_upload_limit_exceeded(client: TestClient, user_auth_headers: dict, monkeypatch):

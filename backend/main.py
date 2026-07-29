@@ -118,7 +118,13 @@ app.add_middleware(
     allow_origins=origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "Idempotency-Key", "Stripe-Signature"],
+    allow_headers=[
+        "Authorization",
+        "Content-Type",
+        "Idempotency-Key",
+        "Stripe-Signature",
+        "X-Gsubs-Upload-Metadata",
+    ],
 )
 
 # Enable GZip compression for responses > 1000 bytes

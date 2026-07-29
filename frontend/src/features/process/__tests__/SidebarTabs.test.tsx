@@ -76,6 +76,29 @@ describe('Sidebar Tabs', () => {
         });
     });
 
+    it('renders one unique scroll anchor for each transcript cue', () => {
+        Object.defineProperty(HTMLElement.prototype, 'scrollTo', {
+            configurable: true,
+            value: jest.fn(),
+        });
+        (useProcessContext as jest.Mock).mockReturnValue({
+            ...mockContextValue,
+            cues: [{ start: 0, end: 1, text: 'First subtitle' }],
+        });
+
+        const { container } = render(
+            <I18nProvider initialLocale="en">
+                <PlaybackProvider>
+                    <Sidebar />
+                </PlaybackProvider>
+            </I18nProvider>
+        );
+
+        // REGRESSION: nested duplicate cue ids made active-cue scrolling
+        // target an ambiguous element inside the clipped transcript region.
+        expect(container.querySelectorAll('#cue-0')).toHaveLength(1);
+    });
+
     it('switches to intelligence tab when clicked', () => {
         const setActiveSidebarTab = jest.fn();
         (useProcessContext as jest.Mock).mockReturnValue({

@@ -368,7 +368,7 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
     });
   });
 
-  await page.route('**/videos/process', async (route) => {
+  await page.route('**/videos/process*', async (route) => {
     if (await shortCircuitOptions(route)) return;
     if (!signedIn) {
       await route.fulfill(unauthorizedResponse);
