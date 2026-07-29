@@ -57,8 +57,13 @@ browsers register the local service worker automatically.
 
 ```bash
 make check-fast
-make check-all
+make ci
 ```
+
+`make ci` is the canonical local and GitHub entrypoint. It creates a unique
+temporary PostgreSQL database for the run, executes the complete `check-all`
+contract, and drops the database even when a gate fails. `make check-all`
+remains an equivalent alias.
 
 Individual checks:
 

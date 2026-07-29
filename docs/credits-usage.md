@@ -389,7 +389,7 @@ submitting.
 
 ```bash
 # Canonical release gates, from the repository root
-make check-all
+make ci
 (cd frontend && npm run build)
 
 # Focused billing regression suite for iteration
@@ -408,11 +408,13 @@ python3 -m pytest --no-cov backend/tests/services/test_billing.py \
   backend/tests/test_billing_endpoints.py -q
 ```
 
-`make check-all` runs the repository contract, strict static analysis, backend
+`make ci` (and its `make check-all` alias) creates a disposable PostgreSQL
+database, then runs the repository contract, strict static analysis, backend
 and frontend coverage suites, integration and real-media export tests,
 architecture and Java 25 checks, dependency/security audits, and Playwright
-E2E. The Playwright gate builds and serves the production Next.js bundle so
-browser checks cannot be disrupted by development-server HMR.
+E2E. The database is dropped after success or failure, so stale local fixtures
+cannot change the result. The Playwright gate builds and serves the production
+Next.js bundle so browser checks cannot be disrupted by development-server HMR.
 
 Migrations `0008_video_credits_and_billing`,
 `0009_reversal_debt_audit`, `0010_unique_payment_intent` and
