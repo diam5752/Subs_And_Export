@@ -42,6 +42,10 @@ describe('CueItem', () => {
         // So it should be 0:13
         expect(screen.getByText('0:13')).toBeInTheDocument();
         expect(screen.getByText('Hello world')).toBeInTheDocument();
+        expect(screen.getByLabelText('jumpToTime')).toHaveClass('cue-time-button');
+        expect(screen.getByLabelText('jumpToCue')).toHaveClass('cue-text-button');
+        expect(screen.getByRole('button', { name: /transcriptEditAtTime/i }))
+            .toHaveClass('cue-edit-button');
 
         // Check accessibility labels
         // The mock t function returns the key, so we check for 'jumpToTime'
@@ -65,6 +69,8 @@ describe('CueItem', () => {
 
         expect(screen.getByLabelText('transcriptSave')).toBeInTheDocument();
         expect(screen.getByLabelText('transcriptCancel')).toBeInTheDocument();
+        expect(screen.getByLabelText('transcriptSave')).toHaveClass('cue-form-action');
+        expect(screen.getByLabelText('transcriptCancel')).toHaveClass('cue-form-action');
     });
 
     it('shows loading state when saving', () => {
@@ -87,7 +93,7 @@ describe('CueItem', () => {
     it('calls onEdit when edit button clicked', () => {
         render(<CueItem {...defaultProps} />);
 
-        fireEvent.click(screen.getByRole('button', { name: /transcriptEdit/i }));
+        fireEvent.click(screen.getByRole('button', { name: /transcriptEditAtTime/i }));
         expect(defaultProps.onEdit).toHaveBeenCalledWith(0);
     });
 
@@ -120,7 +126,7 @@ describe('CueItem', () => {
         rerender(<CueItem {...defaultProps} />);
 
         await waitFor(() => {
-            expect(screen.getByRole('button', { name: /transcriptEdit/i })).toHaveFocus();
+            expect(screen.getByRole('button', { name: /transcriptEditAtTime/i })).toHaveFocus();
         });
     });
 
@@ -129,6 +135,6 @@ describe('CueItem', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'jumpToCue' }));
         expect(defaultProps.onSeek).toHaveBeenCalledWith(12.5);
-        expect(screen.getByRole('button', { name: /transcriptEdit/i })).toBeDisabled();
+        expect(screen.getByRole('button', { name: /transcriptEditAtTime/i })).toBeDisabled();
     });
 });

@@ -139,7 +139,13 @@ test('completed editor remains readable across the responsive viewport matrix', 
       return {
         documentOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
         intro: bounds('[data-testid="studio-intro"]'),
+        introDisplay: getComputedStyle(
+          document.querySelector<HTMLElement>('[data-testid="studio-intro"]')!,
+        ).display,
         stepper: bounds('[data-testid="workflow-stepper"]'),
+        stepperDisplay: getComputedStyle(
+          document.querySelector<HTMLElement>('[data-testid="workflow-stepper"]')!,
+        ).display,
         section: bounds('#preview-section'),
         duplicateStepHeaders: document.querySelectorAll('.editor-step-toggle').length,
         previewMetaCount: document.querySelectorAll('.editor-preview-meta').length,
@@ -157,6 +163,23 @@ test('completed editor remains readable across the responsive viewport matrix', 
         newVideo: bounds('.editor-new-video'),
         exportTrigger: bounds('.editor-export-trigger'),
         persistentExportPanels: document.querySelectorAll('.editor-export-panel').length,
+        headerActions: [
+          bounds('.language-toggle'),
+          bounds('.studio-credit-balance'),
+          bounds('.profile-trigger'),
+        ],
+        cueActions: Array.from(document.querySelectorAll<HTMLElement>(
+          '.cue-time-button, .cue-text-button, .cue-edit-button',
+        )).map((element) => {
+          const rect = element.getBoundingClientRect();
+          return { width: rect.width, height: rect.height };
+        }),
+        subtitleTouchSurface: (() => {
+          const trigger = document.querySelector<HTMLElement>('.subtitle-inline-trigger');
+          if (!trigger) return null;
+          const pseudo = getComputedStyle(trigger, '::before');
+          return { content: pseudo.content, top: pseudo.top, left: pseudo.left };
+        })(),
       };
     });
 
@@ -165,12 +188,14 @@ test('completed editor remains readable across the responsive viewport matrix', 
     expect(metrics.documentOverflow, `${viewport.width}px document overflow`).toBeLessThanOrEqual(1);
     expect(metrics.section.x, `${viewport.width}px section left edge`).toBeGreaterThanOrEqual(0);
     expect(metrics.section.right, `${viewport.width}px section right edge`).toBeLessThanOrEqual(viewport.width + 1);
-    expect(metrics.intro.height, `${viewport.width}px hero height`).toBeLessThanOrEqual(viewport.height * 0.34);
-    expect(metrics.stepper.bottom, `${viewport.width}px stepper order`).toBeLessThanOrEqual(metrics.section.y + 1);
+    expect(metrics.introDisplay, `${viewport.width}px completed workspace hero`).toBe('none');
+    expect(metrics.intro.height, `${viewport.width}px completed workspace hero height`).toBe(0);
     expect(metrics.duplicateStepHeaders, `${viewport.width}px duplicate step headings`).toBe(0);
     expect(metrics.previewMetaCount, `${viewport.width}px preview labels`).toBe(0);
     expect(metrics.persistentExportPanels, `${viewport.width}px persistent export panels`).toBe(0);
-    expect(metrics.phone.width, `${viewport.width}px phone width`).toBeGreaterThanOrEqual(190);
+    expect(metrics.phone.width, `${viewport.width}px phone width`).toBeGreaterThanOrEqual(
+      viewport.width <= 640 && viewport.height <= 700 ? 160 : 190,
+    );
     expect(metrics.phone.width, `${viewport.width}px phone width`).toBeLessThanOrEqual(280);
     // REGRESSION: the sticky tab header overlapped the beginning of the
     // transcript, clipping the timestamp and first subtitle row.
@@ -189,12 +214,46 @@ test('completed editor remains readable across the responsive viewport matrix', 
       expect(action.width, `${viewport.width}px touch target width`).toBeGreaterThanOrEqual(42);
     }
 
+    if (viewport.width <= 800) {
+      for (const action of metrics.headerActions) {
+        expect(action.height, `${viewport.width}px mobile header touch target height`)
+          .toBeGreaterThanOrEqual(44);
+        expect(action.width, `${viewport.width}px mobile header touch target width`)
+          .toBeGreaterThanOrEqual(44);
+      }
+      for (const action of metrics.cueActions) {
+        expect(action.height, `${viewport.width}px cue touch target height`)
+          .toBeGreaterThanOrEqual(44);
+        expect(action.width, `${viewport.width}px cue touch target width`)
+          .toBeGreaterThanOrEqual(44);
+      }
+      expect(metrics.subtitleTouchSurface, `${viewport.width}px subtitle touch surface`)
+        .toEqual(expect.objectContaining({
+          content: '""',
+          top: '-16px',
+          left: '-12px',
+        }));
+    }
+
     if (viewport.width >= 900) {
+      expect(metrics.stepperDisplay, `${viewport.width}px desktop workflow breadcrumb`)
+        .not.toBe('none');
+      expect(metrics.stepper.bottom, `${viewport.width}px stepper order`)
+        .toBeLessThanOrEqual(metrics.section.y + 1);
       expect(metrics.preview.width, `${viewport.width}px desktop preview width`).toBeGreaterThanOrEqual(278);
       expect(metrics.sidebar.width, `${viewport.width}px desktop controls width`).toBeGreaterThanOrEqual(480);
       expect(metrics.preview.right, `${viewport.width}px desktop column order`).toBeLessThanOrEqual(metrics.sidebar.x + 1);
     } else {
+      if (viewport.width <= 640) {
+        expect(metrics.stepperDisplay, `${viewport.width}px compact mobile workspace`)
+          .toBe('none');
+      } else {
+        expect(metrics.stepperDisplay, `${viewport.width}px tablet workflow breadcrumb`)
+          .not.toBe('none');
+      }
       expect(metrics.preview.bottom, `${viewport.width}px mobile preview order`).toBeLessThanOrEqual(metrics.sidebar.y + 1);
+      expect(metrics.tabsSticky.y, `${viewport.width}px editor tabs visible in first viewport`)
+        .toBeLessThan(viewport.height);
     }
 
     await page.getByRole('button', { name: el.exportMenuButton, exact: true }).click();
@@ -703,6 +762,68 @@ test('workflow labels stay aligned across upload, captions, and export', async (
   await expect(page.getByRole('heading', { name: el.customSettings })).toHaveCount(0);
 });
 
+test('mobile consent and footer stay compact, readable, and touch friendly', async ({ page }) => {
+  await page.setViewportSize({ width: 430, height: 932 });
+  await mockApi(page, { authenticated: false });
+  await page.addInitScript(() => {
+    localStorage.removeItem('cookie-consent');
+  });
+  await page.goto('/');
+  const consent = page.getByRole('dialog', { name: el.cookieTitle });
+  await expect(consent).toBeVisible();
+
+  const consentMetrics = await consent.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const card = element.firstElementChild as HTMLElement | null;
+    const buttons = Array.from(element.querySelectorAll('button')).map((button) => {
+      const buttonRect = button.getBoundingClientRect();
+      return { width: buttonRect.width, height: buttonRect.height };
+    });
+    return {
+      height: rect.height,
+      background: card ? getComputedStyle(card).backgroundColor : '',
+      buttons,
+    };
+  });
+
+  expect(consentMetrics.height).toBeLessThanOrEqual(180);
+  expect(consentMetrics.background).toBe('rgb(255, 255, 255)');
+  for (const button of consentMetrics.buttons) {
+    expect(button.width).toBeGreaterThanOrEqual(44);
+    expect(button.height).toBeGreaterThanOrEqual(44);
+  }
+  const publicHeaderActions = page.locator('.language-toggle, .guest-sign-in');
+  await expect(publicHeaderActions).toHaveCount(2);
+  for (let index = 0; index < await publicHeaderActions.count(); index += 1) {
+    const box = await publicHeaderActions.nth(index).boundingBox();
+    expect(box?.height).toBeGreaterThanOrEqual(44);
+    expect(box?.width).toBeGreaterThanOrEqual(44);
+  }
+
+  await page.getByRole('button', { name: el.cookieDecline }).click();
+  const footer = page.locator('.studio-footer');
+  await footer.scrollIntoViewIfNeeded();
+  const footerMetrics = await footer.evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    const links = Array.from(element.querySelectorAll<HTMLAnchorElement>('a')).map((link) => {
+      const linkRect = link.getBoundingClientRect();
+      return { left: linkRect.left, right: linkRect.right };
+    });
+    return {
+      direction: getComputedStyle(element).flexDirection,
+      left: rect.left,
+      right: rect.right,
+      links,
+    };
+  });
+
+  expect(footerMetrics.direction).toBe('column');
+  for (const link of footerMetrics.links) {
+    expect(link.left).toBeGreaterThanOrEqual(footerMetrics.left);
+    expect(link.right).toBeLessThanOrEqual(footerMetrics.right);
+  }
+});
+
 for (const [label, viewport] of Object.entries(viewports)) {
   test.describe(`${label} layouts`, () => {
     test.use({ viewport });
@@ -715,6 +836,17 @@ for (const [label, viewport] of Object.entries(viewports)) {
       await expectNoHorizontalOverflow(page);
       await expect(page.getByText(el.loginSubtitle)).toBeVisible();
       await expect(page.getByText(/Mock|€0/)).toHaveCount(0);
+      if (viewport.width <= 640) {
+        await expect(page.locator('.auth-promise')).toBeHidden();
+      }
+      if (viewport.width <= 800) {
+        const headerActions = page.locator('.language-toggle, .guest-sign-in');
+        for (let index = 0; index < await headerActions.count(); index += 1) {
+          const box = await headerActions.nth(index).boundingBox();
+          expect(box?.height).toBeGreaterThanOrEqual(44);
+          expect(box?.width).toBeGreaterThanOrEqual(44);
+        }
+      }
     });
 
     test('register page layout stays contained', async ({ page }) => {
@@ -725,6 +857,9 @@ for (const [label, viewport] of Object.entries(viewports)) {
       await expectNoHorizontalOverflow(page);
       await expect(page.getByText(el.registerSubtitle)).toBeVisible();
       await expect(page.getByText(/Mock|€0/)).toHaveCount(0);
+      if (viewport.width <= 640) {
+        await expect(page.locator('.auth-promise')).toBeHidden();
+      }
     });
 
     test('legal pages stay readable and contained', async ({ page }) => {
@@ -760,6 +895,11 @@ for (const [label, viewport] of Object.entries(viewports)) {
         await expectNoHorizontalOverflow(page);
         await expect(page.getByRole('link', { name: el.brandHomeLabel })).toBeVisible();
         await expect(page.getByRole('button', { name: new RegExp(el.switchLanguage.split('{')[0]) })).toBeVisible();
+        if (viewport.width <= 800) {
+          const languageBox = await page.locator('.language-toggle').boundingBox();
+          expect(languageBox?.height).toBeGreaterThanOrEqual(44);
+          expect(languageBox?.width).toBeGreaterThanOrEqual(44);
+        }
         for (const sectionHeading of legalPage.sectionHeadings) {
           await expect(page.getByRole('heading', { name: sectionHeading })).toBeVisible();
         }
@@ -830,6 +970,62 @@ for (const [label, viewport] of Object.entries(viewports)) {
       // The mock history data might not be loaded automatically, so just verify the section exists
       await expect(page.getByRole('heading', { name: el.historyTitle })).toBeVisible();
       await expect(page.getByText(el.historyExpiry)).toBeVisible();
+      if (viewport.width <= 800) {
+        const historyDialog = page.getByRole('dialog', { name: el.historyTitle });
+        const selectionBox = await page.getByRole('button', { name: el.selectMode })
+          .boundingBox();
+        expect(selectionBox?.height).toBeGreaterThanOrEqual(44);
+        expect(selectionBox?.width).toBeGreaterThanOrEqual(44);
+
+        const historyDownload = historyDialog.getByRole('link', {
+          name: new RegExp(`^${el.download} `),
+        }).first();
+        const historyView = historyDialog.getByRole('button', {
+          name: new RegExp(`^${el.view} `),
+        }).first();
+        const historyDelete = historyDialog.getByRole('button', {
+          name: new RegExp(`^${el.deleteJob} `),
+        }).first();
+        const itemActions = [historyDownload, historyView, historyDelete];
+        for (let index = 0; index < itemActions.length; index += 1) {
+          await expect(itemActions[index]).toBeVisible();
+          const box = await itemActions[index].boundingBox();
+          expect(box?.height, `history item action ${index} height`)
+            .toBeGreaterThanOrEqual(44);
+          expect(box?.width, `history item action ${index} width`)
+            .toBeGreaterThanOrEqual(44);
+        }
+        const historyCard = historyView.locator('..').locator('..');
+        const historyLayout = await historyCard.evaluate((element) => {
+          const metadata = element.firstElementChild as HTMLElement;
+          const actions = element.querySelector<HTMLElement>('.recent-job-actions')!;
+          const metadataRect = metadata.getBoundingClientRect();
+          const actionsRect = actions.getBoundingClientRect();
+          return {
+            metadataWidth: metadataRect.width,
+            metadataBottom: metadataRect.bottom,
+            actionsTop: actionsRect.top,
+          };
+        });
+        expect(historyLayout.metadataWidth).toBeGreaterThanOrEqual(240);
+        expect(historyLayout.actionsTop).toBeGreaterThanOrEqual(historyLayout.metadataBottom);
+
+        await historyDelete.click();
+        const confirmationActions = [
+          historyDialog.getByRole('button', {
+            name: new RegExp(`^${el.confirmDelete} `),
+          }),
+          historyDialog.getByRole('button', { name: el.cancel }),
+        ];
+        for (let index = 0; index < confirmationActions.length; index += 1) {
+          await expect(confirmationActions[index]).toBeVisible();
+          const box = await confirmationActions[index].boundingBox();
+          expect(box?.height, `history confirmation action ${index} height`)
+            .toBeGreaterThanOrEqual(44);
+          expect(box?.width, `history confirmation action ${index} width`)
+            .toBeGreaterThanOrEqual(44);
+        }
+      }
     });
 
     test('account settings modal keeps controls readable', async ({ page }) => {
@@ -846,6 +1042,7 @@ for (const [label, viewport] of Object.entries(viewports)) {
 
       await stabilizeUi(page);
       await expectNoHorizontalOverflow(page);
+      await expect(dialog.getByRole('button', { name: el.closeLabel })).toBeFocused();
       await expect(page.getByText(el.accountSettingsSubtitle)).toBeVisible();
       await expect(dialog.getByText(el.deleteAccountDescription)).toBeVisible();
       await dialog.getByRole('button', { name: el.deleteAccount }).click();
@@ -858,6 +1055,20 @@ for (const [label, viewport] of Object.entries(viewports)) {
       });
       expect(closeBounds.width).toBeGreaterThanOrEqual(44);
       expect(closeBounds.height).toBeGreaterThanOrEqual(44);
+      if (viewport.width <= 800) {
+        const buttons = dialog.getByRole('button');
+        for (let index = 0; index < await buttons.count(); index += 1) {
+          const box = await buttons.nth(index).boundingBox();
+          if (!box) continue;
+          expect(box.height, `account dialog button ${index} height`)
+            .toBeGreaterThanOrEqual(44);
+          expect(box.width, `account dialog button ${index} width`)
+            .toBeGreaterThanOrEqual(44);
+        }
+      }
+      await page.keyboard.press('Escape');
+      await expect(dialog).toHaveCount(0);
+      await expect(page.getByRole('button', { name: el.profileLabel })).toBeFocused();
     });
   });
 }

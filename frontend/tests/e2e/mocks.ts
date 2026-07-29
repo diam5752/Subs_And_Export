@@ -9,6 +9,7 @@ type MockJob = {
   message: string | null;
   created_at: number;
   updated_at: number;
+  expires_at?: number;
   result_data: {
     video_path: string;
     artifacts_dir: string;
@@ -77,6 +78,7 @@ const mockJobs: MockJob[] = [
     message: 'Rendered safely for mobile viewports',
     created_at: 1_714_000_000,
     updated_at: 1_714_003_600,
+    expires_at: Math.floor(Date.now() / 1000) + (24 * 60 * 60),
     result_data: {
       video_path: '/static/videos/futurist-showcase.mp4',
       artifacts_dir: '/static/artifacts/futurist-showcase.zip',

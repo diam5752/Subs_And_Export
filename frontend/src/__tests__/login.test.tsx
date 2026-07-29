@@ -166,15 +166,17 @@ describe('LoginPage', () => {
         });
     });
 
-    it('shows a safe error when Google initialization fails', async () => {
+    it('shows one localized availability notice when Google initialization fails', async () => {
         (api.getGoogleAuthNonce as jest.Mock).mockRejectedValue(
             new Error('Google auth unavailable'),
         );
         render(<LoginPage />);
 
         await waitFor(() => {
-            expect(screen.getByText('Google auth unavailable')).toBeInTheDocument();
+            expect(screen.getByRole('status')).toHaveTextContent('loginGoogleUnavailable');
         });
+        expect(screen.queryByText('Google auth unavailable')).not.toBeInTheDocument();
+        expect(document.querySelectorAll('.auth-error')).toHaveLength(0);
     });
 
     it('shows a safe error when the credential exchange fails', async () => {

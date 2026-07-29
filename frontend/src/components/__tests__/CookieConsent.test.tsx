@@ -27,10 +27,15 @@ describe('CookieConsent', () => {
     });
 
     expect(screen.getByRole('dialog', { name: 'cookieTitle' })).toHaveClass(
-      'inset-x-4',
+      'cookie-consent',
+      'inset-x-3',
       'sm:right-auto',
-      'sm:w-[420px]'
+      'sm:w-[390px]'
     );
+    expect(screen.getByRole('dialog', { name: 'cookieTitle' }))
+      .toHaveAttribute('aria-describedby', 'cookie-consent-description');
+    expect(screen.getByRole('dialog', { name: 'cookieTitle' }).firstElementChild)
+      .toHaveClass('cookie-consent-card');
 
     fireEvent.click(screen.getByRole('button', { name: 'cookieAccept' }));
 

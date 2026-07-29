@@ -1,6 +1,7 @@
 {
   "tabTranscript": "Transcript",
   "transcriptEdit": "Edit",
+  "transcriptEditAtTime": "Edit subtitle at {time}",
   "transcriptEditHint": "Ctrl+Enter to save",
   "transcriptSave": "Save",
   "transcriptCancel": "Cancel",

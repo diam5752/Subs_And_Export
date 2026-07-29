@@ -75,14 +75,23 @@ describe('JobListItem', () => {
     });
 
     it('shows download and view buttons with accessible labels when completed', () => {
-        render(<JobListItem {...mockProps} />);
+        const { container } = render(<JobListItem {...mockProps} />);
         const download = screen.getByLabelText('download test-video.mp4');
         expect(download).toHaveAttribute('download', 'test-video_subs.mp4');
         expect(download).toHaveAttribute(
             'href',
             'http://example.com/video.mp4?download=true&filename=test-video_subs.mp4',
         );
-        expect(screen.getByLabelText('view test-video.mp4')).toBeInTheDocument();
+        expect(download).toHaveClass('min-h-11');
+        expect(screen.getByLabelText('view test-video.mp4')).toHaveClass('min-h-11');
+        expect(screen.getByLabelText('deleteJob test-video.mp4')).toHaveClass(
+            'h-11',
+            'min-w-11',
+        );
+        expect(container.querySelector('.recent-job-actions')).toHaveClass(
+            'w-full',
+            'sm:w-auto',
+        );
     });
 
     it('handles selection toggle in selection mode', () => {
@@ -93,8 +102,11 @@ describe('JobListItem', () => {
 
     it('shows delete confirmation with accessible label', () => {
         render(<JobListItem {...mockProps} isConfirmingDelete={true} />);
-        expect(screen.getByLabelText('confirmDelete test-video.mp4')).toBeInTheDocument();
-        expect(screen.getByLabelText('cancel')).toBeInTheDocument();
+        expect(screen.getByLabelText('confirmDelete test-video.mp4')).toHaveClass(
+            'h-11',
+            'min-w-11',
+        );
+        expect(screen.getByLabelText('cancel')).toHaveClass('h-11', 'min-w-11');
     });
 
     it('shows loading state with accessible label', () => {

@@ -107,13 +107,10 @@ export default function LoginPage() {
                     locale: 'el',
                 });
                 setGoogleReady(true);
-            } catch (err) {
+            } catch {
                 if (!cancelled) {
-                    const message = err instanceof Error
-                        ? err.message
-                        : googleUnavailableMessage;
                     setGoogleUnavailable(true);
-                    setError(message === googleUnavailableMessage ? '' : message);
+                    setError('');
                 }
             }
         }
@@ -183,7 +180,7 @@ export default function LoginPage() {
                             )}
                         </div>
                     ) : (
-                        <div className="auth-google-unavailable">
+                        <div className="auth-google-unavailable" role="status">
                             {googleUnavailableMessage}
                         </div>
                     )}

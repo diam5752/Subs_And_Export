@@ -104,6 +104,16 @@ test('player and subtitle manipulation stay clear across browser engines', async
   )).toBe(1);
 
   if (isTouchProject) {
+    // Keep the pinch assertion independent from each engine's media clock.
+    // WebKit can advance beyond the short mocked cue while the long-press
+    // assertions run, which correctly removes the overlay before we touch it.
+    await video.evaluate((element) => {
+      const media = element as HTMLVideoElement;
+      media.pause();
+      media.currentTime = 0.5;
+      media.dispatchEvent(new Event('seeked'));
+    });
+    await expect(overlay).toBeVisible();
     await expect(page.getByTestId('subtitle-drag-handle')).toBeHidden();
     await expect(page.getByTestId('subtitle-resize-handle')).toBeHidden();
     await expect(page.getByTestId('subtitle-touch-manipulation-hint')).toHaveCount(0);
