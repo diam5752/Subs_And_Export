@@ -132,6 +132,7 @@ def test_github_and_make_use_the_same_isolated_local_ci_entrypoint() -> None:
     readme = (REPOSITORY_ROOT / "README.md").read_text(encoding="utf-8")
 
     assert "workflow_dispatch:" in workflow
+    assert "push:\n    branches:\n      - main" in workflow
     assert "permissions:\n  contents: read" in workflow
     assert "cancel-in-progress: true" in workflow
     assert "timeout-minutes: 60" in workflow
