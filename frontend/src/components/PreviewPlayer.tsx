@@ -16,7 +16,7 @@ export interface PreviewPlayerHandle {
     toggleMuted: () => void;
 }
 
-export interface PreviewPlaybackStatus {
+interface PreviewPlaybackStatus {
     duration: number;
     isPlaying: boolean;
     isMuted: boolean;
@@ -65,6 +65,44 @@ type VideoWithFrameCallback = HTMLVideoElement & {
     cancelVideoFrameCallback?: (handle: number) => void;
 };
 
+type PreviewGestureMode = 'pending' | 'seeking' | 'speed' | 'cancelled';
+
+type PreviewGesture = {
+    pointerId: number;
+    startX: number;
+    startY: number;
+    startTime: number;
+    wasPlaying: boolean;
+    originalPlaybackRate: number;
+    mode: PreviewGestureMode;
+};
+
+type GestureFeedback =
+    | { kind: 'seek'; currentTime: number; delta: number; duration: number }
+    | { kind: 'speed' };
+
+const GESTURE_DRAG_THRESHOLD_PX = 8;
+const LONG_PRESS_DELAY_MS = 350;
+const PREVIEW_SPEED_RATE = 2;
+
+function clamp(value: number, minimum: number, maximum: number): number {
+    return Math.min(maximum, Math.max(minimum, value));
+}
+
+function formatGestureTime(seconds: number): string {
+    const safeSeconds = Number.isFinite(seconds) && seconds > 0
+        ? Math.floor(seconds)
+        : 0;
+    const minutes = Math.floor(safeSeconds / 60);
+    const remainingSeconds = safeSeconds % 60;
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+}
+
+function seekSpanForDuration(duration: number): number {
+    if (!Number.isFinite(duration) || duration <= 0) return 0;
+    return Math.min(60, Math.max(15, duration * 0.25));
+}
+
 export const PreviewPlayer = memo(forwardRef<PreviewPlayerHandle, PreviewPlayerProps>(({
     videoUrl,
     cues,
@@ -84,6 +122,9 @@ export const PreviewPlayer = memo(forwardRef<PreviewPlayerHandle, PreviewPlayerP
     const frameCallbackIdRef = useRef<number | null>(null);
     const frameCallbackVideoRef = useRef<VideoWithFrameCallback | null>(null);
     const isTimeSyncRunningRef = useRef(false);
+    const gestureRef = useRef<PreviewGesture | null>(null);
+    const longPressTimerRef = useRef<number | null>(null);
+    const [gestureFeedback, setGestureFeedback] = useState<GestureFeedback | null>(null);
 
     const reportPlaybackStatus = useCallback(() => {
         const video = videoRef.current;
@@ -117,6 +158,177 @@ export const PreviewPlayer = memo(forwardRef<PreviewPlayerHandle, PreviewPlayerP
         video.muted = !video.muted;
         reportPlaybackStatus();
     }, [reportPlaybackStatus]);
+
+    const clearLongPressTimer = useCallback(() => {
+        if (longPressTimerRef.current !== null) {
+            window.clearTimeout(longPressTimerRef.current);
+            longPressTimerRef.current = null;
+        }
+    }, []);
+
+    const handlePreviewPointerDown = useCallback((
+        event: React.PointerEvent<HTMLVideoElement>,
+    ) => {
+        if (event.button !== 0 || event.isPrimary === false) return;
+
+        const video = videoRef.current;
+        if (!video) return;
+
+        clearLongPressTimer();
+        setGestureFeedback(null);
+        gestureRef.current = {
+            pointerId: event.pointerId,
+            startX: event.clientX,
+            startY: event.clientY,
+            startTime: video.currentTime,
+            wasPlaying: !video.paused && !video.ended,
+            originalPlaybackRate: video.playbackRate,
+            mode: 'pending',
+        };
+
+        if (event.pointerType === 'mouse' || event.pointerType === 'pen') {
+            try {
+                event.currentTarget.setPointerCapture(event.pointerId);
+            } catch {
+                // Pointer capture is best-effort on older browsers.
+            }
+        }
+
+        longPressTimerRef.current = window.setTimeout(() => {
+            const gesture = gestureRef.current;
+            const activeVideo = videoRef.current;
+            if (
+                !gesture
+                || gesture.pointerId !== event.pointerId
+                || gesture.mode !== 'pending'
+                || !activeVideo
+            ) {
+                return;
+            }
+
+            gesture.mode = 'speed';
+            activeVideo.playbackRate = PREVIEW_SPEED_RATE;
+            setGestureFeedback({ kind: 'speed' });
+            try {
+                activeVideo.setPointerCapture(event.pointerId);
+            } catch {
+                // Pointer capture is best-effort on older mobile browsers.
+            }
+
+            if (!gesture.wasPlaying) {
+                void activeVideo.play().catch(() => {
+                    activeVideo.playbackRate = gesture.originalPlaybackRate;
+                    gesture.mode = 'cancelled';
+                    setGestureFeedback(null);
+                    reportPlaybackStatus();
+                });
+            }
+        }, LONG_PRESS_DELAY_MS);
+    }, [clearLongPressTimer, reportPlaybackStatus]);
+
+    const handlePreviewPointerMove = useCallback((
+        event: React.PointerEvent<HTMLVideoElement>,
+    ) => {
+        const gesture = gestureRef.current;
+        const video = videoRef.current;
+        if (!gesture || !video || gesture.pointerId !== event.pointerId) return;
+
+        const deltaX = event.clientX - gesture.startX;
+        const deltaY = event.clientY - gesture.startY;
+
+        if (gesture.mode === 'pending') {
+            if (Math.hypot(deltaX, deltaY) < GESTURE_DRAG_THRESHOLD_PX) return;
+
+            clearLongPressTimer();
+            if (Math.abs(deltaX) <= Math.abs(deltaY)) {
+                gesture.mode = 'cancelled';
+                return;
+            }
+
+            gesture.mode = 'seeking';
+            video.pause();
+            try {
+                event.currentTarget.setPointerCapture(event.pointerId);
+            } catch {
+                // Pointer capture is best-effort on older mobile browsers.
+            }
+        }
+
+        if (gesture.mode !== 'seeking') return;
+
+        event.preventDefault();
+        const duration = Number.isFinite(video.duration) ? video.duration : 0;
+        const seekSpan = seekSpanForDuration(duration);
+        if (seekSpan <= 0) return;
+
+        const width = Math.max(
+            1,
+            event.currentTarget.getBoundingClientRect().width
+                || event.currentTarget.clientWidth,
+        );
+        const nextTime = clamp(
+            gesture.startTime + ((deltaX / width) * seekSpan),
+            0,
+            duration,
+        );
+
+        video.currentTime = nextTime;
+        setCurrentTime(nextTime);
+        onTimeUpdate?.(nextTime);
+        setGestureFeedback({
+            kind: 'seek',
+            currentTime: nextTime,
+            delta: nextTime - gesture.startTime,
+            duration,
+        });
+    }, [clearLongPressTimer, onTimeUpdate]);
+
+    const finishPreviewGesture = useCallback((
+        event: React.PointerEvent<HTMLVideoElement>,
+        cancelled = false,
+    ) => {
+        const gesture = gestureRef.current;
+        const video = videoRef.current;
+        if (!gesture || !video || gesture.pointerId !== event.pointerId) return;
+
+        clearLongPressTimer();
+
+        try {
+            if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+                event.currentTarget.releasePointerCapture(event.pointerId);
+            }
+        } catch {
+            // Pointer capture may already be gone after a browser-level gesture.
+        }
+
+        if (gesture.mode === 'pending' && !cancelled) {
+            togglePlayback();
+        } else if (gesture.mode === 'seeking' && gesture.wasPlaying) {
+            void video.play().catch(() => {
+                reportPlaybackStatus();
+            });
+        } else if (gesture.mode === 'speed') {
+            video.playbackRate = gesture.originalPlaybackRate;
+            if (!gesture.wasPlaying) {
+                video.pause();
+                setCurrentTime(video.currentTime);
+            }
+            reportPlaybackStatus();
+        }
+
+        gestureRef.current = null;
+        setGestureFeedback(null);
+    }, [clearLongPressTimer, reportPlaybackStatus, togglePlayback]);
+
+    useEffect(() => () => {
+        clearLongPressTimer();
+        const gesture = gestureRef.current;
+        const video = videoRef.current;
+        if (gesture && video) {
+            video.playbackRate = gesture.originalPlaybackRate;
+        }
+        gestureRef.current = null;
+    }, [clearLongPressTimer]);
 
     const pauseForSubtitleInteraction = useCallback(() => {
         const video = videoRef.current;
@@ -347,6 +559,9 @@ export const PreviewPlayer = memo(forwardRef<PreviewPlayerHandle, PreviewPlayerP
     // OPTIMIZATION: Removed redundant re-segmentation logic.
     // The cues passed to PreviewPlayer are expected to be already processed/segmented
     // by the parent (ProcessContext). This saves a duplicate canvas text measurement loop.
+    const seekProgress = gestureFeedback?.kind === 'seek' && gestureFeedback.duration > 0
+        ? clamp((gestureFeedback.currentTime / gestureFeedback.duration) * 100, 0, 100)
+        : 0;
 
     return (
         <div
@@ -359,13 +574,18 @@ export const PreviewPlayer = memo(forwardRef<PreviewPlayerHandle, PreviewPlayerP
                 className="preview-video h-full w-full cursor-pointer object-contain"
                 playsInline
                 preload="metadata"
+                draggable={false}
                 disablePictureInPicture
                 disableRemotePlayback
                 controlsList="nodownload noplaybackrate noremoteplayback"
                 role="button"
                 tabIndex={0}
                 aria-label={playbackToggleLabel}
-                onClick={togglePlayback}
+                onPointerDown={handlePreviewPointerDown}
+                onPointerMove={handlePreviewPointerMove}
+                onPointerUp={(event) => finishPreviewGesture(event)}
+                onPointerCancel={(event) => finishPreviewGesture(event, true)}
+                onContextMenu={(event) => event.preventDefault()}
                 onKeyDown={(event) => {
                     if (event.key === 'Enter' || event.key === ' ') {
                         event.preventDefault();
@@ -384,6 +604,59 @@ export const PreviewPlayer = memo(forwardRef<PreviewPlayerHandle, PreviewPlayerP
                     reportPlaybackStatus();
                 }}
             />
+
+            {gestureFeedback?.kind === 'speed' && (
+                <div
+                    className="preview-gesture-feedback"
+                    data-kind="speed"
+                    data-testid="preview-gesture-feedback"
+                    role="status"
+                    aria-live="polite"
+                >
+                    2×
+                </div>
+            )}
+
+            {gestureFeedback?.kind === 'seek' && (
+                <div
+                    className="preview-seek-feedback"
+                    data-progress={Math.round(seekProgress)}
+                    data-testid="preview-gesture-feedback"
+                    role="status"
+                    aria-live="polite"
+                >
+                    <div className="preview-seek-feedback-copy">
+                        <strong>
+                            {gestureFeedback.delta >= 0 ? '+' : '−'}
+                            {formatGestureTime(Math.abs(gestureFeedback.delta))}
+                        </strong>
+                        <span>
+                            {formatGestureTime(gestureFeedback.currentTime)}
+                            {' / '}
+                            {formatGestureTime(gestureFeedback.duration)}
+                        </span>
+                        <span>
+                            −{formatGestureTime(
+                                Math.max(
+                                    0,
+                                    gestureFeedback.duration - gestureFeedback.currentTime,
+                                ),
+                            )}
+                        </span>
+                    </div>
+                    <div className="preview-seek-track" aria-hidden="true">
+                        <span
+                            className="preview-seek-progress"
+                            data-testid="preview-seek-progress"
+                            style={{ width: `${seekProgress}%` }}
+                        />
+                        <span
+                            className="preview-seek-thumb"
+                            style={{ left: `${seekProgress}%` }}
+                        />
+                    </div>
+                </div>
+            )}
 
             <div
                 style={{

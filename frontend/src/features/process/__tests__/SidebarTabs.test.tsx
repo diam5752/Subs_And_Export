@@ -11,7 +11,7 @@ jest.mock('../ProcessContext', () => ({
     useProcessContext: jest.fn(),
 }));
 
-// Mock ViralIntelligence to avoid deep rendering issues in this test
+// Keep the hidden feature implementation isolated from the navigation tests.
 jest.mock('@/components/ViralIntelligence', () => ({
     ViralIntelligence: () => <div data-testid="viral-intelligence">Viral Intelligence Component</div>,
 }));
@@ -54,7 +54,7 @@ describe('Sidebar Tabs', () => {
         (useProcessContext as jest.Mock).mockReturnValue(mockContextValue);
     });
 
-    it('renders all three tabs with icons', () => {
+    it('renders only the two currently available tabs with icons', () => {
         render(
             <I18nProvider initialLocale="en">
                 <PlaybackProvider>
@@ -65,15 +65,43 @@ describe('Sidebar Tabs', () => {
 
         expect(screen.getByRole('tab', { name: /transcript/i })).toBeInTheDocument();
         expect(screen.getByRole('tab', { name: /styles/i })).toBeInTheDocument();
-        expect(screen.getByRole('tab', { name: /intelligence/i })).toBeInTheDocument();
+        expect(screen.queryByRole('tab', { name: /intelligence/i })).not.toBeInTheDocument();
 
-        // Check for SVG icons in tabs (they are visible because they are inside the buttons)
         const tabList = screen.getByRole('tablist');
         expect(tabList.parentElement).toHaveClass('editor-tabs-sticky');
+        expect(tabList).toHaveClass('editor-tabs-two');
         const buttons = screen.getAllByRole('tab');
+        expect(buttons).toHaveLength(2);
         buttons.forEach(button => {
             expect(button.querySelector('svg')).toBeInTheDocument();
         });
+    });
+
+    it('starts style controls directly below the tabs without a repeated file header', () => {
+        (useProcessContext as jest.Mock).mockReturnValue({
+            ...mockContextValue,
+            selectedJob: {
+                id: 'test-job',
+                result_data: { original_filename: 'sample_subs.mp4' },
+            },
+            activeSidebarTab: 'styles',
+        });
+
+        render(
+            <I18nProvider initialLocale="en">
+                <PlaybackProvider>
+                    <Sidebar />
+                </PlaybackProvider>
+            </I18nProvider>
+        );
+
+        // REGRESSION: the filename/status row and repeated "Custom settings"
+        // heading consumed the first part of the mobile settings panel.
+        expect(screen.queryByRole('status')).not.toBeInTheDocument();
+        expect(screen.queryByText('sample_subs.mp4')).not.toBeInTheDocument();
+        expect(screen.queryByRole('heading', { name: 'Custom settings' })).not.toBeInTheDocument();
+        expect(screen.getByRole('slider', { name: 'Size' })).toBeInTheDocument();
+        expect(screen.queryByRole('slider', { name: 'Position' })).not.toBeInTheDocument();
     });
 
     it('renders one unique scroll anchor for each transcript cue', () => {
@@ -99,10 +127,66 @@ describe('Sidebar Tabs', () => {
         expect(container.querySelectorAll('#cue-0')).toHaveLength(1);
     });
 
-    it('switches to intelligence tab when clicked', () => {
+    it('brings the live preview into view when styles are opened on mobile', () => {
+        const setActiveSidebarTab = jest.fn();
+        const scrollIntoView = jest.fn();
+        const originalMatchMedia = window.matchMedia;
+        const originalScrollIntoView = Element.prototype.scrollIntoView;
+        const requestAnimationFrame = jest
+            .spyOn(window, 'requestAnimationFrame')
+            .mockImplementation((callback) => {
+                callback(0);
+                return 1;
+            });
+        Object.defineProperty(window, 'matchMedia', {
+            configurable: true,
+            writable: true,
+            value: jest.fn((query: string) => ({
+                matches: query === '(max-width: 899px)',
+            })),
+        });
+        Element.prototype.scrollIntoView = scrollIntoView;
+        const workspace = document.createElement('div');
+        workspace.id = 'editor-workspace';
+        document.body.appendChild(workspace);
+        (useProcessContext as jest.Mock).mockReturnValue({
+            ...mockContextValue,
+            setActiveSidebarTab,
+        });
+
+        try {
+            render(
+                <I18nProvider initialLocale="en">
+                    <PlaybackProvider>
+                        <Sidebar />
+                    </PlaybackProvider>
+                </I18nProvider>
+            );
+
+            fireEvent.click(screen.getByRole('tab', { name: /styles/i }));
+
+            expect(setActiveSidebarTab).toHaveBeenCalledWith('styles');
+            expect(scrollIntoView).toHaveBeenCalledWith({
+                behavior: 'smooth',
+                block: 'start',
+            });
+        } finally {
+            workspace.remove();
+            requestAnimationFrame.mockRestore();
+            Element.prototype.scrollIntoView = originalScrollIntoView;
+            Object.defineProperty(window, 'matchMedia', {
+                configurable: true,
+                writable: true,
+                value: originalMatchMedia,
+            });
+        }
+    });
+
+    it('redirects a stale intelligence selection to styles while the tab is hidden', () => {
         const setActiveSidebarTab = jest.fn();
         (useProcessContext as jest.Mock).mockReturnValue({
             ...mockContextValue,
+            activeSidebarTab: 'intelligence',
             setActiveSidebarTab,
         });
 
@@ -114,27 +198,8 @@ describe('Sidebar Tabs', () => {
             </I18nProvider>
         );
 
-        const intelligenceTab = screen.getByRole('tab', { name: /intelligence/i });
-        fireEvent.click(intelligenceTab);
-
-        expect(setActiveSidebarTab).toHaveBeenCalledWith('intelligence');
-    });
-
-    it('renders ViralIntelligence when activeSidebarTab is intelligence', () => {
-        (useProcessContext as jest.Mock).mockReturnValue({
-            ...mockContextValue,
-            activeSidebarTab: 'intelligence',
-        });
-
-        render(
-            <I18nProvider initialLocale="en">
-                <PlaybackProvider>
-                    <Sidebar />
-                </PlaybackProvider>
-            </I18nProvider>
-        );
-
-        expect(screen.getByTestId('viral-intelligence')).toBeInTheDocument();
+        expect(screen.queryByTestId('viral-intelligence')).not.toBeInTheDocument();
+        expect(setActiveSidebarTab).toHaveBeenCalledWith('styles');
     });
 
     it('shows manual style settings without preset cards', () => {
@@ -151,7 +216,7 @@ describe('Sidebar Tabs', () => {
             </I18nProvider>
         );
 
-        expect(screen.getByRole('heading', { name: /custom settings/i })).toBeInTheDocument();
+        expect(screen.queryByRole('heading', { name: /custom settings/i })).not.toBeInTheDocument();
         expect(screen.queryByText('TikTok Pro')).not.toBeInTheDocument();
         expect(screen.queryByText('Cinematic Master')).not.toBeInTheDocument();
         expect(screen.queryByText('Podcast Style')).not.toBeInTheDocument();

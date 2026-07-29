@@ -24,8 +24,10 @@ export function buildSubtitleExportFilename(
     const extension = ['srt', 'vtt', 'txt'].includes(normalizedFormat)
         ? normalizedFormat
         : 'mp4';
+    const originalStem = filenameStem(originalFilename);
+    const exportStem = `${originalStem.replace(/(?:_subs)+$/i, '')}_subs`;
 
-    return `${filenameStem(originalFilename)}_subs.${extension}`;
+    return `${exportStem}.${extension}`;
 }
 
 export function withDownloadParameters(url: string, filename: string): string {

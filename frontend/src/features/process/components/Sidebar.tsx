@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, memo } from 'react';
+import React, { useCallback, useEffect, useMemo, memo, useRef } from 'react';
 import { Spinner } from '@/components/Spinner';
 import { useI18n } from '@/context/I18nContext';
 import { useProcessContext } from '../ProcessContext';
@@ -8,6 +8,8 @@ import { Cue } from '@/components/SubtitleOverlay';
 import { findCueIndexAtTime } from '@/lib/subtitleUtils';
 import { SubtitlePositionSelector } from '@/components/SubtitlePositionSelector';
 import { ViralIntelligence } from '@/components/ViralIntelligence';
+
+const SHOW_INTELLIGENCE_TAB = false;
 
 interface CueListProps {
     cues: Cue[];
@@ -206,15 +208,11 @@ export function Sidebar() {
     const { t } = useI18n();
     const {
         selectedJob,
-        isProcessing,
-        progress,
         activeSidebarTab,
         setActiveSidebarTab,
-        setSubtitlePosition,
         setSubtitleSize,
         setMaxSubtitleLines,
         setSubtitleColor,
-        subtitlePosition,
         maxSubtitleLines,
         subtitleColor,
         SUBTITLE_COLORS,
@@ -222,6 +220,44 @@ export function Sidebar() {
     } = useProcessContext();
 
     const jobId = selectedJob?.id;
+    const sidebarBodyRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (sidebarBodyRef.current) {
+            sidebarBodyRef.current.scrollTop = 0;
+        }
+    }, [activeSidebarTab]);
+
+    useEffect(() => {
+        if (!SHOW_INTELLIGENCE_TAB && activeSidebarTab === 'intelligence') {
+            setActiveSidebarTab('styles');
+        }
+    }, [activeSidebarTab, setActiveSidebarTab]);
+
+    const handleSidebarTabChange = useCallback((
+        tab: 'transcript' | 'styles',
+    ) => {
+        setActiveSidebarTab(tab);
+
+        if (
+            tab !== 'styles'
+            || typeof window === 'undefined'
+            || !window.matchMedia?.('(max-width: 899px)').matches
+        ) {
+            return;
+        }
+
+        window.requestAnimationFrame(() => {
+            const workspace = document.getElementById('editor-workspace');
+            const reduceMotion = window.matchMedia?.(
+                '(prefers-reduced-motion: reduce)',
+            ).matches;
+            workspace?.scrollIntoView?.({
+                behavior: reduceMotion ? 'auto' : 'smooth',
+                block: 'start',
+            });
+        });
+    }, [setActiveSidebarTab]);
 
     // Optimized: Memoize Styles Panel to prevent VDOM re-creation on high-frequency Context updates (like currentTime)
     const stylesPanel = useMemo(() => (
@@ -229,12 +265,10 @@ export function Sidebar() {
             role="tabpanel"
             id="panel-styles"
             aria-labelledby="tab-styles"
-            className="animate-fade-in pr-2"
+            className="editor-style-panel animate-fade-in pr-2"
+            data-testid="editor-style-panel"
         >
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-[var(--muted)] mb-3">{t('customSettings')}</h4>
             <SubtitlePositionSelector
-                value={subtitlePosition}
-                onChange={setSubtitlePosition}
                 lines={maxSubtitleLines}
                 onChangeLines={setMaxSubtitleLines}
                 subtitleColor={subtitleColor}
@@ -245,16 +279,13 @@ export function Sidebar() {
             />
         </div>
     ), [
-        subtitlePosition,
         maxSubtitleLines,
         subtitleColor,
         SUBTITLE_COLORS,
         subtitleSize,
-        setSubtitlePosition,
         setMaxSubtitleLines,
         setSubtitleColor,
         setSubtitleSize,
-        t,
     ]);
 
     // Optimized: Memoize Intelligence Panel
@@ -276,37 +307,18 @@ export function Sidebar() {
 
         return (
             <aside className="editor-sidebar" data-testid="editor-sidebar">
-                {/* Status Header */}
-                <div
-                    className="editor-sidebar-status"
-                    role="status"
-                >
-                    <div className="editor-sidebar-status-copy">
-                        <div
-                            className={`editor-sidebar-status-dot ${isProcessing ? 'editor-sidebar-status-dot-processing' : ''}`}
-                            aria-label={isProcessing ? (t('statusProcessing') || "Processing") : (t('statusReady') || "Ready")}
-                        />
-                        <h3 title={selectedJob.result_data?.original_filename || undefined}>
-                            {selectedJob.result_data?.original_filename || t('processedVideoFallback')}
-                        </h3>
-                    </div>
-                    {isProcessing && (
-                        <span className="editor-sidebar-progress" aria-label={t('progressCompleteLabel', { progress })}>{progress}%</span>
-                    )}
-                </div>
-
-                <div className="editor-sidebar-body custom-scrollbar">
+                <div ref={sidebarBodyRef} className="editor-sidebar-body custom-scrollbar">
                     <div className="editor-tabs-sticky">
                     <div
                         role="tablist"
-                        className="editor-tabs"
+                        className={`editor-tabs ${SHOW_INTELLIGENCE_TAB ? '' : 'editor-tabs-two'}`}
                     >
                         <button
                             role="tab"
                             id="tab-transcript"
                             aria-selected={activeSidebarTab === 'transcript'}
                             aria-controls="panel-transcript"
-                            onClick={() => setActiveSidebarTab('transcript')}
+                            onClick={() => handleSidebarTabChange('transcript')}
                             className={`editor-tab ${activeSidebarTab === 'transcript' ? 'editor-tab-active' : ''}`}
                         >
                             <svg className="hidden h-4 w-4 shrink-0 sm:block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -319,7 +331,7 @@ export function Sidebar() {
                             id="tab-styles"
                             aria-selected={activeSidebarTab === 'styles'}
                             aria-controls="panel-styles"
-                            onClick={() => setActiveSidebarTab('styles')}
+                            onClick={() => handleSidebarTabChange('styles')}
                             className={`editor-tab ${activeSidebarTab === 'styles' ? 'editor-tab-active' : ''}`}
                         >
                             <svg className="hidden h-4 w-4 shrink-0 sm:block" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -327,24 +339,26 @@ export function Sidebar() {
                             </svg>
                             <span className="truncate">{t('tabStyles') || 'Styles'}</span>
                         </button>
-                        <button
-                            role="tab"
-                            id="tab-intelligence"
-                            aria-selected={activeSidebarTab === 'intelligence'}
-                            aria-controls="panel-intelligence"
-                            onClick={() => setActiveSidebarTab('intelligence')}
-                            className={`editor-tab ${activeSidebarTab === 'intelligence' ? 'editor-tab-active' : ''}`}
-                        >
-                            <svg className="hidden h-4 w-4 shrink-0 sm:block" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <path d="M9.5 2A5.5 5.5 0 0 0 4 7.5c0 1.63.71 3.1 1.84 4.1A4.5 4.5 0 0 0 5 16.5 4.5 4.5 0 0 0 9.5 21h5a4.5 4.5 0 0 0 4.5-4.5 4.5 4.5 0 0 0-.84-2.6A5.5 5.5 0 0 0 20 7.5a5.5 5.5 0 0 0-5.5-5.5h-5z" />
-                                <path d="M12 2v19" />
-                                <path d="M8 7c0 .5-.5 1-1 1s-1-.5-1-1 1-2 2-2 2 1.5 2 2" />
-                                <path d="M16 7c0 .5.5 1 1 1s1-.5 1-1-1-2-2-2-2 1.5-2 2" />
-                                <path d="M9 14c0 .5-.5 1-1 1s-1-.5-1-1 1-2 2-2" />
-                                <path d="M15 14c0 .5.5 1 1 1s1-.5 1-1-1-2-2-2" />
-                            </svg>
-                            <span className="truncate">{t('tabIntelligence') || 'Intelligence'}</span>
-                        </button>
+                        {SHOW_INTELLIGENCE_TAB && (
+                            <button
+                                role="tab"
+                                id="tab-intelligence"
+                                aria-selected={activeSidebarTab === 'intelligence'}
+                                aria-controls="panel-intelligence"
+                                onClick={() => setActiveSidebarTab('intelligence')}
+                                className={`editor-tab ${activeSidebarTab === 'intelligence' ? 'editor-tab-active' : ''}`}
+                            >
+                                <svg className="hidden h-4 w-4 shrink-0 sm:block" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M9.5 2A5.5 5.5 0 0 0 4 7.5c0 1.63.71 3.1 1.84 4.1A4.5 4.5 0 0 0 5 16.5 4.5 4.5 0 0 0 9.5 21h5a4.5 4.5 0 0 0 4.5-4.5 4.5 4.5 0 0 0-.84-2.6A5.5 5.5 0 0 0 20 7.5a5.5 5.5 0 0 0-5.5-5.5h-5z" />
+                                    <path d="M12 2v19" />
+                                    <path d="M8 7c0 .5-.5 1-1 1s-1-.5-1-1 1-2 2-2 2 1.5 2 2" />
+                                    <path d="M16 7c0 .5.5 1 1 1s1-.5 1-1-1-2-2-2-2 1.5-2 2" />
+                                    <path d="M9 14c0 .5-.5 1-1 1s-1-.5-1-1 1-2 2-2" />
+                                    <path d="M15 14c0 .5.5 1 1 1s1-.5 1-1-1-2-2-2" />
+                                </svg>
+                                <span className="truncate">{t('tabIntelligence') || 'Intelligence'}</span>
+                            </button>
+                        )}
                     </div>
                     </div>
 
@@ -356,16 +370,17 @@ export function Sidebar() {
 
                         {activeSidebarTab === 'styles' && stylesPanel}
 
-                        {activeSidebarTab === 'intelligence' && intelligencePanel}
+                        {SHOW_INTELLIGENCE_TAB
+                            && activeSidebarTab === 'intelligence'
+                            && intelligencePanel}
                     </div>
                 </div>
             </aside>
         );
     }, [
         selectedJob,
-        isProcessing,
-        progress,
         activeSidebarTab,
+        handleSidebarTabChange,
         setActiveSidebarTab,
         t,
         stylesPanel,

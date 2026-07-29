@@ -3,11 +3,6 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { useI18n } from '@/context/I18nContext';
 import { InfoTooltip } from '@/components/InfoTooltip';
-import {
-    getSubtitlePositionStyle,
-    SUBTITLE_POSITION_MAX,
-    SUBTITLE_POSITION_MIN,
-} from '@/lib/subtitleUtils';
 
 // Constants moved outside component
 const MORE_COLORS = [
@@ -31,8 +26,6 @@ const MORE_COLORS = [
 
 
 interface SubtitlePositionSelectorProps {
-    value: number;
-    onChange: (value: number) => void;
     lines: number;
     onChangeLines: (lines: number) => void;
     subtitleSize: number;
@@ -43,8 +36,6 @@ interface SubtitlePositionSelectorProps {
 }
 
 export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps>(({
-    value,
-    onChange,
     lines,
     onChangeLines,
     subtitleColor,
@@ -56,7 +47,6 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
     const { t } = useI18n();
     const colorLabelId = useId();
     const sizeLabelId = useId();
-    const positionLabelId = useId();
     const linesLabelId = useId();
 
     const [showColorGrid, setShowColorGrid] = useState(false);
@@ -74,13 +64,6 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
             document.removeEventListener("mousedown", handleClickOutside);
         };
     }, []);
-
-    // Preset tick marks for position
-    const positionPresets = [
-        { value: 10, label: t('positionLow') },
-        { value: 50, label: t('positionMiddle') },
-        { value: SUBTITLE_POSITION_MAX, label: t('positionHigh') },
-    ];
 
     // Preset tick marks for size
     const sizePresets = [
@@ -106,11 +89,14 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
         <div className="space-y-6">
             <div className="flex flex-col xl:flex-row gap-8">
                 {/* Controls Area */}
-                <div className="flex-1 space-y-6">
+                <div className="editor-style-controls-layout flex-1">
                     {/* Top Row: Size & Lines */}
-                    <div className="flex flex-col sm:flex-row gap-4">
+                    <div className="editor-style-primary-row">
                         {/* Size Slider */}
-                        <div className="flex-1 min-w-[200px]">
+                        <div
+                            className="editor-style-size-control min-w-[200px]"
+                            data-testid="style-size-control"
+                        >
                                 <div className="flex items-center gap-2 mb-3">
                                     <label htmlFor={sizeLabelId} className="block text-sm font-medium text-[var(--muted)]">
                                         {t('sizeLabel')}
@@ -197,100 +183,14 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
                                         </div>
                                     </div>
 
-                                    {/* Position Slider - Under Size */}
-                                    <div className="mt-4 pt-4 border-t border-[var(--border)]">
-                                        <div className="flex items-center gap-2 mb-3">
-                                            <label htmlFor={positionLabelId} className="text-xs font-medium text-[var(--muted)]">
-                                                {t('positionLabel')}
-                                            </label>
-                                            <InfoTooltip ariaLabel={`${t('infoPrefix')} ${t('positionLabel')}`}>
-                                                <div className="space-y-2">
-                                                    <div className="font-semibold text-[11px]">{t('positionLabel')}</div>
-                                                    <p className="text-[var(--muted)] leading-snug">{t('tooltipPositionDesc')}</p>
-                                                    <div className="grid grid-cols-3 gap-2 rounded-lg border border-white/10 bg-black/20 p-2">
-                                                        <div className="relative h-12 rounded-md border border-white/10 bg-white/5">
-                                                            <div className="absolute left-1 right-1 top-2 h-1 rounded-full bg-white/20" />
-                                                        </div>
-                                                        <div className="relative h-12 rounded-md border border-white/10 bg-white/5">
-                                                            <div className="absolute left-1 right-1 top-1/2 -translate-y-1/2 h-1 rounded-full bg-white/20" />
-                                                        </div>
-                                                        <div className="relative h-12 rounded-md border border-white/10 bg-white/5">
-                                                            <div className="absolute left-1 right-1 bottom-2 h-1 rounded-full bg-white/20" />
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </InfoTooltip>
-                                        </div>
-                                        {/* Centered Mini phone preview - like the Aa preview above */}
-                                        <div className="flex items-center justify-center mb-4">
-                                            <div className="relative w-8 h-14 bg-slate-700/50 rounded-lg border border-slate-600/50 overflow-hidden">
-                                                {/* Subtitle line indicator */}
-                                                <div
-                                                    className="absolute left-1 right-1 h-1 bg-[var(--accent)] rounded-full transition-all duration-200 shadow-[0_0_6px_var(--accent)]"
-                                                    style={getSubtitlePositionStyle(value)}
-                                                />
-                                            </div>
-                                        </div>
-
-                                        {/* Slider */}
-                                        <div className="relative">
-                                            <input
-                                                id={positionLabelId}
-                                                type="range"
-                                                min={SUBTITLE_POSITION_MIN}
-                                                max={SUBTITLE_POSITION_MAX}
-                                                value={value}
-                                                onChange={(e) => {
-                                                    e.stopPropagation();
-                                                    onChange(Number(e.target.value));
-                                                }}
-                                                onClick={(e) => e.stopPropagation()}
-                                                className="w-full h-2 rounded-full appearance-none cursor-pointer bg-[var(--border)]
-                                                    [&::-webkit-slider-thumb]:appearance-none
-                                                    [&::-webkit-slider-thumb]:w-5
-                                                    [&::-webkit-slider-thumb]:h-5
-                                                    [&::-webkit-slider-thumb]:rounded-full
-                                                    [&::-webkit-slider-thumb]:bg-[var(--accent)]
-                                                    [&::-webkit-slider-thumb]:shadow-lg
-                                                    [&::-webkit-slider-thumb]:cursor-pointer
-                                                    [&::-webkit-slider-thumb]:transition-transform
-                                                    [&::-webkit-slider-thumb]:hover:scale-110
-                                                    [&::-moz-range-thumb]:w-5
-                                                    [&::-moz-range-thumb]:h-5
-                                                    [&::-moz-range-thumb]:rounded-full
-                                                    [&::-moz-range-thumb]:bg-[var(--accent)]
-                                                    [&::-moz-range-thumb]:border-0
-                                                    [&::-moz-range-thumb]:shadow-lg
-                                                    [&::-moz-range-thumb]:cursor-pointer"
-                                                style={{
-                                                    background: `linear-gradient(to right, var(--accent) 0%, var(--accent) ${((value - SUBTITLE_POSITION_MIN) / (SUBTITLE_POSITION_MAX - SUBTITLE_POSITION_MIN)) * 100}%, var(--border) ${((value - SUBTITLE_POSITION_MIN) / (SUBTITLE_POSITION_MAX - SUBTITLE_POSITION_MIN)) * 100}%, var(--border) 100%)`
-                                                }}
-                                            />
-                                            {/* Preset Tick Marks */}
-                                            <div className="flex justify-between mt-2 px-1">
-                                                {positionPresets.map((preset) => (
-                                                    <button
-                                                        key={preset.value}
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            onChange(preset.value);
-                                                        }}
-                                                        className={`text-[10px] px-1.5 py-0.5 rounded transition-all ${value === preset.value
-                                                            ? 'text-[var(--accent)] font-medium'
-                                                            : 'text-[var(--muted)] hover:text-[var(--foreground)]'
-                                                            }`}
-                                                    >
-                                                        {preset.label}
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    </div>
                                 </div>
                             </div>
 
                         {/* Lines Selector */}
-                        <div className="flex-1 min-w-[200px]">
+                        <div
+                            className="editor-style-lines-control min-w-[200px]"
+                            data-testid="style-lines-control"
+                        >
                             <div className="flex items-center gap-2 mb-3">
                                 <label id={linesLabelId} className="block text-sm font-medium text-[var(--muted)]">
                                     {t('maxLinesLabel')}
@@ -309,7 +209,11 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
                                     </div>
                                 </InfoTooltip>
                             </div>
-                            <div className="flex flex-col gap-2" role="radiogroup" aria-labelledby={linesLabelId}>
+                            <div
+                                className="editor-style-lines-options flex flex-col gap-2"
+                                role="radiogroup"
+                                aria-labelledby={linesLabelId}
+                            >
                                 {lineOptions.map((opt) => (
                                     <button
                                         key={opt.value}
@@ -335,7 +239,10 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
                     </div>
 
                     {/* Middle Row: Colors */}
-                    <div className="w-full">
+                    <div
+                        className="editor-style-color-control w-full"
+                        data-testid="style-color-control"
+                    >
                             <div className="flex items-center gap-2 mb-3">
                                 <label id={colorLabelId} className="block text-sm font-medium text-[var(--muted)]">
                                     {t('colorLabel')}
@@ -346,19 +253,23 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
                                         <p className="text-[var(--muted)] leading-snug">{t('tooltipColorDesc')}</p>
                                         <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/20 p-2">
                                             <span aria-hidden="true" className="h-3.5 w-3.5 rounded-full bg-[#FFFF00] border border-white/10" />
-                                            <span aria-hidden="true" className="h-3.5 w-3.5 rounded-full bg-white border border-white/10" />
+                                            <span aria-hidden="true" className="h-3.5 w-3.5 rounded-full bg-[#8B5CF6] border border-white/10" />
                                             <span aria-hidden="true" className="h-3.5 w-3.5 rounded-full bg-[#00FFFF] border border-white/10" />
                                         </div>
                                     </div>
                                 </InfoTooltip>
                             </div>
                             <div
-                                className="flex items-center gap-3 p-4 rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)] min-h-[88px]"
+                                className="editor-style-color-surface flex min-w-0 items-center rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)] p-3 min-h-[88px]"
                                 role="radiogroup"
                                 aria-labelledby={colorLabelId}
                             >
                                 {/* Color Swatches */}
-                                <div className="flex flex-nowrap gap-4 justify-center w-full items-center relative" ref={gridRef}>
+                                <div
+                                    className="editor-style-color-options relative"
+                                    data-testid="style-color-options"
+                                    ref={gridRef}
+                                >
                                     {/* First 3 Presets */}
                                     {colors.slice(0, 3).map((c) => (
                                         <button
@@ -368,14 +279,14 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
                                                 onChangeColor(c.value);
                                                 setShowColorGrid(false);
                                             }}
-                                            className="group relative p-1 transition-transform active:scale-95"
+                                            className="editor-style-color-swatch group relative transition-transform active:scale-95"
                                             title={c.label}
                                             role="radio"
                                             aria-checked={subtitleColor === c.value}
                                             aria-label={c.label}
                                         >
                                             <div
-                                                className={`w-10 h-10 rounded-full border-2 shadow-sm transition-all duration-300 ease-out ${subtitleColor === c.value
+                                                className={`editor-style-color-dot rounded-full border-2 shadow-sm transition-all duration-300 ease-out ${subtitleColor === c.value
                                                     ? 'border-white scale-110 ring-2 ring-white/20'
                                                     : 'border-transparent hover:scale-110 hover:border-white/30 opacity-80 hover:opacity-100'
                                                     }`}
@@ -385,19 +296,19 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
                                     ))}
 
                                     {/* More Colors Button (Toggle Popover) */}
-                                    <div className="relative">
+                                    <div className="editor-style-color-more">
                                         <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 setShowColorGrid(!showColorGrid);
                                             }}
-                                            className="group relative p-1 transition-transform active:scale-95"
+                                            className="editor-style-color-swatch group relative transition-transform active:scale-95"
                                             title={t('moreColors') || "More Colors"}
                                             aria-expanded={showColorGrid}
                                             aria-haspopup="true"
                                         >
                                             <div
-                                                className={`w-10 h-10 rounded-full border-2 shadow-md transition-all duration-300 ease-out flex items-center justify-center overflow-hidden bg-[var(--surface)] ${showColorGrid || !colors.slice(0, 3).some(c => c.value === subtitleColor)
+                                                className={`editor-style-color-dot rounded-full border-2 shadow-md transition-all duration-300 ease-out flex items-center justify-center overflow-hidden bg-[var(--surface)] ${showColorGrid || !colors.slice(0, 3).some(c => c.value === subtitleColor)
                                                     ? 'border-white ring-2 ring-white/20'
                                                     : 'border-[var(--border)] hover:scale-110 hover:border-white/30'
                                                     }`}
@@ -422,7 +333,7 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
                                         {/* Color Grid Popover */}
                                         {showColorGrid && (
                                             <div
-                                                className="absolute top-full left-1/2 -translate-x-1/2 mt-3 p-3 bg-[var(--surface-elevated)] border border-[var(--border)] rounded-xl shadow-2xl z-50 animate-in fade-in zoom-in-95 duration-200 min-w-[180px]"
+                                                className="absolute right-0 top-full z-50 mt-3 w-[180px] max-w-[calc(100vw-2rem)] animate-in rounded-xl border border-[var(--border)] bg-[var(--surface-elevated)] p-3 shadow-2xl fade-in zoom-in-95 duration-200"
                                                 role="radiogroup"
                                                 aria-label={t('moreColors') || 'More Colors'}
                                             >
@@ -451,7 +362,7 @@ export const SubtitlePositionSelector = React.memo<SubtitlePositionSelectorProps
                                                     ))}
                                                 </div>
                                                 {/* Triangle Pointer */}
-                                                <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-[var(--surface-elevated)] border-t border-l border-[var(--border)] rotate-45" />
+                                                <div className="absolute -top-1.5 right-4 h-3 w-3 rotate-45 border-l border-t border-[var(--border)] bg-[var(--surface-elevated)]" />
                                             </div>
                                         )}
                                     </div>

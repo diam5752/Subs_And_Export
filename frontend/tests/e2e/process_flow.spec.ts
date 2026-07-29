@@ -165,44 +165,35 @@ test.describe('Video Processing Flow', () => {
 
         // 4. Wait for completion. The mock job may finish before the transient
         // progress bar can be observed on fast local machines.
-        // Once completed, the SRT export button should appear in PreviewSection
-        await expect(page.getByTestId('srt-btn')).toBeVisible({ timeout: 25000 });
+        // Once completed, the compact export trigger should appear in PreviewSection.
+        const exportButton = page.getByRole('button', { name: el.exportMenuButton, exact: true });
+        await expect(exportButton).toBeVisible({ timeout: 25000 });
         expect(pollCount).toBeGreaterThanOrEqual(3);
 
         await page.setViewportSize({ width: 390, height: 844 });
         const phone = page.getByTestId('editor-phone');
         const previewVideo = phone.locator('video');
-        const previewControls = page.getByTestId('editor-preview-controls');
         expect(await previewVideo.getAttribute('controls')).toBeNull();
-        await expect(previewControls).toBeVisible();
+        await expect(page.getByTestId('editor-preview-controls')).toHaveCount(0);
         await expect(page.locator('.subtitle-edit-affordance')).toHaveCount(0);
-        await expect(page.getByTestId('subtitle-touch-manipulation-hint')).toBeVisible();
-        await expect(page.getByTestId('editor-preview-time')).toContainText('/');
+        await expect(page.getByTestId('subtitle-touch-manipulation-hint')).toHaveCount(0);
         const phoneBox = await phone.boundingBox();
-        const controlsBox = await previewControls.boundingBox();
         expect(phoneBox).not.toBeNull();
-        expect(controlsBox).not.toBeNull();
-        expect(controlsBox!.y).toBeGreaterThanOrEqual(phoneBox!.y + phoneBox!.height);
-        const playerButtons = previewControls.getByRole('button');
-        await expect(playerButtons).toHaveCount(2);
-        for (let index = 0; index < 2; index += 1) {
-            const buttonBox = await playerButtons.nth(index).boundingBox();
-            expect(buttonBox).not.toBeNull();
-            expect(buttonBox!.width).toBeGreaterThanOrEqual(44);
-            expect(buttonBox!.height).toBeGreaterThanOrEqual(44);
-        }
         expect(await page.evaluate(
             () => document.documentElement.scrollWidth <= window.innerWidth,
         )).toBe(true);
 
         // 5. Check Download Options
+        await exportButton.click();
         await expect(page.getByTestId('download-1080p-btn')).toBeVisible();
+        await expect(page.getByTestId('vtt-btn')).toHaveCount(0);
 
         const srtDownloadPromise = page.waitForEvent('download');
         await page.getByTestId('srt-btn').click();
         const srtDownload = await srtDownloadPromise;
         expect(srtDownload.suggestedFilename()).toBe('demo_output_subs.srt');
 
+        await exportButton.click();
         const mp4DownloadPromise = page.waitForEvent('download');
         await page.getByTestId('download-1080p-btn').click();
         const mp4Download = await mp4DownloadPromise;

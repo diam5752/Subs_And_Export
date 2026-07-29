@@ -20,9 +20,32 @@ function mockResizeObserver() {
     (window as any).ResizeObserver = ResizeObserverMock;
 }
 
+function mockPointerEvent() {
+    if (typeof window.PointerEvent !== 'undefined') return;
+
+    class PointerEventMock extends MouseEvent {
+        readonly pointerId: number;
+        readonly pointerType: string;
+        readonly isPrimary: boolean;
+
+        constructor(type: string, params: PointerEventInit = {}) {
+            super(type, params);
+            this.pointerId = params.pointerId ?? 0;
+            this.pointerType = params.pointerType ?? '';
+            this.isPrimary = params.isPrimary ?? false;
+        }
+    }
+
+    Object.defineProperty(window, 'PointerEvent', {
+        configurable: true,
+        value: PointerEventMock,
+    });
+}
+
 describe('PreviewPlayer', () => {
     beforeAll(() => {
         mockResizeObserver();
+        mockPointerEvent();
         Object.defineProperty(window.HTMLMediaElement.prototype, 'play', {
             configurable: true,
             value: jest.fn().mockResolvedValue(undefined),
@@ -152,7 +175,7 @@ describe('PreviewPlayer', () => {
         expect(video.pause).toHaveBeenCalled();
     });
 
-    it('keeps native mobile controls disabled and exposes unobtrusive custom playback actions', () => {
+    it('keeps native controls disabled and toggles playback with a tap gesture', () => {
         // REGRESSION: iOS Safari's native transport overlay covered the
         // subtitles with play, skip, volume, and progress controls.
         const playerRef = React.createRef<PreviewPlayerHandle>();
@@ -174,7 +197,23 @@ describe('PreviewPlayer', () => {
         expect(video).toHaveAttribute('disablepictureinpicture');
         expect(video).toHaveAttribute('disableremoteplayback');
 
-        fireEvent.click(video);
+        (video.play as jest.Mock).mockClear();
+        fireEvent.pointerDown(video, {
+            button: 0,
+            pointerId: 1,
+            pointerType: 'touch',
+            isPrimary: true,
+            clientX: 100,
+            clientY: 100,
+        });
+        fireEvent.pointerUp(video, {
+            button: 0,
+            pointerId: 1,
+            pointerType: 'touch',
+            isPrimary: true,
+            clientX: 100,
+            clientY: 100,
+        });
         expect(video.play).toHaveBeenCalled();
 
         act(() => {
@@ -184,6 +223,121 @@ describe('PreviewPlayer', () => {
 
         fireEvent.play(video);
         expect(onPlaybackStatusChange).toHaveBeenCalled();
+    });
+
+    it('scrubs relatively with a horizontal drag and only shows feedback while dragging', () => {
+        const onTimeUpdate = jest.fn();
+        const { container } = render(
+            <PreviewPlayer {...baseProps} onTimeUpdate={onTimeUpdate} />,
+        );
+        const video = container.querySelector('video') as HTMLVideoElement;
+        Object.defineProperty(video, 'duration', {
+            configurable: true,
+            value: 100,
+        });
+        Object.defineProperty(video, 'currentTime', {
+            configurable: true,
+            value: 20,
+            writable: true,
+        });
+        Object.defineProperty(video, 'paused', {
+            configurable: true,
+            value: false,
+        });
+        jest.spyOn(video, 'getBoundingClientRect').mockReturnValue({
+            x: 0,
+            y: 0,
+            top: 0,
+            left: 0,
+            right: 200,
+            bottom: 356,
+            width: 200,
+            height: 356,
+            toJSON: () => ({}),
+        });
+
+        fireEvent.pointerDown(video, {
+            button: 0,
+            pointerId: 2,
+            pointerType: 'touch',
+            isPrimary: true,
+            clientX: 100,
+            clientY: 100,
+        });
+        fireEvent.pointerMove(video, {
+            button: 0,
+            pointerId: 2,
+            pointerType: 'touch',
+            isPrimary: true,
+            clientX: 150,
+            clientY: 102,
+        });
+
+        // A quarter-screen drag moves within a bounded relative seek window,
+        // instead of jumping across the whole video.
+        expect(video.currentTime).toBeCloseTo(26.25, 2);
+        expect(onTimeUpdate).toHaveBeenLastCalledWith(26.25);
+        expect(screen.getByTestId('preview-gesture-feedback')).toHaveTextContent('+0:06');
+        expect(screen.getByTestId('preview-gesture-feedback')).toHaveTextContent('0:26 / 1:40');
+        expect(screen.getByTestId('preview-gesture-feedback')).toHaveTextContent('−1:13');
+        expect(screen.getByTestId('preview-gesture-feedback')).toHaveAttribute(
+            'data-progress',
+            '26',
+        );
+        expect(screen.getByTestId('preview-seek-progress')).toHaveStyle({
+            width: '26.25%',
+        });
+
+        fireEvent.pointerUp(video, {
+            button: 0,
+            pointerId: 2,
+            pointerType: 'touch',
+            isPrimary: true,
+            clientX: 150,
+            clientY: 102,
+        });
+        expect(screen.queryByTestId('preview-gesture-feedback')).not.toBeInTheDocument();
+    });
+
+    it('plays at 2x only while a long press is held', () => {
+        jest.useFakeTimers();
+        try {
+            const { container } = render(<PreviewPlayer {...baseProps} />);
+            const video = container.querySelector('video') as HTMLVideoElement;
+            Object.defineProperty(video, 'paused', {
+                configurable: true,
+                value: false,
+            });
+            video.playbackRate = 1;
+
+            fireEvent.pointerDown(video, {
+                button: 0,
+                pointerId: 3,
+                pointerType: 'touch',
+                isPrimary: true,
+                clientX: 100,
+                clientY: 100,
+            });
+            act(() => {
+                jest.advanceTimersByTime(350);
+            });
+
+            expect(video.playbackRate).toBe(2);
+            expect(screen.getByTestId('preview-gesture-feedback')).toHaveTextContent('2×');
+
+            fireEvent.pointerUp(video, {
+                button: 0,
+                pointerId: 3,
+                pointerType: 'touch',
+                isPrimary: true,
+                clientX: 100,
+                clientY: 100,
+            });
+            expect(video.playbackRate).toBe(1);
+            expect(screen.queryByTestId('preview-gesture-feedback')).not.toBeInTheDocument();
+        } finally {
+            jest.useRealTimers();
+        }
     });
 
     it('pauses playback and maps the visible subtitle to its editable source cue', () => {
@@ -251,6 +405,7 @@ describe('PreviewPlayer', () => {
         );
 
         const video = container.querySelector('video') as HTMLVideoElement;
+        (video.play as jest.Mock).mockClear();
         const overlay = screen.getByTestId('subtitle-overlay');
         fireEvent.pointerDown(overlay, {
             button: 0,
@@ -265,6 +420,7 @@ describe('PreviewPlayer', () => {
         });
 
         expect(video.pause).toHaveBeenCalled();
+        expect(video.play).not.toHaveBeenCalled();
         expect(onPositionChange).toHaveBeenCalled();
     });
 });

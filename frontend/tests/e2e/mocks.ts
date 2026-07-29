@@ -1,4 +1,5 @@
 import { Page, Route } from '@playwright/test';
+import { resolve } from 'node:path';
 import el from '@/i18n/el.json';
 
 type MockJob = {
@@ -481,6 +482,18 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
     }
 
     const headers: Record<string, string> = { ...corsHeaders };
+    if (url.pathname.startsWith('/static/videos/')) {
+      // REGRESSION: the media mock previously returned text/plain "stub" for
+      // MP4 URLs, leaving duration at zero and making player gestures untestable.
+      await route.fulfill({
+        status: 200,
+        headers,
+        contentType: 'video/mp4',
+        path: resolve(process.cwd(), '../backend/tests/data/demo_output.mp4'),
+      });
+      return;
+    }
+
     if (url.searchParams.get('download') === 'true') {
       // REGRESSION: The static-artifact mock ignored the public filename query
       // contract and exposed the internal processed_<format> artifact name.

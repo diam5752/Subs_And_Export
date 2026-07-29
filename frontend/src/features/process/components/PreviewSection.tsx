@@ -3,7 +3,6 @@ import { PhoneFrame } from '@/components/PhoneFrame';
 import {
     PreviewPlayer,
     type InlineSubtitleEditorConfig,
-    type PreviewPlaybackStatus,
     type PreviewPlayerHandle,
     type SubtitleTransformConfig,
 } from '@/components/PreviewPlayer';
@@ -13,6 +12,7 @@ import type { MessageKey } from '@/context/i18nMessages';
 import type { JobResponse } from '@/lib/api';
 import { usePlaybackContext } from '../PlaybackContext';
 import { useProcessContext } from '../ProcessContext';
+import { buildSubtitleExportFilename } from '@/lib/exportFilename';
 import { NewVideoConfirmModal } from './NewVideoConfirmModal';
 import { Sidebar } from './Sidebar';
 
@@ -28,22 +28,21 @@ type PreviewSectionLayoutProps = {
     subtitleEditor: InlineSubtitleEditorConfig;
     subtitleTransformControls: SubtitleTransformConfig;
     handlePlayerTimeUpdate: (time: number) => void;
-    playbackStatus: PreviewPlaybackStatus;
-    currentTime: number;
-    onPlaybackStatusChange: (status: PreviewPlaybackStatus) => void;
-    onTogglePlayback: () => void;
-    onToggleMuted: () => void;
-    onSeek: (time: number) => void;
     handleExport: (resolution: string) => Promise<void>;
     exportingResolutions: Record<string, boolean>;
     exportError: string | null;
+    activeSidebarTab: 'transcript' | 'styles' | 'intelligence';
+    exportFilenamePreview: string;
     showNewVideoModal: boolean;
     setShowNewVideoModal: React.Dispatch<React.SetStateAction<boolean>>;
+    showExportMenu: boolean;
+    setShowExportMenu: React.Dispatch<React.SetStateAction<boolean>>;
+    exportTriggerRef: React.RefObject<HTMLButtonElement | null>;
     onNewVideoConfirm: () => void;
 };
 
 type ExportOption = {
-    resolution: '1080x1920' | 'srt' | 'vtt' | 'txt' | '2160x3840';
+    resolution: '1080x1920' | 'srt' | 'txt' | '2160x3840';
     label: string;
     descriptionKey: MessageKey;
     loadingKey: MessageKey;
@@ -78,13 +77,6 @@ const SUBTITLE_EXPORT_OPTIONS: ExportOption[] = [
         testId: 'srt-btn',
     },
     {
-        resolution: 'vtt',
-        label: 'VTT',
-        descriptionKey: 'subtitleFileVttDesc',
-        loadingKey: 'exportSaving',
-        testId: 'vtt-btn',
-    },
-    {
         resolution: 'txt',
         label: 'TXT',
         descriptionKey: 'subtitleFileTxtDesc',
@@ -92,22 +84,6 @@ const SUBTITLE_EXPORT_OPTIONS: ExportOption[] = [
         testId: 'txt-btn',
     },
 ];
-
-export function formatPlaybackTime(seconds: number): string {
-    const safeSeconds = Number.isFinite(seconds) && seconds > 0
-        ? Math.floor(seconds)
-        : 0;
-    const hours = Math.floor(safeSeconds / 3600);
-    const minutes = Math.floor((safeSeconds % 3600) / 60);
-    const remainingSeconds = safeSeconds % 60;
-
-    if (hours > 0) {
-        return `${hours}:${minutes.toString().padStart(2, '0')}:${remainingSeconds
-            .toString()
-            .padStart(2, '0')}`;
-    }
-    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-}
 
 const ExportAction = memo(({
     option,
@@ -191,6 +167,137 @@ const ExportGroup = memo(({
 });
 ExportGroup.displayName = 'ExportGroup';
 
+const ExportMenu = memo(({
+    isOpen,
+    onClose,
+    triggerRef,
+    exportingResolutions,
+    onExport,
+    exportFilenamePreview,
+    exportError,
+    t,
+}: {
+    isOpen: boolean;
+    onClose: () => void;
+    triggerRef: React.RefObject<HTMLButtonElement | null>;
+    exportingResolutions: Record<string, boolean>;
+    onExport: (resolution: string) => Promise<void>;
+    exportFilenamePreview: string;
+    exportError: string | null;
+    t: PreviewSectionLayoutProps['t'];
+}) => {
+    const menuRef = React.useRef<HTMLElement>(null);
+
+    React.useEffect(() => {
+        if (!isOpen) return;
+
+        const triggerElement = triggerRef.current;
+        const focusFrame = window.requestAnimationFrame(() => {
+            menuRef.current?.focus();
+        });
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                onClose();
+            }
+        };
+        document.addEventListener('keydown', handleKeyDown);
+
+        return () => {
+            window.cancelAnimationFrame(focusFrame);
+            document.removeEventListener('keydown', handleKeyDown);
+            triggerElement?.focus();
+        };
+    }, [isOpen, onClose, triggerRef]);
+
+    const handleExportSelection = useCallback(async (resolution: string) => {
+        onClose();
+        await onExport(resolution);
+    }, [onClose, onExport]);
+
+    if (!isOpen) return null;
+
+    return (
+        <>
+            <button
+                type="button"
+                className="editor-export-backdrop"
+                aria-label={t('closeLabel')}
+                tabIndex={-1}
+                onClick={onClose}
+            />
+            <section
+                ref={menuRef}
+                id="editor-export-menu"
+                className="editor-export-menu"
+                role="dialog"
+                tabIndex={-1}
+                aria-modal="true"
+                aria-labelledby="editor-export-menu-title"
+                aria-describedby="editor-export-menu-description"
+                data-testid="editor-export-menu"
+            >
+                <span className="editor-export-menu-handle" aria-hidden="true" />
+                <header className="editor-export-menu-header">
+                    <div>
+                        <h2 id="editor-export-menu-title">{t('stepExport')}</h2>
+                        <p id="editor-export-menu-description">{t('exportMenuDescription')}</p>
+                    </div>
+                    <button
+                        type="button"
+                        className="editor-export-menu-close"
+                        aria-label={t('closeLabel')}
+                        onClick={onClose}
+                    >
+                        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M6 6l12 12M18 6L6 18" />
+                        </svg>
+                    </button>
+                </header>
+
+                <div className="editor-export-groups" data-testid="editor-export-grid">
+                    <ExportGroup
+                        titleKey="exportVideoTitle"
+                        formats="MP4"
+                        options={VIDEO_EXPORT_OPTIONS}
+                        variant="video"
+                        testId="video-export-group"
+                        exportingResolutions={exportingResolutions}
+                        onExport={handleExportSelection}
+                        t={t}
+                    />
+                    <ExportGroup
+                        titleKey="exportSubtitlesTitle"
+                        formats="SRT · TXT"
+                        options={SUBTITLE_EXPORT_OPTIONS}
+                        variant="subtitles"
+                        testId="subtitle-export-group"
+                        exportingResolutions={exportingResolutions}
+                        onExport={handleExportSelection}
+                        t={t}
+                    />
+                </div>
+
+                <p className="editor-export-filename" data-testid="export-filename-preview">
+                    <span>{t('exportFilenameLabel')}</span>
+                    <strong title={exportFilenamePreview}>{exportFilenamePreview}</strong>
+                </p>
+                <p className="editor-export-retention-note">
+                    <span aria-hidden="true">↻</span>
+                    {t('temporaryWorkspaceExportNote')}
+                </p>
+
+                {exportError && (
+                    <p className="editor-export-error" role="alert">
+                        {exportError}
+                    </p>
+                )}
+            </section>
+        </>
+    );
+});
+ExportMenu.displayName = 'ExportMenu';
+
 const PreviewSectionLayout = memo(({
     resultsRef,
     selectedJob,
@@ -203,17 +310,16 @@ const PreviewSectionLayout = memo(({
     subtitleEditor,
     subtitleTransformControls,
     handlePlayerTimeUpdate,
-    playbackStatus,
-    currentTime,
-    onPlaybackStatusChange,
-    onTogglePlayback,
-    onToggleMuted,
-    onSeek,
     handleExport,
     exportingResolutions,
     exportError,
+    activeSidebarTab,
+    exportFilenamePreview,
     showNewVideoModal,
     setShowNewVideoModal,
+    showExportMenu,
+    setShowExportMenu,
+    exportTriggerRef,
     onNewVideoConfirm,
 }: PreviewSectionLayoutProps) => (
     <div
@@ -232,15 +338,13 @@ const PreviewSectionLayout = memo(({
                         </div>
                     ) : (
                         <>
-                            <div className="editor-ready-header">
-                                <div>
-                                    <span className="editor-ready-kicker">{t('statusReady')}</span>
-                                    <h2>{t('subtitlesReady')}</h2>
-                                    <p>{t('liveOutputSubtitle')}</p>
-                                </div>
+                            <div className="editor-ready-actions">
                                 <button
                                     type="button"
-                                    onClick={() => setShowNewVideoModal(true)}
+                                    onClick={() => {
+                                        setShowExportMenu(false);
+                                        setShowNewVideoModal(true);
+                                    }}
                                     className="editor-new-video"
                                 >
                                     <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -248,163 +352,86 @@ const PreviewSectionLayout = memo(({
                                     </svg>
                                     <span>{t('newVideoButton')}</span>
                                 </button>
+                                <button
+                                    ref={exportTriggerRef}
+                                    type="button"
+                                    className="editor-export-trigger"
+                                    aria-haspopup="dialog"
+                                    aria-expanded={showExportMenu}
+                                    aria-controls="editor-export-menu"
+                                    aria-busy={Object.values(exportingResolutions).some(Boolean)}
+                                    disabled={Object.values(exportingResolutions).some(Boolean)}
+                                    onClick={() => setShowExportMenu((isOpen) => !isOpen)}
+                                >
+                                    {Object.values(exportingResolutions).some(Boolean) ? (
+                                        <Spinner className="h-4 w-4" />
+                                    ) : (
+                                        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M12 3v12m0 0l-4-4m4 4l4-4M5 19h14" />
+                                        </svg>
+                                    )}
+                                    <span>{t('exportMenuButton')}</span>
+                                </button>
+
+                                <ExportMenu
+                                    isOpen={showExportMenu}
+                                    onClose={() => setShowExportMenu(false)}
+                                    triggerRef={exportTriggerRef}
+                                    exportingResolutions={exportingResolutions}
+                                    onExport={handleExport}
+                                    exportFilenamePreview={exportFilenamePreview}
+                                    exportError={exportError}
+                                    t={t}
+                                />
                             </div>
 
                             {!isProcessing && (
                                 <div className="editor-product animate-fade-in" data-testid="completed-editor">
-                                    <div className="editor-workspace" data-testid="editor-workspace">
+                                    <div
+                                        id="editor-workspace"
+                                        className={`editor-workspace ${
+                                            activeSidebarTab === 'styles'
+                                                ? 'editor-workspace-style-mode'
+                                                : ''
+                                        }`}
+                                        data-editor-mode={activeSidebarTab}
+                                        data-testid="editor-workspace"
+                                    >
                                         <section
                                             className="editor-preview-panel"
                                             data-testid="editor-preview-panel"
                                             aria-label={t('previewWindowLabel')}
                                         >
-                                            <div className="editor-phone" data-testid="editor-phone">
-                                                <PhoneFrame className="h-full w-full" showSocialOverlays={false}>
-                                                    {videoUrl ? (
-                                                        <PreviewPlayer
-                                                            ref={playerRef}
-                                                            videoUrl={videoUrl}
-                                                            cues={processedCues || []}
-                                                            settings={playerSettings}
-                                                            subtitleEditor={subtitleEditor}
-                                                            subtitleTransformControls={subtitleTransformControls}
-                                                            onTimeUpdate={handlePlayerTimeUpdate}
-                                                            onPlaybackStatusChange={onPlaybackStatusChange}
-                                                            playbackToggleLabel={t('previewVideoToggle')}
-                                                            initialTime={processedCues && processedCues.length > 0 ? processedCues[0].start : 0}
-                                                        />
-                                                    ) : (
-                                                        <div className="editor-preview-placeholder">
-                                                            <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
-                                                                <path d="M8.5 6.9a1 1 0 011.52-.85l7.3 4.6a1 1 0 010 1.7l-7.3 4.6a1 1 0 01-1.52-.85V6.9z" />
-                                                            </svg>
-                                                            <span>{t('clickToPreview')}</span>
-                                                        </div>
-                                                    )}
-                                                </PhoneFrame>
+                                            <div className="editor-preview-stage">
+                                                <div className="editor-phone" data-testid="editor-phone">
+                                                    <PhoneFrame className="h-full w-full" showSocialOverlays={false}>
+                                                        {videoUrl ? (
+                                                            <PreviewPlayer
+                                                                ref={playerRef}
+                                                                videoUrl={videoUrl}
+                                                                cues={processedCues || []}
+                                                                settings={playerSettings}
+                                                                subtitleEditor={subtitleEditor}
+                                                                subtitleTransformControls={subtitleTransformControls}
+                                                                onTimeUpdate={handlePlayerTimeUpdate}
+                                                                playbackToggleLabel={t('previewVideoToggle')}
+                                                                initialTime={processedCues && processedCues.length > 0 ? processedCues[0].start : 0}
+                                                            />
+                                                        ) : (
+                                                            <div className="editor-preview-placeholder">
+                                                                <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                                                                    <path d="M8.5 6.9a1 1 0 011.52-.85l7.3 4.6a1 1 0 010 1.7l-7.3 4.6a1 1 0 01-1.52-.85V6.9z" />
+                                                                </svg>
+                                                                <span>{t('clickToPreview')}</span>
+                                                            </div>
+                                                        )}
+                                                    </PhoneFrame>
+                                                </div>
                                             </div>
-                                            {videoUrl && (
-                                                <>
-                                                    <div
-                                                        className="editor-preview-controls"
-                                                        data-testid="editor-preview-controls"
-                                                    >
-                                                        <input
-                                                            type="range"
-                                                            className="editor-preview-scrubber"
-                                                            min={0}
-                                                            max={Math.max(playbackStatus.duration, 0)}
-                                                            step={0.1}
-                                                            value={Math.min(currentTime, playbackStatus.duration || 0)}
-                                                            disabled={playbackStatus.duration <= 0}
-                                                            aria-label={t('seekVideo')}
-                                                            onChange={(event) => onSeek(Number(event.currentTarget.value))}
-                                                        />
-                                                        <div className="editor-preview-control-row">
-                                                            <button
-                                                                type="button"
-                                                                className="editor-preview-control-button"
-                                                                aria-label={t(playbackStatus.isPlaying ? 'pausePreview' : 'playPreview')}
-                                                                onClick={onTogglePlayback}
-                                                            >
-                                                                {playbackStatus.isPlaying ? (
-                                                                    <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
-                                                                        <path d="M7 5h3.5v14H7V5zm6.5 0H17v14h-3.5V5z" />
-                                                                    </svg>
-                                                                ) : (
-                                                                    <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
-                                                                        <path d="M8 5.5v13l10-6.5L8 5.5z" />
-                                                                    </svg>
-                                                                )}
-                                                            </button>
-                                                            <output
-                                                                className="editor-preview-time"
-                                                                data-testid="editor-preview-time"
-                                                                aria-label={t('previewTimeLabel')}
-                                                                aria-live="off"
-                                                            >
-                                                                {formatPlaybackTime(Math.min(
-                                                                    Math.max(currentTime, 0),
-                                                                    playbackStatus.duration || 0,
-                                                                ))}
-                                                                {' / '}
-                                                                {formatPlaybackTime(playbackStatus.duration)}
-                                                            </output>
-                                                            <button
-                                                                type="button"
-                                                                className="editor-preview-control-button"
-                                                                aria-label={t(playbackStatus.isMuted ? 'unmutePreview' : 'mutePreview')}
-                                                                onClick={onToggleMuted}
-                                                            >
-                                                                {playbackStatus.isMuted ? (
-                                                                    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5 6.8 8.5H4v7h2.8L11 19V5Zm4.5 5.2 4 4m0-4-4 4" />
-                                                                    </svg>
-                                                                ) : (
-                                                                    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5 6.8 8.5H4v7h2.8L11 19V5Zm4 3.5a5 5 0 0 1 0 7m2.5-9.5a8.5 8.5 0 0 1 0 12" />
-                                                                    </svg>
-                                                                )}
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                    <p
-                                                        data-testid="subtitle-direct-manipulation-hint"
-                                                        className="mt-4 max-w-[278px] text-center text-[11px] font-semibold leading-5 text-[var(--muted)]"
-                                                    >
-                                                        <span className="subtitle-desktop-manipulation-hint">
-                                                            <span aria-hidden="true" className="mr-1 text-[var(--accent)]">↕</span>
-                                                            {t('subtitleDirectManipulationHint')}
-                                                        </span>
-                                                        <span
-                                                            className="subtitle-touch-manipulation-hint"
-                                                            data-testid="subtitle-touch-manipulation-hint"
-                                                        >
-                                                            <span aria-hidden="true" className="mr-1 text-[var(--accent)]">↕</span>
-                                                            {t('subtitleTouchManipulationHint')}
-                                                        </span>
-                                                    </p>
-                                                </>
-                                            )}
                                         </section>
 
                                         <Sidebar />
                                     </div>
-
-                                    <section className="editor-export-panel" aria-label={t('stepExport')}>
-                                        <div className="editor-export-groups" data-testid="editor-export-grid">
-                                            <ExportGroup
-                                                titleKey="exportVideoTitle"
-                                                formats="MP4"
-                                                options={VIDEO_EXPORT_OPTIONS}
-                                                variant="video"
-                                                testId="video-export-group"
-                                                exportingResolutions={exportingResolutions}
-                                                onExport={handleExport}
-                                                t={t}
-                                            />
-                                            <ExportGroup
-                                                titleKey="exportSubtitlesTitle"
-                                                formats="SRT · VTT · TXT"
-                                                options={SUBTITLE_EXPORT_OPTIONS}
-                                                variant="subtitles"
-                                                testId="subtitle-export-group"
-                                                exportingResolutions={exportingResolutions}
-                                                onExport={handleExport}
-                                                t={t}
-                                            />
-                                        </div>
-                                        <p className="mt-4 text-center text-[11px] font-medium leading-5 text-[var(--muted)]">
-                                            <span aria-hidden="true" className="mr-1.5 text-[var(--accent)]">↻</span>
-                                            {t('temporaryWorkspaceExportNote')}
-                                        </p>
-
-                                        {exportError && (
-                                            <p className="editor-export-error" role="alert">
-                                                {exportError}
-                                            </p>
-                                        )}
-                                    </section>
                                 </div>
                             )}
                         </>
@@ -449,18 +476,21 @@ export function PreviewSection() {
         editingCueSurface,
         isSavingTranscript,
         transcriptSaveError,
+        activeSidebarTab,
         beginEditingCue,
         handleUpdateDraft,
         saveEditingCue,
         cancelEditingCue,
     } = useProcessContext();
-    const { currentTime, setCurrentTime } = usePlaybackContext();
+    const { setCurrentTime } = usePlaybackContext();
     const [showNewVideoModal, setShowNewVideoModal] = React.useState(false);
-    const [playbackStatus, setPlaybackStatus] = React.useState<PreviewPlaybackStatus>({
-        duration: 0,
-        isPlaying: false,
-        isMuted: false,
-    });
+    const [showExportMenu, setShowExportMenu] = React.useState(false);
+    const exportTriggerRef = React.useRef<HTMLButtonElement>(null);
+    const originalFilename = selectedJob?.result_data?.original_filename;
+    const exportFilenamePreview = useMemo(
+        () => buildSubtitleExportFilename(originalFilename, 'mp4'),
+        [originalFilename],
+    );
 
     const handleNewVideoConfirm = useCallback(() => {
         onReset();
@@ -525,19 +555,6 @@ export function PreviewSection() {
         setCurrentTime(time);
     }, [setCurrentTime]);
 
-    const handleSeek = useCallback((time: number) => {
-        playerRef.current?.seekTo(time);
-        setCurrentTime(time);
-    }, [playerRef, setCurrentTime]);
-
-    const handleTogglePlayback = useCallback(() => {
-        playerRef.current?.togglePlayback();
-    }, [playerRef]);
-
-    const handleToggleMuted = useCallback(() => {
-        playerRef.current?.toggleMuted();
-    }, [playerRef]);
-
     return (
         <PreviewSectionLayout
             resultsRef={resultsRef}
@@ -551,17 +568,16 @@ export function PreviewSection() {
             subtitleEditor={subtitleEditor}
             subtitleTransformControls={subtitleTransformControls}
             handlePlayerTimeUpdate={handlePlayerTimeUpdate}
-            playbackStatus={playbackStatus}
-            currentTime={currentTime}
-            onPlaybackStatusChange={setPlaybackStatus}
-            onTogglePlayback={handleTogglePlayback}
-            onToggleMuted={handleToggleMuted}
-            onSeek={handleSeek}
             handleExport={handleExport}
             exportingResolutions={exportingResolutions}
             exportError={exportError}
+            activeSidebarTab={activeSidebarTab}
+            exportFilenamePreview={exportFilenamePreview}
             showNewVideoModal={showNewVideoModal}
             setShowNewVideoModal={setShowNewVideoModal}
+            showExportMenu={showExportMenu}
+            setShowExportMenu={setShowExportMenu}
+            exportTriggerRef={exportTriggerRef}
             onNewVideoConfirm={handleNewVideoConfirm}
         />
     );
