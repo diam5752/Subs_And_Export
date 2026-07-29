@@ -51,7 +51,7 @@ Run the complete repository gates and the production frontend build from a
 clean checkout:
 
 ```bash
-make check-all
+make ci
 (cd frontend && npm run build)
 git status --short
 ```

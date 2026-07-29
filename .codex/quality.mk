@@ -1,7 +1,10 @@
 PYTHON ?= python3
 QUALITY_RUNNER = $(PYTHON) .codex/scripts/quality_runner.py
+ISOLATED_QUALITY_RUNNER = $(PYTHON) .codex/scripts/run_isolated_quality_gate.py
 
-.PHONY: check-contract check-fast check-static check-unit check-integration check-media-export check-e2e check-arch check-java check-security check-mutation check-performance check-dast check-all
+.PHONY: ci check-contract check-fast check-static check-unit check-integration check-media-export check-e2e check-arch check-java check-security check-mutation check-performance check-dast check-all
+
+ci: check-all
 
 check-contract:
 	$(QUALITY_RUNNER) check:contract
@@ -43,4 +46,4 @@ check-dast:
 	$(QUALITY_RUNNER) check:dast
 
 check-all:
-	$(QUALITY_RUNNER) check:all
+	$(ISOLATED_QUALITY_RUNNER) check:all
