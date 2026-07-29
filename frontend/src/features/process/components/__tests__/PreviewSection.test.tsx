@@ -1,7 +1,7 @@
 import React from 'react';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { formatPlaybackTime, PreviewSection } from '../PreviewSection';
+import { PreviewSection } from '../PreviewSection';
 import { useProcessContext } from '../../ProcessContext';
 import { usePlaybackContext } from '../../PlaybackContext';
 
@@ -27,18 +27,12 @@ jest.mock('@/components/PreviewPlayer', () => ({
             videoUrl,
             cues,
             onTimeUpdate,
-            onPlaybackStatusChange,
             subtitleEditor,
             subtitleTransformControls,
         }: {
             videoUrl: string;
             cues: Array<{ text: string }>;
             onTimeUpdate?: (time: number) => void;
-            onPlaybackStatusChange?: (status: {
-                duration: number;
-                isPlaying: boolean;
-                isMuted: boolean;
-            }) => void;
             subtitleEditor?: {
                 cues: Array<{ text: string }>;
                 onBeginEdit: (index: number) => void;
@@ -53,8 +47,8 @@ jest.mock('@/components/PreviewPlayer', () => ({
         React.useImperativeHandle(ref, () => ({
             seekTo: mockSeekTo,
             pause: jest.fn(),
-            togglePlayback: mockTogglePlayback,
-            toggleMuted: mockToggleMuted,
+            togglePlayback: jest.fn(),
+            toggleMuted: jest.fn(),
         }));
         return (
             <div>
@@ -83,25 +77,12 @@ jest.mock('@/components/PreviewPlayer', () => ({
                 >
                     resize-on-video
                 </button>
-                <button
-                    type="button"
-                    data-testid="playback-status-bridge"
-                    onClick={() => onPlaybackStatusChange?.({
-                        duration: 30,
-                        isPlaying: true,
-                        isMuted: false,
-                    })}
-                >
-                    playback-status
-                </button>
             </div>
         );
     }),
 }));
 
 const mockSeekTo = jest.fn();
-const mockTogglePlayback = jest.fn();
-const mockToggleMuted = jest.fn();
 
 jest.mock('../Sidebar', () => ({
     Sidebar: () => <div data-testid="sidebar">sidebar</div>,
@@ -149,6 +130,7 @@ function buildContext() {
             result_data?: {
                 transcribe_provider?: string;
                 transcribe_tier?: string;
+                original_filename?: string | null;
             };
         } | null,
         isProcessing: false,
@@ -164,6 +146,7 @@ function buildContext() {
         maxSubtitleLines: 2,
         shadowStrength: 4,
         watermarkEnabled: true,
+        activeSidebarTab: 'transcript' as 'transcript' | 'styles' | 'intelligence',
         playerRef: React.createRef(),
         resultsRef: React.createRef<HTMLDivElement>(),
         currentStep: 3,
@@ -203,7 +186,7 @@ describe('PreviewSection', () => {
         expect(screen.queryByTestId('preview-player')).not.toBeInTheDocument();
     });
 
-    it('renders preview actions for completed jobs and forwards exports', () => {
+    it('opens the compact export menu and forwards only the requested public formats', () => {
         contextValue.selectedJob = {
             status: 'completed',
             result_data: {
@@ -226,49 +209,29 @@ describe('PreviewSection', () => {
         fireEvent.click(screen.getByTestId('resize-on-video'));
         expect(contextValue.setSubtitlePosition).toHaveBeenCalledWith(42);
         expect(contextValue.setSubtitleSize).toHaveBeenCalledWith(115);
-        expect(screen.getByText('subtitleDirectManipulationHint')).toBeInTheDocument();
 
-        // REGRESSION: playback controls must live outside the phone viewport so
-        // mobile browser chrome can never cover editable subtitles.
-        const playbackControls = screen.getByTestId('editor-preview-controls');
-        fireEvent.click(within(playbackControls).getByRole('button', { name: 'playPreview' }));
-        expect(mockTogglePlayback).toHaveBeenCalledTimes(1);
-        fireEvent.click(within(playbackControls).getByRole('button', { name: 'mutePreview' }));
-        expect(mockToggleMuted).toHaveBeenCalledTimes(1);
-        fireEvent.click(screen.getByTestId('playback-status-bridge'));
-        expect(within(playbackControls).getByRole('button', { name: 'pausePreview' })).toBeInTheDocument();
-        expect(screen.getByTestId('editor-preview-time')).toHaveTextContent('0:00 / 0:30');
-        expect(screen.getByTestId('subtitle-touch-manipulation-hint')).toHaveTextContent(
-            'subtitleTouchManipulationHint',
-        );
-        fireEvent.change(within(playbackControls).getByRole('slider', { name: 'seekVideo' }), {
-            target: { value: '7.5' },
-        });
-        expect(mockSeekTo).toHaveBeenCalledWith(7.5);
-        expect(setCurrentTime).toHaveBeenCalledWith(7.5);
+        // REGRESSION: persistent transport controls covered the video and
+        // subtitles on narrow mobile screens. Playback is gesture-first now.
+        expect(screen.queryByTestId('editor-preview-controls')).not.toBeInTheDocument();
+        expect(screen.queryByText('subtitlesReady')).not.toBeInTheDocument();
+        expect(screen.queryByText('liveOutputSubtitle')).not.toBeInTheDocument();
+        expect(screen.queryByTestId('subtitle-direct-manipulation-hint')).not.toBeInTheDocument();
+        expect(screen.queryByTestId('subtitle-touch-manipulation-hint')).not.toBeInTheDocument();
 
-        fireEvent.click(screen.getByTestId('srt-btn'));
-        fireEvent.click(screen.getByTestId('vtt-btn'));
-        fireEvent.click(screen.getByTestId('txt-btn'));
-        fireEvent.click(screen.getByTestId('download-1080p-btn'));
-        fireEvent.click(screen.getByTestId('download-4k-btn'));
+        const newVideoButton = screen.getByRole('button', { name: 'newVideoButton' });
+        const exportButton = screen.getByRole('button', { name: 'exportMenuButton' });
+        expect(
+            newVideoButton.compareDocumentPosition(exportButton)
+            & Node.DOCUMENT_POSITION_FOLLOWING,
+        ).toBeTruthy();
+        expect(screen.queryByTestId('editor-export-menu')).not.toBeInTheDocument();
+        expect(screen.queryByTestId('editor-export-panel')).not.toBeInTheDocument();
 
-        expect(contextValue.handleExport).toHaveBeenCalledWith('srt');
-        expect(contextValue.handleExport).toHaveBeenCalledWith('vtt');
-        expect(contextValue.handleExport).toHaveBeenCalledWith('txt');
-        expect(contextValue.handleExport).toHaveBeenCalledWith('1080x1920');
-        expect(contextValue.handleExport).toHaveBeenCalledWith('2160x3840');
-        expect(screen.getByTestId('sidebar')).toBeInTheDocument();
+        fireEvent.click(exportButton);
+        expect(screen.getByTestId('editor-export-menu')).toBeInTheDocument();
 
-        // REGRESSION: preview, controls, and exports must remain separate layout regions.
-        expect(screen.getByTestId('completed-editor')).toBeInTheDocument();
-        expect(screen.getByTestId('editor-preview-panel')).toBeInTheDocument();
-        expect(document.querySelector('.editor-preview-meta')).not.toBeInTheDocument();
-        expect(document.querySelector('.editor-model-pill')).not.toBeInTheDocument();
-        expect(document.querySelector('.editor-aspect-pill')).not.toBeInTheDocument();
-
-        // REGRESSION: video and subtitle downloads must be presented as two
-        // distinct groups instead of one mixed row of formats.
+        // REGRESSION: export choices used to permanently consume a large block
+        // below the editor. They now appear on demand in two clear groups.
         const videoExports = screen.getByTestId('video-export-group');
         const subtitleExports = screen.getByTestId('subtitle-export-group');
         expect(within(videoExports).getByText('exportVideoTitle')).toBeInTheDocument();
@@ -277,12 +240,34 @@ describe('PreviewSection', () => {
         expect(within(videoExports).queryByTestId('srt-btn')).not.toBeInTheDocument();
         expect(within(subtitleExports).getByText('exportSubtitlesTitle')).toBeInTheDocument();
         expect(within(subtitleExports).getByTestId('srt-btn')).toBeInTheDocument();
-        expect(within(subtitleExports).getByTestId('vtt-btn')).toBeInTheDocument();
         expect(within(subtitleExports).getByTestId('txt-btn')).toBeInTheDocument();
+        expect(within(subtitleExports).queryByTestId('vtt-btn')).not.toBeInTheDocument();
         expect(within(subtitleExports).queryByTestId('download-1080p-btn')).not.toBeInTheDocument();
-        // REGRESSION: exporting used to give no indication that it refreshes
-        // the project's automatic deletion window.
         expect(screen.getByText('temporaryWorkspaceExportNote')).toBeInTheDocument();
+
+        fireEvent.click(screen.getByTestId('srt-btn'));
+        expect(screen.queryByTestId('editor-export-menu')).not.toBeInTheDocument();
+
+        fireEvent.click(exportButton);
+        fireEvent.click(screen.getByTestId('txt-btn'));
+        fireEvent.click(exportButton);
+        fireEvent.click(screen.getByTestId('download-1080p-btn'));
+        fireEvent.click(exportButton);
+        fireEvent.click(screen.getByTestId('download-4k-btn'));
+
+        expect(contextValue.handleExport).toHaveBeenCalledWith('srt');
+        expect(contextValue.handleExport).toHaveBeenCalledWith('txt');
+        expect(contextValue.handleExport).toHaveBeenCalledWith('1080x1920');
+        expect(contextValue.handleExport).toHaveBeenCalledWith('2160x3840');
+        expect(screen.getByTestId('sidebar')).toBeInTheDocument();
+
+        // REGRESSION: preview and exports must remain separate layout regions.
+        expect(screen.getByTestId('completed-editor')).toBeInTheDocument();
+        expect(screen.getByTestId('editor-preview-panel')).toBeInTheDocument();
+        expect(document.querySelector('.editor-preview-meta')).not.toBeInTheDocument();
+        expect(document.querySelector('.editor-model-pill')).not.toBeInTheDocument();
+        expect(document.querySelector('.editor-aspect-pill')).not.toBeInTheDocument();
+
     });
 
     it('renders export errors when the provider surfaces one', () => {
@@ -297,7 +282,39 @@ describe('PreviewSection', () => {
 
         render(<PreviewSection />);
 
+        fireEvent.click(screen.getByRole('button', { name: 'exportMenuButton' }));
         expect(screen.getByRole('alert')).toHaveTextContent('Export failed');
+    });
+
+    it('uses the compact live-preview workspace for styles and previews the public export name', () => {
+        contextValue.selectedJob = {
+            status: 'completed',
+            result_data: {
+                original_filename: 'Interview.final.MOV',
+            },
+        };
+        contextValue.activeSidebarTab = 'styles';
+
+        render(<PreviewSection />);
+
+        // REGRESSION: mobile styling used to render below the export cards,
+        // separating the controls from the video they update.
+        expect(screen.getByTestId('editor-workspace')).toHaveClass(
+            'editor-workspace-style-mode',
+        );
+        fireEvent.click(screen.getByRole('button', { name: 'exportMenuButton' }));
+        expect(screen.getByTestId('export-filename-preview')).toHaveTextContent(
+            'Interview.final_subs.mp4',
+        );
+
+        const workspace = screen.getByTestId('editor-workspace');
+        const actionBar = document.querySelector('.editor-ready-actions');
+        expect(actionBar).not.toBeNull();
+        expect(
+            actionBar!.compareDocumentPosition(workspace)
+            & Node.DOCUMENT_POSITION_FOLLOWING,
+        ).toBeTruthy();
+        expect(screen.queryByTestId('editor-export-panel')).not.toBeInTheDocument();
     });
 
     it('opens the new video flow and resets the workflow when confirmed', () => {
@@ -333,15 +350,5 @@ describe('PreviewSection', () => {
         // REGRESSION: workflow progress now has one canonical home above the editor.
         expect(screen.queryByText('step3Label')).not.toBeInTheDocument();
         expect(screen.getByTestId('completed-editor')).toBeInTheDocument();
-    });
-});
-
-describe('formatPlaybackTime', () => {
-    it('formats safe minute and hour timestamps for the compact player', () => {
-        expect(formatPlaybackTime(0)).toBe('0:00');
-        expect(formatPlaybackTime(65.9)).toBe('1:05');
-        expect(formatPlaybackTime(3661)).toBe('1:01:01');
-        expect(formatPlaybackTime(Number.NaN)).toBe('0:00');
-        expect(formatPlaybackTime(-4)).toBe('0:00');
     });
 });

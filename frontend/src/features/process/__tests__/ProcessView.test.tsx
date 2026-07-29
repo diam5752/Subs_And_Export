@@ -210,8 +210,9 @@ describe('ProcessView', () => {
         );
 
         await waitFor(() => {
-            expect(screen.getByRole('heading', { name: /custom settings/i })).toBeInTheDocument();
+            expect(screen.getByRole('slider', { name: /size/i })).toBeInTheDocument();
         });
+        expect(screen.queryByRole('heading', { name: /custom settings/i })).not.toBeInTheDocument();
         expect(screen.queryByText('TikTok Pro')).not.toBeInTheDocument();
         expect(screen.queryByText('Cinematic Master')).not.toBeInTheDocument();
         expect(screen.queryByText('Podcast Style')).not.toBeInTheDocument();

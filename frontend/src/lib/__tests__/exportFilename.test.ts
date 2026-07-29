@@ -8,6 +8,9 @@ describe('buildSubtitleExportFilename', () => {
         // REGRESSION: downloads used the internal processed_<resolution> filename.
         expect(buildSubtitleExportFilename('E Isous.mp4', '1080x1920')).toBe('E Isous_subs.mp4');
         expect(buildSubtitleExportFilename('συνέντευξη.final.MOV', 'srt')).toBe('συνέντευξη.final_subs.srt');
+        // REGRESSION: exporting an already suffixed file produced _subs_subs.
+        expect(buildSubtitleExportFilename('E Isous_subs.mp4', 'vtt')).toBe('E Isous_subs.vtt');
+        expect(buildSubtitleExportFilename('E Isous_subs_subs.mp4', '1080x1920')).toBe('E Isous_subs.mp4');
     });
 
     it('removes path and header-unsafe filename characters with a stable fallback', () => {

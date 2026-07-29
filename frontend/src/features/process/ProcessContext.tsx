@@ -365,7 +365,7 @@ export function ProcessProvider({
     // Constants
     const SUBTITLE_COLORS = useMemo(() => [
         { label: t('colorYellow'), value: '#FFFF00', ass: '&H0000FFFF' },
-        { label: t('colorWhite'), value: '#FFFFFF', ass: '&H00FFFFFF' },
+        { label: t('colorPurple'), value: '#8B5CF6', ass: '&H00F65C8B' },
         { label: t('colorCyan'), value: '#00FFFF', ass: '&H00FFFF00' },
         { label: t('colorGreen'), value: '#00FF00', ass: '&H0000FF00' },
         { label: t('colorMagenta'), value: '#FF00FF', ass: '&H00FF00FF' },

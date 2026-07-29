@@ -10,15 +10,13 @@ jest.mock('@/context/I18nContext', () => ({
 
 describe('SubtitlePositionSelector', () => {
     const defaultProps = {
-        value: 16,
-        onChange: jest.fn(),
         lines: 2,
         onChangeLines: jest.fn(),
         subtitleSize: 100,
         onChangeSize: jest.fn(),
-        subtitleColor: '#FFFFFF',
+        subtitleColor: '#8B5CF6',
         onChangeColor: jest.fn(),
-        colors: [{ label: 'White', value: '#FFFFFF', ass: '&H00FFFFFF' }],
+        colors: [{ label: 'Purple', value: '#8B5CF6', ass: '&H00F65C8B' }],
     };
 
     beforeEach(() => {
@@ -27,6 +25,16 @@ describe('SubtitlePositionSelector', () => {
 
     it('renders size slider and presets', () => {
         render(<SubtitlePositionSelector {...defaultProps} />);
+
+        expect(screen.getByTestId('style-size-control')).toHaveClass(
+            'editor-style-size-control',
+        );
+        expect(screen.getByTestId('style-color-control')).toHaveClass(
+            'editor-style-color-control',
+        );
+        expect(screen.getByTestId('style-lines-control')).toHaveClass(
+            'editor-style-lines-control',
+        );
 
         // Verify accessible label connection
         expect(screen.getByLabelText('sizeLabel')).toHaveAttribute('type', 'range');
@@ -38,19 +46,14 @@ describe('SubtitlePositionSelector', () => {
         expect(screen.getByText('sizeExtraBig')).toBeInTheDocument();
     });
 
-    it('renders position slider and presets', () => {
+    it('does not render a redundant position control', () => {
         render(<SubtitlePositionSelector {...defaultProps} />);
 
-        // Verify accessible label
-        const slider = screen.getByLabelText('positionLabel');
-        expect(slider).toHaveAttribute('type', 'range');
-        expect(slider).toHaveAttribute('min', '5');
-        expect(slider).toHaveAttribute('max', '95');
-
-        // Presets
-        expect(screen.getByText('positionLow')).toBeInTheDocument();
-        expect(screen.getByText('positionMiddle')).toBeInTheDocument();
-        expect(screen.getByText('positionHigh')).toBeInTheDocument();
+        // Position is manipulated directly on the video with touch or mouse.
+        expect(screen.queryByLabelText('positionLabel')).not.toBeInTheDocument();
+        expect(screen.queryByText('positionLow')).not.toBeInTheDocument();
+        expect(screen.queryByText('positionMiddle')).not.toBeInTheDocument();
+        expect(screen.queryByText('positionHigh')).not.toBeInTheDocument();
     });
 
     it('calls onChangeSize when size preset is clicked', () => {
@@ -58,13 +61,6 @@ describe('SubtitlePositionSelector', () => {
 
         fireEvent.click(screen.getByText('sizeBig'));
         expect(defaultProps.onChangeSize).toHaveBeenCalledWith(100);
-    });
-
-    it('calls onChange when position preset is clicked', () => {
-        render(<SubtitlePositionSelector {...defaultProps} />);
-
-        fireEvent.click(screen.getByText('positionHigh'));
-        expect(defaultProps.onChange).toHaveBeenCalledWith(95);
     });
 
     it('calls onChangeLines when line option is clicked', () => {
@@ -104,7 +100,6 @@ describe('SubtitlePositionSelector', () => {
         };
 
         assertTooltip('infoPrefix sizeLabel', 'tooltipSizeDesc');
-        assertTooltip('infoPrefix positionLabel', 'tooltipPositionDesc');
         assertTooltip('infoPrefix maxLinesLabel', 'tooltipMaxLinesDesc');
         assertTooltip('infoPrefix colorLabel', 'tooltipColorDesc');
     });
@@ -118,6 +113,24 @@ describe('SubtitlePositionSelector', () => {
         const colorBtn = screen.getByRole('radio', { name: 'Green' });
         fireEvent.click(colorBtn);
         expect(onChangeColor).toHaveBeenCalledWith('#00FF00');
+    });
+
+    it('uses a four-column responsive grid for preset colors and the color picker', () => {
+        const colors = [
+            { label: 'Yellow', value: '#FFFF00', ass: '&H0000FFFF' },
+            { label: 'Purple', value: '#8B5CF6', ass: '&H00F65C8B' },
+            { label: 'Cyan', value: '#00FFFF', ass: '&H00FFFF00' },
+        ];
+        render(<SubtitlePositionSelector {...defaultProps} colors={colors} />);
+
+        const options = screen.getByTestId('style-color-options');
+        expect(options).toHaveClass('editor-style-color-options');
+        expect(options.querySelectorAll('.editor-style-color-swatch')).toHaveLength(4);
+        const purple = screen.getByRole('radio', { name: 'Purple' });
+        expect(purple).toHaveAttribute('aria-checked', 'true');
+        expect(purple.querySelector('.editor-style-color-dot')).toHaveStyle(
+            'background-color: #8B5CF6',
+        );
     });
 
 });

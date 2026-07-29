@@ -112,7 +112,7 @@ test('completed editor remains readable across the responsive viewport matrix', 
 
   await page.setViewportSize(editorViewportMatrix[0]);
   await page.goto('/');
-  await page.getByText(el.subtitlesReady).waitFor({ timeout: 30_000 });
+  await page.getByTestId('completed-editor').waitFor({ timeout: 30_000 });
   await stabilizeUi(page);
 
   for (const viewport of editorViewportMatrix) {
@@ -149,18 +149,14 @@ test('completed editor remains readable across the responsive viewport matrix', 
         tabsSticky: bounds('.editor-tabs-sticky'),
         transcriptList: bounds('.editor-transcript-list'),
         firstCueIdCount: document.querySelectorAll('#cue-0').length,
-        exportPanel: bounds('.editor-export-panel'),
-        videoExportGroup: bounds('[data-testid="video-export-group"]'),
-        subtitleExportGroup: bounds('[data-testid="subtitle-export-group"]'),
-        exportActions: Array.from(document.querySelectorAll<HTMLElement>('.editor-export-action')).map((element) => {
-          const rect = element.getBoundingClientRect();
-          return { width: rect.width, height: rect.height };
-        }),
         tabs: Array.from(document.querySelectorAll<HTMLElement>('.editor-tab')).map((element) => {
           const rect = element.getBoundingClientRect();
           return { width: rect.width, height: rect.height };
         }),
+        actionBar: bounds('.editor-ready-actions'),
         newVideo: bounds('.editor-new-video'),
+        exportTrigger: bounds('.editor-export-trigger'),
+        persistentExportPanels: document.querySelectorAll('.editor-export-panel').length,
       };
     });
 
@@ -173,8 +169,7 @@ test('completed editor remains readable across the responsive viewport matrix', 
     expect(metrics.stepper.bottom, `${viewport.width}px stepper order`).toBeLessThanOrEqual(metrics.section.y + 1);
     expect(metrics.duplicateStepHeaders, `${viewport.width}px duplicate step headings`).toBe(0);
     expect(metrics.previewMetaCount, `${viewport.width}px preview labels`).toBe(0);
-    expect(metrics.videoExportGroup.right, `${viewport.width}px video export containment`).toBeLessThanOrEqual(metrics.exportPanel.right + 1);
-    expect(metrics.subtitleExportGroup.right, `${viewport.width}px subtitle export containment`).toBeLessThanOrEqual(metrics.exportPanel.right + 1);
+    expect(metrics.persistentExportPanels, `${viewport.width}px persistent export panels`).toBe(0);
     expect(metrics.phone.width, `${viewport.width}px phone width`).toBeGreaterThanOrEqual(190);
     expect(metrics.phone.width, `${viewport.width}px phone width`).toBeLessThanOrEqual(280);
     // REGRESSION: the sticky tab header overlapped the beginning of the
@@ -182,8 +177,14 @@ test('completed editor remains readable across the responsive viewport matrix', 
     expect(metrics.transcriptList.y, `${viewport.width}px transcript below sticky tabs`)
       .toBeGreaterThanOrEqual(metrics.tabsSticky.bottom - 1);
     expect(metrics.firstCueIdCount, `${viewport.width}px unique first cue id`).toBe(1);
+    expect(metrics.newVideo.x, `${viewport.width}px new video left alignment`)
+      .toBeLessThan(metrics.exportTrigger.x);
+    expect(metrics.newVideo.x, `${viewport.width}px new video action containment`)
+      .toBeGreaterThanOrEqual(metrics.actionBar.x);
+    expect(metrics.exportTrigger.right, `${viewport.width}px export action containment`)
+      .toBeLessThanOrEqual(metrics.actionBar.right + 1);
 
-    for (const action of [...metrics.exportActions, ...metrics.tabs, metrics.newVideo]) {
+    for (const action of [...metrics.tabs, metrics.newVideo, metrics.exportTrigger]) {
       expect(action.height, `${viewport.width}px touch target height`).toBeGreaterThanOrEqual(44);
       expect(action.width, `${viewport.width}px touch target width`).toBeGreaterThanOrEqual(42);
     }
@@ -192,22 +193,53 @@ test('completed editor remains readable across the responsive viewport matrix', 
       expect(metrics.preview.width, `${viewport.width}px desktop preview width`).toBeGreaterThanOrEqual(278);
       expect(metrics.sidebar.width, `${viewport.width}px desktop controls width`).toBeGreaterThanOrEqual(480);
       expect(metrics.preview.right, `${viewport.width}px desktop column order`).toBeLessThanOrEqual(metrics.sidebar.x + 1);
-      expect(metrics.videoExportGroup.right, `${viewport.width}px desktop export group order`).toBeLessThanOrEqual(metrics.subtitleExportGroup.x + 1);
     } else {
-      expect(metrics.preview.bottom, `${viewport.width}px mobile export order`).toBeLessThanOrEqual(metrics.exportPanel.y + 1);
-      expect(metrics.exportPanel.bottom, `${viewport.width}px mobile controls order`).toBeLessThanOrEqual(metrics.sidebar.y + 1);
+      expect(metrics.preview.bottom, `${viewport.width}px mobile preview order`).toBeLessThanOrEqual(metrics.sidebar.y + 1);
     }
 
-    if (viewport.width <= 640) {
-      expect(metrics.videoExportGroup.bottom, `${viewport.width}px mobile export group order`).toBeLessThanOrEqual(metrics.subtitleExportGroup.y + 1);
+    await page.getByRole('button', { name: el.exportMenuButton, exact: true }).click();
+    const exportMenu = page.getByTestId('editor-export-menu');
+    await expect(exportMenu).toBeVisible();
+    const exportMetrics = await exportMenu.evaluate((menu) => {
+      const menuRect = menu.getBoundingClientRect();
+      const actions = Array.from(menu.querySelectorAll<HTMLElement>('.editor-export-action'))
+        .map((element) => {
+          const rect = element.getBoundingClientRect();
+          return { width: rect.width, height: rect.height };
+        });
+      return {
+        left: menuRect.left,
+        right: menuRect.right,
+        top: menuRect.top,
+        bottom: menuRect.bottom,
+        actions,
+        vttOptions: menu.querySelectorAll('[data-testid="vtt-btn"]').length,
+      };
+    });
+    expect(exportMetrics.left, `${viewport.width}px export menu left containment`)
+      .toBeGreaterThanOrEqual(0);
+    expect(exportMetrics.right, `${viewport.width}px export menu right containment`)
+      .toBeLessThanOrEqual(viewport.width + 1);
+    expect(exportMetrics.top, `${viewport.width}px export menu top containment`)
+      .toBeGreaterThanOrEqual(0);
+    expect(exportMetrics.bottom, `${viewport.width}px export menu bottom containment`)
+      .toBeLessThanOrEqual(viewport.height + 1);
+    expect(exportMetrics.vttOptions, `${viewport.width}px public VTT option`).toBe(0);
+    expect(exportMetrics.actions).toHaveLength(4);
+    for (const action of exportMetrics.actions) {
+      expect(action.height, `${viewport.width}px export touch target height`).toBeGreaterThanOrEqual(44);
+      expect(action.width, `${viewport.width}px export touch target width`).toBeGreaterThanOrEqual(42);
     }
+    await page.keyboard.press('Escape');
+    await expect(exportMenu).toHaveCount(0);
 
     if (viewport.width <= 430) {
       await page.getByRole('tab', { name: el.tabStyles }).click();
       await stabilizeUi(page);
       await expectNoHorizontalOverflow(page);
       await expectNoHorizontalOverflow(page, '[data-testid="editor-sidebar"]');
-      await expect(page.getByRole('heading', { name: el.customSettings })).toBeVisible();
+      await expect(page.getByRole('slider', { name: el.sizeLabel })).toBeVisible();
+      await expect(page.getByRole('heading', { name: el.customSettings })).toHaveCount(0);
       for (const removedPreset of ['TikTok Pro', 'Cinematic Master', 'Podcast Style', 'Τελευταία Χρήση']) {
         await expect(page.getByText(removedPreset, { exact: true })).toHaveCount(0);
       }
@@ -216,14 +248,14 @@ test('completed editor remains readable across the responsive viewport matrix', 
   }
 });
 
-test('desktop style controls scroll internally without stretching the preview', async ({ page }) => {
+test('desktop style controls use their natural height without an empty sidebar', async ({ page }) => {
   await page.setViewportSize({ width: 2048, height: 1152 });
   await mockApi(page);
   await page.addInitScript(() => {
     localStorage.setItem('lastActiveJobId', 'job-futurist');
   });
   await page.goto('/');
-  await page.getByText(el.subtitlesReady).waitFor({ timeout: 30_000 });
+  await page.getByTestId('completed-editor').waitFor({ timeout: 30_000 });
   await page.getByRole('tab', { name: el.tabStyles }).click();
   await stabilizeUi(page);
 
@@ -232,45 +264,37 @@ test('desktop style controls scroll internally without stretching the preview', 
     const preview = document.querySelector<HTMLElement>('[data-testid="editor-preview-panel"]');
     const sidebar = document.querySelector<HTMLElement>('[data-testid="editor-sidebar"]');
     const sidebarBody = document.querySelector<HTMLElement>('.editor-sidebar-body');
-    const tabsSticky = document.querySelector<HTMLElement>('.editor-tabs-sticky');
-    const tabs = document.querySelector<HTMLElement>('.editor-tabs');
+    const tabContent = document.querySelector<HTMLElement>('.editor-tab-content');
 
-    if (!workspace || !preview || !sidebar || !sidebarBody || !tabsSticky || !tabs) {
+    if (!workspace || !preview || !sidebar || !sidebarBody || !tabContent) {
       throw new Error('Missing completed editor layout element');
     }
 
-    // The streamlined form now fits at this viewport. Constrain the workspace
-    // to reproduce the internal-scroll state where the sticky tabs previously
-    // allowed controls to show through their surrounding padding.
-    workspace.style.height = '480px';
-    sidebarBody.scrollTop = sidebarBody.scrollHeight;
-    const tabsStickyStyle = getComputedStyle(tabsSticky);
+    const workspaceRect = workspace.getBoundingClientRect();
+    const previewRect = preview.getBoundingClientRect();
+    const sidebarRect = sidebar.getBoundingClientRect();
+    const tabContentRect = tabContent.getBoundingClientRect();
 
     return {
-      workspaceHeight: workspace.getBoundingClientRect().height,
-      previewHeight: preview.getBoundingClientRect().height,
+      workspaceHeight: workspaceRect.height,
+      previewHeight: previewRect.height,
       previewBackgroundColor: getComputedStyle(preview).backgroundColor,
-      sidebarHeight: sidebar.getBoundingClientRect().height,
+      sidebarHeight: sidebarRect.height,
+      sidebarBottomGap: sidebarRect.bottom - tabContentRect.bottom,
       sidebarBodyClientHeight: sidebarBody.clientHeight,
       sidebarBodyScrollHeight: sidebarBody.scrollHeight,
-      tabsStickyPosition: tabsStickyStyle.position,
-      tabsStickyBackground: tabsStickyStyle.backgroundColor,
-      tabsStickyWidth: tabsSticky.getBoundingClientRect().width,
-      tabsWidth: tabs.getBoundingClientRect().width,
+      persistentExportPanels: document.querySelectorAll('[data-testid="editor-export-panel"]').length,
     };
   });
 
-  // REGRESSION: the long Styles form used to make the entire desktop grid nearly
-  // 1,000px tall, stretching the black preview into a visually empty column.
-  expect(metrics.workspaceHeight).toBeLessThanOrEqual(720);
-  expect(Math.abs(metrics.previewHeight - metrics.sidebarHeight)).toBeLessThanOrEqual(1);
+  // REGRESSION: a fixed desktop workspace height stretched the short Styles
+  // sidebar and left a large blank panel below its final control.
+  expect(metrics.sidebarHeight).toBeLessThan(metrics.previewHeight);
+  expect(metrics.workspaceHeight).toBeCloseTo(metrics.previewHeight, 0);
+  expect(metrics.sidebarBottomGap).toBeLessThanOrEqual(20);
   expect(metrics.previewBackgroundColor).toBe('rgba(0, 0, 0, 0)');
-  expect(metrics.sidebarBodyScrollHeight).toBeGreaterThan(metrics.sidebarBodyClientHeight);
-  // REGRESSION: scrolled controls must not show through the sticky tab bar or
-  // the padding around it.
-  expect(metrics.tabsStickyPosition).toBe('sticky');
-  expect(metrics.tabsStickyBackground).toBe('rgb(255, 255, 255)');
-  expect(metrics.tabsStickyWidth).toBeGreaterThan(metrics.tabsWidth);
+  expect(metrics.sidebarBodyScrollHeight).toBeLessThanOrEqual(metrics.sidebarBodyClientHeight + 1);
+  expect(metrics.persistentExportPanels).toBe(0);
 });
 
 test('up-to-three-line karaoke layout keeps explicit rows and non-overlapping words', async ({ page }) => {
@@ -279,7 +303,7 @@ test('up-to-three-line karaoke layout keeps explicit rows and non-overlapping wo
     localStorage.setItem('lastActiveJobId', 'job-futurist');
   });
   await page.goto('/');
-  await page.getByText(el.subtitlesReady).waitFor({ timeout: 30_000 });
+  await page.getByTestId('completed-editor').waitFor({ timeout: 30_000 });
   await page.getByRole('tab', { name: el.tabStyles }).click();
   const threeLineMode = page.getByRole('radio', { name: new RegExp(el.linesThree) });
   await threeLineMode.click();
@@ -351,7 +375,7 @@ test('the active subtitle can be corrected directly on the video at mobile and d
     localStorage.setItem('lastActiveJobId', 'job-futurist');
   });
   await page.goto('/');
-  await page.getByText(el.subtitlesReady).waitFor({ timeout: 30_000 });
+  await page.getByTestId('completed-editor').waitFor({ timeout: 30_000 });
   await stabilizeUi(page);
 
   const editTrigger = page.getByRole('button', { name: el.subtitleInlineEditAction });
@@ -426,7 +450,7 @@ test('the active subtitle can be dragged and resized directly on the desktop pre
     localStorage.setItem('lastActiveJobId', 'job-futurist');
   });
   await page.goto('/');
-  await page.getByText(el.subtitlesReady).waitFor({ timeout: 30_000 });
+  await page.getByTestId('completed-editor').waitFor({ timeout: 30_000 });
   await stabilizeUi(page);
 
   const overlay = page.getByTestId('subtitle-overlay');
@@ -435,7 +459,7 @@ test('the active subtitle can be dragged and resized directly on the desktop pre
   await expect(overlay).toBeVisible();
   await expect(moveHandle).toBeVisible();
   await expect(resizeHandle).toBeVisible();
-  await expect(page.getByText(el.subtitleDirectManipulationHint)).toBeVisible();
+  await expect(page.getByTestId('subtitle-direct-manipulation-hint')).toHaveCount(0);
 
   const initialPosition = Number(await overlay.getAttribute('data-position'));
   const initialSize = Number(await overlay.getAttribute('data-font-size'));
@@ -480,6 +504,7 @@ test('the active subtitle can be dragged and resized directly on the desktop pre
     request.method() === 'POST'
     && request.url().endsWith('/videos/jobs/job-futurist/export')
   ));
+  await page.getByRole('button', { name: el.exportMenuButton, exact: true }).click();
   await page.getByTestId('download-1080p-btn').click();
   const exportPayload = (await exportRequest).postDataJSON() as {
     subtitle_position: number;
@@ -492,55 +517,145 @@ test('the active subtitle can be dragged and resized directly on the desktop pre
   await expectNoHorizontalOverflow(page);
 });
 
-test('intelligence actions remain readable on the light editor surface', async ({ page }) => {
+test('intelligence entry stays hidden while the feature is disabled', async ({ page }) => {
   await mockApi(page);
   await page.addInitScript(() => {
     localStorage.setItem('lastActiveJobId', 'job-futurist');
   });
   await page.goto('/');
-  await page.getByText(el.subtitlesReady).waitFor({ timeout: 30_000 });
-  await page.getByRole('tab', { name: el.tabIntelligence }).click();
+  await page.getByTestId('completed-editor').waitFor({ timeout: 30_000 });
   await stabilizeUi(page);
 
   for (const viewport of [viewports.mobile, viewports.desktop]) {
+    await page.setViewportSize(viewport);
+    await expect(page.getByRole('tab', { name: el.tabIntelligence })).toHaveCount(0);
+    await expect(page.getByText(el.viralVerifyFacts, { exact: true })).toHaveCount(0);
+    await expect(page.getByText(el.viralGenerateMetadata, { exact: true })).toHaveCount(0);
+    await expectNoHorizontalOverflow(page, '[data-testid="editor-sidebar"]');
+  }
+});
+
+test('style controls balance color below size against the lines column', async ({ page }) => {
+  await mockApi(page);
+  await page.addInitScript(() => {
+    localStorage.setItem('lastActiveJobId', 'job-futurist');
+  });
+  await page.goto('/');
+  await page.getByTestId('completed-editor').waitFor({ timeout: 30_000 });
+  await page.getByRole('tab', { name: el.tabStyles }).click();
+  await stabilizeUi(page);
+
+  const measureControls = () => page.evaluate(() => {
+    const bounds = (testId: string) => {
+      const element = document.querySelector<HTMLElement>(`[data-testid="${testId}"]`);
+      if (!element) throw new Error(`Missing style control: ${testId}`);
+      const rect = element.getBoundingClientRect();
+      return {
+        x: rect.x,
+        y: rect.y,
+        right: rect.right,
+        bottom: rect.bottom,
+        width: rect.width,
+        height: rect.height,
+      };
+    };
+
+    return {
+      size: bounds('style-size-control'),
+      color: bounds('style-color-control'),
+      lines: bounds('style-lines-control'),
+    };
+  });
+
+  await page.setViewportSize(viewports.desktop);
+  const desktop = await measureControls();
+  expect(desktop.color.y).toBeGreaterThanOrEqual(desktop.size.bottom);
+  expect(Math.abs(desktop.color.x - desktop.size.x)).toBeLessThanOrEqual(1);
+  expect(desktop.lines.x).toBeGreaterThanOrEqual(desktop.size.right);
+  expect(Math.abs(desktop.color.bottom - desktop.lines.bottom)).toBeLessThanOrEqual(2);
+
+  await page.setViewportSize(viewports.mobile);
+  const mobile = await measureControls();
+  expect(mobile.color.y).toBeGreaterThanOrEqual(mobile.size.bottom);
+  expect(mobile.lines.y).toBeGreaterThanOrEqual(mobile.color.bottom);
+  await expectNoHorizontalOverflow(page, '[data-testid="editor-sidebar"]');
+});
+
+test('subtitle color presets stay inside their surface at every responsive width', async ({ page }) => {
+  await mockApi(page);
+  await page.addInitScript(() => {
+    localStorage.setItem('lastActiveJobId', 'job-futurist');
+  });
+  await page.goto('/');
+  await page.getByTestId('completed-editor').waitFor({ timeout: 30_000 });
+  await page.getByRole('tab', { name: el.tabStyles }).click();
+  await stabilizeUi(page);
+
+  for (const viewport of [
+    { width: 320, height: 568 },
+    { width: 390, height: 844 },
+    { width: 768, height: 1024 },
+    { width: 948, height: 994 },
+    viewports.desktop,
+  ]) {
     await page.setViewportSize(viewport);
     await page.evaluate(() => new Promise<void>((resolve) => {
       requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
     }));
 
-    const verifyTitle = page.getByText(el.viralVerifyFacts, { exact: true });
-    const metadataTitle = page.getByText(el.viralGenerateMetadata, { exact: true });
-    await expect(verifyTitle).toBeVisible();
-    await expect(metadataTitle).toBeVisible();
+    const metrics = await page.evaluate(() => {
+      const surface = document.querySelector<HTMLElement>('.editor-style-color-surface');
+      const options = document.querySelector<HTMLElement>('[data-testid="style-color-options"]');
+      if (!surface || !options) throw new Error('Missing color controls');
 
-    const metrics = await page.evaluate(({ verifyText, metadataText }) => {
-      const elements = Array.from(document.querySelectorAll<HTMLElement>('span'));
-      const titles = [verifyText, metadataText].map((text) => {
-        const element = elements.find((candidate) => candidate.textContent?.trim() === text);
-        if (!element) throw new Error(`Missing intelligence title: ${text}`);
-        const button = element.closest('button');
-        if (!button) throw new Error(`Missing intelligence action button: ${text}`);
-        const titleStyle = getComputedStyle(element);
-        const buttonStyle = getComputedStyle(button);
-        const rect = button.getBoundingClientRect();
-        return {
-          color: titleStyle.color,
-          backgroundColor: buttonStyle.backgroundColor,
-          width: rect.width,
-          height: rect.height,
-        };
-      });
-      return titles;
-    }, { verifyText: el.viralVerifyFacts, metadataText: el.viralGenerateMetadata });
+      const surfaceRect = surface.getBoundingClientRect();
+      const optionRect = options.getBoundingClientRect();
+      const swatches = Array.from(options.querySelectorAll<HTMLElement>('.editor-style-color-swatch'))
+        .map((swatch) => {
+          const rect = swatch.getBoundingClientRect();
+          return { left: rect.left, right: rect.right, width: rect.width };
+        });
 
-    for (const action of metrics) {
-      expect(action.color).toBe('rgb(17, 18, 21)');
-      expect(action.backgroundColor).toBe('rgb(255, 255, 255)');
-      expect(action.width).toBeGreaterThanOrEqual(150);
-      expect(action.height).toBeGreaterThanOrEqual(150);
+      return {
+        surface: {
+          left: surfaceRect.left,
+          right: surfaceRect.right,
+          scrollWidth: surface.scrollWidth,
+          clientWidth: surface.clientWidth,
+        },
+        options: {
+          left: optionRect.left,
+          right: optionRect.right,
+          scrollWidth: options.scrollWidth,
+          clientWidth: options.clientWidth,
+        },
+        swatches,
+      };
+    });
+
+    expect(metrics.surface.scrollWidth, `${viewport.width}px surface overflow`)
+      .toBeLessThanOrEqual(metrics.surface.clientWidth + 1);
+    expect(metrics.options.scrollWidth, `${viewport.width}px options overflow`)
+      .toBeLessThanOrEqual(metrics.options.clientWidth + 1);
+    expect(metrics.options.left, `${viewport.width}px options left containment`)
+      .toBeGreaterThanOrEqual(metrics.surface.left);
+    expect(metrics.options.right, `${viewport.width}px options right containment`)
+      .toBeLessThanOrEqual(metrics.surface.right + 1);
+    expect(metrics.swatches).toHaveLength(4);
+    for (const swatch of metrics.swatches) {
+      expect(swatch.left, `${viewport.width}px swatch left containment`)
+        .toBeGreaterThanOrEqual(metrics.surface.left);
+      expect(swatch.right, `${viewport.width}px swatch right containment`)
+        .toBeLessThanOrEqual(metrics.surface.right + 1);
+      expect(swatch.width, `${viewport.width}px swatch touch target`)
+        .toBeGreaterThanOrEqual(40);
+      expect(swatch.width, `${viewport.width}px swatch maximum width`)
+        .toBeLessThanOrEqual(48);
     }
-    await expectNoHorizontalOverflow(page, '[data-testid="editor-sidebar"]');
   }
+
+  await expect(page.getByRole('radio', { name: el.colorPurple })).toBeVisible();
+  await expect(page.getByRole('radio', { name: 'Λευκό' })).toHaveCount(0);
 });
 
 test('workflow labels stay aligned across upload, captions, and export', async ({ page }) => {
@@ -549,7 +664,7 @@ test('workflow labels stay aligned across upload, captions, and export', async (
     localStorage.setItem('lastActiveJobId', 'job-futurist');
   });
   await page.goto('/');
-  await page.getByText(el.subtitlesReady).waitFor({ timeout: 30_000 });
+  await page.getByTestId('completed-editor').waitFor({ timeout: 30_000 });
 
   const workflow = page.getByLabel(el.workflowProgressLabel);
   const uploadStep = workflow.getByRole('button', { name: new RegExp(`${el.stepLabel.replace('{n}', '1')} ${el.stepUpload}`) });
@@ -584,7 +699,8 @@ test('workflow labels stay aligned across upload, captions, and export', async (
   await exportStep.click();
   await expect(exportStep).toHaveAttribute('aria-current', 'step');
   await page.getByRole('tab', { name: el.tabStyles }).click();
-  await expect(page.getByRole('heading', { name: el.customSettings })).toBeVisible();
+  await expect(page.getByRole('slider', { name: el.sizeLabel })).toBeVisible();
+  await expect(page.getByRole('heading', { name: el.customSettings })).toHaveCount(0);
 });
 
 for (const [label, viewport] of Object.entries(viewports)) {
@@ -684,11 +800,12 @@ for (const [label, viewport] of Object.entries(viewports)) {
       });
       await page.goto('/');
 
-      await page.getByText(el.subtitlesReady).waitFor({ timeout: 30_000 });
+      await page.getByTestId('completed-editor').waitFor({ timeout: 30_000 });
       await stabilizeUi(page);
       await expectNoHorizontalOverflow(page);
       await expectNoHorizontalOverflow(page, 'main');
-      await expect(page.getByText(el.subtitlesReady)).toBeVisible();
+      await expect(page.getByText(el.subtitlesReady)).toHaveCount(0);
+      await expect(page.getByTestId('completed-editor')).toBeVisible();
       await expect(page.getByRole('tab', { name: el.tabTranscript })).toBeVisible();
       await expect(page.getByRole('tab', { name: el.tabStyles })).toBeVisible();
       await expect(page.getByText('Mock Studio')).toHaveCount(0);
