@@ -5,8 +5,8 @@ import { SubtitleOverlay } from '@/components/SubtitleOverlay';
 
 function firePointer(
     element: Element,
-    type: 'pointerdown' | 'pointermove' | 'pointerup',
-    init: MouseEventInit & { pointerId: number },
+    type: 'pointerdown' | 'pointermove' | 'pointerup' | 'pointercancel',
+    init: MouseEventInit & { pointerId: number; pointerType?: 'mouse' | 'touch' },
 ) {
     const event = new MouseEvent(type, {
         bubbles: true,
@@ -15,7 +15,7 @@ function firePointer(
     });
     Object.defineProperties(event, {
         pointerId: { configurable: true, value: init.pointerId },
-        pointerType: { configurable: true, value: 'mouse' },
+        pointerType: { configurable: true, value: init.pointerType ?? 'mouse' },
     });
     fireEvent(element, event);
 }
@@ -173,6 +173,7 @@ describe('SubtitleOverlay', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Edit active subtitle' }));
         expect(onBeginEdit).toHaveBeenCalledTimes(1);
+        expect(document.querySelector('.subtitle-edit-affordance')).not.toBeInTheDocument();
 
         rerender(
             <SubtitleOverlay
@@ -347,6 +348,8 @@ describe('SubtitleOverlay', () => {
         expect(resizeHandle).toHaveAttribute('aria-valuemin', '50');
         expect(resizeHandle).toHaveAttribute('aria-valuemax', '150');
         expect(resizeHandle).toHaveAttribute('aria-valuenow', '100');
+        expect(moveHandle).toHaveClass('subtitle-desktop-transform-handle');
+        expect(resizeHandle).toHaveClass('subtitle-desktop-transform-handle');
 
         firePointer(resizeHandle, 'pointerdown', {
             button: 0,
@@ -388,5 +391,97 @@ describe('SubtitleOverlay', () => {
         fireEvent.keyDown(resizeHandle, { key: 'Home' });
         expect(onSizeChange).toHaveBeenNthCalledWith(3, 95);
         expect(onSizeChange).toHaveBeenLastCalledWith(50);
+    });
+
+    it('resizes with a two-finger pinch and does not open editing after the gesture', () => {
+        // REGRESSION: mobile transform chrome covered the caption. Touch users
+        // now resize the caption directly with a clean two-finger gesture.
+        const onBeginEdit = jest.fn();
+        const onInteractionStart = jest.fn();
+        const onSizeChange = jest.fn();
+
+        render(
+            <SubtitleOverlay
+                currentTime={0.5}
+                cues={[{ start: 0, end: 2, text: 'pinch me' }]}
+                settings={{
+                    position: 20,
+                    color: '#FFFF00',
+                    fontSize: 100,
+                    karaoke: false,
+                    maxLines: 2,
+                    shadowStrength: 4,
+                }}
+                videoWidth={400}
+                videoHeight={1000}
+                inlineEditor={{
+                    cueIndex: 0,
+                    isEditing: false,
+                    draftText: 'pinch me',
+                    isSaving: false,
+                    labels: {
+                        editAction: 'Edit active subtitle',
+                        title: 'Edit subtitle',
+                        textarea: 'Subtitle text',
+                        save: 'Save',
+                        cancel: 'Cancel',
+                        shortcut: 'Ctrl+Enter to save',
+                        saving: 'Saving…',
+                    },
+                    onBeginEdit,
+                    onChange: jest.fn(),
+                    onSave: jest.fn(),
+                    onCancel: jest.fn(),
+                }}
+                transformControls={{
+                    labels: {
+                        move: 'Move subtitles',
+                        resize: 'Resize subtitles',
+                    },
+                    onPositionChange: jest.fn(),
+                    onSizeChange,
+                    onInteractionStart,
+                }}
+            />,
+        );
+
+        const overlay = screen.getByTestId('subtitle-overlay');
+        const editTrigger = screen.getByRole('button', { name: 'Edit active subtitle' });
+
+        firePointer(overlay, 'pointerdown', {
+            pointerId: 20,
+            pointerType: 'touch',
+            clientX: 100,
+            clientY: 100,
+        });
+        firePointer(overlay, 'pointerdown', {
+            pointerId: 21,
+            pointerType: 'touch',
+            clientX: 200,
+            clientY: 100,
+        });
+        firePointer(overlay, 'pointermove', {
+            pointerId: 21,
+            pointerType: 'touch',
+            clientX: 250,
+            clientY: 100,
+        });
+        firePointer(overlay, 'pointerup', {
+            pointerId: 21,
+            pointerType: 'touch',
+            clientX: 250,
+            clientY: 100,
+        });
+        firePointer(overlay, 'pointerup', {
+            pointerId: 20,
+            pointerType: 'touch',
+            clientX: 100,
+            clientY: 100,
+        });
+        fireEvent.click(editTrigger);
+
+        expect(onInteractionStart).toHaveBeenCalledTimes(1);
+        expect(onSizeChange).toHaveBeenLastCalledWith(150);
+        expect(onBeginEdit).not.toHaveBeenCalled();
     });
 });

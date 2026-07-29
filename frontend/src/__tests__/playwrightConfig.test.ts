@@ -52,4 +52,31 @@ describe('Playwright server isolation', () => {
     });
     expect(qualityGates.commands['check:all'].steps).toContain('check:e2e');
   });
+
+  test('keeps focused player coverage on Android, iOS WebKit, and Firefox', () => {
+    const projects = config.projects ?? [];
+    expect(projects.map((project) => project.name)).toEqual([
+      'chromium',
+      'android-chromium',
+      'ios-webkit',
+      'desktop-firefox',
+    ]);
+    expect(projects.slice(1)).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        name: 'android-chromium',
+        testMatch: /player_cross_browser\.spec\.ts/,
+        use: expect.objectContaining({ browserName: 'chromium', hasTouch: true }),
+      }),
+      expect.objectContaining({
+        name: 'ios-webkit',
+        testMatch: /player_cross_browser\.spec\.ts/,
+        use: expect.objectContaining({ browserName: 'webkit', hasTouch: true }),
+      }),
+      expect.objectContaining({
+        name: 'desktop-firefox',
+        testMatch: /player_cross_browser\.spec\.ts/,
+        use: expect.objectContaining({ browserName: 'firefox' }),
+      }),
+    ]));
+  });
 });

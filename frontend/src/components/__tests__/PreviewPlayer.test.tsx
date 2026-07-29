@@ -172,6 +172,7 @@ describe('PreviewPlayer', () => {
         expect(video).toHaveAttribute('preload', 'metadata');
         expect(video).toHaveAttribute('aria-label', 'Toggle preview');
         expect(video).toHaveAttribute('disablepictureinpicture');
+        expect(video).toHaveAttribute('disableremoteplayback');
 
         fireEvent.click(video);
         expect(video.play).toHaveBeenCalled();

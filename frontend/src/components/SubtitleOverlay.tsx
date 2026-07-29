@@ -57,7 +57,12 @@ interface SubtitleOverlayProps {
     transformControls?: SubtitleTransformControls;
 }
 
-type TransformGesture = {
+type PointerPoint = {
+    x: number;
+    y: number;
+};
+
+type SinglePointerGesture = {
     mode: 'position' | 'size';
     pointerId: number;
     startX: number;
@@ -67,8 +72,22 @@ type TransformGesture = {
     moved: boolean;
 };
 
+type PinchGesture = {
+    mode: 'pinch';
+    pointerIds: readonly [number, number];
+    startDistance: number;
+    startSize: number;
+    moved: boolean;
+};
+
+type TransformGesture = SinglePointerGesture | PinchGesture;
+
 function clampAndRound(value: number, min: number, max: number): number {
     return Math.round(Math.min(max, Math.max(min, value)));
+}
+
+function distanceBetween(first: PointerPoint, second: PointerPoint): number {
+    return Math.hypot(second.x - first.x, second.y - first.y);
 }
 
 export const SubtitleOverlay = memo<SubtitleOverlayProps>(({
@@ -82,6 +101,7 @@ export const SubtitleOverlay = memo<SubtitleOverlayProps>(({
 }) => {
     const overlayRef = useRef<HTMLDivElement>(null);
     const gestureRef = useRef<TransformGesture | null>(null);
+    const activeTouchPointsRef = useRef<Map<number, PointerPoint>>(new Map());
     const suppressClickRef = useRef(false);
 
     // 1. Find active cue
@@ -131,9 +151,42 @@ export const SubtitleOverlay = memo<SubtitleOverlayProps>(({
 
     const beginTransform = useCallback((
         event: React.PointerEvent<HTMLElement>,
-        mode: TransformGesture['mode'],
+        mode: SinglePointerGesture['mode'],
     ) => {
         if (!transformControls || (event.pointerType === 'mouse' && event.button !== 0)) return;
+
+        if (event.pointerType === 'touch') {
+            activeTouchPointsRef.current.set(event.pointerId, {
+                x: event.clientX,
+                y: event.clientY,
+            });
+
+            if (mode === 'position' && activeTouchPointsRef.current.size === 2) {
+                const points = Array.from(activeTouchPointsRef.current.entries());
+                const first = points[0];
+                const second = points[1];
+
+                gestureRef.current = {
+                    mode: 'pinch',
+                    pointerIds: [first[0], second[0]],
+                    startDistance: Math.max(1, distanceBetween(first[1], second[1])),
+                    startSize: settings.fontSize,
+                    moved: false,
+                };
+                suppressClickRef.current = true;
+                event.preventDefault();
+                for (const pointerId of gestureRef.current.pointerIds) {
+                    try {
+                        overlayRef.current?.setPointerCapture?.(pointerId);
+                    } catch {
+                        // Pointer capture is best-effort on older mobile browsers.
+                    }
+                }
+                return;
+            }
+        }
+
+        if (gestureRef.current) return;
 
         suppressClickRef.current = false;
         gestureRef.current = {
@@ -147,7 +200,11 @@ export const SubtitleOverlay = memo<SubtitleOverlayProps>(({
         };
         transformControls.onInteractionStart?.();
         if (mode === 'size') {
-            overlayRef.current?.setPointerCapture?.(event.pointerId);
+            try {
+                overlayRef.current?.setPointerCapture?.(event.pointerId);
+            } catch {
+                // Pointer capture is best-effort on older mobile browsers.
+            }
         }
     }, [settings.fontSize, settings.position, transformControls]);
 
@@ -164,8 +221,43 @@ export const SubtitleOverlay = memo<SubtitleOverlayProps>(({
     }, [beginTransform]);
 
     const handlePointerMove = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+        if (event.pointerType === 'touch' && activeTouchPointsRef.current.has(event.pointerId)) {
+            activeTouchPointsRef.current.set(event.pointerId, {
+                x: event.clientX,
+                y: event.clientY,
+            });
+        }
+
         const gesture = gestureRef.current;
-        if (!gesture || gesture.pointerId !== event.pointerId || !transformControls) return;
+        if (!gesture || !transformControls) return;
+
+        if (gesture.mode === 'pinch') {
+            if (!gesture.pointerIds.includes(event.pointerId)) return;
+
+            const first = activeTouchPointsRef.current.get(gesture.pointerIds[0]);
+            const second = activeTouchPointsRef.current.get(gesture.pointerIds[1]);
+            if (!first || !second) return;
+
+            const distance = distanceBetween(first, second);
+            if (
+                !gesture.moved
+                && Math.abs(distance - gesture.startDistance) < POINTER_DRAG_THRESHOLD_PX
+            ) {
+                return;
+            }
+
+            event.preventDefault();
+            gesture.moved = true;
+            suppressClickRef.current = true;
+            transformControls.onSizeChange(clampAndRound(
+                gesture.startSize * (distance / gesture.startDistance),
+                SUBTITLE_SIZE_MIN,
+                SUBTITLE_SIZE_MAX,
+            ));
+            return;
+        }
+
+        if (gesture.pointerId !== event.pointerId) return;
 
         const deltaX = event.clientX - gesture.startX;
         const deltaY = event.clientY - gesture.startY;
@@ -174,7 +266,11 @@ export const SubtitleOverlay = memo<SubtitleOverlayProps>(({
         event.preventDefault();
         gesture.moved = true;
         suppressClickRef.current = true;
-        overlayRef.current?.setPointerCapture?.(event.pointerId);
+        try {
+            overlayRef.current?.setPointerCapture?.(event.pointerId);
+        } catch {
+            // Pointer capture is best-effort on older mobile browsers.
+        }
 
         if (gesture.mode === 'position') {
             const positionDelta = -(deltaY / Math.max(1, videoHeight)) * 100;
@@ -199,8 +295,27 @@ export const SubtitleOverlay = memo<SubtitleOverlayProps>(({
         event: React.PointerEvent<HTMLDivElement>,
         cancelled = false,
     ) => {
+        if (event.pointerType === 'touch') {
+            activeTouchPointsRef.current.delete(event.pointerId);
+        }
+
         const gesture = gestureRef.current;
-        if (!gesture || gesture.pointerId !== event.pointerId) return;
+        if (!gesture) return;
+
+        if (gesture.mode === 'pinch') {
+            if (!gesture.pointerIds.includes(event.pointerId)) return;
+
+            for (const pointerId of gesture.pointerIds) {
+                if (overlayRef.current?.hasPointerCapture?.(pointerId)) {
+                    overlayRef.current.releasePointerCapture(pointerId);
+                }
+            }
+            suppressClickRef.current = !cancelled;
+            gestureRef.current = null;
+            return;
+        }
+
+        if (gesture.pointerId !== event.pointerId) return;
 
         if (overlayRef.current?.hasPointerCapture?.(event.pointerId)) {
             overlayRef.current.releasePointerCapture(event.pointerId);
@@ -334,14 +449,11 @@ export const SubtitleOverlay = memo<SubtitleOverlayProps>(({
                             data-testid="inline-subtitle-trigger"
                             aria-label={inlineEditor.labels.editAction}
                             onClick={inlineEditor.onBeginEdit}
-                            className={`subtitle-edit-target group ${transformControls ? '!cursor-grab active:!cursor-grabbing' : ''}`}
+                            className={`relative m-0 inline-block max-w-full rounded-md border-0 bg-transparent p-0 text-inherit outline-none transition-[box-shadow,background-color] hover:bg-black/20 hover:shadow-[0_0_0_2px_rgba(255,255,255,0.72),0_8px_22px_rgba(0,0,0,0.28)] focus-visible:bg-black/20 focus-visible:shadow-[0_0_0_2px_rgba(255,255,255,0.72),0_8px_22px_rgba(0,0,0,0.28)] ${
+                                transformControls ? 'cursor-grab active:cursor-grabbing' : 'cursor-text'
+                            }`}
                         >
                             {body}
-                            <span className="subtitle-edit-affordance" aria-hidden="true">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zM19.5 7.125L16.875 4.5M18 13.5V19.125A1.875 1.875 0 0116.125 21H4.875A1.875 1.875 0 013 19.125V7.875A1.875 1.875 0 014.875 6H10.5" />
-                                </svg>
-                            </span>
                         </button>
                     ) : body}
                     {transformControls && (
@@ -358,7 +470,7 @@ export const SubtitleOverlay = memo<SubtitleOverlayProps>(({
                                 aria-valuetext={`${settings.position}%`}
                                 title={transformControls.labels.move}
                                 onKeyDown={handlePositionKeyDown}
-                                className="absolute left-0 top-1/2 grid h-8 w-8 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-cyan-300/80 bg-black/85 text-sm font-black text-cyan-200 shadow-[0_5px_18px_rgba(0,0,0,0.55)] backdrop-blur-sm transition-transform hover:scale-110 focus-visible:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                                className="subtitle-desktop-transform-handle absolute left-0 top-1/2 grid h-8 w-8 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border border-cyan-300/80 bg-black/85 text-sm font-black text-cyan-200 shadow-[0_5px_18px_rgba(0,0,0,0.55)] backdrop-blur-sm transition-transform hover:scale-110 focus-visible:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
                             >
                                 <span aria-hidden="true">↕</span>
                             </button>
@@ -376,7 +488,7 @@ export const SubtitleOverlay = memo<SubtitleOverlayProps>(({
                                 title={transformControls.labels.resize}
                                 onPointerDown={handleResizePointerDown}
                                 onKeyDown={handleSizeKeyDown}
-                                className="absolute bottom-0 right-0 grid h-8 w-8 translate-x-1/2 translate-y-1/2 place-items-center rounded-full border border-cyan-300/80 bg-black/85 text-sm font-black text-cyan-200 shadow-[0_5px_18px_rgba(0,0,0,0.55)] backdrop-blur-sm transition-transform hover:scale-110 focus-visible:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
+                                className="subtitle-desktop-transform-handle absolute bottom-0 right-0 grid h-8 w-8 translate-x-1/2 translate-y-1/2 place-items-center rounded-full border border-cyan-300/80 bg-black/85 text-sm font-black text-cyan-200 shadow-[0_5px_18px_rgba(0,0,0,0.55)] backdrop-blur-sm transition-transform hover:scale-110 focus-visible:scale-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300"
                             >
                                 <span aria-hidden="true">↘</span>
                             </button>

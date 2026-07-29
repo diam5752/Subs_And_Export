@@ -175,11 +175,22 @@ test.describe('Video Processing Flow', () => {
         const previewControls = page.getByTestId('editor-preview-controls');
         expect(await previewVideo.getAttribute('controls')).toBeNull();
         await expect(previewControls).toBeVisible();
+        await expect(page.locator('.subtitle-edit-affordance')).toHaveCount(0);
+        await expect(page.getByTestId('subtitle-touch-manipulation-hint')).toBeVisible();
+        await expect(page.getByTestId('editor-preview-time')).toContainText('/');
         const phoneBox = await phone.boundingBox();
         const controlsBox = await previewControls.boundingBox();
         expect(phoneBox).not.toBeNull();
         expect(controlsBox).not.toBeNull();
         expect(controlsBox!.y).toBeGreaterThanOrEqual(phoneBox!.y + phoneBox!.height);
+        const playerButtons = previewControls.getByRole('button');
+        await expect(playerButtons).toHaveCount(2);
+        for (let index = 0; index < 2; index += 1) {
+            const buttonBox = await playerButtons.nth(index).boundingBox();
+            expect(buttonBox).not.toBeNull();
+            expect(buttonBox!.width).toBeGreaterThanOrEqual(44);
+            expect(buttonBox!.height).toBeGreaterThanOrEqual(44);
+        }
         expect(await page.evaluate(
             () => document.documentElement.scrollWidth <= window.innerWidth,
         )).toBe(true);

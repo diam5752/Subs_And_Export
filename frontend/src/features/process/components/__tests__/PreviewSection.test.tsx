@@ -1,7 +1,7 @@
 import React from 'react';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import { PreviewSection } from '../PreviewSection';
+import { formatPlaybackTime, PreviewSection } from '../PreviewSection';
 import { useProcessContext } from '../../ProcessContext';
 import { usePlaybackContext } from '../../PlaybackContext';
 
@@ -237,6 +237,10 @@ describe('PreviewSection', () => {
         expect(mockToggleMuted).toHaveBeenCalledTimes(1);
         fireEvent.click(screen.getByTestId('playback-status-bridge'));
         expect(within(playbackControls).getByRole('button', { name: 'pausePreview' })).toBeInTheDocument();
+        expect(screen.getByTestId('editor-preview-time')).toHaveTextContent('0:00 / 0:30');
+        expect(screen.getByTestId('subtitle-touch-manipulation-hint')).toHaveTextContent(
+            'subtitleTouchManipulationHint',
+        );
         fireEvent.change(within(playbackControls).getByRole('slider', { name: 'seekVideo' }), {
             target: { value: '7.5' },
         });
@@ -329,5 +333,15 @@ describe('PreviewSection', () => {
         // REGRESSION: workflow progress now has one canonical home above the editor.
         expect(screen.queryByText('step3Label')).not.toBeInTheDocument();
         expect(screen.getByTestId('completed-editor')).toBeInTheDocument();
+    });
+});
+
+describe('formatPlaybackTime', () => {
+    it('formats safe minute and hour timestamps for the compact player', () => {
+        expect(formatPlaybackTime(0)).toBe('0:00');
+        expect(formatPlaybackTime(65.9)).toBe('1:05');
+        expect(formatPlaybackTime(3661)).toBe('1:01:01');
+        expect(formatPlaybackTime(Number.NaN)).toBe('0:00');
+        expect(formatPlaybackTime(-4)).toBe('0:00');
     });
 });

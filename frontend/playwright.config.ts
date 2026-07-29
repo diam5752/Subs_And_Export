@@ -1,4 +1,4 @@
-import { defineConfig } from '@playwright/test';
+import { defineConfig, devices } from '@playwright/test';
 
 export const DEFAULT_PLAYWRIGHT_PORT = 31873;
 
@@ -48,6 +48,33 @@ export default defineConfig({
       name: 'chromium',
       use: {
         browserName: 'chromium',
+        viewport: { width: 1280, height: 800 },
+        colorScheme: 'light',
+      },
+    },
+    {
+      name: 'android-chromium',
+      testMatch: /player_cross_browser\.spec\.ts/,
+      use: {
+        ...devices['Pixel 7'],
+        browserName: 'chromium',
+        colorScheme: 'light',
+      },
+    },
+    {
+      name: 'ios-webkit',
+      testMatch: /player_cross_browser\.spec\.ts/,
+      use: {
+        ...devices['iPhone 13'],
+        browserName: 'webkit',
+        colorScheme: 'light',
+      },
+    },
+    {
+      name: 'desktop-firefox',
+      testMatch: /player_cross_browser\.spec\.ts/,
+      use: {
+        browserName: 'firefox',
         viewport: { width: 1280, height: 800 },
         colorScheme: 'light',
       },

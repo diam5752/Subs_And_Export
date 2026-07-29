@@ -360,6 +360,7 @@ export const PreviewPlayer = memo(forwardRef<PreviewPlayerHandle, PreviewPlayerP
                 playsInline
                 preload="metadata"
                 disablePictureInPicture
+                disableRemotePlayback
                 controlsList="nodownload noplaybackrate noremoteplayback"
                 role="button"
                 tabIndex={0}

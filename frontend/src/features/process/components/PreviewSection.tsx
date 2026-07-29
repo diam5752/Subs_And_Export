@@ -93,6 +93,22 @@ const SUBTITLE_EXPORT_OPTIONS: ExportOption[] = [
     },
 ];
 
+export function formatPlaybackTime(seconds: number): string {
+    const safeSeconds = Number.isFinite(seconds) && seconds > 0
+        ? Math.floor(seconds)
+        : 0;
+    const hours = Math.floor(safeSeconds / 3600);
+    const minutes = Math.floor((safeSeconds % 3600) / 60);
+    const remainingSeconds = safeSeconds % 60;
+
+    if (hours > 0) {
+        return `${hours}:${minutes.toString().padStart(2, '0')}:${remainingSeconds
+            .toString()
+            .padStart(2, '0')}`;
+    }
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+}
+
 const ExportAction = memo(({
     option,
     isExporting,
@@ -273,22 +289,6 @@ const PreviewSectionLayout = memo(({
                                                         className="editor-preview-controls"
                                                         data-testid="editor-preview-controls"
                                                     >
-                                                        <button
-                                                            type="button"
-                                                            className="editor-preview-control-button"
-                                                            aria-label={t(playbackStatus.isPlaying ? 'pausePreview' : 'playPreview')}
-                                                            onClick={onTogglePlayback}
-                                                        >
-                                                            {playbackStatus.isPlaying ? (
-                                                                <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
-                                                                    <path d="M7 5h3.5v14H7V5zm6.5 0H17v14h-3.5V5z" />
-                                                                </svg>
-                                                            ) : (
-                                                                <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
-                                                                    <path d="M8 5.5v13l10-6.5L8 5.5z" />
-                                                                </svg>
-                                                            )}
-                                                        </button>
                                                         <input
                                                             type="range"
                                                             className="editor-preview-scrubber"
@@ -300,29 +300,69 @@ const PreviewSectionLayout = memo(({
                                                             aria-label={t('seekVideo')}
                                                             onChange={(event) => onSeek(Number(event.currentTarget.value))}
                                                         />
-                                                        <button
-                                                            type="button"
-                                                            className="editor-preview-control-button"
-                                                            aria-label={t(playbackStatus.isMuted ? 'unmutePreview' : 'mutePreview')}
-                                                            onClick={onToggleMuted}
-                                                        >
-                                                            {playbackStatus.isMuted ? (
-                                                                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5 6.8 8.5H4v7h2.8L11 19V5Zm4.5 5.2 4 4m0-4-4 4" />
-                                                                </svg>
-                                                            ) : (
-                                                                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5 6.8 8.5H4v7h2.8L11 19V5Zm4 3.5a5 5 0 0 1 0 7m2.5-9.5a8.5 8.5 0 0 1 0 12" />
-                                                                </svg>
-                                                            )}
-                                                        </button>
+                                                        <div className="editor-preview-control-row">
+                                                            <button
+                                                                type="button"
+                                                                className="editor-preview-control-button"
+                                                                aria-label={t(playbackStatus.isPlaying ? 'pausePreview' : 'playPreview')}
+                                                                onClick={onTogglePlayback}
+                                                            >
+                                                                {playbackStatus.isPlaying ? (
+                                                                    <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                                                                        <path d="M7 5h3.5v14H7V5zm6.5 0H17v14h-3.5V5z" />
+                                                                    </svg>
+                                                                ) : (
+                                                                    <svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor">
+                                                                        <path d="M8 5.5v13l10-6.5L8 5.5z" />
+                                                                    </svg>
+                                                                )}
+                                                            </button>
+                                                            <output
+                                                                className="editor-preview-time"
+                                                                data-testid="editor-preview-time"
+                                                                aria-label={t('previewTimeLabel')}
+                                                                aria-live="off"
+                                                            >
+                                                                {formatPlaybackTime(Math.min(
+                                                                    Math.max(currentTime, 0),
+                                                                    playbackStatus.duration || 0,
+                                                                ))}
+                                                                {' / '}
+                                                                {formatPlaybackTime(playbackStatus.duration)}
+                                                            </output>
+                                                            <button
+                                                                type="button"
+                                                                className="editor-preview-control-button"
+                                                                aria-label={t(playbackStatus.isMuted ? 'unmutePreview' : 'mutePreview')}
+                                                                onClick={onToggleMuted}
+                                                            >
+                                                                {playbackStatus.isMuted ? (
+                                                                    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5 6.8 8.5H4v7h2.8L11 19V5Zm4.5 5.2 4 4m0-4-4 4" />
+                                                                    </svg>
+                                                                ) : (
+                                                                    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5 6.8 8.5H4v7h2.8L11 19V5Zm4 3.5a5 5 0 0 1 0 7m2.5-9.5a8.5 8.5 0 0 1 0 12" />
+                                                                    </svg>
+                                                                )}
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                     <p
                                                         data-testid="subtitle-direct-manipulation-hint"
                                                         className="mt-4 max-w-[278px] text-center text-[11px] font-semibold leading-5 text-[var(--muted)]"
                                                     >
-                                                        <span aria-hidden="true" className="mr-1 text-[var(--accent)]">↕</span>
-                                                        {t('subtitleDirectManipulationHint')}
+                                                        <span className="subtitle-desktop-manipulation-hint">
+                                                            <span aria-hidden="true" className="mr-1 text-[var(--accent)]">↕</span>
+                                                            {t('subtitleDirectManipulationHint')}
+                                                        </span>
+                                                        <span
+                                                            className="subtitle-touch-manipulation-hint"
+                                                            data-testid="subtitle-touch-manipulation-hint"
+                                                        >
+                                                            <span aria-hidden="true" className="mr-1 text-[var(--accent)]">↕</span>
+                                                            {t('subtitleTouchManipulationHint')}
+                                                        </span>
                                                     </p>
                                                 </>
                                             )}
