@@ -1,15 +1,14 @@
 from __future__ import annotations
 
 import importlib.util
+import re
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
 import pytest
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
-ISOLATED_RUNNER_PATH = (
-    REPOSITORY_ROOT / ".codex" / "scripts" / "run_isolated_quality_gate.py"
-)
+ISOLATED_RUNNER_PATH = REPOSITORY_ROOT / ".codex" / "scripts" / "run_isolated_quality_gate.py"
 
 
 def load_isolated_runner() -> ModuleType:
@@ -53,9 +52,7 @@ def test_temporary_database_url_preserves_encoded_credentials_and_ipv6() -> None
     assert runner.temporary_database_url(
         "postgresql://ci%40user:p%2Fss@[::1]:5544/postgres",
         "gsp_ci_test",
-    ) == (
-        "postgresql+psycopg://ci%40user:p%2Fss@[::1]:5544/gsp_ci_test"
-    )
+    ) == ("postgresql+psycopg://ci%40user:p%2Fss@[::1]:5544/gsp_ci_test")
 
 
 def test_isolated_runner_rejects_non_quality_commands() -> None:
@@ -108,10 +105,7 @@ def test_isolated_runner_creates_and_drops_a_unique_database(
         "check:all",
     ]
     assert captured["cwd"] == REPOSITORY_ROOT
-    assert captured["database_url"] == (
-        "postgresql+psycopg://gsp:gsp@127.0.0.1:5432/"
-        "gsp_ci_1234_deadbeef"
-    )
+    assert captured["database_url"] == ("postgresql+psycopg://gsp:gsp@127.0.0.1:5432/gsp_ci_1234_deadbeef")
     assert captured["check"] is False
     rendered_statements = "\n".join(str(statement) for statement, _ in connection.calls)
     assert "CREATE DATABASE" in rendered_statements
@@ -120,15 +114,9 @@ def test_isolated_runner_creates_and_drops_a_unique_database(
 
 
 def test_github_and_make_use_the_same_isolated_local_ci_entrypoint() -> None:
-    workflow = (
-        REPOSITORY_ROOT / ".github" / "workflows" / "quality-gates.yml"
-    ).read_text(encoding="utf-8")
-    make_contract = (REPOSITORY_ROOT / ".codex" / "quality.mk").read_text(
-        encoding="utf-8"
-    )
-    quality_contract = (
-        REPOSITORY_ROOT / ".codex" / "quality-gates.json"
-    ).read_text(encoding="utf-8")
+    workflow = (REPOSITORY_ROOT / ".github" / "workflows" / "quality-gates.yml").read_text(encoding="utf-8")
+    make_contract = (REPOSITORY_ROOT / ".codex" / "quality.mk").read_text(encoding="utf-8")
+    quality_contract = (REPOSITORY_ROOT / ".codex" / "quality-gates.json").read_text(encoding="utf-8")
     readme = (REPOSITORY_ROOT / "README.md").read_text(encoding="utf-8")
 
     assert "workflow_dispatch:" in workflow
@@ -137,14 +125,27 @@ def test_github_and_make_use_the_same_isolated_local_ci_entrypoint() -> None:
     assert "cancel-in-progress: true" in workflow
     assert "timeout-minutes: 60" in workflow
     assert "run: make ci" in workflow
-    assert (
-        "GSP_TEST_ADMIN_DATABASE_URL: "
-        "postgresql://gsp:gsp@localhost:5432/postgres"
-    ) in workflow
+    assert "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" in workflow
+    assert "actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97" in workflow
+    assert "actions/setup-node@820762786026740c76f36085b0efc47a31fe5020" in workflow
+    assert "actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95" in workflow
+    assert ("GSP_TEST_ADMIN_DATABASE_URL: postgresql://gsp:gsp@localhost:5432/postgres") in workflow
     assert "GSP_DATABASE_URL:" not in workflow
     assert "ci: check-all" in make_contract
     assert "$(ISOLATED_QUALITY_RUNNER) check:all" in make_contract
-    assert "mypy backend/app .codex/scripts/run_isolated_quality_gate.py" in (
-        quality_contract
-    )
+    assert "mypy backend/app .codex/scripts/run_isolated_quality_gate.py" in (quality_contract)
     assert "`make ci` is the canonical local and GitHub entrypoint" in readme
+
+
+def test_official_github_actions_are_pinned_to_full_commit_shas() -> None:
+    workflow_directory = REPOSITORY_ROOT / ".github" / "workflows"
+    action_reference = re.compile(r"uses:\s+actions/[^@\s]+@([^\s#]+)")
+
+    references = [
+        (workflow.name, match.group(1))
+        for workflow in sorted(workflow_directory.glob("*.yml"))
+        for match in action_reference.finditer(workflow.read_text(encoding="utf-8"))
+    ]
+
+    assert references
+    assert all(re.fullmatch(r"[0-9a-f]{40}", revision) for _, revision in references)
