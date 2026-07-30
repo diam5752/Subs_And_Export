@@ -852,6 +852,53 @@ def test_run_video_processing_observes_cancellation_during_pipeline(
     )
 
 
+def test_duplicate_paid_dispatch_does_not_fail_or_refund_winner(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(config.settings, "data_dir", tmp_path)
+    active = types.SimpleNamespace(status="processing")
+    job_store = MagicMock()
+    job_store.get_job.return_value = active
+    monkeypatch.setattr(
+        processing_tasks,
+        "process_video_pipeline",
+        MagicMock(
+            side_effect=(
+                processing_tasks.ProviderDispatchAlreadyClaimedError(
+                    "already claimed",
+                )
+            )
+        ),
+    )
+    ledger_store = MagicMock()
+    charge_plan = ChargePlan(
+        transcription=types.SimpleNamespace(
+            user_id="duplicate-user",
+            action="transcription",
+        ),
+        social_copy=None,
+    )
+
+    processing_tasks.run_video_processing(
+        "duplicate-dispatch",
+        tmp_path / "input.mp4",
+        tmp_path / "artifacts" / "processed.mp4",
+        tmp_path / "artifacts",
+        ProcessingSettings(),
+        job_store,
+        ledger_store=ledger_store,
+        charge_plan=charge_plan,
+        source_probe=types.SimpleNamespace(duration_s=1.0),
+    )
+
+    assert not any(
+        call.kwargs.get("status") == "failed"
+        for call in job_store.update_job.call_args_list
+    )
+    ledger_store.refund_if_reserved.assert_not_called()
+
+
 def test_run_video_processing_refunds_if_job_disappears_after_completion_update(
     monkeypatch,
     tmp_path: Path,

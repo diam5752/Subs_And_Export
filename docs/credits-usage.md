@@ -103,11 +103,32 @@ Current official references:
    including reinstate-then-lost transitions.
 9. A provider call reserves paid credits plus daily/monthly USD budget before
    dispatch. Zero budgets mean closed.
-10. Provider estimates reserve 25% headroom. Paid calls use zero SDK retries and
-   bounded output tokens. Once a call is marked dispatched, a network failure
-   cannot trigger another paid attempt or a credit refund.
+10. Provider estimates reserve 25% headroom and must pass a runtime
+    contribution guard: the lowest net package value after 24% VAT and modeled
+    Stripe fees must cover the guarded provider estimate at least three times.
+    Paid calls use zero SDK retries and bounded output tokens. A failed service
+    refunds the user's reserved credits idempotently even after dispatch, while
+    the operator provider budget remains consumed when the call may have
+    reached the provider. Wallet compensation, usage-ledger settlement, and
+    provider-budget settlement commit atomically so a crash or retry cannot
+    double-refund or strand a reservation. A database-backed dispatch claim
+    permits exactly one worker to call the provider. Valid paid fact-check and
+    social-copy responses are schema-validated before settlement and stored
+    in dedicated temporary replay storage tied to the job lifecycle, so a
+    disconnected client can replay the finalized result without a second
+    provider call. Invalid paid semantic output fails closed and refunds
+    instead of silently returning a local fallback. A later retry after a
+    terminal refund is serialized onto one new paid attempt; concurrent retries
+    cannot create duplicate provider calls or debits. Stale claims left by a
+    crashed winner are reconciled by the retention worker: the customer is
+    refunded, guarded provider exposure remains counted, and orphaned budget
+    reservations are released atomically with any exact outstanding legacy
+    debit compensation.
 11. The visible 30/60/100 video charge includes optional social-copy generation;
-   it is not deducted a second time.
+    it is not deducted a second time.
+12. New wallets start at zero credits at both application and database level.
+    Historical balances are preserved; paid external-provider work can spend
+    only purchased credits.
 
 ## Validated accounting baseline and remaining consumer handoff
 

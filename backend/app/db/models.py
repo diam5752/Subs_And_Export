@@ -130,7 +130,7 @@ class DbUserPoints(Base):
         ForeignKey("users.id", ondelete="CASCADE"),
         primary_key=True,
     )
-    balance: Mapped[int] = mapped_column(Integer, default=1000, server_default="1000")
+    balance: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     paid_balance: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     reversal_debt: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     updated_at: Mapped[int] = mapped_column(Integer)
@@ -241,6 +241,26 @@ class DbUsageLedger(Base):
         Index("idx_usage_ledger_action", "action"),
         Index("idx_usage_ledger_status", "status"),
     )
+
+
+class DbUsageResult(Base):
+    """Temporary provider result retained for idempotent replay."""
+
+    __tablename__ = "usage_results"
+
+    ledger_id: Mapped[str] = mapped_column(
+        String(32),
+        ForeignKey("usage_ledger.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    job_id: Mapped[str] = mapped_column(
+        String(128),
+        ForeignKey("jobs.id", ondelete="CASCADE"),
+        index=True,
+    )
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON_VALUE)
+    created_at: Mapped[int] = mapped_column(Integer)
+    updated_at: Mapped[int] = mapped_column(Integer)
 
 
 class DbCreditPurchase(Base):

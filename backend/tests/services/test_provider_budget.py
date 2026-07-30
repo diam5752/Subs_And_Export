@@ -116,6 +116,52 @@ def test_provider_budget_rejects_closed_and_over_limit_windows() -> None:
         )
 
 
+@pytest.mark.parametrize(
+    "estimated_usd",
+    [float("nan"), float("inf"), float("-inf"), 0.0, -0.01],
+)
+def test_provider_budget_rejects_non_finite_or_non_positive_estimates(
+    estimated_usd: float,
+) -> None:
+    # REGRESSION: NaN compares false to both zero and hard limits, which could
+    # otherwise create a reservation without consuming guarded capacity.
+    store = ProviderBudgetStore(Database())
+
+    with pytest.raises(ValueError, match="finite and positive"):
+        store.reserve(
+            idempotency_key=uuid.uuid4().hex,
+            estimated_usd=estimated_usd,
+            daily_limit_usd=1.0,
+            monthly_limit_usd=2.0,
+        )
+
+
+@pytest.mark.parametrize(
+    ("daily_limit_usd", "monthly_limit_usd"),
+    [
+        (float("nan"), 1.0),
+        (1.0, float("nan")),
+        (float("inf"), 1.0),
+        (1.0, float("inf")),
+    ],
+)
+def test_provider_budget_rejects_non_finite_hard_limits(
+    daily_limit_usd: float,
+    monthly_limit_usd: float,
+) -> None:
+    # REGRESSION: a non-finite cap must close dispatch rather than behave like
+    # an unlimited operator-money budget.
+    store = ProviderBudgetStore(Database())
+
+    with pytest.raises(ProviderBudgetExceededError, match="closed"):
+        store.reserve(
+            idempotency_key=uuid.uuid4().hex,
+            estimated_usd=0.01,
+            daily_limit_usd=daily_limit_usd,
+            monthly_limit_usd=monthly_limit_usd,
+        )
+
+
 def test_provider_budget_concurrent_reservations_cannot_overshoot() -> None:
     # REGRESSION: two workers racing at the budget boundary may authorize only
     # one provider call.

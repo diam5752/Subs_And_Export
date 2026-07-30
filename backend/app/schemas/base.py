@@ -1,8 +1,24 @@
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
+
+BoundedFactText = Annotated[str, Field(min_length=1, max_length=2_000)]
+BoundedSocialTitle = Annotated[str, Field(min_length=1, max_length=160)]
+BoundedSocialDescription = Annotated[str, Field(min_length=1, max_length=2_000)]
+Percentage = Annotated[int, Field(strict=True, ge=0, le=100)]
+ClaimCount = Annotated[int, Field(strict=True, ge=0, le=100)]
+Hashtag = Annotated[
+    str,
+    Field(min_length=2, max_length=64, pattern=r"^#[\w]+$"),
+]
 
 
 class JobResponse(BaseModel):
@@ -34,34 +50,56 @@ class BatchDeleteResponse(BaseModel):
     job_ids: list[str]
 
 class FactCheckItemSchema(BaseModel):
-    mistake_el: str
-    mistake_en: str
-    correction_el: str
-    correction_en: str
-    explanation_el: str
-    explanation_en: str
-    severity: str  # minor | medium | major
-    confidence: int  # 0-100
-    real_life_example_el: str  # Concrete example disproving the claim
-    real_life_example_en: str
-    scientific_evidence_el: str  # Scientific explanation/citation
-    scientific_evidence_en: str
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    mistake_el: BoundedFactText
+    mistake_en: BoundedFactText
+    correction_el: BoundedFactText
+    correction_en: BoundedFactText
+    explanation_el: BoundedFactText
+    explanation_en: BoundedFactText
+    severity: Literal["minor", "medium", "major"]
+    confidence: Percentage
+    real_life_example_el: BoundedFactText
+    real_life_example_en: BoundedFactText
+    scientific_evidence_el: BoundedFactText
+    scientific_evidence_en: BoundedFactText
 
 
 class FactCheckResponse(BaseModel):
-    items: list[FactCheckItemSchema]
-    truth_score: int  # 0-100 overall accuracy
-    supported_claims_pct: int  # 0-100 percent supported
-    claims_checked: int  # Total claims analyzed
+    model_config = ConfigDict(extra="forbid")
+
+    items: Annotated[list[FactCheckItemSchema], Field(max_length=3)]
+    truth_score: Percentage
+    supported_claims_pct: Percentage
+    claims_checked: ClaimCount
     balance: int | None = None
+
+    @model_validator(mode="after")
+    def checked_claims_cover_reported_errors(self) -> Self:
+        """A response cannot report more errors than claims it checked."""
+        if self.claims_checked < len(self.items):
+            raise ValueError("claims_checked must cover every reported item")
+        return self
 
 
 class SocialCopySchema(BaseModel):
-    title_el: str
-    title_en: str
-    description_el: str
-    description_en: str
-    hashtags: list[str]
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    title_el: BoundedSocialTitle
+    title_en: BoundedSocialTitle
+    description_el: BoundedSocialDescription
+    description_en: BoundedSocialDescription
+    hashtags: Annotated[list[Hashtag], Field(min_length=1, max_length=14)]
+
+    @field_validator("hashtags")
+    @classmethod
+    def hashtags_are_unique(cls, hashtags: list[str]) -> list[str]:
+        """Reject duplicate provider tags instead of charging for noisy output."""
+        normalized = [hashtag.casefold() for hashtag in hashtags]
+        if len(normalized) != len(set(normalized)):
+            raise ValueError("hashtags must be unique")
+        return hashtags
 
 
 class SocialCopyResponse(BaseModel):

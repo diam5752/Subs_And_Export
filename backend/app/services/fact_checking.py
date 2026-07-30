@@ -4,17 +4,36 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass
-from typing import Any
+from dataclasses import asdict, dataclass
+from typing import Annotated, Any, Literal
 
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
 
 from backend.app.core.config import settings
+from backend.app.core.errors import ProviderDispatchAlreadyClaimedError
+from backend.app.schemas.base import FactCheckResponse
 from backend.app.services import llm_utils, pricing
 from backend.app.services.cost import CostService
 from backend.app.services.usage_ledger import ChargeReservation, UsageLedgerStore
 
 logger = logging.getLogger(__name__)
+
+BoundedExtractedClaim = Annotated[
+    str,
+    Field(strict=True, min_length=1, max_length=2_000),
+]
+
+
+class FactClaimExtraction(BaseModel):
+    """Strict provider contract for the cheap claim-extraction stage."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    claims: Annotated[
+        list[BoundedExtractedClaim],
+        Field(max_length=100),
+    ]
 
 
 @dataclass(slots=True)
@@ -25,7 +44,7 @@ class FactCheckItem:
     correction_en: str
     explanation_el: str
     explanation_en: str
-    severity: str
+    severity: Literal["minor", "medium", "major"]
     confidence: int
     real_life_example_el: str
     real_life_example_en: str
@@ -39,6 +58,49 @@ class FactCheckResult:
     supported_claims_pct: int
     claims_checked: int
     items: list[FactCheckItem]
+
+
+def _claims_from_extraction_response(response: Any) -> list[str]:
+    """Parse an explicit claim list without treating provider errors as none."""
+    content, refusal = llm_utils.extract_chat_completion_text(response)
+    if refusal:
+        raise ValueError("Fact-check claim extraction was refused")
+    if not content:
+        raise ValueError("Fact-check claim extraction returned empty content")
+
+    parsed = json.loads(llm_utils.clean_json_response(content))
+    return FactClaimExtraction.model_validate(parsed).claims
+
+
+def _fact_check_result_from_payload(
+    payload: dict[str, Any],
+) -> FactCheckResult:
+    """Validate provider or replay data against the public response schema."""
+    validated = FactCheckResponse.model_validate(payload)
+    return FactCheckResult(
+        truth_score=validated.truth_score,
+        supported_claims_pct=validated.supported_claims_pct,
+        claims_checked=validated.claims_checked,
+        items=[
+            FactCheckItem(**item.model_dump())
+            for item in validated.items
+        ],
+    )
+
+
+def _fact_check_result_payload(
+    result: FactCheckResult,
+) -> dict[str, Any]:
+    """Build a JSON-safe response payload before a customer is charged."""
+    validated = FactCheckResponse.model_validate(
+        {
+            "truth_score": result.truth_score,
+            "supported_claims_pct": result.supported_claims_pct,
+            "claims_checked": result.claims_checked,
+            "items": [asdict(item) for item in result.items],
+        }
+    )
+    return validated.model_dump(exclude={"balance"}, mode="json")
 
 
 def generate_fact_check(
@@ -56,6 +118,15 @@ def generate_fact_check(
     """
     Analyze transcript for historical, logical, or factual errors using an LLM.
     """
+    if ledger_store and charge_reservation:
+        if not ledger_store.mark_dispatched(charge_reservation):
+            replay = ledger_store.get_finalized_result(charge_reservation)
+            if isinstance(replay, dict):
+                return _fact_check_result_from_payload(replay)
+            raise ProviderDispatchAlreadyClaimedError(
+                "Paid provider dispatch is already in progress",
+            )
+
     if not api_key:
         api_key = llm_utils.resolve_openai_api_key()
 
@@ -82,9 +153,6 @@ def generate_fact_check(
     usage_completion = 0
     total_cost = 0.0
     breakdown: dict[str, Any] = {}
-
-    if ledger_store and charge_reservation:
-        ledger_store.mark_dispatched(charge_reservation)
 
     try:
         extract_response = client.chat.completions.create(
@@ -123,12 +191,16 @@ def generate_fact_check(
              else:
                  logger.info(f"Fact Check Extraction Token Usage: Input={prompt_tokens}, Output={completion_tokens}")
 
-        extract_content = llm_utils.extract_chat_completion_text(extract_response)[0]
-        extracted_data = json.loads(llm_utils.clean_json_response(extract_content or "{}"))
-        claims = extracted_data.get("claims", [])
+        claims = _claims_from_extraction_response(extract_response)
 
         if not claims:
             logger.info("Fact Check: No doubtful claims found by extractor.")
+            result = FactCheckResult(
+                truth_score=100,
+                supported_claims_pct=100,
+                claims_checked=0,
+                items=[],
+            )
             if ledger_store and charge_reservation:
                 tier = charge_reservation.tier or settings.default_transcribe_tier
                 credits = pricing.credits_for_tokens(
@@ -155,8 +227,9 @@ def generate_fact_check(
                     credits_charged=credits,
                     cost_usd=total_cost,
                     units=units,
+                    result=_fact_check_result_payload(result),
                 )
-            return FactCheckResult(truth_score=100, supported_claims_pct=100, claims_checked=0, items=[])
+            return result
 
     except Exception as e:
         logger.warning(f"Fact Check Extraction failed: {e}. Fallback to full check.")
@@ -277,25 +350,16 @@ def generate_fact_check(
 
             cleaned_content = llm_utils.clean_json_response(content)
             parsed = json.loads(cleaned_content)
-            items_data = parsed.get("items", [])
-
-            items = [
-                FactCheckItem(
-                    mistake_el=item["mistake_el"],
-                    mistake_en=item["mistake_en"],
-                    correction_el=item["correction_el"],
-                    correction_en=item["correction_en"],
-                    explanation_el=item["explanation_el"],
-                    explanation_en=item["explanation_en"],
-                    severity=item["severity"],
-                    confidence=item["confidence"],
-                    real_life_example_el=item.get("real_life_example_el", ""),
-                    real_life_example_en=item.get("real_life_example_en", ""),
-                    scientific_evidence_el=item.get("scientific_evidence_el", ""),
-                    scientific_evidence_en=item.get("scientific_evidence_en", ""),
-                )
-                for item in items_data
-            ]
+            result = _fact_check_result_from_payload(
+                {
+                    "truth_score": parsed["truth_score"],
+                    "supported_claims_pct": parsed[
+                        "supported_claims_pct"
+                    ],
+                    "claims_checked": parsed["claims_checked"],
+                    "items": parsed.get("items", []),
+                }
+            )
 
             if ledger_store and charge_reservation:
                 tier = charge_reservation.tier or settings.default_transcribe_tier
@@ -322,14 +386,10 @@ def generate_fact_check(
                     credits_charged=credits,
                     cost_usd=total_cost,
                     units=units,
+                    result=_fact_check_result_payload(result),
                 )
 
-            return FactCheckResult(
-                truth_score=parsed["truth_score"],
-                supported_claims_pct=parsed["supported_claims_pct"],
-                claims_checked=parsed["claims_checked"],
-                items=items,
-            )
+            return result
 
         except (json.JSONDecodeError, KeyError, ValueError) as exc:
             logger.exception(f"Fact Check JSON Error (Attempt {attempt+1}/{max_retries+1})")
@@ -341,13 +401,6 @@ def generate_fact_check(
 
     if ledger_store and charge_reservation:
         if usage_prompt + usage_completion > 0:
-            tier = charge_reservation.tier or settings.default_transcribe_tier
-            credits = pricing.credits_for_tokens(
-                tier=tier,
-                prompt_tokens=usage_prompt,
-                completion_tokens=usage_completion,
-                min_credits=charge_reservation.min_credits,
-            )
             if total_cost <= 0:
                 total_cost = pricing.llm_cost_estimate_usd(
                     model_name=model_name,
@@ -361,12 +414,12 @@ def generate_fact_check(
                 "models": breakdown,
                 "failed": True,
             }
-            ledger_store.finalize(
+            ledger_store.fail(
                 charge_reservation,
-                credits_charged=credits,
-                cost_usd=total_cost,
-                units=units,
                 status="failed",
+                error="Fact-check provider output was unusable",
+                actual_cost_usd=total_cost,
+                units=units,
             )
         else:
             ledger_store.fail(charge_reservation, status="failed", error=str(last_exc))

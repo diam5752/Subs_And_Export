@@ -149,6 +149,29 @@ class PointsStore:
         meta: dict[str, Any] | None = None,
         require_paid: bool = False,
     ) -> tuple[int, bool]:
+        with self.db.session() as session:
+            return self.spend_once_in_session(
+                session,
+                user_id,
+                cost,
+                reason=reason,
+                transaction_id=transaction_id,
+                meta=meta,
+                require_paid=require_paid,
+            )
+
+    def spend_once_in_session(
+        self,
+        session: Session,
+        user_id: str,
+        cost: int,
+        *,
+        reason: str,
+        transaction_id: str,
+        meta: dict[str, Any] | None = None,
+        require_paid: bool = False,
+    ) -> tuple[int, bool]:
+        """Apply one debit inside the caller's atomic ledger transaction."""
         if cost <= 0:
             raise HTTPException(status_code=400, detail="Invalid cost")
         if not transaction_id or len(transaction_id) > 32:
@@ -158,50 +181,49 @@ class PointsStore:
             raise HTTPException(status_code=400, detail="Invalid meta")
 
         now = int(time.time())
-        with self.db.session() as session:
-            self._ensure_account_in_session(session, user_id=user_id, now=now)
-            existing = session.get(DbPointTransaction, transaction_id)
-            if existing is not None:
-                self._validate_existing_transaction(
-                    existing,
-                    user_id=user_id,
-                    expected_delta=-cost,
-                    reason=reason,
-                    expected_paid_delta=-cost if require_paid else None,
-                )
-                wallet = self._locked_wallet(session, user_id)
-                return int(wallet.balance), False
-
+        self._ensure_account_in_session(session, user_id=user_id, now=now)
+        existing = session.get(DbPointTransaction, transaction_id)
+        if existing is not None:
+            self._validate_existing_transaction(
+                existing,
+                user_id=user_id,
+                expected_delta=-cost,
+                reason=reason,
+                expected_paid_delta=-cost if require_paid else None,
+            )
             wallet = self._locked_wallet(session, user_id)
-            existing = session.get(DbPointTransaction, transaction_id)
-            if existing is not None:
-                self._validate_existing_transaction(
-                    existing,
-                    user_id=user_id,
-                    expected_delta=-cost,
-                    reason=reason,
-                    expected_paid_delta=-cost if require_paid else None,
-                )
-                return int(wallet.balance), False
+            return int(wallet.balance), False
 
-            paid_spend = self._spend_locked_wallet(
-                wallet,
-                cost=cost,
-                now=now,
-                require_paid=require_paid,
+        wallet = self._locked_wallet(session, user_id)
+        existing = session.get(DbPointTransaction, transaction_id)
+        if existing is not None:
+            self._validate_existing_transaction(
+                existing,
+                user_id=user_id,
+                expected_delta=-cost,
+                reason=reason,
+                expected_paid_delta=-cost if require_paid else None,
             )
-            session.add(
-                DbPointTransaction(
-                    id=transaction_id,
-                    user_id=user_id,
-                    delta=-cost,
-                    paid_delta=-paid_spend,
-                    reason=reason,
-                    meta=meta,
-                    created_at=now,
-                )
+            return int(wallet.balance), False
+
+        paid_spend = self._spend_locked_wallet(
+            wallet,
+            cost=cost,
+            now=now,
+            require_paid=require_paid,
+        )
+        session.add(
+            DbPointTransaction(
+                id=transaction_id,
+                user_id=user_id,
+                delta=-cost,
+                paid_delta=-paid_spend,
+                reason=reason,
+                meta=meta,
+                created_at=now,
             )
-            return int(wallet.balance), True
+        )
+        return int(wallet.balance), True
 
     def credit(
         self,
@@ -249,6 +271,29 @@ class PointsStore:
         meta: dict[str, Any] | None = None,
         paid_credit_delta: int = 0,
     ) -> tuple[int, bool]:
+        with self.db.session() as session:
+            return self.credit_once_in_session(
+                session,
+                user_id,
+                amount,
+                reason=reason,
+                transaction_id=transaction_id,
+                meta=meta,
+                paid_credit_delta=paid_credit_delta,
+            )
+
+    def credit_once_in_session(
+        self,
+        session: Session,
+        user_id: str,
+        amount: int,
+        *,
+        reason: str,
+        transaction_id: str,
+        meta: dict[str, Any] | None = None,
+        paid_credit_delta: int = 0,
+    ) -> tuple[int, bool]:
+        """Apply one credit inside the caller's atomic ledger transaction."""
         if amount <= 0:
             raise HTTPException(status_code=400, detail="Invalid amount")
         if not transaction_id or len(transaction_id) > 32:
@@ -259,51 +304,50 @@ class PointsStore:
         _validate_paid_credit_delta(amount, paid_credit_delta)
 
         now = int(time.time())
-        with self.db.session() as session:
-            self._ensure_account_in_session(
-                session,
+        self._ensure_account_in_session(
+            session,
+            user_id=user_id,
+            now=now,
+        )
+        existing = session.get(DbPointTransaction, transaction_id)
+        if existing is not None:
+            self._validate_existing_transaction(
+                existing,
                 user_id=user_id,
-                now=now,
+                expected_delta=amount,
+                reason=reason,
+                expected_paid_delta=paid_credit_delta,
             )
-            existing = session.get(DbPointTransaction, transaction_id)
-            if existing is not None:
-                self._validate_existing_transaction(
-                    existing,
-                    user_id=user_id,
-                    expected_delta=amount,
-                    reason=reason,
-                    expected_paid_delta=paid_credit_delta,
-                )
-                wallet = self._locked_wallet(session, user_id)
-                return int(wallet.balance), False
-
             wallet = self._locked_wallet(session, user_id)
-            existing = session.get(DbPointTransaction, transaction_id)
-            if existing is not None:
-                self._validate_existing_transaction(
-                    existing,
-                    user_id=user_id,
-                    expected_delta=amount,
-                    reason=reason,
-                    expected_paid_delta=paid_credit_delta,
-                )
-                return int(wallet.balance), False
+            return int(wallet.balance), False
 
-            wallet.balance += amount
-            wallet.paid_balance += paid_credit_delta
-            wallet.updated_at = now
-            session.add(
-                DbPointTransaction(
-                    id=transaction_id,
-                    user_id=user_id,
-                    delta=amount,
-                    paid_delta=paid_credit_delta,
-                    reason=reason,
-                    meta=meta,
-                    created_at=now,
-                )
+        wallet = self._locked_wallet(session, user_id)
+        existing = session.get(DbPointTransaction, transaction_id)
+        if existing is not None:
+            self._validate_existing_transaction(
+                existing,
+                user_id=user_id,
+                expected_delta=amount,
+                reason=reason,
+                expected_paid_delta=paid_credit_delta,
             )
-            return int(wallet.balance), True
+            return int(wallet.balance), False
+
+        wallet.balance += amount
+        wallet.paid_balance += paid_credit_delta
+        wallet.updated_at = now
+        session.add(
+            DbPointTransaction(
+                id=transaction_id,
+                user_id=user_id,
+                delta=amount,
+                paid_delta=paid_credit_delta,
+                reason=reason,
+                meta=meta,
+                created_at=now,
+            )
+        )
+        return int(wallet.balance), True
 
     def refund(
         self,
@@ -333,6 +377,29 @@ class PointsStore:
         paid_credit_delta: int = 0,
     ) -> int:
         balance, _ = self.credit_once(
+            user_id,
+            amount,
+            reason=refund_reason(original_reason),
+            transaction_id=transaction_id,
+            meta=meta,
+            paid_credit_delta=paid_credit_delta,
+        )
+        return balance
+
+    def refund_once_in_session(
+        self,
+        session: Session,
+        user_id: str,
+        amount: int,
+        *,
+        original_reason: str,
+        transaction_id: str,
+        meta: dict[str, Any] | None = None,
+        paid_credit_delta: int = 0,
+    ) -> int:
+        """Apply one refund inside the caller's atomic ledger transaction."""
+        balance, _ = self.credit_once_in_session(
+            session,
             user_id,
             amount,
             reason=refund_reason(original_reason),

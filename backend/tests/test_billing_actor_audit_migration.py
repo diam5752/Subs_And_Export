@@ -262,7 +262,7 @@ def test_existing_0014_pending_schema_upgrades_and_cleanly_downgrades() -> None:
         ) as connection:
             assert connection.execute(
                 "SELECT version_num FROM alembic_version"
-            ).fetchone() == ("0018_approved_contract_delivery",)
+            ).fetchone() == ("0020_usage_results",)
             assert connection.execute(
                 """
                 SELECT recorded_by_user_id, recorded_at
@@ -499,7 +499,7 @@ def test_fresh_head_enforces_actor_audit_and_refuses_destructive_downgrade() -> 
         ) as connection:
             assert connection.execute(
                 "SELECT version_num FROM alembic_version"
-            ).fetchone() == ("0018_approved_contract_delivery",)
+            ).fetchone() == ("0020_usage_results",)
             assert connection.execute(
                 """
                 SELECT recorded_by_user_id, recorded_at

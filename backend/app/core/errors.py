@@ -16,6 +16,11 @@ logger = logging.getLogger(__name__)
 class ProviderBudgetExceededError(RuntimeError):
     """Raised before an external provider call would exceed the app budget."""
 
+
+class ProviderDispatchAlreadyClaimedError(RuntimeError):
+    """Raised when another worker already owns the paid provider dispatch."""
+
+
 # Regex to detect internal paths (Unix/Linux focus for container env)
 _PATH_PATTERN = re.compile(r"(\/(?:app|home|var|tmp|usr|etc|opt)\/[\w\-\.\/]+)")
 

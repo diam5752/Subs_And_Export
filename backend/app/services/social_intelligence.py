@@ -5,12 +5,14 @@ from __future__ import annotations
 import json
 import logging
 import re
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Any, Sequence
 
 from sqlalchemy.orm import Session
 
 from backend.app.core.config import settings
+from backend.app.core.errors import ProviderDispatchAlreadyClaimedError
+from backend.app.schemas.base import SocialCopySchema
 from backend.app.services import llm_utils, pricing
 from backend.app.services.cost import CostService
 from backend.app.services.usage_ledger import ChargeReservation, UsageLedgerStore
@@ -30,6 +32,20 @@ class SocialContent:
 @dataclass(frozen=True, slots=True)
 class SocialCopy:
     generic: SocialContent
+
+
+def _social_copy_from_payload(payload: dict[str, Any]) -> SocialCopy:
+    """Validate provider or replay data against the public response schema."""
+    validated = SocialCopySchema.model_validate(payload)
+    return SocialCopy(generic=SocialContent(**validated.model_dump()))
+
+
+def _social_copy_payload(social_copy: SocialCopy) -> dict[str, Any]:
+    """Build a JSON-safe response payload before a customer is charged."""
+    validated = SocialCopySchema.model_validate(
+        asdict(social_copy.generic)
+    )
+    return validated.model_dump(mode="json")
 
 
 @dataclass(slots=True)
@@ -179,6 +195,15 @@ def build_social_copy_llm(
         RuntimeError: If no API key is found in any source
         ValueError: If LLM response is invalid
     """
+    if ledger_store and charge_reservation:
+        if not ledger_store.mark_dispatched(charge_reservation):
+            replay = ledger_store.get_finalized_result(charge_reservation)
+            if isinstance(replay, dict):
+                return _social_copy_from_payload(replay)
+            raise ProviderDispatchAlreadyClaimedError(
+                "Paid provider dispatch is already in progress",
+            )
+
     # Try to get API key from multiple sources (env, secrets.toml)
     if not api_key:
         api_key = llm_utils.resolve_openai_api_key()
@@ -228,16 +253,13 @@ def build_social_copy_llm(
     ]
 
     # A paid reservation is dispatched at most once. Invalid provider output
-    # falls back locally instead of spending the customer's money in a loop.
+    # fails closed after refunding instead of disguising failure as paid output.
     max_retries = 0 if charge_reservation else 3
     last_exc = None
 
     usage_prompt = 0
     usage_completion = 0
     total_cost = 0.0
-
-    if ledger_store and charge_reservation:
-        ledger_store.mark_dispatched(charge_reservation)
 
     for attempt in range(max_retries + 1):
         response: Any | None = None
@@ -283,6 +305,7 @@ def build_social_copy_llm(
 
             cleaned_content = llm_utils.clean_json_response(content)
             parsed = json.loads(cleaned_content)
+            social_copy = _social_copy_from_payload(parsed)
 
             if ledger_store and charge_reservation:
                 tier = charge_reservation.tier or settings.default_transcribe_tier
@@ -309,17 +332,10 @@ def build_social_copy_llm(
                     credits_charged=credits,
                     cost_usd=total_cost,
                     units=units,
+                    result=_social_copy_payload(social_copy),
                 )
 
-            return SocialCopy(
-                generic=SocialContent(
-                    title_el=parsed["title_el"],
-                    title_en=parsed["title_en"],
-                    description_el=parsed["description_el"],
-                    description_en=parsed["description_en"],
-                    hashtags=parsed.get("hashtags", []),
-                )
-            )
+            return social_copy
         except Exception as exc:
             logger.exception(f"Social Copy JSON Error (Attempt {attempt+1}/{max_retries+1})")
             llm_utils.chat_completion_debug(response)
@@ -330,18 +346,9 @@ def build_social_copy_llm(
                 messages.append({"role": "user", "content": "ERROR: The last response was not valid JSON. Return ONLY the JSON object. No other text."})
                 continue
 
-    # raise ValueError("Failed to generate valid social copy after retries") from last_exc
     logger.error(f"Failed to generate valid social copy after retries: {last_exc}")
-    logger.warning("Falling back to deterministic social copy generation.")
     if ledger_store and charge_reservation:
         if usage_prompt + usage_completion > 0:
-            tier = charge_reservation.tier or settings.default_transcribe_tier
-            credits = pricing.credits_for_tokens(
-                tier=tier,
-                prompt_tokens=usage_prompt,
-                completion_tokens=usage_completion,
-                min_credits=charge_reservation.min_credits,
-            )
             if total_cost <= 0:
                 total_cost = pricing.llm_cost_estimate_usd(
                     model_name=model_name,
@@ -353,15 +360,19 @@ def build_social_copy_llm(
                 "completion_tokens": usage_completion,
                 "total_tokens": usage_prompt + usage_completion,
                 "model": model_name,
-                "fallback": True,
+                "failed": True,
             }
-            ledger_store.finalize(
+            ledger_store.fail(
                 charge_reservation,
-                credits_charged=credits,
-                cost_usd=total_cost,
-                units=units,
                 status="failed",
+                error="Social-copy provider output was unusable",
+                actual_cost_usd=total_cost,
+                units=units,
             )
         else:
             ledger_store.fail(charge_reservation, status="failed", error=str(last_exc))
+        raise ValueError(
+            "Failed to generate valid paid social copy",
+        ) from last_exc
+    logger.warning("Falling back to deterministic social copy generation.")
     return build_social_copy(transcript_text)

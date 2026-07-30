@@ -61,6 +61,7 @@ def cleanup_expired_workspaces(
     stale_job_retention_hours: int,
     orphan_retention_hours: int,
     now: int | None = None,
+    before_delete_job: Callable[[RetentionJob], None] | None = None,
 ) -> CleanupReport:
     """Delete expired media workspaces while preserving recent and active work."""
     current_time = int(time.time()) if now is None else now
@@ -88,6 +89,11 @@ def cleanup_expired_workspaces(
                 active_cutoff=active_cutoff,
             ):
                 continue
+            if (
+                latest_job.status in ACTIVE_JOB_STATUSES
+                and before_delete_job is not None
+            ):
+                before_delete_job(latest_job)
             delete_job_workspace(
                 job_id=job_id,
                 uploads_dir=uploads_dir,
@@ -192,11 +198,35 @@ def run_configured_retention(db: Database) -> CleanupReport:
     )
     from backend.app.services.history import HistoryStore
     from backend.app.services.jobs import JobStore
+    from backend.app.services.points import PointsStore
+    from backend.app.services.usage_ledger import UsageLedgerStore
 
     uploads_dir = settings.data_dir / "uploads"
     artifacts_dir = settings.data_dir / "artifacts"
     uploads_dir.mkdir(parents=True, exist_ok=True)
     artifacts_dir.mkdir(parents=True, exist_ok=True)
+    usage_ledger_store = UsageLedgerStore(
+        db=db,
+        points_store=PointsStore(db=db),
+    )
+    stale_before = int(time.time()) - (
+        settings.stale_job_retention_hours * 3600
+    )
+    reconciled = usage_ledger_store.reconcile_stale_reservations(
+        stale_before=stale_before,
+    )
+    if reconciled:
+        logger.warning(
+            "Reconciled stale paid provider reservations",
+            extra={"reconciled_reservations": reconciled},
+        )
+
+    def compensate_stale_job(job: RetentionJob) -> None:
+        usage_ledger_store.fail_job_reservations(
+            job.id,
+            error="Stale processing job expired",
+        )
+
     report = cleanup_expired_workspaces(
         job_store=JobStore(db),
         history_store=HistoryStore(db),
@@ -205,6 +235,7 @@ def run_configured_retention(db: Database) -> CleanupReport:
         workspace_retention_hours=settings.workspace_retention_hours,
         stale_job_retention_hours=settings.stale_job_retention_hours,
         orphan_retention_hours=settings.orphan_retention_hours,
+        before_delete_job=compensate_stale_job,
     )
     billing_report = cleanup_expired_billing_records(db)
     if billing_report.deleted_unpaid_attempts or billing_report.deleted_financial_records:
