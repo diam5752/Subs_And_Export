@@ -36,7 +36,7 @@ RUN mkdir -p /data/uploads /data/artifacts /logs /app/logs
 ENV HF_HOME=/models
 RUN mkdir -p /models
 
-# Mock-first images stay small and make no model download. A later local-only
+# Provider-minimal images stay small and make no model download. A local-only
 # deployment can opt in with --build-arg PRELOAD_WHISPER_MODEL=large-v3-turbo.
 ARG PRELOAD_WHISPER_MODEL=""
 RUN if [ -n "$PRELOAD_WHISPER_MODEL" ]; then \

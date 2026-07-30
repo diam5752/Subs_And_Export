@@ -26,6 +26,17 @@ test('player and subtitle manipulation stay clear across browser engines', async
   await expect(page.getByText(el.subtitlesReady, { exact: true })).toHaveCount(0);
   await expect(page.locator('.subtitle-edit-affordance')).toHaveCount(0);
 
+  if (testInfo.project.name === 'ios-webkit') {
+    // REGRESSION: a paused WebKit video with metadata-only preload stayed at
+    // HAVE_METADATA and rendered a black phone until playback started.
+    await expect.poll(async () => video.evaluate(
+      (element) => (element as HTMLVideoElement).readyState,
+    )).toBeGreaterThanOrEqual(2);
+    await expect.poll(async () => video.evaluate(
+      (element) => (element as HTMLVideoElement).currentTime,
+    )).toBeGreaterThan(0);
+  }
+
   const phoneBox = await phone.boundingBox();
   expect(phoneBox).not.toBeNull();
   expect(phoneBox!.width).toBeGreaterThanOrEqual(180);

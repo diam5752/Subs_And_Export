@@ -27,6 +27,14 @@ APPROVED_STRIPE_API_BASES = frozenset(
         STRIPE_INTERNAL_API_BASE,
     }
 )
+ELEVENLABS_PUBLIC_API_BASE = "https://api.elevenlabs.io"
+ELEVENLABS_INTERNAL_API_BASE = "http://edge:8081/elevenlabs"
+APPROVED_ELEVENLABS_API_BASES = frozenset(
+    {
+        ELEVENLABS_PUBLIC_API_BASE,
+        ELEVENLABS_INTERNAL_API_BASE,
+    }
+)
 
 
 class AppEnv(StrEnum):
@@ -76,6 +84,14 @@ class Settings(BaseSettings):
         normalized = str(value).strip().rstrip("/")
         if normalized not in APPROVED_STRIPE_API_BASES:
             raise ValueError("GSP_STRIPE_API_BASE must use an approved Stripe API endpoint")
+        return normalized
+
+    @field_validator("elevenlabs_api_base", mode="before")
+    @classmethod
+    def validate_elevenlabs_api_base(cls, value: object) -> str:
+        normalized = str(value).strip().rstrip("/")
+        if normalized not in APPROVED_ELEVENLABS_API_BASES:
+            raise ValueError("GSP_ELEVENLABS_API_BASE must use an approved ElevenLabs API endpoint")
         return normalized
 
     @field_validator("allowed_origins", "trusted_hosts", "proxy_trusted_hosts", mode="before")
@@ -197,6 +213,11 @@ class Settings(BaseSettings):
     elevenlabs_enabled: bool = Field(
         default=False,
         validation_alias="GSP_ELEVENLABS_ENABLED",
+    )
+    elevenlabs_api_base: str = Field(
+        default="https://api.elevenlabs.io",
+        min_length=1,
+        validation_alias="GSP_ELEVENLABS_API_BASE",
     )
     elevenlabs_transcribe_model: str = "scribe_v2"
 

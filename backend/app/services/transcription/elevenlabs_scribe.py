@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 import requests
 
@@ -14,7 +15,6 @@ from backend.app.services.subtitle_types import Cue, WordTiming
 from backend.app.services.transcription.base import Transcriber
 from backend.app.services.transcription.utils import normalize_text, write_srt_from_segments
 
-SCRIBE_ENDPOINT = "https://api.elevenlabs.io/v1/speech-to-text"
 _LANGUAGE_CODES = {"el": "ell", "en": "eng"}
 _CUE_ENDINGS = (".", "!", "?", ";", "·")
 
@@ -36,6 +36,21 @@ class ElevenLabsScribeTranscriber(Transcriber):
         if not normalized or normalized == "auto":
             return None
         return _LANGUAGE_CODES.get(normalized, normalized)
+
+    @staticmethod
+    def _scribe_endpoint() -> str:
+        api_base = settings.elevenlabs_api_base.strip().rstrip("/")
+        parsed = urlsplit(api_base)
+        if (
+            parsed.scheme not in {"http", "https"}
+            or not parsed.netloc
+            or parsed.username is not None
+            or parsed.password is not None
+            or parsed.query
+            or parsed.fragment
+        ):
+            raise RuntimeError("ElevenLabs API relay configuration is invalid.")
+        return f"{api_base}/v1/speech-to-text"
 
     @staticmethod
     def _parse_words(payload: dict[str, Any]) -> list[WordTiming]:
@@ -125,6 +140,7 @@ class ElevenLabsScribeTranscriber(Transcriber):
         if callable(progress_callback):
             progress_callback(10.0)
 
+        endpoint = self._scribe_endpoint()
         form_data = {
             "model_id": selected_model,
             "timestamps_granularity": "word",
@@ -138,7 +154,7 @@ class ElevenLabsScribeTranscriber(Transcriber):
         try:
             with audio_path.open("rb") as audio_file:
                 response = self._transport(
-                    SCRIBE_ENDPOINT,
+                    endpoint,
                     headers={"xi-api-key": api_key},
                     data=form_data,
                     files={"file": (audio_path.name, audio_file, "audio/wav")},

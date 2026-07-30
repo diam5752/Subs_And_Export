@@ -12,13 +12,24 @@ legacy infrastructure identifiers stay unchanged to preserve compatibility.
 
 ## Safe release contract
 
-The tracked production Compose file deliberately forces mock providers, zero
-provider budgets, `GSP_PAID_CREDITS_ENABLED=0`, and
-`GSP_STRIPE_AUTOMATIC_TAX_ENABLED=0`. It separately forces the consumer-policy,
-durable-confirmation-channel and adjustment-workflow approvals to `0`, so an
-environment-file change cannot approve an unfinished legal or operational
-workflow. It also forces `GSP_GCS_BUCKET=""` and the billing-admin allowlist
-to an empty value.
+The tracked production Compose file enables only ElevenLabs Scribe v2 for
+caption transcription. The API key stays in the untracked, mode-0600
+`.env.production` file and the internal-only backend can reach exactly
+`POST /v1/speech-to-text` through a method/path-scoped edge relay. Production
+hard-caps provider reservations at $0.75/month, $0.25/day and $0.05/request
+with the 1.25 safety multiplier. Missing credentials, a closed budget, an
+unsupported tier/provider pair or a provider error fails closed before work is
+accepted or refunds the idempotent reservation.
+
+Paid Checkout is still deliberately disabled:
+`GSP_PAID_CREDITS_ENABLED=0` and
+`GSP_STRIPE_AUTOMATIC_TAX_ENABLED=0`. The Compose file separately forces the
+consumer-policy, durable-confirmation-channel and adjustment-workflow
+approvals to `0`, so an environment-file change cannot approve an unfinished
+legal or operational workflow. It also forces `GSP_GCS_BUCKET=""` and the
+billing-admin allowlist to an empty value. External provider spend requires
+an existing paid-credit balance; promotional signup credits cannot fund a
+Scribe request.
 
 The Compose contract can stage one complete live Stripe bundle (restricted
 key, webhook signing secret and all three Price IDs) from the untracked
@@ -187,8 +198,8 @@ and investigate or prepare a new roll-forward release.
 
 ```bash
 cp deploy/hetzner/subframe.env.example .env.production
-# Fill the random database password, exact SHA, Google client ID and age public
-# recipient. Never commit this file.
+# Fill the random database password, exact SHA, Google client ID, ElevenLabs
+# production key and age public recipient. Never commit this file.
 SUBFRAME_ENV_FILE=/home/mizai/subframe/.env.production \
   ./deploy/hetzner/deploy-production.sh
 SUBFRAME_ENV_FILE=/home/mizai/subframe/.env.production \
@@ -205,9 +216,10 @@ ssh -N -L 127.0.0.1:18090:127.0.0.1:18090 root@SERVER
 ```
 
 `verify-production.sh` checks container health and image SHAs, every fail-closed
-payment/provider setting, the complete-or-absent Stripe staging bundle, the
-method/path-scoped Stripe relay, the Google certificate relay, the Alembic head,
-and that `/billing/catalog` returns `checkout_enabled=false`.
+payment/provider setting, the non-empty Scribe credential without printing it,
+the complete-or-absent Stripe staging bundle, the method/path-scoped Stripe and
+ElevenLabs relays, the Google certificate relay, the Alembic head, and that
+`/billing/catalog` returns `checkout_enabled=false`.
 `deploy-production.sh` runs that complete verifier in candidate mode before it
 atomically replaces `.runtime/last-successful-release`. A candidate-verification
 failure leaves the previously recorded SHA unchanged and follows the documented

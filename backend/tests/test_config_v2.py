@@ -35,6 +35,7 @@ def test_settings_defaults(monkeypatch) -> None:
     assert settings.paid_credit_checkout_enabled is False
     assert settings.stripe_automatic_tax_enabled is False
     assert settings.stripe_api_base == "https://api.stripe.com"
+    assert settings.elevenlabs_api_base == "https://api.elevenlabs.io"
     assert settings.google_oauth_certs_url == "https://www.googleapis.com/oauth2/v1/certs"
     assert settings.external_provider_price_safety_multiplier == 1.25
     assert settings.watermark_path.name == "gsubs-logo.png"
@@ -97,6 +98,10 @@ def test_settings_environment_overrides(monkeypatch) -> None:
         "GSP_STRIPE_API_BASE",
         "http://edge:8081/stripe",
     )
+    monkeypatch.setenv(
+        "GSP_ELEVENLABS_API_BASE",
+        "http://edge:8081/elevenlabs",
+    )
 
     settings = Settings(_env_file=None)
 
@@ -116,6 +121,7 @@ def test_settings_environment_overrides(monkeypatch) -> None:
     assert settings.trusted_hosts == ["localhost", "127.0.0.1"]
     assert settings.google_oauth_certs_url == "http://edge:8081/oauth2/v1/certs"
     assert settings.stripe_api_base == "http://edge:8081/stripe"
+    assert settings.elevenlabs_api_base == "http://edge:8081/elevenlabs"
 
 
 def test_settings_rejects_nonpositive_upload_limit(monkeypatch) -> None:
@@ -142,6 +148,16 @@ def test_settings_rejects_unapproved_stripe_api_base(monkeypatch) -> None:
     )
 
     with pytest.raises(ValueError, match="approved Stripe API endpoint"):
+        Settings(_env_file=None)
+
+
+def test_settings_rejects_unapproved_elevenlabs_api_base(monkeypatch) -> None:
+    monkeypatch.setenv(
+        "GSP_ELEVENLABS_API_BASE",
+        "https://attacker.example/elevenlabs",
+    )
+
+    with pytest.raises(ValueError, match="approved ElevenLabs API endpoint"):
         Settings(_env_file=None)
 
 

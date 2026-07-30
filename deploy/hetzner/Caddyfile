@@ -104,5 +104,19 @@
 		}
 	}
 
+	@elevenlabs_scribe {
+		method POST
+		path /elevenlabs/v1/speech-to-text
+	}
+	handle @elevenlabs_scribe {
+		request_body {
+			max_size 32MB
+		}
+		uri strip_prefix /elevenlabs
+		reverse_proxy https://api.elevenlabs.io {
+			header_up Host api.elevenlabs.io
+		}
+	}
+
 	respond 404
 }
