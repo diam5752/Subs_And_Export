@@ -19,6 +19,80 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class StoreBehaviorIT extends IntegrationTestSupport {
 
     @Test
+    void flywayCreatesTemporaryUsageResultReplaySchema() {
+        // REGRESSION: the Java compatibility surface must migrate the same
+        // replay-result schema and lifecycle constraints as Alembic.
+        assertThat(jdbcClient.sql("""
+                SELECT string_agg(
+                    column_name || ':' || data_type || ':' || is_nullable,
+                    ',' ORDER BY ordinal_position
+                )
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                  AND table_name = 'usage_results'
+                """)
+                .query(String.class)
+                .single()).isEqualTo(
+                        "ledger_id:character varying:NO,"
+                                + "job_id:character varying:NO,"
+                                + "payload:jsonb:NO,"
+                                + "created_at:integer:NO,"
+                                + "updated_at:integer:NO"
+                );
+
+        String constraints = jdbcClient.sql("""
+                SELECT string_agg(
+                    pg_get_constraintdef(oid),
+                    ' | ' ORDER BY conname
+                )
+                FROM pg_constraint
+                WHERE conrelid = 'usage_results'::regclass
+                """)
+                .query(String.class)
+                .single();
+        assertThat(constraints)
+                .contains("FOREIGN KEY (ledger_id)")
+                .contains("REFERENCES usage_ledger(id) ON DELETE CASCADE")
+                .contains("FOREIGN KEY (job_id)")
+                .contains("REFERENCES jobs(id) ON DELETE CASCADE")
+                .contains("PRIMARY KEY (ledger_id)");
+        assertThat(jdbcClient.sql("""
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM pg_indexes
+                    WHERE schemaname = 'public'
+                      AND tablename = 'usage_results'
+                      AND indexname = 'ix_usage_results_job_id'
+                )
+                """)
+                .query(Boolean.class)
+                .single()).isTrue();
+    }
+
+    @Test
+    void databaseDefaultNeverCreatesPromotionalSignupCredits() {
+        // REGRESSION: compatibility or maintenance inserts that omit balance
+        // must not resurrect the historical 1,000-credit database default.
+        CurrentUser user = authStore.registerLocalUser(
+                uniqueEmail(),
+                "testpassword123",
+                "Default Wallet"
+        );
+        jdbcClient.sql("DELETE FROM user_points WHERE user_id = :userId")
+                .param("userId", user.id())
+                .update();
+        jdbcClient.sql("""
+                INSERT INTO user_points (user_id, updated_at)
+                VALUES (:userId, :updatedAt)
+                """)
+                .param("userId", user.id())
+                .param("updatedAt", 1)
+                .update();
+
+        assertThat(pointsStore.getBalance(user.id())).isZero();
+    }
+
+    @Test
     void authStoreSupportsPasswordSessionsOauthAndDeletedEmails() {
         CurrentUser local = authStore.registerLocalUser(uniqueEmail(), "testpassword123", "Local User");
         assertThat(authStore.authenticateLocal(local.email(), "testpassword123")).isPresent();

@@ -16,6 +16,7 @@ from typing import Any, Callable, cast
 from backend.app.core import metrics
 from backend.app.core.config import settings
 from backend.app.core.database import Database
+from backend.app.core.errors import ProviderDispatchAlreadyClaimedError
 from backend.app.services import (
     artifact_manager,
     ffmpeg_utils,
@@ -370,7 +371,12 @@ def process_video_pipeline(
                     )
                     > 0
                 ):
-                    ledger_store.mark_dispatched(charge_plan.transcription)
+                    if not ledger_store.mark_dispatched(
+                        charge_plan.transcription,
+                    ):
+                        raise ProviderDispatchAlreadyClaimedError(
+                            "Paid provider dispatch is already in progress",
+                        )
 
                 srt_path, cues = transcriber.transcribe(
                     audio_path,

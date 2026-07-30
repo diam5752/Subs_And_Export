@@ -74,7 +74,7 @@ def test_mock_intelligence_routes_use_no_external_service_or_points(
     assert fact_response.status_code == 200, fact_response.text
     assert fact_response.json()["claims_checked"] == 0
     assert fact_response.json()["truth_score"] == 0
-    assert "mock" in fact_response.json()["items"][0]["mistake_el"].lower()
+    assert fact_response.json()["items"] == []
     assert social_response.status_code == 200, social_response.text
     assert social_response.json()["social_copy"]["hashtags"]
     assert (artifacts_dir / job_id / "social.json").exists()

@@ -10,7 +10,10 @@ from fastapi import APIRouter, Depends, HTTPException
 from ...core.auth import User
 from ...core.config import settings
 from ...core.database import Database
-from ...core.errors import sanitize_error
+from ...core.errors import (
+    ProviderDispatchAlreadyClaimedError,
+    sanitize_error,
+)
 from ...core.ratelimit import limiter_content
 from ...schemas.base import (
     FactCheckItemSchema,
@@ -129,6 +132,11 @@ def fact_check_video(
                     ledger_store=ledger_store,
                     charge_reservation=reservation,
                 )
+        except ProviderDispatchAlreadyClaimedError as exc:
+            raise HTTPException(
+                409,
+                "This paid request is already being processed.",
+            ) from exc
         except Exception as exc:
             ledger_store.refund_if_reserved(reservation, status="failed", error=sanitize_error(exc))
             raise
@@ -217,6 +225,11 @@ def generate_social_copy_video(
                 encoding="utf-8",
             )
 
+        except ProviderDispatchAlreadyClaimedError as exc:
+            raise HTTPException(
+                409,
+                "This paid request is already being processed.",
+            ) from exc
         except Exception as exc:
             ledger_store.refund_if_reserved(reservation, status="failed", error=sanitize_error(exc))
             raise

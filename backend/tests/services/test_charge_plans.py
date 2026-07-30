@@ -272,3 +272,52 @@ class TestExternalProviderBudget:
             ledger_store=self._Ledger(100.0),  # type: ignore[arg-type]
             estimated_cost_usd=0.0,
         )
+
+    @pytest.mark.parametrize("estimate", [-0.01, float("nan"), float("inf")])
+    def test_invalid_provider_estimate_fails_closed(self, estimate: float) -> None:
+        with pytest.raises(ProviderBudgetExceededError, match="Invalid"):
+            assert_external_provider_budget(
+                ledger_store=self._Ledger(0.0),  # type: ignore[arg-type]
+                estimated_cost_usd=estimate,
+            )
+
+
+def test_processing_charge_fails_before_reservation_when_economics_are_unsafe(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # REGRESSION: an allowed provider budget must still fail closed before any
+    # paid-credit reservation when the guarded contribution margin is unsafe.
+    db = Database()
+    user_id = _seed_user(db)
+    job_id = f"job-economics-{uuid.uuid4().hex[:8]}"
+    _seed_job(db, user_id, job_id)
+    points_store = PointsStore(db=db)
+    points_store.ensure_account(user_id)
+    points_store.credit(
+        user_id,
+        200,
+        reason="test_paid_funding",
+        paid_credit_delta=200,
+    )
+    starting_balance = points_store.get_balance(user_id)
+    ledger_store = UsageLedgerStore(db=db, points_store=points_store)
+    monkeypatch.setattr(
+        pricing,
+        "stt_provider_cost_usd",
+        lambda **_kwargs: 0.20,
+    )
+
+    with pytest.raises(ProviderBudgetExceededError, match="economics guard"):
+        reserve_processing_charges(
+            ledger_store=ledger_store,
+            user_id=user_id,
+            job_id=job_id,
+            tier="standard",
+            duration_seconds=60.0,
+            use_llm=False,
+            llm_model="gpt-5-mini",
+            provider="elevenlabs",
+            stt_model="scribe_v2",
+        )
+
+    assert points_store.get_balance(user_id) == starting_balance

@@ -11,7 +11,10 @@ from ...core.auth import User
 from ...core.cleanup import delete_job_workspace
 from ...core.config import settings as app_settings
 from ...core.database import Database
-from ...core.errors import sanitize_message
+from ...core.errors import (
+    ProviderDispatchAlreadyClaimedError,
+    sanitize_message,
+)
 from ...core.gcs import GcsSettings, delete_object, download_object, get_gcs_settings, upload_object
 from ...services.ffmpeg_utils import MediaProbe, probe_media
 from ...services.history import HistoryStore
@@ -341,6 +344,12 @@ def run_video_processing(
             },
         )
 
+    except ProviderDispatchAlreadyClaimedError:
+        logger.info(
+            "Skipping duplicate paid provider dispatch",
+            extra={"job_id": job_id},
+        )
+        return
     except DeletedJobError as exc:
         abort_deleted_job(
             job_id=job_id,

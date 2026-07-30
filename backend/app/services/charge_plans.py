@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 from backend.app.core.config import settings
 from backend.app.core.errors import ProviderBudgetExceededError
 from backend.app.services import pricing
+from backend.app.services.credit_economics import assert_provider_economics
 from backend.app.services.points import make_idempotency_id
 from backend.app.services.usage_ledger import ChargePlan, ChargeReservation, UsageLedgerStore
 
@@ -17,7 +19,9 @@ def assert_external_provider_budget(
     estimated_cost_usd: float,
 ) -> None:
     """Fail closed before reserving work that would exceed configured budgets."""
-    estimate = max(0.0, float(estimated_cost_usd))
+    estimate = float(estimated_cost_usd)
+    if not math.isfinite(estimate) or estimate < 0:
+        raise ProviderBudgetExceededError("Invalid external provider cost estimate")
     if estimate == 0.0:
         return
     if estimate > settings.external_provider_per_request_budget_usd:
@@ -27,6 +31,24 @@ def assert_external_provider_budget(
         or settings.external_provider_monthly_budget_usd <= 0
     ):
         raise ProviderBudgetExceededError("External provider budgets are closed")
+
+
+def assert_external_provider_economics(
+    *,
+    credits: int,
+    estimated_cost_usd: float,
+) -> None:
+    """Fail closed before wallet or provider reservation if margin is unsafe."""
+    estimate = float(estimated_cost_usd)
+    if not math.isfinite(estimate) or estimate < 0:
+        raise ProviderBudgetExceededError("Invalid external provider cost estimate")
+    if estimate == 0.0:
+        return
+    assert_provider_economics(
+        credits=credits,
+        estimated_cost_usd=estimate,
+        safety_multiplier=settings.external_provider_price_safety_multiplier,
+    )
 
 
 def reserve_transcription_charge(
@@ -57,6 +79,10 @@ def reserve_transcription_charge(
     if enforce_budget:
         assert_external_provider_budget(
             ledger_store=ledger_store,
+            estimated_cost_usd=cost_estimate,
+        )
+        assert_external_provider_economics(
+            credits=credits,
             estimated_cost_usd=cost_estimate,
         )
     idempotency_key = make_idempotency_id("usage", "transcription", user_id, job_id)
@@ -113,6 +139,10 @@ def reserve_llm_charge(
             ledger_store=ledger_store,
             estimated_cost_usd=cost_estimate,
         )
+        assert_external_provider_economics(
+            credits=reservation_info["credits"],
+            estimated_cost_usd=cost_estimate,
+        )
     units: dict[str, Any] = {
         "max_prompt_tokens": reservation_info["prompt_tokens"],
         "max_completion_tokens": reservation_info["completion_tokens"],
@@ -132,6 +162,7 @@ def reserve_llm_charge(
         units=units,
         idempotency_key=idempotency_key,
         endpoint="chat/completions",
+        allow_terminal_retry=True,
     )
 
 
@@ -220,6 +251,10 @@ def reserve_processing_charges(
         )
     assert_external_provider_budget(
         ledger_store=ledger_store,
+        estimated_cost_usd=transcription_cost + social_cost,
+    )
+    assert_external_provider_economics(
+        credits=pricing.credits_for_video_duration(duration_seconds),
         estimated_cost_usd=transcription_cost + social_cost,
     )
 

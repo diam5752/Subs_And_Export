@@ -13,6 +13,7 @@ from backend.app.core.cleanup import (
 )
 from backend.app.services import billing_retention
 from backend.app.services.jobs import Job
+from backend.app.services.usage_ledger import UsageLedgerStore
 
 
 @dataclass
@@ -99,6 +100,7 @@ def test_cleanup_uses_job_activity_and_preserves_active_work(tmp_path: Path) -> 
 
     job_store = FakeJobStore(jobs)
     history_store = FakeHistoryStore([])
+    compensated_jobs: list[str] = []
 
     # REGRESSION: filesystem mtime cleanup previously deleted uploads without
     # respecting refreshed project activity and never removed generated exports.
@@ -111,11 +113,13 @@ def test_cleanup_uses_job_activity_and_preserves_active_work(tmp_path: Path) -> 
         stale_job_retention_hours=6,
         orphan_retention_hours=1,
         now=now,
+        before_delete_job=lambda job: compensated_jobs.append(job.id),
     )
 
     assert report.deleted_job_ids == ["abandoned", "expired"]
     assert set(job_store.jobs) == {"active", "recent"}
     assert history_store.deleted_job_ids == ["abandoned", "expired"]
+    assert compensated_jobs == ["abandoned"]
     for removed_id in ("expired", "abandoned"):
         assert not (uploads_dir / f"{removed_id}_input.mp4").exists()
         assert not (artifacts_dir / removed_id).exists()
@@ -209,6 +213,49 @@ def test_cleanup_keeps_database_row_when_file_removal_fails(
     assert history_store.deleted_job_ids == []
 
 
+def test_cleanup_keeps_stale_job_when_compensation_fails(
+    tmp_path: Path,
+) -> None:
+    uploads_dir = tmp_path / "uploads"
+    artifacts_dir = tmp_path / "artifacts"
+    uploads_dir.mkdir()
+    artifacts_dir.mkdir()
+    now = 1_800_000_000
+    job_store = FakeJobStore(
+        {
+            "unsettled": _job(
+                "unsettled",
+                status="processing",
+                updated_at=now - 7 * 3600,
+            )
+        }
+    )
+    history_store = FakeHistoryStore([])
+    _workspace(uploads_dir, artifacts_dir, "unsettled")
+
+    def fail_compensation(_job: Job) -> None:
+        raise RuntimeError("wallet settlement unavailable")
+
+    report = cleanup_expired_workspaces(
+        job_store=job_store,
+        history_store=history_store,
+        uploads_dir=uploads_dir,
+        artifacts_dir=artifacts_dir,
+        workspace_retention_hours=24,
+        stale_job_retention_hours=6,
+        orphan_retention_hours=1,
+        now=now,
+        before_delete_job=fail_compensation,
+    )
+
+    assert report.deleted_job_ids == []
+    assert report.failed_job_ids == ["unsettled"]
+    assert "unsettled" in job_store.jobs
+    assert (uploads_dir / "unsettled_input.mp4").is_file()
+    assert (artifacts_dir / "unsettled").is_dir()
+    assert history_store.deleted_job_ids == []
+
+
 def test_storage_guard_runs_cleanup_once_before_rejecting_or_accepting(
     tmp_path: Path,
     monkeypatch,
@@ -257,6 +304,11 @@ def test_configured_retention_runs_media_and_billing_cleanup(
     calls: list[str] = []
     monkeypatch.setattr(cleanup_module.settings, "data_dir", tmp_path)
     monkeypatch.setattr(
+        UsageLedgerStore,
+        "reconcile_stale_reservations",
+        lambda _self, **_kwargs: calls.append("usage") or 0,
+    )
+    monkeypatch.setattr(
         cleanup_module,
         "cleanup_expired_workspaces",
         lambda **_kwargs: (
@@ -281,4 +333,4 @@ def test_configured_retention_runs_media_and_billing_cleanup(
     )
     run_configured_retention(object())  # type: ignore[arg-type]
 
-    assert calls == ["media", "billing"]
+    assert calls == ["usage", "media", "billing"]
