@@ -1,6 +1,6 @@
 # Prepaid video credits and Stripe handoff
 
-Updated: 2026-07-26
+Updated: 2026-07-30
 
 Stripe test-mode setup and a card Checkout have been validated. Production
 paid credits remain fail closed until the separate live infrastructure and
@@ -31,11 +31,13 @@ The immutable package catalog is:
 | Creator (`core`) | €3.00 | 350 | 3, plus 50 credits |
 | Studio (`pro`) | €10.00 | 1,200 | 12 |
 
-Purchased and promotional credits are separate. Any request that can spend
-money at an external provider requires purchased credits; promotional credits
-can fund only local/mock work. A refund or dispute claws back unused paid
-credits and records debt for credits already consumed. A later purchase repays
-that debt before becoming spendable.
+New accounts start with zero credits; GSUBS does not grant signup, trial or
+email-verification credits automatically. Purchased and any legacy or explicit
+non-paid credits remain separate in the ledger. Any request that can spend
+money at an external provider requires purchased credits; non-paid credits can
+fund only local/mock work. A refund or dispute claws back unused paid credits
+and records debt for credits already consumed. A later purchase repays that
+debt before becoming spendable.
 
 ## Conservative unit economics
 

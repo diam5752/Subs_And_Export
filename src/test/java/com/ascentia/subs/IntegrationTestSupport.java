@@ -88,7 +88,6 @@ public abstract class IntegrationTestSupport {
                     sessions,
                     jobs,
                     history,
-                    deleted_emails,
                     rate_limits,
                     users
                 RESTART IDENTITY CASCADE

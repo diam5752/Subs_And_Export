@@ -13,7 +13,7 @@ from backend.app.core import config
 from backend.app.core.database import Database
 from backend.app.services import pricing
 from backend.app.services.jobs import JobStore
-from backend.app.services.points import TRIAL_CREDITS, PointsStore
+from backend.app.services.points import PointsStore
 
 
 def _db_from_env() -> Database:
@@ -36,12 +36,19 @@ def _grant_paid_credits(
     return user_id
 
 
-def test_auth_points_endpoint_returns_starting_balance(
+def test_auth_points_endpoint_returns_zero_for_new_account(
     client: TestClient, user_auth_headers: dict[str, str]
 ) -> None:
+    # REGRESSION: registration must not silently grant promotional credits.
     resp = client.get("/auth/points", headers=user_auth_headers)
     assert resp.status_code == 200
-    assert resp.json()["balance"] == TRIAL_CREDITS
+    assert resp.json() == {
+        "balance": 0,
+        "paid_balance": 0,
+        "promotional_balance": 0,
+        "reversal_debt": 0,
+        "ai_spendable_balance": 0,
+    }
 
 
 def test_process_video_charges_points_and_returns_balance(
@@ -128,8 +135,7 @@ def test_process_video_rejects_on_insufficient_points(
     db = _db_from_env()
     points_store = PointsStore(db=db)
     current_balance = points_store.get_balance(user_id)
-    assert current_balance > 0
-    points_store.spend(user_id, current_balance, reason="test_setup")
+    assert current_balance == 0
 
     resp = client.post(
         "/videos/process",

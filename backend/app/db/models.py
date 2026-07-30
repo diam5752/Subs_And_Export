@@ -48,13 +48,6 @@ class DbUser(Base):
     __table_args__ = (CheckConstraint("provider IN ('local','google')", name="chk_users_provider"),)
 
 
-class DbDeletedEmail(Base):
-    __tablename__ = "deleted_emails"
-
-    email_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
-    deleted_at: Mapped[int] = mapped_column(Integer)
-
-
 class DbSession(Base):
     __tablename__ = "sessions"
 

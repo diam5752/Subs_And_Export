@@ -17,21 +17,15 @@ from typing import Any, TypedDict, cast
 from urllib.parse import urlsplit
 
 from sqlalchemy import delete, select
-from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from ..db.models import DbDeletedEmail, DbSession, DbUser
+from ..db.models import DbSession, DbUser
 from ..services.points import PointsStore
 from .config import settings
 from .database import Database
 
 logger = logging.getLogger(__name__)
-
-DELETED_EMAIL_RETENTION_DAYS = 365
-DELETED_EMAIL_RETENTION_SECONDS = DELETED_EMAIL_RETENTION_DAYS * 24 * 60 * 60
-DELETED_EMAIL_MARKER_PURPOSE = "prevent_repeat_signup_credit_grants"
-
 
 class GoogleAuthError(ValueError):
     """A public-safe Google authentication failure."""
@@ -96,7 +90,6 @@ class UserStore:
         existing = self.get_user_by_email(email)
         if existing:
             raise ValueError("User already exists")
-        deleted_email = self._email_was_deleted(email)
         user = User(
             id=secrets.token_hex(8),
             email=email,
@@ -122,11 +115,7 @@ class UserStore:
         except IntegrityError as exc:
             raise ValueError("User already exists") from exc
 
-        PointsStore(db=self.db).ensure_account(
-            user.id,
-            email_verified=user.email_verified,
-            starting_balance_override=0 if deleted_email else None,
-        )
+        PointsStore(db=self.db).ensure_account(user.id)
         return user
 
     def upsert_google_user(
@@ -147,7 +136,6 @@ class UserStore:
         # Truncate name for external providers (don't fail)
         final_name = (name.strip() or email.split("@")[0])[:100]
         created = False
-        deleted_email = False
         try:
             with self.db.session() as session:
                 existing_identity = session.scalar(select(DbUser).where(DbUser.google_sub == sub).limit(1))
@@ -165,7 +153,6 @@ class UserStore:
                             "Google login cannot automatically link an existing email. "
                             "Log in with the existing account before linking Google."
                         )
-                    deleted_email = self._email_was_deleted(email, session=session)
                     user = User(
                         id=secrets.token_hex(8),
                         email=email,
@@ -194,11 +181,7 @@ class UserStore:
             raise GoogleAuthError("Google account could not be linked safely.") from exc
 
         if created:
-            PointsStore(db=self.db).ensure_account(
-                user.id,
-                email_verified=user.email_verified,
-                starting_balance_override=0 if deleted_email else None,
-            )
+            PointsStore(db=self.db).ensure_account(user.id)
         return user
 
     def update_name(self, user_id: str, new_name: str) -> None:
@@ -254,98 +237,7 @@ class UserStore:
         user = session.get(DbUser, user_id)
         if not user:
             return
-        self._record_deleted_email(session, user.email or "")
         session.delete(user)
-
-    def _email_was_deleted(self, email: str, *, session: Session | None = None) -> bool:
-        if session:
-            return (
-                self._deleted_email_marker(
-                    session,
-                    email,
-                    now=int(time.time()),
-                )
-                is not None
-            )
-        with self.db.session() as local_session:
-            return (
-                self._deleted_email_marker(
-                    local_session,
-                    email,
-                    now=int(time.time()),
-                )
-                is not None
-            )
-
-    def deleted_email_marker_for_email(
-        self,
-        email: str,
-    ) -> dict[str, str | int] | None:
-        """Return the bounded, pseudonymous marker associated with an email."""
-        with self.db.session() as session:
-            marker = self._deleted_email_marker(
-                session,
-                email,
-                now=int(time.time()),
-            )
-            if marker is None:
-                return None
-            return {
-                "fingerprint": marker.email_hash,
-                "fingerprint_algorithm": "sha256_normalized_email",
-                "deleted_at": marker.deleted_at,
-                "expires_at": marker.deleted_at + DELETED_EMAIL_RETENTION_SECONDS,
-                "purpose": DELETED_EMAIL_MARKER_PURPOSE,
-            }
-
-    def cleanup_expired_deleted_email_markers(
-        self,
-        *,
-        now: int | None = None,
-    ) -> int:
-        """Delete normalized-email hashes after the documented retention period."""
-        current_time = int(time.time()) if now is None else now
-        cutoff = current_time - DELETED_EMAIL_RETENTION_SECONDS
-        with self.db.session() as session:
-            result = cast(
-                CursorResult[Any],
-                session.execute(
-                    delete(DbDeletedEmail).where(
-                        DbDeletedEmail.deleted_at <= cutoff,
-                    )
-                ),
-            )
-            return int(result.rowcount or 0)
-
-    def _record_deleted_email(self, session: Session, email: str) -> None:
-        email_hash = _email_fingerprint(email)
-        now = int(time.time())
-        session.execute(
-            delete(DbDeletedEmail).where(
-                DbDeletedEmail.deleted_at <= (now - DELETED_EMAIL_RETENTION_SECONDS),
-            )
-        )
-        session.merge(
-            DbDeletedEmail(
-                email_hash=email_hash,
-                deleted_at=now,
-            )
-        )
-
-    @staticmethod
-    def _deleted_email_marker(
-        session: Session,
-        email: str,
-        *,
-        now: int,
-    ) -> DbDeletedEmail | None:
-        marker = session.get(DbDeletedEmail, _email_fingerprint(email))
-        if marker is None:
-            return None
-        if marker.deleted_at + DELETED_EMAIL_RETENTION_SECONDS <= now:
-            session.delete(marker)
-            return None
-        return marker
 
 
 class SessionStore:
@@ -490,11 +382,6 @@ def _validate_password_strength(password: str) -> None:
     has_digit = any(ch.isdigit() for ch in password)
     if not (has_letter and has_digit):
         raise ValueError("Password must include both letters and numbers")
-
-
-def _email_fingerprint(email: str) -> str:
-    normalized = email.strip().lower()
-    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
 
 def _validate_email(email: str) -> None:

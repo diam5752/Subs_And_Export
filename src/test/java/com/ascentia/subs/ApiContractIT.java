@@ -73,7 +73,7 @@ class ApiContractIT extends IntegrationTestSupport {
 
         mockMvc.perform(get("/auth/points").header(HttpHeaders.AUTHORIZATION, session.authorization()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.balance").value(100));
+                .andExpect(jsonPath("$.balance").value(0));
 
         mockMvc.perform(put("/auth/me")
                         .header(HttpHeaders.AUTHORIZATION, session.authorization())

@@ -112,8 +112,9 @@ describe('AccountView', () => {
         // Initial delete button shows confirmation
         fireEvent.click(screen.getByRole('button', { name: 'Delete Account' }));
         expect(screen.getByText(
-            /Permanently delete your account, projects, and media files.*billing, contact, address, and tax-document data.*legally required period.*required by law.*cryptographic hash.*normalized email.*365 days.*signup credits/i,
+            /Permanently delete your account, projects, and media files.*billing, contact, address, and tax-document data.*legally required period.*required by law/i,
         )).toBeInTheDocument();
+        expect(screen.queryByText(/signup credits/i)).not.toBeInTheDocument();
 
         // Confirm delete - click the confirm button directly
         fireEvent.click(screen.getByRole('button', { name: /confirm/i }));
@@ -153,19 +154,22 @@ describe('AccountView', () => {
         const { unmount } = renderAccountView();
 
         expect(screen.getByText(
-            /account, projects, and media files are deleted.*billing, contact, address, and tax-document data.*legally required period.*required by law.*cryptographic hash.*normalized email.*365 days.*signup credits/i,
+            /account, projects, and media files are deleted.*billing, contact, address, and tax-document data.*legally required period.*required by law/i,
         )).toBeInTheDocument();
+        expect(screen.queryByText(/signup credits/i)).not.toBeInTheDocument();
         unmount();
         localStorage.clear();
 
         renderAccountView({}, 'el');
         expect(screen.getByText(
-            /λογαριασμός, τα projects και τα αρχεία πολυμέσων διαγράφονται.*στοιχεία χρέωσης, επικοινωνίας, διεύθυνσης και φορολογικών παραστατικών.*νόμιμης περιόδου.*απαιτείται από τον νόμο.*κρυπτογραφικό hash.*κανονικοποιημένου email.*365 ημέρες.*credits εγγραφής/i,
+            /λογαριασμός, τα projects και τα αρχεία πολυμέσων διαγράφονται.*στοιχεία χρέωσης, επικοινωνίας, διεύθυνσης και φορολογικών παραστατικών.*νόμιμης περιόδου.*απαιτείται από τον νόμο/i,
         )).toBeInTheDocument();
+        expect(screen.queryByText(/credits εγγραφής/i)).not.toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', { name: 'Διαγραφή λογαριασμού' }));
         expect(screen.getByText(
-            /Να διαγραφούν οριστικά ο λογαριασμός, τα projects και τα αρχεία πολυμέσων.*στοιχεία χρέωσης, επικοινωνίας, διεύθυνσης και φορολογικών παραστατικών.*νόμιμης περιόδου.*απαιτείται από τον νόμο.*κρυπτογραφικό hash.*κανονικοποιημένου email.*365 ημέρες.*credits εγγραφής/i,
+            /Να διαγραφούν οριστικά ο λογαριασμός, τα projects και τα αρχεία πολυμέσων.*στοιχεία χρέωσης, επικοινωνίας, διεύθυνσης και φορολογικών παραστατικών.*νόμιμης περιόδου.*απαιτείται από τον νόμο/i,
         )).toBeInTheDocument();
+        expect(screen.queryByText(/credits εγγραφής/i)).not.toBeInTheDocument();
     });
 
     it('handles data export', async () => {

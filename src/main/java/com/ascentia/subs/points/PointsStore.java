@@ -17,8 +17,6 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class PointsStore {
 
-    public static final int STARTING_POINTS_BALANCE = 500;
-    public static final int TRIAL_CREDITS = 100;
     public static final String REFUND_REASON_PREFIX = "refund_";
 
     private final JdbcClient jdbcClient;
@@ -31,7 +29,7 @@ public class PointsStore {
 
     @Transactional
     public int getBalance(String userId) {
-        ensureAccount(userId, null, null);
+        ensureAccount(userId, null);
         Integer balance = jdbcClient.sql("SELECT balance FROM user_points WHERE user_id = :userId")
                 .param("userId", userId)
                 .query(Integer.class)
@@ -41,17 +39,11 @@ public class PointsStore {
     }
 
     @Transactional
-    public boolean ensureAccount(String userId, Boolean emailVerified, Integer startingBalanceOverride) {
+    public boolean ensureAccount(String userId, Integer startingBalanceOverride) {
         if (startingBalanceOverride != null && startingBalanceOverride < 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid starting balance");
         }
-        boolean resolvedEmailVerified = resolveEmailVerified(userId, emailVerified);
-        int startingBalance = startingBalanceOverride != null
-                ? startingBalanceOverride
-                : (resolvedEmailVerified ? STARTING_POINTS_BALANCE : TRIAL_CREDITS);
-        String reason = startingBalanceOverride != null
-                ? "initial_balance_override"
-                : (resolvedEmailVerified ? "initial_balance" : "trial_balance");
+        int startingBalance = startingBalanceOverride != null ? startingBalanceOverride : 0;
 
         int now = now();
         Optional<String> created = jdbcClient.sql("""
@@ -74,8 +66,8 @@ public class PointsStore {
                     .param("id", UUID.randomUUID().toString().replace("-", ""))
                     .param("userId", userId)
                     .param("delta", startingBalance)
-                    .param("reason", reason)
-                    .param("meta", jsonCodec.toJsonb(Map.of("kind", reason)))
+                    .param("reason", "initial_balance_override")
+                    .param("meta", jsonCodec.toJsonb(Map.of("kind", "initial_balance_override")))
                     .param("createdAt", now)
                     .update();
         }
@@ -86,7 +78,7 @@ public class PointsStore {
     public int spend(String userId, int cost, String reason, Map<String, Object> meta) {
         validateAmount(cost, "cost");
         validateReason(reason);
-        ensureAccount(userId, null, null);
+        ensureAccount(userId, null);
         int now = now();
         int updated = jdbcClient.sql("""
                 UPDATE user_points
@@ -109,7 +101,7 @@ public class PointsStore {
         validateAmount(cost, "cost");
         validateTransactionId(transactionId);
         validateReason(reason);
-        ensureAccount(userId, null, null);
+        ensureAccount(userId, null);
 
         int now = now();
         Optional<String> inserted = jdbcClient.sql("""
@@ -149,7 +141,7 @@ public class PointsStore {
     public int credit(String userId, int amount, String reason, Map<String, Object> meta) {
         validateAmount(amount, "amount");
         validateReason(reason);
-        ensureAccount(userId, null, null);
+        ensureAccount(userId, null);
         int now = now();
         jdbcClient.sql("""
                 UPDATE user_points
@@ -174,7 +166,7 @@ public class PointsStore {
         validateAmount(amount, "amount");
         validateTransactionId(transactionId);
         validateReason(originalReason);
-        ensureAccount(userId, null, null);
+        ensureAccount(userId, null);
 
         int now = now();
         Optional<String> inserted = jdbcClient.sql("""
@@ -234,17 +226,6 @@ public class PointsStore {
                 .param("meta", jsonCodec.toJsonb(meta))
                 .param("createdAt", now)
                 .update();
-    }
-
-    private boolean resolveEmailVerified(String userId, Boolean emailVerified) {
-        if (emailVerified != null) {
-            return emailVerified;
-        }
-        return jdbcClient.sql("SELECT email_verified FROM users WHERE id = :userId")
-                .param("userId", userId)
-                .query(Boolean.class)
-                .optional()
-                .orElse(Boolean.FALSE);
     }
 
     private static void validateAmount(int value, String fieldName) {

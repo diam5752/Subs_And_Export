@@ -44,7 +44,7 @@ describe('LegalPage', () => {
         expect(screen.getByText(/δεν θα λαμβάνει ούτε θα αποθηκεύει.*πλήρη αριθμό κάρτας.*CVC/)).toBeInTheDocument();
         expect(screen.getByText(/MARK, θα διατηρούνται μέχρι το τέλος του πέμπτου πλήρους έτους μετά το σχετικό φορολογικό έτος/)).toBeInTheDocument();
         expect(screen.getByText(/απόδειξη πληρωμής της Stripe.*αποδεικτικό πληρωμής, όχι φορολογικό παραστατικό της ΑΑΔΕ/)).toBeInTheDocument();
-        expect(screen.getByText(/κρυπτογραφικό hash.*κανονικοποιημένου email.*365 ημέρες.*credits εγγραφής/)).toBeInTheDocument();
+        expect(screen.queryByText(/κρυπτογραφικό hash.*credits εγγραφής/)).not.toBeInTheDocument();
         expect(screen.queryByText(/Groq/)).not.toBeInTheDocument();
         expect(screen.getByRole('link', { name: 'Όροι Χρήσης' })).toHaveAttribute('href', '/terms');
     });
@@ -57,7 +57,7 @@ describe('LegalPage', () => {
         expect(screen.getByText(/MARK, would be retained through the end of the fifth full year after the relevant tax year/)).toBeInTheDocument();
         expect(screen.getByText(/Account deletion would not erase records/)).toBeInTheDocument();
         expect(screen.getByText(/Paid-credit sales are not currently active.*Stripe would process payments.*AADE e-Timologio/)).toBeInTheDocument();
-        expect(screen.getByText(/cryptographic hash.*normalized email.*365 days.*signup credits/)).toBeInTheDocument();
+        expect(screen.queryByText(/cryptographic hash.*signup credits/)).not.toBeInTheDocument();
     });
 
     it('keeps inactive Greek paid-credit terms out of the public page', () => {

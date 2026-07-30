@@ -1,18 +1,14 @@
 from __future__ import annotations
 
-import hashlib
 import time
 import uuid
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from sqlalchemy import func, select
 
 from backend.app.api.endpoints import auth as auth_endpoints
 from backend.app.api.endpoints.auth import delete_account
-from backend.app.core import auth as backend_auth
-from backend.app.core.auth import UserStore
 from backend.app.core.config import settings
 from backend.app.core.database import Database
 from backend.app.db.models import (
@@ -20,7 +16,6 @@ from backend.app.db.models import (
     DbBillingInvoice,
     DbCreditPurchase,
     DbCreditPurchaseReversal,
-    DbDeletedEmail,
     DbGcsUploadSession,
     DbHistoryEvent,
     DbJob,
@@ -39,12 +34,9 @@ from backend.app.services.financial_records import (
     financial_retention_deadline,
 )
 
-DELETED_EMAIL_RETENTION_SECONDS = 365 * 24 * 60 * 60
 FINANCIAL_RECORDS_NOTICE = (
     "Account and media are permanently deleted; legally required financial "
-    "records are retained in detached form. A cryptographic hash of the "
-    "normalized email is retained for 365 days only to prevent repeated "
-    "signup-credit grants."
+    "records are retained in detached form."
 )
 
 
@@ -258,14 +250,14 @@ def _seed_reversal_history(
     ]
 
 
-def test_data_export(client, user_auth_headers):
+def test_data_export(client, funded_user_auth_headers):
     """Ensure user can export their data (GDPR Right to Access)."""
     # 1. Create some data
     files = {"file": ("gdpr_test.mp4", b"data", "video/mp4")}
-    client.post("/videos/process", headers=user_auth_headers, files=files)
+    client.post("/videos/process", headers=funded_user_auth_headers, files=files)
 
     # 2. Request Export
-    response = client.get("/auth/export", headers=user_auth_headers)
+    response = client.get("/auth/export", headers=funded_user_auth_headers)
 
     # 3. Verify
     assert response.status_code == 200
@@ -275,7 +267,7 @@ def test_data_export(client, user_auth_headers):
     assert len(data["jobs"]) >= 1
 
     # Get current user email to verify
-    me_resp = client.get("/auth/me", headers=user_auth_headers)
+    me_resp = client.get("/auth/me", headers=funded_user_auth_headers)
     assert me_resp.status_code == 200
     email = me_resp.json()["email"]
     assert data["profile"]["email"] == email
@@ -391,8 +383,6 @@ def test_data_export_includes_user_linked_audit_data_without_auth_secrets(
     oauth_secret = f"oauth-secret-{suffix}"
     expired_oauth_secret = f"expired-oauth-secret-{suffix}"
     upload_secret = f"upload-secret-{suffix}"
-    marker_hash = hashlib.sha256(user["email"].lower().encode()).hexdigest()
-
     db = Database()
     with db.session() as session:
         wallet = session.get(DbUserPoints, user["id"])
@@ -511,10 +501,6 @@ def test_data_export_includes_user_linked_audit_data_without_auth_secrets(
                     spent_usd=0.01,
                     updated_at=now,
                 ),
-                DbDeletedEmail(
-                    email_hash=marker_hash,
-                    deleted_at=now - 60,
-                ),
             )
         )
     with db.session() as session:
@@ -585,18 +571,8 @@ def test_data_export_includes_user_linked_audit_data_without_auth_secrets(
     ]
     assert oauth_secret not in str(exported["oauth_states"])
     assert expired_oauth_secret not in str(exported["oauth_states"])
-    assert exported["deleted_email_marker"] == {
-        "fingerprint": marker_hash,
-        "fingerprint_algorithm": "sha256_normalized_email",
-        "deleted_at": now - 60,
-        "expires_at": now - 60 + DELETED_EMAIL_RETENTION_SECONDS,
-        "purpose": "prevent_repeat_signup_credit_grants",
-    }
-    assert exported["deleted_email_marker_policy"] == {
-        "created_on_account_deletion": True,
-        "retention_days": 365,
-        "purpose": "prevent_repeat_signup_credit_grants",
-    }
+    assert "deleted_email_marker" not in exported
+    assert "deleted_email_marker_policy" not in exported
 
 
 def test_data_export_includes_current_users_financial_snapshots(
@@ -892,26 +868,26 @@ def test_account_deletion_detaches_recent_terminal_unpaid_attempt(
         )
 
 
-def test_account_deletion_cleans_files(client, user_auth_headers):
+def test_account_deletion_cleans_files(client, funded_user_auth_headers):
     """Ensure account deletion removes all files (GDPR Right to Erasure)."""
     # Get email before deletion
-    me_resp = client.get("/auth/me", headers=user_auth_headers)
+    me_resp = client.get("/auth/me", headers=funded_user_auth_headers)
     email = me_resp.json()["email"]
 
     # 1. Create Job
     files = {"file": ("gdpr_delete.mp4", b"content", "video/mp4")}
-    resp = client.post("/videos/process", headers=user_auth_headers, files=files)
+    resp = client.post("/videos/process", headers=funded_user_auth_headers, files=files)
     assert resp.status_code == 200
     job_id = resp.json()["id"]
 
     # 2. Delete Account
-    del_resp = client.delete("/auth/me", headers=user_auth_headers)
+    del_resp = client.delete("/auth/me", headers=funded_user_auth_headers)
     assert del_resp.status_code == 200
 
     # 3. Verify Login Fails
     # We need to try to get a new token because the old token might still seem valid if stateless JWT (unless blacklist checked)
     # But /auth/me should fail if user is gone from DB.
-    login_resp = client.get("/auth/me", headers=user_auth_headers)
+    login_resp = client.get("/auth/me", headers=funded_user_auth_headers)
     assert login_resp.status_code == 401
 
     # 4. Re-register and check empty
@@ -1245,172 +1221,6 @@ def test_account_deletion_removes_only_owned_provider_reservations(
         assert session.get(DbProviderBudgetReservation, other_key) is not None
         assert session.get(DbProviderBudgetWindow, daily_window_key) is not None
         assert session.get(DbProviderBudgetWindow, monthly_window_key) is not None
-
-
-def test_deleted_email_marker_is_bounded_exportable_and_blocks_repeat_credit(
-    client,
-) -> None:
-    email = f"gdpr-marker-{uuid.uuid4().hex}@example.com"
-    password = "testpassword123"
-    register = client.post(
-        "/auth/register",
-        json={"email": email, "password": password, "name": "Marker User"},
-    )
-    assert register.status_code == 200
-    token = client.post(
-        "/auth/token",
-        data={"username": email, "password": password},
-    ).json()["access_token"]
-    headers = {"Authorization": f"Bearer {token}"}
-
-    deleted = client.delete("/auth/me", headers=headers)
-    assert deleted.status_code == 200
-    recreated = client.post(
-        "/auth/register",
-        json={"email": email, "password": password, "name": "Marker User"},
-    )
-    assert recreated.status_code == 200
-    recreated_token = client.post(
-        "/auth/token",
-        data={"username": email, "password": password},
-    ).json()["access_token"]
-    recreated_headers = {"Authorization": f"Bearer {recreated_token}"}
-
-    exported = client.get(
-        "/auth/export",
-        headers=recreated_headers,
-    ).json()
-    marker = exported["deleted_email_marker"]
-    assert marker["fingerprint"] == hashlib.sha256(email.encode()).hexdigest()
-    assert marker["expires_at"] == (marker["deleted_at"] + DELETED_EMAIL_RETENTION_SECONDS)
-    assert (
-        client.get(
-            "/auth/points",
-            headers=recreated_headers,
-        ).json()["balance"]
-        == 0
-    )
-
-
-def test_expired_deleted_email_marker_is_removed_and_no_longer_blocks_credit(
-    client,
-) -> None:
-    email = f"gdpr-expired-marker-{uuid.uuid4().hex}@example.com"
-    email_hash = hashlib.sha256(email.encode()).hexdigest()
-    now = int(time.time())
-    db = Database()
-    with db.session() as session:
-        session.add(
-            DbDeletedEmail(
-                email_hash=email_hash,
-                deleted_at=now - DELETED_EMAIL_RETENTION_SECONDS,
-            )
-        )
-
-    assert UserStore(db).cleanup_expired_deleted_email_markers(now=now) == 1
-    registered = client.post(
-        "/auth/register",
-        json={
-            "email": email,
-            "password": "testpassword123",
-            "name": "Expired Marker User",
-        },
-    )
-    assert registered.status_code == 200
-    token = client.post(
-        "/auth/token",
-        data={"username": email, "password": "testpassword123"},
-    ).json()["access_token"]
-
-    assert (
-        client.get(
-            "/auth/points",
-            headers={"Authorization": f"Bearer {token}"},
-        ).json()["balance"]
-        == 100
-    )
-
-
-def test_deleted_email_marker_expires_at_exact_boundary_without_scheduled_cleanup(
-    monkeypatch,
-) -> None:
-    now = 2_000_000_000
-    email = f"gdpr-expiry-boundary-{uuid.uuid4().hex}@example.com"
-    email_hash = hashlib.sha256(email.encode()).hexdigest()
-    db = Database()
-    with db.session() as session:
-        session.add(
-            DbDeletedEmail(
-                email_hash=email_hash,
-                deleted_at=now - DELETED_EMAIL_RETENTION_SECONDS,
-            )
-        )
-    monkeypatch.setattr(backend_auth.time, "time", lambda: now)
-
-    marker = UserStore(db).deleted_email_marker_for_email(email)
-
-    # REGRESSION: expiry must be enforced during lookup even if the periodic
-    # cleanup process has not run.
-    assert marker is None
-    with db.session() as session:
-        assert session.get(DbDeletedEmail, email_hash) is None
-
-
-def test_deleted_email_cleanup_preserves_marker_until_full_retention_elapsed(
-    monkeypatch,
-) -> None:
-    now = 2_000_000_000
-    expired_email = f"gdpr-cleanup-expired-{uuid.uuid4().hex}@example.com"
-    retained_email = f"gdpr-cleanup-retained-{uuid.uuid4().hex}@example.com"
-    expired_hash = hashlib.sha256(expired_email.encode()).hexdigest()
-    retained_hash = hashlib.sha256(retained_email.encode()).hexdigest()
-    db = Database()
-    with db.session() as session:
-        session.add_all(
-            (
-                DbDeletedEmail(
-                    email_hash=expired_hash,
-                    deleted_at=now - DELETED_EMAIL_RETENTION_SECONDS,
-                ),
-                DbDeletedEmail(
-                    email_hash=retained_hash,
-                    deleted_at=now - DELETED_EMAIL_RETENTION_SECONDS + 1,
-                ),
-            )
-        )
-    monkeypatch.setattr(backend_auth.time, "time", lambda: now)
-    cutoff = now - DELETED_EMAIL_RETENTION_SECONDS
-    with db.session() as session:
-        assert UserStore(db)._email_was_deleted(
-            retained_email,
-            session=session,
-        )
-        expired_count = int(
-            session.scalar(select(func.count()).select_from(DbDeletedEmail).where(DbDeletedEmail.deleted_at <= cutoff))
-            or 0
-        )
-
-    assert expired_count >= 1
-    assert UserStore(db).cleanup_expired_deleted_email_markers() == expired_count
-    with db.session() as session:
-        assert session.get(DbDeletedEmail, expired_hash) is None
-        retained = session.get(DbDeletedEmail, retained_hash)
-        assert retained is not None
-        session.delete(retained)
-
-
-def test_delete_missing_user_does_not_create_deleted_email_marker() -> None:
-    db = Database()
-    missing_user_id = f"missing-{uuid.uuid4().hex}"
-    store = UserStore(db)
-    with db.session() as session:
-        marker_count_before = int(session.scalar(select(func.count()).select_from(DbDeletedEmail)) or 0)
-
-    store.delete_user(missing_user_id)
-
-    with db.session() as session:
-        marker_count_after = int(session.scalar(select(func.count()).select_from(DbDeletedEmail)) or 0)
-    assert marker_count_after == marker_count_before
 
 
 @pytest.mark.parametrize(

@@ -9,8 +9,6 @@ from pydantic import BaseModel, Field
 from sqlalchemy import delete, select
 
 from ...core.auth import (
-    DELETED_EMAIL_MARKER_PURPOSE,
-    DELETED_EMAIL_RETENTION_DAYS,
     GoogleAuthError,
     SessionStore,
     User,
@@ -76,9 +74,7 @@ logger = logging.getLogger(__name__)
 
 ACCOUNT_DELETION_NOTICE = (
     "Account and media are permanently deleted; legally required financial "
-    "records are retained in detached form. A cryptographic hash of the "
-    "normalized email is retained for 365 days only to prevent repeated "
-    "signup-credit grants."
+    "records are retained in detached form."
 )
 
 
@@ -776,9 +772,6 @@ def export_my_data(
             for purchase, invoice in billing_rows
         ]
 
-    deleted_email_marker = UserStore(
-        db,
-    ).deleted_email_marker_for_email(current_user.email)
     return {
         "profile": profile,
         "jobs": jobs,
@@ -791,12 +784,6 @@ def export_my_data(
         "gcs_uploads": gcs_uploads,
         "sessions": sessions,
         "oauth_states": oauth_states,
-        "deleted_email_marker": deleted_email_marker,
-        "deleted_email_marker_policy": {
-            "created_on_account_deletion": True,
-            "retention_days": DELETED_EMAIL_RETENTION_DAYS,
-            "purpose": DELETED_EMAIL_MARKER_PURPOSE,
-        },
         "billing_purchases": billing_purchases,
     }
 
@@ -904,7 +891,7 @@ def delete_account(
     billing_service: BillingService = Depends(get_billing_service),
     db: Database = Depends(get_db),
 ) -> Any:
-    """Account and media are permanently deleted; legally required financial records are retained in detached form. A cryptographic hash of the normalized email is retained for 365 days only to prevent repeated signup-credit grants."""
+    """Account and media are permanently deleted; legally required financial records are retained in detached form."""
     try:
         data_dir = settings.data_dir
         uploads_dir = data_dir / "uploads"

@@ -49,7 +49,6 @@ public class AuthStore {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "User already exists");
         }
 
-        boolean deletedEmail = emailWasDeleted(normalizedEmail);
         CurrentUser user = new CurrentUser(
                 randomHex(16),
                 normalizedEmail,
@@ -73,7 +72,7 @@ public class AuthStore {
                 .param("createdAt", user.createdAt())
                 .update();
 
-        pointsStore.ensureAccount(user.id(), false, deletedEmail ? 0 : null);
+        pointsStore.ensureAccount(user.id(), null);
         return withoutSecret(user);
     }
 
@@ -136,7 +135,6 @@ public class AuthStore {
             );
         }
 
-        boolean deletedEmail = emailWasDeleted(normalizedEmail);
         CurrentUser user = new CurrentUser(
                 randomHex(16),
                 normalizedEmail,
@@ -186,7 +184,7 @@ public class AuthStore {
                     "Google account could not be linked safely."
             );
         }
-        pointsStore.ensureAccount(user.id(), true, deletedEmail ? 0 : null);
+        pointsStore.ensureAccount(user.id(), null);
         return withoutSecret(user);
     }
 
@@ -285,17 +283,9 @@ public class AuthStore {
 
     @Transactional
     public void deleteUser(String userId) {
-        findUserById(userId).ifPresent(user -> {
-            jdbcClient.sql("""
-                    INSERT INTO deleted_emails (email_hash, deleted_at)
-                    VALUES (:emailHash, :deletedAt)
-                    ON CONFLICT (email_hash) DO UPDATE SET deleted_at = EXCLUDED.deleted_at
-                    """)
-                    .param("emailHash", emailFingerprint(user.email()))
-                    .param("deletedAt", now())
-                    .update();
-            jdbcClient.sql("DELETE FROM users WHERE id = :userId").param("userId", userId).update();
-        });
+        jdbcClient.sql("DELETE FROM users WHERE id = :userId")
+                .param("userId", userId)
+                .update();
     }
 
     public Optional<CurrentUser> findUserById(String userId) {
@@ -444,14 +434,6 @@ public class AuthStore {
         return valid;
     }
 
-    private boolean emailWasDeleted(String email) {
-        return jdbcClient.sql("SELECT email_hash FROM deleted_emails WHERE email_hash = :emailHash")
-                .param("emailHash", emailFingerprint(email))
-                .query(String.class)
-                .optional()
-                .isPresent();
-    }
-
     private static CurrentUser withoutSecret(CurrentUser user) {
         return new CurrentUser(
                 user.id(),
@@ -534,10 +516,6 @@ public class AuthStore {
 
     public static String hashToken(String token) {
         return sha256Hex("session:" + token);
-    }
-
-    private static String emailFingerprint(String email) {
-        return sha256Hex(email.trim().toLowerCase());
     }
 
     private static String sha256Hex(String value) {
