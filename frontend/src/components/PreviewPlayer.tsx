@@ -84,6 +84,7 @@ type GestureFeedback =
 const GESTURE_DRAG_THRESHOLD_PX = 8;
 const LONG_PRESS_DELAY_MS = 350;
 const PREVIEW_SPEED_RATE = 2;
+const FIRST_FRAME_PRIME_TIME_SECONDS = 0.001;
 
 function clamp(value: number, minimum: number, maximum: number): number {
     return Math.min(maximum, Math.max(minimum, value));
@@ -596,10 +597,25 @@ export const PreviewPlayer = memo(forwardRef<PreviewPlayerHandle, PreviewPlayerP
                 onLoadedMetadata={() => {
                     updateContentRect();
                     if (typeof initialTime === 'number' && videoRef.current) {
-                        if (Math.abs(videoRef.current.currentTime - initialTime) > 0.01) {
-                            videoRef.current.currentTime = initialTime;
+                        const video = videoRef.current;
+                        const shouldPrimeFirstFrame = initialTime <= 0
+                            && video.paused
+                            && video.currentTime === 0
+                            && Number.isFinite(video.duration)
+                            && video.duration > 0;
+
+                        if (shouldPrimeFirstFrame) {
+                            // WebKit only fetches metadata for a paused video at 0:00.
+                            // A tiny seek requests and paints the first frame without
+                            // autoplaying or preloading the complete media file.
+                            video.currentTime = Math.min(
+                                FIRST_FRAME_PRIME_TIME_SECONDS,
+                                video.duration / 2,
+                            );
+                        } else if (Math.abs(video.currentTime - initialTime) > 0.01) {
+                            video.currentTime = initialTime;
                         }
-                        setCurrentTime(videoRef.current.currentTime);
+                        setCurrentTime(video.currentTime);
                     }
                     reportPlaybackStatus();
                 }}

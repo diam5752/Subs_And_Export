@@ -1,5 +1,5 @@
-# Minimal production runtime for gsubs' zero-cost mock mode.
-# Live transcription/provider packages are deliberately excluded.
+# Minimal production runtime for gsubs. Scribe v2 uses the existing requests
+# transport, so heavyweight provider SDKs and local Whisper models stay out.
 fastapi>=0.110.0
 uvicorn[standard]>=0.27.0
 python-multipart>=0.0.9

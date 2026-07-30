@@ -68,7 +68,7 @@ def list_transcription_engines(*, caption_ready_only: bool = False) -> tuple[Tra
             recommended=True,
             cost_usd_per_hour=0.22,
             limitations=(
-                "Prepared but disabled until mock mode, the feature flag, credentials, and safety budgets are explicitly changed.",
+                "Cloud processing requires the production feature flag, credential, paid credits, and open safety budgets.",
             ),
         ),
         TranscriptionEngine(

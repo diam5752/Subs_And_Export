@@ -57,11 +57,13 @@ def test_scribe_parses_word_timestamps_without_real_network(
     monkeypatch.setattr(settings, "mock_external_services", False)
     monkeypatch.setattr(settings, "external_provider_monthly_budget_usd", 1.0)
     monkeypatch.setattr(settings, "external_provider_per_request_budget_usd", 0.25)
+    monkeypatch.setattr(settings, "elevenlabs_api_base", "http://edge:8081/elevenlabs/")
     audio_path = tmp_path / "audio.wav"
     audio_path.write_bytes(b"audio")
     captured: dict[str, Any] = {}
 
     def transport(*args: Any, **kwargs: Any) -> FakeResponse:
+        captured["args"] = args
         captured.update(kwargs)
         return FakeResponse(
             {
@@ -88,6 +90,7 @@ def test_scribe_parses_word_timestamps_without_real_network(
         progress_callback=progress.append,
     )
 
+    assert captured["args"] == ("http://edge:8081/elevenlabs/v1/speech-to-text",)
     assert captured["headers"] == {"xi-api-key": "test-key"}
     assert captured["data"] == {
         "model_id": "scribe_v2",
@@ -103,6 +106,26 @@ def test_scribe_parses_word_timestamps_without_real_network(
     assert srt_path.exists()
     assert "ΓΕΙΑ ΣΟΥ." in srt_path.read_text(encoding="utf-8")
     assert progress == [10.0, 90.0, 100.0]
+
+
+@pytest.mark.parametrize(
+    "api_base",
+    (
+        "",
+        "ftp://api.elevenlabs.io",
+        "https://user:secret@api.elevenlabs.io",
+        "https://api.elevenlabs.io?redirect=1",
+        "https://api.elevenlabs.io#fragment",
+    ),
+)
+def test_scribe_rejects_invalid_api_relay_configuration(
+    monkeypatch: pytest.MonkeyPatch,
+    api_base: str,
+) -> None:
+    monkeypatch.setattr(settings, "elevenlabs_api_base", api_base)
+
+    with pytest.raises(RuntimeError, match="relay configuration"):
+        ElevenLabsScribeTranscriber._scribe_endpoint()
 
 
 def test_scribe_rejects_responses_without_word_timestamps(

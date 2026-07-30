@@ -175,6 +175,32 @@ describe('PreviewPlayer', () => {
         expect(video.pause).toHaveBeenCalled();
     });
 
+    it('primes the first frame when a paused iOS preview starts at zero', () => {
+        // REGRESSION: WebKit stops at HAVE_METADATA for preload="metadata",
+        // leaving a completed video black until the user starts playback.
+        const { container } = render(
+            <PreviewPlayer
+                {...baseProps}
+                initialTime={0}
+            />,
+        );
+
+        const video = container.querySelector('video') as HTMLVideoElement;
+        Object.defineProperty(video, 'currentTime', {
+            configurable: true,
+            value: 0,
+            writable: true,
+        });
+        Object.defineProperty(video, 'duration', {
+            configurable: true,
+            value: 8.634,
+        });
+
+        fireEvent.loadedMetadata(video);
+
+        expect(video.currentTime).toBeCloseTo(0.001, 4);
+    });
+
     it('keeps native controls disabled and toggles playback with a tap gesture', () => {
         // REGRESSION: iOS Safari's native transport overlay covered the
         // subtitles with play, skip, volume, and progress controls.

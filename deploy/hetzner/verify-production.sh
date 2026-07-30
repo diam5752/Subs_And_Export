@@ -45,6 +45,10 @@ if [ -z "$google_client_id" ]; then
   echo "Google client ID is required." >&2
   exit 1
 fi
+if [ -z "$(env_value ELEVENLABS_API_KEY)" ]; then
+  echo "ElevenLabs production API key is required." >&2
+  exit 1
+fi
 export SUBFRAME_ENV_FILE="$ENV_FILE"
 export SUBFRAME_RELEASE_SHA="$release_sha"
 
@@ -117,8 +121,9 @@ backend_environment=$(docker inspect --format '{{range .Config.Env}}{{println .}
 for expected in \
   GSP_APP_ENV=production \
   APP_ENV=production \
-  GSP_MOCK_EXTERNAL_SERVICES=1 \
-  GSP_ELEVENLABS_ENABLED=0 \
+  GSP_MOCK_EXTERNAL_SERVICES=0 \
+  GSP_ELEVENLABS_ENABLED=1 \
+  GSP_ELEVENLABS_API_BASE=http://edge:8081/elevenlabs \
   GSP_PAID_CREDITS_ENABLED=0 \
   GSP_CONSUMER_POLICY_APPROVED=0 \
   GSP_DURABLE_CONFIRMATION_CHANNEL_READY=0 \
@@ -130,16 +135,16 @@ for expected in \
   STRIPE_WEBHOOK_SECRET= \
   OPENAI_API_KEY= \
   GROQ_API_KEY= \
-  ELEVENLABS_API_KEY= \
   GSP_GCS_BUCKET= \
   GOOGLE_APPLICATION_CREDENTIALS= \
   GOOGLE_CLIENT_SECRET= \
   GOOGLE_REDIRECT_URI= \
   GSP_GOOGLE_OAUTH_CERTS_URL=http://edge:8081/oauth2/v1/certs \
   GSP_GOOGLE_AUTH_NONCE_TTL_SECONDS=600 \
-  GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD=0 \
-  GSP_EXTERNAL_PROVIDER_DAILY_BUDGET_USD=0 \
-  GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD=0 \
+  GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD=0.75 \
+  GSP_EXTERNAL_PROVIDER_DAILY_BUDGET_USD=0.25 \
+  GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD=0.05 \
+  GSP_EXTERNAL_PROVIDER_PRICE_SAFETY_MULTIPLIER=1.25 \
   GSP_WORKSPACE_RETENTION_HOURS=24 \
   GSP_STALE_JOB_RETENTION_HOURS=6 \
   GSP_ORPHAN_RETENTION_HOURS=1 \
@@ -158,6 +163,7 @@ printf '%s\n' "$backend_environment" | grep -Fqx "GOOGLE_CLIENT_ID=$google_clien
 }
 if ! docker exec "$backend_id" python -c '
 from backend.app.core.config import settings
+from backend.app.services.llm_utils import resolve_elevenlabs_api_key
 
 if settings.paid_credits_enabled:
     raise SystemExit("Paid Checkout must remain disabled during Stripe staging.")
@@ -169,9 +175,26 @@ if settings.adjustment_workflow_ready:
     raise SystemExit("Adjustment workflow approval must remain disabled during Stripe staging.")
 if settings.stripe_automatic_tax_enabled:
     raise SystemExit("Stripe Automatic Tax must remain disabled during Stripe staging.")
+if settings.mock_external_services:
+    raise SystemExit("Production Scribe must not run in mock mode.")
+if not settings.elevenlabs_enabled:
+    raise SystemExit("Production Scribe must be enabled.")
+if settings.elevenlabs_api_base != "http://edge:8081/elevenlabs":
+    raise SystemExit("Production Scribe must use the scoped internal relay.")
+expected_budgets = (0.75, 0.25, 0.05, 1.25)
+actual_budgets = (
+    settings.external_provider_monthly_budget_usd,
+    settings.external_provider_daily_budget_usd,
+    settings.external_provider_per_request_budget_usd,
+    settings.external_provider_price_safety_multiplier,
+)
+if actual_budgets != expected_budgets:
+    raise SystemExit("Production Scribe budget caps do not match the reviewed release.")
+if not resolve_elevenlabs_api_key():
+    raise SystemExit("Production Scribe API key is unavailable.")
 settings.assert_stripe_stage_configuration()
 '; then
-  echo "Stripe staging configuration is incomplete or unsafe." >&2
+  echo "Production provider or Stripe staging configuration is incomplete or unsafe." >&2
   exit 1
 fi
 if ! docker exec "$backend_id" alembic current --check-heads >/dev/null; then
@@ -211,6 +234,41 @@ print(",".join(statuses))
   echo "Stripe API relay is unavailable or unexpectedly permissive: $stripe_relay_http" >&2
   exit 1
 }
+elevenlabs_relay_http=$(docker exec "$backend_id" python -c '
+import urllib.error
+import urllib.request
+
+base = "http://edge:8081/elevenlabs"
+probes = (
+    (f"{base}/v1/speech-to-text", "POST"),
+    (f"{base}/v1/speech-to-text", "GET"),
+    (f"{base}/v1/models", "POST"),
+)
+statuses = []
+for url, method in probes:
+    request = urllib.request.Request(
+        url,
+        data=(b"" if method == "POST" else None),
+        method=method,
+    )
+    try:
+        response = urllib.request.urlopen(request, timeout=15)
+    except urllib.error.HTTPError as exc:
+        statuses.append(str(exc.code))
+    except urllib.error.URLError:
+        statuses.append("unavailable")
+    else:
+        statuses.append(str(response.status))
+print(",".join(statuses))
+')
+case "$elevenlabs_relay_http" in
+  400,404,404|401,404,404|422,404,404)
+    ;;
+  *)
+    echo "ElevenLabs API relay is unavailable or unexpectedly permissive: $elevenlabs_relay_http" >&2
+    exit 1
+    ;;
+esac
 
 health_json=""
 catalog_json=""

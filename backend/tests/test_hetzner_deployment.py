@@ -208,14 +208,15 @@ def backup_verifier_environment(
     return environment
 
 
-def test_production_compose_is_mock_only_and_loopback_bound() -> None:
+def test_production_compose_enables_only_budgeted_scribe_and_is_loopback_bound() -> None:
     compose = deployment_text("docker-compose.production.yml")
 
     assert '"127.0.0.1:${SUBFRAME_PREVIEW_PORT:-18090}:8080"' in compose
     assert "GSP_APP_ENV: production" in compose
     assert "APP_ENV: production" in compose
-    assert 'GSP_MOCK_EXTERNAL_SERVICES: "1"' in compose
-    assert 'GSP_ELEVENLABS_ENABLED: "0"' in compose
+    assert 'GSP_MOCK_EXTERNAL_SERVICES: "0"' in compose
+    assert 'GSP_ELEVENLABS_ENABLED: "1"' in compose
+    assert 'GSP_ELEVENLABS_API_BASE: "http://edge:8081/elevenlabs"' in compose
     assert 'GSP_PAID_CREDITS_ENABLED: "0"' in compose
     assert 'GSP_CONSUMER_POLICY_APPROVED: "0"' in compose
     assert 'GSP_DURABLE_CONFIRMATION_CHANNEL_READY: "0"' in compose
@@ -232,15 +233,18 @@ def test_production_compose_is_mock_only_and_loopback_bound() -> None:
     assert 'STRIPE_WEBHOOK_SECRET: ""' in compose
     assert 'OPENAI_API_KEY: ""' in compose
     assert 'GROQ_API_KEY: ""' in compose
-    assert 'ELEVENLABS_API_KEY: ""' in compose
+    assert 'ELEVENLABS_API_KEY: "${ELEVENLABS_API_KEY:?ELEVENLABS_API_KEY is required}"' in compose
     assert 'GSP_GCS_BUCKET: ""' in compose
     assert 'GOOGLE_APPLICATION_CREDENTIALS: ""' in compose
     assert 'GOOGLE_CLIENT_SECRET: ""' in compose
     assert 'GOOGLE_REDIRECT_URI: ""' in compose
     assert 'GSP_GOOGLE_OAUTH_CERTS_URL: "http://edge:8081/oauth2/v1/certs"' in compose
-    assert 'GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD: "0"' in compose
-    assert 'GSP_EXTERNAL_PROVIDER_DAILY_BUDGET_USD: "0"' in compose
-    assert 'GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD: "0"' in compose
+    assert 'GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD: "0.75"' in compose
+    assert 'GSP_EXTERNAL_PROVIDER_DAILY_BUDGET_USD: "0.25"' in compose
+    assert 'GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD: "0.05"' in compose
+    assert 'GSP_EXTERNAL_PROVIDER_PRICE_SAFETY_MULTIPLIER: "1.25"' in compose
+    assert "NEXT_PUBLIC_TRANSCRIBE_PROVIDER: elevenlabs" in compose
+    assert "NEXT_PUBLIC_TRANSCRIBE_MODE: pro" in compose
     assert "external: true" in compose
     assert "name: mizai_mizai-private" in compose
 
@@ -251,8 +255,9 @@ def test_production_verifier_requires_every_fail_closed_runtime_setting() -> Non
     for expected in (
         "GSP_APP_ENV=production",
         "APP_ENV=production",
-        "GSP_MOCK_EXTERNAL_SERVICES=1",
-        "GSP_ELEVENLABS_ENABLED=0",
+        "GSP_MOCK_EXTERNAL_SERVICES=0",
+        "GSP_ELEVENLABS_ENABLED=1",
+        "GSP_ELEVENLABS_API_BASE=http://edge:8081/elevenlabs",
         "GSP_PAID_CREDITS_ENABLED=0",
         "GSP_CONSUMER_POLICY_APPROVED=0",
         "GSP_DURABLE_CONFIRMATION_CHANNEL_READY=0",
@@ -264,16 +269,16 @@ def test_production_verifier_requires_every_fail_closed_runtime_setting() -> Non
         "STRIPE_WEBHOOK_SECRET=",
         "OPENAI_API_KEY=",
         "GROQ_API_KEY=",
-        "ELEVENLABS_API_KEY=",
         "GSP_GCS_BUCKET=",
         "GOOGLE_APPLICATION_CREDENTIALS=",
         "GOOGLE_CLIENT_SECRET=",
         "GOOGLE_REDIRECT_URI=",
         "GSP_GOOGLE_OAUTH_CERTS_URL=http://edge:8081/oauth2/v1/certs",
         "GSP_GOOGLE_AUTH_NONCE_TTL_SECONDS=600",
-        "GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD=0",
-        "GSP_EXTERNAL_PROVIDER_DAILY_BUDGET_USD=0",
-        "GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD=0",
+        "GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD=0.75",
+        "GSP_EXTERNAL_PROVIDER_DAILY_BUDGET_USD=0.25",
+        "GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD=0.05",
+        "GSP_EXTERNAL_PROVIDER_PRICE_SAFETY_MULTIPLIER=1.25",
         "GSP_WORKSPACE_RETENTION_HOURS=24",
         "GSP_STALE_JOB_RETENTION_HOURS=6",
         "GSP_ORPHAN_RETENTION_HOURS=1",
@@ -284,6 +289,7 @@ def test_production_verifier_requires_every_fail_closed_runtime_setting() -> Non
         assert expected in verifier
     assert "settings.assert_stripe_stage_configuration()" in verifier
     assert "Stripe API relay is unavailable" in verifier
+    assert "ElevenLabs API relay is unavailable" in verifier
 
 
 def test_production_environment_defaults_do_not_prune_shared_cache() -> None:
@@ -314,10 +320,19 @@ def test_production_environment_defaults_do_not_prune_shared_cache() -> None:
     assert "GSP_ADJUSTMENT_WORKFLOW_READY=0" in environment
     assert "GSP_STRIPE_API_BASE=http://edge:8081/stripe" in environment
     assert "GSP_BILLING_ADMIN_USER_IDS=" in environment
+    assert "GSP_MOCK_EXTERNAL_SERVICES=0" in environment
+    assert "GSP_ELEVENLABS_ENABLED=1" in environment
+    assert "GSP_ELEVENLABS_API_BASE=http://edge:8081/elevenlabs" in environment
+    assert "ELEVENLABS_API_KEY=" in environment
+    assert "GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD=0.75" in environment
+    assert "GSP_EXTERNAL_PROVIDER_DAILY_BUDGET_USD=0.25" in environment
+    assert "GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD=0.05" in environment
     assert "google_client_id=$(env_value GOOGLE_CLIENT_ID)" in verifier
     assert "billing_admin_user_ids=$(env_value GSP_BILLING_ADMIN_USER_IDS)" not in verifier
     assert "NEXT_PUBLIC_MAX_UPLOAD_MB: ${SUBFRAME_MAX_UPLOAD_MB:-500}" in compose
     assert "ARG NEXT_PUBLIC_MAX_UPLOAD_MB=500" in frontend_dockerfile
+    assert "ARG NEXT_PUBLIC_TRANSCRIBE_PROVIDER=mock" in frontend_dockerfile
+    assert "ARG NEXT_PUBLIC_TRANSCRIBE_MODE=standard" in frontend_dockerfile
     assert "GSP_ALLOWED_ORIGINS=https://gsubs.gr,https://www.gsubs.gr" in environment
     assert "GSP_TRUSTED_HOSTS=gsubs.gr,www.gsubs.gr,backend,localhost,127.0.0.1" in environment
     assert "subframe.mizai.gr" not in environment
@@ -1112,6 +1127,25 @@ def test_stripe_api_uses_a_method_and_path_scoped_internal_edge_relay() -> None:
     assert '[ "$stripe_relay_http" = "401,401,401" ]' in verifier
     assert 'probes = ((base, "GET"), (f"{base}/capture", "POST"), (f"{base}/cancel", "POST"))' in verifier
     assert "GSP_STRIPE_RESTRICTED_KEY" not in caddyfile
+
+
+def test_elevenlabs_scribe_uses_a_method_and_path_scoped_internal_edge_relay() -> None:
+    compose = deployment_text("docker-compose.production.yml")
+    caddyfile = deployment_text("Caddyfile")
+    verifier = deployment_text("verify-production.sh")
+
+    assert "internal: true" in compose
+    assert 'GSP_ELEVENLABS_API_BASE: "http://edge:8081/elevenlabs"' in compose
+    assert "@elevenlabs_scribe" in caddyfile
+    assert "method POST" in caddyfile
+    assert "path /elevenlabs/v1/speech-to-text" in caddyfile
+    assert "max_size 32MB" in caddyfile
+    assert "uri strip_prefix /elevenlabs" in caddyfile
+    assert "reverse_proxy https://api.elevenlabs.io" in caddyfile
+    assert "header_up Host api.elevenlabs.io" in caddyfile
+    assert "elevenlabs_relay_http=" in verifier
+    assert "400,404,404|401,404,404|422,404,404" in verifier
+    assert "ELEVENLABS_API_KEY" not in caddyfile
 
 
 def test_docker_build_context_excludes_production_secrets_and_state() -> None:
