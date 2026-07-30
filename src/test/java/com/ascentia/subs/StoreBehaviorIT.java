@@ -44,7 +44,7 @@ class StoreBehaviorIT extends IntegrationTestSupport {
                 "google-sub",
                 "https://lh3.googleusercontent.com/a/avatar=s96-c"
         );
-        assertThat(pointsStore.getBalance(google.id())).isEqualTo(PointsStore.STARTING_POINTS_BALANCE);
+        assertThat(pointsStore.getBalance(google.id())).isZero();
         assertThat(google.avatarUrl())
                 .isEqualTo("https://lh3.googleusercontent.com/a/avatar=s96-c");
 
@@ -59,7 +59,8 @@ class StoreBehaviorIT extends IntegrationTestSupport {
     void pointsUsageLedgerJobsHistoryAndRateLimitBehaveConsistently() {
         CurrentUser user = authStore.registerLocalUser(uniqueEmail(), "testpassword123", "Points User");
 
-        assertThat(pointsStore.getBalance(user.id())).isEqualTo(PointsStore.TRIAL_CREDITS);
+        assertThat(pointsStore.getBalance(user.id())).isZero();
+        pointsStore.credit(user.id(), 100, "test_funding", Map.of("source", "integration_test"));
         assertThat(pointsStore.spend(user.id(), 10, "transcription", Map.of("job_id", "j1"))).isEqualTo(90);
 
         PointsStore.SpendOnceResult firstSpend = pointsStore.spendOnce(
@@ -159,6 +160,7 @@ class StoreBehaviorIT extends IntegrationTestSupport {
     @Test
     void usageLedgerAndJobStoreCoverReservationLifecycleAndSummaryBranches() {
         CurrentUser user = authStore.registerLocalUser(uniqueEmail(), "testpassword123", "Ledger User");
+        pointsStore.credit(user.id(), 100, "test_funding", Map.of("source", "integration_test"));
 
         String refundJobId = "job-refund";
         jobStore.createJob(refundJobId, user.id());
@@ -388,7 +390,7 @@ class StoreBehaviorIT extends IntegrationTestSupport {
         assertThat(authStore.consumeOauthState("google", validState, null, "JUnit", "127.0.0.1")).isTrue();
         assertThat(authStore.consumeOauthState("google", validState, null, "JUnit", "127.0.0.1")).isFalse();
 
-        assertThatThrownBy(() -> pointsStore.ensureAccount(user.id(), null, -1))
+        assertThatThrownBy(() -> pointsStore.ensureAccount(user.id(), -1))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("Invalid starting balance");
         assertThatThrownBy(() -> pointsStore.spend(user.id(), 1_000, "spend", Map.of()))

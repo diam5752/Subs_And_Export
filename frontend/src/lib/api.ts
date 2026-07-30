@@ -557,8 +557,6 @@ interface ExportDataResponse {
     gcs_uploads: Record<string, unknown>[];
     sessions: Record<string, unknown>[];
     oauth_states: Record<string, unknown>[];
-    deleted_email_marker: Record<string, unknown> | null;
-    deleted_email_marker_policy: Record<string, unknown>;
 }
 
 

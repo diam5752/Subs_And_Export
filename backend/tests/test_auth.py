@@ -416,8 +416,12 @@ class TestDeleteAccount:
         )
         assert login_again.status_code == 400
 
-    def test_delete_account_prevents_repeat_credits(self, client, test_user_data):
-        """Deleting and re-registering should not grant new starting credits."""
+    def test_delete_account_allows_reregistration_without_signup_credits(
+        self,
+        client,
+        test_user_data,
+    ):
+        """Neither an original nor a recreated account receives signup credits."""
         client.post("/auth/register", json=test_user_data)
         login_response = client.post(
             "/auth/token",
@@ -427,6 +431,12 @@ class TestDeleteAccount:
             },
         )
         token = login_response.json()["access_token"]
+        initial_points = client.get(
+            "/auth/points",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert initial_points.status_code == 200
+        assert initial_points.json()["balance"] == 0
 
         response = client.delete(
             "/auth/me",

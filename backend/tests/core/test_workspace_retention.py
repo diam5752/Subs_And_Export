@@ -6,7 +6,6 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from backend.app.core import cleanup as cleanup_module
-from backend.app.core.auth import UserStore
 from backend.app.core.cleanup import (
     cleanup_expired_workspaces,
     ensure_storage_capacity,
@@ -251,7 +250,7 @@ def test_storage_guard_rejects_when_cleanup_cannot_free_enough_space(
     assert cleanup_calls == ["cleanup"]
 
 
-def test_configured_retention_runs_media_billing_and_deleted_email_cleanup(
+def test_configured_retention_runs_media_and_billing_cleanup(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -280,13 +279,6 @@ def test_configured_retention_runs_media_billing_and_deleted_email_cleanup(
             )
         ),
     )
-    monkeypatch.setattr(
-        UserStore,
-        "cleanup_expired_deleted_email_markers",
-        lambda self: calls.append("deleted_email") or 0,
-        raising=False,
-    )
-
     run_configured_retention(object())  # type: ignore[arg-type]
 
-    assert calls == ["media", "billing", "deleted_email"]
+    assert calls == ["media", "billing"]

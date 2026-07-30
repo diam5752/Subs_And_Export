@@ -48,7 +48,7 @@ def test_upload_invalid_extension(client, user_auth_headers):
     assert response.status_code == 400
     assert "Invalid file type" in response.json().get("detail", "")
 
-def test_upload_path_traversal_attempt(client, user_auth_headers):
+def test_upload_path_traversal_attempt(client, funded_user_auth_headers):
     """Ensure path traversal characters in filename are handled safely."""
     # The application ignores the filename for storage, using UUID.
     # But we check that it accepts the upload and doesn't crash or write to wrong place.
@@ -61,7 +61,7 @@ def test_upload_path_traversal_attempt(client, user_auth_headers):
 
     response = client.post(
         "/videos/process",
-        headers=user_auth_headers,
+        headers=funded_user_auth_headers,
         files=files,
         data={"transcribe_tier": "standard"}
     )
@@ -73,11 +73,11 @@ def test_upload_path_traversal_attempt(client, user_auth_headers):
     # The file should be saved safely. We can't clear verify FS here easily without mocking,
     # but 200 means it didn't crash.
 
-def test_idor_get_results(client, user_auth_headers, user2_auth_headers):
+def test_idor_get_results(client, funded_user_auth_headers, user2_auth_headers):
     """Ensure User A cannot access User B's job."""
     # User 1 creates a job
     files = {"file": ("test.mp4", b"content", "video/mp4")}
-    resp1 = client.post("/videos/process", headers=user_auth_headers, files=files)
+    resp1 = client.post("/videos/process", headers=funded_user_auth_headers, files=files)
     assert resp1.status_code == 200
     job_id = resp1.json()["id"]
 
@@ -85,34 +85,34 @@ def test_idor_get_results(client, user_auth_headers, user2_auth_headers):
     resp2 = client.get(f"/videos/jobs/{job_id}", headers=user2_auth_headers)
     assert resp2.status_code == 404 # Should return 404 Not Found (or 403)
 
-def test_idor_delete_job(client, user_auth_headers, user2_auth_headers):
+def test_idor_delete_job(client, funded_user_auth_headers, user2_auth_headers):
     """Ensure User A cannot delete User B's job."""
     files = {"file": ("test.mp4", b"content", "video/mp4")}
-    resp1 = client.post("/videos/process", headers=user_auth_headers, files=files)
+    resp1 = client.post("/videos/process", headers=funded_user_auth_headers, files=files)
     job_id = resp1.json()["id"]
 
     # User 2 tries to delete
     resp2 = client.delete(f"/videos/jobs/{job_id}", headers=user2_auth_headers)
     assert resp2.status_code == 404
 
-def test_idor_cancel_job(client, user_auth_headers, user2_auth_headers):
+def test_idor_cancel_job(client, funded_user_auth_headers, user2_auth_headers):
     """Ensure User A cannot cancel User B's job."""
     files = {"file": ("test.mp4", b"content", "video/mp4")}
-    resp1 = client.post("/videos/process", headers=user_auth_headers, files=files)
+    resp1 = client.post("/videos/process", headers=funded_user_auth_headers, files=files)
     job_id = resp1.json()["id"]
 
     # User 2 tries to cancel
     resp2 = client.post(f"/videos/jobs/{job_id}/cancel", headers=user2_auth_headers)
     assert resp2.status_code == 404
 
-def test_invalid_resize_params(client, user_auth_headers):
+def test_invalid_resize_params(client, funded_user_auth_headers):
     """Test resilience against bad resize parameters."""
     files = {"file": ("test.mp4", b"content", "video/mp4")}
 
     # Send non-integer resolution attempt
     response = client.post(
         "/videos/process",
-        headers=user_auth_headers,
+        headers=funded_user_auth_headers,
         files=files,
         data={"video_resolution": "9999999999x9999999999"} # Valid format but huge
     )
@@ -127,7 +127,7 @@ def test_invalid_resize_params(client, user_auth_headers):
     # Junk resolution
     response = client.post(
         "/videos/process",
-        headers=user_auth_headers,
+        headers=funded_user_auth_headers,
         files=files,
         data={"video_resolution": "not-a-resolution"}
     )

@@ -187,7 +187,6 @@ def ensure_storage_capacity(
 
 def run_configured_retention(db: Database) -> CleanupReport:
     """Run one retention pass using the live app configuration."""
-    from backend.app.core.auth import UserStore
     from backend.app.services.billing_retention import (
         cleanup_expired_billing_records,
     )
@@ -215,14 +214,6 @@ def run_configured_retention(db: Database) -> CleanupReport:
                 "deleted_unpaid_attempts": (billing_report.deleted_unpaid_attempts),
                 "deleted_financial_records": (billing_report.deleted_financial_records),
             },
-        )
-    deleted_email_markers = UserStore(
-        db,
-    ).cleanup_expired_deleted_email_markers()
-    if deleted_email_markers:
-        logger.info(
-            "Deleted-email retention complete",
-            extra={"deleted_email_markers": deleted_email_markers},
         )
     return report
 

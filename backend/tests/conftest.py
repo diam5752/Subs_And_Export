@@ -133,6 +133,25 @@ def user_auth_headers(client: TestClient) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
 
 
+@pytest.fixture
+def funded_user_auth_headers(
+    client: TestClient,
+    user_auth_headers: dict[str, str],
+) -> dict[str, str]:
+    """Explicitly fund tests whose subject requires a credit-consuming action."""
+    from backend.app.core.database import Database
+    from backend.app.services.points import PointsStore
+
+    response = client.get("/auth/me", headers=user_auth_headers)
+    assert response.status_code == 200
+    PointsStore(Database()).credit(
+        response.json()["id"],
+        1_000,
+        reason="test_fixture_funding",
+    )
+    return user_auth_headers
+
+
 @pytest.fixture(autouse=True)
 def prevent_paid_api_calls(monkeypatch):
     """

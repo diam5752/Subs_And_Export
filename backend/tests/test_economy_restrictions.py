@@ -46,7 +46,7 @@ def test_video_duration_limit(client, user_auth_headers, monkeypatch):
     assert response.status_code == 400, f"Expected 400, got {response.status_code}: {response.text}"
     assert "Video too long" in response.json()["detail"]
 
-def test_allowed_video(client, user_auth_headers, monkeypatch):
+def test_allowed_video(client, funded_user_auth_headers, monkeypatch):
     # Mock count to return 0
     monkeypatch.setattr(JobStore, "count_active_jobs_for_user", lambda self, uid: 0)
 
@@ -64,7 +64,7 @@ def test_allowed_video(client, user_auth_headers, monkeypatch):
     response = client.post(
         "/videos/process",
         files=files,
-        headers=user_auth_headers,
+        headers=funded_user_auth_headers,
         data={"transcribe_tier": "standard"}
     )
 

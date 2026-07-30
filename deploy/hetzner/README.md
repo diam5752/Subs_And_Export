@@ -27,9 +27,8 @@ Paid Checkout is still deliberately disabled:
 consumer-policy, durable-confirmation-channel and adjustment-workflow
 approvals to `0`, so an environment-file change cannot approve an unfinished
 legal or operational workflow. It also forces `GSP_GCS_BUCKET=""` and the
-billing-admin allowlist to an empty value. External provider spend requires
-an existing paid-credit balance; promotional signup credits cannot fund a
-Scribe request.
+billing-admin allowlist to an empty value. New accounts receive no automatic
+credits, and external provider spend requires an existing paid-credit balance.
 
 The Compose contract can stage one complete live Stripe bundle (restricted
 key, webhook signing secret and all three Price IDs) from the untracked

@@ -1276,7 +1276,7 @@ def test_checkout_fulfillment_and_webhook_replay_credit_exactly_once(
     assert gateway.cancel_calls == []
     wallet = points.get_balances(user_id)
     assert wallet.paid_balance == 100
-    assert wallet.promotional_balance == 500
+    assert wallet.promotional_balance == 0
 
     status = service.get_purchase_status(
         user_id=user_id,
@@ -1422,7 +1422,7 @@ def test_fulfillment_and_refund_events_are_serialized_per_purchase(
 
     wallet = points.get_balances(user_id)
     assert wallet.paid_balance == 0
-    assert wallet.promotional_balance == 500
+    assert wallet.promotional_balance == 0
     assert wallet.reversal_debt == 0
     assert _purchase(db, purchase.id).status == "reversed"
 

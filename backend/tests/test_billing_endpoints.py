@@ -873,16 +873,16 @@ def test_webhook_maps_billing_failures_without_leaking_unknown_errors(
     assert "secret internal detail" not in str(exc_info.value.detail)
 
 
-def test_points_endpoint_exposes_paid_and_promotional_balances(
+def test_points_endpoint_exposes_zeroed_balance_breakdown_for_new_account(
     client: TestClient,
     user_auth_headers: dict[str, str],
 ) -> None:
     response = client.get("/auth/points", headers=user_auth_headers)
     assert response.status_code == 200
     assert response.json() == {
-        "balance": 100,
+        "balance": 0,
         "paid_balance": 0,
-        "promotional_balance": 100,
+        "promotional_balance": 0,
         "reversal_debt": 0,
         "ai_spendable_balance": 0,
     }

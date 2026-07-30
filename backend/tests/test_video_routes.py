@@ -25,7 +25,7 @@ def _stream_upload_headers(
 
 def test_stream_upload_writes_the_browser_body_directly_once(
     client: TestClient,
-    user_auth_headers: dict[str, str],
+    funded_user_auth_headers: dict[str, str],
     monkeypatch,
 ) -> None:
     from backend.app.api.endpoints import videos as videos_module
@@ -42,7 +42,7 @@ def test_stream_upload_writes_the_browser_body_directly_once(
     response = client.post(
         "/videos/process-stream",
         headers=_stream_upload_headers(
-            user_auth_headers,
+            funded_user_auth_headers,
             {
                 "filename": "κινητό.mp4",
                 "transcribe_tier": "standard",
