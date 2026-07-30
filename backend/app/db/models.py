@@ -532,7 +532,9 @@ class DbBillingContractConfirmation(Base):
             name="chk_billing_contract_confirmations_identity",
         ),
         CheckConstraint(
-            "delivery_channel = 'account_vault' AND delivery_status = 'available_pending_external_approval'",
+            "delivery_channel = 'account_vault' "
+            "AND delivery_status IN "
+            "('available_pending_external_approval', 'available_approved')",
             name="chk_billing_contract_confirmations_delivery",
         ),
         CheckConstraint(
