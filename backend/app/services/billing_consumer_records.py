@@ -38,6 +38,10 @@ _CONTRACT_CONFIRMATION_V1_SUPPORTED_DELIVERIES = frozenset(
             "account_vault",
             "available_pending_external_approval",
         ),
+        (
+            "account_vault",
+            "available_approved",
+        ),
     }
 )
 _WITHDRAWAL_V1_STATUS = "pending_manual_review"

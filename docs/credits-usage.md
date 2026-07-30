@@ -160,15 +160,14 @@ Before enabling live paid Checkout:
 1. Deploy and verify the completed order-independent refund/dispute
    reconciliation and its reverse-delivery regression suite on `gsubs.gr`,
    while the tracked production Compose keeps Checkout disabled.
-2. Apply and verify migrations `0013_durable_billing_records`,
-   `0014_consumer_contract_records` and
-   `0015_billing_invoice_actor_audit` while Checkout remains disabled. Confirm
+2. Apply and verify the billing migrations through
+   `0018_approved_contract_delivery` while Checkout remains disabled. Confirm
    account deletion preserves only legally required financial evidence, still
    removes the 24-hour media workspace, and cannot orphan a pending withdrawal
-   acknowledgement. Migration 0014 deliberately rejects any
-   `available_approved` confirmation row and supports only pending withdrawal
-   requests. Durable-channel approval therefore requires a later, separately
-   reviewed migration; changing a status string is insufficient.
+   acknowledgement. Migration 0018 preserves legacy pending confirmations and
+   adds schema support for the exact `available_approved` account-vault
+   identity; it does not rewrite old evidence or approve the current draft
+   channel by itself.
 3. Obtain an accountant-approved billing-country policy for the 24% VAT
    baseline. Enforce the permitted geography before creating a charge and
    verify the signed Checkout billing country again before fulfillment. A
@@ -200,13 +199,13 @@ Before enabling live paid Checkout:
    that becomes active with paid sales. Browser tests must prove the approved
    `/terms#withdrawal` deep link resolves to that real content in both locales;
    an approval JSON/status change by itself is not publication.
-6. Replace the current append-only, pending-only withdrawal placeholder with a
-   reviewed append-only decision/outcome workflow. It must bind any Stripe
-   refund and any accountant-approved AADE adjustment/MARK without mutating the
-   original request or original tax-document evidence, and must release the
-   retention hold only after a terminal reviewed outcome. Keep the code-owned
-   `ADJUSTMENT_WORKFLOW_IMPLEMENTED = False` until that implementation and its
-   durable customer notification are verified.
+6. Verify the implemented append-only withdrawal decision/outcome workflow
+   against the accountant-approved process. It binds any Stripe refund and
+   AADE adjustment/MARK without mutating the original request or original
+   tax-document evidence and releases the retention hold only after a terminal
+   reviewed outcome. `ADJUSTMENT_WORKFLOW_IMPLEMENTED = True` records technical
+   capability only; the independent approval status must remain pending until
+   the accountant process and durable customer notification are verified.
 7. Implement and have counsel review an explicit Europe/Athens legal calendar,
    including exclusion of the contract-conclusion day and any applicable
    weekend or Greek public-holiday extension. Until then the application must
@@ -325,12 +324,10 @@ Keep production Checkout disabled until all of these are closed:
   manual timeliness assessment; until then no computed deadline or
   in-window/out-of-window claim is exposed and the online action remains
   available for every concluded contract that has no existing request;
-- migrations `0013_durable_billing_records`,
-  `0014_consumer_contract_records` and
-  `0015_billing_invoice_actor_audit`, fiscal-year retention behavior and the
-  account-deletion exceptions pass deployed verification, followed by a
-  separately reviewed later migration replacing the deliberately pending-only
-  delivery/resolution constraints;
+- all billing migrations through `0018_approved_contract_delivery`,
+  fiscal-year retention behavior and the account-deletion exceptions pass
+  deployed verification; migration 0018 provides the approved delivery schema
+  capability but does not constitute legal or operational approval;
 - the external Ascentia privacy and terms pages no longer contain stale
   third-party template names or support contacts;
 - the reviewed Stage 1 deployment safely stages the complete Stripe bundle
@@ -418,10 +415,10 @@ E2E. The database is dropped after success or failure, so stale local fixtures
 cannot change the result. The Playwright gate builds and serves the production
 Next.js bundle so browser checks cannot be disrupted by development-server HMR.
 
-Migrations `0008_video_credits_and_billing`,
-`0009_reversal_debt_audit`, `0010_unique_payment_intent` and
-`0013_durable_billing_records`, `0014_consumer_contract_records` and
-`0015_billing_invoice_actor_audit` are required for this disabled scaffold.
-Live activation additionally requires a future, separately reviewed
-durable-delivery and withdrawal-resolution migration; 0014 intentionally cannot
-represent an approved delivery or terminal outcome.
+Migrations `0008_video_credits_and_billing` through
+`0018_approved_contract_delivery` are required for this disabled scaffold.
+Migration 0018 can represent both legacy pending and future approved durable
+delivery without mutating historical evidence. Live activation still requires
+the independently approved EL/EN manifest, legal publication identity,
+accounting workflow, Stripe dashboard verification and tracked deployment
+gates; applying the migration alone cannot open Checkout.

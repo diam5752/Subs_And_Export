@@ -918,6 +918,44 @@ def test_pending_checkout_fulfills_against_its_immutable_catalog_snapshot_after_
     assert points.get_balances(user_id).paid_balance == 100
 
 
+def test_approved_checkout_persists_approved_contract_delivery(
+    billing_settings: None,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        consumer_contract_module,
+        "CONTRACT_CONFIRMATION_DELIVERY_STATUS",
+        consumer_contract_module.APPROVED_CONTRACT_CONFIRMATION_DELIVERY_STATUS,
+    )
+    db, user_id, points, _, service = _service()
+
+    checkout = service.create_checkout(
+        user_id=user_id,
+        customer_email=f"{user_id}@example.com",
+        package_key="starter",
+        idempotency_key=f"checkout-{uuid.uuid4().hex}",
+    )
+    purchase = _purchase(db, checkout.purchase_id)
+
+    assert _process(service, _checkout_event(purchase)) == "processed"
+    fulfilled = _purchase(db, purchase.id)
+    with db.session() as session:
+        confirmation = session.scalar(
+            select(DbBillingContractConfirmation).where(
+                DbBillingContractConfirmation.purchase_id == purchase.id,
+            )
+        )
+        assert confirmation is not None
+        assert confirmation.delivery_channel == "account_vault"
+        assert confirmation.delivery_status == "available_approved"
+        verify_contract_confirmation(
+            confirmation,
+            purchase=fulfilled,
+        )
+    assert fulfilled.fulfilled_at is not None
+    assert points.get_balances(user_id).paid_balance == 100
+
+
 def test_database_rejects_corrupt_contract_confirmation_before_fulfillment(
     billing_settings: None,
 ) -> None:
