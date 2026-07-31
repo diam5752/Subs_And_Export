@@ -389,7 +389,7 @@ def test_stripe_automatic_tax_remains_owner_gated(monkeypatch) -> None:
             "GSP_DURABLE_CONFIRMATION_CHANNEL_READY",
             "durable contract-confirmation channel",
         ),
-        ("GSP_ADJUSTMENT_WORKFLOW_READY", "accountant-approved adjustment workflow"),
+        ("GSP_ADJUSTMENT_WORKFLOW_READY", "approved manual adjustment workflow"),
     ],
 )
 def test_paid_credits_configuration_requires_each_independent_launch_gate(

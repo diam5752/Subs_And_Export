@@ -257,9 +257,16 @@ export interface ConsumerContractDisclosure {
     withdrawal_url: string;
     model_withdrawal_form_url: string;
     trader: {
-        name: string;
+        legal_name: string;
+        trading_name: string;
         service: string;
+        address_line_1: string;
+        postal_code: string;
+        city: string;
+        country: BillingCountry;
         support_email: string;
+        support_phone: string;
+        website: string;
     };
     content: {
         title: string;

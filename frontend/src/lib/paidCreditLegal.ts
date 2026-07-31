@@ -3,9 +3,9 @@ import publicationIdentity from './paidCreditLegalPublication.json';
 /**
  * Code-owned identity shared byte-for-byte with the backend image.
  *
- * It is intentionally not environment-controlled. A future reviewed release
- * must replace the draft identity and bind its digest to the exact backend
- * EL/EN approval manifest before either surface can become operative.
+ * It is intentionally not environment-controlled. Every wording or seller
+ * identity change must ship a new non-draft version bound to the exact backend
+ * EL/EN approval manifest before either surface remains operative.
  */
 export function paidCreditLegalPublicationIsApproved(): boolean {
     return (

@@ -389,7 +389,7 @@ class Settings(BaseSettings):
                     "durable contract-confirmation channel",
                     self.durable_confirmation_channel_ready,
                 ),
-                ("accountant-approved adjustment workflow", self.adjustment_workflow_ready),
+                ("approved manual adjustment workflow", self.adjustment_workflow_ready),
             )
             if not ready
         ]

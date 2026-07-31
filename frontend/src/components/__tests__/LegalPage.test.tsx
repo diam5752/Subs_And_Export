@@ -37,13 +37,13 @@ describe('LegalPage', () => {
         expect(screen.getByRole('heading', { name: 'Πολιτική Απορρήτου' })).toBeInTheDocument();
         expect(screen.getByText(/χρειάζεται το gsubs/)).toBeInTheDocument();
         expect(screen.getByText(/ElevenLabs Scribe v2/)).toBeInTheDocument();
-        expect(screen.getByText(/πωλήσεις paid credits δεν είναι ενεργές τώρα.*Stripe θα επεξεργάζεται.*e-Τιμολόγιο της ΑΑΔΕ/)).toBeInTheDocument();
+        expect(screen.getByText(/Stripe επεξεργάζεται τις πληρωμές paid credits.*e-Τιμολόγιο της ΑΑΔΕ/)).toBeInTheDocument();
         expect(screen.getByText(/αρχεία.*εξαγωγές.*24 ώρες.*τελευταία δραστηριότητα/)).toBeInTheDocument();
         expect(screen.getByRole('heading', { name: '3. Πληρωμές και παραστατικά' })).toBeInTheDocument();
-        expect(screen.getByText(/δεν προσφέρει αυτή τη στιγμή.*paid credits.*Stripe-hosted Checkout.*όνομα.*email.*διεύθυνση χρέωσης/)).toBeInTheDocument();
-        expect(screen.getByText(/δεν θα λαμβάνει ούτε θα αποθηκεύει.*πλήρη αριθμό κάρτας.*CVC/)).toBeInTheDocument();
-        expect(screen.getByText(/MARK, θα διατηρούνται μέχρι το τέλος του πέμπτου πλήρους έτους μετά το σχετικό φορολογικό έτος/)).toBeInTheDocument();
-        expect(screen.getByText(/απόδειξη πληρωμής της Stripe.*αποδεικτικό πληρωμής, όχι φορολογικό παραστατικό της ΑΑΔΕ/)).toBeInTheDocument();
+        expect(screen.getByText(/προσφέρει εφάπαξ αγορές.*paid credits.*Stripe-hosted Checkout.*όνομα.*email.*διεύθυνση χρέωσης/)).toBeInTheDocument();
+        expect(screen.getByText(/δεν λαμβάνει ούτε αποθηκεύει.*πλήρη αριθμό κάρτας.*CVC/)).toBeInTheDocument();
+        expect(screen.getByText(/MARK, διατηρούνται μέχρι το τέλος του πέμπτου πλήρους έτους μετά το σχετικό φορολογικό έτος/)).toBeInTheDocument();
+        expect(screen.getByText(/απόδειξη πληρωμής της Stripe.*αποτελεί αποδεικτικό πληρωμής, όχι φορολογικό παραστατικό της ΑΑΔΕ/)).toBeInTheDocument();
         expect(screen.queryByText(/κρυπτογραφικό hash.*credits εγγραφής/)).not.toBeInTheDocument();
         expect(screen.queryByText(/Groq/)).not.toBeInTheDocument();
         expect(screen.getByRole('link', { name: 'Όροι Χρήσης' })).toHaveAttribute('href', '/terms');
@@ -53,10 +53,10 @@ describe('LegalPage', () => {
         renderPage('privacy', 'en');
 
         expect(screen.getByRole('heading', { name: '3. Payments and receipts' })).toBeInTheDocument();
-        expect(screen.getByText(/does not currently offer paid-credit purchases.*Stripe-hosted Checkout.*name.*email address.*billing address/)).toBeInTheDocument();
-        expect(screen.getByText(/MARK, would be retained through the end of the fifth full year after the relevant tax year/)).toBeInTheDocument();
-        expect(screen.getByText(/Account deletion would not erase records/)).toBeInTheDocument();
-        expect(screen.getByText(/Paid-credit sales are not currently active.*Stripe would process payments.*AADE e-Timologio/)).toBeInTheDocument();
+        expect(screen.getByText(/offers one-off paid-credit purchases.*Stripe-hosted Checkout.*name.*email address.*billing address/)).toBeInTheDocument();
+        expect(screen.getByText(/MARK, is retained through the end of the fifth full year after the relevant tax year/)).toBeInTheDocument();
+        expect(screen.getByText(/Account deletion does not erase records/)).toBeInTheDocument();
+        expect(screen.getByText(/Stripe processes paid-credit payments.*AADE e-Timologio/)).toBeInTheDocument();
         expect(screen.queryByText(/cryptographic hash.*signup credits/)).not.toBeInTheDocument();
     });
 
@@ -72,7 +72,7 @@ describe('LegalPage', () => {
         )).toBeInTheDocument();
         expect(inactiveHeading.closest('section')).not.toHaveAttribute('id');
         expect(screen.queryByRole('heading', {
-            name: '7. Paid credits, Ελλάδα και πληρωμή',
+            name: '8. Paid credits, Ελλάδα και πληρωμή',
         })).not.toBeInTheDocument();
         expect(screen.queryByText(
             /μόνο σε καταναλωτές με διεύθυνση χρέωσης στην Ελλάδα.*ΦΠΑ 24%.*επιλέξιμο μέσο πληρωμής.*προεγκρίνεται προσωρινά.*είσπραξη.*ελληνικής διεύθυνσης.*προέγκριση θα ακυρώνεται.*MARK/,
@@ -115,7 +115,11 @@ describe('LegalPage', () => {
             name: 'Προτεινόμενοι όροι paid credits — οι πωλήσεις παραμένουν ανενεργές',
         })).not.toBeInTheDocument();
         expect(screen.getByRole('heading', {
-            name: '7. Paid credits, Ελλάδα και πληρωμή',
+            name: '7. Στοιχεία πωλητή',
+        })).toBeInTheDocument();
+        expect(screen.getByText(/Ascentia G\.P\..*Αγίας Βαρβάρας 4.*16452.*info@ascentia-gp\.com/)).toBeInTheDocument();
+        expect(screen.getByRole('heading', {
+            name: '8. Paid credits, Ελλάδα και πληρωμή',
         })).toBeInTheDocument();
         expect(screen.getByRole('heading', {
             name: 'Υπόδειγμα δήλωσης υπαναχώρησης',

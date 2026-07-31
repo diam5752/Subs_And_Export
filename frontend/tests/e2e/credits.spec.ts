@@ -6,7 +6,7 @@ for (const viewport of [
   { name: 'desktop', width: 1440, height: 900 },
   { name: 'mobile', width: 390, height: 844 },
 ]) {
-  test(`disabled paid-credit UI keeps only the wallet visible on ${viewport.name}`, async ({ page }) => {
+  test(`approved paid-credit UI opens the purchase dialog on ${viewport.name}`, async ({ page }) => {
     await page.setViewportSize(viewport);
     await mockApi(page);
     await page.goto('/');
@@ -15,30 +15,35 @@ for (const viewport of [
     const balance = page.getByTestId('credits-balance');
     await expect(balance).toBeVisible();
     await expect(balance).toContainText('125');
-    await expect(balance).not.toContainText('+');
+    await expect(balance).toContainText('+');
 
     await balance.click();
 
-    await expect(page.getByRole('dialog', {
+    const dialog = page.getByRole('dialog', {
       name: el.creditPurchaseTitle,
-    })).toHaveCount(0);
-    await expect(page.getByRole('button', {
-      name: el.processingGateBuyCredits,
-    })).toHaveCount(0);
-    await expect(page.getByText(/€(?:1|3|10)\.00/)).toHaveCount(0);
-    await expect(page.getByText(el.creditPurchasePay, { exact: false })).toHaveCount(0);
+    });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByText('€1.00', { exact: true })).toBeVisible();
+    await expect(dialog.getByText('€3.00', { exact: true })).toBeVisible();
+    await expect(dialog.getByText('€10.00', { exact: true })).toBeVisible();
+    await expect(dialog.getByText('Ascentia G.P.')).toBeVisible();
+    await expect(dialog.getByRole('button', {
+      name: /€1\.00/,
+    })).toBeDisabled();
   });
 }
 
-test('inactive terms expose only the placeholder and no draft operative wording', async ({ page }) => {
+test('approved terms expose seller, payment, refund and withdrawal wording', async ({ page }) => {
   await page.goto('/terms');
 
   await expect(page.getByRole('heading', {
-    name: el.termsPaidCreditsDraftTitle,
+    name: el.termsSellerTitle,
   })).toBeVisible();
-  await expect(page.getByText(el.termsPaidCreditsDraftBody)).toBeVisible();
-  await expect(page.getByText(
-    /προπληρωμένες εσωτερικές μονάδες|αναλογικό ποσό|Προς Ascentia \/ GSUBS/,
-  )).toHaveCount(0);
-  await expect(page.locator('#withdrawal')).toHaveCount(0);
+  await expect(page.getByText(el.termsSellerBody)).toBeVisible();
+  await expect(page.getByRole('heading', {
+    name: el.termsPaidCreditsScopeTitle,
+  })).toBeVisible();
+  await expect(page.getByText(el.termsRefundsBody)).toBeVisible();
+  await expect(page.getByText(el.termsWithdrawalFormBody)).toBeVisible();
+  await expect(page.locator('#withdrawal')).toHaveCount(1);
 });

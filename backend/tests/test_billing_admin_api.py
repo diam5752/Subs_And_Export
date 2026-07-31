@@ -396,7 +396,7 @@ def _find_pending_invoice(
             headers=headers,
             params=params,
         )
-        assert response.status_code == 200
+        assert response.status_code == 200, response.json()
         payload = cast(dict[str, Any], response.json())
         items = cast(list[dict[str, Any]], payload["items"])
         for item in items:
@@ -455,7 +455,7 @@ def _find_pending_review(
             headers=headers,
             params=params,
         )
-        assert response.status_code == 200
+        assert response.status_code == 200, response.json()
         payload = cast(dict[str, Any], response.json())
         items = cast(list[dict[str, Any]], payload["items"])
         for item in items:
