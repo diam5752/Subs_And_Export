@@ -124,10 +124,10 @@ for expected in \
   GSP_MOCK_EXTERNAL_SERVICES=0 \
   GSP_ELEVENLABS_ENABLED=1 \
   GSP_ELEVENLABS_API_BASE=http://edge:8081/elevenlabs \
-  GSP_PAID_CREDITS_ENABLED=0 \
-  GSP_CONSUMER_POLICY_APPROVED=0 \
-  GSP_DURABLE_CONFIRMATION_CHANNEL_READY=0 \
-  GSP_ADJUSTMENT_WORKFLOW_READY=0 \
+  GSP_PAID_CREDITS_ENABLED=1 \
+  GSP_CONSUMER_POLICY_APPROVED=1 \
+  GSP_DURABLE_CONFIRMATION_CHANNEL_READY=1 \
+  GSP_ADJUSTMENT_WORKFLOW_READY=1 \
   GSP_STRIPE_AUTOMATIC_TAX_ENABLED=0 \
   GSP_STRIPE_API_BASE=http://edge:8081/stripe \
   GSP_BILLING_ADMIN_USER_IDS= \
@@ -165,16 +165,10 @@ if ! docker exec "$backend_id" python -c '
 from backend.app.core.config import settings
 from backend.app.services.llm_utils import resolve_elevenlabs_api_key
 
-if settings.paid_credits_enabled:
-    raise SystemExit("Paid Checkout must remain disabled during Stripe staging.")
-if settings.consumer_policy_approved:
-    raise SystemExit("Consumer policy approval must remain disabled during Stripe staging.")
-if settings.durable_confirmation_channel_ready:
-    raise SystemExit("Durable confirmation approval must remain disabled during Stripe staging.")
-if settings.adjustment_workflow_ready:
-    raise SystemExit("Adjustment workflow approval must remain disabled during Stripe staging.")
+if not settings.paid_credit_checkout_enabled:
+    raise SystemExit("Paid Checkout and every independent launch gate must be enabled.")
 if settings.stripe_automatic_tax_enabled:
-    raise SystemExit("Stripe Automatic Tax must remain disabled during Stripe staging.")
+    raise SystemExit("Stripe Automatic Tax must remain disabled for the reviewed tax-inclusive catalog.")
 if settings.mock_external_services:
     raise SystemExit("Production Scribe must not run in mock mode.")
 if not settings.elevenlabs_enabled:
@@ -192,7 +186,7 @@ if actual_budgets != expected_budgets:
     raise SystemExit("Production Scribe budget caps do not match the reviewed release.")
 if not resolve_elevenlabs_api_key():
     raise SystemExit("Production Scribe API key is unavailable.")
-settings.assert_stripe_stage_configuration()
+settings.assert_paid_credits_configuration()
 '; then
   echo "Production provider or Stripe staging configuration is incomplete or unsafe." >&2
   exit 1
@@ -299,8 +293,12 @@ import json
 import sys
 
 catalog = json.load(sys.stdin)
-if catalog.get("checkout_enabled") is not False:
-    raise SystemExit("Production billing catalog must keep checkout_enabled=false")
+if catalog.get("checkout_enabled") is not True:
+    raise SystemExit("Production billing catalog must report checkout_enabled=true")
+if catalog.get("consumer_contract_status") != "approved":
+    raise SystemExit("Production billing catalog must expose the approved consumer contract")
+if not isinstance(catalog.get("consumer_contract"), dict):
+    raise SystemExit("Production billing catalog must publish the approved consumer contract")
 '
 
 if [ "$candidate_mode" -eq 0 ]; then

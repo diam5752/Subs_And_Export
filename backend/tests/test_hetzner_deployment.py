@@ -208,7 +208,7 @@ def backup_verifier_environment(
     return environment
 
 
-def test_production_compose_enables_only_budgeted_scribe_and_is_loopback_bound() -> None:
+def test_production_compose_enables_reviewed_paid_credits_and_budgeted_scribe() -> None:
     compose = deployment_text("docker-compose.production.yml")
 
     assert '"127.0.0.1:${SUBFRAME_PREVIEW_PORT:-18090}:8080"' in compose
@@ -217,10 +217,10 @@ def test_production_compose_enables_only_budgeted_scribe_and_is_loopback_bound()
     assert 'GSP_MOCK_EXTERNAL_SERVICES: "0"' in compose
     assert 'GSP_ELEVENLABS_ENABLED: "1"' in compose
     assert 'GSP_ELEVENLABS_API_BASE: "http://edge:8081/elevenlabs"' in compose
-    assert 'GSP_PAID_CREDITS_ENABLED: "0"' in compose
-    assert 'GSP_CONSUMER_POLICY_APPROVED: "0"' in compose
-    assert 'GSP_DURABLE_CONFIRMATION_CHANNEL_READY: "0"' in compose
-    assert 'GSP_ADJUSTMENT_WORKFLOW_READY: "0"' in compose
+    assert 'GSP_PAID_CREDITS_ENABLED: "1"' in compose
+    assert 'GSP_CONSUMER_POLICY_APPROVED: "1"' in compose
+    assert 'GSP_DURABLE_CONFIRMATION_CHANNEL_READY: "1"' in compose
+    assert 'GSP_ADJUSTMENT_WORKFLOW_READY: "1"' in compose
     assert 'GSP_STRIPE_AUTOMATIC_TAX_ENABLED: "0"' in compose
     assert 'GSP_STRIPE_API_BASE: "http://edge:8081/stripe"' in compose
     assert 'GSP_STRIPE_RESTRICTED_KEY: "${GSP_STRIPE_RESTRICTED_KEY:-}"' in compose
@@ -258,10 +258,10 @@ def test_production_verifier_requires_every_fail_closed_runtime_setting() -> Non
         "GSP_MOCK_EXTERNAL_SERVICES=0",
         "GSP_ELEVENLABS_ENABLED=1",
         "GSP_ELEVENLABS_API_BASE=http://edge:8081/elevenlabs",
-        "GSP_PAID_CREDITS_ENABLED=0",
-        "GSP_CONSUMER_POLICY_APPROVED=0",
-        "GSP_DURABLE_CONFIRMATION_CHANNEL_READY=0",
-        "GSP_ADJUSTMENT_WORKFLOW_READY=0",
+        "GSP_PAID_CREDITS_ENABLED=1",
+        "GSP_CONSUMER_POLICY_APPROVED=1",
+        "GSP_DURABLE_CONFIRMATION_CHANNEL_READY=1",
+        "GSP_ADJUSTMENT_WORKFLOW_READY=1",
         "GSP_STRIPE_AUTOMATIC_TAX_ENABLED=0",
         "GSP_STRIPE_API_BASE=http://edge:8081/stripe",
         "GSP_BILLING_ADMIN_USER_IDS=",
@@ -287,7 +287,9 @@ def test_production_verifier_requires_every_fail_closed_runtime_setting() -> Non
         "GSP_RETENTION_CLEANUP_ENABLED=1",
     ):
         assert expected in verifier
-    assert "settings.assert_stripe_stage_configuration()" in verifier
+    assert "settings.assert_paid_credits_configuration()" in verifier
+    assert 'catalog.get("checkout_enabled") is not True' in verifier
+    assert 'catalog.get("consumer_contract_status") != "approved"' in verifier
     assert "Stripe API relay is unavailable" in verifier
     assert "ElevenLabs API relay is unavailable" in verifier
 
@@ -1063,7 +1065,7 @@ def test_edge_routes_billing_api_and_verifier_smokes_catalog() -> None:
     assert 'health.get("status") != "ok"' in verifier
     assert 'health.get("app_env") != "production"' in verifier
     assert "/billing/catalog" in verifier
-    assert 'catalog.get("checkout_enabled") is not False' in verifier
+    assert 'catalog.get("checkout_enabled") is not True' in verifier
     assert "alembic current" in verifier
     assert "alembic current --check-heads" in verifier
 

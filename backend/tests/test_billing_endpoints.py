@@ -361,10 +361,14 @@ def test_credit_catalog_is_public_and_checkout_requires_login(client: TestClient
     catalog = client.get("/billing/catalog")
     assert catalog.status_code == 200
     assert [item["credits"] for item in catalog.json()["video_pricing"]] == [30, 60, 100]
-    assert catalog.json()["consumer_contract_status"] == "unavailable_unapproved"
-    assert catalog.json()["consumer_contract"] is None
-    assert "withdrawal_notice" not in catalog.text
-    assert "required_acceptances" not in catalog.text
+    assert catalog.json()["consumer_contract_status"] == "approved"
+    assert catalog.json()["consumer_contract"]["status"] == "approved"
+    assert catalog.json()["consumer_contract"]["content"]["withdrawal_notice"]
+    assert set(catalog.json()["consumer_contract"]["required_acceptances"]) == {
+        "terms",
+        "immediate_performance",
+        "withdrawal_consequences",
+    }
 
     checkout = client.post(
         "/billing/checkout",
@@ -446,7 +450,7 @@ def test_consumer_contract_vault_and_withdrawal_api_are_authenticated_and_durabl
     assert confirmation_document["document_type"] == "gsubs_consumer_contract_confirmation"
     assert confirmation_document["purchase"]["purchase_id"] == purchase_id
     assert confirmation_document["delivery_channel"] == "account_vault"
-    assert confirmation_document["delivery_status"] == "available_pending_external_approval"
+    assert confirmation_document["delivery_status"] == "available_approved"
 
     withdrawal_key = f"withdrawal-{uuid.uuid4().hex}"
     withdrawal_payload = {

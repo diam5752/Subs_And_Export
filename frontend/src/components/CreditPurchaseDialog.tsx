@@ -510,15 +510,44 @@ function OpenCreditPurchaseDialog({
                             </h3>
                             <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3">
                                 <p className="font-semibold text-white">
-                                    {consumerContract.trader.name}
+                                    {consumerContract.trader.legal_name}
                                 </p>
-                                <p>{consumerContract.trader.service}</p>
-                                <a
-                                    href={`mailto:${consumerContract.trader.support_email}`}
-                                    className="font-semibold text-white underline decoration-white/30 underline-offset-4"
-                                >
-                                    {consumerContract.trader.support_email}
-                                </a>
+                                <p>
+                                    {consumerContract.trader.trading_name}
+                                    {' · '}
+                                    {consumerContract.trader.service}
+                                </p>
+                                <p>
+                                    {consumerContract.trader.address_line_1}
+                                    {', '}
+                                    {consumerContract.trader.postal_code}
+                                    {' '}
+                                    {consumerContract.trader.city}
+                                    {', '}
+                                    {consumerContract.trader.country}
+                                </p>
+                                <div className="flex flex-wrap gap-x-4">
+                                    <a
+                                        href={`mailto:${consumerContract.trader.support_email}`}
+                                        className="font-semibold text-white underline decoration-white/30 underline-offset-4"
+                                    >
+                                        {consumerContract.trader.support_email}
+                                    </a>
+                                    <a
+                                        href={`tel:${consumerContract.trader.support_phone.replace(/\s/g, '')}`}
+                                        className="font-semibold text-white underline decoration-white/30 underline-offset-4"
+                                    >
+                                        {consumerContract.trader.support_phone}
+                                    </a>
+                                    <a
+                                        href={consumerContract.trader.website}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="font-semibold text-white underline decoration-white/30 underline-offset-4"
+                                    >
+                                        {consumerContract.trader.website}
+                                    </a>
+                                </div>
                             </div>
                             <p>{consumerContract.content.service_description}</p>
                             <p>{consumerContract.content.credit_description}</p>

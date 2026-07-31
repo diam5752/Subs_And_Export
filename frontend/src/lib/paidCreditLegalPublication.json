@@ -1,7 +1,7 @@
 {
-  "approval_identity_sha256": null,
+  "approval_identity_sha256": "57b90cf4d2bc5c5f076058e344b1c2536478f1d7bda9a342eefab7f32c3a998c",
   "public_terms_route": "/terms",
   "schema_version": 1,
-  "status": "inactive_unapproved",
-  "terms_version": "2026-07-26-draft-v4"
+  "status": "approved",
+  "terms_version": "2026-07-31-owner-approved-v1"
 }

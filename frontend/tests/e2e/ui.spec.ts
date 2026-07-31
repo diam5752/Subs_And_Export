@@ -883,9 +883,8 @@ for (const [label, viewport] of Object.entries(viewports)) {
         {
           path: '/terms',
           heading: el.termsPageTitle,
-          sectionHeadings: [el.termsPaidCreditsDraftTitle],
-          bodyText: el.termsPaidCreditsDraftBody,
-          absentBodyText: /προπληρωμένες εσωτερικές μονάδες|αναλογικό ποσό|Προς Ascentia \/ GSUBS/,
+          sectionHeadings: [el.termsSellerTitle, el.termsPaidCreditsScopeTitle],
+          bodyText: el.termsPaidCreditsScopeBody,
         },
       ];
       for (const legalPage of legalPages) {

@@ -16,24 +16,43 @@ from typing import Any, Literal
 ConsumerLocale = Literal["el", "en"]
 
 CONSUMER_CONTRACT_SCHEMA_VERSION = 1
-CONSUMER_POLICY_VERSION = "2026-07-26-draft-v4"
-TERMS_VERSION = "2026-07-26-draft-v4"
-WITHDRAWAL_NOTICE_VERSION = "2026-07-26-draft-v4"
-CONFIRMATION_TEMPLATE_VERSION = "2026-07-26-draft-v4"
+CONSUMER_POLICY_VERSION = "2026-07-31-owner-approved-v1"
+TERMS_VERSION = "2026-07-31-owner-approved-v1"
+WITHDRAWAL_NOTICE_VERSION = "2026-07-31-owner-approved-v1"
+CONFIRMATION_TEMPLATE_VERSION = "2026-07-31-owner-approved-v1"
 CONSUMER_CONTRACT_CLASSIFICATION = "digital_service_with_prepaid_internal_units"
-CONSUMER_CONTRACT_STATUS = "draft_unapproved"
-DURABLE_CONFIRMATION_CHANNEL_STATUS = "pending_external_approval"
-ADJUSTMENT_WORKFLOW_STATUS = "pending_accountant_approval"
-# Technical readiness is separate from accountant approval: the append-only
-# resolution and exact Stripe/AADE reference workflow exists, while launch
-# remains fail-closed until its independent status is explicitly approved.
+CONSUMER_CONTRACT_STATUS = "approved"
+DURABLE_CONFIRMATION_CHANNEL_STATUS = "approved"
+ADJUSTMENT_WORKFLOW_STATUS = "approved"
+# The owner-approved operational workflow remains deliberately manual: every
+# refund and AADE adjustment needs an explicit human decision and is recorded
+# append-only. No browser action can issue a refund or tax document by itself.
 ADJUSTMENT_WORKFLOW_IMPLEMENTED = True
 CONTRACT_CONFIRMATION_DELIVERY_CHANNEL = "account_vault"
-CONTRACT_CONFIRMATION_DELIVERY_STATUS = "available_pending_external_approval"
+CONTRACT_CONFIRMATION_DELIVERY_STATUS = "available_approved"
 APPROVED_CONTRACT_CONFIRMATION_DELIVERY_STATUS = "available_approved"
-# Filled only after a reviewed legal/operational approval. Each entry must bind
-# the exact approved version tuple and canonical localized disclosure digest.
-CONSUMER_CONTRACT_APPROVAL_MANIFEST: dict[str, dict[str, str]] = {}
+# Each entry binds the owner-approved version tuple and canonical localized
+# disclosure digest. Any wording or trader-identity change invalidates it.
+CONSUMER_CONTRACT_APPROVAL_MANIFEST: dict[str, dict[str, str]] = {
+    "el": {
+        "locale": "el",
+        "policy_version": "2026-07-31-owner-approved-v1",
+        "terms_version": "2026-07-31-owner-approved-v1",
+        "withdrawal_notice_version": "2026-07-31-owner-approved-v1",
+        "confirmation_template_version": "2026-07-31-owner-approved-v1",
+        "disclosure_id": "gsubs-b2c-el-2026-07-31-owner-approved-v1",
+        "disclosure_sha256": "8049c2378e4094f880173a0b74c0dab1d6ac4bb417c9ff0f23afff8d5f2f5172",
+    },
+    "en": {
+        "locale": "en",
+        "policy_version": "2026-07-31-owner-approved-v1",
+        "terms_version": "2026-07-31-owner-approved-v1",
+        "withdrawal_notice_version": "2026-07-31-owner-approved-v1",
+        "confirmation_template_version": "2026-07-31-owner-approved-v1",
+        "disclosure_id": "gsubs-b2c-en-2026-07-31-owner-approved-v1",
+        "disclosure_sha256": "a93add55cde6b65dc41c518d1b99e492293adad84e733cc1f2d927f6ec62dea4",
+    },
+}
 PAID_CREDIT_LEGAL_PUBLICATION_IDENTITY: object = json.loads(
     Path(__file__).with_name("paid_credit_legal_publication.json").read_text(encoding="utf-8")
 )
@@ -81,7 +100,7 @@ class _Disclosure:
 _DISCLOSURES: tuple[_Disclosure, ...] = (
     _Disclosure(
         locale="el",
-        disclosure_id="gsubs-b2c-el-2026-07-26-draft-v4",
+        disclosure_id="gsubs-b2c-el-2026-07-31-owner-approved-v1",
         title="Προσυμβατικές πληροφορίες αγοράς GSUBS credits",
         service_description=(
             "Το GSUBS παρέχει ψηφιακή υπηρεσία επεξεργασίας αρχείων βίντεο και "
@@ -163,7 +182,7 @@ _DISCLOSURES: tuple[_Disclosure, ...] = (
     ),
     _Disclosure(
         locale="en",
-        disclosure_id="gsubs-b2c-en-2026-07-26-draft-v4",
+        disclosure_id="gsubs-b2c-en-2026-07-31-owner-approved-v1",
         title="Pre-contract information for a GSUBS credit purchase",
         service_description=(
             "GSUBS provides a digital service that processes video and audio "
@@ -344,9 +363,16 @@ def public_consumer_contract(locale: str) -> dict[str, Any]:
         "withdrawal_url": "/account/billing",
         "model_withdrawal_form_url": "/terms#withdrawal",
         "trader": {
-            "name": "Ascentia",
+            "legal_name": "Ascentia G.P.",
+            "trading_name": "Ascentia",
             "service": "GSUBS",
+            "address_line_1": "Agias Varvaras 4",
+            "postal_code": "16452",
+            "city": "Argiroupoli, Athens",
+            "country": "GR",
             "support_email": "info@ascentia-gp.com",
+            "support_phone": "+30 698 756 4060",
+            "website": "https://ascentia-gp.com/",
         },
         "content": content,
         "required_acceptances": acceptances,

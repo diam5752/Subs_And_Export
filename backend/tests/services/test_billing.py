@@ -908,7 +908,7 @@ def test_pending_checkout_fulfills_against_its_immutable_catalog_snapshot_after_
         assert confirmation is not None
         assert confirmation.schema_version == 1
         assert confirmation.delivery_channel == "account_vault"
-        assert confirmation.delivery_status == "available_pending_external_approval"
+        assert confirmation.delivery_status == "available_approved"
         verify_contract_confirmation(
             confirmation,
             purchase=fulfilled,

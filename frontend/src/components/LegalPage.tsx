@@ -42,6 +42,11 @@ const sections: Record<LegalPageKind, LegalSection[]> = {
 
 const paidCreditSections: LegalSection[] = [
     {
+        id: 'seller',
+        title: 'termsSellerTitle',
+        body: 'termsSellerBody',
+    },
+    {
         id: 'paid-credits',
         title: 'termsPaidCreditsScopeTitle',
         body: 'termsPaidCreditsScopeBody',

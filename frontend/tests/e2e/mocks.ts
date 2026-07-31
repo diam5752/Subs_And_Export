@@ -170,6 +170,51 @@ const mockHistory: MockHistoryEvent[] = [
   },
 ];
 
+const mockApprovedConsumerContract = {
+  schema_version: 1,
+  status: 'approved',
+  classification: 'digital_service_with_prepaid_internal_units',
+  disclosure_id: 'gsubs-b2c-el-2026-07-31-owner-approved-v1',
+  disclosure_sha256: 'a'.repeat(64),
+  locale: 'el',
+  policy_version: '2026-07-31-owner-approved-v1',
+  terms_version: '2026-07-31-owner-approved-v1',
+  withdrawal_notice_version: '2026-07-31-owner-approved-v1',
+  confirmation_template_version: '2026-07-31-owner-approved-v1',
+  terms_url: '/terms',
+  withdrawal_url: '/account/billing',
+  model_withdrawal_form_url: '/terms#withdrawal',
+  trader: {
+    legal_name: 'Ascentia G.P.',
+    trading_name: 'Ascentia',
+    service: 'GSUBS',
+    address_line_1: 'Agias Varvaras 4',
+    postal_code: '16452',
+    city: 'Argiroupoli, Athens',
+    country: 'GR',
+    support_email: 'info@ascentia-gp.com',
+    support_phone: '+30 698 756 4060',
+    website: 'https://ascentia-gp.com/',
+  },
+  content: {
+    title: 'Προσυμβατικές πληροφορίες αγοράς GSUBS credits',
+    service_description: 'Ψηφιακή υπηρεσία επεξεργασίας βίντεο και ήχου.',
+    credit_description: 'Τα credits είναι προπληρωμένες εσωτερικές μονάδες.',
+    purchase_terms: 'Η αγορά είναι εφάπαξ και δεν αποτελεί συνδρομή.',
+    delivery_timing: 'Τα credits αποδίδονται μετά την επιβεβαίωση πληρωμής.',
+    validity_and_transfer: 'Δεν λήγουν αυτόματα και δεν μεταβιβάζονται.',
+    functionality: 'Η επεξεργασία καταναλώνει credits.',
+    compatibility: 'Απαιτείται υποστηριζόμενο πρόγραμμα περιήγησης.',
+    withdrawal_notice: 'Ισχύουν οι δημοσιευμένοι όροι υπαναχώρησης.',
+    manual_review_notice: 'Οι επιστροφές και διορθώσεις ελέγχονται χειροκίνητα.',
+  },
+  required_acceptances: {
+    terms: 'Αποδέχομαι τους όρους και την προσυμβατική ενημέρωση.',
+    immediate_performance: 'Ζητώ να αρχίσει άμεσα η παροχή της υπηρεσίας.',
+    withdrawal_consequences: 'Κατανοώ τις συνέπειες για το δικαίωμα υπαναχώρησης.',
+  },
+};
+
 const unauthorizedResponse = {
   status: 401,
   headers: corsHeaders,
@@ -289,15 +334,15 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
     }));
   });
 
-  await page.route('**/billing/catalog', async (route) => {
+  await page.route(/\/billing\/catalog(?:\?.*)?$/, async (route) => {
     if (await shortCircuitOptions(route)) return;
     await route.fulfill(withCors({
       catalog_version: '2026-07-23-v1',
       currency: 'eur',
       billing_country_scope: ['GR'],
-      checkout_enabled: false,
-      consumer_contract_status: 'unavailable_unapproved',
-      consumer_contract: null,
+      checkout_enabled: true,
+      consumer_contract_status: 'approved',
+      consumer_contract: mockApprovedConsumerContract,
       packages: [
         { key: 'starter', credits: 100, amount_eur_cents: 100, featured: false },
         { key: 'core', credits: 350, amount_eur_cents: 300, featured: true },

@@ -68,9 +68,16 @@ const consumerContract = {
     withdrawal_url: '/account/billing',
     model_withdrawal_form_url: '/terms#withdrawal',
     trader: {
-        name: 'Ascentia',
+        legal_name: 'Ascentia G.P.',
+        trading_name: 'Ascentia',
         service: 'GSUBS',
+        address_line_1: 'Agias Varvaras 4',
+        postal_code: '16452',
+        city: 'Argiroupoli, Athens',
+        country: 'GR' as const,
         support_email: 'info@ascentia-gp.com',
+        support_phone: '+30 698 756 4060',
+        website: 'https://ascentia-gp.com/',
     },
     content: {
         title: 'Consumer contract',
@@ -594,21 +601,42 @@ describe('CreditPurchaseDialog', () => {
         const disclosureTitle = screen.getByRole('heading', {
             name: consumerContract.content.title,
         });
-        const traderName = screen.getByText(consumerContract.trader.name);
-        const traderService = screen.getByText(consumerContract.trader.service);
+        const traderName = screen.getByText(
+            consumerContract.trader.legal_name,
+        );
+        const traderService = screen.getByText(
+            `${consumerContract.trader.trading_name} · ${consumerContract.trader.service}`,
+        );
+        const traderAddress = screen.getByText(
+            `${consumerContract.trader.address_line_1}, ${consumerContract.trader.postal_code} ${consumerContract.trader.city}, ${consumerContract.trader.country}`,
+        );
         const traderEmail = screen.getByRole('link', {
             name: consumerContract.trader.support_email,
+        });
+        const traderPhone = screen.getByRole('link', {
+            name: consumerContract.trader.support_phone,
+        });
+        const traderWebsite = screen.getByRole('link', {
+            name: consumerContract.trader.website,
         });
         expect(traderEmail).toHaveAttribute(
             'href',
             `mailto:${consumerContract.trader.support_email}`,
+        );
+        expect(traderPhone).toHaveAttribute('href', 'tel:+306987564060');
+        expect(traderWebsite).toHaveAttribute(
+            'href',
+            consumerContract.trader.website,
         );
 
         const firstConsent = screen.getAllByRole('checkbox')[0];
         const canonicalDisclosureElements = [
             traderName,
             traderService,
+            traderAddress,
             traderEmail,
+            traderPhone,
+            traderWebsite,
             ...Object.values(consumerContract.content).map((text) => (
                 screen.getByText(text)
             )),
