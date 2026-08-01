@@ -1,6 +1,6 @@
 # Prepaid video credits and Stripe handoff
 
-Updated: 2026-07-31
+Updated: 2026-08-01
 
 Stripe test-mode Checkout and the complete live production configuration have
 been validated. Production paid credits are enabled only by the reviewed,
@@ -129,6 +129,13 @@ Current official references:
 12. New wallets start at zero credits at both application and database level.
     Historical balances are preserved; paid external-provider work can spend
     only purchased credits.
+13. The $0.05 per-request circuit breaker remains narrowly above the guarded
+    cost of a maximum ten-minute Scribe v2 job. The $10 daily and $100 monthly
+    global ceilings are emergency launch controls, not the source of unit
+    economics: at the official $0.22/hour rate and 1.25 reserve multiplier they
+    allow more than 200 maximum-length jobs per day and 2,000 per month. Every
+    one of those jobs still requires prepaid credits and passes the independent
+    3x contribution guard before provider dispatch.
 
 ## Live accounting and consumer contract
 
@@ -243,16 +250,16 @@ GSP_STRIPE_AUTOMATIC_TAX_ENABLED=0
 GSP_BILLING_ADMIN_USER_IDS=
 
 GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD=0.05
-GSP_EXTERNAL_PROVIDER_DAILY_BUDGET_USD=0.25
-GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD=0.75
+GSP_EXTERNAL_PROVIDER_DAILY_BUDGET_USD=10
+GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD=100
 GSP_EXTERNAL_PROVIDER_PRICE_SAFETY_MULTIPLIER=1.25
 ```
 
 With `GSP_PAID_CREDITS_ENABLED=1`, startup rejects a missing/ordinary Stripe
 key, missing webhook secret, missing Price ID, unsafe production return URL or
 Automatic Tax enabled against the approved manual tax workflow. Provider
-budgets remain the reviewed production caps and are consumed only by requests
-backed by purchased credits.
+budgets remain the reviewed production circuit breakers and are consumed only
+by requests backed by purchased credits.
 
 `GSP_BILLING_ADMIN_USER_IDS` accepts a comma-separated allowlist of immutable
 internal `users.id` values. Email addresses, malformed entries, duplicates and

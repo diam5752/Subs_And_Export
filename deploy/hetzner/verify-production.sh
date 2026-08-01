@@ -141,8 +141,8 @@ for expected in \
   GOOGLE_REDIRECT_URI= \
   GSP_GOOGLE_OAUTH_CERTS_URL=http://edge:8081/oauth2/v1/certs \
   GSP_GOOGLE_AUTH_NONCE_TTL_SECONDS=600 \
-  GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD=0.75 \
-  GSP_EXTERNAL_PROVIDER_DAILY_BUDGET_USD=0.25 \
+  GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD=100 \
+  GSP_EXTERNAL_PROVIDER_DAILY_BUDGET_USD=10 \
   GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD=0.05 \
   GSP_EXTERNAL_PROVIDER_PRICE_SAFETY_MULTIPLIER=1.25 \
   GSP_WORKSPACE_RETENTION_HOURS=24 \
@@ -175,7 +175,7 @@ if not settings.elevenlabs_enabled:
     raise SystemExit("Production Scribe must be enabled.")
 if settings.elevenlabs_api_base != "http://edge:8081/elevenlabs":
     raise SystemExit("Production Scribe must use the scoped internal relay.")
-expected_budgets = (0.75, 0.25, 0.05, 1.25)
+expected_budgets = (100.0, 10.0, 0.05, 1.25)
 actual_budgets = (
     settings.external_provider_monthly_budget_usd,
     settings.external_provider_daily_budget_usd,
