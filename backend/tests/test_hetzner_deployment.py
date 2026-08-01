@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 import shutil
 import subprocess
 import time
+from decimal import Decimal
 from pathlib import Path
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
@@ -14,6 +16,18 @@ SUBPROCESS_START_TIMEOUT_SECONDS = 15.0
 
 def deployment_text(filename: str) -> str:
     return (DEPLOYMENT_ROOT / filename).read_text(encoding="utf-8")
+
+
+def production_compose_decimal(name: str) -> Decimal:
+    compose = deployment_text("docker-compose.production.yml")
+    match = re.search(
+        rf"^\s+{re.escape(name)}: \"([0-9]+(?:\.[0-9]+)?)\"$",
+        compose,
+        flags=re.MULTILINE,
+    )
+    if match is None:
+        raise AssertionError(f"Missing production budget setting: {name}")
+    return Decimal(match.group(1))
 
 
 def write_executable(path: Path, content: str) -> None:
@@ -239,14 +253,43 @@ def test_production_compose_enables_reviewed_paid_credits_and_budgeted_scribe() 
     assert 'GOOGLE_CLIENT_SECRET: ""' in compose
     assert 'GOOGLE_REDIRECT_URI: ""' in compose
     assert 'GSP_GOOGLE_OAUTH_CERTS_URL: "http://edge:8081/oauth2/v1/certs"' in compose
-    assert 'GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD: "0.75"' in compose
-    assert 'GSP_EXTERNAL_PROVIDER_DAILY_BUDGET_USD: "0.25"' in compose
+    assert 'GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD: "100"' in compose
+    assert 'GSP_EXTERNAL_PROVIDER_DAILY_BUDGET_USD: "10"' in compose
     assert 'GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD: "0.05"' in compose
     assert 'GSP_EXTERNAL_PROVIDER_PRICE_SAFETY_MULTIPLIER: "1.25"' in compose
     assert "NEXT_PUBLIC_TRANSCRIBE_PROVIDER: elevenlabs" in compose
     assert "NEXT_PUBLIC_TRANSCRIBE_MODE: pro" in compose
     assert "external: true" in compose
     assert "name: mizai_mizai-private" in compose
+
+
+def test_production_provider_budget_is_launch_capacity_not_demo_capacity() -> None:
+    # REGRESSION: the original $0.25/day and $0.75/month trial ceilings could
+    # stop paid customer work after only a handful of videos even though every
+    # provider request is already prepaid and protected by the 3x economics
+    # guard. Keep the per-request circuit breaker tight while giving the
+    # global emergency ceilings enough capacity for a controlled public launch.
+    per_request = production_compose_decimal(
+        "GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD",
+    )
+    daily = production_compose_decimal(
+        "GSP_EXTERNAL_PROVIDER_DAILY_BUDGET_USD",
+    )
+    monthly = production_compose_decimal(
+        "GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD",
+    )
+    safety_multiplier = production_compose_decimal(
+        "GSP_EXTERNAL_PROVIDER_PRICE_SAFETY_MULTIPLIER",
+    )
+
+    guarded_ten_minute_scribe_cost = (
+        Decimal("10") / Decimal("60") * Decimal("0.22") * safety_multiplier
+    )
+    assert guarded_ten_minute_scribe_cost <= per_request
+    assert per_request < guarded_ten_minute_scribe_cost * Decimal("1.10")
+    assert daily / guarded_ten_minute_scribe_cost >= Decimal("200")
+    assert monthly / guarded_ten_minute_scribe_cost >= Decimal("2000")
+    assert monthly == daily * Decimal("10")
 
 
 def test_production_verifier_requires_every_fail_closed_runtime_setting() -> None:
@@ -275,8 +318,8 @@ def test_production_verifier_requires_every_fail_closed_runtime_setting() -> Non
         "GOOGLE_REDIRECT_URI=",
         "GSP_GOOGLE_OAUTH_CERTS_URL=http://edge:8081/oauth2/v1/certs",
         "GSP_GOOGLE_AUTH_NONCE_TTL_SECONDS=600",
-        "GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD=0.75",
-        "GSP_EXTERNAL_PROVIDER_DAILY_BUDGET_USD=0.25",
+        "GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD=100",
+        "GSP_EXTERNAL_PROVIDER_DAILY_BUDGET_USD=10",
         "GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD=0.05",
         "GSP_EXTERNAL_PROVIDER_PRICE_SAFETY_MULTIPLIER=1.25",
         "GSP_WORKSPACE_RETENTION_HOURS=24",
@@ -326,8 +369,8 @@ def test_production_environment_defaults_do_not_prune_shared_cache() -> None:
     assert "GSP_ELEVENLABS_ENABLED=1" in environment
     assert "GSP_ELEVENLABS_API_BASE=http://edge:8081/elevenlabs" in environment
     assert "ELEVENLABS_API_KEY=" in environment
-    assert "GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD=0.75" in environment
-    assert "GSP_EXTERNAL_PROVIDER_DAILY_BUDGET_USD=0.25" in environment
+    assert "GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD=100" in environment
+    assert "GSP_EXTERNAL_PROVIDER_DAILY_BUDGET_USD=10" in environment
     assert "GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD=0.05" in environment
     assert "google_client_id=$(env_value GOOGLE_CLIENT_ID)" in verifier
     assert "billing_admin_user_ids=$(env_value GSP_BILLING_ADMIN_USER_IDS)" not in verifier

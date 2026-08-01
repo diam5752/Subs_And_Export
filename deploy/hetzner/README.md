@@ -16,10 +16,16 @@ The tracked production Compose file enables only ElevenLabs Scribe v2 for
 caption transcription. The API key stays in the untracked, mode-0600
 `.env.production` file and the internal-only backend can reach exactly
 `POST /v1/speech-to-text` through a method/path-scoped edge relay. Production
-hard-caps provider reservations at $0.75/month, $0.25/day and $0.05/request
-with the 1.25 safety multiplier. Missing credentials, a closed budget, an
-unsupported tier/provider pair or a provider error fails closed before work is
-accepted or refunds the idempotent reservation.
+hard-caps provider reservations at $100/month, $10/day and $0.05/request with
+the 1.25 safety multiplier. The global limits are emergency circuit breakers,
+not ordinary customer quotas: every external request must first reserve
+already-purchased credits and pass the independent 3x contribution-margin
+guard. At the current official Scribe v2 price of $0.22/hour, the tracked
+limits support more than 200 guarded ten-minute jobs per day and 2,000 per
+month while keeping one compromised request below five cents. Missing
+credentials, a closed budget, an unsupported tier/provider pair or a provider
+error fails closed before work is accepted or refunds the idempotent
+reservation.
 
 Paid Checkout is enabled by the tracked release contract:
 `GSP_PAID_CREDITS_ENABLED=1`, with the consumer-policy,
