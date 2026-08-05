@@ -269,10 +269,9 @@ def test_run_video_processing_refunds_when_job_disappears_on_worker_error(
     expected_status: str,
 ) -> None:
     monkeypatch.setattr(config.settings, "data_dir", tmp_path)
-    current = types.SimpleNamespace(status="processing")
     job_store = MagicMock()
-    job_store.get_job.side_effect = [current, None]
-    job_store.update_job.return_value = None
+    job_store.get_job.return_value = None
+    job_store.update_job_if_status.return_value = True
     monkeypatch.setattr(
         processing_tasks,
         "process_video_pipeline",
@@ -308,7 +307,9 @@ def test_run_video_processing_refunds_when_job_disappears_on_worker_error(
         error=str(pipeline_error),
     )
     failed_updates = [
-        call for call in job_store.update_job.call_args_list if call.kwargs.get("status") in {"failed", "cancelled"}
+        call
+        for call in job_store.update_job_if_status.call_args_list
+        if call.kwargs.get("status") in {"failed", "cancelled"}
     ]
     assert failed_updates == []
 
@@ -318,10 +319,10 @@ def test_run_video_processing_observes_cancellation_during_pipeline(
     tmp_path: Path,
 ) -> None:
     monkeypatch.setattr(config.settings, "data_dir", tmp_path)
-    active = types.SimpleNamespace(status="processing", user_id="cancelled-user")
     cancelled = types.SimpleNamespace(status="cancelled", user_id="cancelled-user")
     job_store = MagicMock()
-    job_store.get_job.side_effect = [active, cancelled, cancelled]
+    job_store.get_job.side_effect = [cancelled, cancelled]
+    job_store.update_job_if_status.side_effect = [True, False]
     job_id = "cancelled-during-pipeline"
     uploads_dir = tmp_path / "uploads"
     artifact_dir = tmp_path / "artifacts" / job_id
@@ -381,8 +382,9 @@ def test_run_video_processing_observes_cancellation_during_pipeline(
         source_probe=types.SimpleNamespace(duration_s=1.0),
     )
 
-    job_store.update_job.assert_any_call(
+    job_store.update_job_if_status.assert_any_call(
         "cancelled-during-pipeline",
+        expected_statuses={"pending", "processing"},
         status="cancelled",
         message="Cancelled by user",
     )
@@ -412,6 +414,7 @@ def test_run_video_processing_failure_erases_only_failed_workspace(
     active = types.SimpleNamespace(status="processing", user_id="failed-user")
     job_store = MagicMock()
     job_store.get_job.return_value = active
+    job_store.update_job_if_status.return_value = True
     job_id = "failed-local-job"
     uploads_dir = tmp_path / "uploads"
     artifact_dir = tmp_path / "artifacts" / job_id
@@ -456,8 +459,9 @@ def test_run_video_processing_failure_erases_only_failed_workspace(
         source_probe=types.SimpleNamespace(duration_s=1.0),
     )
 
-    job_store.update_job.assert_any_call(
+    job_store.update_job_if_status.assert_any_call(
         job_id,
+        expected_statuses={"pending", "processing"},
         status="failed",
         message="provider failed",
     )
@@ -485,6 +489,7 @@ def test_terminal_workspace_cleanup_fails_closed_when_journal_is_unavailable(
     active = types.SimpleNamespace(status="processing", user_id="private-user")
     job_store = MagicMock()
     job_store.get_job.return_value = active
+    job_store.update_job_if_status.return_value = True
     job_id = "unjournaled-terminal-job"
     input_path = tmp_path / "uploads" / f"{job_id}_input.mp4"
     artifact_dir = tmp_path / "artifacts" / job_id
@@ -523,8 +528,9 @@ def test_terminal_workspace_cleanup_fails_closed_when_journal_is_unavailable(
         user_id="private-user",
         job_ids=[job_id],
     )
-    job_store.update_job.assert_any_call(
+    job_store.update_job_if_status.assert_any_call(
         job_id,
+        expected_statuses={"pending", "processing"},
         status="failed",
         message="Privacy cleanup could not be recorded",
     )
@@ -541,6 +547,7 @@ def test_duplicate_paid_dispatch_does_not_fail_or_refund_winner(
     active = types.SimpleNamespace(status="processing")
     job_store = MagicMock()
     job_store.get_job.return_value = active
+    job_store.update_job_if_status.return_value = True
     monkeypatch.setattr(
         processing_tasks,
         "process_video_pipeline",
@@ -575,7 +582,7 @@ def test_duplicate_paid_dispatch_does_not_fail_or_refund_winner(
 
     assert not any(
         call.kwargs.get("status") == "failed"
-        for call in job_store.update_job.call_args_list
+        for call in job_store.update_job_if_status.call_args_list
     )
     ledger_store.refund_if_reserved.assert_not_called()
 
@@ -587,7 +594,8 @@ def test_run_video_processing_refunds_if_job_disappears_after_completion_update(
     monkeypatch.setattr(config.settings, "data_dir", tmp_path)
     active = types.SimpleNamespace(status="processing")
     job_store = MagicMock()
-    job_store.get_job.side_effect = [active, active, None]
+    job_store.get_job.side_effect = [active, None]
+    job_store.update_job_if_status.return_value = True
     output_path = tmp_path / "artifacts" / "job" / "processed.mp4"
 
     def process(*_args, **_kwargs):
@@ -620,7 +628,9 @@ def test_run_video_processing_refunds_if_job_disappears_after_completion_update(
     )
 
     completion_updates = [
-        call for call in job_store.update_job.call_args_list if call.kwargs.get("status") == "completed"
+        call
+        for call in job_store.update_job_if_status.call_args_list
+        if call.kwargs.get("status") == "completed"
     ]
     assert len(completion_updates) == 1
     cleanup.assert_called_once()

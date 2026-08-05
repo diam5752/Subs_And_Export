@@ -88,6 +88,63 @@ def test_job_store_lifecycle(tmp_path: Path):
     assert len(store.list_jobs_for_user(user_id)) == 0
 
 
+def test_job_store_compare_and_set_preserves_cancelled_as_terminal() -> None:
+    db = Database()
+    store = jobs.JobStore(db)
+    user_id = (
+        backend_auth.UserStore(db=db)
+        .register_local_user(
+            f"job-cas-{uuid.uuid4().hex}@example.com",
+            "testpassword123",
+            "Job CAS",
+        )
+        .id
+    )
+    job = store.create_job(f"job-cas-{uuid.uuid4().hex}", user_id)
+
+    # REGRESSION: separate read/write worker updates could overwrite a
+    # concurrent cancellation with processing, completion, or failure.
+    assert store.update_job_if_status(
+        job.id,
+        expected_statuses={"pending"},
+        status="processing",
+        progress=1,
+        message="Started",
+    )
+    assert store.update_job_if_status(
+        job.id,
+        expected_statuses={"pending", "processing"},
+        status="cancelled",
+        message="Cancelled by user",
+    )
+    assert not store.update_job_if_status(
+        job.id,
+        expected_statuses={"processing"},
+        status="completed",
+        progress=100,
+        message="Done!",
+        result_data={"video_path": "late.mp4"},
+    )
+    assert not store.update_job_if_status(
+        job.id,
+        expected_statuses={"processing"},
+        status="failed",
+        message="late failure",
+    )
+    assert not store.update_job_if_status(
+        job.id,
+        expected_statuses=set(),
+        progress=75,
+    )
+
+    cancelled = store.get_job(job.id)
+    assert cancelled is not None
+    assert cancelled.status == "cancelled"
+    assert cancelled.progress == 1
+    assert cancelled.message == "Cancelled by user"
+    assert cancelled.result_data is None
+
+
 def test_job_store_lists_are_scoped_unbounded_and_deterministic() -> None:
     db = Database()
     store = jobs.JobStore(db)
@@ -423,6 +480,106 @@ def test_run_video_processing_does_not_restart_cancelled_job_and_refunds(monkeyp
     assert points_store.get_balance(user_id) == starting_balance
     cancelled = job_store.get_job(job.id)
     assert cancelled and cancelled.status == "cancelled"
+
+
+def test_run_video_processing_failure_cannot_overwrite_concurrent_cancellation(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    # REGRESSION: a worker exception after cancellation used to replace the
+    # terminal cancelled state with failed through an unconditional update.
+    monkeypatch.setattr(config.settings, "project_root", tmp_path)
+    db = Database()
+    store = jobs.JobStore(db)
+    user_id = (
+        backend_auth.UserStore(db=db)
+        .register_local_user(
+            f"cancel-failure-race-{uuid.uuid4().hex}@example.com",
+            "testpassword123",
+            "Cancellation Race",
+        )
+        .id
+    )
+    job = store.create_job(f"job-cancel-failure-{uuid.uuid4().hex}", user_id)
+    input_path = tmp_path / "cancel-failure-input.mp4"
+    input_path.write_bytes(b"data")
+    artifact_dir = tmp_path / "cancel-failure-artifacts"
+    output_path = artifact_dir / "out.mp4"
+
+    def cancel_then_fail(*_args, **_kwargs):
+        store.update_job(job.id, status="cancelled", message="Cancelled by user")
+        raise RuntimeError("late worker failure")
+
+    monkeypatch.setattr(processing_tasks, "process_video_pipeline", cancel_then_fail)
+
+    processing_tasks.run_video_processing(
+        job.id,
+        input_path,
+        output_path,
+        artifact_dir,
+        ProcessingSettings(),
+        store,
+    )
+
+    cancelled = store.get_job(job.id)
+    assert cancelled is not None
+    assert cancelled.status == "cancelled"
+    assert cancelled.message == "Cancelled by user"
+
+
+def test_run_video_processing_completion_cannot_overwrite_concurrent_cancellation(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    # REGRESSION: cancellation could win after the worker's final status read
+    # but lose to its later unconditional completed write.
+    monkeypatch.setattr(config.settings, "project_root", tmp_path)
+    db = Database()
+    store = jobs.JobStore(db)
+    user_id = (
+        backend_auth.UserStore(db=db)
+        .register_local_user(
+            f"cancel-completion-race-{uuid.uuid4().hex}@example.com",
+            "testpassword123",
+            "Completion Race",
+        )
+        .id
+    )
+    job = store.create_job(f"job-cancel-completion-{uuid.uuid4().hex}", user_id)
+    input_path = tmp_path / "cancel-completion-input.mp4"
+    input_path.write_bytes(b"data")
+    artifact_dir = tmp_path / "cancel-completion-artifacts"
+    output_path = artifact_dir / "out.mp4"
+
+    def cancel_after_final_check(*_args, **_kwargs):
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_bytes(b"late output")
+        return output_path
+
+    original_update = store.update_job_if_status
+
+    def race_completion(job_id: str, **kwargs):
+        if kwargs.get("status") == "completed":
+            store.update_job(job_id, status="cancelled", message="Cancelled by user")
+        return original_update(job_id, **kwargs)
+
+    monkeypatch.setattr(processing_tasks, "process_video_pipeline", cancel_after_final_check)
+    monkeypatch.setattr(store, "update_job_if_status", race_completion)
+
+    processing_tasks.run_video_processing(
+        job.id,
+        input_path,
+        output_path,
+        artifact_dir,
+        ProcessingSettings(),
+        store,
+    )
+
+    cancelled = store.get_job(job.id)
+    assert cancelled is not None
+    assert cancelled.status == "cancelled"
+    assert cancelled.message == "Cancelled by user"
+    assert cancelled.result_data is None
 
 
 def test_process_video_rejects_invalid_extension(client: TestClient):

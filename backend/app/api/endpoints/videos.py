@@ -31,7 +31,7 @@ from ...core.database import Database
 from ...core.erasure_journal import TombstoneKind, configured_erasure_journal
 from ...core.errors import sanitize_message
 from ...core.ratelimit import limiter_processing
-from ...core.workspace_deletion import delete_job_workspace
+from ...core.workspace_deletion import UPLOAD_SUFFIXES, delete_job_workspace
 from ...schemas.base import JobResponse
 from ...services import pricing
 from ...services.charge_plans import reserve_processing_charges
@@ -164,7 +164,38 @@ def _record_and_delete_rejected_upload(
     kind: TombstoneKind,
     job_store: JobStore | None = None,
 ) -> None:
-    """Persist restore-safe intent before deleting a rejected upload workspace."""
+    """Delete rejected media, retaining intent only when cleanup is uncertain."""
+    if kind == "workspace":
+        try:
+            delete_job_workspace(
+                job_id=job_id,
+                uploads_dir=input_path.parent,
+                artifacts_dir=artifacts_root,
+            )
+            artifact_path = artifacts_root / job_id
+            expected_stem = f"{job_id}_input"
+            upload_remains = input_path.exists() or input_path.is_symlink()
+            if input_path.parent.exists():
+                upload_remains = upload_remains or any(
+                    item.stem == expected_stem and item.suffix.lower() in UPLOAD_SUFFIXES
+                    for item in input_path.parent.iterdir()
+                )
+            artifact_remains = artifact_path.exists() or artifact_path.is_symlink()
+            if upload_remains or artifact_remains:
+                raise RuntimeError("Rejected upload cleanup could not be verified")
+        except Exception:
+            # The workspace has no database row yet. A durable retry is needed
+            # only when exact synchronous deletion failed or was ambiguous.
+            configured_erasure_journal().append(
+                kind=kind,
+                user_id=user_id,
+                job_ids=[job_id],
+            )
+            raise
+        return
+
+    # Once a job row may exist, record restore-safe intent before deleting
+    # either filesystem or database state.
     configured_erasure_journal().append(
         kind=kind,
         user_id=user_id,

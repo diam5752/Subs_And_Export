@@ -62,6 +62,10 @@ def assert_runtime_privacy_configuration() -> None:
         raise RuntimeError(
             "Production erasure journal continuity state is required.",
         )
+    if not settings.is_dev and settings.erasure_journal_anchor_path is None:
+        raise RuntimeError(
+            "Production erasure journal external anchor path is required.",
+        )
     configured_erasure_journal().read_all()
 
 
@@ -324,6 +328,7 @@ async def serve_static(
 
 # Include Routers
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
+app.include_router(auth.media_router, tags=["auth"])
 app.include_router(videos.router, prefix="/videos", tags=["videos"])
 app.include_router(history.router, prefix="/history", tags=["history"])
 app.include_router(billing.router, prefix="/billing", tags=["billing"])

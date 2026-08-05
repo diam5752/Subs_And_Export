@@ -4,6 +4,7 @@ import json
 import os
 import stat
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -29,25 +30,223 @@ def test_journal_append_is_durable_private_and_canonical(tmp_path: Path) -> None
     assert stat.S_IMODE(journal.root.stat().st_mode) == 0o700
     assert stat.S_IMODE(journal.journal_path.stat().st_mode) == 0o600
     assert stat.S_IMODE(journal.lock_path.stat().st_mode) == 0o600
+    assert stat.S_IMODE(journal.checkpoint_path.stat().st_mode) == 0o600
 
 
 def test_journal_requires_matching_live_volume_continuity(tmp_path: Path) -> None:
     continuity_id = "a" * 64
     root = tmp_path / "journal"
+    anchor_path = tmp_path / "host-state" / "erasure-journal-anchor.json"
     journal = ErasureJournal(
         root,
         retention_days=30,
         expected_continuity_id=continuity_id,
+        anchor_path=anchor_path,
     )
 
     with pytest.raises(ErasureJournalError, match="continuity is unavailable"):
         journal.read_all()
 
+    root.mkdir(exist_ok=True)
     journal.continuity_path.write_text(f"{continuity_id}\n", encoding="ascii")
+    # REGRESSION: a matching static marker must never make a missing ledger
+    # look like an authoritative empty erasure history.
+    with pytest.raises(ErasureJournalError, match="has not been initialized"):
+        journal.read_all()
+
+    journal.initialize()
     assert journal.read_all() == []
 
     journal.continuity_path.write_text(f"{'b' * 64}\n", encoding="ascii")
     with pytest.raises(ErasureJournalError, match="does not match this host"):
+        journal.read_all()
+
+
+def test_journal_detects_missing_truncated_and_rolled_back_state(tmp_path: Path) -> None:
+    continuity_id = "d" * 64
+    root = tmp_path / "journal"
+    root.mkdir()
+    (root / ".continuity-id").write_text(f"{continuity_id}\n", encoding="ascii")
+    anchor_path = tmp_path / "host-state" / "erasure-journal-anchor.json"
+    journal = ErasureJournal(
+        root,
+        retention_days=30,
+        expected_continuity_id=continuity_id,
+        anchor_path=anchor_path,
+    )
+    journal.initialize()
+    first = journal.append(
+        kind="job",
+        user_id="user-1",
+        job_ids=["job-1"],
+        now=1_800_000_000,
+    )
+    first_ledger = journal.journal_path.read_bytes()
+    first_checkpoint = journal.checkpoint_path.read_bytes()
+    journal.append(
+        kind="job",
+        user_id="user-1",
+        job_ids=["job-2"],
+        now=1_800_000_001,
+    )
+    current_ledger = journal.journal_path.read_bytes()
+    current_checkpoint = journal.checkpoint_path.read_bytes()
+    current_anchor = anchor_path.read_bytes()
+
+    # REGRESSION: a valid earlier ledger prefix is still a rollback, not a
+    # valid journal, once a newer generation has been acknowledged.
+    journal.journal_path.write_bytes(first_ledger)
+    with pytest.raises(ErasureJournalError, match="ledger does not match its checkpoint"):
+        journal.read_all()
+
+    journal.journal_path.write_bytes(first_ledger)
+    journal.checkpoint_path.write_bytes(first_checkpoint)
+    with pytest.raises(ErasureJournalError, match="older than the external anchor"):
+        journal.read_all()
+
+    journal.journal_path.write_bytes(current_ledger)
+    journal.checkpoint_path.write_bytes(current_checkpoint)
+    anchor_path.write_bytes(current_anchor)
+    assert journal.read_all()[0] == first
+
+    journal.journal_path.unlink()
+    with pytest.raises(ErasureJournalError, match="ledger is unavailable"):
+        journal.read_all()
+
+
+def test_journal_append_does_not_reparse_retained_history(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    journal = ErasureJournal(tmp_path / "journal", retention_days=30)
+    journal.append(
+        kind="job",
+        user_id="user-1",
+        job_ids=["job-1"],
+        now=1_800_000_000,
+    )
+
+    def reject_full_scan() -> object:
+        raise AssertionError("append reparsed retained history")
+
+    # REGRESSION: append used to decode every previous JSONL record while
+    # holding the global journal lock, producing triangular O(n^2) work.
+    monkeypatch.setattr(journal, "_scan_journal_unlocked", reject_full_scan)
+    journal.append(
+        kind="job",
+        user_id="user-1",
+        job_ids=["job-2"],
+        now=1_800_000_001,
+    )
+
+
+def test_journal_recovers_fsynced_append_from_pending_checkpoint(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    journal = ErasureJournal(tmp_path / "journal", retention_days=30)
+    first = journal.append(
+        kind="job",
+        user_id="user-1",
+        job_ids=["job-1"],
+        now=1_800_000_000,
+    )
+    write_checkpoint = journal._write_checkpoint_unlocked
+
+    def interrupt_after_ledger_fsync(_checkpoint: object) -> None:
+        raise ErasureJournalError("simulated checkpoint interruption")
+
+    monkeypatch.setattr(journal, "_write_checkpoint_unlocked", interrupt_after_ledger_fsync)
+    with pytest.raises(ErasureJournalError, match="simulated checkpoint interruption"):
+        journal.append(
+            kind="job",
+            user_id="user-1",
+            job_ids=["job-2"],
+            now=1_800_000_001,
+        )
+
+    monkeypatch.setattr(journal, "_write_checkpoint_unlocked", write_checkpoint)
+    recovered = journal.read_all()
+    assert recovered[0] == first
+    assert [entry.job_ids for entry in recovered] == [["job-1"], ["job-2"]]
+    assert not journal.pending_path.exists()
+
+
+def test_journal_recovers_checkpoint_before_external_anchor_update(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    continuity_id = "e" * 64
+    root = tmp_path / "journal"
+    root.mkdir()
+    (root / ".continuity-id").write_text(f"{continuity_id}\n", encoding="ascii")
+    anchor_path = tmp_path / "host-state" / "erasure-journal-anchor.json"
+    journal = ErasureJournal(
+        root,
+        retention_days=30,
+        expected_continuity_id=continuity_id,
+        anchor_path=anchor_path,
+    )
+    journal.initialize()
+    write_anchor = journal._write_anchor_unlocked
+
+    def interrupt_before_anchor(_checkpoint: object) -> None:
+        raise ErasureJournalError("simulated anchor interruption")
+
+    monkeypatch.setattr(journal, "_write_anchor_unlocked", interrupt_before_anchor)
+    with pytest.raises(ErasureJournalError, match="simulated anchor interruption"):
+        journal.append(
+            kind="job",
+            user_id="user-1",
+            job_ids=["job-1"],
+            now=1_800_000_000,
+        )
+
+    monkeypatch.setattr(journal, "_write_anchor_unlocked", write_anchor)
+    recovered = journal.read_all()
+    assert [entry.job_ids for entry in recovered] == [["job-1"]]
+    assert journal.checkpoint_path.read_bytes() == anchor_path.read_bytes()
+    assert not journal.pending_path.exists()
+
+
+def test_append_rejects_tampered_tail_without_full_history_scan(tmp_path: Path) -> None:
+    journal = ErasureJournal(tmp_path / "journal", retention_days=30)
+    journal.append(
+        kind="job",
+        user_id="user-1",
+        job_ids=["job-1"],
+        now=1_800_000_000,
+    )
+    tampered = journal.journal_path.read_bytes().replace(b'"job-1"', b'"job-2"')
+    journal.journal_path.write_bytes(tampered)
+
+    with pytest.raises(ErasureJournalError, match="ledger does not match its checkpoint"):
+        journal.append(
+            kind="job",
+            user_id="user-1",
+            job_ids=["job-3"],
+            now=1_800_000_001,
+        )
+
+
+def test_full_read_detects_same_size_historical_tampering(tmp_path: Path) -> None:
+    journal = ErasureJournal(tmp_path / "journal", retention_days=30)
+    journal.append(
+        kind="job",
+        user_id="user-1",
+        job_ids=["job-1"],
+        now=1_800_000_000,
+    )
+    journal.append(
+        kind="job",
+        user_id="user-1",
+        job_ids=["job-2"],
+        now=1_800_000_001,
+    )
+    tampered = journal.journal_path.read_bytes().replace(b'"user-1"', b'"user-2"', 1)
+    journal.journal_path.write_bytes(tampered)
+
+    with pytest.raises(ErasureJournalError, match="ledger does not match its checkpoint"):
         journal.read_all()
 
 
@@ -189,6 +388,7 @@ def test_journal_fsync_failure_blocks_erasure_intent_acknowledgement(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     journal = ErasureJournal(tmp_path / "journal", retention_days=30)
+    journal.initialize()
 
     def fail_fsync(_descriptor: int) -> None:
         raise OSError("disk unavailable")
@@ -202,6 +402,38 @@ def test_journal_fsync_failure_blocks_erasure_intent_acknowledgement(
             job_ids=["job-1"],
             now=1_800_000_000,
         )
+
+
+def test_configured_production_journal_requires_isolated_external_anchor(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    common = {
+        "is_dev": False,
+        "data_dir": tmp_path / "media",
+        "erasure_journal_dir": tmp_path / "journal",
+        "erasure_journal_retention_days": 30,
+        "erasure_journal_continuity_id": "a" * 64,
+    }
+    monkeypatch.setattr(
+        journal_module,
+        "settings",
+        SimpleNamespace(**common, erasure_journal_anchor_path=None),
+    )
+
+    with pytest.raises(ErasureJournalError, match="external anchor path is required"):
+        journal_module.configured_erasure_journal()
+
+    monkeypatch.setattr(
+        journal_module,
+        "settings",
+        SimpleNamespace(
+            **common,
+            erasure_journal_anchor_path=tmp_path / "journal" / "anchor.json",
+        ),
+    )
+    with pytest.raises(ErasureJournalError, match="must be isolated"):
+        journal_module.configured_erasure_journal()
 
 
 def test_journal_prunes_only_records_older_than_backup_safe_retention(

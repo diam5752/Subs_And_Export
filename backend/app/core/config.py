@@ -387,6 +387,10 @@ class Settings(BaseSettings):
         default="",
         validation_alias="GSP_ERASURE_JOURNAL_CONTINUITY_ID",
     )
+    erasure_journal_anchor_path: Path | None = Field(
+        default=None,
+        validation_alias="GSP_ERASURE_JOURNAL_ANCHOR_PATH",
+    )
     signup_limit_per_ip_per_day: int = 5
     static_rate_limit: int = 60
     static_rate_limit_window: int = 60

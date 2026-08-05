@@ -513,6 +513,58 @@ def test_cancel_job_journals_exact_workspace_before_status_transition(
     assert updated.status == "cancelled"
 
 
+def test_cancel_job_does_not_overwrite_a_concurrent_completion(
+    client: TestClient,
+    user_auth_headers: dict[str, str],
+    monkeypatch,
+) -> None:
+    from backend.app.api import deps
+    from backend.app.api.endpoints import job_routes
+    from backend.app.core.database import Database
+    from backend.app.services.jobs import JobStore
+
+    user_response = client.get("/auth/me", headers=user_auth_headers)
+    assert user_response.status_code == 200
+    user_id = user_response.json()["id"]
+    job_id = f"cancel-completion-race-{uuid.uuid4().hex}"
+    store = JobStore(Database())
+    store.create_job(job_id, user_id)
+    original_update = store.update_job_if_status
+
+    def complete_before_cancel(job_id: str, **kwargs):
+        # REGRESSION: the route's former read-then-write sequence could turn a
+        # job completed by the worker into cancelled after the status check.
+        store.update_job(
+            job_id,
+            status="completed",
+            progress=100,
+            message="Done!",
+        )
+        return original_update(job_id, **kwargs)
+
+    monkeypatch.setattr(store, "update_job_if_status", complete_before_cancel)
+    monkeypatch.setattr(
+        job_routes,
+        "configured_erasure_journal",
+        lambda: type("Journal", (), {"append": lambda self, **_payload: None})(),
+    )
+    app.dependency_overrides[deps.get_job_store] = lambda: store
+
+    try:
+        response = client.post(
+            f"/videos/jobs/{job_id}/cancel",
+            headers=user_auth_headers,
+        )
+    finally:
+        app.dependency_overrides.pop(deps.get_job_store, None)
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "Cannot cancel job with status 'completed'"}
+    completed = store.get_job(job_id)
+    assert completed is not None
+    assert completed.status == "completed"
+
+
 def test_cancel_job_fails_closed_before_status_transition_when_journal_is_unavailable(
     client: TestClient,
     user_auth_headers: dict[str, str],

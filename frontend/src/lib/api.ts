@@ -582,7 +582,8 @@ class ApiClient {
 
     private async request<T>(
         endpoint: string,
-        options: RequestInit = {}
+        options: RequestInit = {},
+        includeBearer = true,
     ): Promise<T> {
         const url = `${API_BASE}${endpoint}`;
         const headers: Record<string, string> = {};
@@ -595,7 +596,7 @@ class ApiClient {
             });
         }
 
-        if (this.token) {
+        if (includeBearer && this.token) {
             headers['Authorization'] = `Bearer ${this.token}`;
         }
 
@@ -713,10 +714,26 @@ class ApiClient {
     }
 
     async revokeSession(): Promise<LogoutResponse> {
-        return this.request<LogoutResponse>('/auth/logout', {
-            method: 'POST',
-            keepalive: true,
-        });
+        if (this.token) {
+            try {
+                return await this.request<LogoutResponse>('/auth/logout', {
+                    method: 'POST',
+                    keepalive: true,
+                });
+            } catch (error) {
+                if (!(error instanceof ApiError) || error.status !== 401) {
+                    throw error;
+                }
+            }
+        }
+        return this.request<LogoutResponse>(
+            '/static/auth/logout',
+            {
+                method: 'POST',
+                keepalive: true,
+            },
+            false,
+        );
     }
 
     async getPointsBalance(): Promise<PointsBalanceResponse> {

@@ -169,6 +169,86 @@ describe('API Client', () => {
             );
         });
 
+        it('uses the cookie-scoped endpoint when no bearer is stored', async () => {
+            (fetch as jest.Mock).mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({ status: 'success' }),
+            });
+
+            const { api } = await import('@/lib/api');
+            await expect(api.revokeSession()).resolves.toEqual({
+                status: 'success',
+            });
+
+            expect(fetch).toHaveBeenCalledTimes(1);
+            expect(fetch).toHaveBeenCalledWith(
+                expect.stringContaining('/static/auth/logout'),
+                expect.objectContaining({
+                    method: 'POST',
+                    keepalive: true,
+                    credentials: 'include',
+                    headers: expect.not.objectContaining({
+                        Authorization: expect.any(String),
+                    }),
+                }),
+            );
+        });
+
+        it('falls back to cookie-scoped logout after a rejected bearer', async () => {
+            localStorage.setItem('auth_token', 'stale-token');
+            (fetch as jest.Mock)
+                .mockResolvedValueOnce({
+                    ok: false,
+                    status: 401,
+                    json: async () => ({ detail: 'Could not validate credentials' }),
+                })
+                .mockResolvedValueOnce({
+                    ok: true,
+                    json: async () => ({ status: 'success' }),
+                });
+
+            jest.resetModules();
+            const { api } = await import('@/lib/api');
+            await expect(api.revokeSession()).resolves.toEqual({
+                status: 'success',
+            });
+
+            expect(fetch).toHaveBeenCalledTimes(2);
+            expect(fetch).toHaveBeenNthCalledWith(
+                1,
+                expect.stringContaining('/auth/logout'),
+                expect.objectContaining({
+                    headers: expect.objectContaining({
+                        Authorization: 'Bearer stale-token',
+                    }),
+                }),
+            );
+            expect(fetch).toHaveBeenNthCalledWith(
+                2,
+                expect.stringContaining('/static/auth/logout'),
+                expect.objectContaining({
+                    headers: expect.not.objectContaining({
+                        Authorization: expect.any(String),
+                    }),
+                }),
+            );
+        });
+
+        it('does not mask a transient bearer logout failure with cookie fallback', async () => {
+            localStorage.setItem('auth_token', 'stored-token');
+            (fetch as jest.Mock).mockResolvedValueOnce({
+                ok: false,
+                status: 503,
+                json: async () => ({ detail: 'Temporarily unavailable' }),
+            });
+
+            jest.resetModules();
+            const { api } = await import('@/lib/api');
+
+            await expect(api.revokeSession()).rejects.toThrow('Temporarily unavailable');
+            expect(fetch).toHaveBeenCalledTimes(1);
+        });
+
         it('preserves the HTTP status in a typed API error', async () => {
             (fetch as jest.Mock).mockResolvedValueOnce({
                 ok: false,

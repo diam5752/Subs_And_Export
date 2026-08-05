@@ -66,6 +66,7 @@ from ..deps import (
 )
 
 router = APIRouter()
+media_router = APIRouter()
 logger = logging.getLogger(__name__)
 
 ACCOUNT_DELETION_NOTICE = (
@@ -121,6 +122,50 @@ class UserResponse(BaseModel):
 
 class LogoutResponse(BaseModel):
     status: Literal["success"] = "success"
+
+
+def _assert_trusted_media_logout_request(request: Request) -> None:
+    """Reject browser cross-site attempts to spend a private-media cookie."""
+    if request.headers.get("sec-fetch-site", "").strip().lower() == "cross-site":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Cross-site logout is not allowed")
+
+    origin = request.headers.get("origin")
+    if origin is None:
+        # Non-browser clients do not consistently send Origin. Browsers send
+        # Origin or Sec-Fetch-Site for credentialed POSTs, while SameSite=Lax
+        # provides the independent cross-site cookie boundary.
+        return
+
+    request_origin = f"{request.url.scheme}://{request.url.netloc}".rstrip("/")
+    allowed_origins = {request_origin, *(value.rstrip("/") for value in settings.allowed_origins)}
+    if settings.is_dev:
+        allowed_origins.update(
+            {
+                "http://localhost:3000",
+                "http://127.0.0.1:3000",
+                "http://localhost:8000",
+                "http://127.0.0.1:8000",
+                "http://localhost:8080",
+                "http://127.0.0.1:8080",
+            }
+        )
+    if origin.rstrip("/") not in allowed_origins:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Untrusted logout origin")
+
+
+@media_router.post("/static/auth/logout", response_model=LogoutResponse)
+def logout_media_cookie_session(
+    request: Request,
+    response: Response,
+    session_store: SessionStore = Depends(get_session_store),
+) -> LogoutResponse:
+    """Idempotently revoke the exact session carried by the media cookie."""
+    _assert_trusted_media_logout_request(request)
+    token = request.cookies.get(MEDIA_SESSION_COOKIE_NAME)
+    if token:
+        session_store.revoke(token)
+    _clear_media_session_cookie(response)
+    return LogoutResponse()
 
 
 @router.post(

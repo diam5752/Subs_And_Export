@@ -113,6 +113,43 @@ def test_auth_me_reissues_media_cookie_for_legacy_bearer_client(
         store.delete_job(job_id)
 
 
+def test_cookie_scoped_logout_closes_bearerless_private_media_access(
+    client: TestClient,
+    user_auth_headers: dict[str, str],
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(backend_main, "DATA_DIR", tmp_path)
+    store, job_id, media_path = _create_owned_media(
+        client,
+        user_auth_headers,
+        tmp_path,
+    )
+    media_url = f"/static/artifacts/{job_id}/{media_path.name}"
+
+    try:
+        assert client.get(media_url).status_code == 200
+        assert client.post("/auth/logout").status_code == 401
+        assert client.get(media_url).status_code == 200
+
+        # REGRESSION: bearerless logout could not receive the Path=/static
+        # cookie, so private media stayed accessible after apparent sign-out.
+        logout = client.post(
+            "/static/auth/logout",
+            headers={
+                "Origin": "http://testserver",
+                "Sec-Fetch-Site": "same-origin",
+            },
+        )
+
+        assert logout.status_code == 200
+        assert client.get(media_url).status_code == 401
+    finally:
+        media_path.unlink(missing_ok=True)
+        media_path.parent.rmdir()
+        store.delete_job(job_id)
+
+
 def test_static_media_hides_another_users_job(
     client: TestClient,
     user_auth_headers: dict[str, str],

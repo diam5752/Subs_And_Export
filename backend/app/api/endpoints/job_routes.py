@@ -339,7 +339,16 @@ def cancel_job(
         user_id=current_user.id,
         job_ids=[job_id],
     )
-    job_store.update_job(job_id, status="cancelled", message="Cancelled by user")
+    if not job_store.update_job_if_status(
+        job_id,
+        expected_statuses={"pending", "processing"},
+        status="cancelled",
+        message="Cancelled by user",
+    ):
+        latest_job = job_store.get_job(job_id)
+        if latest_job is None or latest_job.user_id != current_user.id:
+            raise HTTPException(404, "Job not found")
+        raise HTTPException(400, f"Cannot cancel job with status '{latest_job.status}'")
     record_event_safe(history_store, current_user, "job_cancelled", f"Cancelled job {job_id}", {"job_id": job_id})
 
     updated_job = job_store.get_job(job_id)

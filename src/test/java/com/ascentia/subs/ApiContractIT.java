@@ -164,6 +164,38 @@ class ApiContractIT extends IntegrationTestSupport {
     }
 
     @Test
+    void logoutRevokesOnlyThePresentedSessionAndExpiresTheMediaCookie() throws Exception {
+        AuthSession current = registerAndLogin("Logout User");
+        AuthSession other = login(current.email(), current.password());
+
+        // REGRESSION: the Java compatibility surface issued a 30-day media
+        // cookie but exposed no normal endpoint that revoked its exact session.
+        mockMvc.perform(post("/auth/logout"))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(post("/auth/logout")
+                        .header(HttpHeaders.AUTHORIZATION, current.authorization()))
+                .andExpect(status().isOk())
+                .andExpect(header().string(
+                        HttpHeaders.SET_COOKIE,
+                        org.hamcrest.Matchers.allOf(
+                                org.hamcrest.Matchers.containsString("gsubs_media_session="),
+                                org.hamcrest.Matchers.containsString("Max-Age=0"),
+                                org.hamcrest.Matchers.containsString("Path=/static")
+                        )
+                ))
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"))
+                .andExpect(jsonPath("$.status").value("success"));
+
+        mockMvc.perform(get("/auth/me")
+                        .header(HttpHeaders.AUTHORIZATION, current.authorization()))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/auth/me")
+                        .header(HttpHeaders.AUTHORIZATION, other.authorization()))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void historyAndVideoJobRoutesRespectOwnershipAndMutations() throws Exception {
         AuthSession owner = registerAndLogin("Owner");
         AuthSession other = registerAndLogin("Other");

@@ -31,6 +31,22 @@ class DeletedJobError(InterruptedError):
     """Raised when account or job erasure wins a processing race."""
 
 
+class StaleWorkerError(RuntimeError):
+    """Raised when another actor has already moved a job out of processing."""
+
+
+def raise_for_rejected_worker_write(*, job_store: JobStore, job_id: str) -> None:
+    """Translate a rejected compare-and-set into the correct worker stop."""
+    current_job = job_store.get_job(job_id)
+    if current_job is None:
+        raise DeletedJobError("Job was deleted")
+    if current_job.status == "cancelled":
+        raise InterruptedError("Job cancelled by user")
+    raise StaleWorkerError(
+        f"Job is no longer processing (status={current_job.status})"
+    )
+
+
 def delete_local_workspace_best_effort(*, job_id: str) -> None:
     """Remove one job's local media without masking its terminal status."""
     try:
@@ -134,19 +150,17 @@ def run_video_processing(
 ) -> None:
     """Background task to run the heavy video processing."""
     try:
-        current = job_store.get_job(job_id)
-        if current is None:
-            abort_deleted_job(
+        if not job_store.update_job_if_status(
+            job_id,
+            expected_statuses={"pending"},
+            status="processing",
+            progress=0,
+            message="Starting processing...",
+        ):
+            raise_for_rejected_worker_write(
+                job_store=job_store,
                 job_id=job_id,
-                ledger_store=ledger_store,
-                charge_plan=charge_plan,
-                error="Job was deleted",
             )
-            return
-        if current.status == "cancelled":
-            raise InterruptedError("Job cancelled by user")
-
-        job_store.update_job(job_id, status="processing", progress=0, message="Starting processing...")
 
         last_update_time = 0.0
         last_check_time = 0.0
@@ -155,7 +169,16 @@ def run_video_processing(
             nonlocal last_update_time
             now = time.time()
             if percent <= 0 or percent >= 100 or (now - last_update_time) >= 1.0:
-                job_store.update_job(job_id, progress=int(percent), message=msg)
+                if not job_store.update_job_if_status(
+                    job_id,
+                    expected_statuses={"processing"},
+                    progress=int(percent),
+                    message=msg,
+                ):
+                    raise_for_rejected_worker_write(
+                        job_store=job_store,
+                        job_id=job_id,
+                    )
                 last_update_time = now
 
         def check_cancelled(*, force: bool = False) -> None:
@@ -273,7 +296,18 @@ def run_video_processing(
             "karaoke_enabled": settings.karaoke_enabled,
             "watermark_enabled": settings.watermark_enabled,
         }
-        job_store.update_job(job_id, status="completed", progress=100, message="Done!", result_data=result_data)
+        if not job_store.update_job_if_status(
+            job_id,
+            expected_statuses={"processing"},
+            status="completed",
+            progress=100,
+            message="Done!",
+            result_data=result_data,
+        ):
+            raise_for_rejected_worker_write(
+                job_store=job_store,
+                job_id=job_id,
+            )
         if job_store.get_job(job_id) is None:
             raise DeletedJobError("Job was deleted")
         record_event_safe(
@@ -295,6 +329,12 @@ def run_video_processing(
         logger.info(
             "Skipping duplicate paid provider dispatch",
             extra={"job_id": job_id},
+        )
+        return
+    except StaleWorkerError as exc:
+        logger.info(
+            "Stopping stale video-processing worker",
+            extra={"job_id": job_id, "reason": sanitize_message(str(exc))},
         )
         return
     except DeletedJobError as exc:
@@ -325,7 +365,12 @@ def run_video_processing(
                 "Refusing unjournaled cancellation cleanup",
                 extra={"job_id": job_id},
             )
-            job_store.update_job(job_id, status="failed", message=privacy_error)
+            job_store.update_job_if_status(
+                job_id,
+                expected_statuses={"pending", "processing"},
+                status="failed",
+                message=privacy_error,
+            )
             record_event_safe(
                 history_store,
                 user,
@@ -340,7 +385,12 @@ def run_video_processing(
                 error=sanitize_message(str(exc)),
             )
             return
-        job_store.update_job(job_id, status="cancelled", message="Cancelled by user")
+        job_store.update_job_if_status(
+            job_id,
+            expected_statuses={"pending", "processing"},
+            status="cancelled",
+            message="Cancelled by user",
+        )
         record_event_safe(
             history_store,
             user,
@@ -371,7 +421,12 @@ def run_video_processing(
                 "Refusing unjournaled failure cleanup",
                 extra={"job_id": job_id},
             )
-            job_store.update_job(job_id, status="failed", message=privacy_error)
+            job_store.update_job_if_status(
+                job_id,
+                expected_statuses={"pending", "processing"},
+                status="failed",
+                message=privacy_error,
+            )
             record_event_safe(
                 history_store,
                 user,
@@ -386,7 +441,42 @@ def run_video_processing(
                 error=safe_msg,
             )
             return
-        job_store.update_job(job_id, status="failed", message=safe_msg)
+        transitioned_to_failed = job_store.update_job_if_status(
+            job_id,
+            expected_statuses={"pending", "processing"},
+            status="failed",
+            message=safe_msg,
+        )
+        if not transitioned_to_failed:
+            latest_job = job_store.get_job(job_id)
+            if latest_job is None:
+                abort_deleted_job(
+                    job_id=job_id,
+                    ledger_store=ledger_store,
+                    charge_plan=charge_plan,
+                    error=safe_msg,
+                )
+                return
+            if latest_job.status == "cancelled":
+                record_event_safe(
+                    history_store,
+                    user,
+                    "process_cancelled",
+                    f"Processing cancelled for {original_name or input_path.name}",
+                    {"job_id": job_id, "error": safe_msg},
+                )
+                refund_charge_best_effort(
+                    ledger_store,
+                    charge_plan,
+                    status="cancelled",
+                    error=safe_msg,
+                )
+                return
+            logger.info(
+                "Not overwriting terminal job after worker failure",
+                extra={"job_id": job_id, "status": latest_job.status},
+            )
+            return
         record_event_safe(
             history_store,
             user,

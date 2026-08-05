@@ -218,5 +218,6 @@ def test_run_video_processing_uses_precomputed_probe(monkeypatch, tmp_path: Path
     )
 
     assert captured["media_probe"] == source_probe
-    completed_update = job_store.update_job.call_args_list[-1].kwargs
+    completed_update = job_store.update_job_if_status.call_args_list[-1].kwargs
+    assert completed_update["expected_statuses"] == {"processing"}
     assert completed_update["result_data"]["duration_seconds"] == 12.5

@@ -7,6 +7,7 @@ import com.ascentia.subs.jobs.JobArtifactService;
 import com.ascentia.subs.jobs.JobStore;
 import com.ascentia.subs.points.PointsStore;
 import jakarta.servlet.http.Cookie;
+import java.util.Map;
 import java.util.Objects;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.env.MockEnvironment;
@@ -23,6 +24,56 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class AuthControllerUnitTest {
+
+    @Test
+    void logoutRevokesOnlyTheAuthenticatedSessionAndExpiresTheMediaCookie() {
+        AuthStore authStore = mock(AuthStore.class);
+        AuthController controller = controller(
+                new MockEnvironment().withProperty("APP_ENV", "production"),
+                authStore,
+                mock(GoogleIdentityService.class)
+        );
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        Map<String, String> result = controller.logout(
+                authenticationFor("local"),
+                response
+        );
+
+        assertThat(result).containsEntry("status", "success");
+        verify(authStore).revokeSession("token");
+        assertThat(Objects.requireNonNull(response.getHeader("Set-Cookie")))
+                .contains("gsubs_media_session=")
+                .contains("Max-Age=0")
+                .contains("Path=/static")
+                .contains("Secure")
+                .contains("HttpOnly")
+                .contains("SameSite=Lax");
+        assertThat(response.getHeader("Cache-Control")).isEqualTo("no-store");
+    }
+
+    @Test
+    void logoutRejectsMissingAndBlankSessionCredentials() {
+        AuthController controller = controller(
+                new MockEnvironment(),
+                mock(AuthStore.class),
+                mock(GoogleIdentityService.class)
+        );
+        CurrentUser currentUser = currentUser("local");
+
+        for (Object credentials : new Object[]{42, " "}) {
+            Authentication authentication = new UsernamePasswordAuthenticationToken(
+                    currentUser,
+                    credentials
+            );
+
+            assertThatThrownBy(() -> controller.logout(
+                    authentication,
+                    new MockHttpServletResponse()
+            )).isInstanceOf(ResponseStatusException.class)
+                    .hasMessageContaining("Could not validate credentials");
+        }
+    }
 
     @Test
     void updatePasswordRejectsExternalProvidersAndMismatchedConfirmation() {
@@ -266,17 +317,21 @@ class AuthControllerUnitTest {
 
     private static Authentication authenticationFor(String provider) {
         return new UsernamePasswordAuthenticationToken(
-                new CurrentUser(
-                        "user-1",
-                        "user@example.com",
-                        "User",
-                        provider,
-                        null,
-                        null,
-                        "2026-01-01T00:00:00Z",
-                        true
-                ),
+                currentUser(provider),
                 "token"
+        );
+    }
+
+    private static CurrentUser currentUser(String provider) {
+        return new CurrentUser(
+                "user-1",
+                "user@example.com",
+                "User",
+                provider,
+                null,
+                null,
+                "2026-01-01T00:00:00Z",
+                true
         );
     }
 

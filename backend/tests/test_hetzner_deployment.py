@@ -36,6 +36,37 @@ def write_executable(path: Path, content: str) -> None:
     path.chmod(0o755)
 
 
+def write_gcs_retirement_evidence(repository: Path) -> None:
+    runtime = repository / ".runtime"
+    runtime.mkdir(exist_ok=True)
+    evidence = runtime / "gcs-retirement-evidence"
+    evidence.write_text(
+        "tracked_hetzner_gcs_configuration=never-enabled\nlegacy_database_references=0\n",
+        encoding="utf-8",
+    )
+    evidence.chmod(0o600)
+    evidence_digest = hashlib.sha256(evidence.read_bytes()).hexdigest()
+    receipt = runtime / "gcs-retirement-receipt"
+    receipt.write_text(
+        "\n".join(
+            (
+                "retired=true",
+                "scope=hetzner-production-whole-storage",
+                "retirement_basis=never_configured_on_hetzner",
+                "retirement_base_sha=d0d47ac774995d7eb06f1942c7e5eeacff69b1e1",
+                "objects_after=0",
+                "credentials_revoked=true",
+                "bucket_identity_sha256=none",
+                f"evidence_sha256={evidence_digest}",
+                "verified_at_utc=20260805T120000Z",
+                "",
+            ),
+        ),
+        encoding="utf-8",
+    )
+    receipt.chmod(0o600)
+
+
 def backup_verifier_fixture(tmp_path: Path) -> dict[str, Path]:
     repository = tmp_path / "repository"
     deployment_root = repository / "deploy" / "hetzner"
@@ -287,6 +318,35 @@ def test_production_compose_enables_reviewed_paid_credits_and_budgeted_scribe() 
     assert "name: mizai_mizai-private" in compose
 
 
+def test_production_media_storage_is_local_to_the_existing_vm_root_disk() -> None:
+    compose = deployment_text("docker-compose.production.yml")
+    deploy_script = deployment_text("deploy-production.sh")
+    verifier = deployment_text("verify-production.sh")
+    top_level_volumes = compose.split("\nvolumes:\n", 1)[1]
+
+    # REGRESSION: private media storage must not silently provision a Hetzner
+    # block volume, NFS mount, or other separately billed storage backend.
+    assert "driver:" not in top_level_volumes
+    assert "driver_opts:" not in top_level_volumes
+    assert "external:" not in top_level_volumes
+    assert "name: subframe-app-data" in top_level_volumes
+    assert "name: subframe-erasure-journal" in top_level_volumes
+    assert "docker volume inspect" in verifier
+    assert "Existing-VM storage volume must use Docker's local driver" in verifier
+    assert "Existing-VM storage volume is not on the host root filesystem" in verifier
+    assert "subframe-app-data" in verifier
+    assert "subframe-erasure-journal" in verifier
+    assert 'ERASURE_ANCHOR_DIR="$STATE_DIR/privacy-erasure-anchor"' in deploy_script
+    assert 'ERASURE_ANCHOR_DIR="$ROOT_DIR/.runtime/privacy-erasure-anchor"' in verifier
+    assert 'SUBFRAME_ERASURE_ANCHOR_DIR="$ERASURE_ANCHOR_DIR"' in deploy_script
+    assert 'SUBFRAME_ERASURE_ANCHOR_DIR="$ERASURE_ANCHOR_DIR"' in verifier
+    assert "assert_existing_vm_anchor_bind" in verifier
+    assert "Erasure-journal anchor is not on the host root filesystem" in verifier
+    assert "Backend erasure-journal anchor must use its dedicated writable host bind" in verifier
+    assert "api.hetzner" not in compose
+    assert "api.hetzner" not in deploy_script
+
+
 def test_production_provider_budget_is_launch_capacity_not_demo_capacity() -> None:
     # REGRESSION: the original $0.25/day and $0.75/month trial ceilings could
     # stop paid customer work after only a handful of videos even though every
@@ -396,6 +456,72 @@ def test_release_scripts_reject_retired_gcs_environment_keys(
             assert "GCS settings" in completed.stderr
 
 
+def test_release_blocks_legacy_gcs_reference_loss_before_migration() -> None:
+    deploy_script = deployment_text("deploy-production.sh")
+    verifier = deployment_text("verify-production.sh")
+    retirement_verifier = deployment_text("verify-gcs-retirement.sh")
+
+    # REGRESSION: the original retirement migration could destroy the only
+    # remaining object-name evidence before provider cleanup was established.
+    assert "assert_no_legacy_gcs_references()" in deploy_script
+    assert "SELECT to_regclass('public.gcs_uploads') IS NOT NULL;" in deploy_script
+    assert "SELECT count(*) FROM gcs_uploads;" in deploy_script
+    assert "result_data ? 'source_gcs_object'" in deploy_script
+    assert "Legacy GCS retirement preflight failed before database migration." in deploy_script
+    assert deploy_script.index("if ! assert_no_legacy_gcs_references; then") < deploy_script.index(
+        "if ! compose stop edge; then",
+    )
+
+    assert "assert_legacy_gcs_retirement_complete()" in verifier
+    assert "to_regclass('public.gcs_uploads') IS NOT NULL" in verifier
+    assert "result_data ? 'source_gcs_object'" in verifier
+    assert "Legacy GCS retirement invariant failed after database migration." in verifier
+
+    for script in (deploy_script, verifier):
+        assert "verify-gcs-retirement.sh" in script
+    assert "gcs-retirement-receipt" in retirement_verifier
+    assert "gcs-retirement-evidence" in retirement_verifier
+    assert "provider_inventory_zero" in retirement_verifier
+    assert "never_configured_on_hetzner" in retirement_verifier
+    assert "evidence_sha256" in retirement_verifier
+    assert "credentials_revoked" in retirement_verifier
+    assert "objects_after" in retirement_verifier
+    assert "GCS retirement receipt is invalid" in retirement_verifier
+
+
+def test_gcs_retirement_receipt_binds_exact_private_evidence(tmp_path: Path) -> None:
+    repository = tmp_path / "repository"
+    deployment_root = repository / "deploy" / "hetzner"
+    deployment_root.mkdir(parents=True)
+    verifier = deployment_root / "verify-gcs-retirement.sh"
+    shutil.copy2(DEPLOYMENT_ROOT / verifier.name, verifier)
+    write_gcs_retirement_evidence(repository)
+    runtime = repository / ".runtime"
+    evidence = runtime / "gcs-retirement-evidence"
+
+    valid = subprocess.run(
+        [str(verifier)],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert valid.returncode == 0, valid.stderr
+
+    # REGRESSION: a receipt must not remain valid after its underlying audit
+    # evidence is modified, substituted, or partially overwritten.
+    evidence.write_text("tampered=true\n", encoding="utf-8")
+    invalid = subprocess.run(
+        [str(verifier)],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert invalid.returncode == 1
+    assert "evidence digest does not match" in invalid.stderr
+
+
 def test_production_environment_defaults_do_not_prune_shared_cache() -> None:
     environment = deployment_text("subframe.env.example")
     compose = deployment_text("docker-compose.production.yml")
@@ -473,9 +599,15 @@ def test_erasure_journal_is_separate_and_reconciled_before_public_cutover() -> N
     assert 'GSP_ERASURE_JOURNAL_DIR: "/privacy-erasure-journal"' in compose
     assert 'GSP_ERASURE_JOURNAL_RETENTION_DAYS: "30"' in compose
     assert 'GSP_ERASURE_JOURNAL_CONTINUITY_ID: "${SUBFRAME_PRIVACY_CONTINUITY_ID:-}"' in compose
+    assert 'GSP_ERASURE_JOURNAL_ANCHOR_PATH: "/privacy-erasure-anchor/checkpoint.json"' in compose
     assert "- erasure_journal:/privacy-erasure-journal" in compose
+    assert (
+        "- ${SUBFRAME_ERASURE_ANCHOR_DIR:-../../.runtime/privacy-erasure-anchor}:"
+        "/privacy-erasure-anchor"
+    ) in compose
     assert "name: subframe-erasure-journal" in compose
     assert compose.count("erasure_journal:/privacy-erasure-journal") == 1
+    assert compose.count("/privacy-erasure-anchor") == 3
     assert "app_logs" not in compose
 
     privacy_service = compose.split("  privacy-relay:", 1)[1].split("\nnetworks:", 1)[0]
@@ -530,7 +662,17 @@ def test_erasure_journal_is_separate_and_reconciled_before_public_cutover() -> N
     assert "continuity-aware release" in deploy_script
     assert "Refusing to initialize a new erasure journal beside restored user data" in deploy_script
     assert "Refusing to initialize a new erasure journal beside restored media" in deploy_script
+    assert "configured_erasure_journal().initialize()" in deploy_script
+    assert deploy_script.count("configured_erasure_journal().initialize()") == 1
+    assert deploy_script.count("configured_erasure_journal().read_all()") == 1
+    assert "INITIALIZE_CONTINUITY=\"$privacy_continuity_bootstrap\"" in deploy_script
     assert "Live erasure journal continuity marker does not match" in verifier
+    assert "configured_erasure_journal().read_all()" in verifier
+    assert "Erasure-journal integrity validation failed" in verifier
+    assert "10001:10001" in deploy_script
+    assert "10001:10001" in verifier
+    assert "Erasure-journal anchor directory permissions are unsafe" in verifier
+    assert "Erasure-journal anchor directory ownership is unsafe" in verifier
 
 
 def test_schema_changing_deploy_requires_a_matching_restore_drill_receipt() -> None:
@@ -605,6 +747,7 @@ def test_deploy_aborts_before_cutover_when_current_database_preflight_is_unavail
     deployment_root = repository / "deploy" / "hetzner"
     deployment_root.mkdir(parents=True)
     shutil.copy2(DEPLOYMENT_ROOT / "deploy-production.sh", deployment_root)
+    shutil.copy2(DEPLOYMENT_ROOT / "verify-gcs-retirement.sh", deployment_root)
     (deployment_root / "docker-compose.production.yml").write_text(
         "services: {}\n",
         encoding="utf-8",
@@ -1263,6 +1406,7 @@ def test_candidate_verifier_failure_preserves_previous_release_state(
     deployment_root = repository / "deploy" / "hetzner"
     deployment_root.mkdir(parents=True)
     shutil.copy2(DEPLOYMENT_ROOT / "deploy-production.sh", deployment_root)
+    shutil.copy2(DEPLOYMENT_ROOT / "verify-gcs-retirement.sh", deployment_root)
     (deployment_root / "docker-compose.production.yml").write_text(
         "services: {}\n",
         encoding="utf-8",
@@ -1291,9 +1435,13 @@ exit 1
         f"{'2' * 64}\n",
         encoding="utf-8",
     )
+    anchor_dir = state_dir / "privacy-erasure-anchor"
+    anchor_dir.mkdir(mode=0o700)
+    write_gcs_retirement_evidence(repository)
 
     fake_bin = tmp_path / "fake-bin"
     fake_bin.mkdir()
+    docker_command_log = tmp_path / "docker-commands.log"
     write_executable(
         fake_bin / "git",
         """#!/bin/sh
@@ -1309,9 +1457,25 @@ esac
     write_executable(
         fake_bin / "docker",
         """#!/bin/sh
+printf '%s\n' "$*" >> "$FAKE_DOCKER_COMMAND_LOG"
+case "$*" in
+  *"to_regclass"*) printf 'f\n' ;;
+  *"source_gcs_object"*) printf '0\n' ;;
+esac
 if [ "${1:-}" = "inspect" ]; then
   printf 'healthy\\n'
 fi
+""",
+    )
+    write_executable(
+        fake_bin / "stat",
+        """#!/bin/sh
+case "$*" in
+  *"%a"*privacy-erasure-anchor|*"%Lp"*privacy-erasure-anchor) printf '700\n' ;;
+  *"%a"*|*"%Lp"*) printf '600\n' ;;
+  *"%u"*|*"%g"*) printf '10001\n' ;;
+  *) exec /usr/bin/stat "$@" ;;
+esac
 """,
     )
     environment = os.environ.copy()
@@ -1321,6 +1485,7 @@ fi
             "SUBFRAME_ENV_FILE": str(env_file),
             "FAKE_NEW_RELEASE_SHA": new_release_sha,
             "FAKE_VERIFIER_LOG": str(verifier_log),
+            "FAKE_DOCKER_COMMAND_LOG": str(docker_command_log),
         }
     )
 
@@ -1337,6 +1502,12 @@ fi
     assert state_file.read_text(encoding="utf-8").strip() == old_release_sha
     assert verifier_log.read_text(encoding="utf-8").strip() == "--candidate"
     assert "previous successful-release state was preserved" in completed.stderr
+    docker_commands = docker_command_log.read_text(encoding="utf-8")
+    assert "configured_erasure_journal().read_all()" in docker_commands
+    assert "configured_erasure_journal().initialize()" not in docker_commands
+    assert docker_commands.index("configured_erasure_journal().read_all()") < docker_commands.index(
+        "up -d backend frontend",
+    )
 
 
 def test_release_runbook_requires_off_server_copy_and_restore_drill() -> None:

@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 
 from backend.app.api.endpoints import videos
 from backend.app.api.endpoints.settings import ProcessingSettings
+from backend.app.core.erasure_journal import ErasureJournal
 from backend.app.services.usage_ledger import ChargePlan
 
 
@@ -48,7 +49,7 @@ def _journal_asserting_source_exists(input_path: Path, partial_artifact: Path) -
         types.SimpleNamespace(duration_s=10**9),
     ),
 )
-def test_rejected_media_is_journaled_before_pre_job_workspace_cleanup(
+def test_rejected_media_with_verified_cleanup_does_not_retain_tombstone(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     probe_result: object,
@@ -56,7 +57,7 @@ def test_rejected_media_is_journaled_before_pre_job_workspace_cleanup(
     job_id = "rejected-media-job"
     user_id = "rejected-media-user"
     input_path, artifacts_root, partial_artifact = _saved_workspace(tmp_path, job_id)
-    journal = _journal_asserting_source_exists(input_path, partial_artifact)
+    journal = MagicMock()
     monkeypatch.setattr(videos, "configured_erasure_journal", lambda: journal)
     if isinstance(probe_result, Exception):
         monkeypatch.setattr(videos, "probe_media", MagicMock(side_effect=probe_result))
@@ -80,11 +81,9 @@ def test_rejected_media_is_journaled_before_pre_job_workspace_cleanup(
             db=MagicMock(),
         )
 
-    journal.append.assert_called_once_with(
-        kind="workspace",
-        user_id=user_id,
-        job_ids=[job_id],
-    )
+    # REGRESSION: invalid pre-job uploads used to create one retained durable
+    # event per request even after their local workspace was fully removed.
+    journal.append.assert_not_called()
     job_store.create_job.assert_not_called()
     assert not input_path.exists()
     assert not partial_artifact.parent.exists()
@@ -181,12 +180,69 @@ def test_rejected_upload_cleanup_fails_closed_if_tombstone_cannot_be_stored(
     job_store.delete_job.assert_not_called()
 
 
-def test_stream_save_error_is_journaled_before_partial_file_cleanup(
+def test_incomplete_pre_job_cleanup_retains_retry_intent(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    job_id = "ambiguous-pre-job-upload"
+    user_id = "private-user"
+    input_path, artifacts_root, partial_artifact = _saved_workspace(tmp_path, job_id)
+    journal = ErasureJournal(tmp_path / "journal", retention_days=30)
+    monkeypatch.setattr(videos, "configured_erasure_journal", lambda: journal)
+    monkeypatch.setattr(videos, "delete_job_workspace", lambda **_kwargs: None)
+
+    # REGRESSION: skipping durable intent is safe only after exact absence has
+    # been verified; a no-op or partial deletion must remain replayable.
+    with pytest.raises(RuntimeError, match="could not be verified"):
+        videos._record_and_delete_rejected_upload(
+            job_id=job_id,
+            user_id=user_id,
+            input_path=input_path,
+            artifacts_root=artifacts_root,
+            kind="workspace",
+        )
+
+    entries = journal.read_all()
+    assert len(entries) == 1
+    assert entries[0].kind == "workspace"
+    assert entries[0].user_id == user_id
+    assert entries[0].job_ids == [job_id]
+    assert input_path.is_file()
+    assert partial_artifact.is_file()
+
+
+def test_many_verified_pre_job_cleanups_do_not_grow_durable_journal(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    journal = ErasureJournal(tmp_path / "journal", retention_days=30)
+    journal.initialize()
+    monkeypatch.setattr(videos, "configured_erasure_journal", lambda: journal)
+
+    # REGRESSION: attacker-controlled invalid uploads previously increased
+    # retained journal cardinality even when every exact cleanup succeeded.
+    for index in range(50):
+        job_id = f"rejected-{index}"
+        input_path, artifacts_root, _partial_artifact = _saved_workspace(
+            tmp_path / f"attempt-{index}",
+            job_id,
+        )
+        videos._record_and_delete_rejected_upload(
+            job_id=job_id,
+            user_id="private-user",
+            input_path=input_path,
+            artifacts_root=artifacts_root,
+            kind="workspace",
+        )
+
+    assert journal.read_all() == []
+
+
+def test_stream_save_error_with_verified_cleanup_does_not_retain_tombstone(
     client: TestClient,
     user_auth_headers: dict[str, str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    user_id = client.get("/auth/me", headers=user_auth_headers).json()["id"]
     captured: dict[str, object] = {}
     journal = MagicMock()
 
@@ -204,13 +260,7 @@ def test_stream_save_error_is_journaled_before_partial_file_cleanup(
         captured["path"] = destination
         raise OSError(errno.ENOSPC, "disk full")
 
-    def append(**kwargs: object) -> None:
-        path = captured["path"]
-        assert isinstance(path, Path) and path.is_file()
-        captured["tombstone"] = kwargs
-
     metadata = base64.b64encode(json.dumps({"filename": "video.mp4"}).encode("utf-8")).decode("ascii")
-    journal.append.side_effect = append
     monkeypatch.setattr(videos, "save_request_stream_with_limit", fail_save)
     monkeypatch.setattr(videos, "configured_erasure_journal", lambda: journal)
 
@@ -227,8 +277,4 @@ def test_stream_save_error_is_journaled_before_partial_file_cleanup(
     assert response.status_code == 507
     path = captured["path"]
     assert isinstance(path, Path) and not path.exists()
-    assert captured["tombstone"] == {
-        "kind": "workspace",
-        "user_id": user_id,
-        "job_ids": [path.name.removesuffix("_input.mp4")],
-    }
+    journal.append.assert_not_called()

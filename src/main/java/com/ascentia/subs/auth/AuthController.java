@@ -109,6 +109,22 @@ public class AuthController {
         return UserResponse.from(CurrentUserAccess.require(authentication));
     }
 
+    @PostMapping("/logout")
+    Map<String, String> logout(
+            Authentication authentication,
+            HttpServletResponse servletResponse
+    ) {
+        CurrentUserAccess.require(authentication);
+        Object credentials = authentication.getCredentials();
+        if (!(credentials instanceof String token) || token.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Could not validate credentials");
+        }
+        authStore.revokeSession(token);
+        clearMediaSessionCookie(servletResponse);
+        servletResponse.setHeader(HttpHeaders.CACHE_CONTROL, "no-store");
+        return Map.of("status", "success");
+    }
+
     @GetMapping("/points")
     PointsBalanceResponse points(Authentication authentication) {
         CurrentUser currentUser = CurrentUserAccess.require(authentication);

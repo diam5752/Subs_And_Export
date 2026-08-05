@@ -91,6 +91,7 @@ def test_runtime_privacy_gate_requires_production_continuity(
             retention_cleanup_enabled=True,
             is_dev=False,
             erasure_journal_continuity_id="",
+            erasure_journal_anchor_path=None,
         ),
     )
 
@@ -111,6 +112,7 @@ def test_runtime_privacy_gate_validates_the_live_journal(
             retention_cleanup_enabled=True,
             is_dev=False,
             erasure_journal_continuity_id="d" * 64,
+            erasure_journal_anchor_path=Path("/runtime/erasure-journal-anchor.json"),
         ),
     )
     monkeypatch.setattr(
@@ -122,6 +124,28 @@ def test_runtime_privacy_gate_validates_the_live_journal(
     main_module.assert_runtime_privacy_configuration()
 
     read_all.assert_called_once_with()
+
+
+def test_runtime_privacy_gate_requires_independent_production_anchor(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from backend import main as main_module
+
+    monkeypatch.setattr(
+        main_module,
+        "settings",
+        SimpleNamespace(
+            retention_cleanup_enabled=True,
+            is_dev=False,
+            erasure_journal_continuity_id="d" * 64,
+            erasure_journal_anchor_path=None,
+        ),
+    )
+
+    # REGRESSION: a checkpoint stored only beside the journal cannot detect a
+    # coherent whole-volume rollback.
+    with pytest.raises(RuntimeError, match="external anchor path is required"):
+        main_module.assert_runtime_privacy_configuration()
 
 
 def test_runtime_privacy_gate_allows_disabled_retention_only_in_development(
@@ -177,6 +201,10 @@ def test_settings_environment_overrides(monkeypatch) -> None:
     monkeypatch.setenv("GSP_ERASURE_JOURNAL_DIR", "/privacy-erasure-journal")
     monkeypatch.setenv("GSP_ERASURE_JOURNAL_RETENTION_DAYS", "45")
     monkeypatch.setenv("GSP_ERASURE_JOURNAL_CONTINUITY_ID", "AB" * 32)
+    monkeypatch.setenv(
+        "GSP_ERASURE_JOURNAL_ANCHOR_PATH",
+        "/runtime/erasure-journal-anchor.json",
+    )
     monkeypatch.setenv("GSP_ALLOWED_ORIGINS", '["https://one.example", "https://two.example"]')
     monkeypatch.setenv("GSP_TRUSTED_HOSTS", "localhost, 127.0.0.1")
     monkeypatch.setenv(
@@ -209,6 +237,7 @@ def test_settings_environment_overrides(monkeypatch) -> None:
     assert settings.erasure_journal_dir == Path("/privacy-erasure-journal")
     assert settings.erasure_journal_retention_days == 45
     assert settings.erasure_journal_continuity_id == "ab" * 32
+    assert settings.erasure_journal_anchor_path == Path("/runtime/erasure-journal-anchor.json")
     assert settings.allowed_origins == ["https://one.example", "https://two.example"]
     assert settings.trusted_hosts == ["localhost", "127.0.0.1"]
     assert settings.google_oauth_certs_url == "http://edge:8081/oauth2/v1/certs"

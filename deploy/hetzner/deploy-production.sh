@@ -9,6 +9,8 @@ STATE_DIR="$ROOT_DIR/.runtime"
 STATE_FILE="$STATE_DIR/last-successful-release"
 ERASURE_RECEIPT_FILE="$STATE_DIR/last-erasure-reconciliation"
 CONTINUITY_STATE_FILE="$STATE_DIR/privacy-continuity-id"
+ERASURE_ANCHOR_DIR="$STATE_DIR/privacy-erasure-anchor"
+export SUBFRAME_ERASURE_ANCHOR_DIR="$ERASURE_ANCHOR_DIR"
 
 if [ ! -f "$ENV_FILE" ]; then
   echo "Missing production env: $ENV_FILE" >&2
@@ -193,6 +195,83 @@ database_scalar() {
     sh "$sql" | tr -d '[:space:]'
 }
 
+assert_no_legacy_gcs_references() {
+  legacy_table_exists=$(database_scalar \
+    "SELECT to_regclass('public.gcs_uploads') IS NOT NULL;")
+  case "$legacy_table_exists" in
+    f) legacy_upload_rows=0 ;;
+    t)
+      legacy_upload_rows=$(database_scalar "SELECT count(*) FROM gcs_uploads;")
+      ;;
+    *)
+      echo "Could not determine whether the retired GCS table exists." >&2
+      return 1
+      ;;
+  esac
+  legacy_job_references=$(database_scalar \
+    "SELECT count(*) FROM jobs WHERE result_data ? 'source_gcs_object';")
+  for legacy_count in "$legacy_upload_rows" "$legacy_job_references"
+  do
+    case "$legacy_count" in
+      ''|*[!0-9]*)
+        echo "Could not validate retired GCS object-reference counts." >&2
+        return 1
+        ;;
+    esac
+  done
+  if [ "$legacy_upload_rows" -ne 0 ] || [ "$legacy_job_references" -ne 0 ]; then
+    echo "Retired GCS object references remain; preserve them and complete provider deletion first." >&2
+    return 1
+  fi
+}
+
+portable_mode() {
+  stat -c %a "$1" 2>/dev/null || stat -f %Lp "$1"
+}
+
+portable_owner() {
+  owner_uid=$(stat -c %u "$1" 2>/dev/null || stat -f %u "$1")
+  owner_gid=$(stat -c %g "$1" 2>/dev/null || stat -f %g "$1")
+  printf '%s:%s\n' "$owner_uid" "$owner_gid"
+}
+
+prepare_erasure_anchor_directory() {
+  if [ "$privacy_continuity_bootstrap" -eq 1 ]; then
+    if [ -e "$ERASURE_ANCHOR_DIR" ] || [ -L "$ERASURE_ANCHOR_DIR" ]; then
+      if [ ! -d "$ERASURE_ANCHOR_DIR" ] || [ -L "$ERASURE_ANCHOR_DIR" ]; then
+        echo "Erasure-journal anchor path must be a real directory." >&2
+        return 1
+      fi
+      if find "$ERASURE_ANCHOR_DIR" -mindepth 1 -print -quit | grep -q .; then
+        echo "Refusing to initialize a non-empty erasure-journal anchor directory." >&2
+        return 1
+      fi
+    fi
+    if ! install -d -m 700 -o 10001 -g 10001 "$ERASURE_ANCHOR_DIR"; then
+      echo "Could not create the private erasure-journal anchor directory." >&2
+      return 1
+    fi
+  fi
+
+  if [ ! -d "$ERASURE_ANCHOR_DIR" ] || [ -L "$ERASURE_ANCHOR_DIR" ]; then
+    echo "Live erasure-journal anchor directory is missing or invalid." >&2
+    return 1
+  fi
+  anchor_parent=$(CDPATH= cd -- "$ERASURE_ANCHOR_DIR/.." && pwd -P) || return 1
+  if [ "$anchor_parent/$(basename -- "$ERASURE_ANCHOR_DIR")" != "$ERASURE_ANCHOR_DIR" ]; then
+    echo "Erasure-journal anchor directory must not traverse a symlink." >&2
+    return 1
+  fi
+  if [ "$(portable_mode "$ERASURE_ANCHOR_DIR")" != 700 ]; then
+    echo "Erasure-journal anchor directory permissions are unsafe." >&2
+    return 1
+  fi
+  if [ "$(portable_owner "$ERASURE_ANCHOR_DIR")" != 10001:10001 ]; then
+    echo "Erasure-journal anchor directory ownership is unsafe." >&2
+    return 1
+  fi
+}
+
 initialize_or_verify_privacy_continuity() {
   allow_existing_data=0
   if [ "$privacy_continuity_bootstrap" -eq 1 ] && [ -n "$previous_sha" ]; then
@@ -226,6 +305,10 @@ initialize_or_verify_privacy_continuity() {
           ;;
       esac
     done
+  fi
+
+  if ! prepare_erasure_anchor_directory; then
+    return 1
   fi
 
   if ! compose run --rm --no-deps --user 0:0 --entrypoint sh \
@@ -276,6 +359,19 @@ initialize_or_verify_privacy_continuity() {
         }
       fi
     '; then
+    return 1
+  fi
+
+  if [ "$privacy_continuity_bootstrap" -eq 1 ]; then
+    if ! compose run --rm --no-deps --entrypoint python backend -c \
+      'from backend.app.core.erasure_journal import configured_erasure_journal; configured_erasure_journal().initialize()'; then
+      echo "Could not initialize the erasure-journal integrity anchors." >&2
+      return 1
+    fi
+  fi
+  if ! compose run --rm --no-deps --entrypoint python backend -c \
+    'from backend.app.core.erasure_journal import configured_erasure_journal; configured_erasure_journal().read_all()'; then
+    echo "Erasure-journal integrity validation failed before application startup." >&2
     return 1
   fi
 
@@ -406,6 +502,14 @@ if [ "${SUBFRAME_PRUNE_BUILD_CACHE:-0}" = 1 ]; then
 fi
 if ! assert_no_open_stripe_purchases_without_consumer_contract; then
   echo "Open Stripe purchase preflight failed before database migration." >&2
+  exit 1
+fi
+if ! assert_no_legacy_gcs_references; then
+  echo "Legacy GCS retirement preflight failed before database migration." >&2
+  exit 1
+fi
+if ! "$ROOT_DIR/deploy/hetzner/verify-gcs-retirement.sh"; then
+  echo "Legacy GCS retirement evidence is required before database migration." >&2
   exit 1
 fi
 trap on_signal INT TERM HUP

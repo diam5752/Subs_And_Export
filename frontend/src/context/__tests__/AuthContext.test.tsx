@@ -88,8 +88,8 @@ describe('AuthContext', () => {
         });
     });
 
-    it('clears the token when the initial session lookup fails', async () => {
-        (api.getCurrentUser as jest.Mock).mockRejectedValueOnce(new Error('no session'));
+    it('revokes the media cookie before clearing a rejected initial session', async () => {
+        (api.getCurrentUser as jest.Mock).mockRejectedValueOnce({ status: 401 });
 
         render(
             <AuthProvider>
@@ -98,10 +98,27 @@ describe('AuthContext', () => {
         );
 
         await waitFor(() => {
+            expect(api.revokeSession).toHaveBeenCalledTimes(1);
             expect(api.clearToken).toHaveBeenCalled();
             expect(screen.getByTestId('user-email')).toHaveTextContent('none');
             expect(screen.getByTestId('loading')).toHaveTextContent('false');
         });
+    });
+
+    it('does not falsely sign out while the initial session check is transiently unavailable', async () => {
+        (api.getCurrentUser as jest.Mock).mockRejectedValueOnce({ status: 503 });
+
+        render(
+            <AuthProvider>
+                <AuthHarness />
+            </AuthProvider>,
+        );
+
+        await waitFor(() => expect(api.getCurrentUser).toHaveBeenCalledTimes(1));
+        expect(api.revokeSession).not.toHaveBeenCalled();
+        expect(api.clearToken).not.toHaveBeenCalled();
+        expect(localStorage.getItem('auth_token')).toBe('test-token');
+        expect(screen.getByTestId('loading')).toHaveTextContent('true');
     });
 
     it('logs in and refreshes the user profile', async () => {
@@ -194,7 +211,7 @@ describe('AuthContext', () => {
         expect(api.clearToken).not.toHaveBeenCalled();
     });
 
-    it('clears the token when refreshUser fails', async () => {
+    it('clears the token when refreshUser receives a definitive rejection', async () => {
         render(
             <AuthProvider>
                 <AuthHarness />
@@ -203,13 +220,33 @@ describe('AuthContext', () => {
 
         await waitFor(() => expect(screen.getByTestId('user-email')).toHaveTextContent('user@example.com'));
 
-        (api.getCurrentUser as jest.Mock).mockRejectedValueOnce(new Error('expired'));
+        (api.getCurrentUser as jest.Mock).mockRejectedValueOnce({ status: 401 });
         fireEvent.click(screen.getByRole('button', { name: 'refresh' }));
 
         await waitFor(() => {
+            expect(api.revokeSession).toHaveBeenCalledTimes(1);
             expect(api.clearToken).toHaveBeenCalled();
             expect(screen.getByTestId('user-email')).toHaveTextContent('none');
         });
+    });
+
+    it('preserves an established session on refresh network and server errors', async () => {
+        render(
+            <AuthProvider>
+                <AuthHarness />
+            </AuthProvider>,
+        );
+
+        await waitFor(() => expect(screen.getByTestId('user-email')).toHaveTextContent('user@example.com'));
+
+        (api.getCurrentUser as jest.Mock).mockRejectedValueOnce(new Error('network unavailable'));
+        fireEvent.click(screen.getByRole('button', { name: 'refresh' }));
+
+        await waitFor(() => expect(api.getCurrentUser).toHaveBeenCalledTimes(2));
+        expect(api.revokeSession).not.toHaveBeenCalled();
+        expect(api.clearToken).not.toHaveBeenCalled();
+        expect(screen.getByTestId('user-email')).toHaveTextContent('user@example.com');
+        expect(localStorage.getItem('auth_token')).toBe('test-token');
     });
 
     it('throws when useAuth is called outside a provider', () => {

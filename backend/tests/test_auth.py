@@ -192,6 +192,102 @@ class TestAuthEndpoints:
 
         assert response.status_code == 401
 
+    def test_cookie_scoped_logout_revokes_only_the_cookie_session(self, client, test_user_data):
+        """Bearer loss must not leave the private-media session active."""
+        client.post("/auth/register", json=test_user_data)
+        cookie_login = client.post(
+            "/auth/token",
+            data={
+                "username": test_user_data["email"],
+                "password": test_user_data["password"],
+            },
+        )
+        other_login = client.post(
+            "/auth/token",
+            data={
+                "username": test_user_data["email"],
+                "password": test_user_data["password"],
+            },
+        )
+        cookie_token = cookie_login.json()["access_token"]
+        other_token = other_login.json()["access_token"]
+        client.cookies.clear()
+        client.cookies.set(
+            auth_ep.MEDIA_SESSION_COOKIE_NAME,
+            cookie_token,
+            path="/static",
+        )
+
+        # REGRESSION: the cookie Path excluded /auth/logout, so losing the
+        # local bearer left a usable 30-day private-media session behind.
+        response = client.post(
+            "/static/auth/logout",
+            headers={
+                "Origin": "http://testserver",
+                "Sec-Fetch-Site": "same-origin",
+            },
+        )
+
+        assert response.status_code == 200
+        assert response.json() == {"status": "success"}
+        assert response.headers["cache-control"] == "no-store"
+        cleared_cookie = _cookie_header(response, auth_ep.MEDIA_SESSION_COOKIE_NAME)
+        assert "Max-Age=0" in cleared_cookie
+        assert "Path=/static" in cleared_cookie
+        assert (
+            client.get(
+                "/auth/me",
+                headers={"Authorization": f"Bearer {cookie_token}"},
+            ).status_code
+            == 401
+        )
+        assert (
+            client.get(
+                "/auth/me",
+                headers={"Authorization": f"Bearer {other_token}"},
+            ).status_code
+            == 200
+        )
+
+    def test_cookie_scoped_logout_is_idempotent_without_a_cookie(self, client):
+        client.cookies.clear()
+
+        response = client.post("/static/auth/logout")
+
+        assert response.status_code == 200
+        assert response.json() == {"status": "success"}
+        cleared_cookie = _cookie_header(response, auth_ep.MEDIA_SESSION_COOKIE_NAME)
+        assert "Max-Age=0" in cleared_cookie
+        assert "Path=/static" in cleared_cookie
+
+    def test_cookie_scoped_logout_rejects_cross_site_requests(self, client, test_user_data):
+        client.post("/auth/register", json=test_user_data)
+        login = client.post(
+            "/auth/token",
+            data={
+                "username": test_user_data["email"],
+                "password": test_user_data["password"],
+            },
+        )
+        token = login.json()["access_token"]
+
+        response = client.post(
+            "/static/auth/logout",
+            headers={
+                "Origin": "https://attacker.example",
+                "Sec-Fetch-Site": "cross-site",
+            },
+        )
+
+        assert response.status_code == 403
+        assert (
+            client.get(
+                "/auth/me",
+                headers={"Authorization": f"Bearer {token}"},
+            ).status_code
+            == 200
+        )
+
 
 class TestVideoEndpoints:
     """Test video processing endpoints."""

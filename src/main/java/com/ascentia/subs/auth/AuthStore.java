@@ -257,6 +257,13 @@ public class AuthStore {
     }
 
     @Transactional
+    public void revokeSession(String token) {
+        jdbcClient.sql("DELETE FROM sessions WHERE token_hash = :tokenHash")
+                .param("tokenHash", hashToken(token))
+                .update();
+    }
+
+    @Transactional
     public void revokeAllSessions(String userId) {
         jdbcClient.sql("DELETE FROM sessions WHERE user_id = :userId")
                 .param("userId", userId)

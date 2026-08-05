@@ -61,11 +61,73 @@ or approval contract.
 Source videos and generated media live only in the dedicated local
 `subframe-app-data` Docker volume. Browser uploads go through the authenticated
 backend stream endpoint; there is no cloud-object-storage path or credential.
+`subframe-app-data` and `subframe-erasure-journal` are ordinary Docker `local`
+volumes on the existing VM root filesystem. The journal's rollback-detection
+anchor is a host bind at
+`/home/mizai/subframe/.runtime/privacy-erasure-anchor`, on that same existing
+root filesystem. This release does not create or request a Hetzner Block
+Volume, Storage Box, Object Storage bucket, NFS mount or any other separately
+billed storage product, and neither release script calls the Hetzner API.
+`verify-production.sh` enforces the local driver, empty driver options and root
+filesystem device for both named volumes, then enforces the anchor's exact
+writable bind, real-directory type, mode `0700`, owner `10001:10001` and root
+filesystem device.
 Before the first release on an upgraded host, remove every `GSP_GCS_*` and
 `GOOGLE_APPLICATION_CREDENTIALS` assignment from `.env.production`, delete any
 obsolete credential file, and revoke the retired cloud service-account access
 at its issuer. Deployment and production verification fail if a retired key is
 still injected into the application container.
+
+### One-time retired GCS evidence
+
+The schema-removal release will not discard the old object-name columns on an
+operator assertion alone. Before migration, `deploy-production.sh` verifies
+that the legacy upload table has zero rows and that no job contains a
+`source_gcs_object` reference. It also requires the private, mode-`0600` files
+`.runtime/gcs-retirement-evidence` and
+`.runtime/gcs-retirement-receipt`; the receipt is bound to the evidence file by
+SHA-256 and to the exact pre-removal release
+`d0d47ac774995d7eb06f1942c7e5eeacff69b1e1`.
+
+For this Hetzner lane, `never_configured_on_hetzner` is valid only when the
+evidence records all of the following without recording secret values:
+
+- every tracked Hetzner backend image from its first release through the
+  pre-removal release was built from `backend/requirements.mock.txt`, which did
+  not contain `google-cloud-storage`, so the optional client could neither
+  issue a signed upload URL nor write an object;
+- all retired GCS and Google credential keys are absent from the live untracked
+  environment and the running container; and
+- the read-only live database checks report zero upload rows and zero job
+  object references.
+
+That proof uses only Git, environment-key presence checks and read-only SQL; it
+does not contact Google and creates no provider request or charge. In this
+basis, `credentials_revoked=true` means that no GCS credential exists in the
+Hetzner deployment and no obsolete credential file remains. If any historical
+deployment could actually reach a bucket, do not use this basis: preserve the
+database mappings and use `provider_inventory_zero` only after an authenticated
+inventory proves the exact bucket and every retired prefix empty and the
+credential has been revoked.
+
+The receipt contains exactly these nine fields:
+
+```text
+retired=true
+scope=hetzner-production-whole-storage
+retirement_basis=never_configured_on_hetzner
+retirement_base_sha=d0d47ac774995d7eb06f1942c7e5eeacff69b1e1
+objects_after=0
+credentials_revoked=true
+bucket_identity_sha256=none
+evidence_sha256=<sha256-of-gcs-retirement-evidence>
+verified_at_utc=<YYYYMMDDTHHMMSSZ>
+```
+
+`verify-gcs-retirement.sh` rejects missing, symlinked, non-private, malformed or
+evidence-mismatched files. Keep both files as retirement audit evidence; they
+contain no media, account data, credential value or bucket name.
+
 Individual, batch and account deletion remove the exact local workspace, while
 the retention worker removes terminal workspaces after 24 hours, stale active
 jobs after 6 hours and orphaned files after 1 hour. Production must keep
@@ -79,8 +141,15 @@ window plus safety margin. Neither `postgres.dump.age` nor `app-data.tgz.age`
 contains this journal, and a database/app-data restore must never replace it.
 The deploy script binds that live volume to the host through a generated
 continuity identifier stored in `.runtime/privacy-continuity-id`; the backend
-cannot become healthy when either side is missing or mismatched. This is a
-fail-closed privacy control, not an independent disaster backup of the journal.
+also writes a monotonic integrity checkpoint to
+`.runtime/privacy-erasure-anchor/checkpoint.json`, mounted at
+`/privacy-erasure-anchor/checkpoint.json`. The checkpoint is isolated from the
+journal named volume so restoring or rolling that volume back cannot silently
+erase newer tombstones. The deploy and production-verification paths fail
+closed when the continuity state, journal, checkpoint or external anchor is
+missing, mismatched, truncated or rolled back. This is a fail-closed privacy
+control, not an independent disaster backup of the journal: both stores remain
+on the already-paid VM root disk.
 After total host or journal-volume loss, the supported no-extra-storage policy
 is to lose the recovery copy: do not restore or publish an older user database
 or media archive. Start an empty service instead. Supporting user-data disaster
@@ -126,8 +195,12 @@ For the one-time release that introduces journal continuity beside existing
 production data, stop the public edge before creating the fresh backup and keep
 it stopped through the restore drill and deployment. This ensures that no
 account/project deletion can occur between the pre-release backup and creation
-of the first durable journal. Later releases require the existing continuity
-state and journal marker; neither is silently recreated.
+of the first durable journal. Only that independently gated first-use path may
+create the mode-`0700`, UID/GID-`10001` anchor directory and call the journal's
+explicit initializer. Later releases require the existing continuity state,
+journal marker and external anchor; they run a complete fail-closed journal
+read before starting the application or reopening the public edge, and none of
+those files is silently recreated.
 
 ### Backup verification and restore drill
 
@@ -261,11 +334,13 @@ invoice or payment evidence.
 
 A real restore is an offline operation. It is supported only on the same live
 host while both `.runtime/privacy-continuity-id` and the matching
-`subframe-erasure-journal/.continuity-id` still exist. Stop the public edge
-before replacing the PostgreSQL or `subframe-app-data` state and leave that
-journal volume untouched. If either continuity side is missing, do not restore
-user data and do not reopen the edge. After the restored backend is healthy,
-run both the configured local retention pass and the idempotent erasure replay:
+`subframe-erasure-journal/.continuity-id` still exist and
+`.runtime/privacy-erasure-anchor/checkpoint.json` matches the live journal.
+Stop the public edge before replacing the PostgreSQL or `subframe-app-data`
+state and leave both the journal volume and anchor directory untouched. If any
+continuity or integrity side is missing, do not restore user data and do not
+reopen the edge. After the restored backend is healthy, run both the configured
+local retention pass and the idempotent erasure replay:
 
 ```bash
 docker compose --project-name subframe \
@@ -336,7 +411,9 @@ ssh -N -L 127.0.0.1:18090:127.0.0.1:18090 root@SERVER
 `verify-production.sh` checks container health and image SHAs, every reviewed
 payment/provider setting, the non-empty Scribe credential without printing it,
 the complete live Stripe bundle, the method/path-scoped Stripe and ElevenLabs
-relays, the Google certificate relay, the Alembic head, and that
+relays, the Google certificate relay, the local-volume and anchor-bind storage
+contract, a complete authenticated read of the erasure journal, the Alembic
+head, and that
 `/billing/catalog` returns `checkout_enabled=true` with the approved contract.
 `deploy-production.sh` runs that complete verifier in candidate mode before it
 atomically replaces `.runtime/last-successful-release`. A candidate-verification

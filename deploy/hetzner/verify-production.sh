@@ -19,6 +19,8 @@ ENV_FILE="${SUBFRAME_ENV_FILE:-$ROOT_DIR/.env.production}"
 STATE_FILE="$ROOT_DIR/.runtime/last-successful-release"
 ERASURE_RECEIPT_FILE="$ROOT_DIR/.runtime/last-erasure-reconciliation"
 CONTINUITY_STATE_FILE="$ROOT_DIR/.runtime/privacy-continuity-id"
+ERASURE_ANCHOR_DIR="$ROOT_DIR/.runtime/privacy-erasure-anchor"
+export SUBFRAME_ERASURE_ANCHOR_DIR="$ERASURE_ANCHOR_DIR"
 
 if [ ! -f "$ENV_FILE" ]; then
   echo "Production env is required: $ENV_FILE" >&2
@@ -28,6 +30,10 @@ if grep -Eq \
   '^[[:space:]]*(export[[:space:]]+)?(GSP_GCS_[A-Z0-9_]*|GOOGLE_APPLICATION_CREDENTIALS)[[:space:]]*=' \
   "$ENV_FILE"; then
   echo "Retired GCS settings remain in the production env." >&2
+  exit 1
+fi
+if ! "$ROOT_DIR/deploy/hetzner/verify-gcs-retirement.sh"; then
+  echo "Legacy GCS retirement evidence is missing or invalid." >&2
   exit 1
 fi
 if [ ! -f "$CONTINUITY_STATE_FILE" ] || [ -L "$CONTINUITY_STATE_FILE" ]; then
@@ -108,6 +114,34 @@ COMMIT;
 SQL
 }
 
+assert_legacy_gcs_retirement_complete() {
+  compose exec -T db sh -eu -c \
+    'exec psql -X --no-password -v ON_ERROR_STOP=1 --quiet --username "$POSTGRES_USER" --dbname "$POSTGRES_DB"' <<'SQL'
+BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY;
+DO $retirement$
+DECLARE
+    legacy_job_references BIGINT;
+BEGIN
+    IF to_regclass('public.gcs_uploads') IS NOT NULL THEN
+        RAISE EXCEPTION 'Retired GCS upload-session table still exists.';
+    END IF;
+
+    SELECT count(*)
+    INTO legacy_job_references
+    FROM jobs
+    WHERE result_data ? 'source_gcs_object';
+
+    IF legacy_job_references <> 0 THEN
+        RAISE EXCEPTION
+            'Retired GCS job evidence remains in % row(s).',
+            legacy_job_references;
+    END IF;
+END
+$retirement$;
+COMMIT;
+SQL
+}
+
 compose config --quiet
 for service in db backend frontend edge; do
   container_id=$(compose ps -q "$service")
@@ -174,6 +208,7 @@ for expected in \
   GSP_RETENTION_CLEANUP_ENABLED=1 \
   GSP_ERASURE_JOURNAL_DIR=/privacy-erasure-journal \
   GSP_ERASURE_JOURNAL_RETENTION_DAYS=30 \
+  GSP_ERASURE_JOURNAL_ANCHOR_PATH=/privacy-erasure-anchor/checkpoint.json \
   "GSP_ERASURE_JOURNAL_CONTINUITY_ID=$privacy_continuity_id"
 do
   printf '%s\n' "$backend_environment" | grep -Fqx "$expected" || {
@@ -181,6 +216,79 @@ do
     exit 1
   }
 done
+
+assert_existing_vm_local_volume() {
+  volume_name=$1
+  volume_driver=$(docker volume inspect --format '{{.Driver}}' "$volume_name") || {
+    echo "Existing-VM storage volume is missing: $volume_name" >&2
+    exit 1
+  }
+  if [ "$volume_driver" != local ]; then
+    echo "Existing-VM storage volume must use Docker's local driver: $volume_name" >&2
+    exit 1
+  fi
+  volume_options=$(docker volume inspect --format '{{json .Options}}' "$volume_name")
+  case "$volume_options" in
+    null|'{}') ;;
+    *)
+      echo "Existing-VM storage volume must not use external driver options: $volume_name" >&2
+      exit 1
+      ;;
+  esac
+  volume_mountpoint=$(docker volume inspect --format '{{.Mountpoint}}' "$volume_name")
+  if [ ! -d "$volume_mountpoint" ] || [ -L "$volume_mountpoint" ]; then
+    echo "Existing-VM storage volume mountpoint is invalid: $volume_name" >&2
+    exit 1
+  fi
+  host_root_device=$(stat -c %d /)
+  volume_device=$(stat -c %d "$volume_mountpoint")
+  if [ "$volume_device" != "$host_root_device" ]; then
+    echo "Existing-VM storage volume is not on the host root filesystem: $volume_name" >&2
+    exit 1
+  fi
+}
+
+assert_existing_vm_local_volume subframe-app-data
+assert_existing_vm_local_volume subframe-erasure-journal
+
+assert_existing_vm_anchor_bind() {
+  if [ ! -d "$ERASURE_ANCHOR_DIR" ] || [ -L "$ERASURE_ANCHOR_DIR" ]; then
+    echo "Erasure-journal anchor source must be a real host directory." >&2
+    exit 1
+  fi
+  canonical_anchor_dir=$(readlink -f -- "$ERASURE_ANCHOR_DIR") || {
+    echo "Erasure-journal anchor source cannot be resolved." >&2
+    exit 1
+  }
+  if [ "$canonical_anchor_dir" != "$ERASURE_ANCHOR_DIR" ]; then
+    echo "Erasure-journal anchor source must not traverse a symlink." >&2
+    exit 1
+  fi
+  if [ "$(stat -c %a "$ERASURE_ANCHOR_DIR")" != 700 ]; then
+    echo "Erasure-journal anchor directory permissions are unsafe." >&2
+    exit 1
+  fi
+  if [ "$(stat -c %u:%g "$ERASURE_ANCHOR_DIR")" != 10001:10001 ]; then
+    echo "Erasure-journal anchor directory ownership is unsafe." >&2
+    exit 1
+  fi
+  host_root_device=$(stat -c %d /)
+  anchor_device=$(stat -c %d "$ERASURE_ANCHOR_DIR")
+  if [ "$anchor_device" != "$host_root_device" ]; then
+    echo "Erasure-journal anchor is not on the host root filesystem." >&2
+    exit 1
+  fi
+  anchor_mount=$(docker inspect --format \
+    '{{range .Mounts}}{{if eq .Destination "/privacy-erasure-anchor"}}{{.Type}}|{{.Source}}|{{.RW}}{{end}}{{end}}' \
+    "$backend_id")
+  if [ "$anchor_mount" != "bind|$ERASURE_ANCHOR_DIR|true" ]; then
+    echo "Backend erasure-journal anchor must use its dedicated writable host bind." >&2
+    exit 1
+  fi
+}
+
+assert_existing_vm_anchor_bind
+
 journal_mount=$(docker inspect --format \
   '{{range .Mounts}}{{if eq .Destination "/privacy-erasure-journal"}}{{.Name}}|{{.RW}}{{end}}{{end}}' \
   "$backend_id")
@@ -192,14 +300,17 @@ if ! docker exec "$backend_id" python -c '
 import os
 from pathlib import Path
 
+from backend.app.core.erasure_journal import configured_erasure_journal
+
 expected = os.environ["GSP_ERASURE_JOURNAL_CONTINUITY_ID"]
 marker = Path("/privacy-erasure-journal/.continuity-id")
 if marker.is_symlink() or not marker.is_file():
     raise SystemExit("Live erasure journal continuity marker is missing.")
 if marker.read_text(encoding="ascii").strip() != expected:
     raise SystemExit("Live erasure journal continuity marker does not match.")
+configured_erasure_journal().read_all()
 '; then
-  echo "Backend erasure journal continuity validation failed." >&2
+  echo "Erasure-journal integrity validation failed in the running backend." >&2
   exit 1
 fi
 privacy_relay_id=$(compose ps -q privacy-relay)
@@ -255,6 +366,10 @@ settings.assert_paid_credits_configuration()
 fi
 if ! docker exec "$backend_id" alembic current --check-heads >/dev/null; then
   echo "Production database is not at the Alembic head revision." >&2
+  exit 1
+fi
+if ! assert_legacy_gcs_retirement_complete; then
+  echo "Legacy GCS retirement invariant failed after database migration." >&2
   exit 1
 fi
 if ! assert_no_open_stripe_purchases_without_consumer_contract; then

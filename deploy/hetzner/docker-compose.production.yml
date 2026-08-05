@@ -73,9 +73,11 @@ services:
       GSP_ERASURE_JOURNAL_DIR: "/privacy-erasure-journal"
       GSP_ERASURE_JOURNAL_RETENTION_DAYS: "30"
       GSP_ERASURE_JOURNAL_CONTINUITY_ID: "${SUBFRAME_PRIVACY_CONTINUITY_ID:-}"
+      GSP_ERASURE_JOURNAL_ANCHOR_PATH: "/privacy-erasure-anchor/checkpoint.json"
     volumes:
       - app_data:/data
       - erasure_journal:/privacy-erasure-journal
+      - ${SUBFRAME_ERASURE_ANCHOR_DIR:-../../.runtime/privacy-erasure-anchor}:/privacy-erasure-anchor
     networks:
       - private
     depends_on:
