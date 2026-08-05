@@ -5,13 +5,17 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
-from fastapi import BackgroundTasks
+from fastapi import BackgroundTasks, HTTPException
 
 from backend.app.api.endpoints import reprocess_routes
 from backend.app.api.endpoints.reprocess_routes import ReprocessRequest
-from backend.app.core.auth import User
-from backend.app.services.jobs import Job
-from backend.app.services.usage_ledger import ChargePlan
+from backend.app.core.auth import User, UserStore
+from backend.app.core.database import Database
+from backend.app.core.erasure_journal import ErasureJournal
+from backend.app.services.history import HistoryStore
+from backend.app.services.jobs import Job, JobStore
+from backend.app.services.points import PointsStore
+from backend.app.services.usage_ledger import ChargePlan, UsageLedgerStore
 
 
 @pytest.mark.parametrize(
@@ -70,6 +74,11 @@ def test_reprocess_copy_failures_are_journaled_before_exact_cleanup(
         reprocess_routes,
         "probe_media",
         lambda _path: MagicMock(duration_s=30.0),
+    )
+    monkeypatch.setattr(
+        reprocess_routes,
+        "preflight_processing_charges",
+        MagicMock(),
     )
     monkeypatch.setattr(
         "backend.app.api.endpoints.reprocess_routes.uuid.uuid4",
@@ -186,3 +195,101 @@ def test_reprocess_copy_failures_are_journaled_before_exact_cleanup(
     assert not partial_artifact.parent.exists()
     assert neighbor_input.read_bytes() == b"neighbor-input"
     assert neighbor_artifact.read_text(encoding="utf-8") == "neighbor-artifact"
+
+
+def test_repeated_zero_credit_reprocesses_leave_no_new_jobs_files_or_tombstones(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    db = Database()
+    user = UserStore(db=db).register_local_user(
+        f"zero-reprocess-{uuid.uuid4().hex}@example.com",
+        "testpassword123",
+        "Zero Reprocess",
+    )
+    points_store = PointsStore(db=db)
+    points_store.ensure_account(user.id)
+    assert points_store.get_balance(user.id) == 0
+    ledger_store = UsageLedgerStore(db=db, points_store=points_store)
+    reserve = MagicMock(wraps=ledger_store.reserve)
+    budget_reserve = MagicMock(
+        wraps=ledger_store.provider_budget_store.reserve_in_session,
+    )
+    monkeypatch.setattr(ledger_store, "reserve", reserve)
+    monkeypatch.setattr(
+        ledger_store.provider_budget_store,
+        "reserve_in_session",
+        budget_reserve,
+    )
+
+    source_job_id = f"source-{uuid.uuid4().hex}"
+    job_store = JobStore(db=db)
+    job_store.create_job(source_job_id, user.id)
+    job_store.update_job(
+        source_job_id,
+        status="completed",
+        progress=100,
+        message="done",
+        result_data={"original_filename": "source.mp4"},
+    )
+
+    data_dir = tmp_path / "data"
+    uploads_dir = data_dir / "uploads"
+    artifacts_root = data_dir / "artifacts"
+    uploads_dir.mkdir(parents=True)
+    artifacts_root.mkdir(parents=True)
+    source_input = uploads_dir / f"{source_job_id}_input.mp4"
+    source_input.write_bytes(b"source-private-video")
+    journal = ErasureJournal(tmp_path / "journal", retention_days=30)
+    journal.initialize()
+
+    monkeypatch.setattr(
+        reprocess_routes,
+        "configured_erasure_journal",
+        lambda: journal,
+    )
+    monkeypatch.setattr(
+        reprocess_routes,
+        "data_roots",
+        lambda: (data_dir, uploads_dir, artifacts_root),
+    )
+    monkeypatch.setattr(reprocess_routes, "require_storage_capacity", MagicMock())
+    monkeypatch.setattr(
+        reprocess_routes,
+        "probe_media",
+        lambda _path: MagicMock(duration_s=30.0),
+    )
+    uuid4 = MagicMock(side_effect=AssertionError("preflight must precede UUID allocation"))
+    copy_file = MagicMock(side_effect=AssertionError("preflight must precede copy"))
+    monkeypatch.setattr(reprocess_routes.uuid, "uuid4", uuid4)
+    monkeypatch.setattr(reprocess_routes, "link_or_copy_file", copy_file)
+
+    request = ReprocessRequest.model_validate(
+        {"transcribe_provider": "local", "use_llm": False},
+    )
+    for _ in range(25):
+        with pytest.raises(HTTPException) as exc_info:
+            reprocess_routes.reprocess_job(
+                source_job_id,
+                request,
+                BackgroundTasks(),
+                current_user=user,
+                job_store=job_store,
+                history_store=HistoryStore(db=db),
+                ledger_store=ledger_store,
+                db=db,
+            )
+
+        assert exc_info.value.status_code == 402
+        assert exc_info.value.detail == "Insufficient points"
+
+    assert journal.read_all() == []
+    assert [job.id for job in job_store.list_jobs_for_user(user.id)] == [
+        source_job_id,
+    ]
+    assert list(uploads_dir.iterdir()) == [source_input]
+    assert list(artifacts_root.iterdir()) == []
+    uuid4.assert_not_called()
+    copy_file.assert_not_called()
+    reserve.assert_not_called()
+    budget_reserve.assert_not_called()

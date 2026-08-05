@@ -209,6 +209,30 @@ def test_paid_credit_cannot_be_funded_by_promotional_balance(tmp_path: Path) -> 
     assert balances.paid_balance == 0
 
 
+def test_assert_can_spend_matches_wallet_rules_without_mutating_state(
+    tmp_path: Path,
+) -> None:
+    db = Database()
+    user_id = _seed_user(db, email_verified=True)
+    store = PointsStore(db=db)
+    store.ensure_account(user_id, starting_balance_override=20)
+    store.credit(
+        user_id,
+        100,
+        reason="test_paid_funding",
+        paid_credit_delta=100,
+    )
+    before = store.get_balances(user_id)
+
+    store.assert_can_spend(user_id, 50)
+    with pytest.raises(HTTPException) as exc_info:
+        store.assert_can_spend(user_id, 110, require_paid=True)
+
+    assert exc_info.value.status_code == 402
+    assert exc_info.value.detail == "Insufficient paid credits"
+    assert store.get_balances(user_id) == before
+
+
 def test_paid_credit_and_paid_refund_are_atomic_and_idempotent(tmp_path: Path) -> None:
     db = Database()
     user_id = _seed_user(db, email_verified=True)

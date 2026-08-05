@@ -335,9 +335,31 @@ printf '%s\n' "$backend_environment" | grep -Fqx "GOOGLE_CLIENT_ID=$google_clien
   exit 1
 }
 if ! docker exec "$backend_id" python -c '
+from urllib.parse import urlsplit
+
 from backend.app.core.config import settings
 from backend.app.services.llm_utils import resolve_elevenlabs_api_key
 
+if not settings.allowed_origins:
+    raise SystemExit("Production CORS requires an explicit origin allow-list.")
+for origin in settings.allowed_origins:
+    parsed = urlsplit(origin)
+    try:
+        _ = parsed.port
+    except ValueError as exc:
+        raise SystemExit("Production CORS origins must be exact HTTPS origins.") from exc
+    if (
+        "*" in origin
+        or parsed.scheme != "https"
+        or parsed.hostname is None
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.path
+        or parsed.query
+        or parsed.fragment
+        or origin != f"https://{parsed.netloc}"
+    ):
+        raise SystemExit("Production CORS origins must be exact HTTPS origins.")
 if not settings.paid_credit_checkout_enabled:
     raise SystemExit("Paid Checkout and every independent launch gate must be enabled.")
 if settings.stripe_automatic_tax_enabled:
@@ -420,21 +442,173 @@ if [ "$reconciled_epoch" -lt "$backend_started_epoch" ] ||
   echo "Erasure reconciliation must complete after the current backend starts and before verification." >&2
   exit 1
 fi
-google_oauth_certs_http=$(docker exec "$backend_id" python -c \
-  'import os, urllib.request; response = urllib.request.urlopen(os.environ["GSP_GOOGLE_OAUTH_CERTS_URL"], timeout=10); print(response.status)')
-[ "$google_oauth_certs_http" = 200 ] || {
-  echo "Google OAuth certificate relay is unavailable: $google_oauth_certs_http" >&2
+edge_id=$(compose ps -q edge)
+expected_caddyfile="$ROOT_DIR/deploy/hetzner/Caddyfile"
+expected_caddyfile_sha=$(sha256sum "$expected_caddyfile" | awk 'NR == 1 { print $1 }')
+runtime_caddyfile_sha=$(docker exec "$edge_id" sha256sum /etc/caddy/Caddyfile | awk 'NR == 1 { print $1 }')
+if [ "$runtime_caddyfile_sha" != "$expected_caddyfile_sha" ]; then
+  echo "Running edge relay configuration does not match the reviewed release." >&2
   exit 1
+fi
+if ! docker exec "$edge_id" caddy validate \
+  --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null; then
+  echo "Running edge relay configuration is invalid." >&2
+  exit 1
+fi
+
+# Validate the exact runtime Caddyfile without exercising an allowed provider
+# route. Previous probes reached Google, Stripe, and ElevenLabs during every
+# deploy verification. The structural check below is performed against the
+# read-only file mounted in the running edge, while the subsequent HTTP probes
+# use method/path combinations proven to terminate at the local 404 handler.
+if ! docker exec "$edge_id" cat /etc/caddy/Caddyfile | docker exec -i "$backend_id" python -c '
+from __future__ import annotations
+
+from collections import Counter
+import re
+import sys
+
+source = sys.stdin.read()
+
+
+def block(scope: str, header: str) -> str:
+    pattern = re.compile(r"^[ \t]*" + re.escape(header) + r"[ \t]*\{[ \t]*(?:#.*)?$", re.MULTILINE)
+    matches = list(pattern.finditer(scope))
+    if len(matches) != 1:
+        raise SystemExit(f"Expected exactly one Caddy block: {header}")
+    opening = scope.find("{", matches[0].start(), matches[0].end())
+    depth = 0
+    for index in range(opening, len(scope)):
+        if scope[index] == "{":
+            depth += 1
+        elif scope[index] == "}":
+            depth -= 1
+            if depth == 0:
+                return scope[opening + 1 : index]
+    raise SystemExit(f"Unterminated Caddy block: {header}")
+
+
+def directives(scope: str) -> tuple[str, ...]:
+    return tuple(
+        line
+        for raw_line in scope.splitlines()
+        if (line := raw_line.split("#", 1)[0].strip())
+    )
+
+
+relay = block(source, ":8081")
+expected_matchers = {
+    "@stripe_checkout_create": (
+        "method POST",
+        "path /stripe/v1/checkout/sessions",
+    ),
+    "@stripe_checkout_expire": (
+        "method POST",
+        "path_regexp stripe_checkout_expire ^/stripe/v1/checkout/sessions/cs_(?:test|live)_[A-Za-z0-9_]+/expire$",
+    ),
+    "@stripe_payment_intent_retrieve": (
+        "method GET",
+        "path_regexp stripe_payment_intent ^/stripe/v1/payment_intents/pi_[A-Za-z0-9_]+$",
+    ),
+    "@stripe_payment_intent_capture": (
+        "method POST",
+        "path_regexp stripe_payment_intent_capture ^/stripe/v1/payment_intents/pi_[A-Za-z0-9_]+/capture$",
+    ),
+    "@stripe_payment_intent_cancel": (
+        "method POST",
+        "path_regexp stripe_payment_intent_cancel ^/stripe/v1/payment_intents/pi_[A-Za-z0-9_]+/cancel$",
+    ),
+    "@stripe_refund_list": (
+        "method GET",
+        "path /stripe/v1/refunds",
+    ),
+    "@google_oauth_certs": (
+        "method GET",
+        "path /oauth2/v1/certs",
+    ),
+    "@elevenlabs_scribe": (
+        "method POST",
+        "path /elevenlabs/v1/speech-to-text",
+    ),
+    "@elevenlabs_transcript_delete": (
+        "method DELETE",
+        "path_regexp elevenlabs_transcript_delete ^/elevenlabs/v1/speech-to-text/transcripts/[A-Za-z0-9][A-Za-z0-9_-]{0,127}$",
+    ),
 }
-stripe_relay_http=$(docker exec "$backend_id" python -c '
+handler_names = re.findall(r"^[ \t]*handle[ \t]+(@[A-Za-z0-9_]+)[ \t]*\{", relay, re.MULTILINE)
+if tuple(handler_names) != tuple(expected_matchers):
+    raise SystemExit("Provider relay handler allow-list does not match the reviewed release.")
+
+for matcher, expected_directives in expected_matchers.items():
+    if directives(block(relay, matcher)) != expected_directives:
+        raise SystemExit(f"Provider relay matcher changed: {matcher}")
+    handler = block(relay, f"handle {matcher}")
+    if handler.count("reverse_proxy ") != 1:
+        raise SystemExit(f"Provider relay must have one upstream: {matcher}")
+    if matcher.startswith("@stripe_"):
+        required = (
+            "uri strip_prefix /stripe",
+            "reverse_proxy https://api.stripe.com",
+            "header_up Host api.stripe.com",
+        )
+    elif matcher == "@google_oauth_certs":
+        required = (
+            "reverse_proxy https://www.googleapis.com",
+            "header_up Host www.googleapis.com",
+        )
+    else:
+        required = (
+            "uri strip_prefix /elevenlabs",
+            "reverse_proxy https://api.elevenlabs.io",
+            "header_up Host api.elevenlabs.io",
+        )
+    if any(fragment not in handler for fragment in required):
+        raise SystemExit(f"Provider relay handler changed: {matcher}")
+
+expected_upstreams = Counter(
+    {
+        "https://api.stripe.com": 6,
+        "https://www.googleapis.com": 1,
+        "https://api.elevenlabs.io": 2,
+    },
+)
+actual_upstreams = Counter(
+    re.findall(r"^[ \t]*reverse_proxy[ \t]+(https://[^ \t{]+)", relay, re.MULTILINE),
+)
+if actual_upstreams != expected_upstreams:
+    raise SystemExit("Provider relay upstream allow-list does not match the reviewed release.")
+default_deny_offset = relay.rfind("respond 404")
+last_handler_offset = max(relay.rfind(f"handle {matcher} {{") for matcher in expected_matchers)
+if directives(relay).count("respond 404") != 1 or default_deny_offset < last_handler_offset:
+    raise SystemExit("Provider relay must end in one default-deny response.")
+if any(secret in relay for secret in ("ELEVENLABS_API_KEY", "STRIPE_RESTRICTED_KEY", "GOOGLE_CLIENT_SECRET")):
+    raise SystemExit("Provider credentials must not be embedded in the edge relay.")
+'; then
+  echo "Running provider relay contract is unsafe." >&2
+  exit 1
+fi
+
+relay_deny_http=$(docker exec "$backend_id" python -c '
 import urllib.error
 import urllib.request
 
-base = "http://edge:8081/stripe/v1/payment_intents/pi_gsubs_relay_probe"
-probes = ((base, "GET"), (f"{base}/capture", "POST"), (f"{base}/cancel", "POST"))
+base = "http://edge:8081"
+probes = (
+    (f"{base}/oauth2/v1/certs", "POST"),
+    (f"{base}/oauth2/v1/certs/verification-deny", "GET"),
+    (f"{base}/stripe/v1/checkout/sessions", "GET"),
+    (f"{base}/stripe/v1/payment_intents/not-a-provider-id", "GET"),
+    (f"{base}/elevenlabs/v1/speech-to-text", "GET"),
+    (f"{base}/elevenlabs/v1/models", "POST"),
+    (f"{base}/elevenlabs/v1/speech-to-text/transcripts/invalid/path", "DELETE"),
+)
 statuses = []
 for url, method in probes:
-    request = urllib.request.Request(url, data=(b"" if method == "POST" else None), method=method)
+    request = urllib.request.Request(
+        url,
+        data=(b"" if method == "POST" else None),
+        method=method,
+    )
     try:
         response = urllib.request.urlopen(request, timeout=10)
     except urllib.error.HTTPError as exc:
@@ -445,47 +619,10 @@ for url, method in probes:
         statuses.append(str(response.status))
 print(",".join(statuses))
 ')
-[ "$stripe_relay_http" = "401,401,401" ] || {
-  echo "Stripe API relay is unavailable or unexpectedly permissive: $stripe_relay_http" >&2
+[ "$relay_deny_http" = "404,404,404,404,404,404,404" ] || {
+  echo "Provider relay local default-deny checks failed: $relay_deny_http" >&2
   exit 1
 }
-elevenlabs_relay_http=$(docker exec "$backend_id" python -c '
-import urllib.error
-import urllib.request
-
-base = "http://edge:8081/elevenlabs"
-probes = (
-    (f"{base}/v1/speech-to-text", "POST"),
-    (f"{base}/v1/speech-to-text", "GET"),
-    (f"{base}/v1/models", "POST"),
-    (f"{base}/v1/speech-to-text/transcripts/gsubs_relay_probe", "DELETE"),
-    (f"{base}/v1/speech-to-text/transcripts/invalid/path", "DELETE"),
-)
-statuses = []
-for url, method in probes:
-    request = urllib.request.Request(
-        url,
-        data=(b"" if method == "POST" else None),
-        method=method,
-    )
-    try:
-        response = urllib.request.urlopen(request, timeout=15)
-    except urllib.error.HTTPError as exc:
-        statuses.append(str(exc.code))
-    except urllib.error.URLError:
-        statuses.append("unavailable")
-    else:
-        statuses.append(str(response.status))
-print(",".join(statuses))
-')
-case "$elevenlabs_relay_http" in
-  400,404,404,401,404|400,404,404,404,404|401,404,404,401,404|401,404,404,404,404|422,404,404,401,404|422,404,404,404,404)
-    ;;
-  *)
-    echo "ElevenLabs API relay is unavailable or unexpectedly permissive: $elevenlabs_relay_http" >&2
-    exit 1
-    ;;
-esac
 
 health_json=""
 catalog_json=""

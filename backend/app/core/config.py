@@ -7,8 +7,9 @@ import re
 from enum import StrEnum
 from pathlib import Path
 from typing import Annotated
+from urllib.parse import urlsplit
 
-from pydantic import AliasChoices, Field, SecretStr, field_validator
+from pydantic import AliasChoices, Field, SecretStr, ValidationInfo, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
@@ -113,6 +114,42 @@ class Settings(BaseSettings):
         if isinstance(v, (list, tuple, set)):
             return [str(item).strip() for item in v if str(item).strip()]
         return []
+
+    @field_validator("allowed_origins")
+    @classmethod
+    def validate_allowed_origins(
+        cls,
+        origins: list[str],
+        info: ValidationInfo,
+    ) -> list[str]:
+        """Keep credentialed CORS on an exact, auditable origin allow-list."""
+        if any("*" in origin for origin in origins):
+            raise ValueError("GSP_ALLOWED_ORIGINS cannot contain wildcards")
+        if info.data.get("app_env") != AppEnv.PRODUCTION:
+            return origins
+
+        for origin in origins:
+            parsed = urlsplit(origin)
+            try:
+                _ = parsed.port
+            except ValueError as exc:
+                raise ValueError(
+                    "Production GSP_ALLOWED_ORIGINS must contain exact HTTPS origins",
+                ) from exc
+            if (
+                parsed.scheme != "https"
+                or parsed.hostname is None
+                or parsed.username is not None
+                or parsed.password is not None
+                or parsed.path
+                or parsed.query
+                or parsed.fragment
+                or origin != f"https://{parsed.netloc}"
+            ):
+                raise ValueError(
+                    "Production GSP_ALLOWED_ORIGINS must contain exact HTTPS origins",
+                )
+        return origins
 
     @field_validator("erasure_journal_continuity_id", mode="before")
     @classmethod

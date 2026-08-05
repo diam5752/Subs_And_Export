@@ -129,7 +129,7 @@ default_origins = (
     if settings.is_dev
     else []
 )
-origins = _env_list("GSP_ALLOWED_ORIGINS", default_origins)
+origins = settings.allowed_origins or default_origins
 if not settings.is_dev and not origins:
     raise RuntimeError("GSP_ALLOWED_ORIGINS must be set in production")
 

@@ -16,7 +16,11 @@ from backend.app.core.erasure_journal import (
     OrphanWorkspaceErasureTombstone,
     ProviderTranscriptErasureTombstone,
 )
-from backend.app.core.workspace_deletion import delete_job_workspace
+from backend.app.core.workspace_deletion import (
+    delete_job_workspace,
+    lock_job_workspace,
+    lock_job_workspaces,
+)
 from backend.app.db.models import DbHistoryEvent, DbJob
 from backend.app.services.account_erasure import (
     ErasureReplayConflictError,
@@ -140,11 +144,12 @@ def _replay_orphan_workspace_erasure(
     uploads_dir = data_dir / "uploads"
     artifacts_dir = data_dir / "artifacts"
     for job_id in tombstone.job_ids:
-        delete_job_workspace(
-            job_id=job_id,
-            uploads_dir=uploads_dir,
-            artifacts_dir=artifacts_dir,
-        )
+        with lock_job_workspace(data_dir=data_dir, job_id=job_id):
+            delete_job_workspace(
+                job_id=job_id,
+                uploads_dir=uploads_dir,
+                artifacts_dir=artifacts_dir,
+            )
 
 
 def _replay_workspace_erasure(
@@ -156,43 +161,44 @@ def _replay_workspace_erasure(
 ) -> None:
     uploads_dir = data_dir / "uploads"
     artifacts_dir = data_dir / "artifacts"
-    with db.session() as session:
-        restored_jobs = list(
-            session.scalars(
-                select(DbJob).where(DbJob.id.in_(tombstone.job_ids)).with_for_update(),
-            ).all(),
-        )
-        if any(job.user_id != tombstone.user_id for job in restored_jobs):
-            raise ErasureReplayConflictError("Restored project ownership conflicts with erasure intent")
-
-        for job_id in tombstone.job_ids:
-            delete_job_workspace(
-                job_id=job_id,
-                uploads_dir=uploads_dir,
-                artifacts_dir=artifacts_dir,
+    with lock_job_workspaces(data_dir=data_dir, job_ids=tombstone.job_ids):
+        with db.session() as session:
+            restored_jobs = list(
+                session.scalars(
+                    select(DbJob).where(DbJob.id.in_(tombstone.job_ids)).with_for_update(),
+                ).all(),
             )
+            if any(job.user_id != tombstone.user_id for job in restored_jobs):
+                raise ErasureReplayConflictError("Restored project ownership conflicts with erasure intent")
 
-        if not delete_database_jobs:
-            return
+            for job_id in tombstone.job_ids:
+                delete_job_workspace(
+                    job_id=job_id,
+                    uploads_dir=uploads_dir,
+                    artifacts_dir=artifacts_dir,
+                )
 
-        target_ids = set(tombstone.job_ids)
-        history_rows = session.execute(
-            select(DbHistoryEvent.id, DbHistoryEvent.data).where(
-                DbHistoryEvent.user_id == tombstone.user_id,
-            ),
-        ).all()
-        history_ids = [
-            int(event_id)
-            for event_id, data in history_rows
-            if isinstance(data, dict) and data.get("job_id") in target_ids
-        ]
-        if history_ids:
+            if not delete_database_jobs:
+                return
+
+            target_ids = set(tombstone.job_ids)
+            history_rows = session.execute(
+                select(DbHistoryEvent.id, DbHistoryEvent.data).where(
+                    DbHistoryEvent.user_id == tombstone.user_id,
+                ),
+            ).all()
+            history_ids = [
+                int(event_id)
+                for event_id, data in history_rows
+                if isinstance(data, dict) and data.get("job_id") in target_ids
+            ]
+            if history_ids:
+                session.execute(
+                    delete(DbHistoryEvent).where(DbHistoryEvent.id.in_(history_ids)),
+                )
             session.execute(
-                delete(DbHistoryEvent).where(DbHistoryEvent.id.in_(history_ids)),
+                delete(DbJob).where(
+                    DbJob.id.in_(tombstone.job_ids),
+                    DbJob.user_id == tombstone.user_id,
+                ),
             )
-        session.execute(
-            delete(DbJob).where(
-                DbJob.id.in_(tombstone.job_ids),
-                DbJob.user_id == tombstone.user_id,
-            ),
-        )

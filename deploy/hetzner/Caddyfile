@@ -105,7 +105,10 @@
 		}
 	}
 
-	@google_oauth_certs path /oauth2/v1/certs
+	@google_oauth_certs {
+		method GET
+		path /oauth2/v1/certs
+	}
 	handle @google_oauth_certs {
 		reverse_proxy https://www.googleapis.com {
 			header_up Host www.googleapis.com

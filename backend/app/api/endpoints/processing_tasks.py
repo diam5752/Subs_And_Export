@@ -15,7 +15,7 @@ from ...core.errors import (
     ProviderDispatchAlreadyClaimedError,
     sanitize_message,
 )
-from ...core.workspace_deletion import delete_job_workspace
+from ...core.workspace_deletion import delete_job_workspace, lock_job_workspace
 from ...services.ffmpeg_utils import MediaProbe, probe_media
 from ...services.history import HistoryStore
 from ...services.jobs import JobStore
@@ -50,7 +50,28 @@ def raise_for_rejected_worker_write(*, job_store: JobStore, job_id: str) -> None
 def delete_local_workspace_best_effort(*, job_id: str) -> None:
     """Remove one job's local media without masking its terminal status."""
     try:
-        _, uploads_dir, artifacts_root = data_roots()
+        data_dir, uploads_dir, artifacts_root = data_roots()
+        with lock_job_workspace(data_dir=data_dir, job_id=job_id):
+            _delete_local_workspace_unlocked(
+                job_id=job_id,
+                uploads_dir=uploads_dir,
+                artifacts_root=artifacts_root,
+            )
+    except Exception:
+        logger.exception(
+            "Failed to lock terminal job workspace for cleanup",
+            extra={"job_id": job_id},
+        )
+
+
+def _delete_local_workspace_unlocked(
+    *,
+    job_id: str,
+    uploads_dir: Path,
+    artifacts_root: Path,
+) -> None:
+    """Best-effort deletion used only while the caller holds the job lock."""
+    try:
         delete_job_workspace(
             job_id=job_id,
             uploads_dir=uploads_dir,
@@ -65,12 +86,18 @@ def delete_local_workspace_best_effort(*, job_id: str) -> None:
 
 def record_and_delete_local_workspace(*, job_id: str, user_id: str) -> None:
     """Durably record erasure intent immediately before deleting local media."""
-    configured_erasure_journal().append(
-        kind="workspace",
-        user_id=user_id,
-        job_ids=[job_id],
-    )
-    delete_local_workspace_best_effort(job_id=job_id)
+    data_dir, uploads_dir, artifacts_root = data_roots()
+    with lock_job_workspace(data_dir=data_dir, job_id=job_id):
+        configured_erasure_journal().append(
+            kind="workspace",
+            user_id=user_id,
+            job_ids=[job_id],
+        )
+        _delete_local_workspace_unlocked(
+            job_id=job_id,
+            uploads_dir=uploads_dir,
+            artifacts_root=artifacts_root,
+        )
 
 
 def refund_charge_best_effort(

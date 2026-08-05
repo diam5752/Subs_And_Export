@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
@@ -13,8 +14,12 @@ from ...core.config import settings
 from ...core.database import Database
 from ...core.errors import sanitize_message
 from ...core.ratelimit import limiter_content
+from ...core.workspace_deletion import (
+    JobWorkspaceLockTimeoutError,
+    lock_job_workspace,
+)
 from ...schemas.base import JobResponse
-from ...services.jobs import JobStore
+from ...services.jobs import Job, JobStore
 from ...services.subtitle_exports import (
     SUBTITLE_EXPORT_FORMATS,
     MalformedTranscriptError,
@@ -109,6 +114,42 @@ def export_video(
     if job.status != "completed":
         raise HTTPException(400, "Job must be completed to export")
 
+    data_dir, uploads_dir, artifacts_root = data_roots()
+    try:
+        with lock_job_workspace(data_dir=data_dir, job_id=job_id):
+            locked_job = job_store.get_job(job_id)
+            if not locked_job or locked_job.user_id != current_user.id:
+                raise HTTPException(404, "Job not found")
+            if locked_job.status != "completed":
+                raise HTTPException(400, "Job must be completed to export")
+            return _export_video_locked(
+                job_id=job_id,
+                request=request,
+                current_user=current_user,
+                job_store=job_store,
+                db=db,
+                job=locked_job,
+                data_dir=data_dir,
+                uploads_dir=uploads_dir,
+                artifacts_root=artifacts_root,
+            )
+    except JobWorkspaceLockTimeoutError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+def _export_video_locked(
+    *,
+    job_id: str,
+    request: ExportRequest,
+    current_user: User,
+    job_store: JobStore,
+    db: Database,
+    job: Job,
+    data_dir: Path,
+    uploads_dir: Path,
+    artifacts_root: Path,
+) -> JobResponse:
+    """Write one export while its cross-process workspace lock is held."""
     # Refresh the workspace lease before any potentially long export work.
     # The retention worker rechecks this timestamp immediately before deletion.
     job_store.update_job(job_id, status="completed")
@@ -117,7 +158,6 @@ def export_video(
     if active_jobs >= settings.max_concurrent_jobs:
         raise HTTPException(status_code=429, detail="System busy. Please wait for your other jobs to finish.")
 
-    data_dir, uploads_dir, artifacts_root = data_roots()
     artifact_dir = artifacts_root / job_id
     _validate_subtitle_export_settings(request)
 

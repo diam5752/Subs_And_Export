@@ -22,6 +22,7 @@ from ...core.database import Database
 from ...core.erasure_journal import ErasureJournalError, configured_erasure_journal
 from ...core.errors import sanitize_error
 from ...core.ratelimit import limiter_auth_change, limiter_login, limiter_register, limiter_signup_daily
+from ...core.workspace_deletion import JobWorkspaceLockTimeoutError
 from ...db.models import (
     DbBillingAdjustmentRecord,
     DbBillingContractConfirmation,
@@ -877,6 +878,11 @@ def delete_account(
                 "Account deletion is unavailable while media processing is active. "
                 "Wait for it to finish or cancel the job first."
             ),
+        ) from exc
+    except JobWorkspaceLockTimeoutError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
         ) from exc
     except ErasureJournalError as exc:
         logger.error("Refusing account deletion because the erasure journal is unavailable")

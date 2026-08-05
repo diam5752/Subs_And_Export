@@ -15,6 +15,7 @@ from .workspace_deletion import (
     UPLOAD_SUFFIXES,
     delete_job_workspace,
     delete_local_path,
+    lock_job_workspace,
 )
 
 if TYPE_CHECKING:
@@ -90,32 +91,33 @@ def cleanup_expired_workspaces(
     failed_job_ids: list[str] = []
     for job_id in sorted(candidates):
         try:
-            latest_job = job_store.get_job(job_id)
-            if latest_job is None or not _job_is_expired(
-                latest_job,
-                terminal_cutoff=terminal_cutoff,
-                active_cutoff=active_cutoff,
-            ):
-                continue
-            if (
-                latest_job.status in ACTIVE_JOB_STATUSES
-                and before_delete_job is not None
-            ):
-                before_delete_job(latest_job)
-            erasure_journal.append(
-                kind="job",
-                user_id=latest_job.user_id,
-                job_ids=[job_id],
-                now=current_time,
-            )
-            delete_job_workspace(
-                job_id=job_id,
-                uploads_dir=uploads_dir,
-                artifacts_dir=artifacts_dir,
-            )
-            history_store.delete_job_events([job_id])
-            job_store.delete_job(job_id)
-            deleted_job_ids.append(job_id)
+            with lock_job_workspace(data_dir=artifacts_dir.parent, job_id=job_id):
+                latest_job = job_store.get_job(job_id)
+                if latest_job is None or not _job_is_expired(
+                    latest_job,
+                    terminal_cutoff=terminal_cutoff,
+                    active_cutoff=active_cutoff,
+                ):
+                    continue
+                if (
+                    latest_job.status in ACTIVE_JOB_STATUSES
+                    and before_delete_job is not None
+                ):
+                    before_delete_job(latest_job)
+                erasure_journal.append(
+                    kind="job",
+                    user_id=latest_job.user_id,
+                    job_ids=[job_id],
+                    now=current_time,
+                )
+                delete_job_workspace(
+                    job_id=job_id,
+                    uploads_dir=uploads_dir,
+                    artifacts_dir=artifacts_dir,
+                )
+                history_store.delete_job_events([job_id])
+                job_store.delete_job(job_id)
+                deleted_job_ids.append(job_id)
         except Exception:
             failed_job_ids.append(job_id)
             logger.exception("Workspace cleanup failed", extra={"job_id": job_id})
@@ -296,12 +298,17 @@ def _cleanup_orphan_uploads(
         if job_store.get_job(job_id) is not None:
             continue
         try:
-            erasure_journal.append_orphan_workspace(
-                job_ids=[job_id],
-                now=now,
-            )
-            delete_local_path(item)
-            deleted += 1
+            with lock_job_workspace(data_dir=uploads_dir.parent, job_id=job_id):
+                if not _is_older_than(item, cutoff_time):
+                    continue
+                if job_store.get_job(job_id) is not None:
+                    continue
+                erasure_journal.append_orphan_workspace(
+                    job_ids=[job_id],
+                    now=now,
+                )
+                delete_local_path(item)
+                deleted += 1
         except Exception:
             failed += 1
             logger.exception("Failed to delete orphan upload")
@@ -326,12 +333,17 @@ def _cleanup_orphan_artifacts(
         if job_store.get_job(item.name) is not None:
             continue
         try:
-            erasure_journal.append_orphan_workspace(
-                job_ids=[item.name],
-                now=now,
-            )
-            delete_local_path(item)
-            deleted += 1
+            with lock_job_workspace(data_dir=artifacts_dir.parent, job_id=item.name):
+                if not _is_older_than(item, cutoff_time):
+                    continue
+                if job_store.get_job(item.name) is not None:
+                    continue
+                erasure_journal.append_orphan_workspace(
+                    job_ids=[item.name],
+                    now=now,
+                )
+                delete_local_path(item)
+                deleted += 1
         except Exception:
             failed += 1
             logger.exception("Failed to delete orphan artifact")

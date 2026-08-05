@@ -31,10 +31,17 @@ from ...core.database import Database
 from ...core.erasure_journal import TombstoneKind, configured_erasure_journal
 from ...core.errors import sanitize_message
 from ...core.ratelimit import limiter_processing
-from ...core.workspace_deletion import UPLOAD_SUFFIXES, delete_job_workspace
+from ...core.workspace_deletion import (
+    UPLOAD_SUFFIXES,
+    delete_job_workspace,
+    lock_job_workspace,
+)
 from ...schemas.base import JobResponse
 from ...services import pricing
-from ...services.charge_plans import reserve_processing_charges
+from ...services.charge_plans import (
+    preflight_processing_charges,
+    reserve_processing_charges,
+)
 from ...services.ffmpeg_utils import probe_media
 from ...services.history import HistoryStore
 from ...services.jobs import JobStore
@@ -167,22 +174,26 @@ def _record_and_delete_rejected_upload(
     """Delete rejected media, retaining intent only when cleanup is uncertain."""
     if kind == "workspace":
         try:
-            delete_job_workspace(
+            with lock_job_workspace(
+                data_dir=artifacts_root.parent,
                 job_id=job_id,
-                uploads_dir=input_path.parent,
-                artifacts_dir=artifacts_root,
-            )
-            artifact_path = artifacts_root / job_id
-            expected_stem = f"{job_id}_input"
-            upload_remains = input_path.exists() or input_path.is_symlink()
-            if input_path.parent.exists():
-                upload_remains = upload_remains or any(
-                    item.stem == expected_stem and item.suffix.lower() in UPLOAD_SUFFIXES
-                    for item in input_path.parent.iterdir()
+            ):
+                delete_job_workspace(
+                    job_id=job_id,
+                    uploads_dir=input_path.parent,
+                    artifacts_dir=artifacts_root,
                 )
-            artifact_remains = artifact_path.exists() or artifact_path.is_symlink()
-            if upload_remains or artifact_remains:
-                raise RuntimeError("Rejected upload cleanup could not be verified")
+                artifact_path = artifacts_root / job_id
+                expected_stem = f"{job_id}_input"
+                upload_remains = input_path.exists() or input_path.is_symlink()
+                if input_path.parent.exists():
+                    upload_remains = upload_remains or any(
+                        item.stem == expected_stem and item.suffix.lower() in UPLOAD_SUFFIXES
+                        for item in input_path.parent.iterdir()
+                    )
+                artifact_remains = artifact_path.exists() or artifact_path.is_symlink()
+                if upload_remains or artifact_remains:
+                    raise RuntimeError("Rejected upload cleanup could not be verified")
         except Exception:
             # The workspace has no database row yet. A durable retry is needed
             # only when exact synchronous deletion failed or was ambiguous.
@@ -196,20 +207,21 @@ def _record_and_delete_rejected_upload(
 
     # Once a job row may exist, record restore-safe intent before deleting
     # either filesystem or database state.
-    configured_erasure_journal().append(
-        kind=kind,
-        user_id=user_id,
-        job_ids=[job_id],
-    )
-    delete_job_workspace(
-        job_id=job_id,
-        uploads_dir=input_path.parent,
-        artifacts_dir=artifacts_root,
-    )
-    if kind == "job":
-        if job_store is None:
-            raise RuntimeError("Job cleanup requires a job store")
-        job_store.delete_job(job_id)
+    with lock_job_workspace(data_dir=artifacts_root.parent, job_id=job_id):
+        configured_erasure_journal().append(
+            kind=kind,
+            user_id=user_id,
+            job_ids=[job_id],
+        )
+        delete_job_workspace(
+            job_id=job_id,
+            uploads_dir=input_path.parent,
+            artifacts_dir=artifacts_root,
+        )
+        if kind == "job":
+            if job_store is None:
+                raise RuntimeError("Job cleanup requires a job store")
+            job_store.delete_job(job_id)
 
 
 def _queue_saved_upload(
@@ -265,6 +277,33 @@ def _queue_saved_upload(
         )
 
     try:
+        llm_models = pricing.resolve_llm_models(proc_settings.transcribe_tier)
+        stt_model = pricing.resolve_requested_transcribe_model(
+            tier=proc_settings.transcribe_tier,
+            provider=proc_settings.transcribe_provider,
+            openai_model=proc_settings.openai_model,
+        )
+        preflight_processing_charges(
+            ledger_store=ledger_store,
+            user_id=current_user.id,
+            tier=proc_settings.transcribe_tier,
+            duration_seconds=float(probe.duration_s),
+            use_llm=proc_settings.use_llm,
+            llm_model=llm_models.social,
+            provider=proc_settings.transcribe_provider,
+            stt_model=stt_model,
+        )
+    except Exception:
+        _record_and_delete_rejected_upload(
+            job_id=job_id,
+            user_id=current_user.id,
+            input_path=input_path,
+            artifacts_root=artifacts_root,
+            kind="workspace",
+        )
+        raise
+
+    try:
         job = job_store.create_job(job_id, current_user.id)
     except Exception:
         _record_and_delete_rejected_upload(
@@ -281,7 +320,6 @@ def _queue_saved_upload(
         raise
 
     try:
-        llm_models = pricing.resolve_llm_models(proc_settings.transcribe_tier)
         charge_plan, new_balance = reserve_processing_charges(
             ledger_store=ledger_store,
             user_id=current_user.id,
@@ -291,11 +329,7 @@ def _queue_saved_upload(
             use_llm=proc_settings.use_llm,
             llm_model=llm_models.social,
             provider=proc_settings.transcribe_provider,
-            stt_model=pricing.resolve_requested_transcribe_model(
-                tier=proc_settings.transcribe_tier,
-                provider=proc_settings.transcribe_provider,
-                openai_model=proc_settings.openai_model,
-            ),
+            stt_model=stt_model,
         )
     except Exception:
         _record_and_delete_rejected_upload(

@@ -191,10 +191,24 @@ Before every release:
 3. Set `SUBFRAME_RELEASE_SHA` to the exact clean, reviewed commit being
    deployed.
 
-For the one-time release that introduces journal continuity beside existing
-production data, stop the public edge before creating the fresh backup and keep
-it stopped through the restore drill and deployment. This ensures that no
-account/project deletion can occur between the pre-release backup and creation
+The one-time release that introduces journal continuity beside existing
+production data is deliberately a two-stage operation. The first invocation of
+`deploy-production.sh` stops the existing public edge and legacy backend
+immediately, fingerprints both stopped Docker states, and atomically writes the private mode-`0600`
+`.runtime/legacy-journal-bootstrap-transition` marker on the existing server
+root disk. It then exits without building, migrating, or opening any service.
+Do not restart or replace the edge or backend after this marker exists. Keeping
+the legacy backend stopped is essential because its retention worker predates
+the durable erasure journal and could otherwise delete state after the backup.
+
+Only after that first invocation may the operator create the fresh encrypted
+backup, copy it off-server, and run `verify-backup.sh --drill` for the exact
+target SHA. The second invocation validates the marker, proves that the same
+edge and backend have remained stopped, and requires the backup creation timestamp to be
+strictly later than the marker timestamp. A missing or modified marker, a
+restarted/replaced edge or backend, or a pre-marker backup fails closed and requires the
+transition to be investigated and restaged with a new backup. This prevents an
+account/project deletion from falling between the accepted backup and creation
 of the first durable journal. Only that independently gated first-use path may
 create the mode-`0700`, UID/GID-`10001` anchor directory and call the journal's
 explicit initializer. Later releases require the existing continuity state,
@@ -410,8 +424,11 @@ ssh -N -L 127.0.0.1:18090:127.0.0.1:18090 root@SERVER
 
 `verify-production.sh` checks container health and image SHAs, every reviewed
 payment/provider setting, the non-empty Scribe credential without printing it,
-the complete live Stripe bundle, the method/path-scoped Stripe and ElevenLabs
-relays, the Google certificate relay, the local-volume and anchor-bind storage
+the complete live Stripe bundle, and the method/path-scoped Google, Stripe and
+ElevenLabs relays. Relay verification compares and validates the exact runtime
+Caddyfile, checks its structural allow-list and exercises only local
+default-deny routes; it never sends a verification request to a third-party
+provider. The verifier also checks the local-volume and anchor-bind storage
 contract, a complete authenticated read of the erasure journal, the Alembic
 head, and that
 `/billing/catalog` returns `checkout_enabled=true` with the approved contract.

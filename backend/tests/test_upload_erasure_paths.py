@@ -4,6 +4,7 @@ import base64
 import errno
 import json
 import types
+import uuid
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -13,8 +14,12 @@ from fastapi.testclient import TestClient
 
 from backend.app.api.endpoints import videos
 from backend.app.api.endpoints.settings import ProcessingSettings
+from backend.app.core.auth import UserStore
+from backend.app.core.database import Database
 from backend.app.core.erasure_journal import ErasureJournal
-from backend.app.services.usage_ledger import ChargePlan
+from backend.app.services.jobs import JobStore
+from backend.app.services.points import PointsStore
+from backend.app.services.usage_ledger import ChargePlan, UsageLedgerStore
 
 
 def _saved_workspace(tmp_path: Path, job_id: str) -> tuple[Path, Path, Path]:
@@ -105,6 +110,7 @@ def test_post_save_failures_use_the_correct_durable_erasure_scope(
         "probe_media",
         lambda _path: types.SimpleNamespace(duration_s=30.0),
     )
+    monkeypatch.setattr(videos, "preflight_processing_charges", MagicMock())
     job_store = MagicMock()
     job_store.create_job.return_value = types.SimpleNamespace(id=job_id)
     if failure_stage == "create_job":
@@ -152,6 +158,80 @@ def test_post_save_failures_use_the_correct_durable_erasure_scope(
     job_store.delete_job.assert_called_once_with(job_id)
     assert not input_path.exists()
     assert not partial_artifact.parent.exists()
+
+
+def test_repeated_zero_credit_uploads_leave_no_jobs_files_or_tombstones(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    db = Database()
+    user = UserStore(db=db).register_local_user(
+        f"zero-upload-{uuid.uuid4().hex}@example.com",
+        "testpassword123",
+        "Zero Upload",
+    )
+    points_store = PointsStore(db=db)
+    points_store.ensure_account(user.id)
+    assert points_store.get_balance(user.id) == 0
+    ledger_store = UsageLedgerStore(db=db, points_store=points_store)
+    reserve = MagicMock(wraps=ledger_store.reserve)
+    budget_reserve = MagicMock(
+        wraps=ledger_store.provider_budget_store.reserve_in_session,
+    )
+    monkeypatch.setattr(ledger_store, "reserve", reserve)
+    monkeypatch.setattr(
+        ledger_store.provider_budget_store,
+        "reserve_in_session",
+        budget_reserve,
+    )
+
+    journal = ErasureJournal(tmp_path / "journal", retention_days=30)
+    journal.initialize()
+    monkeypatch.setattr(videos, "configured_erasure_journal", lambda: journal)
+    monkeypatch.setattr(
+        videos,
+        "probe_media",
+        lambda _path: types.SimpleNamespace(duration_s=30.0),
+    )
+
+    job_store = JobStore(db=db)
+    attempted_paths: list[tuple[Path, Path]] = []
+    for index in range(25):
+        job_id = f"zero-credit-upload-{index}"
+        input_path, artifacts_root, partial_artifact = _saved_workspace(
+            tmp_path / f"attempt-{index}",
+            job_id,
+        )
+        attempted_paths.append((input_path, partial_artifact))
+
+        with pytest.raises(HTTPException) as exc_info:
+            videos._queue_saved_upload(
+                background_tasks=BackgroundTasks(),
+                job_id=job_id,
+                input_path=input_path,
+                artifacts_root=artifacts_root,
+                filename="video.mp4",
+                video_resolution="",
+                proc_settings=ProcessingSettings(
+                    transcribe_provider="local",
+                    use_llm=False,
+                ),
+                current_user=user,
+                job_store=job_store,
+                history_store=MagicMock(),
+                ledger_store=ledger_store,
+                db=db,
+            )
+
+        assert exc_info.value.status_code == 402
+        assert exc_info.value.detail == "Insufficient points"
+
+    assert journal.read_all() == []
+    assert job_store.list_jobs_for_user(user.id) == []
+    assert all(not input_path.exists() for input_path, _ in attempted_paths)
+    assert all(not artifact_path.exists() for _, artifact_path in attempted_paths)
+    reserve.assert_not_called()
+    budget_reserve.assert_not_called()
 
 
 def test_rejected_upload_cleanup_fails_closed_if_tombstone_cannot_be_stored(

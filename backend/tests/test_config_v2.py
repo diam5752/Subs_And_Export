@@ -252,6 +252,65 @@ def test_settings_rejects_nonpositive_upload_limit(monkeypatch) -> None:
         Settings(_env_file=None)
 
 
+@pytest.mark.parametrize(
+    "origins",
+    (
+        "*",
+        "https://gsubs.gr,*",
+        "https://*.gsubs.gr",
+    ),
+)
+def test_settings_rejects_wildcard_cors_origins(
+    monkeypatch: pytest.MonkeyPatch,
+    origins: str,
+) -> None:
+    # REGRESSION: Starlette reflects a requesting origin when credentials and
+    # a wildcard are combined, exposing cookie-authenticated private media.
+    monkeypatch.setenv("GSP_APP_ENV", "production")
+    monkeypatch.setenv("GSP_ALLOWED_ORIGINS", origins)
+
+    with pytest.raises(ValueError, match="wildcards"):
+        Settings(_env_file=None)
+
+
+@pytest.mark.parametrize(
+    "origin",
+    (
+        "http://gsubs.gr",
+        "https://gsubs.gr/",
+        "https://gsubs.gr/private",
+        "https://user@gsubs.gr",
+        "https://gsubs.gr?next=private",
+    ),
+)
+def test_production_settings_require_exact_https_cors_origins(
+    monkeypatch: pytest.MonkeyPatch,
+    origin: str,
+) -> None:
+    monkeypatch.setenv("GSP_APP_ENV", "production")
+    monkeypatch.setenv("GSP_ALLOWED_ORIGINS", origin)
+
+    with pytest.raises(ValueError, match="exact HTTPS origins"):
+        Settings(_env_file=None)
+
+
+def test_development_settings_allow_exact_http_cors_origins(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("GSP_APP_ENV", "dev")
+    monkeypatch.setenv(
+        "GSP_ALLOWED_ORIGINS",
+        "http://localhost:3000,http://127.0.0.1:8000",
+    )
+
+    settings = Settings(_env_file=None)
+
+    assert settings.allowed_origins == [
+        "http://localhost:3000",
+        "http://127.0.0.1:8000",
+    ]
+
+
 def test_settings_rejects_invalid_erasure_journal_continuity_id(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

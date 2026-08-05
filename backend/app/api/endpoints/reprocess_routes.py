@@ -14,10 +14,13 @@ from ...core.database import Database
 from ...core.erasure_journal import configured_erasure_journal
 from ...core.errors import sanitize_message
 from ...core.ratelimit import limiter_processing
-from ...core.workspace_deletion import delete_job_workspace
+from ...core.workspace_deletion import delete_job_workspace, lock_job_workspace
 from ...schemas.base import JobResponse
 from ...services import pricing
-from ...services.charge_plans import reserve_processing_charges
+from ...services.charge_plans import (
+    preflight_processing_charges,
+    reserve_processing_charges,
+)
 from ...services.ffmpeg_utils import probe_media
 from ...services.history import HistoryStore
 from ...services.jobs import JobStore
@@ -64,19 +67,20 @@ def _record_and_delete_failed_reprocess(
     history_store: HistoryStore,
 ) -> None:
     """Persist restore-safe intent before removing a failed reprocess copy."""
-    configured_erasure_journal().append(
-        kind="job" if database_job_may_exist else "workspace",
-        user_id=user_id,
-        job_ids=[job_id],
-    )
-    delete_job_workspace(
-        job_id=job_id,
-        uploads_dir=input_path.parent,
-        artifacts_dir=artifacts_root,
-    )
-    if database_job_may_exist:
-        history_store.delete_job_events([job_id])
-        job_store.delete_job(job_id)
+    with lock_job_workspace(data_dir=artifacts_root.parent, job_id=job_id):
+        configured_erasure_journal().append(
+            kind="job" if database_job_may_exist else "workspace",
+            user_id=user_id,
+            job_ids=[job_id],
+        )
+        delete_job_workspace(
+            job_id=job_id,
+            uploads_dir=input_path.parent,
+            artifacts_dir=artifacts_root,
+        )
+        if database_job_may_exist:
+            history_store.delete_job_events([job_id])
+            job_store.delete_job(job_id)
 
 
 @router.post("/jobs/{job_id}/reprocess", response_model=JobResponse, dependencies=[Depends(limiter_processing)])
@@ -170,6 +174,23 @@ def reprocess_job(
             status_code=400, detail=f"Video too long (max {settings.max_video_duration_seconds / 60:.1f} minutes)"
         )
 
+    llm_models = pricing.resolve_llm_models(proc_settings.transcribe_tier)
+    stt_model = pricing.resolve_requested_transcribe_model(
+        tier=proc_settings.transcribe_tier,
+        provider=proc_settings.transcribe_provider,
+        openai_model=proc_settings.openai_model,
+    )
+    preflight_processing_charges(
+        ledger_store=ledger_store,
+        user_id=current_user.id,
+        tier=proc_settings.transcribe_tier,
+        duration_seconds=float(probe.duration_s),
+        use_llm=proc_settings.use_llm,
+        llm_model=llm_models.social,
+        provider=proc_settings.transcribe_provider,
+        stt_model=stt_model,
+    )
+
     new_job_id = str(uuid.uuid4())
     input_path = uploads_dir / f"{new_job_id}_input{file_ext}"
     output_path = artifacts_root / new_job_id / "processed.mp4"
@@ -211,7 +232,6 @@ def reprocess_job(
         raise
 
     try:
-        llm_models = pricing.resolve_llm_models(proc_settings.transcribe_tier)
         charge_plan, new_balance = reserve_processing_charges(
             ledger_store=ledger_store,
             user_id=current_user.id,
@@ -221,11 +241,7 @@ def reprocess_job(
             use_llm=proc_settings.use_llm,
             llm_model=llm_models.social,
             provider=proc_settings.transcribe_provider,
-            stt_model=pricing.resolve_requested_transcribe_model(
-                tier=proc_settings.transcribe_tier,
-                provider=proc_settings.transcribe_provider,
-                openai_model=proc_settings.openai_model,
-            ),
+            stt_model=stt_model,
         )
     except BaseException:
         _record_and_delete_failed_reprocess(

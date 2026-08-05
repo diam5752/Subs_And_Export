@@ -20,7 +20,12 @@ from ...core.erasure_journal import (
     configured_erasure_journal,
 )
 from ...core.ratelimit import limiter_content
-from ...core.workspace_deletion import delete_job_workspace
+from ...core.workspace_deletion import (
+    JobWorkspaceLockTimeoutError,
+    delete_job_workspace,
+    lock_job_workspace,
+    lock_job_workspaces,
+)
 from ...schemas.base import BatchDeleteRequest, BatchDeleteResponse, JobResponse, PaginatedJobsResponse
 from ...services.history import HistoryStore
 from ...services.jobs import Job, JobStore
@@ -139,8 +144,7 @@ def batch_delete_jobs(
     if len(request.job_ids) > 50:
         raise HTTPException(400, "Cannot delete more than 50 jobs at once")
 
-    _, uploads_dir, artifacts_root = data_roots()
-    deleted_ids: list[str] = []
+    data_dir, uploads_dir, artifacts_root = data_roots()
 
     # Optimize: Fetch all jobs in one query instead of N+1
     jobs = job_store.get_jobs(request.job_ids, current_user.id)
@@ -152,24 +156,42 @@ def batch_delete_jobs(
             ),
         )
 
-    if jobs:
-        _record_erasure_intent_or_503(
-            kind="job",
-            user_id=current_user.id,
-            job_ids=[job.id for job in jobs],
-        )
+    try:
+        with lock_job_workspaces(
+            data_dir=data_dir,
+            job_ids=(job.id for job in jobs),
+        ):
+            locked_jobs = job_store.get_jobs(
+                [job.id for job in jobs],
+                current_user.id,
+            )
+            if any(job.status in ACTIVE_JOB_STATUSES for job in locked_jobs):
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        "Active projects cannot be deleted. Cancel processing first and wait for cancellation to complete."
+                    ),
+                )
 
-    for job in jobs:
-        job_id = job.id
-        delete_job_workspace(
-            job_id=job_id,
-            uploads_dir=uploads_dir,
-            artifacts_dir=artifacts_root,
-        )
-        deleted_ids.append(job_id)
+            deleted_ids = [job.id for job in locked_jobs]
+            if locked_jobs:
+                _record_erasure_intent_or_503(
+                    kind="job",
+                    user_id=current_user.id,
+                    job_ids=deleted_ids,
+                )
 
-    history_store.delete_job_events(deleted_ids)
-    deleted_count = job_store.delete_jobs(deleted_ids, current_user.id)
+            for locked_job in locked_jobs:
+                delete_job_workspace(
+                    job_id=locked_job.id,
+                    uploads_dir=uploads_dir,
+                    artifacts_dir=artifacts_root,
+                )
+
+            history_store.delete_job_events(deleted_ids)
+            deleted_count = job_store.delete_jobs(deleted_ids, current_user.id)
+    except JobWorkspaceLockTimeoutError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     if deleted_count > 0:
         record_event_safe(
@@ -296,22 +318,37 @@ def delete_job(
             ),
         )
 
-    _, uploads_dir, artifacts_root = data_roots()
+    data_dir, uploads_dir, artifacts_root = data_roots()
 
-    _record_erasure_intent_or_503(
-        kind="job",
-        user_id=current_user.id,
-        job_ids=[job_id],
-    )
+    try:
+        with lock_job_workspace(data_dir=data_dir, job_id=job_id):
+            locked_job = job_store.get_job(job_id)
+            if not locked_job or locked_job.user_id != current_user.id:
+                raise HTTPException(404, "Job not found")
+            if locked_job.status in ACTIVE_JOB_STATUSES:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        "Active projects cannot be deleted. Cancel processing first and wait for cancellation to complete."
+                    ),
+                )
 
-    delete_job_workspace(
-        job_id=job_id,
-        uploads_dir=uploads_dir,
-        artifacts_dir=artifacts_root,
-    )
-    history_store.delete_job_events([job_id])
-    job_store.delete_job(job_id)
-    record_event_safe(history_store, current_user, "job_deleted", "Deleted a project", {})
+            _record_erasure_intent_or_503(
+                kind="job",
+                user_id=current_user.id,
+                job_ids=[job_id],
+            )
+
+            delete_job_workspace(
+                job_id=job_id,
+                uploads_dir=uploads_dir,
+                artifacts_dir=artifacts_root,
+            )
+            history_store.delete_job_events([job_id])
+            job_store.delete_job(job_id)
+            record_event_safe(history_store, current_user, "job_deleted", "Deleted a project", {})
+    except JobWorkspaceLockTimeoutError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
     return {"status": "deleted", "job_id": job_id}
 

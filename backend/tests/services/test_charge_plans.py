@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import time
 import uuid
+from unittest.mock import MagicMock
 
 import pytest
+from fastapi import HTTPException
 
 from backend.app.core import config
 from backend.app.core.database import Database
@@ -14,6 +16,7 @@ from backend.app.db.models import DbJob, DbUser
 from backend.app.services import pricing
 from backend.app.services.charge_plans import (
     assert_external_provider_budget,
+    preflight_processing_charges,
     reserve_llm_charge,
     reserve_processing_charges,
     reserve_transcription_charge,
@@ -231,6 +234,99 @@ class TestReserveProcessingCharges:
         # Only transcription charge
         assert balance == starting_balance - 30
 
+
+def test_processing_preflight_rejects_zero_credit_without_reserving() -> None:
+    db = Database()
+    user_id = _seed_user(db)
+    points_store = PointsStore(db=db)
+    points_store.ensure_account(user_id)
+    ledger_store = UsageLedgerStore(db=db, points_store=points_store)
+    reserve = MagicMock(wraps=ledger_store.reserve)
+    budget_reserve = MagicMock(
+        wraps=ledger_store.provider_budget_store.reserve_in_session,
+    )
+    ledger_store.reserve = reserve  # type: ignore[method-assign]
+    ledger_store.provider_budget_store.reserve_in_session = budget_reserve  # type: ignore[method-assign]
+
+    with pytest.raises(HTTPException) as exc_info:
+        preflight_processing_charges(
+            ledger_store=ledger_store,
+            user_id=user_id,
+            tier="standard",
+            duration_seconds=60.0,
+            use_llm=False,
+            llm_model="gpt-5-mini",
+            provider="local",
+            stt_model=config.settings.transcribe_tier_model["standard"],
+        )
+
+    assert exc_info.value.status_code == 402
+    assert exc_info.value.detail == "Insufficient points"
+    assert points_store.get_balance(user_id) == 0
+    reserve.assert_not_called()
+    budget_reserve.assert_not_called()
+
+
+def test_processing_preflight_preserves_external_provider_paid_credit_rule(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db = Database()
+    user_id = _seed_user(db)
+    points_store = PointsStore(db=db)
+    points_store.ensure_account(user_id, starting_balance_override=100)
+    ledger_store = UsageLedgerStore(db=db, points_store=points_store)
+    reserve = MagicMock(wraps=ledger_store.reserve)
+    monkeypatch.setattr(ledger_store, "reserve", reserve)
+    monkeypatch.setattr(config.settings, "mock_external_services", False)
+
+    with pytest.raises(HTTPException) as exc_info:
+        preflight_processing_charges(
+            ledger_store=ledger_store,
+            user_id=user_id,
+            tier="standard",
+            duration_seconds=60.0,
+            use_llm=False,
+            llm_model="gpt-5-mini",
+            provider="groq",
+            stt_model="whisper-large-v3-turbo",
+        )
+
+    assert exc_info.value.status_code == 402
+    assert exc_info.value.detail == "Insufficient paid credits"
+    assert points_store.get_balances(user_id).promotional_balance == 100
+    assert points_store.get_balances(user_id).paid_balance == 0
+    reserve.assert_not_called()
+
+
+def test_processing_preflight_rejects_closed_budget_before_wallet_check(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    db = Database()
+    user_id = _seed_user(db)
+    points_store = PointsStore(db=db)
+    points_store.ensure_account(user_id)
+    ledger_store = UsageLedgerStore(db=db, points_store=points_store)
+    wallet_check = MagicMock()
+    monkeypatch.setattr(points_store, "assert_can_spend", wallet_check)
+    monkeypatch.setattr(config.settings, "mock_external_services", False)
+    monkeypatch.setattr(config.settings, "external_provider_monthly_budget_usd", 0.0)
+    monkeypatch.setattr(config.settings, "external_provider_daily_budget_usd", 0.0)
+    monkeypatch.setattr(config.settings, "external_provider_per_request_budget_usd", 1.0)
+    monkeypatch.setattr(pricing, "stt_provider_cost_usd", lambda **_kwargs: 0.01)
+
+    with pytest.raises(ProviderBudgetExceededError, match="closed"):
+        preflight_processing_charges(
+            ledger_store=ledger_store,
+            user_id=user_id,
+            tier="standard",
+            duration_seconds=60.0,
+            use_llm=False,
+            llm_model="gpt-5-mini",
+            provider="elevenlabs",
+            stt_model="scribe_v2",
+        )
+
+    wallet_check.assert_not_called()
 
 class TestExternalProviderBudget:
     """The app budget is enforced before any provider reservation."""
