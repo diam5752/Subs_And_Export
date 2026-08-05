@@ -107,21 +107,6 @@ class DbOAuthState(Base):
     __table_args__ = (Index("idx_oauth_states_provider", "provider"),)
 
 
-class DbGcsUploadSession(Base):
-    __tablename__ = "gcs_uploads"
-
-    id: Mapped[str] = mapped_column(String(128), primary_key=True)
-    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    object_name: Mapped[str] = mapped_column(String(1024))
-    content_type: Mapped[str] = mapped_column(String(255))
-    original_filename: Mapped[str] = mapped_column(String(255))
-    created_at: Mapped[int] = mapped_column(Integer)
-    expires_at: Mapped[int] = mapped_column(Integer, index=True)
-    used_at: Mapped[int | None] = mapped_column(Integer, nullable=True)
-
-    __table_args__ = (Index("idx_gcs_uploads_user_created_at", "user_id", "created_at"),)
-
-
 class DbUserPoints(Base):
     __tablename__ = "user_points"
 

@@ -1,26 +1,10 @@
-import base64
-import json
+import uuid
 
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from backend.main import app
-
-
-def _stream_upload_headers(
-    auth_headers: dict[str, str],
-    metadata: dict[str, object],
-    *,
-    content_type: str = "video/mp4",
-) -> dict[str, str]:
-    encoded_metadata = base64.b64encode(
-        json.dumps(metadata, ensure_ascii=False).encode("utf-8"),
-    ).decode("ascii")
-    return {
-        **auth_headers,
-        "Content-Type": content_type,
-        "X-Gsubs-Upload-Metadata": encoded_metadata,
-    }
+from backend.tests.process_stream import post_process_stream
 
 
 def test_stream_upload_writes_the_browser_body_directly_once(
@@ -39,17 +23,15 @@ def test_stream_upload_writes_the_browser_body_directly_once(
     monkeypatch.setattr(videos_module, "run_video_processing", capture_processing)
     raw_video = b"direct-stream-video"
 
-    response = client.post(
-        "/videos/process-stream",
-        headers=_stream_upload_headers(
-            funded_user_auth_headers,
-            {
-                "filename": "κινητό.mp4",
-                "transcribe_tier": "standard",
-                "transcribe_provider": "mock",
-            },
-        ),
+    response = post_process_stream(
+        client,
+        funded_user_auth_headers,
+        filename="κινητό.mp4",
         content=raw_video,
+        metadata={
+            "transcribe_tier": "standard",
+            "transcribe_provider": "mock",
+        },
     )
 
     # REGRESSION: multipart parsing first spooled the complete request and then
@@ -84,9 +66,7 @@ def test_stream_upload_cors_preflight_allows_metadata_header(client: TestClient)
         headers={
             "Origin": "http://localhost:3000",
             "Access-Control-Request-Method": "POST",
-            "Access-Control-Request-Headers": (
-                "authorization,content-type,x-gsubs-upload-metadata"
-            ),
+            "Access-Control-Request-Headers": ("authorization,content-type,x-gsubs-upload-metadata"),
         },
     )
 
@@ -95,64 +75,85 @@ def test_stream_upload_cors_preflight_allows_metadata_header(client: TestClient)
     assert "x-gsubs-upload-metadata" in allowed_headers
 
 
-def test_upload_limit_exceeded(client: TestClient, user_auth_headers: dict, monkeypatch):
-    """Test that uploading a file larger than the limit raises 413."""
-    # Patch MAX_UPLOAD_BYTES to a small value (1MB)
-    from backend.app.api.endpoints import file_utils
+def test_legacy_multipart_upload_route_is_absent(client: TestClient) -> None:
+    # REGRESSION: UploadFile parsing spooled multipart bodies before bearer
+    # authentication and before the backend's byte limit could run.
+    route_paths = {path for route in client.app.routes if isinstance(path := getattr(route, "path", None), str)}
 
-    monkeypatch.setattr(file_utils, "MAX_UPLOAD_BYTES", 1024 * 1024)
-
-    # Create a dummy file > 1MB
-    large_content = b"0" * (1024 * 1024 + 100)
-    files = {"file": ("large.mp4", large_content, "video/mp4")}
-
-    response = client.post("/videos/process", headers=user_auth_headers, files=files)
-    assert response.status_code == 413
-    assert "too large" in response.json()["detail"]
+    assert "/videos/process" not in route_paths
+    response = client.post(
+        "/videos/process",
+        files={"file": ("legacy.mp4", b"legacy", "video/mp4")},
+    )
+    assert response.status_code == 404
 
 
-def test_process_video_content_length_error(client: TestClient, user_auth_headers: dict, monkeypatch):
-    """Test 413 based on Content-Length header check."""
-    # Patch MAX_UPLOAD_BYTES to a small value (1MB)
-    from backend.app.api.endpoints import file_utils
+def test_legacy_manual_admin_routes_are_absent(client: TestClient) -> None:
+    # REGRESSION: retention and usage reporting run through the controlled
+    # scheduler/CLI paths, not public HTTP routes guarded by an email allowlist.
+    route_paths = {path for route in client.app.routes if isinstance(path := getattr(route, "path", None), str)}
 
-    monkeypatch.setattr(file_utils, "MAX_UPLOAD_BYTES", 1024 * 1024)
-    # Also patch the videos module's import of the constant
+    assert "/videos/jobs/cleanup" not in route_paths
+    assert "/videos/admin/usage/summary" not in route_paths
+    assert client.post("/videos/jobs/cleanup").status_code in {404, 405}
+    assert client.get("/videos/admin/usage/summary").status_code == 404
+
+
+def test_stream_upload_authenticates_before_consuming_body(
+    client: TestClient,
+    monkeypatch,
+) -> None:
     from backend.app.api.endpoints import videos as videos_module
 
-    monkeypatch.setattr(videos_module, "MAX_UPLOAD_BYTES", 1024 * 1024)
+    save_called = False
 
-    # We can't easily fake Content-Length with TestClient in a way that the Starlette Request sees it
-    # before stream consumption without some trickery, but we can verify logic via unit test or
-    # by passing a header if the backend checks `request.headers`.
+    async def capture_save(*_args, **_kwargs) -> int:
+        nonlocal save_called
+        save_called = True
+        return 0
 
-    headers = user_auth_headers.copy()
-    headers["content-length"] = str(1024 * 1024 + 100)
+    monkeypatch.setattr(videos_module, "save_request_stream_with_limit", capture_save)
+    response = post_process_stream(client, {}, content=b"unauthenticated-private-video")
 
-    # Just need a valid file for the multipart to form
-    files = {"file": ("test.mp4", b"data", "video/mp4")}
+    assert response.status_code == 401
+    assert save_called is False
 
-    response = client.post("/videos/process", headers=headers, files=files)
+
+def test_stream_upload_rejects_oversized_content_length(
+    client: TestClient,
+    user_auth_headers: dict[str, str],
+    monkeypatch,
+) -> None:
+    from backend.app.api.endpoints import videos as videos_module
+
+    monkeypatch.setattr(videos_module, "MAX_UPLOAD_BYTES", 1024)
+    response = post_process_stream(
+        client,
+        user_auth_headers,
+        content=b"data",
+        extra_headers={"content-length": "1025"},
+    )
+
     assert response.status_code == 413
     assert "too large" in response.json()["detail"]
 
 
-def test_process_video_rejects_malformed_content_length(
+def test_stream_upload_rejects_malformed_content_length(
     client: TestClient,
     user_auth_headers: dict[str, str],
 ) -> None:
-    headers = {**user_auth_headers, "content-length": "not-a-number"}
-    response = client.post(
-        "/videos/process",
-        headers=headers,
-        files={"file": ("test.mp4", b"data", "video/mp4")},
+    response = post_process_stream(
+        client,
+        user_auth_headers,
+        content=b"data",
+        extra_headers={"content-length": "not-a-number"},
     )
 
     assert response.status_code == 400
     assert response.json()["detail"] == "Invalid Content-Length header"
 
 
-def test_process_video_rejects_before_writing_when_storage_reserve_is_low(
+def test_stream_upload_rejects_before_writing_when_storage_reserve_is_low(
     client: TestClient,
     user_auth_headers: dict[str, str],
     monkeypatch,
@@ -164,11 +165,7 @@ def test_process_video_rejects_before_writing_when_storage_reserve_is_low(
 
     monkeypatch.setattr(videos_module, "require_storage_capacity", reject_storage)
 
-    response = client.post(
-        "/videos/process",
-        headers=user_auth_headers,
-        files={"file": ("test.mp4", b"data", "video/mp4")},
-    )
+    response = post_process_stream(client, user_auth_headers, content=b"data")
 
     # REGRESSION: a low-disk server previously accepted the upload and failed
     # only after it had started consuming storage and user time.
@@ -319,6 +316,8 @@ def test_delete_job(client: TestClient, user_auth_headers: dict, monkeypatch):
             job_artifact_dir = artifacts_root / "job1"
             job_artifact_dir.mkdir()
             (job_artifact_dir / "file.txt").touch()
+            transcription_file = job_artifact_dir / "transcription.json"
+            transcription_file.write_text('[{"text": "private"}]', encoding="utf-8")
 
             input_file = uploads_root / "job1_input.mp4"
             input_file.touch()
@@ -329,6 +328,7 @@ def test_delete_job(client: TestClient, user_auth_headers: dict, monkeypatch):
 
             assert "job1" in deleted_ids
             assert not job_artifact_dir.exists()
+            assert not transcription_file.exists()
             assert not input_file.exists()
 
     finally:
@@ -408,6 +408,148 @@ def test_delete_active_job_is_blocked_and_preserves_workspace(
         assert deleted_ids == []
     finally:
         app.dependency_overrides = {}
+
+
+def test_delete_job_fails_closed_when_erasure_journal_is_unavailable(
+    client: TestClient,
+    user_auth_headers: dict[str, str],
+    monkeypatch,
+    tmp_path,
+) -> None:
+    from backend.app.api.endpoints import job_routes
+    from backend.app.core.database import Database
+    from backend.app.core.erasure_journal import ErasureJournalError
+    from backend.app.services.jobs import JobStore
+
+    user_response = client.get("/auth/me", headers=user_auth_headers)
+    assert user_response.status_code == 200
+    user_id = user_response.json()["id"]
+    job_id = f"journal-failure-{uuid.uuid4().hex}"
+    store = JobStore(Database())
+    store.create_job(job_id, user_id)
+    store.update_job(job_id, status="completed", progress=100)
+
+    uploads_dir = tmp_path / "uploads"
+    artifacts_dir = tmp_path / "artifacts"
+    uploads_dir.mkdir()
+    artifact_dir = artifacts_dir / job_id
+    artifact_dir.mkdir(parents=True)
+    upload_path = uploads_dir / f"{job_id}_input.mp4"
+    transcript_path = artifact_dir / "transcription.json"
+    upload_path.write_bytes(b"private")
+    transcript_path.write_text("[]", encoding="utf-8")
+    monkeypatch.setattr(
+        job_routes,
+        "data_roots",
+        lambda: (tmp_path, uploads_dir, artifacts_dir),
+    )
+
+    class BrokenJournal:
+        def append(self, **_kwargs: object) -> None:
+            raise ErasureJournalError("journal unavailable")
+
+    monkeypatch.setattr(
+        job_routes,
+        "configured_erasure_journal",
+        lambda: BrokenJournal(),
+    )
+
+    response = client.delete(f"/videos/jobs/{job_id}", headers=user_auth_headers)
+
+    # REGRESSION: local media must not be destructively removed unless the
+    # restore-safe erasure intent has first reached durable storage.
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Privacy protection is temporarily unavailable. Please try again."}
+    assert upload_path.is_file()
+    assert transcript_path.is_file()
+    assert store.get_job(job_id) is not None
+
+
+def test_cancel_job_journals_exact_workspace_before_status_transition(
+    client: TestClient,
+    user_auth_headers: dict[str, str],
+    monkeypatch,
+) -> None:
+    from backend.app.api.endpoints import job_routes
+    from backend.app.core.database import Database
+    from backend.app.services.jobs import JobStore
+
+    user_response = client.get("/auth/me", headers=user_auth_headers)
+    assert user_response.status_code == 200
+    user_id = user_response.json()["id"]
+    job_id = f"cancel-journal-{uuid.uuid4().hex}"
+    store = JobStore(Database())
+    store.create_job(job_id, user_id)
+    recorded: list[dict[str, object]] = []
+
+    class RecordingJournal:
+        def append(self, **payload: object) -> None:
+            current = store.get_job(job_id)
+            assert current is not None
+            assert current.status == "pending"
+            recorded.append(payload)
+
+    monkeypatch.setattr(
+        job_routes,
+        "configured_erasure_journal",
+        lambda: RecordingJournal(),
+    )
+
+    response = client.post(
+        f"/videos/jobs/{job_id}/cancel",
+        headers=user_auth_headers,
+    )
+
+    assert response.status_code == 200
+    assert recorded == [
+        {
+            "kind": "workspace",
+            "user_id": user_id,
+            "job_ids": [job_id],
+        }
+    ]
+    updated = store.get_job(job_id)
+    assert updated is not None
+    assert updated.status == "cancelled"
+
+
+def test_cancel_job_fails_closed_before_status_transition_when_journal_is_unavailable(
+    client: TestClient,
+    user_auth_headers: dict[str, str],
+    monkeypatch,
+) -> None:
+    from backend.app.api.endpoints import job_routes
+    from backend.app.core.database import Database
+    from backend.app.core.erasure_journal import ErasureJournalError
+    from backend.app.services.jobs import JobStore
+
+    user_response = client.get("/auth/me", headers=user_auth_headers)
+    assert user_response.status_code == 200
+    user_id = user_response.json()["id"]
+    job_id = f"cancel-journal-failure-{uuid.uuid4().hex}"
+    store = JobStore(Database())
+    store.create_job(job_id, user_id)
+
+    class BrokenJournal:
+        def append(self, **_payload: object) -> None:
+            raise ErasureJournalError("secret storage failure")
+
+    monkeypatch.setattr(
+        job_routes,
+        "configured_erasure_journal",
+        lambda: BrokenJournal(),
+    )
+
+    response = client.post(
+        f"/videos/jobs/{job_id}/cancel",
+        headers=user_auth_headers,
+    )
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Privacy protection is temporarily unavailable. Please try again."}
+    unchanged = store.get_job(job_id)
+    assert unchanged is not None
+    assert unchanged.status == "pending"
 
 
 def test_list_jobs_paginated(client: TestClient, user_auth_headers: dict, monkeypatch):
@@ -568,6 +710,11 @@ def test_batch_delete_jobs(client: TestClient, user_auth_headers: dict, monkeypa
                 job_dir = artifacts_root / jid
                 job_dir.mkdir()
                 (job_dir / "file.txt").touch()
+                (job_dir / "transcription.json").write_text(
+                    '[{"text": "private"}]',
+                    encoding="utf-8",
+                )
+                (uploads_root / f"{jid}_input.mp4").write_bytes(b"private")
 
             monkeypatch.setattr(
                 "backend.app.api.endpoints.job_routes.data_roots", lambda: (tpath, uploads_root, artifacts_root)
@@ -586,8 +733,12 @@ def test_batch_delete_jobs(client: TestClient, user_auth_headers: dict, monkeypa
             assert data["deleted_count"] == 3
             assert set(data["job_ids"]) == {"job1", "job2", "job3"}
 
-            # Verify artifacts were deleted
-            assert not (artifacts_root / "job1").exists()
+            # REGRESSION: batch erasure must remove every local input and the
+            # full artifact tree, including transcription data, for every job.
+            for jid in ["job1", "job2", "job3"]:
+                assert not (uploads_root / f"{jid}_input.mp4").exists()
+                assert not (artifacts_root / jid).exists()
+                assert not (artifacts_root / jid / "transcription.json").exists()
 
     finally:
         app.dependency_overrides = {}

@@ -1,5 +1,7 @@
 from unittest.mock import patch
 
+from backend.tests.process_stream import post_process_stream
+
 
 def test_delete_account_error_sanitization(client, funded_user_auth_headers):
     # Mock shutil.rmtree to raise an exception with a path
@@ -7,8 +9,12 @@ def test_delete_account_error_sanitization(client, funded_user_auth_headers):
     with patch("shutil.rmtree", side_effect=OSError("Permission denied: /app/data/artifacts/job123")):
         # We need to simulate the job existing so delete_account tries to clean it up.
         # Create a job first via API
-        files = {"file": ("test_delete.mp4", b"content", "video/mp4")}
-        client.post("/videos/process", headers=funded_user_auth_headers, files=files)
+        post_process_stream(
+            client,
+            funded_user_auth_headers,
+            filename="test_delete.mp4",
+            content=b"content",
+        )
 
         # Now trigger delete. It will call shutil.rmtree on the artifact dir.
         response = client.delete("/auth/me", headers=funded_user_auth_headers)

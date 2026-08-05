@@ -5,12 +5,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from backend.app.core import cleanup as cleanup_module
 from backend.app.core.cleanup import (
     cleanup_expired_workspaces,
     ensure_storage_capacity,
     run_configured_retention,
 )
+from backend.app.core.erasure_journal import ErasureJournal
 from backend.app.services import billing_retention
 from backend.app.services.jobs import Job
 from backend.app.services.usage_ledger import UsageLedgerStore
@@ -61,6 +64,10 @@ def _workspace(uploads_dir: Path, artifacts_dir: Path, job_id: str) -> None:
     artifact_dir = artifacts_dir / job_id
     artifact_dir.mkdir()
     (artifact_dir / "processed.mp4").write_bytes(b"result")
+    (artifact_dir / "transcription.json").write_text(
+        '[{"start": 0, "end": 1, "text": "private"}]',
+        encoding="utf-8",
+    )
 
 
 def test_terminal_job_exposes_activity_based_expiry() -> None:
@@ -104,6 +111,7 @@ def test_cleanup_uses_job_activity_and_preserves_active_work(tmp_path: Path) -> 
 
     # REGRESSION: filesystem mtime cleanup previously deleted uploads without
     # respecting refreshed project activity and never removed generated exports.
+    journal = ErasureJournal(tmp_path / "journal", retention_days=30)
     report = cleanup_expired_workspaces(
         job_store=job_store,
         history_store=history_store,
@@ -112,6 +120,7 @@ def test_cleanup_uses_job_activity_and_preserves_active_work(tmp_path: Path) -> 
         workspace_retention_hours=24,
         stale_job_retention_hours=6,
         orphan_retention_hours=1,
+        erasure_journal=journal,
         now=now,
         before_delete_job=lambda job: compensated_jobs.append(job.id),
     )
@@ -123,12 +132,20 @@ def test_cleanup_uses_job_activity_and_preserves_active_work(tmp_path: Path) -> 
     for removed_id in ("expired", "abandoned"):
         assert not (uploads_dir / f"{removed_id}_input.mp4").exists()
         assert not (artifacts_dir / removed_id).exists()
+        assert not (artifacts_dir / removed_id / "transcription.json").exists()
     for preserved_id in ("recent", "active"):
         assert (uploads_dir / f"{preserved_id}_input.mp4").is_file()
         assert (artifacts_dir / preserved_id).is_dir()
     assert not orphan_old.exists()
     assert orphan_recent.exists()
     assert gitkeep.exists()
+    assert report.failed_orphan_items == 0
+    assert [entry.kind for entry in journal.read_all()] == [
+        "job",
+        "job",
+        "orphan_workspace",
+    ]
+    assert journal.read_all()[-1].job_ids == ["orphan"]
 
 
 def test_cleanup_rechecks_activity_before_deleting_candidate(tmp_path: Path) -> None:
@@ -164,6 +181,7 @@ def test_cleanup_rechecks_activity_before_deleting_candidate(tmp_path: Path) -> 
         workspace_retention_hours=24,
         stale_job_retention_hours=6,
         orphan_retention_hours=1,
+        erasure_journal=ErasureJournal(tmp_path / "journal", retention_days=30),
         now=now,
     )
 
@@ -204,6 +222,7 @@ def test_cleanup_keeps_database_row_when_file_removal_fails(
         workspace_retention_hours=24,
         stale_job_retention_hours=6,
         orphan_retention_hours=1,
+        erasure_journal=ErasureJournal(tmp_path / "journal", retention_days=30),
         now=now,
     )
 
@@ -244,6 +263,7 @@ def test_cleanup_keeps_stale_job_when_compensation_fails(
         workspace_retention_hours=24,
         stale_job_retention_hours=6,
         orphan_retention_hours=1,
+        erasure_journal=ErasureJournal(tmp_path / "journal", retention_days=30),
         now=now,
         before_delete_job=fail_compensation,
     )
@@ -254,6 +274,113 @@ def test_cleanup_keeps_stale_job_when_compensation_fails(
     assert (uploads_dir / "unsettled_input.mp4").is_file()
     assert (artifacts_dir / "unsettled").is_dir()
     assert history_store.deleted_job_ids == []
+
+
+def test_cleanup_keeps_workspace_when_erasure_journal_append_fails(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    uploads_dir = tmp_path / "uploads"
+    artifacts_dir = tmp_path / "artifacts"
+    uploads_dir.mkdir()
+    artifacts_dir.mkdir()
+    now = 1_800_000_000
+    job_store = FakeJobStore(
+        {"journal-failure": _job("journal-failure", status="completed", updated_at=now - 25 * 3600)},
+    )
+    history_store = FakeHistoryStore([])
+    _workspace(uploads_dir, artifacts_dir, "journal-failure")
+    journal = ErasureJournal(tmp_path / "journal", retention_days=30)
+
+    def fail_append(**_kwargs: object) -> None:
+        raise OSError("journal unavailable")
+
+    monkeypatch.setattr(journal, "append", fail_append)
+
+    report = cleanup_expired_workspaces(
+        job_store=job_store,
+        history_store=history_store,
+        uploads_dir=uploads_dir,
+        artifacts_dir=artifacts_dir,
+        workspace_retention_hours=24,
+        stale_job_retention_hours=6,
+        orphan_retention_hours=1,
+        erasure_journal=journal,
+        now=now,
+    )
+
+    assert report.deleted_job_ids == []
+    assert report.failed_job_ids == ["journal-failure"]
+    assert (uploads_dir / "journal-failure_input.mp4").is_file()
+    assert (artifacts_dir / "journal-failure" / "transcription.json").is_file()
+    assert "journal-failure" in job_store.jobs
+
+
+def test_cleanup_preserves_orphan_when_restore_safe_journal_append_fails(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    uploads_dir = tmp_path / "uploads"
+    artifacts_dir = tmp_path / "artifacts"
+    uploads_dir.mkdir()
+    artifacts_dir.mkdir()
+    now = 1_800_000_000
+    orphan = uploads_dir / "orphan-job_input.mp4"
+    orphan.write_bytes(b"private orphan media")
+    old_timestamp = now - 2 * 3600
+    os.utime(orphan, (old_timestamp, old_timestamp))
+    journal = ErasureJournal(tmp_path / "journal", retention_days=30)
+
+    def fail_append(**_kwargs: object) -> None:
+        raise OSError("journal unavailable")
+
+    monkeypatch.setattr(journal, "append_orphan_workspace", fail_append)
+
+    report = cleanup_expired_workspaces(
+        job_store=FakeJobStore({}),
+        history_store=FakeHistoryStore([]),
+        uploads_dir=uploads_dir,
+        artifacts_dir=artifacts_dir,
+        workspace_retention_hours=24,
+        stale_job_retention_hours=6,
+        orphan_retention_hours=1,
+        erasure_journal=journal,
+        now=now,
+    )
+
+    assert report.deleted_orphan_items == 0
+    assert report.failed_orphan_items == 1
+    assert orphan.read_bytes() == b"private orphan media"
+
+
+def test_cleanup_surfaces_unrecognized_old_upload_for_blocking_review(
+    tmp_path: Path,
+) -> None:
+    uploads_dir = tmp_path / "uploads"
+    artifacts_dir = tmp_path / "artifacts"
+    uploads_dir.mkdir()
+    artifacts_dir.mkdir()
+    now = 1_800_000_000
+    unrecognized = uploads_dir / "unknown-private-media.bin"
+    unrecognized.write_bytes(b"private")
+    old_timestamp = now - 2 * 3600
+    os.utime(unrecognized, (old_timestamp, old_timestamp))
+
+    report = cleanup_expired_workspaces(
+        job_store=FakeJobStore({}),
+        history_store=FakeHistoryStore([]),
+        uploads_dir=uploads_dir,
+        artifacts_dir=artifacts_dir,
+        workspace_retention_hours=24,
+        stale_job_retention_hours=6,
+        orphan_retention_hours=1,
+        erasure_journal=ErasureJournal(tmp_path / "journal", retention_days=30),
+        now=now,
+    )
+
+    assert report.deleted_orphan_items == 0
+    assert report.failed_orphan_items == 1
+    assert unrecognized.read_bytes() == b"private"
 
 
 def test_storage_guard_runs_cleanup_once_before_rejecting_or_accepting(
@@ -302,7 +429,21 @@ def test_configured_retention_runs_media_and_billing_cleanup(
     monkeypatch,
 ) -> None:
     calls: list[str] = []
+    journal = object()
     monkeypatch.setattr(cleanup_module.settings, "data_dir", tmp_path)
+    monkeypatch.setattr(
+        cleanup_module,
+        "configured_erasure_journal",
+        lambda: journal,
+    )
+    monkeypatch.setattr(
+        "backend.app.services.erasure_reconciliation.reconcile_erasure_journal",
+        lambda **kwargs: (
+            calls.append("erasure")
+            if kwargs["journal"] is journal
+            else None
+        ),
+    )
     monkeypatch.setattr(
         UsageLedgerStore,
         "reconcile_stale_reservations",
@@ -333,4 +474,58 @@ def test_configured_retention_runs_media_and_billing_cleanup(
     )
     run_configured_retention(object())  # type: ignore[arg-type]
 
-    assert calls == ["usage", "media", "billing"]
+    assert calls == ["usage", "media", "billing", "erasure"]
+
+
+def test_provider_erasure_outage_does_not_block_local_retention(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    calls: list[str] = []
+    journal = object()
+    monkeypatch.setattr(cleanup_module.settings, "data_dir", tmp_path)
+    monkeypatch.setattr(
+        cleanup_module,
+        "configured_erasure_journal",
+        lambda: journal,
+    )
+    monkeypatch.setattr(
+        UsageLedgerStore,
+        "reconcile_stale_reservations",
+        lambda _self, **_kwargs: 0,
+    )
+    monkeypatch.setattr(
+        cleanup_module,
+        "cleanup_expired_workspaces",
+        lambda **_kwargs: (
+            calls.append("local-media-deleted")
+            or SimpleNamespace(
+                deleted_job_ids=["expired-job"],
+                failed_job_ids=[],
+                deleted_orphan_items=0,
+                failed_orphan_items=0,
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        billing_retention,
+        "cleanup_expired_billing_records",
+        lambda _db: SimpleNamespace(
+            deleted_unpaid_attempts=0,
+            deleted_financial_records=0,
+        ),
+    )
+
+    def fail_provider_replay(**_kwargs: object) -> None:
+        assert calls == ["local-media-deleted"]
+        raise RuntimeError("provider delete unavailable")
+
+    monkeypatch.setattr(
+        "backend.app.services.erasure_reconciliation.reconcile_erasure_journal",
+        fail_provider_replay,
+    )
+
+    with pytest.raises(RuntimeError, match="provider delete unavailable"):
+        run_configured_retention(object())  # type: ignore[arg-type]
+
+    assert calls == ["local-media-deleted"]

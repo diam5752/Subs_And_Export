@@ -7,10 +7,9 @@ Helper functions are extracted into separate modules for maintainability:
 - settings.py: ProcessingSettings model and builder
 - processing_tasks.py: Background processing tasks
 - job_routes.py: Job CRUD operations
-- gcs_routes.py: GCS upload and processing
 - intelligence_routes.py: Fact-check and social copy
 - export_routes.py: Video and SRT exports
-- reprocess_routes.py: Reprocess and admin routes
+- reprocess_routes.py: Reprocess routes
 """
 
 from __future__ import annotations
@@ -22,17 +21,17 @@ import json
 import logging
 import uuid
 from pathlib import Path
-from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Request, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from ...core.auth import User
 from ...core.config import settings
 from ...core.database import Database
+from ...core.erasure_journal import TombstoneKind, configured_erasure_journal
 from ...core.errors import sanitize_message
-from ...core.gcs import get_gcs_settings
 from ...core.ratelimit import limiter_processing
+from ...core.workspace_deletion import delete_job_workspace
 from ...schemas.base import JobResponse
 from ...services import pricing
 from ...services.charge_plans import reserve_processing_charges
@@ -52,13 +51,11 @@ from .file_utils import (
     data_roots,
     require_storage_capacity,
     save_request_stream_with_limit,
-    save_upload_with_limit,
 )
 from .processing_tasks import (
     record_event_safe,
     refund_charge_best_effort,
     run_video_processing,
-    upload_source_for_active_job,
 )
 from .settings import ProcessingSettings, build_processing_settings
 from .validation import ALLOWED_VIDEO_EXTENSIONS, validate_upload_content_type
@@ -69,14 +66,12 @@ logger = logging.getLogger(__name__)
 # Include sub-routers
 from .engine_routes import router as engine_router
 from .export_routes import router as export_router
-from .gcs_routes import router as gcs_router
 from .intelligence_routes import router as intelligence_router
 from .job_routes import router as job_router
 from .reprocess_routes import router as reprocess_router
 
 router.include_router(job_router)
 router.include_router(engine_router)
-router.include_router(gcs_router)
 router.include_router(intelligence_router)
 router.include_router(export_router)
 router.include_router(reprocess_router)
@@ -160,6 +155,32 @@ def _parse_content_length(request: Request) -> int | None:
     return parsed
 
 
+def _record_and_delete_rejected_upload(
+    *,
+    job_id: str,
+    user_id: str,
+    input_path: Path,
+    artifacts_root: Path,
+    kind: TombstoneKind,
+    job_store: JobStore | None = None,
+) -> None:
+    """Persist restore-safe intent before deleting a rejected upload workspace."""
+    configured_erasure_journal().append(
+        kind=kind,
+        user_id=user_id,
+        job_ids=[job_id],
+    )
+    delete_job_workspace(
+        job_id=job_id,
+        uploads_dir=input_path.parent,
+        artifacts_dir=artifacts_root,
+    )
+    if kind == "job":
+        if job_store is None:
+            raise RuntimeError("Job cleanup requires a job store")
+        job_store.delete_job(job_id)
+
+
 def _queue_saved_upload(
     *,
     background_tasks: BackgroundTasks,
@@ -167,8 +188,6 @@ def _queue_saved_upload(
     input_path: Path,
     artifacts_root: Path,
     filename: str,
-    content_type: str,
-    file_ext: str,
     video_resolution: str,
     proc_settings: ProcessingSettings,
     current_user: User,
@@ -181,22 +200,54 @@ def _queue_saved_upload(
     try:
         probe = probe_media(input_path)
     except Exception as exc:
-        input_path.unlink(missing_ok=True)
+        _record_and_delete_rejected_upload(
+            job_id=job_id,
+            user_id=current_user.id,
+            input_path=input_path,
+            artifacts_root=artifacts_root,
+            kind="workspace",
+        )
         logger.warning("Failed to probe uploaded media; rejecting upload: %s", exc)
         raise HTTPException(status_code=400, detail="Could not validate uploaded media file")
 
     if probe.duration_s is None or probe.duration_s <= 0:
-        input_path.unlink(missing_ok=True)
+        _record_and_delete_rejected_upload(
+            job_id=job_id,
+            user_id=current_user.id,
+            input_path=input_path,
+            artifacts_root=artifacts_root,
+            kind="workspace",
+        )
         raise HTTPException(status_code=400, detail="Could not determine video duration")
 
     if probe.duration_s > settings.max_video_duration_seconds:
-        input_path.unlink(missing_ok=True)
+        _record_and_delete_rejected_upload(
+            job_id=job_id,
+            user_id=current_user.id,
+            input_path=input_path,
+            artifacts_root=artifacts_root,
+            kind="workspace",
+        )
         raise HTTPException(
             status_code=400,
             detail=f"Video too long (max {settings.max_video_duration_seconds / 60:.1f} minutes)",
         )
 
-    job = job_store.create_job(job_id, current_user.id)
+    try:
+        job = job_store.create_job(job_id, current_user.id)
+    except Exception:
+        _record_and_delete_rejected_upload(
+            job_id=job_id,
+            user_id=current_user.id,
+            input_path=input_path,
+            artifacts_root=artifacts_root,
+            # The database transaction may have committed before a connection
+            # or session-close error reached this caller. Use the conservative
+            # job tombstone and an idempotent exact row delete.
+            kind="job",
+            job_store=job_store,
+        )
+        raise
 
     try:
         llm_models = pricing.resolve_llm_models(proc_settings.transcribe_tier)
@@ -216,52 +267,20 @@ def _queue_saved_upload(
             ),
         )
     except Exception:
-        job_store.delete_job(job_id)
-        input_path.unlink(missing_ok=True)
+        _record_and_delete_rejected_upload(
+            job_id=job_id,
+            user_id=current_user.id,
+            input_path=input_path,
+            artifacts_root=artifacts_root,
+            kind="job",
+            job_store=job_store,
+        )
         raise
 
     output_path = artifacts_root / job_id / "processed.mp4"
     artifact_path = artifacts_root / job_id
 
     try:
-        record_event_safe(
-            history_store,
-            current_user,
-            "process_started",
-            f"Queued {filename}",
-            {
-                "job_id": job_id,
-                "transcribe_tier": proc_settings.transcribe_tier,
-                "provider": proc_settings.transcribe_provider
-                or settings.transcribe_tier_provider[settings.default_transcribe_tier],
-                "video_quality": proc_settings.video_quality,
-                "video_resolution": video_resolution,
-                "use_llm": proc_settings.use_llm,
-            },
-        )
-
-        gcs_settings = get_gcs_settings()
-        source_gcs_object_name: str | None = None
-        if gcs_settings:
-            source_gcs_object_name = (
-                f"{gcs_settings.uploads_prefix}/{current_user.id}/{job_id}{file_ext}"
-            )
-
-        processing_kwargs: dict[str, Any] = {}
-        if source_gcs_object_name:
-            processing_kwargs["source_gcs_object_name"] = source_gcs_object_name
-
-        if gcs_settings and source_gcs_object_name:
-            background_tasks.add_task(
-                upload_source_for_active_job,
-                job_id=job_id,
-                job_store=job_store,
-                gcs_settings=gcs_settings,
-                object_name=source_gcs_object_name,
-                source=input_path,
-                content_type=content_type,
-            )
-
         background_tasks.add_task(
             run_video_processing,
             job_id,
@@ -277,7 +296,21 @@ def _queue_saved_upload(
             charge_plan=charge_plan,
             db=db,
             source_probe=probe,
-            **processing_kwargs,
+        )
+        record_event_safe(
+            history_store,
+            current_user,
+            "process_started",
+            f"Queued {filename}",
+            {
+                "job_id": job_id,
+                "transcribe_tier": proc_settings.transcribe_tier,
+                "provider": proc_settings.transcribe_provider
+                or settings.transcribe_tier_provider[settings.default_transcribe_tier],
+                "video_quality": proc_settings.video_quality,
+                "video_resolution": video_resolution,
+                "use_llm": proc_settings.use_llm,
+            },
         )
     except Exception as exc:
         refund_charge_best_effort(
@@ -286,100 +319,17 @@ def _queue_saved_upload(
             status="failed",
             error=sanitize_message(str(exc)),
         )
-        input_path.unlink(missing_ok=True)
+        _record_and_delete_rejected_upload(
+            job_id=job_id,
+            user_id=current_user.id,
+            input_path=input_path,
+            artifacts_root=artifacts_root,
+            kind="job",
+            job_store=job_store,
+        )
         raise
 
     return JobResponse.model_validate(job).model_copy(update={"balance": new_balance})
-
-
-@router.post("/process", response_model=JobResponse, dependencies=[Depends(limiter_processing)])
-async def process_video(
-    background_tasks: BackgroundTasks,
-    request: Request,
-    file: UploadFile = File(...),
-    transcribe_tier: str = Form(settings.default_transcribe_tier),
-    transcribe_provider: str = Form(settings.transcribe_tier_provider[settings.default_transcribe_tier]),
-    openai_model: str = Form(""),
-    video_quality: str = Form("high quality"),
-    video_resolution: str = Form(""),
-    use_llm: bool = Form(settings.use_llm_by_default),
-    context_prompt: str = Form(""),
-    subtitle_position: int = Form(16),
-    max_subtitle_lines: int = Form(2),
-    subtitle_color: str | None = Form(None),
-    shadow_strength: int = Form(4),
-    highlight_style: str = Form("karaoke"),
-    subtitle_size: int = Form(100),
-    karaoke_enabled: bool = Form(True),
-    watermark_enabled: bool = Form(False),
-    current_user: User = Depends(get_current_user),
-    job_store: JobStore = Depends(get_job_store),
-    history_store: HistoryStore = Depends(get_history_store),
-    ledger_store: UsageLedgerStore = Depends(get_usage_ledger_store),
-    db: Database = Depends(get_db),
-) -> JobResponse:
-    """Upload a video and start processing."""
-    proc_settings = build_processing_settings(
-        transcribe_tier=transcribe_tier,
-        transcribe_provider=transcribe_provider,
-        openai_model=openai_model,
-        video_quality=video_quality,
-        video_resolution=video_resolution,
-        use_llm=use_llm,
-        context_prompt=context_prompt,
-        subtitle_position=subtitle_position,
-        max_subtitle_lines=max_subtitle_lines,
-        subtitle_color=subtitle_color,
-        shadow_strength=shadow_strength,
-        highlight_style=highlight_style,
-        subtitle_size=subtitle_size,
-        karaoke_enabled=karaoke_enabled,
-        watermark_enabled=watermark_enabled,
-    )
-    _check_concurrent_job_capacity(job_store, current_user)
-
-    job_id = str(uuid.uuid4())
-    data_dir, uploads_dir, artifacts_root = data_roots()
-
-    filename = file.filename or ""
-    file_ext = Path(filename).suffix.lower()
-    if file_ext not in ALLOWED_VIDEO_EXTENSIONS:
-        raise HTTPException(400, "Invalid file type")
-
-    input_path = uploads_dir / f"{job_id}_input{file_ext}"
-    expected_upload_bytes = _parse_content_length(request) or MAX_UPLOAD_BYTES
-    require_storage_capacity(
-        data_dir,
-        required_bytes=expected_upload_bytes * 2,
-        db=db,
-    )
-    try:
-        save_upload_with_limit(file, input_path)
-    except OSError as exc:
-        input_path.unlink(missing_ok=True)
-        if exc.errno == errno.ENOSPC:
-            raise HTTPException(
-                status_code=507,
-                detail="Storage became temporarily unavailable. Please try again in a few minutes.",
-            ) from exc
-        raise
-
-    return _queue_saved_upload(
-        background_tasks=background_tasks,
-        job_id=job_id,
-        input_path=input_path,
-        artifacts_root=artifacts_root,
-        filename=filename,
-        content_type=file.content_type or "application/octet-stream",
-        file_ext=file_ext,
-        video_resolution=video_resolution,
-        proc_settings=proc_settings,
-        current_user=current_user,
-        job_store=job_store,
-        history_store=history_store,
-        ledger_store=ledger_store,
-        db=db,
-    )
 
 
 @router.post(
@@ -423,7 +373,7 @@ async def process_video_stream(
     file_ext = Path(filename).suffix.lower()
     if not filename or file_ext not in ALLOWED_VIDEO_EXTENSIONS:
         raise HTTPException(status_code=400, detail="Invalid file type")
-    content_type = validate_upload_content_type(
+    validate_upload_content_type(
         request.headers.get("content-type", "").partition(";")[0],
     )
 
@@ -441,10 +391,17 @@ async def process_video_stream(
             request,
             input_path,
             expected_size=expected_upload_bytes,
+            cleanup_on_error=False,
         )
-    except OSError as exc:
-        input_path.unlink(missing_ok=True)
-        if exc.errno == errno.ENOSPC:
+    except BaseException as exc:
+        _record_and_delete_rejected_upload(
+            job_id=job_id,
+            user_id=current_user.id,
+            input_path=input_path,
+            artifacts_root=artifacts_root,
+            kind="workspace",
+        )
+        if isinstance(exc, OSError) and exc.errno == errno.ENOSPC:
             raise HTTPException(
                 status_code=507,
                 detail="Storage became temporarily unavailable. Please try again in a few minutes.",
@@ -457,8 +414,6 @@ async def process_video_stream(
         input_path=input_path,
         artifacts_root=artifacts_root,
         filename=filename,
-        content_type=content_type,
-        file_ext=file_ext,
         video_resolution=metadata.video_resolution,
         proc_settings=proc_settings,
         current_user=current_user,

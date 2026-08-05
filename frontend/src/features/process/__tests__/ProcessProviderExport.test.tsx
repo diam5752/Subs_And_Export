@@ -329,6 +329,10 @@ describe('ProcessProvider export handling', () => {
             await waitFor(() => {
                 expect(screen.getByTestId('loaded-cue-text')).toHaveTextContent('Loaded cue');
             });
+            expect(global.fetch).toHaveBeenCalledWith(
+                'http://localhost:8080/static/artifacts/job-1/transcription.json',
+                { credentials: 'include' },
+            );
             expect(screen.getByTestId('transcript-load-error')).toBeEmptyDOMElement();
         } finally {
             global.fetch = originalFetch;

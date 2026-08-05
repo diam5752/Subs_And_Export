@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { useAppEnv } from '@/context/AppEnvContext';
 import { usePoints } from '@/context/PointsContext';
 import { api, JobResponse } from '@/lib/api';
 import { formatDate, buildStaticUrl } from '@/lib/utils';
@@ -46,7 +45,6 @@ export default function DashboardPage() {
     refreshBalance,
   } = usePoints();
   const { t } = useI18n();
-  const { appEnv } = useAppEnv();
   const didRestoreSession = useRef(false);
   const activeUploadAbortRef = useRef<AbortController | null>(null);
 
@@ -147,10 +145,15 @@ export default function DashboardPage() {
     };
   }, [handleCloseAccountPanel, showAccountPanel]);
 
-  const handleLogout = useCallback(() => {
-    setShowAccountPanel(false);
-    logout();
-  }, [logout]);
+  const handleLogout = useCallback(async () => {
+    setAccountError('');
+    try {
+      await logout();
+      setShowAccountPanel(false);
+    } catch {
+      setAccountError(t('signOutError'));
+    }
+  }, [logout, t]);
 
   // Restore session
   useEffect(() => {
@@ -298,37 +301,11 @@ export default function DashboardPage() {
         watermark_enabled: options.watermark_enabled,
       };
 
-      // Mock processing is deliberately local-only, including in production.
-      // GCS is reserved for real providers so a mock deployment never depends
-      // on (or accidentally sends media to) an external storage service.
-      const result = appEnv === 'production' && provider !== 'mock'
-        ? await (async () => {
-          const upload = await api.createGcsUploadUrl(selectedFile);
-          setStatusMessage(t('statusUploading'));
-          setProgress(0);
-          await api.uploadToSignedUrl(
-            upload.upload_url,
-            selectedFile,
-            upload.required_headers['Content-Type'],
-            {
-              signal: uploadController.signal,
-              onProgress: reportUploadProgress,
-              onRetry: (nextAttempt, maxAttempts) => {
-                setStatusMessage(t('statusUploadRetrying', {
-                  attempt: nextAttempt,
-                  total: maxAttempts,
-                }));
-              },
-              onUploadComplete: markUploadComplete,
-            },
-          );
-          return api.processVideoFromGcs(upload.upload_id, settings);
-        })()
-        : await api.processVideo(selectedFile, settings, {
-          signal: uploadController.signal,
-          onProgress: reportUploadProgress,
-          onUploadComplete: markUploadComplete,
-        });
+      const result = await api.processVideo(selectedFile, settings, {
+        signal: uploadController.signal,
+        onProgress: reportUploadProgress,
+        onUploadComplete: markUploadComplete,
+      });
       setJobId(result.id);
       setCanCancelProcessing(true);
       if (typeof result.balance === 'number') {
@@ -358,7 +335,7 @@ export default function DashboardPage() {
         activeUploadAbortRef.current = null;
       }
     }
-  }, [appEnv, refreshBalance, selectedFile, setPointsBalance, t, setSelectedJob]);
+  }, [refreshBalance, selectedFile, setPointsBalance, t, setSelectedJob]);
 
   const executeReprocessJob = useCallback(async (sourceJobId: string, options: ProcessingOptions) => {
     setIsProcessing(true);

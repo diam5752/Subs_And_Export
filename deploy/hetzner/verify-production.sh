@@ -17,11 +17,29 @@ ROOT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd -P)
 COMPOSE_FILE="$ROOT_DIR/deploy/hetzner/docker-compose.production.yml"
 ENV_FILE="${SUBFRAME_ENV_FILE:-$ROOT_DIR/.env.production}"
 STATE_FILE="$ROOT_DIR/.runtime/last-successful-release"
+ERASURE_RECEIPT_FILE="$ROOT_DIR/.runtime/last-erasure-reconciliation"
+CONTINUITY_STATE_FILE="$ROOT_DIR/.runtime/privacy-continuity-id"
 
 if [ ! -f "$ENV_FILE" ]; then
   echo "Production env is required: $ENV_FILE" >&2
   exit 1
 fi
+if grep -Eq \
+  '^[[:space:]]*(export[[:space:]]+)?(GSP_GCS_[A-Z0-9_]*|GOOGLE_APPLICATION_CREDENTIALS)[[:space:]]*=' \
+  "$ENV_FILE"; then
+  echo "Retired GCS settings remain in the production env." >&2
+  exit 1
+fi
+if [ ! -f "$CONTINUITY_STATE_FILE" ] || [ -L "$CONTINUITY_STATE_FILE" ]; then
+  echo "Live privacy continuity state is required: $CONTINUITY_STATE_FILE" >&2
+  exit 1
+fi
+privacy_continuity_id=$(cat "$CONTINUITY_STATE_FILE")
+if ! printf '%s\n' "$privacy_continuity_id" | grep -Eq '^[0-9a-f]{64}$'; then
+  echo "Live privacy continuity state is malformed." >&2
+  exit 1
+fi
+export SUBFRAME_PRIVACY_CONTINUITY_ID="$privacy_continuity_id"
 
 env_value() {
   sed -n "s/^$1=//p" "$ENV_FILE" | tail -n 1
@@ -118,6 +136,11 @@ frontend_image=$(docker inspect --format '{{.Config.Image}}' "$frontend_id")
 }
 
 backend_environment=$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$backend_id")
+if printf '%s\n' "$backend_environment" | grep -Eq \
+  '^(GSP_GCS_[A-Z0-9_]*|GOOGLE_APPLICATION_CREDENTIALS)='; then
+  echo "Backend container still exposes retired GCS settings." >&2
+  exit 1
+fi
 for expected in \
   GSP_APP_ENV=production \
   APP_ENV=production \
@@ -135,8 +158,6 @@ for expected in \
   STRIPE_WEBHOOK_SECRET= \
   OPENAI_API_KEY= \
   GROQ_API_KEY= \
-  GSP_GCS_BUCKET= \
-  GOOGLE_APPLICATION_CREDENTIALS= \
   GOOGLE_CLIENT_SECRET= \
   GOOGLE_REDIRECT_URI= \
   GSP_GOOGLE_OAUTH_CERTS_URL=http://edge:8081/oauth2/v1/certs \
@@ -150,13 +171,54 @@ for expected in \
   GSP_ORPHAN_RETENTION_HOURS=1 \
   GSP_CLEANUP_INTERVAL_MINUTES=15 \
   GSP_STORAGE_MIN_FREE_MB=2048 \
-  GSP_RETENTION_CLEANUP_ENABLED=1
+  GSP_RETENTION_CLEANUP_ENABLED=1 \
+  GSP_ERASURE_JOURNAL_DIR=/privacy-erasure-journal \
+  GSP_ERASURE_JOURNAL_RETENTION_DAYS=30 \
+  "GSP_ERASURE_JOURNAL_CONTINUITY_ID=$privacy_continuity_id"
 do
   printf '%s\n' "$backend_environment" | grep -Fqx "$expected" || {
     echo "Missing safe runtime setting: $expected" >&2
     exit 1
   }
 done
+journal_mount=$(docker inspect --format \
+  '{{range .Mounts}}{{if eq .Destination "/privacy-erasure-journal"}}{{.Name}}|{{.RW}}{{end}}{{end}}' \
+  "$backend_id")
+if [ "$journal_mount" != "subframe-erasure-journal|true" ]; then
+  echo "Backend erasure journal must use its dedicated writable volume." >&2
+  exit 1
+fi
+if ! docker exec "$backend_id" python -c '
+import os
+from pathlib import Path
+
+expected = os.environ["GSP_ERASURE_JOURNAL_CONTINUITY_ID"]
+marker = Path("/privacy-erasure-journal/.continuity-id")
+if marker.is_symlink() or not marker.is_file():
+    raise SystemExit("Live erasure journal continuity marker is missing.")
+if marker.read_text(encoding="ascii").strip() != expected:
+    raise SystemExit("Live erasure journal continuity marker does not match.")
+'; then
+  echo "Backend erasure journal continuity validation failed." >&2
+  exit 1
+fi
+privacy_relay_id=$(compose ps -q privacy-relay)
+if [ -n "$privacy_relay_id" ]; then
+  echo "Temporary privacy relay must be stopped after erasure reconciliation." >&2
+  exit 1
+fi
+backup_retention_days="${SUBFRAME_BACKUP_RETENTION_DAYS:-$(env_value SUBFRAME_BACKUP_RETENTION_DAYS)}"
+backup_retention_days="${backup_retention_days:-14}"
+case "$backup_retention_days" in
+  ''|*[!0-9]*)
+    echo "SUBFRAME_BACKUP_RETENTION_DAYS must be a positive integer." >&2
+    exit 1
+    ;;
+esac
+if [ "$backup_retention_days" -eq 0 ] || [ 30 -lt "$backup_retention_days" ]; then
+  echo "Erasure journal retention must cover the complete backup retention window." >&2
+  exit 1
+fi
 printf '%s\n' "$backend_environment" | grep -Fqx "GOOGLE_CLIENT_ID=$google_client_id" || {
   echo "Backend Google client ID does not match the release environment." >&2
   exit 1
@@ -199,6 +261,50 @@ if ! assert_no_open_stripe_purchases_without_consumer_contract; then
   echo "Open Stripe purchase invariant failed after database migration." >&2
   exit 1
 fi
+
+receipt_value() {
+  sed -n "s/^$1=//p" "$ERASURE_RECEIPT_FILE" | tail -n 1
+}
+
+timestamp_epoch() (
+  raw_timestamp=$1
+  if ! printf '%s\n' "$raw_timestamp" | grep -Eq '^[0-9]{8}T[0-9]{6}Z$'; then
+    return 1
+  fi
+  iso_timestamp=$(printf '%s\n' "$raw_timestamp" | sed \
+    's/^\(....\)\(..\)\(..\)T\(..\)\(..\)\(..\)Z$/\1-\2-\3T\4:\5:\6Z/')
+  date -u -d "$iso_timestamp" +%s 2>/dev/null
+)
+
+if [ ! -f "$ERASURE_RECEIPT_FILE" ] || [ -L "$ERASURE_RECEIPT_FILE" ]; then
+  echo "A successful erasure reconciliation receipt is required." >&2
+  exit 1
+fi
+receipt_line_count=$(awk 'NF { count += 1 } END { print count + 0 }' \
+  "$ERASURE_RECEIPT_FILE")
+if [ "$receipt_line_count" -ne 4 ] ||
+  [ "$(receipt_value reconciled)" != true ] ||
+  [ "$(receipt_value release_sha)" != "$release_sha" ] ||
+  [ "$(receipt_value journal_path)" != /privacy-erasure-journal ]; then
+  echo "Erasure reconciliation receipt is malformed or belongs to another release." >&2
+  exit 1
+fi
+reconciled_at=$(receipt_value completed_at_utc)
+if ! reconciled_epoch=$(timestamp_epoch "$reconciled_at"); then
+  echo "Erasure reconciliation receipt timestamp is invalid." >&2
+  exit 1
+fi
+backend_started_at=$(docker inspect --format '{{.State.StartedAt}}' "$backend_id")
+if ! backend_started_epoch=$(date -u -d "$backend_started_at" +%s 2>/dev/null); then
+  echo "Could not validate backend start time for erasure reconciliation." >&2
+  exit 1
+fi
+now_epoch=$(date -u +%s)
+if [ "$reconciled_epoch" -lt "$backend_started_epoch" ] ||
+  [ "$reconciled_epoch" -gt "$now_epoch" ]; then
+  echo "Erasure reconciliation must complete after the current backend starts and before verification." >&2
+  exit 1
+fi
 google_oauth_certs_http=$(docker exec "$backend_id" python -c \
   'import os, urllib.request; response = urllib.request.urlopen(os.environ["GSP_GOOGLE_OAUTH_CERTS_URL"], timeout=10); print(response.status)')
 [ "$google_oauth_certs_http" = 200 ] || {
@@ -237,6 +343,8 @@ probes = (
     (f"{base}/v1/speech-to-text", "POST"),
     (f"{base}/v1/speech-to-text", "GET"),
     (f"{base}/v1/models", "POST"),
+    (f"{base}/v1/speech-to-text/transcripts/gsubs_relay_probe", "DELETE"),
+    (f"{base}/v1/speech-to-text/transcripts/invalid/path", "DELETE"),
 )
 statuses = []
 for url, method in probes:
@@ -256,7 +364,7 @@ for url, method in probes:
 print(",".join(statuses))
 ')
 case "$elevenlabs_relay_http" in
-  400,404,404|401,404,404|422,404,404)
+  400,404,404,401,404|400,404,404,404,404|401,404,404,401,404|401,404,404,404,404|422,404,404,401,404|422,404,404,404,404)
     ;;
   *)
     echo "ElevenLabs API relay is unavailable or unexpectedly permissive: $elevenlabs_relay_http" >&2

@@ -8,7 +8,6 @@
     "start": "next start",
     "lint": "eslint",
     "lint:dead-code": "knip",
-    "postinstall": "node scripts/patch-brace-expansion.cjs",
     "test": "jest",
     "test:coverage": "jest --coverage --watchAll=false",
     "e2e": "playwright test"
@@ -28,19 +27,17 @@
     "@types/node": "^20.19.26",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "brace-expansion": "5.0.8",
     "eslint": "^9",
     "eslint-config-next": "^16.2.10",
     "jest": "^30.2.0",
     "jest-environment-jsdom": "^30.2.0",
     "knip": "^5.73.0",
-    "postcss": "8.5.19",
+    "postcss": "8.5.25",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.9.3"
   },
   "overrides": {
-    "brace-expansion": "$brace-expansion",
-    "postcss": "8.5.19",
+    "postcss": "8.5.25",
     "sharp": "0.35.3"
   }
 }

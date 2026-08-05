@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -28,6 +29,9 @@ def test_settings_defaults(monkeypatch) -> None:
     assert settings.cleanup_interval_minutes == 15
     assert settings.storage_min_free_mb == 2048
     assert settings.retention_cleanup_enabled is True
+    assert settings.erasure_journal_dir == settings.project_root / ".runtime" / "erasure-journal"
+    assert settings.erasure_journal_retention_days == 30
+    assert settings.erasure_journal_continuity_id == ""
     assert settings.paid_credits_enabled is False
     assert settings.consumer_policy_approved is False
     assert settings.durable_confirmation_channel_ready is False
@@ -75,6 +79,88 @@ def test_runtime_startup_rejects_environment_activation_of_draft_registry(
     code_approval.assert_called_once_with()
 
 
+def test_runtime_privacy_gate_requires_production_continuity(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from backend import main as main_module
+
+    monkeypatch.setattr(
+        main_module,
+        "settings",
+        SimpleNamespace(
+            retention_cleanup_enabled=True,
+            is_dev=False,
+            erasure_journal_continuity_id="",
+        ),
+    )
+
+    with pytest.raises(RuntimeError, match="continuity state is required"):
+        main_module.assert_runtime_privacy_configuration()
+
+
+def test_runtime_privacy_gate_validates_the_live_journal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from backend import main as main_module
+
+    read_all = Mock(return_value=[])
+    monkeypatch.setattr(
+        main_module,
+        "settings",
+        SimpleNamespace(
+            retention_cleanup_enabled=True,
+            is_dev=False,
+            erasure_journal_continuity_id="d" * 64,
+        ),
+    )
+    monkeypatch.setattr(
+        main_module,
+        "configured_erasure_journal",
+        Mock(return_value=SimpleNamespace(read_all=read_all)),
+    )
+
+    main_module.assert_runtime_privacy_configuration()
+
+    read_all.assert_called_once_with()
+
+
+def test_runtime_privacy_gate_allows_disabled_retention_only_in_development(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from backend import main as main_module
+
+    journal_factory = Mock()
+    monkeypatch.setattr(
+        main_module,
+        "settings",
+        SimpleNamespace(retention_cleanup_enabled=False, is_dev=True),
+    )
+    monkeypatch.setattr(
+        main_module,
+        "configured_erasure_journal",
+        journal_factory,
+    )
+
+    main_module.assert_runtime_privacy_configuration()
+
+    journal_factory.assert_not_called()
+
+
+def test_runtime_privacy_gate_rejects_disabled_production_retention(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from backend import main as main_module
+
+    monkeypatch.setattr(
+        main_module,
+        "settings",
+        SimpleNamespace(retention_cleanup_enabled=False, is_dev=False),
+    )
+
+    with pytest.raises(RuntimeError, match="retention cannot be disabled"):
+        main_module.assert_runtime_privacy_configuration()
+
+
 def test_settings_environment_overrides(monkeypatch) -> None:
     monkeypatch.setenv("GSP_MOCK_EXTERNAL_SERVICES", "false")
     monkeypatch.setenv("GSP_USE_LLM_BY_DEFAULT", "true")
@@ -88,6 +174,9 @@ def test_settings_environment_overrides(monkeypatch) -> None:
     monkeypatch.setenv("GSP_CLEANUP_INTERVAL_MINUTES", "20")
     monkeypatch.setenv("GSP_STORAGE_MIN_FREE_MB", "3072")
     monkeypatch.setenv("GSP_RETENTION_CLEANUP_ENABLED", "false")
+    monkeypatch.setenv("GSP_ERASURE_JOURNAL_DIR", "/privacy-erasure-journal")
+    monkeypatch.setenv("GSP_ERASURE_JOURNAL_RETENTION_DAYS", "45")
+    monkeypatch.setenv("GSP_ERASURE_JOURNAL_CONTINUITY_ID", "AB" * 32)
     monkeypatch.setenv("GSP_ALLOWED_ORIGINS", '["https://one.example", "https://two.example"]')
     monkeypatch.setenv("GSP_TRUSTED_HOSTS", "localhost, 127.0.0.1")
     monkeypatch.setenv(
@@ -117,6 +206,9 @@ def test_settings_environment_overrides(monkeypatch) -> None:
     assert settings.cleanup_interval_minutes == 20
     assert settings.storage_min_free_mb == 3072
     assert settings.retention_cleanup_enabled is False
+    assert settings.erasure_journal_dir == Path("/privacy-erasure-journal")
+    assert settings.erasure_journal_retention_days == 45
+    assert settings.erasure_journal_continuity_id == "ab" * 32
     assert settings.allowed_origins == ["https://one.example", "https://two.example"]
     assert settings.trusted_hosts == ["localhost", "127.0.0.1"]
     assert settings.google_oauth_certs_url == "http://edge:8081/oauth2/v1/certs"
@@ -128,6 +220,15 @@ def test_settings_rejects_nonpositive_upload_limit(monkeypatch) -> None:
     monkeypatch.setenv("GSP_MAX_UPLOAD_MB", "0")
 
     with pytest.raises(ValueError, match="greater than 0"):
+        Settings(_env_file=None)
+
+
+def test_settings_rejects_invalid_erasure_journal_continuity_id(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("GSP_ERASURE_JOURNAL_CONTINUITY_ID", "not-a-continuity-id")
+
+    with pytest.raises(ValueError, match="64-character hex"):
         Settings(_env_file=None)
 
 

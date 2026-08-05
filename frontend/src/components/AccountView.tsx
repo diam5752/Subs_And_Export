@@ -10,7 +10,7 @@ import { Spinner } from '@/components/Spinner';
 interface AccountViewProps {
     user: User;
     onSaveProfile: (name: string, password?: string, confirmPassword?: string) => Promise<void>;
-    onLogout: () => void;
+    onLogout: () => Promise<void>;
     accountMessage: string;
     accountError: string;
     accountSaving: boolean;

@@ -14,6 +14,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class JobArtifactServiceUnitTest {
 
@@ -172,6 +173,10 @@ class JobArtifactServiceUnitTest {
         assertThat(Files.exists(mkv)).isFalse();
 
         service.deleteArtifacts("missing-" + jobId);
+
+        assertThatThrownBy(() -> service.deleteArtifacts("../" + jobId))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Invalid job id");
     }
 
     private static Path createFile(Path path, String content) throws IOException {

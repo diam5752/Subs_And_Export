@@ -40,14 +40,6 @@ class ConfigUnitTest {
         properties.setUseLlmByDefault(true);
         properties.setLlmModel("llm-model");
         properties.setLlmTemperature(0.2d);
-        properties.setGcsBucket("bucket");
-        properties.setGcsUploadsPrefix("uploads-prefix");
-        properties.setGcsStaticPrefix("static-prefix");
-        properties.setGcsUploadUrlTtlSeconds(123);
-        properties.setGcsDownloadUrlTtlSeconds(456);
-        properties.setGcsKeepUploads(false);
-        properties.setGcsSignerEmail("signer@example.com");
-        properties.setAdminEmails("admin@example.com");
 
         assertThat(properties.isDev()).isTrue();
         properties.setEnv("development");
@@ -88,14 +80,6 @@ class ConfigUnitTest {
         assertThat(properties.isUseLlmByDefault()).isTrue();
         assertThat(properties.getLlmModel()).isEqualTo("llm-model");
         assertThat(properties.getLlmTemperature()).isEqualTo(0.2d);
-        assertThat(properties.getGcsBucket()).isEqualTo("bucket");
-        assertThat(properties.getGcsUploadsPrefix()).isEqualTo("uploads-prefix");
-        assertThat(properties.getGcsStaticPrefix()).isEqualTo("static-prefix");
-        assertThat(properties.getGcsUploadUrlTtlSeconds()).isEqualTo(123);
-        assertThat(properties.getGcsDownloadUrlTtlSeconds()).isEqualTo(456);
-        assertThat(properties.isGcsKeepUploads()).isFalse();
-        assertThat(properties.getGcsSignerEmail()).isEqualTo("signer@example.com");
-        assertThat(properties.getAdminEmails()).isEqualTo("admin@example.com");
         assertThat(properties.dataDir().toString()).isEqualTo("data");
         assertThat(properties.watermarkPath().toString()).isEqualTo("gsubs-logo.png");
         assertThat(AppProperties.csvToList(null)).isEmpty();

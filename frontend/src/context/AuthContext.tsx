@@ -17,7 +17,7 @@ interface AuthContextType {
     login: (email: string, password: string) => Promise<void>;
     register: (email: string, password: string, name: string) => Promise<void>;
     googleLogin: (idToken: string) => Promise<void>;
-    logout: () => void;
+    logout: () => Promise<void>;
     refreshUser: () => Promise<void>;
 }
 
@@ -83,14 +83,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await refreshUser();
     }, [refreshUser]);
 
-    const logout = useCallback(() => {
-        setUser(null);
-        const revokeSession = api.revokeSession();
+    const logout = useCallback(async () => {
+        // The HttpOnly private-media cookie cannot be cleared by JavaScript.
+        // Keep the browser visibly signed in until the server has revoked the
+        // session and returned the cookie-expiry header.
+        await api.revokeSession();
         api.clearToken();
-        void revokeSession.catch(() => {
-            // Local sign-out must still succeed while offline or if the
-            // server session has already expired.
-        });
+        setUser(null);
     }, []);
 
     return (

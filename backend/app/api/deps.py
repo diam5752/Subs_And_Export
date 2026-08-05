@@ -5,7 +5,6 @@ from fastapi.security import OAuth2PasswordBearer
 
 from ..core.auth import SessionStore, User, UserStore
 from ..core.database import Database
-from ..core.gcs_uploads import GcsUploadStore
 from ..core.oauth_state import OAuthStateStore
 from ..services.billing import BillingService
 from ..services.billing_consumer_records import BillingConsumerRecordStore
@@ -42,9 +41,6 @@ def get_history_store(db: Database = Depends(get_db)) -> HistoryStore:
 
 def get_oauth_state_store(db: Database = Depends(get_db)) -> OAuthStateStore:
     return OAuthStateStore(db=db)
-
-def get_gcs_upload_store(db: Database = Depends(get_db)) -> GcsUploadStore:
-    return GcsUploadStore(db=db)
 
 def get_points_store(db: Database = Depends(get_db)) -> PointsStore:
     return PointsStore(db=db)

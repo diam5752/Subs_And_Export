@@ -20,9 +20,6 @@ sqlalchemy>=2.0.0
 alembic>=1.13.0
 psycopg[binary]>=3.1.0
 
-# Cloud Storage (direct-to-GCS uploads for Cloud Run)
-google-cloud-storage>=3.7.0
-
 # HTTP/API
 requests>=2.31.0
 urllib3>=2.6.0

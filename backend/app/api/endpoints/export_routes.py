@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import re
-from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
@@ -13,7 +12,6 @@ from ...core.auth import User
 from ...core.config import settings
 from ...core.database import Database
 from ...core.errors import sanitize_message
-from ...core.gcs import download_object, get_gcs_settings, upload_object
 from ...core.ratelimit import limiter_content
 from ...schemas.base import JobResponse
 from ...services.jobs import JobStore
@@ -24,9 +22,8 @@ from ...services.subtitle_exports import (
 )
 from ...services.video_processing import generate_video_variant
 from ..deps import get_current_user, get_db, get_job_store
-from .file_utils import MAX_UPLOAD_BYTES, data_roots, relpath_safe, require_storage_capacity
+from .file_utils import data_roots, relpath_safe, require_storage_capacity
 from .validation import (
-    ALLOWED_VIDEO_EXTENSIONS,
     validate_highlight_style,
     validate_max_subtitle_lines,
     validate_shadow_strength,
@@ -153,18 +150,6 @@ def export_video(
             variants[request.resolution] = f"/static/{public_path}"
             result_data["variants"] = variants
 
-            gcs_settings = get_gcs_settings()
-            if gcs_settings:
-                try:
-                    upload_object(
-                        settings=gcs_settings,
-                        object_name=f"{gcs_settings.static_prefix}/{public_path}",
-                        source=subtitle_export.path,
-                        content_type=subtitle_export.content_type,
-                    )
-                except Exception as exc:
-                    logger.warning("Failed to upload %s export to GCS (%s): %s", request.resolution.upper(), job_id, exc)
-
             job_store.update_job(job_id, result_data=result_data, status="completed")
             updated_job = job_store.get_job(job_id)
             if updated_job is None:
@@ -193,28 +178,6 @@ def export_video(
             data_dir_resolved = data_dir.resolve()
             if candidate.is_relative_to(data_dir_resolved) and candidate.exists():
                 input_video = candidate
-
-    if not input_video:
-        gcs_settings = get_gcs_settings()
-        source_gcs_object = (job.result_data or {}).get("source_gcs_object")
-        if (
-            gcs_settings
-            and isinstance(source_gcs_object, str)
-            and source_gcs_object.startswith(f"{gcs_settings.uploads_prefix}/")
-        ):
-            ext = Path(source_gcs_object).suffix.lower()
-            if ext in ALLOWED_VIDEO_EXTENSIONS:
-                destination = uploads_dir / f"{job_id}_input{ext}"
-                try:
-                    download_object(
-                        settings=gcs_settings,
-                        object_name=source_gcs_object,
-                        destination=destination,
-                        max_bytes=MAX_UPLOAD_BYTES,
-                    )
-                    input_video = destination
-                except Exception as exc:
-                    logger.warning("Failed to download input video from GCS for export (%s): %s", job_id, exc)
 
     if not input_video:
         raise HTTPException(404, "Original input video not found")
@@ -252,18 +215,6 @@ def export_video(
         public_path = relpath_safe(output_path, data_dir).as_posix()
         variants[request.resolution] = f"/static/{public_path}"
         result_data["variants"] = variants
-
-        gcs_settings = get_gcs_settings()
-        if gcs_settings:
-            try:
-                upload_object(
-                    settings=gcs_settings,
-                    object_name=f"{gcs_settings.static_prefix}/{public_path}",
-                    source=output_path,
-                    content_type="video/mp4",
-                )
-            except Exception as exc:
-                logger.warning("Failed to upload export variant to GCS (%s): %s", job_id, exc)
 
         job_store.update_job(job_id, result_data=result_data, status="completed", progress=100)
         updated_job = job_store.get_job(job_id)

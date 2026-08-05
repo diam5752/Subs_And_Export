@@ -1,8 +1,4 @@
-"""Rate limiting utilities with DB-backed storage for multi-instance correctness.
-
-This module provides both in-memory (for tests) and PostgreSQL-backed rate limiting
-to ensure rate limits work correctly across Cloud Run instances.
-"""
+"""Rate limiting utilities with DB-backed storage for multi-process correctness."""
 
 from __future__ import annotations
 
@@ -32,8 +28,8 @@ def get_client_ip(request: Request) -> str:
     """
     Best-effort client IP extraction safe for proxy environments.
 
-    Cloud Run (and most reverse proxies) append the connecting client's IP to the
-    right side of ``X-Forwarded-For``. We therefore take the *last* hop to reduce
+    Reverse proxies append the connecting client's IP to the right side of
+    ``X-Forwarded-For``. We therefore take the *last* hop to reduce
     spoofing risk from client-supplied leading values.
     """
     if request.client and request.client.host:

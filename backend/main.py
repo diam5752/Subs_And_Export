@@ -8,15 +8,13 @@ from backend.app.core.logging import setup_logging
 logger = setup_logging()
 
 import os
-from pathlib import Path
-from urllib.parse import quote
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse
 from secure import (
     ContentSecurityPolicy,
     ReferrerPolicy,
@@ -32,14 +30,16 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from backend.app.api.endpoints import auth, billing, billing_admin, history, videos
 from backend.app.api.endpoints.file_utils import sanitize_download_filename
+from backend.app.core.auth import SessionStore, User
 from backend.app.core.cleanup import retention_worker
 from backend.app.core.config import settings
 from backend.app.core.database import Database
-from backend.app.core.gcs import GcsSettings, generate_signed_download_url, get_gcs_settings
+from backend.app.core.erasure_journal import configured_erasure_journal
 from backend.app.core.ratelimit import get_client_ip, limiter_static
 from backend.app.services.consumer_contracts import (
     assert_consumer_contract_registry_approved,
 )
+from backend.app.services.jobs import JobStore
 
 
 def assert_runtime_billing_configuration() -> None:
@@ -50,10 +50,26 @@ def assert_runtime_billing_configuration() -> None:
         assert_consumer_contract_registry_approved()
 
 
+def assert_runtime_privacy_configuration() -> None:
+    """Fail before health when live erasure continuity cannot be proven."""
+    if not settings.retention_cleanup_enabled:
+        if not settings.is_dev:
+            raise RuntimeError(
+                "Production media retention cannot be disabled.",
+            )
+        return
+    if not settings.is_dev and not settings.erasure_journal_continuity_id:
+        raise RuntimeError(
+            "Production erasure journal continuity state is required.",
+        )
+    configured_erasure_journal().read_all()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
     assert_runtime_billing_configuration()
+    assert_runtime_privacy_configuration()
     app.state.db = Database()
     retention_task: asyncio.Task[None] | None = None
     if settings.retention_cleanup_enabled:
@@ -131,9 +147,11 @@ app.add_middleware(
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 default_trusted_hosts = (
-    ["localhost", "127.0.0.1", "0.0.0.0", "[::1]", "testserver"] if settings.is_dev else ["*.run.app", "*.a.run.app"]
+    ["localhost", "127.0.0.1", "0.0.0.0", "[::1]", "testserver"] if settings.is_dev else []
 )
 trusted_hosts = _env_list("GSP_TRUSTED_HOSTS", default_trusted_hosts)
+if not settings.is_dev and not trusted_hosts:
+    raise RuntimeError("GSP_TRUSTED_HOSTS must be set in production")
 if not settings.is_dev and "*" in trusted_hosts:
     raise RuntimeError("GSP_TRUSTED_HOSTS cannot include '*' in production")
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=trusted_hosts)
@@ -160,6 +178,12 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
         await self.secure_headers.set_headers_async(response)
+        cache_control = response.headers.get("Cache-Control", "")
+        if request.headers.get("authorization") and "no-store" not in cache_control.lower():
+            # Bearer-authenticated JSON can include profile, history, billing,
+            # transcript, or project data. Keep it out of shared and browser
+            # caches unless the endpoint already set an equally strict rule.
+            response.headers["Cache-Control"] = "private, no-store"
         # Avoid sending HSTS on cleartext requests to keep local dev/proxy setups flexible.
         if settings.is_dev and request.url.scheme not in ("https", "wss"):
             if "Strict-Transport-Security" in response.headers:
@@ -176,7 +200,7 @@ app.add_middleware(
 if os.getenv("GSP_FORCE_HTTPS", "0") == "1":
     app.add_middleware(HTTPSRedirectMiddleware)
 
-# Trust proxy headers only from known proxy networks (Cloud Run / local dev).
+# Trust proxy headers only from known private proxy networks (or local dev).
 # Added last (executed first) so request.client.host & scheme are correct.
 proxy_trusted_hosts: list[str] | str = (
     "*"
@@ -194,50 +218,50 @@ proxy_trusted_hosts: list[str] | str = (
 )
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=proxy_trusted_hosts)
 
-# Mount Static Files with Directory Listing
-# settings.project_root is the project root, e.g. /path/to/Subs_And_Export_Project
-# Use project_root/data for all artifacts (consistent with videos.py)
+# Serve owner-scoped local artifacts from the same data root used by processing.
 DATA_DIR = settings.data_dir
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-# LRU cache for signed URLs (5 min TTL, shorter than signed URL expiry)
-import time as time_module
 
-_signed_url_cache: dict[tuple[str, str | None], tuple[str, float]] = {}
-_SIGNED_URL_CACHE_TTL = 300  # 5 minutes
+def _media_session_token(request: Request) -> str | None:
+    """Read media authentication from a bearer header or HttpOnly cookie."""
+    authorization = request.headers.get("authorization", "")
+    scheme, separator, value = authorization.partition(" ")
+    if separator and scheme.lower() == "bearer" and value.strip():
+        return value.strip()
+    return request.cookies.get(auth.MEDIA_SESSION_COOKIE_NAME)
 
 
-def _get_cached_signed_url(
-    object_name: str,
-    gcs_settings: GcsSettings,
-    download_filename: str | None = None,
-) -> str:
-    """Get signed URL from cache or generate new one."""
-    now = time_module.time()
-    cache_key = (object_name, download_filename)
-    if cache_key in _signed_url_cache:
-        url, expires = _signed_url_cache[cache_key]
-        if now < expires:
-            return url
+def _authenticate_media_request(request: Request) -> User:
+    """Authenticate a private-media request against the app-scoped database."""
+    token = _media_session_token(request)
+    db: Database = request.app.state.db
+    user = SessionStore(db=db).authenticate(token or "")
+    if user is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return user
 
-    # Generate new signed URL
-    response_disposition = None
-    if download_filename:
-        response_disposition = f"attachment; filename*=UTF-8''{quote(download_filename)}"
-    url = generate_signed_download_url(
-        settings=gcs_settings,
-        object_name=object_name,
-        response_disposition=response_disposition,
-    )
-    _signed_url_cache[cache_key] = (url, now + _SIGNED_URL_CACHE_TTL)
 
-    # Cleanup old entries (simple garbage collection)
-    if len(_signed_url_cache) > 1000:
-        expired = [k for k, (_, exp) in _signed_url_cache.items() if now >= exp]
-        for k in expired:
-            del _signed_url_cache[k]
+def _owned_artifact_parts(file_path: str, user: User, db: Database) -> list[str]:
+    """Validate an exact artifact path and enforce its job ownership."""
+    if "\\" in file_path:
+        raise HTTPException(status_code=404, detail="File not found")
+    parts = file_path.split("/")
+    if (
+        len(parts) < 3
+        or parts[0] != "artifacts"
+        or any(not part or part in {".", ".."} for part in parts)
+    ):
+        raise HTTPException(status_code=404, detail="File not found")
 
-    return url
+    job = JobStore(db).get_job(parts[1])
+    if job is None or job.user_id != user.id:
+        raise HTTPException(status_code=404, detail="File not found")
+    return parts
 
 
 @app.get("/static/{file_path:path}")
@@ -251,13 +275,21 @@ async def serve_static(
     ip = get_client_ip(request)
     limiter_static.check(ip)
 
-    full_path = DATA_DIR / file_path
+    user = _authenticate_media_request(request)
+    db: Database = request.app.state.db
+    artifact_parts = _owned_artifact_parts(file_path, user, db)
+    full_path = DATA_DIR.joinpath(*artifact_parts)
 
-    # Security: Prevent path traversal
+    # Constrain the resolved file to this exact owned job. A global DATA_DIR
+    # check alone would allow a symlink to another user's artifact tree.
+    artifacts_root = (DATA_DIR / "artifacts").resolve()
+    owned_artifact_root = artifacts_root / artifact_parts[1]
     try:
-        full_path.resolve().relative_to(DATA_DIR.resolve())
+        if owned_artifact_root.is_symlink():
+            raise ValueError("symlinked job root")
+        full_path.resolve().relative_to(owned_artifact_root.resolve())
     except ValueError:
-        raise HTTPException(status_code=403, detail="Access denied")
+        raise HTTPException(status_code=404, detail="File not found")
 
     if full_path.is_file():
         # Force download for video files or when download=true
@@ -270,37 +302,19 @@ async def serve_static(
         }
         if force_download:
             download_name = sanitize_download_filename(filename, full_path.name)
-            return FileResponse(
+            response = FileResponse(
                 full_path,
                 filename=download_name,
                 content_disposition_type="attachment",
             )
-        return FileResponse(full_path)
+        else:
+            response = FileResponse(full_path)
+        response.headers["Cache-Control"] = "private, no-store"
+        return response
 
     if full_path.is_dir():
         # Security: Disable directory listing to prevent information disclosure
         raise HTTPException(status_code=404, detail="Not found")
-
-    gcs_settings = get_gcs_settings()
-    if gcs_settings:
-        object_name = f"{gcs_settings.static_prefix}/{file_path.strip('/')}"
-        try:
-            force_download = download or Path(file_path).suffix.lower() in {
-                ".mp4",
-                ".mov",
-                ".avi",
-                ".webm",
-                ".mkv",
-            }
-            download_name = sanitize_download_filename(filename, Path(file_path).name) if force_download else None
-            signed_url = _get_cached_signed_url(
-                object_name,
-                gcs_settings,
-                download_filename=download_name,
-            )
-            return RedirectResponse(url=signed_url, status_code=302)
-        except Exception:
-            pass
 
     if not full_path.exists():
         raise HTTPException(status_code=404, detail="File not found")

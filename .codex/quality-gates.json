@@ -246,7 +246,7 @@
     },
     "check:integration": {
       "kind": "shell",
-      "shell": "cd backend && APP_ENV=dev pytest -o addopts='' tests/test_auth.py tests/test_gcs_endpoints.py tests/test_jobs_and_videos.py tests/test_export_route_regressions.py tests/test_processing_task_helpers.py tests/test_validation_helpers.py",
+      "shell": "cd backend && APP_ENV=dev pytest -o addopts='' tests/test_auth.py tests/test_jobs_and_videos.py tests/test_export_route_regressions.py tests/test_processing_task_helpers.py tests/test_validation_helpers.py tests/test_gdpr.py tests/test_retention.py tests/test_security.py",
       "status": "enabled"
     },
     "check:media-export": {

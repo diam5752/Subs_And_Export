@@ -1,5 +1,7 @@
 import os
 import sys
+from collections.abc import Iterator
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -78,7 +80,10 @@ def setup_test_database():
 
 
 @pytest.fixture
-def client(monkeypatch) -> TestClient:
+def client(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> Iterator[TestClient]:
     monkeypatch.setenv("APP_ENV", "dev")
     monkeypatch.setenv("GSP_TRUSTED_HOSTS", "*")  # Allow test client requests
 
@@ -87,6 +92,12 @@ def client(monkeypatch) -> TestClient:
     from backend.app.core.config import settings
     from backend.app.services.ffmpeg_utils import MediaProbe
     from backend.main import app
+
+    monkeypatch.setattr(
+        settings,
+        "erasure_journal_dir",
+        tmp_path.parent / f"{tmp_path.name}-privacy-erasure-journal",
+    )
 
     # specific methods, but checking logic is what raises 429.
     # We MUST patch the CLASS __call__ method because special dunder methods

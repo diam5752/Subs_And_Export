@@ -10,7 +10,7 @@ import unicodedata
 from pathlib import Path
 
 import anyio
-from fastapi import HTTPException, UploadFile
+from fastapi import HTTPException
 from starlette.requests import Request
 
 from ...core.cleanup import ensure_storage_capacity, run_configured_retention
@@ -62,7 +62,7 @@ def sanitize_download_filename(requested: str | None, source_filename: str) -> s
         candidate = f"{candidate_stem}{source_suffix}"
 
     suffix = Path(candidate).suffix
-    stem = candidate[:-len(suffix)] if suffix else candidate
+    stem = candidate[: -len(suffix)] if suffix else candidate
     available_stem_chars = max(1, MAX_DOWNLOAD_FILENAME_CHARS - len(suffix))
     candidate = f"{stem[:available_stem_chars].rstrip()}{suffix}"
     return candidate or source_name
@@ -87,41 +87,17 @@ def link_or_copy_file(source: Path, destination: Path) -> None:
     shutil.copy2(source, destination)
 
 
-def save_upload_with_limit(upload: UploadFile, destination: Path) -> None:
-    """Write an upload to disk while enforcing the configured size limit.
-
-    Raises:
-        HTTPException: If file is too large or empty
-    """
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    total = 0
-    upload.file.seek(0)
-    with destination.open("wb") as buffer:
-        for chunk in iter(lambda: upload.file.read(1024 * 1024), b""):
-            total += len(chunk)
-            if total > MAX_UPLOAD_BYTES:
-                buffer.close()
-                destination.unlink(missing_ok=True)
-                raise HTTPException(
-                    status_code=413,
-                    detail=f"File too large; limit is {settings.max_upload_mb}MB",
-                )
-            buffer.write(chunk)
-    if total == 0:
-        destination.unlink(missing_ok=True)
-        raise HTTPException(status_code=400, detail="Empty upload")
-
-
 async def save_request_stream_with_limit(
     request: Request,
     destination: Path,
     *,
     expected_size: int | None,
+    cleanup_on_error: bool = True,
 ) -> int:
     """Stream a raw request body directly to disk with a strict size limit.
 
-    Unlike ``UploadFile``, this path does not ask Starlette to spool the full
-    multipart body before copying it into the application's upload directory.
+    This path never asks Starlette to parse or spool a multipart body before
+    authentication and application-level size enforcement.
     """
     destination.parent.mkdir(parents=True, exist_ok=True)
     total = 0
@@ -138,14 +114,17 @@ async def save_request_stream_with_limit(
                     )
                 await buffer.write(chunk)
     except BaseException:
-        destination.unlink(missing_ok=True)
+        if cleanup_on_error:
+            destination.unlink(missing_ok=True)
         raise
 
     if total == 0:
-        destination.unlink(missing_ok=True)
+        if cleanup_on_error:
+            destination.unlink(missing_ok=True)
         raise HTTPException(status_code=400, detail="Empty upload")
     if expected_size is not None and total != expected_size:
-        destination.unlink(missing_ok=True)
+        if cleanup_on_error:
+            destination.unlink(missing_ok=True)
         raise HTTPException(status_code=400, detail="Incomplete upload")
     return total
 
@@ -166,12 +145,10 @@ def require_storage_capacity(
     if not has_capacity:
         raise HTTPException(
             status_code=507,
-            detail=(
-                "Storage is temporarily busy. Existing projects are safe; "
-                "please try again in a few minutes."
-            ),
+            detail=("Storage is temporarily busy. Existing projects are safe; please try again in a few minutes."),
         )
 
 
-# Initialize directories on import
-DATA_DIR, UPLOADS_DIR, ARTIFACTS_DIR = data_roots()
+# Initialize the shared data root on import. Callers resolve upload and artifact
+# directories per operation through ``data_roots`` instead of stale globals.
+DATA_DIR = data_roots()[0]

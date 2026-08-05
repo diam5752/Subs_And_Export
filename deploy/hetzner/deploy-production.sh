@@ -7,9 +7,17 @@ COMPOSE_FILE="$ROOT_DIR/deploy/hetzner/docker-compose.production.yml"
 ENV_FILE="${SUBFRAME_ENV_FILE:-$ROOT_DIR/.env.production}"
 STATE_DIR="$ROOT_DIR/.runtime"
 STATE_FILE="$STATE_DIR/last-successful-release"
+ERASURE_RECEIPT_FILE="$STATE_DIR/last-erasure-reconciliation"
+CONTINUITY_STATE_FILE="$STATE_DIR/privacy-continuity-id"
 
 if [ ! -f "$ENV_FILE" ]; then
   echo "Missing production env: $ENV_FILE" >&2
+  exit 1
+fi
+if grep -Eq \
+  '^[[:space:]]*(export[[:space:]]+)?(GSP_GCS_[A-Z0-9_]*|GOOGLE_APPLICATION_CREDENTIALS)[[:space:]]*=' \
+  "$ENV_FILE"; then
+  echo "Remove retired GCS settings from the production env before deploying." >&2
   exit 1
 fi
 
@@ -50,6 +58,48 @@ if [ -e "$STATE_FILE" ] || [ -L "$STATE_FILE" ]; then
     exit 1
   fi
 fi
+
+privacy_continuity_bootstrap=0
+privacy_continuity_id=""
+if [ -e "$CONTINUITY_STATE_FILE" ] || [ -L "$CONTINUITY_STATE_FILE" ]; then
+  if [ ! -f "$CONTINUITY_STATE_FILE" ] || [ -L "$CONTINUITY_STATE_FILE" ]; then
+    echo "Privacy continuity state must be a regular file: $CONTINUITY_STATE_FILE" >&2
+    exit 1
+  fi
+  privacy_continuity_id=$(cat "$CONTINUITY_STATE_FILE")
+  if ! printf '%s\n' "$privacy_continuity_id" | grep -Eq '^[0-9a-f]{64}$'; then
+    echo "Privacy continuity state is malformed." >&2
+    exit 1
+  fi
+else
+  # Only the one-time transition from a release that predates the continuity
+  # gate may initialize a journal beside existing data. Any later missing
+  # state is treated as whole-host/journal loss and must remain offline.
+  if [ -n "$previous_sha" ]; then
+    if ! git -C "$ROOT_DIR" cat-file -e "$previous_sha^{commit}" 2>/dev/null; then
+      echo "Cannot prove the release that predates the missing privacy continuity state." >&2
+      exit 1
+    fi
+    if ! previous_compose=$(git -C "$ROOT_DIR" show \
+      "$previous_sha:deploy/hetzner/docker-compose.production.yml" 2>/dev/null); then
+      echo "Cannot inspect the previous release privacy contract." >&2
+      exit 1
+    fi
+    if printf '%s\n' "$previous_compose" | grep -q \
+      'GSP_ERASURE_JOURNAL_CONTINUITY_ID'; then
+      echo "Privacy continuity state is missing for a continuity-aware release." >&2
+      echo "Do not restore or publish user data without the current live erasure journal." >&2
+      exit 1
+    fi
+  fi
+  privacy_continuity_id=$(od -An -N32 -tx1 /dev/urandom | tr -d ' \n')
+  if ! printf '%s\n' "$privacy_continuity_id" | grep -Eq '^[0-9a-f]{64}$'; then
+    echo "Could not generate privacy continuity state." >&2
+    exit 1
+  fi
+  privacy_continuity_bootstrap=1
+fi
+export SUBFRAME_PRIVACY_CONTINUITY_ID="$privacy_continuity_id"
 
 restore_drill_receipt="$STATE_DIR/last-backup-restore-drill"
 schema_change=1
@@ -136,6 +186,109 @@ compose() {
   docker compose --project-name subframe --env-file "$ENV_FILE" -f "$COMPOSE_FILE" "$@"
 }
 
+database_scalar() {
+  sql=$1
+  compose exec -T db sh -eu -c \
+    'exec psql -X --no-password --tuples-only --no-align --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" --command "$1"' \
+    sh "$sql" | tr -d '[:space:]'
+}
+
+initialize_or_verify_privacy_continuity() {
+  allow_existing_data=0
+  if [ "$privacy_continuity_bootstrap" -eq 1 ] && [ -n "$previous_sha" ]; then
+    # One-time in-place upgrade from the legacy release. The edge is already
+    # stopped and the old backend is stopped below before this runs.
+    allow_existing_data=1
+  fi
+
+  if [ "$privacy_continuity_bootstrap" -eq 1 ] && [ "$allow_existing_data" -ne 1 ]; then
+    for privacy_table in users jobs
+    do
+      table_exists=$(database_scalar "SELECT to_regclass('public.$privacy_table') IS NOT NULL;")
+      case "$table_exists" in
+        f) ;;
+        t)
+          row_count=$(database_scalar "SELECT count(*) FROM $privacy_table;")
+          case "$row_count" in
+            ''|*[!0-9]*)
+              echo "Could not validate empty privacy table: $privacy_table" >&2
+              return 1
+              ;;
+          esac
+          if [ "$row_count" -ne 0 ]; then
+            echo "Refusing to initialize a new erasure journal beside restored user data." >&2
+            return 1
+          fi
+          ;;
+        *)
+          echo "Could not validate privacy table state: $privacy_table" >&2
+          return 1
+          ;;
+      esac
+    done
+  fi
+
+  if ! compose run --rm --no-deps --user 0:0 --entrypoint sh \
+    -e EXPECTED_CONTINUITY_ID="$privacy_continuity_id" \
+    -e INITIALIZE_CONTINUITY="$privacy_continuity_bootstrap" \
+    -e ALLOW_EXISTING_DATA="$allow_existing_data" \
+    backend -eu -c '
+      root=/privacy-erasure-journal
+      marker=$root/.continuity-id
+      if [ "$INITIALIZE_CONTINUITY" = 1 ]; then
+        if [ -e "$marker" ] || [ -L "$marker" ]; then
+          echo "Erasure journal marker already exists while host continuity state is missing." >&2
+          exit 1
+        fi
+        if [ "$ALLOW_EXISTING_DATA" != 1 ] &&
+          find /data -mindepth 1 \( -type f -o -type l \) -print -quit | grep -q .; then
+          echo "Refusing to initialize a new erasure journal beside restored media." >&2
+          exit 1
+        fi
+        if find "$root" -mindepth 1 -print -quit | grep -q .; then
+          echo "Refusing to initialize a non-empty erasure journal volume." >&2
+          exit 1
+        fi
+        chown 10001:10001 "$root"
+        chmod 700 "$root"
+        temporary=$root/.continuity-id.tmp.$$
+        printf "%s\n" "$EXPECTED_CONTINUITY_ID" > "$temporary"
+        chown 10001:10001 "$temporary"
+        chmod 600 "$temporary"
+        mv "$temporary" "$marker"
+        sync "$marker" "$root"
+      else
+        [ -f "$marker" ] && [ ! -L "$marker" ] || {
+          echo "Live erasure journal continuity marker is missing." >&2
+          exit 1
+        }
+        [ "$(cat "$marker")" = "$EXPECTED_CONTINUITY_ID" ] || {
+          echo "Live erasure journal continuity marker does not match this host." >&2
+          exit 1
+        }
+        [ "$(stat -c %a "$root")" = 700 ] || {
+          echo "Erasure journal directory permissions are unsafe." >&2
+          exit 1
+        }
+        [ "$(stat -c %u:%g "$root")" = 10001:10001 ] || {
+          echo "Erasure journal directory ownership is unsafe." >&2
+          exit 1
+        }
+      fi
+    '; then
+    return 1
+  fi
+
+  if [ "$privacy_continuity_bootstrap" -eq 1 ]; then
+    continuity_state_temp=$(mktemp "$STATE_DIR/.privacy-continuity-id.XXXXXX")
+    printf '%s\n' "$privacy_continuity_id" > "$continuity_state_temp"
+    chmod 600 "$continuity_state_temp"
+    mv -f -- "$continuity_state_temp" "$CONTINUITY_STATE_FILE"
+    continuity_state_temp=""
+    privacy_continuity_bootstrap=0
+  fi
+}
+
 assert_no_open_stripe_purchases_without_consumer_contract() {
   compose exec -T db sh -eu -c \
     'exec psql -X --no-password -v ON_ERROR_STOP=1 --quiet --username "$POSTGRES_USER" --dbname "$POSTGRES_DB"' <<'SQL'
@@ -171,6 +324,13 @@ SQL
 }
 
 rollback() {
+  # A failed candidate may already have restored files or migrated the DB.
+  # Never let a rollback reopen public traffic without a fresh privacy gate.
+  if ! compose stop edge >/dev/null 2>&1; then
+    docker stop subframe-edge-1 >/dev/null 2>&1 || true
+  fi
+  compose stop privacy-relay >/dev/null 2>&1 || true
+  rm -f -- "$ERASURE_RECEIPT_FILE"
   if [ "$allow_schema_compatible_rollback" != 1 ]; then
     echo "Deployment failed; automatic rollback is disabled because the database schema may have advanced." >&2
     echo "Keep the current deployment state for diagnosis and deploy a corrected roll-forward release." >&2
@@ -186,19 +346,32 @@ rollback() {
     return 0
   fi
 
-  echo "Explicit schema-compatible rollback requested; restoring $previous_sha." >&2
-  if ! SUBFRAME_RELEASE_SHA="$previous_sha" compose up -d --no-build; then
+  echo "Explicit schema-compatible rollback requested; restoring core services for $previous_sha." >&2
+  if ! SUBFRAME_RELEASE_SHA="$previous_sha" compose up -d --no-build db backend frontend; then
     echo "Schema-compatible rollback failed; manual recovery is required." >&2
+    return 0
   fi
+  echo "Rollback core services are restored, but the public edge remains stopped." >&2
+  echo "Complete retention and erasure reconciliation, then deploy a verified roll-forward release." >&2
   return 0
 }
 
 state_temp=""
+erasure_receipt_temp=""
+continuity_state_temp=""
 
 cleanup_state_temp() {
   if [ -n "$state_temp" ]; then
     rm -f -- "$state_temp"
     state_temp=""
+  fi
+  if [ -n "$erasure_receipt_temp" ]; then
+    rm -f -- "$erasure_receipt_temp"
+    erasure_receipt_temp=""
+  fi
+  if [ -n "$continuity_state_temp" ]; then
+    rm -f -- "$continuity_state_temp"
+    continuity_state_temp=""
   fi
 }
 
@@ -217,6 +390,11 @@ if ! compose run --rm --no-deps --entrypoint caddy edge validate \
   echo "Caddy configuration validation failed." >&2
   exit 1
 fi
+if ! compose run --rm --no-deps --entrypoint caddy privacy-relay validate \
+  --config /etc/caddy/Caddyfile --adapter caddyfile; then
+  echo "Private erasure-relay configuration validation failed." >&2
+  exit 1
+fi
 if ! compose build --pull backend frontend; then
   echo "Image build failed; the running production release was not changed." >&2
   exit 1
@@ -231,13 +409,40 @@ if ! assert_no_open_stripe_purchases_without_consumer_contract; then
   exit 1
 fi
 trap on_signal INT TERM HUP
-if ! compose up -d db backend frontend; then
+install -d -m 700 "$STATE_DIR"
+rm -f -- "$ERASURE_RECEIPT_FILE"
+if ! compose stop edge; then
+  echo "Could not close the public edge before erasure reconciliation." >&2
   rollback
   exit 1
 fi
-# Bind-mounted Caddyfile content is not part of Docker Compose's service hash,
-# so recreate the edge only after its new configuration validates.
-if ! compose up -d --force-recreate edge; then
+if ! compose stop backend frontend; then
+  echo "Could not stop the old application before privacy continuity validation." >&2
+  rollback
+  exit 1
+fi
+if ! compose up -d db; then
+  rollback
+  exit 1
+fi
+
+attempt=0
+db_healthy=0
+while [ "$attempt" -lt 60 ]; do
+  db_health=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}' subframe-db-1 2>/dev/null || true)
+  if [ "$db_health" = healthy ]; then
+    db_healthy=1
+    break
+  fi
+  attempt=$((attempt + 1))
+  sleep 1
+done
+if [ "$db_healthy" -ne 1 ] || ! initialize_or_verify_privacy_continuity; then
+  echo "Privacy continuity validation failed; the public edge remains stopped." >&2
+  rollback
+  exit 1
+fi
+if ! compose up -d backend frontend; then
   rollback
   exit 1
 fi
@@ -247,8 +452,7 @@ healthy=0
 while [ "$attempt" -lt 60 ]; do
   backend_health=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}' subframe-backend-1 2>/dev/null || true)
   frontend_health=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}' subframe-frontend-1 2>/dev/null || true)
-  edge_health=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}' subframe-edge-1 2>/dev/null || true)
-  if [ "$backend_health" = healthy ] && [ "$frontend_health" = healthy ] && [ "$edge_health" = healthy ]; then
+  if [ "$backend_health" = healthy ] && [ "$frontend_health" = healthy ]; then
     healthy=1
     break
   fi
@@ -258,7 +462,84 @@ done
 
 if [ "$healthy" -ne 1 ]; then
   compose ps >&2
-  compose logs --tail=120 backend frontend edge >&2
+  compose logs --tail=120 backend frontend >&2
+  rollback
+  exit 1
+fi
+
+if ! compose up -d privacy-relay; then
+  echo "Private erasure relay failed to start; the public edge remains stopped." >&2
+  rollback
+  exit 1
+fi
+privacy_relay_id=$(compose ps -q privacy-relay)
+privacy_relay_healthy=0
+attempt=0
+while [ "$attempt" -lt 20 ]; do
+  privacy_relay_health=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}' "$privacy_relay_id" 2>/dev/null || true)
+  if [ "$privacy_relay_health" = healthy ]; then
+    privacy_relay_healthy=1
+    break
+  fi
+  attempt=$((attempt + 1))
+  sleep 1
+done
+if [ "$privacy_relay_healthy" -ne 1 ]; then
+  echo "Private erasure relay is unhealthy; the public edge remains stopped." >&2
+  rollback
+  exit 1
+fi
+if ! compose exec -T \
+  -e GSP_ELEVENLABS_API_BASE=http://privacy-relay:8082/elevenlabs \
+  backend python -m backend.cli run-retention; then
+  echo "Local retention reconciliation failed; the public edge remains stopped." >&2
+  rollback
+  exit 1
+fi
+if ! compose exec -T \
+  -e GSP_ELEVENLABS_API_BASE=http://privacy-relay:8082/elevenlabs \
+  backend python -m backend.cli reconcile-erasures; then
+  echo "Erasure reconciliation failed; the public edge remains stopped." >&2
+  rollback
+  exit 1
+fi
+if ! compose stop privacy-relay; then
+  echo "Could not stop the temporary erasure relay; the public edge remains stopped." >&2
+  rollback
+  exit 1
+fi
+erasure_receipt_temp=$(mktemp "$STATE_DIR/.last-erasure-reconciliation.XXXXXX")
+printf '%s\n' \
+  "reconciled=true" \
+  "release_sha=$release_sha" \
+  "journal_path=/privacy-erasure-journal" \
+  "completed_at_utc=$(date -u +%Y%m%dT%H%M%SZ)" > "$erasure_receipt_temp"
+chmod 600 "$erasure_receipt_temp"
+mv -f -- "$erasure_receipt_temp" "$ERASURE_RECEIPT_FILE"
+erasure_receipt_temp=""
+
+# Bind-mounted Caddyfile content is not part of Docker Compose's service hash,
+# so recreate the edge only after its new configuration validates and every
+# durable erasure tombstone has been replayed against the restored local state.
+if ! compose up -d --force-recreate edge; then
+  rollback
+  exit 1
+fi
+
+attempt=0
+edge_healthy=0
+while [ "$attempt" -lt 60 ]; do
+  edge_health=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}' subframe-edge-1 2>/dev/null || true)
+  if [ "$edge_health" = healthy ]; then
+    edge_healthy=1
+    break
+  fi
+  attempt=$((attempt + 1))
+  sleep 2
+done
+if [ "$edge_healthy" -ne 1 ]; then
+  compose ps >&2
+  compose logs --tail=120 edge >&2
   rollback
   exit 1
 fi
@@ -271,7 +552,6 @@ if ! "$ROOT_DIR/deploy/hetzner/verify-production.sh" --candidate; then
   exit 1
 fi
 
-install -d -m 700 "$STATE_DIR"
 state_temp=$(mktemp "$STATE_DIR/.last-successful-release.XXXXXX")
 printf '%s\n' "$release_sha" > "$state_temp"
 chmod 600 "$state_temp"

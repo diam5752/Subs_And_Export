@@ -31,7 +31,7 @@ function AuthHarness() {
             <button type="button" onClick={() => void googleLogin('signed-google-id-token')}>
                 google
             </button>
-            <button type="button" onClick={() => logout()}>
+            <button type="button" onClick={() => void logout().catch(() => undefined)}>
                 logout
             </button>
             <button type="button" onClick={() => void refreshUser()}>
@@ -155,7 +155,7 @@ describe('AuthContext', () => {
         });
     });
 
-    it('optimistically clears the current user while revoking the server session', async () => {
+    it('clears local private state only after server revocation succeeds', async () => {
         render(
             <AuthProvider>
                 <AuthHarness />
@@ -166,14 +166,16 @@ describe('AuthContext', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'logout' }));
 
-        expect(api.revokeSession).toHaveBeenCalledTimes(1);
-        expect(api.clearToken).toHaveBeenCalled();
-        expect(screen.getByTestId('user-email')).toHaveTextContent('none');
+        await waitFor(() => {
+            expect(api.revokeSession).toHaveBeenCalledTimes(1);
+            expect(api.clearToken).toHaveBeenCalled();
+            expect(screen.getByTestId('user-email')).toHaveTextContent('none');
+        });
         expect((api.revokeSession as jest.Mock).mock.invocationCallOrder[0])
             .toBeLessThan((api.clearToken as jest.Mock).mock.invocationCallOrder[0]);
     });
 
-    it('keeps the user signed out when server revocation fails', async () => {
+    it('keeps the user visibly signed in when server revocation fails', async () => {
         (api.revokeSession as jest.Mock).mockRejectedValueOnce(
             new Error('network unavailable'),
         );
@@ -187,9 +189,9 @@ describe('AuthContext', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'logout' }));
 
-        expect(screen.getByTestId('user-email')).toHaveTextContent('none');
-        expect(api.clearToken).toHaveBeenCalledTimes(1);
         await waitFor(() => expect(api.revokeSession).toHaveBeenCalledTimes(1));
+        expect(screen.getByTestId('user-email')).toHaveTextContent('user@example.com');
+        expect(api.clearToken).not.toHaveBeenCalled();
     });
 
     it('clears the token when refreshUser fails', async () => {

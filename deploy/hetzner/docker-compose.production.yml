@@ -57,8 +57,6 @@ services:
       OPENAI_API_KEY: ""
       GROQ_API_KEY: ""
       ELEVENLABS_API_KEY: "${ELEVENLABS_API_KEY:?ELEVENLABS_API_KEY is required}"
-      GSP_GCS_BUCKET: ""
-      GOOGLE_APPLICATION_CREDENTIALS: ""
       GOOGLE_CLIENT_SECRET: ""
       GOOGLE_REDIRECT_URI: ""
       GSP_GOOGLE_OAUTH_CERTS_URL: "http://edge:8081/oauth2/v1/certs"
@@ -66,9 +64,18 @@ services:
       GSP_EXTERNAL_PROVIDER_DAILY_BUDGET_USD: "10"
       GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD: "0.05"
       GSP_EXTERNAL_PROVIDER_PRICE_SAFETY_MULTIPLIER: "1.25"
+      GSP_WORKSPACE_RETENTION_HOURS: "24"
+      GSP_STALE_JOB_RETENTION_HOURS: "6"
+      GSP_ORPHAN_RETENTION_HOURS: "1"
+      GSP_CLEANUP_INTERVAL_MINUTES: "15"
+      GSP_STORAGE_MIN_FREE_MB: "2048"
+      GSP_RETENTION_CLEANUP_ENABLED: "1"
+      GSP_ERASURE_JOURNAL_DIR: "/privacy-erasure-journal"
+      GSP_ERASURE_JOURNAL_RETENTION_DAYS: "30"
+      GSP_ERASURE_JOURNAL_CONTINUITY_ID: "${SUBFRAME_PRIVACY_CONTINUITY_ID:-}"
     volumes:
       - app_data:/data
-      - app_logs:/app/logs
+      - erasure_journal:/privacy-erasure-journal
     networks:
       - private
     depends_on:
@@ -137,6 +144,24 @@ services:
       retries: 6
       start_period: 15s
 
+  privacy-relay:
+    image: ${CADDY_IMAGE:-caddy:2-alpine}
+    profiles:
+      - privacy-maintenance
+    volumes:
+      - ./ElevenLabsErasureCaddyfile:/etc/caddy/Caddyfile:ro
+    networks:
+      - private
+      - provider_egress
+    restart: "no"
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8082/health"]
+      interval: 2s
+      timeout: 2s
+      retries: 10
+      start_period: 2s
+
 networks:
   private:
     name: subframe-private
@@ -144,11 +169,13 @@ networks:
   mizai_edge:
     external: true
     name: mizai_mizai-private
+  provider_egress:
+    name: subframe-provider-egress
 
 volumes:
   postgres_data:
     name: subframe-postgres-data
   app_data:
     name: subframe-app-data
-  app_logs:
-    name: subframe-app-logs
+  erasure_journal:
+    name: subframe-erasure-journal

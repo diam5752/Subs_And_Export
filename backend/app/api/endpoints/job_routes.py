@@ -14,8 +14,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from ...core.auth import User
-from ...core.cleanup import delete_job_workspace
+from ...core.erasure_journal import (
+    ErasureJournalError,
+    TombstoneKind,
+    configured_erasure_journal,
+)
 from ...core.ratelimit import limiter_content
+from ...core.workspace_deletion import delete_job_workspace
 from ...schemas.base import BatchDeleteRequest, BatchDeleteResponse, JobResponse, PaginatedJobsResponse
 from ...services.history import HistoryStore
 from ...services.jobs import Job, JobStore
@@ -28,6 +33,30 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 ACTIVE_JOB_STATUSES = frozenset({"pending", "processing"})
+
+
+def _record_erasure_intent_or_503(
+    *,
+    kind: TombstoneKind,
+    user_id: str,
+    job_ids: list[str],
+) -> None:
+    """Fail closed when restore-safe privacy state cannot be persisted."""
+    try:
+        configured_erasure_journal().append(
+            kind=kind,
+            user_id=user_id,
+            job_ids=job_ids,
+        )
+    except ErasureJournalError as exc:
+        logger.error(
+            "Refusing destructive media action because the erasure journal is unavailable",
+            extra={"erasure_kind": kind, "job_count": len(job_ids)},
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="Privacy protection is temporarily unavailable. Please try again.",
+        ) from exc
 
 
 class TranscriptionWordPayload(TypedDict):
@@ -121,6 +150,13 @@ def batch_delete_jobs(
             detail=(
                 "Active projects cannot be deleted. Cancel processing first and wait for cancellation to complete."
             ),
+        )
+
+    if jobs:
+        _record_erasure_intent_or_503(
+            kind="job",
+            user_id=current_user.id,
+            job_ids=[job.id for job in jobs],
         )
 
     for job in jobs:
@@ -262,6 +298,12 @@ def delete_job(
 
     _, uploads_dir, artifacts_root = data_roots()
 
+    _record_erasure_intent_or_503(
+        kind="job",
+        user_id=current_user.id,
+        job_ids=[job_id],
+    )
+
     delete_job_workspace(
         job_id=job_id,
         uploads_dir=uploads_dir,
@@ -289,6 +331,14 @@ def cancel_job(
     if job.status not in ("pending", "processing"):
         raise HTTPException(400, f"Cannot cancel job with status '{job.status}'")
 
+    # REGRESSION: persist the exact workspace erasure intent before the status
+    # transition. A crash after cancellation must not let a backup resurrect
+    # the upload or transcript before the worker observes the new status.
+    _record_erasure_intent_or_503(
+        kind="workspace",
+        user_id=current_user.id,
+        job_ids=[job_id],
+    )
     job_store.update_job(job_id, status="cancelled", message="Cancelled by user")
     record_event_safe(history_store, current_user, "job_cancelled", f"Cancelled job {job_id}", {"job_id": job_id})
 

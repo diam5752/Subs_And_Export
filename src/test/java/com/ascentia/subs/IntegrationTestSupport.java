@@ -29,6 +29,7 @@ import static org.springframework.http.MediaType.APPLICATION_FORM_URLENCODED;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -83,7 +84,6 @@ public abstract class IntegrationTestSupport {
                     token_usage,
                     point_transactions,
                     user_points,
-                    gcs_uploads,
                     oauth_states,
                     sessions,
                     jobs,
@@ -121,6 +121,10 @@ public abstract class IntegrationTestSupport {
                         .param("username", email)
                         .param("password", password))
                 .andExpect(status().isOk())
+                .andExpect(header().string(
+                        org.springframework.http.HttpHeaders.SET_COOKIE,
+                        org.hamcrest.Matchers.containsString("gsubs_media_session=")
+                ))
                 .andReturn()
                 .getResponse()
                 .getContentAsString();

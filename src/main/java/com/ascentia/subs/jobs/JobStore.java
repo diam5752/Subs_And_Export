@@ -104,6 +104,13 @@ public class JobStore {
                 .list();
     }
 
+    public List<String> listJobIdsForUser(String userId) {
+        return jdbcClient.sql("SELECT id FROM jobs WHERE user_id = :userId ORDER BY created_at DESC")
+                .param("userId", userId)
+                .query(String.class)
+                .list();
+    }
+
     public List<Job> listJobsForUserPaginated(String userId, int offset, int limit) {
         return jdbcClient.sql("""
                 SELECT id, user_id, status, progress, message, created_at, updated_at, result_data

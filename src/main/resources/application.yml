@@ -79,11 +79,3 @@ app:
   social-llm-model: gpt-5-mini
   factcheck-llm-model: gpt-5-mini
   extraction-llm-model: gpt-5-mini
-  admin-emails: ${GSP_ADMIN_EMAILS:}
-  gcs-bucket: ${GSP_GCS_BUCKET:}
-  gcs-uploads-prefix: ${GSP_GCS_UPLOADS_PREFIX:uploads}
-  gcs-static-prefix: ${GSP_GCS_STATIC_PREFIX:static}
-  gcs-upload-url-ttl-seconds: ${GSP_GCS_UPLOAD_URL_TTL_SECONDS:3600}
-  gcs-download-url-ttl-seconds: ${GSP_GCS_DOWNLOAD_URL_TTL_SECONDS:600}
-  gcs-keep-uploads: ${GSP_GCS_KEEP_UPLOADS:true}
-  gcs-signer-email: ${GSP_GCS_SIGNER_EMAIL:}

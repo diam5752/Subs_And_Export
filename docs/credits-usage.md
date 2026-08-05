@@ -18,10 +18,9 @@ does not change the visible price of a video.
 | `3:00.001` through `6:00` | 60 |
 | `6:00.001` through `10:00` | 100 |
 
-An upload with an unreadable duration is rejected. A direct upload is probed
-before reservation. A GCS upload, whose browser-reported duration is not
-trusted, reserves 100 credits and refunds the difference after the server
-measures the file. More than 10 minutes is rejected.
+An upload with an unreadable duration is rejected. Every local upload is probed
+by the server before reservation; browser-reported duration is never trusted.
+More than 10 minutes is rejected.
 
 The immutable package catalog is:
 

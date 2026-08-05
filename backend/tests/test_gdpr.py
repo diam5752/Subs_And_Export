@@ -3,20 +3,16 @@ from __future__ import annotations
 import time
 import uuid
 from pathlib import Path
-from types import SimpleNamespace
 
-import pytest
-
-from backend.app.api.endpoints import auth as auth_endpoints
 from backend.app.api.endpoints.auth import delete_account
 from backend.app.core.config import settings
 from backend.app.core.database import Database
+from backend.app.core.erasure_journal import ErasureJournalError
 from backend.app.db.models import (
     DbAIModel,
     DbBillingInvoice,
     DbCreditPurchase,
     DbCreditPurchaseReversal,
-    DbGcsUploadSession,
     DbHistoryEvent,
     DbJob,
     DbOAuthState,
@@ -33,10 +29,10 @@ from backend.app.services.financial_records import (
     financial_account_reference_hash,
     financial_retention_deadline,
 )
+from backend.tests.process_stream import post_process_stream
 
 FINANCIAL_RECORDS_NOTICE = (
-    "Account and media are permanently deleted; legally required financial "
-    "records are retained in detached form."
+    "Account and media are permanently deleted; legally required financial records are retained in detached form."
 )
 
 
@@ -253,14 +249,19 @@ def _seed_reversal_history(
 def test_data_export(client, funded_user_auth_headers):
     """Ensure user can export their data (GDPR Right to Access)."""
     # 1. Create some data
-    files = {"file": ("gdpr_test.mp4", b"data", "video/mp4")}
-    client.post("/videos/process", headers=funded_user_auth_headers, files=files)
+    post_process_stream(
+        client,
+        funded_user_auth_headers,
+        filename="gdpr_test.mp4",
+        content=b"data",
+    )
 
     # 2. Request Export
     response = client.get("/auth/export", headers=funded_user_auth_headers)
 
     # 3. Verify
     assert response.status_code == 200
+    assert response.headers["cache-control"] == "private, no-store"
     data = response.json()
     assert "profile" in data
     assert "jobs" in data
@@ -382,7 +383,6 @@ def test_data_export_includes_user_linked_audit_data_without_auth_secrets(
     expired_session_secret = f"expired-session-secret-{suffix}"
     oauth_secret = f"oauth-secret-{suffix}"
     expired_oauth_secret = f"expired-oauth-secret-{suffix}"
-    upload_secret = f"upload-secret-{suffix}"
     db = Database()
     with db.session() as session:
         wallet = session.get(DbUserPoints, user["id"])
@@ -475,16 +475,6 @@ def test_data_export_includes_user_linked_audit_data_without_auth_secrets(
                     user_agent="Expired GDPR OAuth Browser",
                     ip="192.0.2.26",
                 ),
-                DbGcsUploadSession(
-                    id=upload_secret,
-                    user_id=user["id"],
-                    object_name=f"uploads/{user['id']}/{suffix}.mp4",
-                    content_type="video/mp4",
-                    original_filename="personal-name.mp4",
-                    created_at=now,
-                    expires_at=now + 3_600,
-                    used_at=None,
-                ),
                 DbProviderBudgetWindow(
                     key=daily_window_key,
                     scope="day",
@@ -543,8 +533,9 @@ def test_data_export_includes_user_linked_audit_data_without_auth_secrets(
     assert [item["id"] for item in exported["usage_ledger"]] == [ledger_id]
     assert exported["token_usage"][0]["job_id"] == job_id
     assert exported["provider_budget_reservations"][0]["idempotency_key"] == ledger_idempotency_key
-    assert exported["gcs_uploads"][0]["object_name"].endswith(f"/{suffix}.mp4")
-    assert upload_secret not in str(exported["gcs_uploads"])
+    # REGRESSION: the local-only product must not expose a dead cloud-storage
+    # contract in a GDPR access export.
+    assert "gcs_uploads" not in exported
     assert any(item["user_agent"] == "GDPR Browser" and item["active"] is True for item in exported["sessions"])
     assert any(
         item["user_agent"] == "Expired GDPR Browser" and item["active"] is False for item in exported["sessions"]
@@ -774,6 +765,32 @@ def test_account_deletion_is_blocked_while_media_jobs_are_active(
         assert (artifacts_dir / job_id / "processed.mp4").exists()
 
 
+def test_account_deletion_fails_closed_when_erasure_journal_is_unavailable(
+    client,
+    user_auth_headers,
+    monkeypatch,
+) -> None:
+    from backend.app.api.endpoints import auth as auth_endpoints
+
+    class BrokenJournal:
+        def append(self, **_kwargs: object) -> None:
+            raise ErasureJournalError("journal unavailable")
+
+    monkeypatch.setattr(
+        auth_endpoints,
+        "configured_erasure_journal",
+        lambda: BrokenJournal(),
+    )
+
+    response = client.delete("/auth/me", headers=user_auth_headers)
+
+    # REGRESSION: an account cannot be reported erased unless its intent can
+    # first survive a future database/app-data restore.
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Privacy protection is temporarily unavailable. Please try again."}
+    assert client.get("/auth/me", headers=user_auth_headers).status_code == 200
+
+
 def test_account_deletion_detaches_recent_terminal_unpaid_attempt(
     client,
     user_auth_headers,
@@ -875,8 +892,12 @@ def test_account_deletion_cleans_files(client, funded_user_auth_headers):
     email = me_resp.json()["email"]
 
     # 1. Create Job
-    files = {"file": ("gdpr_delete.mp4", b"content", "video/mp4")}
-    resp = client.post("/videos/process", headers=funded_user_auth_headers, files=files)
+    resp = post_process_stream(
+        client,
+        funded_user_auth_headers,
+        filename="gdpr_delete.mp4",
+        content=b"content",
+    )
     assert resp.status_code == 200
     job_id = resp.json()["id"]
 
@@ -908,7 +929,7 @@ def test_account_deletion_cleans_files(client, funded_user_auth_headers):
     # For file cleanup, we rely on implementation logic verification or integration testing.
 
 
-def test_account_deletion_removes_all_local_and_known_gcs_media(
+def test_account_deletion_removes_every_local_media_workspace(
     client,
     user_auth_headers,
     monkeypatch,
@@ -925,177 +946,59 @@ def test_account_deletion_removes_all_local_and_known_gcs_media(
 
     suffix = uuid.uuid4().hex[:8]
     job_ids = [f"gdpr-delete-{suffix}-{sequence:02d}" for sequence in range(11)]
-    expected_gcs_objects: set[str] = set()
+    upload_paths: list[Path] = []
+    artifact_paths: list[Path] = []
     db = Database()
     with db.session() as session:
         for sequence, job_id in enumerate(job_ids):
-            source_object = f"uploads/{user_id}/{job_id}.mp4"
+            extension = (".mp4", ".mov", ".mkv")[sequence % 3]
             video_path = f"artifacts/{job_id}/processed.mp4"
             transcription_path = f"artifacts/{job_id}/transcription.json"
-            variant_path = f"artifacts/{job_id}/processed-720p.mp4"
-            expected_gcs_objects.update(
-                {
-                    source_object,
-                    f"static/{video_path}",
-                    f"static/{transcription_path}",
-                    f"static/{variant_path}",
-                }
-            )
             session.add(
                 DbJob(
                     id=job_id,
                     user_id=user_id,
-                    status="completed",
+                    status=("completed", "failed", "cancelled")[sequence % 3],
                     created_at=1_800_000_000 + sequence,
                     updated_at=1_800_000_100 + sequence,
                     progress=100,
                     message=None,
                     result_data={
-                        "source_gcs_object": source_object,
                         "video_path": video_path,
                         "transcription_url": f"/static/{transcription_path}",
-                        "variants": {"720p": variant_path},
                     },
                 )
             )
-            session.add(
-                DbGcsUploadSession(
-                    id=f"upload-{uuid.uuid4().hex}",
-                    user_id=user_id,
-                    object_name=source_object,
-                    content_type="video/mp4",
-                    original_filename=f"{job_id}.mp4",
-                    created_at=1_800_000_000 + sequence,
-                    expires_at=2_000_000_000,
-                    used_at=1_800_000_010 + sequence,
-                )
-            )
-            (uploads_dir / f"{job_id}_input.mp4").write_bytes(b"upload")
+            upload_path = uploads_dir / f"{job_id}_input{extension}"
+            upload_path.write_bytes(b"upload")
             job_artifacts = artifacts_dir / job_id
             job_artifacts.mkdir()
             (job_artifacts / "processed.mp4").write_bytes(b"result")
-
-        pending_object = f"uploads/{user_id}/pending-{suffix}.mp4"
-        expected_gcs_objects.add(pending_object)
-        session.add(
-            DbGcsUploadSession(
-                id=f"upload-{uuid.uuid4().hex}",
-                user_id=user_id,
-                object_name=pending_object,
-                content_type="video/mp4",
-                original_filename="pending.mp4",
-                created_at=1_800_000_100,
-                expires_at=2_000_000_000,
-                used_at=None,
+            (job_artifacts / "transcription.json").write_text(
+                '[{"start": 0, "end": 1, "text": "private"}]',
+                encoding="utf-8",
             )
-        )
+            upload_paths.append(upload_path)
+            artifact_paths.append(job_artifacts)
 
-    deleted_gcs_objects: list[str] = []
-    monkeypatch.setattr(
-        auth_endpoints,
-        "get_gcs_settings",
-        lambda: SimpleNamespace(
-            uploads_prefix="uploads",
-            static_prefix="static",
-        ),
-        raising=False,
-    )
-    monkeypatch.setattr(
-        auth_endpoints,
-        "delete_object",
-        lambda *, settings, object_name: deleted_gcs_objects.append(object_name),
-        raising=False,
-    )
+    unrelated_upload = uploads_dir / "unrelated-job_input.mp4"
+    unrelated_artifacts = artifacts_dir / "unrelated-job"
+    unrelated_upload.write_bytes(b"keep")
+    unrelated_artifacts.mkdir()
+    (unrelated_artifacts / "transcription.json").write_text("[]", encoding="utf-8")
 
     response = client.delete("/auth/me", headers=user_auth_headers)
 
     assert response.status_code == 200
-    assert set(deleted_gcs_objects) == expected_gcs_objects
-    for job_id in job_ids:
-        assert not (uploads_dir / f"{job_id}_input.mp4").exists()
-        assert not (artifacts_dir / job_id).exists()
-
-
-def test_account_deletion_is_fail_closed_without_cloud_cleanup_configuration(
-    client,
-    user_auth_headers,
-    monkeypatch,
-) -> None:
-    me = client.get("/auth/me", headers=user_auth_headers)
-    assert me.status_code == 200
-    user_id = me.json()["id"]
-    upload_id = f"upload-{uuid.uuid4().hex}"
-    db = Database()
+    # REGRESSION: erasure must enumerate every account job, not the UI's
+    # ten-project page, and must remove the complete local workspace including
+    # the transcript for completed, failed, and cancelled jobs.
+    assert all(not path.exists() for path in upload_paths)
+    assert all(not path.exists() for path in artifact_paths)
     with db.session() as session:
-        session.add(
-            DbGcsUploadSession(
-                id=upload_id,
-                user_id=user_id,
-                object_name=f"uploads/{user_id}/{uuid.uuid4().hex}.mp4",
-                content_type="video/mp4",
-                original_filename="cloud-only.mp4",
-                created_at=int(time.time()),
-                expires_at=int(time.time()) + 3_600,
-                used_at=None,
-            )
-        )
-    monkeypatch.setattr(auth_endpoints, "get_gcs_settings", lambda: None)
-
-    response = client.delete("/auth/me", headers=user_auth_headers)
-
-    assert response.status_code == 500
-    # REGRESSION: an account must not be reported erased while known remote
-    # media cannot be reached and deleted.
-    assert client.get("/auth/me", headers=user_auth_headers).status_code == 200
-    with db.session() as session:
-        assert session.get(DbGcsUploadSession, upload_id) is not None
-
-
-def test_account_deletion_is_fail_closed_when_cloud_delete_fails(
-    client,
-    user_auth_headers,
-    monkeypatch,
-) -> None:
-    me = client.get("/auth/me", headers=user_auth_headers)
-    assert me.status_code == 200
-    user_id = me.json()["id"]
-    upload_id = f"upload-{uuid.uuid4().hex}"
-    object_name = f"uploads/{user_id}/{uuid.uuid4().hex}.mp4"
-    db = Database()
-    with db.session() as session:
-        session.add(
-            DbGcsUploadSession(
-                id=upload_id,
-                user_id=user_id,
-                object_name=object_name,
-                content_type="video/mp4",
-                original_filename="cloud-failure.mp4",
-                created_at=int(time.time()),
-                expires_at=int(time.time()) + 3_600,
-                used_at=None,
-            )
-        )
-    monkeypatch.setattr(
-        auth_endpoints,
-        "get_gcs_settings",
-        lambda: SimpleNamespace(
-            uploads_prefix="uploads",
-            static_prefix="static",
-        ),
-    )
-
-    def fail_delete(*, settings: object, object_name: str) -> None:
-        del settings, object_name
-        raise RuntimeError("provider unavailable")
-
-    monkeypatch.setattr(auth_endpoints, "delete_object", fail_delete)
-
-    response = client.delete("/auth/me", headers=user_auth_headers)
-
-    assert response.status_code == 500
-    assert client.get("/auth/me", headers=user_auth_headers).status_code == 200
-    with db.session() as session:
-        assert session.get(DbGcsUploadSession, upload_id) is not None
+        assert all(session.get(DbJob, job_id) is None for job_id in job_ids)
+    assert unrelated_upload.is_file()
+    assert unrelated_artifacts.is_dir()
 
 
 def test_account_deletion_removes_only_owned_provider_reservations(
@@ -1221,168 +1124,3 @@ def test_account_deletion_removes_only_owned_provider_reservations(
         assert session.get(DbProviderBudgetReservation, other_key) is not None
         assert session.get(DbProviderBudgetWindow, daily_window_key) is not None
         assert session.get(DbProviderBudgetWindow, monthly_window_key) is not None
-
-
-@pytest.mark.parametrize(
-    "value",
-    [
-        None,
-        "",
-        123,
-        "/uploads/user/object.mp4",
-        "uploads/other-user/object.mp4",
-        "uploads/user\\object.mp4",
-        "uploads/user/../other/object.mp4",
-        "uploads/user/folder//object.mp4",
-    ],
-)
-def test_exact_owned_upload_validation_rejects_ambiguous_or_foreign_names(
-    value: object,
-) -> None:
-    assert (
-        auth_endpoints._validated_exact_object(
-            value,
-            required_prefix="uploads/user/",
-        )
-        is None
-    )
-
-
-def test_exact_owned_upload_validation_accepts_only_normalized_owned_name() -> None:
-    object_name = "uploads/user/folder/object.mp4"
-
-    assert (
-        auth_endpoints._validated_exact_object(
-            object_name,
-            required_prefix="uploads/user/",
-        )
-        == object_name
-    )
-
-
-@pytest.mark.parametrize(
-    "value",
-    [
-        None,
-        "",
-        123,
-        "artifacts/job-1\\object.mp4",
-        "/artifacts/job-1/object.mp4",
-        "artifacts/job-2/object.mp4",
-        "artifacts/job-1/../job-2/object.mp4",
-        "artifacts/job-1",
-    ],
-)
-def test_static_artifact_validation_rejects_nonexact_job_paths(
-    value: object,
-) -> None:
-    assert (
-        auth_endpoints._static_object_for_job(
-            value,
-            job_id="job-1",
-            static_prefix="static",
-        )
-        is None
-    )
-
-
-@pytest.mark.parametrize(
-    ("value", "expected"),
-    [
-        (
-            "artifacts/job-1/processed.mp4",
-            "static/artifacts/job-1/processed.mp4",
-        ),
-        (
-            "/static/artifacts/job-1/transcription.json",
-            "static/artifacts/job-1/transcription.json",
-        ),
-    ],
-)
-def test_static_artifact_validation_maps_exact_persisted_paths(
-    value: str,
-    expected: str,
-) -> None:
-    assert (
-        auth_endpoints._static_object_for_job(
-            value,
-            job_id="job-1",
-            static_prefix="static",
-        )
-        == expected
-    )
-
-
-@pytest.mark.parametrize(
-    ("upload_objects", "result_data", "expected_error"),
-    [
-        (
-            ["uploads/other-user/input.mp4"],
-            {},
-            "Invalid stored cloud-upload reference",
-        ),
-        (
-            [],
-            {"source_gcs_object": "uploads/other-user/input.mp4"},
-            "Invalid stored cloud-upload reference",
-        ),
-        (
-            [],
-            {"variants": ["artifacts/job-1/output.mp4"]},
-            "Invalid stored cloud-artifact references",
-        ),
-        (
-            [],
-            {"video_path": "artifacts/other-job/output.mp4"},
-            "Invalid stored cloud-artifact reference",
-        ),
-    ],
-)
-def test_known_gcs_erasure_manifest_fails_closed_on_invalid_persisted_reference(
-    upload_objects: list[str],
-    result_data: dict[str, object],
-    expected_error: str,
-) -> None:
-    job = SimpleNamespace(id="job-1", result_data=result_data)
-
-    with pytest.raises(ValueError, match=expected_error):
-        auth_endpoints._known_gcs_objects_for_erasure(
-            user_id="user",
-            jobs=[job],
-            upload_session_objects=upload_objects,
-            uploads_prefix="uploads",
-            static_prefix="static",
-        )
-
-
-def test_known_gcs_erasure_manifest_is_sorted_exact_and_deduplicated() -> None:
-    source = "uploads/user/source.mp4"
-    job = SimpleNamespace(
-        id="job-1",
-        result_data={
-            "source_gcs_object": source,
-            "video_path": "artifacts/job-1/processed.mp4",
-            "public_url": "/static/artifacts/job-1/processed.mp4",
-            "transcription_url": ("/static/artifacts/job-1/transcription.json"),
-            "variants": {
-                "preview": "artifacts/job-1/preview.mp4",
-            },
-        },
-    )
-
-    objects = auth_endpoints._known_gcs_objects_for_erasure(
-        user_id="user",
-        jobs=[job],
-        upload_session_objects=[source],
-        uploads_prefix="uploads",
-        static_prefix="static",
-    )
-
-    assert objects == sorted(
-        {
-            source,
-            "static/artifacts/job-1/processed.mp4",
-            "static/artifacts/job-1/transcription.json",
-            "static/artifacts/job-1/preview.mp4",
-        }
-    )

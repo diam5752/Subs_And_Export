@@ -4,7 +4,6 @@ import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { I18nProvider } from "@/context/I18nContext";
 import CookieConsent from "@/components/CookieConsent"
-import { AppEnvProvider } from "@/context/AppEnvContext";
 import { normalizeAppEnv } from "@/lib/appEnv";
 import { PointsProvider } from "@/context/PointsContext";
 import { PwaRegistration } from "@/components/PwaRegistration";
@@ -51,15 +50,13 @@ export default function RootLayout({
     <html lang="el" suppressHydrationWarning data-app-env={appEnv} data-scroll-behavior="smooth">
       <body className={inter.className}>
         <I18nProvider>
-          <AppEnvProvider appEnv={appEnv}>
-            <AuthProvider>
-              <PointsProvider>
-                <PwaRegistration />
-                {children}
-                <CookieConsent />
-              </PointsProvider>
-            </AuthProvider>
-          </AppEnvProvider>
+          <AuthProvider>
+            <PointsProvider>
+              <PwaRegistration />
+              {children}
+              <CookieConsent />
+            </PointsProvider>
+          </AuthProvider>
         </I18nProvider>
       </body>
     </html>

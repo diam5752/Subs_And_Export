@@ -1,12 +1,11 @@
 import logging
 import time
-from pathlib import PurePosixPath
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, Field
-from sqlalchemy import delete, select
+from sqlalchemy import select
 
 from ...core.auth import (
     GoogleAuthError,
@@ -18,11 +17,10 @@ from ...core.auth import (
     google_client_id,
     verify_google_id_token,
 )
-from ...core.cleanup import delete_job_workspace
 from ...core.config import settings
 from ...core.database import Database
+from ...core.erasure_journal import ErasureJournalError, configured_erasure_journal
 from ...core.errors import sanitize_error
-from ...core.gcs import delete_object, get_gcs_settings
 from ...core.ratelimit import limiter_auth_change, limiter_login, limiter_register, limiter_signup_daily
 from ...db.models import (
     DbBillingAdjustmentRecord,
@@ -32,17 +30,15 @@ from ...db.models import (
     DbBillingWithdrawalResolution,
     DbCreditPurchase,
     DbCreditPurchaseReversal,
-    DbGcsUploadSession,
-    DbJob,
     DbOAuthState,
     DbPointTransaction,
     DbProviderBudgetReservation,
     DbSession,
     DbTokenUsage,
     DbUsageLedger,
-    DbUser,
     DbUserPoints,
 )
+from ...services.account_erasure import ActiveAccountJobsError, erase_account_and_media
 from ...services.billing import BillingConflictError, BillingService
 from ...services.billing_consumer_records import (
     BillingConsumerRecordConflictError,
@@ -73,9 +69,33 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 ACCOUNT_DELETION_NOTICE = (
-    "Account and media are permanently deleted; legally required financial "
-    "records are retained in detached form."
+    "Account and media are permanently deleted; legally required financial records are retained in detached form."
 )
+MEDIA_SESSION_COOKIE_NAME = "gsubs_media_session"
+
+
+def media_session_cookie_settings() -> dict[str, Any]:
+    """Return the narrow cookie policy used only for authenticated media GETs."""
+    return {
+        "key": MEDIA_SESSION_COOKIE_NAME,
+        "httponly": True,
+        "secure": not settings.is_dev,
+        "samesite": "lax",
+        "path": "/static",
+        "max_age": SessionStore.SESSION_TTL_SECONDS,
+    }
+
+
+def _set_media_session_cookie(response: Response, token: str) -> None:
+    response.set_cookie(value=token, **media_session_cookie_settings())
+    response.headers["Cache-Control"] = "no-store"
+
+
+def _clear_media_session_cookie(response: Response) -> None:
+    cookie_settings = media_session_cookie_settings()
+    cookie_settings.pop("max_age")
+    response.delete_cookie(**cookie_settings)
+    response.headers["Cache-Control"] = "no-store"
 
 
 class UserCreate(BaseModel):
@@ -117,6 +137,7 @@ def register(user_in: UserCreate, user_store: UserStore = Depends(get_user_store
 
 @router.post("/token", response_model=Token, dependencies=[Depends(limiter_login)])
 def login_access_token(
+    response: Response,
     form_data: OAuth2PasswordRequestForm = Depends(),
     user_store: UserStore = Depends(get_user_store),
     session_store: SessionStore = Depends(get_session_store),
@@ -133,12 +154,18 @@ def login_access_token(
         raise HTTPException(status_code=400, detail="Incorrect email or password")
 
     token = session_store.issue_session(user)
+    _set_media_session_cookie(response, token)
     return {"access_token": token, "token_type": "bearer", "user_id": user.id, "name": user.name}
 
 
 @router.get("/me", response_model=UserResponse)
-def read_users_me(current_user: User = Depends(get_current_user)) -> Any:
-    """Get current user profile."""
+def read_users_me(
+    response: Response,
+    current_user: User = Depends(get_current_user),
+    current_token: str = Depends(get_current_session_token),
+) -> Any:
+    """Get the current profile and refresh private-media cookie compatibility."""
+    _set_media_session_cookie(response, current_token)
     return current_user
 
 
@@ -154,7 +181,7 @@ def logout_current_session(
 ) -> LogoutResponse:
     """Revoke only the bearer session presented by the current client."""
     session_store.revoke(current_token)
-    response.headers["Cache-Control"] = "no-store"
+    _clear_media_session_cookie(response)
     return LogoutResponse()
 
 
@@ -206,6 +233,7 @@ class UserUpdatePassword(BaseModel):
 @router.put("/password", response_model=Any, dependencies=[Depends(limiter_auth_change)])
 def update_password(
     user_in: UserUpdatePassword,
+    response: Response,
     current_user: User = Depends(get_current_user),
     user_store: UserStore = Depends(get_user_store),
     session_store: SessionStore = Depends(get_session_store),
@@ -225,6 +253,7 @@ def update_password(
     # Critical Security Fix: Revoke all existing sessions so that attackers (or old devices)
     # cannot use the old session after password change.
     session_store.revoke_all_sessions(current_user.id)
+    _clear_media_session_cookie(response)
 
     return {"status": "success"}
 
@@ -373,26 +402,6 @@ def export_my_data(
                 "updated_at": row.updated_at,
             }
             for row in provider_reservation_rows
-        ]
-
-        gcs_upload_rows = session.scalars(
-            select(DbGcsUploadSession)
-            .where(DbGcsUploadSession.user_id == current_user.id)
-            .order_by(
-                DbGcsUploadSession.created_at.asc(),
-                DbGcsUploadSession.object_name.asc(),
-            )
-        ).all()
-        gcs_uploads = [
-            {
-                "object_name": row.object_name,
-                "content_type": row.content_type,
-                "original_filename": row.original_filename,
-                "created_at": row.created_at,
-                "expires_at": row.expires_at,
-                "used_at": row.used_at,
-            }
-            for row in gcs_upload_rows
         ]
 
         session_rows = session.scalars(
@@ -781,111 +790,15 @@ def export_my_data(
         "usage_ledger": usage_ledger,
         "token_usage": token_usage,
         "provider_budget_reservations": provider_budget_reservations,
-        "gcs_uploads": gcs_uploads,
         "sessions": sessions,
         "oauth_states": oauth_states,
         "billing_purchases": billing_purchases,
     }
 
 
-def _validated_exact_object(
-    value: object,
-    *,
-    required_prefix: str,
-) -> str | None:
-    """Accept only a normalized object name below an exact owned prefix."""
-    if not isinstance(value, str) or not value:
-        return None
-    if "\\" in value or value.startswith("/") or not value.startswith(required_prefix):
-        return None
-    path = PurePosixPath(value)
-    if path.as_posix() != value or ".." in path.parts or "." in path.parts:
-        return None
-    return value
-
-
-def _static_object_for_job(
-    value: object,
-    *,
-    job_id: str,
-    static_prefix: str,
-) -> str | None:
-    """Map an exact persisted artifact path to its owned GCS object."""
-    if not isinstance(value, str) or not value or "\\" in value:
-        return None
-    relative = value.removeprefix("/static/")
-    path = PurePosixPath(relative)
-    expected_parts = ("artifacts", job_id)
-    if (
-        path.is_absolute()
-        or path.as_posix() != relative
-        or ".." in path.parts
-        or "." in path.parts
-        or path.parts[:2] != expected_parts
-        or len(path.parts) < 3
-    ):
-        return None
-    return f"{static_prefix}/{relative}"
-
-
-def _known_gcs_objects_for_erasure(
-    *,
-    user_id: str,
-    jobs: list[DbJob],
-    upload_session_objects: list[str],
-    uploads_prefix: str,
-    static_prefix: str,
-) -> list[str]:
-    """Collect only exact, persisted object names owned by this account."""
-    owned_upload_prefix = f"{uploads_prefix}/{user_id}/"
-    objects: set[str] = set()
-    for raw in upload_session_objects:
-        value = _validated_exact_object(
-            raw,
-            required_prefix=owned_upload_prefix,
-        )
-        if value is None:
-            raise ValueError("Invalid stored cloud-upload reference")
-        objects.add(value)
-
-    for job in jobs:
-        result = job.result_data if isinstance(job.result_data, dict) else {}
-        raw_source_object = result.get("source_gcs_object")
-        if raw_source_object is not None:
-            source_object = _validated_exact_object(
-                raw_source_object,
-                required_prefix=owned_upload_prefix,
-            )
-            if source_object is None:
-                raise ValueError("Invalid stored cloud-upload reference")
-            objects.add(source_object)
-
-        candidates: list[object] = [
-            result.get("video_path"),
-            result.get("public_url"),
-            result.get("transcription_url"),
-        ]
-        variants = result.get("variants")
-        if variants is not None and not isinstance(variants, dict):
-            raise ValueError("Invalid stored cloud-artifact references")
-        if variants is not None:
-            candidates.extend(variants.values())
-        for candidate in candidates:
-            if candidate is None:
-                continue
-            object_name = _static_object_for_job(
-                candidate,
-                job_id=job.id,
-                static_prefix=static_prefix,
-            )
-            if object_name is None:
-                raise ValueError("Invalid stored cloud-artifact reference")
-            objects.add(object_name)
-    return sorted(objects)
-
-
 @router.delete("/me", response_model=Any, dependencies=[Depends(limiter_auth_change)])
 def delete_account(
+    response: Response,
     current_user: User = Depends(get_current_user),
     user_store: UserStore = Depends(get_user_store),
     billing_service: BillingService = Depends(get_billing_service),
@@ -893,105 +806,16 @@ def delete_account(
 ) -> Any:
     """Account and media are permanently deleted; legally required financial records are retained in detached form."""
     try:
-        data_dir = settings.data_dir
-        uploads_dir = data_dir / "uploads"
-        artifacts_root = data_dir / "artifacts"
+        erase_account_and_media(
+            db=db,
+            billing_service=billing_service,
+            user_store=user_store,
+            user_id=current_user.id,
+            data_dir=settings.data_dir,
+            journal=configured_erasure_journal(),
+        )
 
-        # Serialize account deletion with Checkout creation. No account can be
-        # removed while a payment may still complete. Recent terminal unpaid
-        # attempts are detached and stripped of transient checkout URLs until
-        # their short audit/idempotency retention expires.
-        with db.session() as session:
-            billing_service.prepare_account_deletion(
-                session=session,
-                user_id=current_user.id,
-            )
-
-            # Lock the account row after the billing advisory lock. New
-            # user-owned rows cannot race the erasure snapshot and survive as
-            # orphaned media after the user is removed.
-            locked_user = session.scalar(select(DbUser).where(DbUser.id == current_user.id).with_for_update())
-            if locked_user is None:
-                raise RuntimeError("Account is no longer available")
-
-            jobs = list(
-                session.scalars(
-                    select(DbJob)
-                    .where(DbJob.user_id == current_user.id)
-                    .order_by(DbJob.created_at.asc(), DbJob.id.asc())
-                    .with_for_update()
-                ).all()
-            )
-            if any(job.status in {"pending", "processing"} for job in jobs):
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail=(
-                        "Account deletion is unavailable while media "
-                        "processing is active. Wait for it to finish or "
-                        "cancel the job first."
-                    ),
-                )
-            job_ids = [job.id for job in jobs]
-            gcs_upload_objects = list(
-                session.scalars(
-                    select(DbGcsUploadSession.object_name)
-                    .where(DbGcsUploadSession.user_id == current_user.id)
-                    .order_by(DbGcsUploadSession.object_name.asc())
-                    .with_for_update()
-                ).all()
-            )
-            gcs_settings = get_gcs_settings()
-            has_cloud_media = bool(gcs_upload_objects) or any(
-                isinstance(job.result_data, dict) and job.result_data.get("source_gcs_object") is not None
-                for job in jobs
-            )
-            if gcs_settings is None and has_cloud_media:
-                raise RuntimeError("Cloud media cleanup is unavailable")
-            if gcs_settings is not None:
-                for object_name in _known_gcs_objects_for_erasure(
-                    user_id=current_user.id,
-                    jobs=jobs,
-                    upload_session_objects=gcs_upload_objects,
-                    uploads_prefix=gcs_settings.uploads_prefix,
-                    static_prefix=gcs_settings.static_prefix,
-                ):
-                    delete_object(
-                        settings=gcs_settings,
-                        object_name=object_name,
-                    )
-
-            for job in jobs:
-                delete_job_workspace(
-                    job_id=job.id,
-                    uploads_dir=uploads_dir,
-                    artifacts_dir=artifacts_root,
-                )
-
-            if job_ids:
-                session.execute(
-                    delete(DbTokenUsage).where(
-                        DbTokenUsage.job_id.in_(job_ids),
-                    )
-                )
-            usage_idempotency_keys = list(
-                session.scalars(
-                    select(DbUsageLedger.idempotency_key).where(
-                        DbUsageLedger.user_id == current_user.id,
-                        DbUsageLedger.idempotency_key.is_not(None),
-                    )
-                ).all()
-            )
-            if usage_idempotency_keys:
-                session.execute(
-                    delete(DbProviderBudgetReservation).where(
-                        DbProviderBudgetReservation.idempotency_key.in_(usage_idempotency_keys)
-                    )
-                )
-
-            # User deletion cascades sessions, jobs and history in this same
-            # transaction. Paid financial records detach through SET NULL.
-            user_store.delete_user_in_session(session, current_user.id)
-
+        _clear_media_session_cookie(response)
         return {
             "status": "deleted",
             "message": ACCOUNT_DELETION_NOTICE,
@@ -1000,6 +824,20 @@ def delete_account(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=str(exc),
+        ) from exc
+    except ActiveAccountJobsError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Account deletion is unavailable while media processing is active. "
+                "Wait for it to finish or cancel the job first."
+            ),
+        ) from exc
+    except ErasureJournalError as exc:
+        logger.error("Refusing account deletion because the erasure journal is unavailable")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Privacy protection is temporarily unavailable. Please try again.",
         ) from exc
     except HTTPException:
         raise
@@ -1087,6 +925,7 @@ def google_login(
 
     token = session_store.issue_session(user, request.headers.get("user-agent"))
     response.delete_cookie(**_google_nonce_cookie_settings())
+    _set_media_session_cookie(response, token)
     return {
         "access_token": token,
         "token_type": "bearer",

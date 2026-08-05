@@ -24,8 +24,6 @@ def test_srt_export_missing_transcript_returns_404(client: TestClient, monkeypat
     artifacts_root.mkdir(parents=True, exist_ok=True)
 
     monkeypatch.setattr(export_routes, "data_roots", lambda: (data_dir, uploads_dir, artifacts_root))
-    monkeypatch.setattr(export_routes, "get_gcs_settings", lambda: None)
-
     db = Database()
     store = jobs.JobStore(db)
     app.dependency_overrides[get_job_store] = lambda: store
@@ -60,8 +58,6 @@ def test_subtitle_file_export_validates_style_settings(client: TestClient, monke
     artifacts_root.mkdir(parents=True, exist_ok=True)
 
     monkeypatch.setattr(export_routes, "data_roots", lambda: (data_dir, uploads_dir, artifacts_root))
-    monkeypatch.setattr(export_routes, "get_gcs_settings", lambda: None)
-
     db = Database()
     store = jobs.JobStore(db)
     app.dependency_overrides[get_job_store] = lambda: store
@@ -101,8 +97,6 @@ def test_subtitle_file_export_malformed_transcript_returns_422(client: TestClien
     artifacts_root.mkdir(parents=True, exist_ok=True)
 
     monkeypatch.setattr(export_routes, "data_roots", lambda: (data_dir, uploads_dir, artifacts_root))
-    monkeypatch.setattr(export_routes, "get_gcs_settings", lambda: None)
-
     db = Database()
     store = jobs.JobStore(db)
     app.dependency_overrides[get_job_store] = lambda: store
@@ -142,8 +136,6 @@ def test_export_video_invalid_resolution_returns_422(client: TestClient, monkeyp
     artifacts_root.mkdir(parents=True, exist_ok=True)
 
     monkeypatch.setattr(export_routes, "data_roots", lambda: (data_dir, uploads_dir, artifacts_root))
-    monkeypatch.setattr(export_routes, "get_gcs_settings", lambda: None)
-
     db = Database()
     store = jobs.JobStore(db)
     app.dependency_overrides[get_job_store] = lambda: store
@@ -204,8 +196,6 @@ def test_run_video_processing_uses_precomputed_probe(monkeypatch, tmp_path: Path
         return destination
 
     monkeypatch.setattr(processing_tasks, "process_video_pipeline", fake_process_video_pipeline)
-    monkeypatch.setattr(processing_tasks, "get_gcs_settings", lambda: None)
-
     job = SimpleNamespace(status="pending")
     job_store = MagicMock()
     job_store.get_job.return_value = job

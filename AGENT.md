@@ -155,7 +155,7 @@ Repo-specific interpretation:
 - Never commit `.env*` content or secrets. Scan for secrets before commit when the change could touch credentials or environment handling.
 - Upload, processing, export, and auth routes are abuse-sensitive. Preserve authentication, session revocation, rate limiting, bounded input lengths, safe path handling, and fail-secure defaults.
 - Treat storage paths and static artifact directories as private surfaces. Do not reintroduce directory listing, traversal shortcuts, or prefix-based path validation.
-- On Cloud Run or similar proxied environments, do not assume client IP is a safe identity key for authenticated rate limits.
+- In proxied environments, do not assume client IP is a safe identity key for authenticated rate limits.
 - Accessibility is part of correctness: preserve labeled controls, keyboard access, focus management, readable loading states, and viewport-safe layouts.
 
 ## Verification and Completion

@@ -5,7 +5,6 @@ import DashboardPage from '@/app/page';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { useJobs } from '@/hooks/useJobs';
-import { useAppEnv } from '@/context/AppEnvContext';
 
 const mockPaidCreditLegalPublication = { approved: false };
 
@@ -16,9 +15,6 @@ jest.mock('@/lib/api', () => ({
         getHistory: jest.fn(),
         getJobStatus: jest.fn(),
         processVideo: jest.fn(),
-        createGcsUploadUrl: jest.fn(),
-        uploadToSignedUrl: jest.fn(),
-        processVideoFromGcs: jest.fn(),
         reprocessJob: jest.fn(),
         cancelJob: jest.fn(),
         getPointsBalance: jest.fn(),
@@ -76,10 +72,6 @@ jest.mock('@/context/I18nContext', () => {
         useI18n: () => ({ t: translate }),
     };
 });
-
-jest.mock('@/context/AppEnvContext', () => ({
-    useAppEnv: jest.fn(),
-}));
 
 jest.mock('@/lib/paidCreditLegal', () => ({
     paidCreditLegalPublicationIsApproved: () => (
@@ -178,12 +170,13 @@ jest.mock('@/features/process/ProcessView', () => ({
 }));
 
 jest.mock('@/components/AccountView', () => ({
-    AccountView: ({ onSaveProfile, onLogout, onRefreshJobs }: { onSaveProfile: (name: string, pass1: string, pass2: string) => void; onLogout: () => void; onRefreshJobs?: () => void | Promise<void> }) => (
+    AccountView: ({ onSaveProfile, onLogout, onRefreshJobs, accountError }: { onSaveProfile: (name: string, pass1: string, pass2: string) => void; onLogout: () => Promise<void>; onRefreshJobs?: () => void | Promise<void>; accountError?: string }) => (
         <div data-testid="account-view">
             <button data-testid="save-profile-btn" onClick={() => onSaveProfile('NewName', 'pass', 'pass')}>Save Profile</button>
             <button data-testid="save-mismatch-btn" onClick={() => onSaveProfile('Test User', 'pass', 'different')}>Save Mismatch</button>
             <button data-testid="save-name-only-btn" onClick={() => onSaveProfile('NewName', '', '')}>Save Name Only</button>
-            <button type="button" onClick={onLogout}>Sign out</button>
+            <button type="button" onClick={() => void onLogout()}>Sign out</button>
+            {accountError && <p>{accountError}</p>}
             <button data-testid="refresh-jobs-btn" onClick={() => onRefreshJobs?.()}>Refresh Jobs</button>
         </div>
     ),
@@ -221,7 +214,6 @@ describe('DashboardPage', () => {
         capturedOnReset = null;
         mockPaidCreditLegalPublication.approved = false;
         __resetPointsStateMock();
-        (useAppEnv as jest.Mock).mockReturnValue({ appEnv: 'dev' });
         (useAuth as jest.Mock).mockReturnValue({
             user: mockUser,
             isLoading: false,
@@ -458,7 +450,7 @@ describe('DashboardPage', () => {
 
     // REGRESSION: logging out from the open account panel left the header inert,
     // so the guest "Sign in" link was visible but could not be clicked.
-    it('restores an interactive sign-in link after logout from the account panel', () => {
+    it('restores an interactive sign-in link after logout from the account panel', async () => {
         let currentUser: typeof mockUser | null = mockUser;
         const logout = jest.fn(() => {
             currentUser = null;
@@ -475,14 +467,39 @@ describe('DashboardPage', () => {
         const { rerender } = render(<DashboardPage />);
         fireEvent.click(screen.getByRole('button', { name: 'profileLabel' }));
         fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
+        await waitFor(() => expect(logout).toHaveBeenCalledTimes(1));
         rerender(<DashboardPage />);
 
-        expect(logout).toHaveBeenCalledTimes(1);
         const studioHeader = screen.getByLabelText('gsubs studio');
         expect(studioHeader).not.toHaveAttribute('inert');
         expect(studioHeader).not.toHaveAttribute('aria-hidden');
         expect(screen.getByRole('link', { name: 'guestSignIn' }))
             .toHaveAttribute('href', '/login');
+    });
+
+    it('keeps the account session visible when server logout is not confirmed', async () => {
+        const logout = jest.fn().mockRejectedValue(new Error('offline'));
+        (useAuth as jest.Mock).mockReturnValue({
+            user: mockUser,
+            isLoading: false,
+            refreshUser: mockRefreshUser,
+            logout,
+            login: mockLogin,
+            register: mockRegister,
+        });
+
+        render(<DashboardPage />);
+        fireEvent.click(screen.getByRole('button', { name: 'profileLabel' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Sign out' }));
+
+        await waitFor(() => {
+            expect(logout).toHaveBeenCalledTimes(1);
+            expect(screen.getByText('signOutError')).toBeInTheDocument();
+        });
+        expect(screen.getByRole('dialog', { name: 'accountSettingsTitle' }))
+            .toBeInTheDocument();
+        expect(screen.getByLabelText('profileLabel'))
+            .toBeInTheDocument();
     });
 
     it('renders footer with privacy and terms links', () => {
@@ -653,7 +670,6 @@ describe('DashboardPage', () => {
     });
 
     it('keeps production mock uploads on the local processing endpoint', async () => {
-        (useAppEnv as jest.Mock).mockReturnValue({ appEnv: 'production' });
         (api.processVideo as jest.Mock).mockResolvedValue({ id: 'job123', status: 'pending' });
         render(<DashboardPage />);
 
@@ -668,9 +684,6 @@ describe('DashboardPage', () => {
                 expect.any(Object),
             );
         });
-        expect(api.createGcsUploadUrl).not.toHaveBeenCalled();
-        expect(api.uploadToSignedUrl).not.toHaveBeenCalled();
-        expect(api.processVideoFromGcs).not.toHaveBeenCalled();
     });
 
     it('shows direct-upload progress and only exposes cancellation while it is safe', async () => {
@@ -741,16 +754,11 @@ describe('DashboardPage', () => {
         expect(api.cancelJob).not.toHaveBeenCalled();
     });
 
-    it('uses resilient signed uploads for a production external provider', async () => {
-        (useAppEnv as jest.Mock).mockReturnValue({ appEnv: 'production' });
-        (api.createGcsUploadUrl as jest.Mock).mockResolvedValue({
-            upload_id: 'upload-1',
-            upload_url: 'https://storage.example/upload',
-            required_headers: { 'Content-Type': 'video/mp4' },
-        });
-        (api.uploadToSignedUrl as jest.Mock).mockResolvedValue(undefined);
-        (api.processVideoFromGcs as jest.Mock).mockResolvedValue({
-            id: 'job-gcs',
+    it('uses the single local raw-stream client path for a production external provider', async () => {
+        // REGRESSION: production external-provider uploads must stay on the
+        // one local raw-stream client path with no cloud or multipart branch.
+        (api.processVideo as jest.Mock).mockResolvedValue({
+            id: 'job-local-production',
             status: 'pending',
         });
         render(<DashboardPage />);
@@ -760,23 +768,16 @@ describe('DashboardPage', () => {
         await confirmProcessingCost();
 
         await waitFor(() => {
-            expect(api.uploadToSignedUrl).toHaveBeenCalledWith(
-                'https://storage.example/upload',
+            expect(api.processVideo).toHaveBeenCalledWith(
                 expect.any(File),
-                'video/mp4',
+                expect.objectContaining({ transcribe_provider: 'groq' }),
                 expect.objectContaining({
                     onProgress: expect.any(Function),
-                    onRetry: expect.any(Function),
                     onUploadComplete: expect.any(Function),
                     signal: expect.any(AbortSignal),
                 }),
             );
         });
-        expect(api.processVideoFromGcs).toHaveBeenCalledWith(
-            'upload-1',
-            expect.objectContaining({ transcribe_provider: 'groq' }),
-        );
-        expect(api.processVideo).not.toHaveBeenCalled();
     });
 
     it('refreshes balance when process response has no balance', async () => {

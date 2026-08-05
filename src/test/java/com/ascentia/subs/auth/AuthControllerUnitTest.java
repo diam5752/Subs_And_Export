@@ -34,13 +34,15 @@ class AuthControllerUnitTest {
 
         assertThatThrownBy(() -> controller.updatePassword(
                 new AuthController.UpdatePasswordRequest("letters123456", "letters123456"),
-                authenticationFor("google")
+                authenticationFor("google"),
+                new MockHttpServletResponse()
         )).isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("Cannot update password for external provider");
 
         assertThatThrownBy(() -> controller.updatePassword(
                 new AuthController.UpdatePasswordRequest("letters123456", "different123456"),
-                authenticationFor("local")
+                authenticationFor("local"),
+                new MockHttpServletResponse()
         )).isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("Passwords do not match");
     }
@@ -129,9 +131,16 @@ class AuthControllerUnitTest {
                 profile.subject(),
                 profile.avatarUrl()
         );
-        assertThat(Objects.requireNonNull(response.getHeader("Set-Cookie")))
-                .contains("gsubs_google_nonce=")
-                .contains("Max-Age=0");
+        assertThat(response.getHeaders("Set-Cookie"))
+                .anySatisfy(value -> assertThat(value)
+                        .contains("gsubs_google_nonce=")
+                        .contains("Max-Age=0"))
+                .anySatisfy(value -> assertThat(value)
+                        .contains("gsubs_media_session=session-token")
+                        .contains("Path=/static")
+                        .contains("Secure")
+                        .contains("HttpOnly")
+                        .contains("SameSite=Lax"));
     }
 
     @Test

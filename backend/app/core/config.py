@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import json
+import re
 from enum import StrEnum
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated
 
 from pydantic import AliasChoices, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
@@ -112,6 +113,17 @@ class Settings(BaseSettings):
         if isinstance(v, (list, tuple, set)):
             return [str(item).strip() for item in v if str(item).strip()]
         return []
+
+    @field_validator("erasure_journal_continuity_id", mode="before")
+    @classmethod
+    def validate_erasure_journal_continuity_id(cls, value: object) -> str:
+        """Accept only an opaque deployment-generated continuity identifier."""
+        normalized = str(value or "").strip().lower()
+        if normalized and re.fullmatch(r"[0-9a-f]{64}", normalized) is None:
+            raise ValueError(
+                "GSP_ERASURE_JOURNAL_CONTINUITY_ID must be a 64-character hex value",
+            )
+        return normalized
 
     @property
     def is_dev(self) -> bool:
@@ -361,6 +373,20 @@ class Settings(BaseSettings):
         default=True,
         validation_alias="GSP_RETENTION_CLEANUP_ENABLED",
     )
+    erasure_journal_dir: Path = Field(
+        default=PROJECT_ROOT / ".runtime" / "erasure-journal",
+        validation_alias="GSP_ERASURE_JOURNAL_DIR",
+    )
+    erasure_journal_retention_days: int = Field(
+        default=30,
+        ge=14,
+        le=365,
+        validation_alias="GSP_ERASURE_JOURNAL_RETENTION_DAYS",
+    )
+    erasure_journal_continuity_id: str = Field(
+        default="",
+        validation_alias="GSP_ERASURE_JOURNAL_CONTINUITY_ID",
+    )
     signup_limit_per_ip_per_day: int = 5
     static_rate_limit: int = 60
     static_rate_limit_window: int = 60
@@ -369,13 +395,6 @@ class Settings(BaseSettings):
     use_llm_by_default: bool = Field(default=False, validation_alias="GSP_USE_LLM_BY_DEFAULT")
     llm_model: str = Field(default="gpt-5-mini", validation_alias="GSP_LLM_MODEL")
     llm_temperature: float = Field(default=0.6, validation_alias="GSP_LLM_TEMPERATURE")
-
-    def __init__(self, **values: Any) -> None:
-        super().__init__(**values)
-        # Apply secure defaults for production if origins/hosts are missing
-        if not self.is_dev:
-            if not self.trusted_hosts:
-                self.trusted_hosts = ["*.run.app", "*.a.run.app"]
 
     def assert_paid_credits_configuration(self) -> None:
         """Fail closed before a runtime can create real Checkout Sessions."""
