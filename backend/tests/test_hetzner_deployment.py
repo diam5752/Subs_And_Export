@@ -327,6 +327,9 @@ def test_production_media_storage_is_local_to_the_existing_vm_root_disk() -> Non
     deploy_script = deployment_text("deploy-production.sh")
     verifier = deployment_text("verify-production.sh")
     top_level_volumes = compose.split("\nvolumes:\n", 1)[1]
+    anchor_preparation = deploy_script.split(
+        "prepare_erasure_anchor_directory() {", 1
+    )[1].split("\n}\n\ninitialize_or_verify_privacy_continuity()", 1)[0]
 
     # REGRESSION: private media storage must not silently provision a Hetzner
     # block volume, NFS mount, or other separately billed storage backend.
@@ -345,6 +348,13 @@ def test_production_media_storage_is_local_to_the_existing_vm_root_disk() -> Non
     assert 'ERASURE_ANCHOR_DIR="$ROOT_DIR/.runtime/privacy-erasure-anchor"' in verifier
     assert 'SUBFRAME_ERASURE_ANCHOR_DIR="$ERASURE_ANCHOR_DIR"' in deploy_script
     assert 'SUBFRAME_ERASURE_ANCHOR_DIR="$ERASURE_ANCHOR_DIR"' in verifier
+    install_anchor = 'install -d -m 700 "$ERASURE_ANCHOR_DIR"'
+    chown_anchor = 'chown 10001:10001 "$ERASURE_ANCHOR_DIR"'
+    assert install_anchor in anchor_preparation
+    assert chown_anchor in anchor_preparation
+    assert 'install -d -m 700 -o 10001 -g 10001' not in anchor_preparation
+    assert anchor_preparation.index(install_anchor) < anchor_preparation.index(chown_anchor)
+    assert anchor_preparation.index(chown_anchor) < anchor_preparation.index("portable_owner")
     assert "assert_existing_vm_anchor_bind" in verifier
     assert "Erasure-journal anchor is not on the host root filesystem" in verifier
     assert "Backend erasure-journal anchor must use its dedicated writable host bind" in verifier
