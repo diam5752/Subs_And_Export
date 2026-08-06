@@ -31,10 +31,12 @@ APPROVED_STRIPE_API_BASES = frozenset(
 )
 ELEVENLABS_PUBLIC_API_BASE = "https://api.elevenlabs.io"
 ELEVENLABS_INTERNAL_API_BASE = "http://edge:8081/elevenlabs"
+ELEVENLABS_PRIVACY_RELAY_API_BASE = "http://privacy-relay:8082/elevenlabs"
 APPROVED_ELEVENLABS_API_BASES = frozenset(
     {
         ELEVENLABS_PUBLIC_API_BASE,
         ELEVENLABS_INTERNAL_API_BASE,
+        ELEVENLABS_PRIVACY_RELAY_API_BASE,
     }
 )
 

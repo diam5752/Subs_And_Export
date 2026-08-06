@@ -350,6 +350,17 @@ def test_settings_rejects_unapproved_elevenlabs_api_base(monkeypatch) -> None:
         Settings(_env_file=None)
 
 
+def test_settings_accepts_private_erasure_relay(monkeypatch) -> None:
+    monkeypatch.setenv(
+        "GSP_ELEVENLABS_API_BASE",
+        "http://privacy-relay:8082/elevenlabs",
+    )
+
+    settings = Settings(_env_file=None)
+
+    assert settings.elevenlabs_api_base == "http://privacy-relay:8082/elevenlabs"
+
+
 def test_settings_normalizers_handle_empty_and_malformed_inputs() -> None:
     assert Settings.normalize_env(None) == AppEnv.PRODUCTION
     assert Settings.parse_list("") == []
