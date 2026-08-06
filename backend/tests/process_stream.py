@@ -8,7 +8,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from fastapi.testclient import TestClient
-from httpx2 import Response
+from httpx import Response
 
 
 def post_process_stream(
