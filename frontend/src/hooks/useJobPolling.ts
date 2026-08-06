@@ -90,7 +90,9 @@ export function useJobPolling({
                 if (!isPollingRef.current) return;
                 callbacks.onProgress(
                     job.progress,
-                    job.message || (job.status === 'processing' ? t('statusProcessingEllipsis') : '')
+                    job.status === 'cancelling'
+                        ? t('cancellationRequested')
+                        : job.message || (job.status === 'processing' ? t('statusProcessingEllipsis') : '')
                 );
 
                 if (job.status === 'completed') {
@@ -99,6 +101,9 @@ export function useJobPolling({
                 } else if (job.status === 'failed') {
                     stopPolling();
                     callbacks.onFailed(job.message || t('statusFailedFallback'));
+                } else if (job.status === 'cancelled') {
+                    stopPolling();
+                    callbacks.onFailed(t('processingCancelled'));
                 }
             } catch {
                 if (!isPollingRef.current) return;

@@ -116,6 +116,54 @@ def test_provider_budget_rejects_closed_and_over_limit_windows() -> None:
         )
 
 
+def test_provider_budget_preflight_reads_current_windows_without_writing() -> None:
+    db = Database()
+    _clear_budget_state(db)
+    store = ProviderBudgetStore(db)
+    now = datetime(2031, 3, 3, tzinfo=timezone.utc)
+    key = uuid.uuid4().hex
+    store.reserve(
+        idempotency_key=key,
+        estimated_usd=0.08,
+        daily_limit_usd=0.1,
+        monthly_limit_usd=1.0,
+        now=now,
+    )
+
+    with pytest.raises(ProviderBudgetExceededError, match="Daily"):
+        store.assert_can_reserve(
+            estimated_usd=0.03,
+            daily_limit_usd=0.1,
+            monthly_limit_usd=1.0,
+            now=now,
+        )
+
+    with db.session() as session:
+        reservations = list(
+            session.scalars(select(DbProviderBudgetReservation)).all(),
+        )
+        windows = list(session.scalars(select(DbProviderBudgetWindow)).all())
+        assert [item.idempotency_key for item in reservations] == [key]
+        assert len(windows) == 2
+        assert all(window.reserved_usd == pytest.approx(0.08) for window in windows)
+
+
+def test_provider_budget_preflight_treats_missing_windows_as_zero_without_creating() -> None:
+    db = Database()
+    _clear_budget_state(db)
+
+    ProviderBudgetStore(db).assert_can_reserve(
+        estimated_usd=0.03,
+        daily_limit_usd=0.1,
+        monthly_limit_usd=1.0,
+        now=datetime(2031, 3, 4, tzinfo=timezone.utc),
+    )
+
+    with db.session() as session:
+        assert list(session.scalars(select(DbProviderBudgetReservation)).all()) == []
+        assert list(session.scalars(select(DbProviderBudgetWindow)).all()) == []
+
+
 @pytest.mark.parametrize(
     "estimated_usd",
     [float("nan"), float("inf"), float("-inf"), 0.0, -0.01],

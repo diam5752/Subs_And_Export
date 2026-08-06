@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import errno
 import json
+import threading
 import types
 import uuid
 from pathlib import Path
@@ -17,6 +18,12 @@ from backend.app.api.endpoints.settings import ProcessingSettings
 from backend.app.core.auth import UserStore
 from backend.app.core.database import Database
 from backend.app.core.erasure_journal import ErasureJournal
+from backend.app.core.errors import ProviderBudgetExceededError
+from backend.app.core.workspace_deletion import (
+    JobWorkspaceLockTimeoutError,
+    lock_job_workspace,
+)
+from backend.app.core.workspace_ownership import get_workspace_owner
 from backend.app.services.jobs import JobStore
 from backend.app.services.points import PointsStore
 from backend.app.services.usage_ledger import ChargePlan, UsageLedgerStore
@@ -325,6 +332,9 @@ def test_stream_save_error_with_verified_cleanup_does_not_retain_tombstone(
 ) -> None:
     captured: dict[str, object] = {}
     journal = MagicMock()
+    me = client.get("/auth/me", headers=user_auth_headers)
+    assert me.status_code == 200
+    user_id = me.json()["id"]
 
     async def fail_save(
         _request: object,
@@ -335,6 +345,32 @@ def test_stream_save_error_with_verified_cleanup_does_not_retain_tombstone(
     ) -> None:
         assert expected_size == len(b"video")
         assert cleanup_on_error is False
+        job_id = destination.stem.removesuffix("_input")
+        assert (
+            get_workspace_owner(
+                data_dir=destination.parent.parent,
+                job_id=job_id,
+            )
+            == user_id
+        )
+        lock_result: list[str] = []
+
+        def contend_for_retention_lock() -> None:
+            try:
+                with lock_job_workspace(
+                    data_dir=destination.parent.parent,
+                    job_id=job_id,
+                    timeout_seconds=0.05,
+                ):
+                    lock_result.append("acquired")
+            except JobWorkspaceLockTimeoutError:
+                lock_result.append("blocked")
+
+        contender = threading.Thread(target=contend_for_retention_lock)
+        contender.start()
+        contender.join(timeout=2)
+        assert not contender.is_alive()
+        assert lock_result == ["blocked"]
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(b"partial private upload")
         captured["path"] = destination
@@ -357,4 +393,46 @@ def test_stream_save_error_with_verified_cleanup_does_not_retain_tombstone(
     assert response.status_code == 507
     path = captured["path"]
     assert isinstance(path, Path) and not path.exists()
+    job_id = path.stem.removesuffix("_input")
+    assert get_workspace_owner(data_dir=path.parent.parent, job_id=job_id) is None
     journal.append.assert_not_called()
+
+
+def test_stream_budget_preflight_rejects_before_uuid_or_workspace_write(
+    client: TestClient,
+    user_auth_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    preflight = MagicMock(
+        side_effect=ProviderBudgetExceededError("Daily external provider budget exceeded"),
+    )
+    uuid4 = MagicMock(side_effect=AssertionError("budget preflight must precede UUID allocation"))
+    save = MagicMock(side_effect=AssertionError("budget preflight must precede upload writes"))
+    monkeypatch.setattr(videos, "preflight_processing_provider_budget", preflight)
+    monkeypatch.setattr(videos.uuid, "uuid4", uuid4)
+    monkeypatch.setattr(videos, "save_request_stream_with_limit", save)
+
+    metadata = base64.b64encode(
+        json.dumps(
+            {
+                "filename": "video.mp4",
+                "transcribe_provider": "elevenlabs",
+                "transcribe_tier": "pro",
+            },
+        ).encode("utf-8"),
+    ).decode("ascii")
+    response = client.post(
+        "/videos/process-stream",
+        headers={
+            **user_auth_headers,
+            "content-type": "video/mp4",
+            "x-gsubs-upload-metadata": metadata,
+        },
+        content=b"private-video",
+    )
+
+    assert response.status_code == 503
+    assert response.json()["code"] == "PROVIDER_BUDGET_REACHED"
+    preflight.assert_called_once()
+    uuid4.assert_not_called()
+    save.assert_not_called()

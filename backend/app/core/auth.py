@@ -223,6 +223,16 @@ class UserStore:
                 return None
             return _user_from_db(user)
 
+    def get_user_by_id(self, user_id: str) -> User | None:
+        """Reload one user for lifecycle checks after authentication."""
+        if not user_id:
+            return None
+        with self.db.session() as session:
+            user = session.get(DbUser, user_id)
+            if not user:
+                return None
+            return _user_from_db(user)
+
     def delete_user(self, user_id: str) -> None:
         """Delete a user and all associated data (GDPR compliance)."""
         with self.db.session() as session:

@@ -794,6 +794,7 @@ class UsageLedgerStore:
         job_id: str,
         *,
         error: str,
+        status: str = "failed",
     ) -> int:
         """Compensate every paid step before a stale active job is deleted."""
         with self.db.session() as session:
@@ -820,7 +821,7 @@ class UsageLedgerStore:
         for reservation in reservations:
             self.fail(
                 reservation,
-                status="failed",
+                status=status,
                 error=error,
             )
             settled += 1

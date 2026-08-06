@@ -334,6 +334,7 @@
   "termsWithdrawalFormTitle": "Model withdrawal statement",
   "termsWithdrawalFormBody": "To Ascentia G.P. / GSUBS, info@ascentia-gp.com: I give notice that I withdraw from my GSUBS credit-purchase contract. Purchase identifier: [purchase ID]. Consumer name: [name]. Consumer address: [address]. Date: [date]. Electronic submission from the account automatically fills the purchase identifier and records the receipt time.",
   "brandHomeLabel": "Home",
+  "cancellationRequested": "Cancellation is finishing with secure file cleanup…",
   "processingCancelled": "Processing cancelled",
   "creditPurchaseKicker": "GSUBS CREDITS",
   "creditPurchaseTitle": "Buy credits",

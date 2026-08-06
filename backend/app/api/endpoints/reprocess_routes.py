@@ -14,7 +14,15 @@ from ...core.database import Database
 from ...core.erasure_journal import configured_erasure_journal
 from ...core.errors import sanitize_message
 from ...core.ratelimit import limiter_processing
-from ...core.workspace_deletion import delete_job_workspace, lock_job_workspace
+from ...core.workspace_deletion import (
+    UPLOAD_SUFFIXES,
+    delete_job_workspace,
+    lock_job_workspace,
+)
+from ...core.workspace_ownership import (
+    record_workspace_ownership,
+    remove_workspace_ownership_after_verified_cleanup,
+)
 from ...schemas.base import JobResponse
 from ...services import pricing
 from ...services.charge_plans import (
@@ -25,7 +33,13 @@ from ...services.ffmpeg_utils import probe_media
 from ...services.history import HistoryStore
 from ...services.jobs import JobStore
 from ...services.usage_ledger import UsageLedgerStore
-from ..deps import get_current_user, get_db, get_history_store, get_job_store, get_usage_ledger_store
+from ..deps import (
+    get_current_user_with_media_lifecycle,
+    get_db,
+    get_history_store,
+    get_job_store,
+    get_usage_ledger_store,
+)
 from .file_utils import data_roots, link_or_copy_file, require_storage_capacity
 from .processing_tasks import (
     record_event_safe,
@@ -77,10 +91,27 @@ def _record_and_delete_failed_reprocess(
             job_id=job_id,
             uploads_dir=input_path.parent,
             artifacts_dir=artifacts_root,
+            expected_user_id=user_id,
         )
         if database_job_may_exist:
             history_store.delete_job_events([job_id])
             job_store.delete_job(job_id)
+        artifact_path = artifacts_root / job_id
+        expected_stem = f"{job_id}_input"
+        upload_remains = input_path.exists() or input_path.is_symlink()
+        if input_path.parent.exists():
+            upload_remains = upload_remains or any(
+                item.stem == expected_stem and item.suffix.lower() in UPLOAD_SUFFIXES
+                for item in input_path.parent.iterdir()
+            )
+        artifact_remains = artifact_path.exists() or artifact_path.is_symlink()
+        if upload_remains or artifact_remains:
+            raise RuntimeError("Failed reprocess cleanup could not be verified")
+        remove_workspace_ownership_after_verified_cleanup(
+            data_dir=artifacts_root.parent,
+            job_id=job_id,
+            expected_user_id=user_id,
+        )
 
 
 @router.post("/jobs/{job_id}/reprocess", response_model=JobResponse, dependencies=[Depends(limiter_processing)])
@@ -88,7 +119,7 @@ def reprocess_job(
     job_id: str,
     request: ReprocessRequest,
     background_tasks: BackgroundTasks,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_with_media_lifecycle),
     job_store: JobStore = Depends(get_job_store),
     history_store: HistoryStore = Depends(get_history_store),
     ledger_store: UsageLedgerStore = Depends(get_usage_ledger_store),
@@ -197,7 +228,13 @@ def reprocess_job(
     artifact_path = artifacts_root / new_job_id
 
     try:
-        link_or_copy_file(source_input, input_path)
+        with lock_job_workspace(data_dir=data_dir, job_id=new_job_id):
+            record_workspace_ownership(
+                data_dir=data_dir,
+                job_id=new_job_id,
+                user_id=current_user.id,
+            )
+            link_or_copy_file(source_input, input_path)
     except BaseException as exc:
         _record_and_delete_failed_reprocess(
             job_id=new_job_id,

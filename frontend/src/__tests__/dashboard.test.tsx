@@ -84,9 +84,11 @@ jest.mock('@/hooks/useJobs', () => ({
 }));
 
 let capturedPollingCallbacks: { onProgress: (progress: number, message: string) => void; onComplete: (job: unknown) => void; onFailed: (error: string) => void; onError: (error: string) => void; } | null = null;
+let capturedPollingJobId: string | null = null;
 
 jest.mock('@/hooks/useJobPolling', () => ({
-    useJobPolling: ({ callbacks }: { callbacks: typeof capturedPollingCallbacks }) => {
+    useJobPolling: ({ jobId, callbacks }: { jobId: string | null; callbacks: typeof capturedPollingCallbacks }) => {
+        capturedPollingJobId = jobId;
         capturedPollingCallbacks = callbacks;
         return { isPolling: false, stopPolling: jest.fn() };
     },
@@ -100,6 +102,7 @@ jest.mock('@/features/process/ProcessView', () => ({
         onFileSelect,
         onReset,
         onReprocessJob,
+        isProcessing,
         progress,
         statusMessage,
         error,
@@ -109,6 +112,7 @@ jest.mock('@/features/process/ProcessView', () => ({
         onFileSelect: (file: File) => void;
         onReset: () => void;
         onReprocessJob: (jobId: string, options: unknown) => void;
+        isProcessing: boolean;
         progress: number;
         statusMessage: string;
         error: string;
@@ -117,6 +121,7 @@ jest.mock('@/features/process/ProcessView', () => ({
         capturedOnReset = onReset;
         return (
             <div data-testid="process-view">
+                <div data-testid="process-processing">{String(isProcessing)}</div>
                 <div data-testid="process-progress">{progress}</div>
                 <div data-testid="process-status">{statusMessage}</div>
                 <div data-testid="process-error">{error}</div>
@@ -212,6 +217,8 @@ describe('DashboardPage', () => {
         window.localStorage.clear();
         window.history.replaceState({}, '', '/');
         capturedOnReset = null;
+        capturedPollingCallbacks = null;
+        capturedPollingJobId = null;
         mockPaidCreditLegalPublication.approved = false;
         __resetPointsStateMock();
         (useAuth as jest.Mock).mockReturnValue({
@@ -324,6 +331,40 @@ describe('DashboardPage', () => {
         expect(mockSetSelectedJob).not.toHaveBeenCalled();
         expect(window.localStorage.getItem('lastActiveJobId')).toBeNull();
     });
+
+    it.each([
+        ['pending', true],
+        ['processing', true],
+        ['cancelling', false],
+    ])(
+        'restores a %s job as active and resumes polling',
+        async (status, isCancellable) => {
+            // REGRESSION: restoring an active job only selected the stale job
+            // snapshot, leaving jobId null so polling never resumed.
+            window.localStorage.setItem('lastActiveJobId', 'active-job');
+            (api.getJobStatus as jest.Mock).mockResolvedValue({
+                id: 'active-job',
+                status,
+                progress: 42,
+                message: 'Still working',
+                result_data: null,
+            });
+
+            render(<DashboardPage />);
+
+            await waitFor(() => {
+                expect(capturedPollingJobId).toBe('active-job');
+                expect(screen.getByTestId('process-processing')).toHaveTextContent('true');
+            });
+            expect(mockSetSelectedJob).not.toHaveBeenCalled();
+            if (isCancellable) {
+                expect(screen.getByText('Cancel Active Process')).toBeInTheDocument();
+            } else {
+                expect(screen.queryByText('Cancel Active Process')).not.toBeInTheDocument();
+                expect(screen.getByTestId('process-status')).toHaveTextContent('cancellationRequested');
+            }
+        },
+    );
 
     it('keeps history out of the header and opens it from the profile panel', () => {
         render(<DashboardPage />);
@@ -752,6 +793,54 @@ describe('DashboardPage', () => {
         expect(screen.getByTestId('process-error')).toHaveTextContent('processingCancelled');
         expect(screen.queryByText('Cancel Active Process')).not.toBeInTheDocument();
         expect(api.cancelJob).not.toHaveBeenCalled();
+    });
+
+    it('keeps polling a server job until cancellation cleanup is terminal', async () => {
+        // REGRESSION: a successful cancel request previously cleared jobId and
+        // stopped polling before the server had securely removed local files.
+        (api.processVideo as jest.Mock).mockResolvedValue({
+            id: 'job-cancel-server',
+            status: 'pending',
+        });
+        (api.cancelJob as jest.Mock).mockResolvedValue({
+            id: 'job-cancel-server',
+            status: 'cancelling',
+        });
+        render(<DashboardPage />);
+
+        fireEvent.click(screen.getByText('Select File'));
+        fireEvent.click(screen.getByText('Start Process'));
+        await confirmProcessingCost();
+
+        const cancelButton = await screen.findByText('Cancel Active Process');
+        expect(capturedPollingJobId).toBe('job-cancel-server');
+        expect(window.localStorage.getItem('lastActiveJobId')).toBe('job-cancel-server');
+        fireEvent.click(cancelButton);
+
+        await waitFor(() => {
+            expect(api.cancelJob).toHaveBeenCalledWith('job-cancel-server');
+            expect(screen.getByTestId('process-status')).toHaveTextContent('cancellationRequested');
+        });
+        expect(screen.getByTestId('process-processing')).toHaveTextContent('true');
+        expect(screen.queryByText('Cancel Active Process')).not.toBeInTheDocument();
+        expect(capturedPollingJobId).toBe('job-cancel-server');
+
+        act(() => {
+            capturedPollingCallbacks!.onProgress(50, 'cancellationRequested');
+        });
+        expect(capturedPollingJobId).toBe('job-cancel-server');
+        expect(screen.getByTestId('process-processing')).toHaveTextContent('true');
+
+        act(() => {
+            // useJobPolling maps the terminal `cancelled` state to onFailed.
+            capturedPollingCallbacks!.onFailed('processingCancelled');
+        });
+        await waitFor(() => {
+            expect(capturedPollingJobId).toBeNull();
+            expect(screen.getByTestId('process-processing')).toHaveTextContent('false');
+            expect(screen.getByTestId('process-error')).toHaveTextContent('processingCancelled');
+            expect(window.localStorage.getItem('lastActiveJobId')).toBeNull();
+        });
     });
 
     it('uses the single local raw-stream client path for a production external provider', async () => {

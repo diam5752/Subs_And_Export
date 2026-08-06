@@ -139,6 +139,10 @@ Deletion tombstones are pseudonymous and live in the separate named volume
 `/privacy-erasure-journal`. Its 30-day retention covers the 14-day backup
 window plus safety margin. Neither `postgres.dump.age` nor `app-data.tgz.age`
 contains this journal, and a database/app-data restore must never replace it.
+The app-data archive does include the hidden `.workspace-ownership` registry:
+`backup.sh` archives `.` from the volume root, so dot-directories are retained.
+These fsynced markers associate media created before its database row with the
+owning account and must be restored with the corresponding app-data archive.
 The deploy script binds that live volume to the host through a generated
 continuity identifier stored in `.runtime/privacy-continuity-id`; the backend
 also writes a monotonic integrity checkpoint to
@@ -446,12 +450,15 @@ database revision introduced by the failed release.
 Automatic rollback is disabled unless the operator sets
 `SUBFRAME_ALLOW_SCHEMA_COMPATIBLE_ROLLBACK=1`. Use that opt-in only after
 proving that the previous image recognizes the database's current Alembic
-revision and that both schemas are code-compatible. A backup is mandatory but
-does not by itself prove rollback compatibility. Even with that opt-in, a
-failed candidate restores only the previous core containers: it invalidates
-the erasure receipt and leaves the public edge stopped. Do not expose the
-rollback directly. Complete retention and durable erasure reconciliation, then
-ship a verified roll-forward release through the normal privacy gate.
+revision, the live erasure-journal entry formats, and that both schemas are
+code-compatible. A successful Alembic downgrade alone is insufficient when a
+newer backend may already have written a journal event the previous image
+cannot decode. A backup is mandatory but does not by itself prove rollback
+compatibility. Even with that opt-in, a failed candidate restores only the
+previous core containers: it invalidates the erasure receipt and leaves the
+public edge stopped. Do not expose the rollback directly. Complete retention
+and durable erasure reconciliation, then ship a verified roll-forward release
+through the normal privacy gate.
 
 The deploy script does not prune the shared Docker build cache by default,
 because the VM also hosts MizAI and other projects. Set

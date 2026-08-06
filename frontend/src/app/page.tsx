@@ -30,6 +30,9 @@ const statusStyles: Record<string, string> = {
   failed: 'bg-[var(--danger)]/15 text-[var(--danger)] border-[var(--danger)]/40',
 };
 
+const RESTORABLE_ACTIVE_JOB_STATUSES = new Set(['pending', 'processing', 'cancelling']);
+const CANCELLABLE_JOB_STATUSES = new Set(['pending', 'processing']);
+
 type PendingProcessingAction =
   | { kind: 'new'; options: ProcessingOptions }
   | { kind: 'reprocess'; sourceJobId: string; options: ProcessingOptions };
@@ -168,9 +171,23 @@ export default function DashboardPage() {
           const completedFilesAreAvailable = job.status !== 'completed'
             || Boolean(job.result_data && !job.result_data.files_missing);
 
+          if (RESTORABLE_ACTIVE_JOB_STATUSES.has(job.status)) {
+            setJobId(job.id);
+            setIsProcessing(true);
+            setCanCancelProcessing(CANCELLABLE_JOB_STATUSES.has(job.status));
+            setProgress(job.progress ?? 0);
+            setStatusMessage(
+              job.status === 'cancelling'
+                ? t('cancellationRequested')
+                : job.message || t('statusProcessingEllipsis'),
+            );
+            setProcessError('');
+            return;
+          }
+
           // A completed job whose local artifacts were cleaned up cannot render
           // a preview or transcript, so it must not reopen as a broken editor.
-          if (job.status !== 'failed' && completedFilesAreAvailable) {
+          if (job.status === 'completed' && completedFilesAreAvailable) {
             setSelectedJob(job);
           } else {
             localStorage.removeItem('lastActiveJobId');
@@ -182,14 +199,16 @@ export default function DashboardPage() {
       }
     };
     void restoreSession();
-  }, [jobId, selectedFile, selectedJob, setSelectedJob, user]);
+  }, [jobId, selectedFile, selectedJob, setSelectedJob, t, user]);
 
-  // Persist session
+  // Persist both in-flight and completed sessions so a reload can resume
+  // polling or reopen the finished editor respectively.
   useEffect(() => {
-    if (selectedJob?.id) {
-      localStorage.setItem('lastActiveJobId', selectedJob.id);
+    const restorableJobId = jobId ?? selectedJob?.id;
+    if (restorableJobId) {
+      localStorage.setItem('lastActiveJobId', restorableJobId);
     }
-  }, [selectedJob]);
+  }, [jobId, selectedJob]);
 
   const refreshActivity = useCallback(async () => {
     await loadJobs();
@@ -210,6 +229,7 @@ export default function DashboardPage() {
       refreshActivity();
     },
     onFailed: (errorMessage: string) => {
+      localStorage.removeItem('lastActiveJobId');
       setProcessError(errorMessage);
       setIsProcessing(false);
       setCanCancelProcessing(false);
@@ -237,11 +257,10 @@ export default function DashboardPage() {
     if (!jobId) return;
     try {
       await api.cancelJob(jobId);
-      setIsProcessing(false);
       setCanCancelProcessing(false);
-      setJobId(null);
-      setProcessError(t('processingCancelled'));
-      refreshActivity();
+      setStatusMessage(t('cancellationRequested'));
+      setProcessError('');
+      await refreshActivity();
     } catch (err) {
       // If cancel fails, just continue polling
       console.error('Cancel failed:', err);

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import hashlib
 import multiprocessing
+import os
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from threading import Event
@@ -13,10 +15,10 @@ import pytest
 from backend.app.core import cleanup, workspace_deletion
 from backend.app.core.erasure_journal import ErasureJournal
 from backend.app.core.workspace_deletion import (
-    JOB_WORKSPACE_LOCK_STRIPES,
     JobWorkspaceLockTimeoutError,
     lock_job_workspace,
     lock_job_workspaces,
+    reclaim_abandoned_lifecycle_locks,
 )
 
 
@@ -33,46 +35,68 @@ def _attempt_job_lock(data_dir: str, job_id: str, result_path: str) -> None:
         result.write_text("timed-out", encoding="utf-8")
 
 
+def _hold_job_lock(data_dir: str, job_id: str, ready_path: str) -> None:
+    with lock_job_workspace(data_dir=Path(data_dir), job_id=job_id):
+        Path(ready_path).write_text("ready", encoding="utf-8")
+        Event().wait()
+
+
 def test_job_workspace_lock_serializes_separate_processes(tmp_path: Path) -> None:
     # REGRESSION: in-memory synchronization cannot protect a shared Docker
     # volume when two backend worker processes export and erase the same job.
-    result_path = tmp_path / "child-result.txt"
+    same_job_result = tmp_path / "same-job-result.txt"
+    different_job_result = tmp_path / "different-job-result.txt"
     process_context = multiprocessing.get_context("fork")
 
     first_job_id = "shared-job"
+    # These IDs collided under the former 256-stripe implementation. A
+    # long-lived worker for one must never suppress the other worker.
     colliding_job_id = "collision-31"
-    assert workspace_deletion._job_workspace_lock_stripe(
+    assert workspace_deletion._job_workspace_lock_name(
         first_job_id,
-    ) == workspace_deletion._job_workspace_lock_stripe(colliding_job_id)
+    ) != workspace_deletion._job_workspace_lock_name(colliding_job_id)
 
     with lock_job_workspace(data_dir=tmp_path, job_id=first_job_id):
-        contender = process_context.Process(
+        same_job_contender = process_context.Process(
             target=_attempt_job_lock,
-            args=(str(tmp_path), colliding_job_id, str(result_path)),
+            args=(str(tmp_path), first_job_id, str(same_job_result)),
         )
-        contender.start()
-        contender.join(timeout=5)
+        different_job_contender = process_context.Process(
+            target=_attempt_job_lock,
+            args=(str(tmp_path), colliding_job_id, str(different_job_result)),
+        )
+        same_job_contender.start()
+        different_job_contender.start()
+        same_job_contender.join(timeout=5)
+        different_job_contender.join(timeout=5)
 
-    assert contender.exitcode == 0
-    assert result_path.read_text(encoding="utf-8") == "timed-out"
+    assert same_job_contender.exitcode == 0
+    assert different_job_contender.exitcode == 0
+    assert same_job_result.read_text(encoding="utf-8") == "timed-out"
+    assert different_job_result.read_text(encoding="utf-8") == "acquired"
 
     successor = process_context.Process(
         target=_attempt_job_lock,
-        args=(str(tmp_path), "shared-job", str(result_path)),
+        args=(str(tmp_path), first_job_id, str(same_job_result)),
     )
     successor.start()
     successor.join(timeout=5)
 
     assert successor.exitcode == 0
-    assert result_path.read_text(encoding="utf-8") == "acquired"
+    assert same_job_result.read_text(encoding="utf-8") == "acquired"
 
 
-def test_multiple_job_locks_are_deduplicated_and_sorted_by_stripe(
+def test_multiple_job_locks_are_deduplicated_and_sorted_by_lock_name(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
     acquired: list[str] = []
-    stripes = {"job-z": 9, "job-a": 2, "job-m": 5, "job-collision": 2}
+    lock_names = {
+        "job-z": "09.lock",
+        "job-a": "02.lock",
+        "job-m": "05.lock",
+        "job-collision": "02.lock",
+    }
 
     @contextmanager
     def record_lock(
@@ -89,8 +113,8 @@ def test_multiple_job_locks_are_deduplicated_and_sorted_by_stripe(
     monkeypatch.setattr(workspace_deletion, "lock_job_workspace", record_lock)
     monkeypatch.setattr(
         workspace_deletion,
-        "_job_workspace_lock_stripe",
-        stripes.__getitem__,
+        "_job_workspace_lock_name",
+        lock_names.__getitem__,
     )
 
     with lock_job_workspaces(
@@ -109,16 +133,132 @@ def test_multiple_job_locks_are_deduplicated_and_sorted_by_stripe(
             pass
 
 
-def test_job_workspace_lock_files_have_bounded_cardinality(tmp_path: Path) -> None:
-    # REGRESSION: one persistent lock inode per rejected UUID allowed an
-    # authenticated caller to grow the local volume without a fixed bound.
-    for index in range(JOB_WORKSPACE_LOCK_STRIPES * 4):
-        with lock_job_workspace(data_dir=tmp_path, job_id=f"attempt-{index}"):
+def test_job_workspace_lock_files_are_per_job_and_opaque(tmp_path: Path) -> None:
+    # A long-lived processing lock must not collide with an unrelated job.
+    # Hash filenames avoid exposing the server-generated job identifier.
+    job_ids = [f"admitted-job-{index}" for index in range(32)]
+    lock_root = tmp_path / ".job-locks"
+    with ExitStack() as stack:
+        for job_id in job_ids:
+            stack.enter_context(lock_job_workspace(data_dir=tmp_path, job_id=job_id))
+
+        lock_files = list(lock_root.glob("*.lock"))
+        assert len(lock_files) == len(job_ids)
+        assert {path.name for path in lock_files} == {
+            f"{hashlib.sha256(job_id.encode('utf-8')).hexdigest()}.lock"
+            for job_id in job_ids
+        }
+
+    # Normal releases retire per-identity inodes safely; only one bounded
+    # registry inode remains for the namespace.
+    assert list(lock_root.glob("*.lock")) == []
+    assert {path.name for path in lock_root.iterdir()} == {".registry"}
+
+
+def test_startup_scavenger_reclaims_sigkill_lock_without_unlinking_live_holder(
+    tmp_path: Path,
+) -> None:
+    process_context = multiprocessing.get_context("fork")
+    abandoned_job_id = "killed-writer"
+    live_job_id = "live-writer"
+    abandoned_ready = tmp_path / "abandoned-ready"
+    live_ready = tmp_path / "live-ready"
+
+    abandoned = process_context.Process(
+        target=_hold_job_lock,
+        args=(str(tmp_path), abandoned_job_id, str(abandoned_ready)),
+    )
+    abandoned.start()
+    for _ in range(500):
+        if abandoned_ready.exists():
+            break
+        abandoned.join(timeout=0.01)
+    assert abandoned_ready.exists()
+    assert abandoned.pid is not None
+    os.kill(abandoned.pid, 9)
+    abandoned.join(timeout=5)
+    assert abandoned.exitcode == -9
+
+    live = process_context.Process(
+        target=_hold_job_lock,
+        args=(str(tmp_path), live_job_id, str(live_ready)),
+    )
+    live.start()
+    for _ in range(500):
+        if live_ready.exists():
+            break
+        live.join(timeout=0.01)
+    assert live_ready.exists()
+
+    try:
+        assert reclaim_abandoned_lifecycle_locks(data_dir=tmp_path) == 1
+        lock_names = {path.name for path in (tmp_path / ".job-locks").glob("*.lock")}
+        assert lock_names == {
+            workspace_deletion._job_workspace_lock_name(live_job_id),
+        }
+    finally:
+        live.terminate()
+        live.join(timeout=5)
+
+    assert reclaim_abandoned_lifecycle_locks(data_dir=tmp_path) == 1
+    assert list((tmp_path / ".job-locks").glob("*.lock")) == []
+
+
+def test_startup_scavenger_preserves_unknown_entries(tmp_path: Path) -> None:
+    lock_root = tmp_path / ".job-locks"
+    lock_root.mkdir()
+    unknown = lock_root / "manual-review.lock"
+    unknown.write_text("do not remove", encoding="utf-8")
+
+    assert reclaim_abandoned_lifecycle_locks(data_dir=tmp_path) == 0
+    assert unknown.read_text(encoding="utf-8") == "do not remove"
+
+
+def test_retention_scavenger_reclaims_lock_left_by_cleanup_starvation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    job_id = "cleanup-starved-writer"
+    with monkeypatch.context() as patch_context:
+        patch_context.setattr(
+            workspace_deletion,
+            "_acquire_registry_for_cleanup",
+            lambda *_args, **_kwargs: False,
+        )
+        with lock_job_workspace(data_dir=tmp_path, job_id=job_id):
             pass
 
-    lock_files = list((tmp_path / ".job-locks").glob("*.lock"))
-    assert 1 < len(lock_files) <= JOB_WORKSPACE_LOCK_STRIPES
-    assert all(path.name.startswith("stripe-") for path in lock_files)
+    lock_root = tmp_path / ".job-locks"
+    assert {path.name for path in lock_root.glob("*.lock")} == {
+        workspace_deletion._job_workspace_lock_name(job_id),
+    }
+    assert reclaim_abandoned_lifecycle_locks(data_dir=tmp_path) == 1
+    assert list(lock_root.glob("*.lock")) == []
+
+
+def test_scavenger_reaches_stale_tail_past_multiple_live_holders(
+    tmp_path: Path,
+) -> None:
+    live_job_ids = ["live-prefix-a", "live-prefix-b"]
+    stale_job_id = "stale-tail"
+    lock_root = tmp_path / ".job-locks"
+
+    with ExitStack() as stack:
+        for job_id in live_job_ids:
+            stack.enter_context(lock_job_workspace(data_dir=tmp_path, job_id=job_id))
+        stale_path = lock_root / workspace_deletion._job_workspace_lock_name(
+            stale_job_id,
+        )
+        stale_path.touch(mode=0o600)
+
+        assert reclaim_abandoned_lifecycle_locks(data_dir=tmp_path) == 1
+        assert not stale_path.exists()
+        assert {
+            path.name for path in lock_root.glob("*.lock")
+        } == {
+            workspace_deletion._job_workspace_lock_name(job_id)
+            for job_id in live_job_ids
+        }
 
 
 def test_job_workspace_lock_repairs_private_permissions(tmp_path: Path) -> None:

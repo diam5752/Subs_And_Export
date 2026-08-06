@@ -36,10 +36,15 @@ from ...core.workspace_deletion import (
     delete_job_workspace,
     lock_job_workspace,
 )
+from ...core.workspace_ownership import (
+    record_workspace_ownership,
+    remove_workspace_ownership_after_verified_cleanup,
+)
 from ...schemas.base import JobResponse
 from ...services import pricing
 from ...services.charge_plans import (
     preflight_processing_charges,
+    preflight_processing_provider_budget,
     reserve_processing_charges,
 )
 from ...services.ffmpeg_utils import probe_media
@@ -47,7 +52,7 @@ from ...services.history import HistoryStore
 from ...services.jobs import JobStore
 from ...services.usage_ledger import UsageLedgerStore
 from ..deps import (
-    get_current_user,
+    get_current_user_with_media_lifecycle,
     get_db,
     get_history_store,
     get_job_store,
@@ -182,6 +187,7 @@ def _record_and_delete_rejected_upload(
                     job_id=job_id,
                     uploads_dir=input_path.parent,
                     artifacts_dir=artifacts_root,
+                    expected_user_id=user_id,
                 )
                 artifact_path = artifacts_root / job_id
                 expected_stem = f"{job_id}_input"
@@ -194,6 +200,11 @@ def _record_and_delete_rejected_upload(
                 artifact_remains = artifact_path.exists() or artifact_path.is_symlink()
                 if upload_remains or artifact_remains:
                     raise RuntimeError("Rejected upload cleanup could not be verified")
+                remove_workspace_ownership_after_verified_cleanup(
+                    data_dir=artifacts_root.parent,
+                    job_id=job_id,
+                    expected_user_id=user_id,
+                )
         except Exception:
             # The workspace has no database row yet. A durable retry is needed
             # only when exact synchronous deletion failed or was ambiguous.
@@ -217,11 +228,28 @@ def _record_and_delete_rejected_upload(
             job_id=job_id,
             uploads_dir=input_path.parent,
             artifacts_dir=artifacts_root,
+            expected_user_id=user_id,
         )
         if kind == "job":
             if job_store is None:
                 raise RuntimeError("Job cleanup requires a job store")
             job_store.delete_job(job_id)
+        artifact_path = artifacts_root / job_id
+        expected_stem = f"{job_id}_input"
+        upload_remains = input_path.exists() or input_path.is_symlink()
+        if input_path.parent.exists():
+            upload_remains = upload_remains or any(
+                item.stem == expected_stem and item.suffix.lower() in UPLOAD_SUFFIXES
+                for item in input_path.parent.iterdir()
+            )
+        artifact_remains = artifact_path.exists() or artifact_path.is_symlink()
+        if upload_remains or artifact_remains:
+            raise RuntimeError("Rejected upload cleanup could not be verified")
+        remove_workspace_ownership_after_verified_cleanup(
+            data_dir=artifacts_root.parent,
+            job_id=job_id,
+            expected_user_id=user_id,
+        )
 
 
 def _queue_saved_upload(
@@ -405,7 +433,7 @@ def _queue_saved_upload(
 async def process_video_stream(
     background_tasks: BackgroundTasks,
     request: Request,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_with_media_lifecycle),
     job_store: JobStore = Depends(get_job_store),
     history_store: HistoryStore = Depends(get_history_store),
     ledger_store: UsageLedgerStore = Depends(get_usage_ledger_store),
@@ -443,6 +471,21 @@ async def process_video_stream(
     )
 
     expected_upload_bytes = _parse_content_length(request)
+    llm_models = pricing.resolve_llm_models(proc_settings.transcribe_tier)
+    stt_model = pricing.resolve_requested_transcribe_model(
+        tier=proc_settings.transcribe_tier,
+        provider=proc_settings.transcribe_provider,
+        openai_model=proc_settings.openai_model,
+    )
+    preflight_processing_provider_budget(
+        ledger_store=ledger_store,
+        tier=proc_settings.transcribe_tier,
+        duration_seconds=float(settings.max_video_duration_seconds),
+        use_llm=proc_settings.use_llm,
+        llm_model=llm_models.social,
+        provider=proc_settings.transcribe_provider,
+        stt_model=stt_model,
+    )
     job_id = str(uuid.uuid4())
     data_dir, uploads_dir, artifacts_root = data_roots()
     require_storage_capacity(
@@ -452,12 +495,18 @@ async def process_video_stream(
     )
     input_path = uploads_dir / f"{job_id}_input{file_ext}"
     try:
-        await save_request_stream_with_limit(
-            request,
-            input_path,
-            expected_size=expected_upload_bytes,
-            cleanup_on_error=False,
-        )
+        with lock_job_workspace(data_dir=data_dir, job_id=job_id):
+            record_workspace_ownership(
+                data_dir=data_dir,
+                job_id=job_id,
+                user_id=current_user.id,
+            )
+            await save_request_stream_with_limit(
+                request,
+                input_path,
+                expected_size=expected_upload_bytes,
+                cleanup_on_error=False,
+            )
     except BaseException as exc:
         _record_and_delete_rejected_upload(
             job_id=job_id,

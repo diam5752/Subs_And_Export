@@ -5,20 +5,26 @@ from __future__ import annotations
 import logging
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from ...core.auth import User
 from ...core.config import settings as app_settings
 from ...core.database import Database
-from ...core.erasure_journal import configured_erasure_journal
+from ...core.erasure_journal import JobTerminalStatus, configured_erasure_journal
 from ...core.errors import (
     ProviderDispatchAlreadyClaimedError,
     sanitize_message,
 )
-from ...core.workspace_deletion import delete_job_workspace, lock_job_workspace
+from ...core.job_lifecycle import CANCELLABLE_JOB_STATUSES
+from ...core.workspace_deletion import (
+    JobWorkspaceLockTimeoutError,
+    delete_job_workspace,
+    lock_job_workspace,
+)
 from ...services.ffmpeg_utils import MediaProbe, probe_media
 from ...services.history import HistoryStore
 from ...services.jobs import JobStore
+from ...services.points import PointsStore
 from ...services.usage_ledger import ChargePlan, UsageLedgerStore
 from ...services.video_processing import process_video_pipeline, resolve_runtime_transcribe_provider
 from .file_utils import data_roots, relpath_safe
@@ -31,8 +37,20 @@ class DeletedJobError(InterruptedError):
     """Raised when account or job erasure wins a processing race."""
 
 
+class JobCancellationError(InterruptedError):
+    """Raised only after authoritative job state requests cancellation."""
+
+
 class StaleWorkerError(RuntimeError):
     """Raised when another actor has already moved a job out of processing."""
+
+
+CleanupFailureDisposition = Literal[
+    "failed",
+    "cancellation_deferred",
+    "deleted",
+    "unchanged",
+]
 
 
 def raise_for_rejected_worker_write(*, job_store: JobStore, job_id: str) -> None:
@@ -40,23 +58,37 @@ def raise_for_rejected_worker_write(*, job_store: JobStore, job_id: str) -> None
     current_job = job_store.get_job(job_id)
     if current_job is None:
         raise DeletedJobError("Job was deleted")
-    if current_job.status == "cancelled":
-        raise InterruptedError("Job cancelled by user")
+    if current_job.status in {"cancelling", "cancelled"}:
+        raise JobCancellationError("Job cancelled by user")
     raise StaleWorkerError(
         f"Job is no longer processing (status={current_job.status})"
     )
 
 
-def delete_local_workspace_best_effort(*, job_id: str) -> None:
+def delete_local_workspace_best_effort(
+    *,
+    job_id: str,
+    expected_user_id: str | None,
+    workspace_lock_held: bool = False,
+) -> None:
     """Remove one job's local media without masking its terminal status."""
     try:
         data_dir, uploads_dir, artifacts_root = data_roots()
-        with lock_job_workspace(data_dir=data_dir, job_id=job_id):
+        if workspace_lock_held:
             _delete_local_workspace_unlocked(
                 job_id=job_id,
                 uploads_dir=uploads_dir,
                 artifacts_root=artifacts_root,
+                expected_user_id=expected_user_id,
             )
+        else:
+            with lock_job_workspace(data_dir=data_dir, job_id=job_id):
+                _delete_local_workspace_unlocked(
+                    job_id=job_id,
+                    uploads_dir=uploads_dir,
+                    artifacts_root=artifacts_root,
+                    expected_user_id=expected_user_id,
+                )
     except Exception:
         logger.exception(
             "Failed to lock terminal job workspace for cleanup",
@@ -69,6 +101,7 @@ def _delete_local_workspace_unlocked(
     job_id: str,
     uploads_dir: Path,
     artifacts_root: Path,
+    expected_user_id: str | None,
 ) -> None:
     """Best-effort deletion used only while the caller holds the job lock."""
     try:
@@ -76,6 +109,7 @@ def _delete_local_workspace_unlocked(
             job_id=job_id,
             uploads_dir=uploads_dir,
             artifacts_dir=artifacts_root,
+            expected_user_id=expected_user_id,
         )
     except Exception:
         logger.exception(
@@ -84,19 +118,39 @@ def _delete_local_workspace_unlocked(
         )
 
 
-def record_and_delete_local_workspace(*, job_id: str, user_id: str) -> None:
-    """Durably record erasure intent immediately before deleting local media."""
+def record_and_delete_local_workspace(
+    *,
+    job_id: str,
+    user_id: str,
+    terminal_status: JobTerminalStatus,
+    workspace_lock_held: bool = False,
+) -> None:
+    """Record restore-safe terminal intent before deleting local media."""
     data_dir, uploads_dir, artifacts_root = data_roots()
-    with lock_job_workspace(data_dir=data_dir, job_id=job_id):
-        configured_erasure_journal().append(
-            kind="workspace",
+    if workspace_lock_held:
+        configured_erasure_journal().append_job_terminal(
             user_id=user_id,
             job_ids=[job_id],
+            terminal_status=terminal_status,
         )
-        _delete_local_workspace_unlocked(
+        delete_job_workspace(
             job_id=job_id,
             uploads_dir=uploads_dir,
-            artifacts_root=artifacts_root,
+            artifacts_dir=artifacts_root,
+            expected_user_id=user_id,
+        )
+        return
+    with lock_job_workspace(data_dir=data_dir, job_id=job_id):
+        configured_erasure_journal().append_job_terminal(
+            user_id=user_id,
+            job_ids=[job_id],
+            terminal_status=terminal_status,
+        )
+        delete_job_workspace(
+            job_id=job_id,
+            uploads_dir=uploads_dir,
+            artifacts_dir=artifacts_root,
+            expected_user_id=user_id,
         )
 
 
@@ -129,12 +183,18 @@ def refund_charge_best_effort(
 def abort_deleted_job(
     *,
     job_id: str,
+    expected_user_id: str | None,
     ledger_store: UsageLedgerStore | None,
     charge_plan: ChargePlan | None,
     error: str,
+    workspace_lock_held: bool = False,
 ) -> None:
     """Refund once and remove the exact local workspace of a deleted job."""
-    delete_local_workspace_best_effort(job_id=job_id)
+    delete_local_workspace_best_effort(
+        job_id=job_id,
+        expected_user_id=expected_user_id,
+        workspace_lock_held=workspace_lock_held,
+    )
     refund_charge_best_effort(
         ledger_store,
         charge_plan,
@@ -159,6 +219,76 @@ def record_event_safe(
         logger.warning("Failed to record history event %s: %s", kind, exc)
 
 
+def resolve_terminal_cleanup_failure(
+    *,
+    job_store: JobStore,
+    job_id: str,
+    privacy_error: str,
+) -> CleanupFailureDisposition:
+    """Resolve cleanup failure from authoritative state, never a stale snapshot."""
+    if job_store.update_job_if_status(
+        job_id,
+        expected_statuses=CANCELLABLE_JOB_STATUSES,
+        status="failed",
+        message=privacy_error,
+    ):
+        return "failed"
+
+    latest_job = job_store.get_job(job_id)
+    if latest_job is None:
+        return "deleted"
+    if latest_job.status in {"cancelling", "cancelled"}:
+        return "cancellation_deferred"
+    if latest_job.status == "failed":
+        return "failed"
+    return "unchanged"
+
+
+def reconcile_stranded_cancellations(db: Database) -> int:
+    """Finish crash-stranded cancellations before the app becomes healthy."""
+    job_store = JobStore(db)
+    ledger_store = UsageLedgerStore(db=db, points_store=PointsStore(db=db))
+    data_dir, uploads_dir, artifacts_root = data_roots()
+    journal = configured_erasure_journal()
+    reconciled = 0
+
+    for candidate in job_store.list_jobs_with_statuses({"cancelling"}):
+        with lock_job_workspace(data_dir=data_dir, job_id=candidate.id):
+            current_job = job_store.get_job(candidate.id)
+            if current_job is None or current_job.status != "cancelling":
+                continue
+            journal.append_job_terminal(
+                user_id=current_job.user_id,
+                job_ids=[current_job.id],
+                terminal_status="cancelled",
+            )
+            delete_job_workspace(
+                job_id=current_job.id,
+                uploads_dir=uploads_dir,
+                artifacts_dir=artifacts_root,
+                expected_user_id=current_job.user_id,
+            )
+            ledger_store.fail_job_reservations(
+                current_job.id,
+                error="Cancellation recovered after process restart",
+                status="cancelled",
+            )
+            transitioned = job_store.update_job_if_status(
+                current_job.id,
+                expected_statuses={"cancelling"},
+                status="cancelled",
+                message="Cancelled by user",
+            )
+            if not transitioned:
+                latest_job = job_store.get_job(current_job.id)
+                if latest_job is None or latest_job.status != "cancelled":
+                    raise RuntimeError(
+                        "Stranded cancellation changed state during recovery",
+                    )
+            reconciled += 1
+    return reconciled
+
+
 def run_video_processing(
     job_id: str,
     input_path: Path,
@@ -176,7 +306,14 @@ def run_video_processing(
     source_probe: MediaProbe | None = None,
 ) -> None:
     """Background task to run the heavy video processing."""
+    worker_user_id = user.id if user is not None else None
+    workspace_lock = None
+    workspace_lock_held = False
     try:
+        data_dir, _, _ = data_roots()
+        workspace_lock = lock_job_workspace(data_dir=data_dir, job_id=job_id)
+        workspace_lock.__enter__()
+        workspace_lock_held = True
         if not job_store.update_job_if_status(
             job_id,
             expected_statuses={"pending"},
@@ -219,10 +356,8 @@ def run_video_processing(
             last_check_time = now
             if current_job is None:
                 raise DeletedJobError("Job was deleted")
-            if current_job.status == "cancelled":
-                raise InterruptedError("Job cancelled by user")
-
-        data_dir, _, _ = data_roots()
+            if current_job.status in {"cancelling", "cancelled"}:
+                raise JobCancellationError("Job cancelled by user")
 
         tier = settings.transcribe_tier
         requested_provider = settings.transcribe_provider or app_settings.transcribe_tier_provider.get(
@@ -358,6 +493,15 @@ def run_video_processing(
             extra={"job_id": job_id},
         )
         return
+    except JobWorkspaceLockTimeoutError as exc:
+        # Another writer/eraser owns the shared workspace stripe. This worker
+        # never acquired write authority, so it must not clean or mutate the
+        # job that the winning actor is still responsible for.
+        logger.info(
+            "Skipping video-processing worker while workspace is busy",
+            extra={"job_id": job_id, "reason": sanitize_message(str(exc))},
+        )
+        return
     except StaleWorkerError as exc:
         logger.info(
             "Stopping stale video-processing worker",
@@ -367,24 +511,30 @@ def run_video_processing(
     except DeletedJobError as exc:
         abort_deleted_job(
             job_id=job_id,
+            expected_user_id=worker_user_id,
             ledger_store=ledger_store,
             charge_plan=charge_plan,
             error=sanitize_message(str(exc)),
+            workspace_lock_held=workspace_lock_held,
         )
-    except InterruptedError as exc:
+    except JobCancellationError as exc:
         current_job = job_store.get_job(job_id)
         if current_job is None:
             abort_deleted_job(
                 job_id=job_id,
+                expected_user_id=worker_user_id,
                 ledger_store=ledger_store,
                 charge_plan=charge_plan,
                 error=sanitize_message(str(exc)),
+                workspace_lock_held=workspace_lock_held,
             )
             return
         try:
             record_and_delete_local_workspace(
                 job_id=job_id,
                 user_id=current_job.user_id,
+                terminal_status="cancelled",
+                workspace_lock_held=workspace_lock_held,
             )
         except Exception:
             privacy_error = "Privacy cleanup could not be recorded"
@@ -392,29 +542,52 @@ def run_video_processing(
                 "Refusing unjournaled cancellation cleanup",
                 extra={"job_id": job_id},
             )
-            job_store.update_job_if_status(
-                job_id,
-                expected_statuses={"pending", "processing"},
-                status="failed",
-                message=privacy_error,
+            disposition = resolve_terminal_cleanup_failure(
+                job_store=job_store,
+                job_id=job_id,
+                privacy_error=privacy_error,
             )
+            if disposition == "deleted":
+                abort_deleted_job(
+                    job_id=job_id,
+                    expected_user_id=worker_user_id,
+                    ledger_store=ledger_store,
+                    charge_plan=charge_plan,
+                    error=sanitize_message(str(exc)),
+                    workspace_lock_held=workspace_lock_held,
+                )
+                return
+            cancellation_deferred = disposition == "cancellation_deferred"
             record_event_safe(
                 history_store,
                 user,
-                "process_failed",
-                f"Privacy cleanup failed for {original_name or input_path.name}",
+                (
+                    "process_cancellation_cleanup_deferred"
+                    if cancellation_deferred
+                    else "process_failed"
+                ),
+                (
+                    f"Cancellation cleanup deferred for {original_name or input_path.name}"
+                    if cancellation_deferred
+                    else f"Privacy cleanup failed for {original_name or input_path.name}"
+                ),
                 {"job_id": job_id, "error": privacy_error},
             )
-            refund_charge_best_effort(
-                ledger_store,
-                charge_plan,
-                status="cancelled",
-                error=sanitize_message(str(exc)),
-            )
+            if disposition in {"failed", "cancellation_deferred"}:
+                refund_charge_best_effort(
+                    ledger_store,
+                    charge_plan,
+                    status=(
+                        "cancelled"
+                        if cancellation_deferred
+                        else "failed"
+                    ),
+                    error=sanitize_message(str(exc)),
+                )
             return
         job_store.update_job_if_status(
             job_id,
-            expected_statuses={"pending", "processing"},
+            expected_statuses={"cancelling"},
             status="cancelled",
             message="Cancelled by user",
         )
@@ -432,15 +605,23 @@ def run_video_processing(
         if current_job is None:
             abort_deleted_job(
                 job_id=job_id,
+                expected_user_id=worker_user_id,
                 ledger_store=ledger_store,
                 charge_plan=charge_plan,
                 error=safe_msg,
+                workspace_lock_held=workspace_lock_held,
             )
             return
         try:
             record_and_delete_local_workspace(
                 job_id=job_id,
                 user_id=current_job.user_id,
+                terminal_status=(
+                    "cancelled"
+                    if current_job.status == "cancelling"
+                    else "failed"
+                ),
+                workspace_lock_held=workspace_lock_held,
             )
         except Exception:
             privacy_error = "Privacy cleanup could not be recorded"
@@ -448,29 +629,76 @@ def run_video_processing(
                 "Refusing unjournaled failure cleanup",
                 extra={"job_id": job_id},
             )
-            job_store.update_job_if_status(
-                job_id,
-                expected_statuses={"pending", "processing"},
-                status="failed",
-                message=privacy_error,
+            disposition = resolve_terminal_cleanup_failure(
+                job_store=job_store,
+                job_id=job_id,
+                privacy_error=privacy_error,
             )
+            if disposition == "deleted":
+                abort_deleted_job(
+                    job_id=job_id,
+                    expected_user_id=worker_user_id,
+                    ledger_store=ledger_store,
+                    charge_plan=charge_plan,
+                    error=safe_msg,
+                    workspace_lock_held=workspace_lock_held,
+                )
+                return
+            cancellation_deferred = disposition == "cancellation_deferred"
             record_event_safe(
                 history_store,
                 user,
-                "process_failed",
-                f"Privacy cleanup failed for {original_name or input_path.name}",
+                (
+                    "process_cancellation_cleanup_deferred"
+                    if cancellation_deferred
+                    else "process_failed"
+                ),
+                (
+                    f"Cancellation cleanup deferred for {original_name or input_path.name}"
+                    if cancellation_deferred
+                    else f"Privacy cleanup failed for {original_name or input_path.name}"
+                ),
                 {"job_id": job_id, "error": privacy_error},
+            )
+            if disposition in {"failed", "cancellation_deferred"}:
+                refund_charge_best_effort(
+                    ledger_store,
+                    charge_plan,
+                    status=(
+                        "cancelled"
+                        if cancellation_deferred
+                        else "failed"
+                    ),
+                    error=safe_msg,
+                )
+            return
+        cancellation_completed = False
+        if current_job.status == "cancelling":
+            cancellation_completed = job_store.update_job_if_status(
+                job_id,
+                expected_statuses={"cancelling"},
+                status="cancelled",
+                message="Cancelled by user",
+            )
+        if cancellation_completed:
+            record_event_safe(
+                history_store,
+                user,
+                "process_cancelled",
+                f"Processing cancelled for {original_name or input_path.name}",
+                {"job_id": job_id, "error": safe_msg},
             )
             refund_charge_best_effort(
                 ledger_store,
                 charge_plan,
-                status="failed",
+                status="cancelled",
                 error=safe_msg,
             )
             return
+
         transitioned_to_failed = job_store.update_job_if_status(
             job_id,
-            expected_statuses={"pending", "processing"},
+            expected_statuses=CANCELLABLE_JOB_STATUSES,
             status="failed",
             message=safe_msg,
         )
@@ -479,12 +707,62 @@ def run_video_processing(
             if latest_job is None:
                 abort_deleted_job(
                     job_id=job_id,
+                    expected_user_id=worker_user_id,
                     ledger_store=ledger_store,
                     charge_plan=charge_plan,
                     error=safe_msg,
+                    workspace_lock_held=workspace_lock_held,
                 )
                 return
-            if latest_job.status == "cancelled":
+            if latest_job.status == "cancelling":
+                try:
+                    record_and_delete_local_workspace(
+                        job_id=job_id,
+                        user_id=latest_job.user_id,
+                        terminal_status="cancelled",
+                        workspace_lock_held=workspace_lock_held,
+                    )
+                except Exception:
+                    logger.exception(
+                        "Deferring raced cancellation until its intent is durable",
+                        extra={"job_id": job_id},
+                    )
+                    record_event_safe(
+                        history_store,
+                        user,
+                        "process_cancellation_cleanup_deferred",
+                        (
+                            "Cancellation cleanup deferred for "
+                            f"{original_name or input_path.name}"
+                        ),
+                        {"job_id": job_id, "error": safe_msg},
+                    )
+                    refund_charge_best_effort(
+                        ledger_store,
+                        charge_plan,
+                        status="cancelled",
+                        error=safe_msg,
+                    )
+                    return
+                cancellation_completed = job_store.update_job_if_status(
+                    job_id,
+                    expected_statuses={"cancelling"},
+                    status="cancelled",
+                    message="Cancelled by user",
+                )
+                if cancellation_completed:
+                    latest_job = job_store.get_job(job_id)
+                    if latest_job is None:
+                        abort_deleted_job(
+                            job_id=job_id,
+                            expected_user_id=worker_user_id,
+                            ledger_store=ledger_store,
+                            charge_plan=charge_plan,
+                            error=safe_msg,
+                            workspace_lock_held=workspace_lock_held,
+                        )
+                        return
+            if latest_job is not None and latest_job.status == "cancelled":
                 record_event_safe(
                     history_store,
                     user,
@@ -512,3 +790,6 @@ def run_video_processing(
             {"job_id": job_id, "error": safe_msg},
         )
         refund_charge_best_effort(ledger_store, charge_plan, status="failed", error=safe_msg)
+    finally:
+        if workspace_lock is not None and workspace_lock_held:
+            workspace_lock.__exit__(None, None, None)

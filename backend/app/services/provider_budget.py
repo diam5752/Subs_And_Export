@@ -54,6 +54,62 @@ class ProviderBudgetStore:
                 now=now,
             )
 
+    def assert_can_reserve(
+        self,
+        *,
+        estimated_usd: float,
+        daily_limit_usd: float,
+        monthly_limit_usd: float,
+        now: datetime | None = None,
+    ) -> None:
+        """Read current windows without creating durable reservation state.
+
+        This is an early rejection only. ``reserve_in_session`` remains the
+        authoritative, locked decision when concurrent requests race near a
+        limit.
+        """
+        estimate = float(estimated_usd)
+        daily_limit = float(daily_limit_usd)
+        monthly_limit = float(monthly_limit_usd)
+        if not math.isfinite(estimate) or estimate <= 0:
+            raise ValueError(
+                "Provider budget estimate must be finite and positive",
+            )
+        if (
+            not math.isfinite(daily_limit)
+            or not math.isfinite(monthly_limit)
+            or daily_limit <= 0
+            or monthly_limit <= 0
+        ):
+            raise ProviderBudgetExceededError("External provider budgets are closed")
+
+        current = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+        daily_key, monthly_key = self._window_keys(current)
+        with self.db.session() as session:
+            windows = list(
+                session.scalars(
+                    select(DbProviderBudgetWindow).where(
+                        DbProviderBudgetWindow.key.in_([daily_key, monthly_key]),
+                    ),
+                ).all(),
+            )
+            used_by_key = {
+                window.key: float(window.reserved_usd) + float(window.spent_usd)
+                for window in windows
+            }
+
+        daily_used = used_by_key.get(daily_key, 0.0)
+        if daily_used + estimate > daily_limit:
+            raise ProviderBudgetExceededError(
+                "Daily external provider budget exceeded",
+            )
+
+        monthly_used = used_by_key.get(monthly_key, 0.0)
+        if monthly_used + estimate > monthly_limit:
+            raise ProviderBudgetExceededError(
+                "Monthly external provider budget exceeded",
+            )
+
     def reserve_in_session(
         self,
         session: Session,

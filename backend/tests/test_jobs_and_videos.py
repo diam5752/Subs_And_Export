@@ -842,8 +842,8 @@ def test_cancel_job_success(client: TestClient, monkeypatch, tmp_path: Path):
     assert cancel_resp.status_code == 200
     data = cancel_resp.json()
     assert data["id"] == job_id
-    assert data["status"] == "cancelled"
-    assert data["message"] == "Cancelled by user"
+    assert data["status"] == "cancelling"
+    assert data["message"] == "Cancellation requested"
 
 
 def test_cancel_job_not_found(client: TestClient):

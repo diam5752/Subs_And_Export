@@ -100,6 +100,10 @@ backend/data/
 # Runtime data artifacts
 data/artifacts/
 data/uploads/
+data/.account-locks/
+data/.job-locks/
+data/.workspace-ownership/
+data/test-listing/
 data/unit-*
 src/greek_sub_publisher/logs/
 

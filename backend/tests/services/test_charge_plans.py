@@ -334,6 +334,9 @@ class TestExternalProviderBudget:
     class _Ledger:
         def __init__(self, spent: float) -> None:
             self.spent = spent
+            # ``assert_can_reserve`` is a real ProviderBudgetStore method; allow
+            # that name instead of treating it as a misspelled mock assertion.
+            self.provider_budget_store = MagicMock(unsafe=True)
 
         def total_cost_usd(self, *, start_ts: int, end_ts: int) -> float:
             assert start_ts <= end_ts
@@ -367,6 +370,27 @@ class TestExternalProviderBudget:
         assert_external_provider_budget(
             ledger_store=self._Ledger(100.0),  # type: ignore[arg-type]
             estimated_cost_usd=0.0,
+        )
+
+    def test_current_window_preflight_uses_guarded_estimate(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        ledger = self._Ledger(0.0)
+        monkeypatch.setattr(config.settings, "external_provider_monthly_budget_usd", 2.0)
+        monkeypatch.setattr(config.settings, "external_provider_daily_budget_usd", 1.0)
+        monkeypatch.setattr(config.settings, "external_provider_per_request_budget_usd", 0.5)
+        monkeypatch.setattr(config.settings, "external_provider_price_safety_multiplier", 1.25)
+
+        assert_external_provider_budget(
+            ledger_store=ledger,  # type: ignore[arg-type]
+            estimated_cost_usd=0.2,
+        )
+
+        ledger.provider_budget_store.assert_can_reserve.assert_called_once_with(
+            estimated_usd=pytest.approx(0.25),
+            daily_limit_usd=1.0,
+            monthly_limit_usd=2.0,
         )
 
     @pytest.mark.parametrize("estimate", [-0.01, float("nan"), float("inf")])

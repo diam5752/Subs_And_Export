@@ -14,6 +14,10 @@ from backend.app.core.cleanup import (
     run_configured_retention,
 )
 from backend.app.core.erasure_journal import ErasureJournal
+from backend.app.core.workspace_ownership import (
+    get_workspace_owner,
+    record_workspace_ownership,
+)
 from backend.app.services import billing_retention
 from backend.app.services.jobs import Job
 from backend.app.services.usage_ledger import UsageLedgerStore
@@ -424,6 +428,62 @@ def test_storage_guard_rejects_when_cleanup_cannot_free_enough_space(
     assert cleanup_calls == ["cleanup"]
 
 
+def test_retention_removes_only_old_ownership_markers_without_job_or_media(
+    tmp_path: Path,
+) -> None:
+    now = 1_800_000_000
+    uploads_dir = tmp_path / "uploads"
+    artifacts_dir = tmp_path / "artifacts"
+    uploads_dir.mkdir()
+    artifacts_dir.mkdir()
+    old_orphan = "old-owner-only"
+    recent_orphan = "recent-owner-only"
+    retained_job = _job(
+        "retained-job",
+        status="completed",
+        updated_at=now,
+    )
+    record_workspace_ownership(
+        data_dir=tmp_path,
+        job_id=old_orphan,
+        user_id="private-user",
+        now=now - 7200,
+    )
+    record_workspace_ownership(
+        data_dir=tmp_path,
+        job_id=recent_orphan,
+        user_id="private-user",
+        now=now,
+    )
+    record_workspace_ownership(
+        data_dir=tmp_path,
+        job_id=retained_job.id,
+        user_id=retained_job.user_id,
+        now=now - 7200,
+    )
+
+    report = cleanup_expired_workspaces(
+        job_store=FakeJobStore({retained_job.id: retained_job}),
+        history_store=FakeHistoryStore([]),
+        uploads_dir=uploads_dir,
+        artifacts_dir=artifacts_dir,
+        workspace_retention_hours=24,
+        stale_job_retention_hours=6,
+        orphan_retention_hours=1,
+        erasure_journal=ErasureJournal(
+            tmp_path / "privacy-journal",
+            retention_days=30,
+        ),
+        now=now,
+    )
+
+    assert report.deleted_orphan_items == 1
+    assert report.failed_orphan_items == 0
+    assert get_workspace_owner(data_dir=tmp_path, job_id=old_orphan) is None
+    assert get_workspace_owner(data_dir=tmp_path, job_id=recent_orphan) == "private-user"
+    assert get_workspace_owner(data_dir=tmp_path, job_id=retained_job.id) == retained_job.user_id
+
+
 def test_configured_retention_runs_media_and_billing_cleanup(
     tmp_path: Path,
     monkeypatch,
@@ -435,6 +495,11 @@ def test_configured_retention_runs_media_and_billing_cleanup(
         cleanup_module,
         "configured_erasure_journal",
         lambda: journal,
+    )
+    monkeypatch.setattr(
+        cleanup_module,
+        "reclaim_abandoned_lifecycle_locks",
+        lambda **_kwargs: calls.append("locks") or 0,
     )
     monkeypatch.setattr(
         "backend.app.services.erasure_reconciliation.reconcile_erasure_journal",
@@ -474,7 +539,7 @@ def test_configured_retention_runs_media_and_billing_cleanup(
     )
     run_configured_retention(object())  # type: ignore[arg-type]
 
-    assert calls == ["usage", "media", "billing", "erasure"]
+    assert calls == ["locks", "usage", "media", "billing", "erasure"]
 
 
 def test_provider_erasure_outage_does_not_block_local_retention(

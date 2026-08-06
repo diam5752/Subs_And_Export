@@ -11,11 +11,18 @@ from typing import TYPE_CHECKING, Protocol
 
 from .config import settings
 from .erasure_journal import ErasureJournal, configured_erasure_journal
+from .job_lifecycle import ACTIVE_JOB_STATUSES, TERMINAL_JOB_STATUSES
 from .workspace_deletion import (
     UPLOAD_SUFFIXES,
     delete_job_workspace,
     delete_local_path,
     lock_job_workspace,
+    reclaim_abandoned_lifecycle_locks,
+)
+from .workspace_ownership import (
+    get_workspace_owner,
+    list_workspace_ownership_markers,
+    remove_workspace_ownership_after_verified_cleanup,
 )
 
 if TYPE_CHECKING:
@@ -23,8 +30,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-ACTIVE_JOB_STATUSES = frozenset({"pending", "processing"})
-TERMINAL_JOB_STATUSES = frozenset({"completed", "failed", "cancelled"})
 MEBIBYTE = 1024 * 1024
 
 
@@ -114,6 +119,7 @@ def cleanup_expired_workspaces(
                     job_id=job_id,
                     uploads_dir=uploads_dir,
                     artifacts_dir=artifacts_dir,
+                    expected_user_id=latest_job.user_id,
                 )
                 history_store.delete_job_events([job_id])
                 job_store.delete_job(job_id)
@@ -137,9 +143,22 @@ def cleanup_expired_workspaces(
         erasure_journal=erasure_journal,
         now=current_time,
     )
+    deleted_orphan_markers, failed_orphan_markers = _cleanup_orphan_ownership_markers(
+        data_dir=artifacts_dir.parent,
+        cutoff_time=orphan_cutoff,
+        job_store=job_store,
+    )
 
-    deleted_orphan_items = deleted_orphan_uploads + deleted_orphan_artifacts
-    failed_orphan_items = failed_orphan_uploads + failed_orphan_artifacts
+    deleted_orphan_items = (
+        deleted_orphan_uploads
+        + deleted_orphan_artifacts
+        + deleted_orphan_markers
+    )
+    failed_orphan_items = (
+        failed_orphan_uploads
+        + failed_orphan_artifacts
+        + failed_orphan_markers
+    )
 
     if deleted_job_ids or failed_job_ids or deleted_orphan_items or failed_orphan_items:
         logger.info(
@@ -208,6 +227,14 @@ def run_configured_retention(db: Database) -> CleanupReport:
     artifacts_dir = settings.data_dir / "artifacts"
     uploads_dir.mkdir(parents=True, exist_ok=True)
     artifacts_dir.mkdir(parents=True, exist_ok=True)
+    reclaimed_locks = reclaim_abandoned_lifecycle_locks(
+        data_dir=settings.data_dir,
+    )
+    if reclaimed_locks:
+        logger.warning(
+            "Reclaimed abandoned media lifecycle locks during retention",
+            extra={"reclaimed_locks": reclaimed_locks},
+        )
     erasure_journal = configured_erasure_journal()
     usage_ledger_store = UsageLedgerStore(
         db=db,
@@ -347,6 +374,67 @@ def _cleanup_orphan_artifacts(
         except Exception:
             failed += 1
             logger.exception("Failed to delete orphan artifact")
+    return deleted, failed
+
+
+def _cleanup_orphan_ownership_markers(
+    *,
+    data_dir: Path,
+    cutoff_time: float,
+    job_store: RetentionJobStore,
+) -> tuple[int, int]:
+    """Remove old ownership-only crash residue after exact absence checks."""
+    deleted = 0
+    failed = 0
+    cursor: str | None = None
+    uploads_dir = data_dir / "uploads"
+    artifacts_dir = data_dir / "artifacts"
+    while True:
+        page = list_workspace_ownership_markers(
+            data_dir=data_dir,
+            limit=500,
+            after=cursor,
+        )
+        for marker in page.markers:
+            if marker.created_at >= cutoff_time:
+                continue
+            try:
+                with lock_job_workspace(data_dir=data_dir, job_id=marker.job_id):
+                    if job_store.get_job(marker.job_id) is not None:
+                        continue
+                    current_owner = get_workspace_owner(
+                        data_dir=data_dir,
+                        job_id=marker.job_id,
+                    )
+                    if current_owner is None:
+                        continue
+                    if current_owner != marker.user_id:
+                        raise RuntimeError(
+                            "Workspace ownership changed during retention",
+                        )
+                    artifact_path = artifacts_dir / marker.job_id
+                    expected_stem = f"{marker.job_id}_input"
+                    media_remains = artifact_path.exists() or artifact_path.is_symlink()
+                    if uploads_dir.exists():
+                        media_remains = media_remains or any(
+                            item.stem == expected_stem
+                            and item.suffix.lower() in UPLOAD_SUFFIXES
+                            for item in uploads_dir.iterdir()
+                        )
+                    if media_remains:
+                        continue
+                    if remove_workspace_ownership_after_verified_cleanup(
+                        data_dir=data_dir,
+                        job_id=marker.job_id,
+                        expected_user_id=marker.user_id,
+                    ):
+                        deleted += 1
+            except Exception:
+                failed += 1
+                logger.exception("Failed to delete orphan workspace ownership marker")
+        if page.next_cursor is None:
+            break
+        cursor = page.next_cursor
     return deleted, failed
 
 

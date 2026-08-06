@@ -20,6 +20,7 @@ governed by the controls below.
 ### Media retention and erasure
 - Keep automatic retention enabled. Production defaults are 24 hours for terminal workspaces, 6 hours for stale active jobs, and 1 hour for orphan files.
 - Project and account erasure must remove both database ownership records and the exact local workspace before reporting success.
+- The hidden `.workspace-ownership` registry in the app-data volume is written and fsynced before the first upload or reprocess byte. Backups and restores must preserve it, including dot-directories, so a pre-database crash cannot detach media from its account-erasure scope.
 - Encrypted server and independent backups have a 14-day default retention. An erased item may persist only in an already-created encrypted backup until that backup expires.
 - After any restore, keep public traffic closed until automatic retention and the durable post-backup erasure reconciliation have completed successfully.
 - Restore is supported only while the current host continuity state and live erasure-journal volume both survive. If either is lost, fail closed: do not restore/publish an older user database or media backup. The zero-extra-storage policy accepts data loss after total host loss; disaster recovery of user data would require a continuously updated encrypted journal copy in another failure domain.
