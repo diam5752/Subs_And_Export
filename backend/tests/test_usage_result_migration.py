@@ -169,7 +169,7 @@ def test_usage_result_migration_preserves_payload_and_cascades() -> None:
         with psycopg.connect(connection_url, autocommit=True) as connection:
             assert connection.execute(
                 "SELECT version_num FROM alembic_version"
-            ).fetchone() == ("0021_remove_gcs_uploads",)
+            ).fetchone() == ("0022_cancelling_job_status",)
             assert connection.execute(
                 """
                 SELECT column_name, data_type, is_nullable

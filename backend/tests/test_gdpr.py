@@ -773,6 +773,9 @@ def test_account_deletion_fails_closed_when_erasure_journal_is_unavailable(
     from backend.app.api.endpoints import auth as auth_endpoints
 
     class BrokenJournal:
+        def read_all(self) -> list[object]:
+            raise ErasureJournalError("journal unavailable")
+
         def append(self, **_kwargs: object) -> None:
             raise ErasureJournalError("journal unavailable")
 

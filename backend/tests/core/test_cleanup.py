@@ -5,6 +5,10 @@ from pathlib import Path
 import pytest
 
 from backend.app.core.workspace_deletion import delete_job_workspace
+from backend.app.core.workspace_ownership import (
+    get_workspace_owner,
+    record_workspace_ownership,
+)
 
 
 def test_delete_job_workspace_removes_all_local_media_and_transcription(
@@ -40,6 +44,16 @@ def test_delete_job_workspace_removes_all_local_media_and_transcription(
     unrelated_upload.write_bytes(b"keep")
     unrelated_artifact.parent.mkdir()
     unrelated_artifact.write_text("[]", encoding="utf-8")
+    record_workspace_ownership(
+        data_dir=tmp_path,
+        job_id=job_id,
+        user_id="private-user",
+    )
+    record_workspace_ownership(
+        data_dir=tmp_path,
+        job_id="other-job",
+        user_id="other-user",
+    )
 
     # REGRESSION: every accepted local upload variant and the complete artifact
     # tree, including transcription data and nested exports, belongs to the job
@@ -48,12 +62,15 @@ def test_delete_job_workspace_removes_all_local_media_and_transcription(
         job_id=job_id,
         uploads_dir=uploads_dir,
         artifacts_dir=artifacts_dir,
+        expected_user_id="private-user",
     )
 
     assert all(not upload.exists() for upload in owned_uploads)
     assert not artifact_dir.exists()
+    assert get_workspace_owner(data_dir=tmp_path, job_id=job_id) is None
     assert unrelated_upload.is_file()
     assert unrelated_artifact.is_file()
+    assert get_workspace_owner(data_dir=tmp_path, job_id="other-job") == "other-user"
 
 
 def test_delete_job_workspace_rejects_paths_outside_artifact_root(

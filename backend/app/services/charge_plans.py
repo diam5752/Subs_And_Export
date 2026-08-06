@@ -47,6 +47,14 @@ def assert_external_provider_budget(
         or settings.external_provider_monthly_budget_usd <= 0
     ):
         raise ProviderBudgetExceededError("External provider budgets are closed")
+    guarded_estimate = estimate * settings.external_provider_price_safety_multiplier
+    if not math.isfinite(guarded_estimate) or guarded_estimate <= 0:
+        raise ProviderBudgetExceededError("Invalid guarded provider cost estimate")
+    ledger_store.provider_budget_store.assert_can_reserve(
+        estimated_usd=guarded_estimate,
+        daily_limit_usd=settings.external_provider_daily_budget_usd,
+        monthly_limit_usd=settings.external_provider_monthly_budget_usd,
+    )
 
 
 def assert_external_provider_economics(
@@ -323,6 +331,31 @@ def preflight_processing_charges(
         user_id,
         requirements.credits,
         require_paid=requirements.require_paid_credits,
+    )
+
+
+def preflight_processing_provider_budget(
+    *,
+    ledger_store: UsageLedgerStore,
+    tier: str,
+    duration_seconds: float,
+    use_llm: bool,
+    llm_model: str,
+    provider: str,
+    stt_model: str,
+) -> None:
+    """Reject a known budget failure without inspecting or reserving credits."""
+    requirements = _processing_charge_requirements(
+        tier=tier,
+        duration_seconds=duration_seconds,
+        use_llm=use_llm,
+        llm_model=llm_model,
+        provider=provider,
+        stt_model=stt_model,
+    )
+    assert_external_provider_budget(
+        ledger_store=ledger_store,
+        estimated_cost_usd=requirements.total_cost_usd,
     )
 
 

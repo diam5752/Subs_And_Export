@@ -93,6 +93,9 @@ def client(
     from backend.app.services.ffmpeg_utils import MediaProbe
     from backend.main import app
 
+    # Keep lifecycle-lock metadata out of the repository without pre-creating
+    # the conventional ``tmp_path/data`` tree used by route tests themselves.
+    monkeypatch.setattr(settings, "data_dir", tmp_path / "client-data")
     monkeypatch.setattr(
         settings,
         "erasure_journal_dir",

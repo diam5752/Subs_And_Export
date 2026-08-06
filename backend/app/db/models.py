@@ -86,7 +86,7 @@ class DbJob(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "status IN ('pending','processing','completed','failed','cancelled')",
+            "status IN ('pending','processing','cancelling','completed','failed','cancelled')",
             name="chk_jobs_status",
         ),
         Index("idx_jobs_user_created_at", "user_id", "created_at"),

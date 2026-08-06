@@ -12,6 +12,8 @@ from backend.app.api.endpoints.reprocess_routes import ReprocessRequest
 from backend.app.core.auth import User, UserStore
 from backend.app.core.database import Database
 from backend.app.core.erasure_journal import ErasureJournal
+from backend.app.core.errors import ProviderBudgetExceededError
+from backend.app.core.workspace_ownership import get_workspace_owner
 from backend.app.services.history import HistoryStore
 from backend.app.services.jobs import Job, JobStore
 from backend.app.services.points import PointsStore
@@ -88,6 +90,7 @@ def test_reprocess_copy_failures_are_journaled_before_exact_cleanup(
     if failure_stage == "copy":
 
         def fail_copy(_source: Path, destination: Path) -> None:
+            assert get_workspace_owner(data_dir=data_dir, job_id=new_job_id) == user_id
             destination.write_bytes(b"partial-copy")
             create_partial_artifact()
             raise OSError("copy failed")
@@ -195,6 +198,7 @@ def test_reprocess_copy_failures_are_journaled_before_exact_cleanup(
     assert not partial_artifact.parent.exists()
     assert neighbor_input.read_bytes() == b"neighbor-input"
     assert neighbor_artifact.read_text(encoding="utf-8") == "neighbor-artifact"
+    assert get_workspace_owner(data_dir=data_dir, job_id=new_job_id) is None
 
 
 def test_repeated_zero_credit_reprocesses_leave_no_new_jobs_files_or_tombstones(
@@ -293,3 +297,78 @@ def test_repeated_zero_credit_reprocesses_leave_no_new_jobs_files_or_tombstones(
     copy_file.assert_not_called()
     reserve.assert_not_called()
     budget_reserve.assert_not_called()
+
+
+def test_reprocess_budget_preflight_rejects_before_uuid_or_copy(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    user = User(
+        id="budget-reprocess-user",
+        email="budget-reprocess@example.com",
+        name="Budget",
+        provider="local",
+    )
+    source_job_id = "budget-source-job"
+    source_job = Job(
+        id=source_job_id,
+        user_id=user.id,
+        status="completed",
+        progress=100,
+        message="done",
+        created_at=1,
+        updated_at=1,
+        result_data={"original_filename": "source.mp4"},
+    )
+    data_dir = tmp_path / "data"
+    uploads_dir = data_dir / "uploads"
+    artifacts_root = data_dir / "artifacts"
+    uploads_dir.mkdir(parents=True)
+    artifacts_root.mkdir(parents=True)
+    (uploads_dir / f"{source_job_id}_input.mp4").write_bytes(b"private source")
+
+    job_store = MagicMock()
+    job_store.get_job.return_value = source_job
+    job_store.count_active_jobs_for_user.return_value = 0
+    preflight = MagicMock(
+        side_effect=ProviderBudgetExceededError("Daily external provider budget exceeded"),
+    )
+    uuid4 = MagicMock(side_effect=AssertionError("preflight must precede UUID allocation"))
+    copy_file = MagicMock(side_effect=AssertionError("preflight must precede copy"))
+    monkeypatch.setattr(
+        reprocess_routes,
+        "data_roots",
+        lambda: (data_dir, uploads_dir, artifacts_root),
+    )
+    monkeypatch.setattr(reprocess_routes, "require_storage_capacity", MagicMock())
+    monkeypatch.setattr(
+        reprocess_routes,
+        "probe_media",
+        lambda _path: MagicMock(duration_s=30.0),
+    )
+    monkeypatch.setattr(reprocess_routes, "preflight_processing_charges", preflight)
+    monkeypatch.setattr(reprocess_routes.uuid, "uuid4", uuid4)
+    monkeypatch.setattr(reprocess_routes, "link_or_copy_file", copy_file)
+
+    with pytest.raises(ProviderBudgetExceededError, match="Daily"):
+        reprocess_routes.reprocess_job(
+            source_job_id,
+            ReprocessRequest.model_validate(
+                {
+                    "transcribe_tier": "pro",
+                    "transcribe_provider": "elevenlabs",
+                    "use_llm": False,
+                },
+            ),
+            BackgroundTasks(),
+            current_user=user,
+            job_store=job_store,
+            history_store=MagicMock(),
+            ledger_store=MagicMock(),
+            db=MagicMock(),
+        )
+
+    preflight.assert_called_once()
+    uuid4.assert_not_called()
+    copy_file.assert_not_called()
+    job_store.create_job.assert_not_called()

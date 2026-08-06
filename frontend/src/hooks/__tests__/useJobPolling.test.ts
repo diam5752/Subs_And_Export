@@ -116,6 +116,56 @@ describe('useJobPolling', () => {
         expect(callbacks.onFailed).toHaveBeenCalledWith('Job failed');
     });
 
+    it('keeps polling while cancellation cleanup is in progress', async () => {
+        const callbacks = createMockCallbacks();
+        (api.getJobStatus as jest.Mock).mockResolvedValue({
+            id: 'job-1',
+            status: 'cancelling',
+            progress: 50,
+            message: 'Cancellation requested',
+        });
+
+        renderHook(() => useJobPolling({
+            jobId: 'job-1',
+            callbacks,
+            pollingInterval: 100,
+            t: mockT,
+        }));
+
+        await act(async () => {
+            jest.advanceTimersByTime(150);
+            await Promise.resolve();
+        });
+
+        expect(callbacks.onProgress).toHaveBeenCalledWith(50, 'cancellationRequested');
+        expect(callbacks.onComplete).not.toHaveBeenCalled();
+        expect(callbacks.onFailed).not.toHaveBeenCalled();
+    });
+
+    it('stops polling only after cancellation is terminal', async () => {
+        const callbacks = createMockCallbacks();
+        (api.getJobStatus as jest.Mock).mockResolvedValue({
+            id: 'job-1',
+            status: 'cancelled',
+            progress: 50,
+            message: 'Cancelled by user',
+        });
+
+        renderHook(() => useJobPolling({
+            jobId: 'job-1',
+            callbacks,
+            pollingInterval: 100,
+            t: mockT,
+        }));
+
+        await act(async () => {
+            jest.advanceTimersByTime(150);
+            await Promise.resolve();
+        });
+
+        expect(callbacks.onFailed).toHaveBeenCalledWith('processingCancelled');
+    });
+
     it('should call onError when API throws', async () => {
         const callbacks = createMockCallbacks();
         (api.getJobStatus as jest.Mock).mockRejectedValue(new Error('Network error'));

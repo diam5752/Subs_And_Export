@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 import types
 import uuid
 from pathlib import Path
@@ -13,6 +14,14 @@ from backend.app.api.endpoints.settings import ProcessingSettings
 from backend.app.core import auth as backend_auth
 from backend.app.core import config
 from backend.app.core.database import Database
+from backend.app.core.workspace_deletion import (
+    JobWorkspaceLockTimeoutError,
+    lock_job_workspace,
+)
+from backend.app.core.workspace_ownership import (
+    get_workspace_owner,
+    record_workspace_ownership,
+)
 from backend.app.db.models import DbHistoryEvent, DbUser
 from backend.app.services import jobs
 from backend.app.services.history import HistoryStore
@@ -149,6 +158,41 @@ def test_run_video_processing_aborts_missing_job_without_recreating_user(
         assert session.scalar(select(DbHistoryEvent).where(DbHistoryEvent.user_id == user.id).limit(1)) is None
 
 
+def test_busy_workspace_worker_does_not_mutate_shared_job(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(config.settings, "data_dir", tmp_path)
+    monkeypatch.setattr(
+        processing_tasks,
+        "lock_job_workspace",
+        MagicMock(
+            side_effect=JobWorkspaceLockTimeoutError(
+                "Project is busy. Please retry shortly.",
+            ),
+        ),
+    )
+    pipeline = MagicMock()
+    cleanup = MagicMock()
+    job_store = MagicMock()
+    monkeypatch.setattr(processing_tasks, "process_video_pipeline", pipeline)
+    monkeypatch.setattr(processing_tasks, "record_and_delete_local_workspace", cleanup)
+
+    processing_tasks.run_video_processing(
+        "busy-job",
+        tmp_path / "uploads" / "busy-job_input.mp4",
+        tmp_path / "artifacts" / "busy-job" / "processed.mp4",
+        tmp_path / "artifacts" / "busy-job",
+        ProcessingSettings(),
+        job_store,
+    )
+
+    pipeline.assert_not_called()
+    cleanup.assert_not_called()
+    job_store.get_job.assert_not_called()
+    job_store.update_job_if_status.assert_not_called()
+
+
 def test_run_video_processing_cleans_up_if_job_disappears_mid_run(
     monkeypatch,
     tmp_path: Path,
@@ -242,6 +286,7 @@ def test_abort_deleted_job_refunds_when_local_cleanup_fails(
 
     processing_tasks.abort_deleted_job(
         job_id="deleted-job",
+        expected_user_id="deleted-user",
         ledger_store=ledger_store,
         charge_plan=charge_plan,
         error="Job was deleted",
@@ -345,7 +390,7 @@ def test_run_video_processing_observes_cancellation_during_pipeline(
         assert input_path.is_file()
         assert transcription_path.is_file()
 
-    journal.append.side_effect = record_before_delete
+    journal.append_job_terminal.side_effect = record_before_delete
     monkeypatch.setattr(
         processing_tasks,
         "configured_erasure_journal",
@@ -384,7 +429,7 @@ def test_run_video_processing_observes_cancellation_during_pipeline(
 
     job_store.update_job_if_status.assert_any_call(
         "cancelled-during-pipeline",
-        expected_statuses={"pending", "processing"},
+        expected_statuses={"cancelling"},
         status="cancelled",
         message="Cancelled by user",
     )
@@ -393,10 +438,10 @@ def test_run_video_processing_observes_cancellation_during_pipeline(
         status="cancelled",
         error="Job cancelled by user",
     )
-    journal.append.assert_called_once_with(
-        kind="workspace",
+    journal.append_job_terminal.assert_called_once_with(
         user_id="cancelled-user",
         job_ids=[job_id],
+        terminal_status="cancelled",
     )
     assert not input_path.exists()
     assert not artifact_dir.exists()
@@ -437,7 +482,7 @@ def test_run_video_processing_failure_erases_only_failed_workspace(
         assert input_path.is_file()
         assert transcription_path.is_file()
 
-    journal.append.side_effect = record_before_delete
+    journal.append_job_terminal.side_effect = record_before_delete
     monkeypatch.setattr(
         processing_tasks,
         "configured_erasure_journal",
@@ -465,15 +510,70 @@ def test_run_video_processing_failure_erases_only_failed_workspace(
         status="failed",
         message="provider failed",
     )
-    journal.append.assert_called_once_with(
-        kind="workspace",
+    journal.append_job_terminal.assert_called_once_with(
         user_id="failed-user",
         job_ids=[job_id],
+        terminal_status="failed",
     )
     assert not input_path.exists()
     assert not artifact_dir.exists()
     assert unrelated_upload.exists()
     assert unrelated_artifact.exists()
+
+
+def test_unexpected_interrupted_error_is_a_failure_not_user_cancellation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(config.settings, "data_dir", tmp_path)
+    active = types.SimpleNamespace(status="processing", user_id="interrupted-user")
+    job_store = MagicMock()
+    job_store.get_job.return_value = active
+    job_store.update_job_if_status.return_value = True
+    job_id = "unexpected-interrupt-job"
+    input_path = tmp_path / "uploads" / f"{job_id}_input.mp4"
+    artifact_dir = tmp_path / "artifacts" / job_id
+    output_path = artifact_dir / "processed.mp4"
+    input_path.parent.mkdir(parents=True)
+    artifact_dir.mkdir(parents=True)
+    input_path.write_bytes(b"private input")
+    output_path.write_bytes(b"partial output")
+    journal = MagicMock()
+    monkeypatch.setattr(
+        processing_tasks,
+        "configured_erasure_journal",
+        lambda: journal,
+    )
+    monkeypatch.setattr(
+        processing_tasks,
+        "process_video_pipeline",
+        MagicMock(side_effect=InterruptedError("provider stream interrupted")),
+    )
+
+    processing_tasks.run_video_processing(
+        job_id,
+        input_path,
+        output_path,
+        artifact_dir,
+        ProcessingSettings(),
+        job_store,
+        source_probe=types.SimpleNamespace(duration_s=1.0),
+    )
+
+    job_store.update_job_if_status.assert_any_call(
+        job_id,
+        expected_statuses={"pending", "processing"},
+        status="failed",
+        message="provider stream interrupted",
+    )
+    terminal_statuses = [
+        call.kwargs.get("status")
+        for call in job_store.update_job_if_status.call_args_list
+        if call.kwargs.get("status") in {"failed", "cancelled"}
+    ]
+    assert terminal_statuses == ["failed"]
+    assert not input_path.exists()
+    assert not artifact_dir.exists()
 
 
 @pytest.mark.parametrize(
@@ -506,7 +606,7 @@ def test_terminal_workspace_cleanup_fails_closed_when_journal_is_unavailable(
         MagicMock(side_effect=pipeline_error),
     )
     journal = MagicMock()
-    journal.append.side_effect = RuntimeError("journal unavailable")
+    journal.append_job_terminal.side_effect = RuntimeError("journal unavailable")
     monkeypatch.setattr(
         processing_tasks,
         "configured_erasure_journal",
@@ -523,10 +623,10 @@ def test_terminal_workspace_cleanup_fails_closed_when_journal_is_unavailable(
         source_probe=types.SimpleNamespace(duration_s=1.0),
     )
 
-    journal.append.assert_called_once_with(
-        kind="workspace",
+    journal.append_job_terminal.assert_called_once_with(
         user_id="private-user",
         job_ids=[job_id],
+        terminal_status="failed",
     )
     job_store.update_job_if_status.assert_any_call(
         job_id,
@@ -537,6 +637,166 @@ def test_terminal_workspace_cleanup_fails_closed_when_journal_is_unavailable(
     assert input_path.is_file()
     assert output_path.is_file()
     assert transcript_path.is_file()
+
+
+def test_cleanup_journal_failure_observes_concurrent_cancellation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """A stale processing snapshot must not fail/refund over a winning cancel."""
+    monkeypatch.setattr(config.settings, "data_dir", tmp_path)
+    db = Database()
+    user = backend_auth.UserStore(db=db).register_local_user(
+        f"cleanup-race-{uuid.uuid4().hex}@example.com",
+        "testpassword123",
+        "Cleanup Race",
+    )
+    job_store = jobs.JobStore(db)
+    job = job_store.create_job(f"cleanup-race-{uuid.uuid4().hex}", user.id)
+    input_path = tmp_path / "uploads" / f"{job.id}_input.mp4"
+    artifact_dir = tmp_path / "artifacts" / job.id
+    output_path = artifact_dir / "processed.mp4"
+    input_path.parent.mkdir(parents=True)
+    artifact_dir.mkdir(parents=True)
+    input_path.write_bytes(b"private input")
+    output_path.write_bytes(b"private output")
+
+    monkeypatch.setattr(
+        processing_tasks,
+        "process_video_pipeline",
+        MagicMock(side_effect=RuntimeError("provider failed")),
+    )
+    journal = MagicMock()
+
+    def cancel_then_fail(**_payload: object) -> None:
+        assert job_store.update_job_if_status(
+            job.id,
+            expected_statuses={"processing"},
+            status="cancelling",
+            message="Cancellation requested",
+        )
+        raise RuntimeError("journal unavailable")
+
+    journal.append_job_terminal.side_effect = cancel_then_fail
+    monkeypatch.setattr(
+        processing_tasks,
+        "configured_erasure_journal",
+        lambda: journal,
+    )
+    ledger_store = MagicMock()
+    charge_plan = ChargePlan(
+        transcription=types.SimpleNamespace(
+            user_id=user.id,
+            action="transcription",
+        ),
+        social_copy=None,
+    )
+
+    processing_tasks.run_video_processing(
+        job.id,
+        input_path,
+        output_path,
+        artifact_dir,
+        ProcessingSettings(),
+        job_store,
+        ledger_store=ledger_store,
+        charge_plan=charge_plan,
+        source_probe=types.SimpleNamespace(duration_s=1.0),
+    )
+
+    latest = job_store.get_job(job.id)
+    assert latest is not None and latest.status == "cancelling"
+    journal.append_job_terminal.assert_called_once_with(
+        user_id=user.id,
+        job_ids=[job.id],
+        terminal_status="failed",
+    )
+    ledger_store.refund_if_reserved.assert_called_once_with(
+        charge_plan.transcription,
+        status="cancelled",
+        error="provider failed",
+    )
+    assert input_path.is_file()
+    assert output_path.is_file()
+
+
+def test_failure_records_cancelled_precedence_when_cancel_wins_after_intent(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """A raced cancellation gets its own durable tombstone before terminal state."""
+    monkeypatch.setattr(config.settings, "data_dir", tmp_path)
+    db = Database()
+    user = backend_auth.UserStore(db=db).register_local_user(
+        f"terminal-race-{uuid.uuid4().hex}@example.com",
+        "testpassword123",
+        "Terminal Race",
+    )
+    job_store = jobs.JobStore(db)
+    job = job_store.create_job(f"terminal-race-{uuid.uuid4().hex}", user.id)
+    input_path = tmp_path / "uploads" / f"{job.id}_input.mp4"
+    artifact_dir = tmp_path / "artifacts" / job.id
+    output_path = artifact_dir / "processed.mp4"
+    input_path.parent.mkdir(parents=True)
+    artifact_dir.mkdir(parents=True)
+    input_path.write_bytes(b"private input")
+    output_path.write_bytes(b"private output")
+
+    monkeypatch.setattr(
+        processing_tasks,
+        "process_video_pipeline",
+        MagicMock(side_effect=RuntimeError("provider failed")),
+    )
+    journal = MagicMock()
+    recorded_statuses: list[str] = []
+
+    def record_and_race(*, terminal_status: str, **_payload: object) -> None:
+        recorded_statuses.append(terminal_status)
+        if terminal_status == "failed":
+            assert job_store.update_job_if_status(
+                job.id,
+                expected_statuses={"processing"},
+                status="cancelling",
+                message="Cancellation requested",
+            )
+
+    journal.append_job_terminal.side_effect = record_and_race
+    monkeypatch.setattr(
+        processing_tasks,
+        "configured_erasure_journal",
+        lambda: journal,
+    )
+    ledger_store = MagicMock()
+    charge_plan = ChargePlan(
+        transcription=types.SimpleNamespace(
+            user_id=user.id,
+            action="transcription",
+        ),
+        social_copy=None,
+    )
+
+    processing_tasks.run_video_processing(
+        job.id,
+        input_path,
+        output_path,
+        artifact_dir,
+        ProcessingSettings(),
+        job_store,
+        ledger_store=ledger_store,
+        charge_plan=charge_plan,
+        source_probe=types.SimpleNamespace(duration_s=1.0),
+    )
+
+    latest = job_store.get_job(job.id)
+    assert latest is not None and latest.status == "cancelled"
+    assert recorded_statuses == ["failed", "cancelled"]
+    ledger_store.refund_if_reserved.assert_called_once_with(
+        charge_plan.transcription,
+        status="cancelled",
+        error="provider failed",
+    )
+    assert not input_path.exists()
+    assert not artifact_dir.exists()
 
 
 def test_duplicate_paid_dispatch_does_not_fail_or_refund_winner(
@@ -638,4 +898,187 @@ def test_run_video_processing_refunds_if_job_disappears_after_completion_update(
         charge_plan.transcription,
         status="cancelled",
         error="Job was deleted",
+    )
+
+
+def test_cancelling_worker_holds_lifetime_lock_until_exact_cleanup(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(config.settings, "data_dir", tmp_path)
+    db = Database()
+    user = backend_auth.UserStore(db=db).register_local_user(
+        f"cancel-barrier-{uuid.uuid4().hex}@example.com",
+        "testpassword123",
+        "Cancel Barrier",
+    )
+    job_store = jobs.JobStore(db)
+    job = job_store.create_job(f"cancel-barrier-{uuid.uuid4().hex}", user.id)
+    uploads_dir = tmp_path / "uploads"
+    artifact_dir = tmp_path / "artifacts" / job.id
+    input_path = uploads_dir / f"{job.id}_input.mp4"
+    output_path = artifact_dir / "processed.mp4"
+    uploads_dir.mkdir(parents=True)
+    input_path.write_bytes(b"private input")
+    started = threading.Event()
+    release = threading.Event()
+    journal = MagicMock()
+    monkeypatch.setattr(
+        processing_tasks,
+        "configured_erasure_journal",
+        lambda: journal,
+    )
+
+    def paused_pipeline(*_args, **kwargs):
+        started.set()
+        assert release.wait(3)
+        artifact_dir.mkdir(parents=True, exist_ok=True)
+        output_path.write_bytes(b"late private output")
+        kwargs["check_cancelled"](force=True)
+        raise AssertionError("cancellation must interrupt the pipeline")
+
+    monkeypatch.setattr(processing_tasks, "process_video_pipeline", paused_pipeline)
+    worker = threading.Thread(
+        target=processing_tasks.run_video_processing,
+        args=(
+            job.id,
+            input_path,
+            output_path,
+            artifact_dir,
+            ProcessingSettings(),
+            job_store,
+        ),
+        kwargs={"source_probe": types.SimpleNamespace(duration_s=1.0)},
+    )
+    worker.start()
+    assert started.wait(3)
+    assert job_store.update_job_if_status(
+        job.id,
+        expected_statuses={"processing"},
+        status="cancelling",
+        message="Cancellation requested",
+    )
+    assert job_store.get_job(job.id).status == "cancelling"
+
+    with pytest.raises(JobWorkspaceLockTimeoutError):
+        with lock_job_workspace(
+            data_dir=tmp_path,
+            job_id=job.id,
+            timeout_seconds=0.1,
+        ):
+            raise AssertionError("eraser must not enter while worker can write")
+
+    release.set()
+    worker.join(timeout=5)
+    assert not worker.is_alive()
+    cancelled = job_store.get_job(job.id)
+    assert cancelled is not None and cancelled.status == "cancelled"
+    assert not input_path.exists()
+    assert not artifact_dir.exists()
+    journal.append_job_terminal.assert_called_once_with(
+        user_id=user.id,
+        job_ids=[job.id],
+        terminal_status="cancelled",
+    )
+
+
+def test_cancellation_journal_failure_stays_nonterminal_for_recovery(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(config.settings, "data_dir", tmp_path)
+    db = Database()
+    user = backend_auth.UserStore(db=db).register_local_user(
+        f"cancel-journal-{uuid.uuid4().hex}@example.com",
+        "testpassword123",
+        "Cancel Journal",
+    )
+    job_store = jobs.JobStore(db)
+    job = job_store.create_job(f"cancel-journal-{uuid.uuid4().hex}", user.id)
+    job_store.update_job(
+        job.id,
+        status="cancelling",
+        message="Cancellation requested",
+    )
+    input_path = tmp_path / "uploads" / f"{job.id}_input.mp4"
+    artifact_dir = tmp_path / "artifacts" / job.id
+    output_path = artifact_dir / "processed.mp4"
+    input_path.parent.mkdir(parents=True)
+    artifact_dir.mkdir(parents=True)
+    input_path.write_bytes(b"private input")
+    output_path.write_bytes(b"private output")
+    journal = MagicMock()
+    journal.append_job_terminal.side_effect = RuntimeError("journal unavailable")
+    monkeypatch.setattr(
+        processing_tasks,
+        "configured_erasure_journal",
+        lambda: journal,
+    )
+
+    processing_tasks.run_video_processing(
+        job.id,
+        input_path,
+        output_path,
+        artifact_dir,
+        ProcessingSettings(),
+        job_store,
+        source_probe=types.SimpleNamespace(duration_s=1.0),
+    )
+
+    stranded = job_store.get_job(job.id)
+    assert stranded is not None and stranded.status == "cancelling"
+    assert input_path.is_file()
+    assert output_path.is_file()
+
+
+def test_startup_reconciles_stranded_cancellation_before_health(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(config.settings, "data_dir", tmp_path)
+    db = Database()
+    user = backend_auth.UserStore(db=db).register_local_user(
+        f"cancel-recovery-{uuid.uuid4().hex}@example.com",
+        "testpassword123",
+        "Cancel Recovery",
+    )
+    job_store = jobs.JobStore(db)
+    job = job_store.create_job(f"cancel-recovery-{uuid.uuid4().hex}", user.id)
+    job_store.update_job(
+        job.id,
+        status="cancelling",
+        message="Cancellation requested",
+    )
+    input_path = tmp_path / "uploads" / f"{job.id}_input.mp4"
+    artifact_dir = tmp_path / "artifacts" / job.id
+    input_path.parent.mkdir(parents=True)
+    artifact_dir.mkdir(parents=True)
+    record_workspace_ownership(
+        data_dir=tmp_path,
+        job_id=job.id,
+        user_id=user.id,
+    )
+    input_path.write_bytes(b"private input")
+    (artifact_dir / "transcription.json").write_text("[]", encoding="utf-8")
+    journal = MagicMock()
+    monkeypatch.setattr(
+        processing_tasks,
+        "configured_erasure_journal",
+        lambda: journal,
+    )
+
+    # The suite intentionally exercises other crash-stranded cancellations in
+    # the shared PostgreSQL test database. Startup reconciliation must recover
+    # every one it finds, including this exact job.
+    assert processing_tasks.reconcile_stranded_cancellations(db) >= 1
+
+    recovered = job_store.get_job(job.id)
+    assert recovered is not None and recovered.status == "cancelled"
+    assert not input_path.exists()
+    assert not artifact_dir.exists()
+    assert get_workspace_owner(data_dir=tmp_path, job_id=job.id) is None
+    journal.append_job_terminal.assert_any_call(
+        user_id=user.id,
+        job_ids=[job.id],
+        terminal_status="cancelled",
     )

@@ -16,9 +16,11 @@ from pydantic import BaseModel, Field
 from ...core.auth import User
 from ...core.erasure_journal import (
     ErasureJournalError,
+    JobTerminalStatus,
     TombstoneKind,
     configured_erasure_journal,
 )
+from ...core.job_lifecycle import ACTIVE_JOB_STATUSES, CANCELLABLE_JOB_STATUSES
 from ...core.ratelimit import limiter_content
 from ...core.workspace_deletion import (
     JobWorkspaceLockTimeoutError,
@@ -37,9 +39,6 @@ from .processing_tasks import record_event_safe
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-ACTIVE_JOB_STATUSES = frozenset({"pending", "processing"})
-
-
 def _record_erasure_intent_or_503(
     *,
     kind: TombstoneKind,
@@ -57,6 +56,30 @@ def _record_erasure_intent_or_503(
         logger.error(
             "Refusing destructive media action because the erasure journal is unavailable",
             extra={"erasure_kind": kind, "job_count": len(job_ids)},
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="Privacy protection is temporarily unavailable. Please try again.",
+        ) from exc
+
+
+def _record_terminal_intent_or_503(
+    *,
+    user_id: str,
+    job_ids: list[str],
+    terminal_status: JobTerminalStatus,
+) -> None:
+    """Fail closed when restore cannot safely finish a terminal job."""
+    try:
+        configured_erasure_journal().append_job_terminal(
+            user_id=user_id,
+            job_ids=job_ids,
+            terminal_status=terminal_status,
+        )
+    except ErasureJournalError as exc:
+        logger.error(
+            "Refusing terminal media action because the erasure journal is unavailable",
+            extra={"terminal_status": terminal_status, "job_count": len(job_ids)},
         )
         raise HTTPException(
             status_code=503,
@@ -186,6 +209,7 @@ def batch_delete_jobs(
                     job_id=locked_job.id,
                     uploads_dir=uploads_dir,
                     artifacts_dir=artifacts_root,
+                    expected_user_id=locked_job.user_id,
                 )
 
             history_store.delete_job_events(deleted_ids)
@@ -343,6 +367,7 @@ def delete_job(
                 job_id=job_id,
                 uploads_dir=uploads_dir,
                 artifacts_dir=artifacts_root,
+                expected_user_id=locked_job.user_id,
             )
             history_store.delete_job_events([job_id])
             job_store.delete_job(job_id)
@@ -360,35 +385,45 @@ def cancel_job(
     job_store: JobStore = Depends(get_job_store),
     history_store: HistoryStore = Depends(get_history_store),
 ) -> JobResponse:
-    """Cancel a processing job."""
+    """Request cancellation; the worker publishes terminal state after cleanup."""
     job = job_store.get_job(job_id)
     if not job or job.user_id != current_user.id:
         raise HTTPException(404, "Job not found")
 
-    if job.status not in ("pending", "processing"):
+    if job.status not in CANCELLABLE_JOB_STATUSES:
         raise HTTPException(400, f"Cannot cancel job with status '{job.status}'")
 
-    # REGRESSION: persist the exact workspace erasure intent before the status
-    # transition. A crash after cancellation must not let a backup resurrect
-    # the upload or transcript before the worker observes the new status.
-    _record_erasure_intent_or_503(
-        kind="workspace",
-        user_id=current_user.id,
-        job_ids=[job_id],
-    )
     if not job_store.update_job_if_status(
         job_id,
-        expected_statuses={"pending", "processing"},
-        status="cancelled",
-        message="Cancelled by user",
+        expected_statuses=CANCELLABLE_JOB_STATUSES,
+        status="cancelling",
+        message="Cancellation requested",
     ):
         latest_job = job_store.get_job(job_id)
         if latest_job is None or latest_job.user_id != current_user.id:
             raise HTTPException(404, "Job not found")
         raise HTTPException(400, f"Cannot cancel job with status '{latest_job.status}'")
-    record_event_safe(history_store, current_user, "job_cancelled", f"Cancelled job {job_id}", {"job_id": job_id})
+
+    # Publish intent only after this request wins the active->cancelling CAS.
+    # Otherwise a losing cancellation could leave a tombstone that later
+    # erases a successfully completed project. The worker holds the workspace
+    # lock for its write-capable lifetime, so live replay cannot delete beneath
+    # it. If this append fails, cancelling remains fail-closed for startup
+    # recovery instead of exposing a premature terminal state.
+    _record_terminal_intent_or_503(
+        user_id=current_user.id,
+        job_ids=[job_id],
+        terminal_status="cancelled",
+    )
+    record_event_safe(
+        history_store,
+        current_user,
+        "job_cancellation_requested",
+        f"Cancellation requested for job {job_id}",
+        {"job_id": job_id},
+    )
 
     updated_job = job_store.get_job(job_id)
     if updated_job is None:
-        raise HTTPException(status_code=500, detail="Cancelled job could not be reloaded")
+        raise HTTPException(status_code=500, detail="Cancelling job could not be reloaded")
     return JobResponse.model_validate(ensure_job_integrity(updated_job))

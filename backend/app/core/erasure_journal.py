@@ -21,6 +21,8 @@ _ALLOWED_KINDS = frozenset({"workspace", "job", "account"})
 ProviderTombstoneKind = Literal["provider_transcript"]
 ProviderName = Literal["elevenlabs"]
 OrphanTombstoneKind = Literal["orphan_workspace"]
+JobTerminalTombstoneKind = Literal["job_terminal"]
+JobTerminalStatus = Literal["cancelled", "failed"]
 _IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$")
 _EVENT_ID = re.compile(r"^[0-9a-f]{32}$")
 _JOURNAL_FILENAME = "tombstones.jsonl"
@@ -74,10 +76,24 @@ class OrphanWorkspaceErasureTombstone:
     job_ids: list[str]
 
 
+@dataclass(frozen=True, slots=True)
+class JobTerminalErasureTombstone:
+    """Restore-safe intent to clean media and finish a processing job."""
+
+    schema_version: int
+    event_id: str
+    kind: JobTerminalTombstoneKind
+    created_at: int
+    user_id: str
+    job_ids: list[str]
+    terminal_status: JobTerminalStatus
+
+
 ErasureJournalEntry = (
     ErasureTombstone
     | ProviderTranscriptErasureTombstone
     | OrphanWorkspaceErasureTombstone
+    | JobTerminalErasureTombstone
 )
 
 
@@ -187,6 +203,28 @@ class ErasureJournal:
             kind="orphan_workspace",
             created_at=created_at,
             job_ids=sorted(set(job_ids)),
+        )
+        self._append_entry(tombstone)
+        return tombstone
+
+    def append_job_terminal(
+        self,
+        *,
+        user_id: str,
+        job_ids: list[str],
+        terminal_status: JobTerminalStatus,
+        now: int | None = None,
+    ) -> JobTerminalErasureTombstone:
+        """Persist cleanup plus terminal job state before removing media."""
+        created_at = int(time.time()) if now is None else now
+        tombstone = JobTerminalErasureTombstone(
+            schema_version=1,
+            event_id=uuid.uuid4().hex,
+            kind="job_terminal",
+            created_at=created_at,
+            user_id=user_id,
+            job_ids=sorted(set(job_ids)),
+            terminal_status=terminal_status,
         )
         self._append_entry(tombstone)
         return tombstone
@@ -979,6 +1017,26 @@ class ErasureJournal:
                 created_at=raw["created_at"],
                 job_ids=raw["job_ids"],
             )
+        elif raw.get("kind") == "job_terminal":
+            if set(raw) != {
+                "schema_version",
+                "event_id",
+                "kind",
+                "created_at",
+                "user_id",
+                "job_ids",
+                "terminal_status",
+            }:
+                raise ErasureJournalError("Erasure journal contains an invalid record schema")
+            entry = JobTerminalErasureTombstone(
+                schema_version=raw["schema_version"],
+                event_id=raw["event_id"],
+                kind=raw["kind"],
+                created_at=raw["created_at"],
+                user_id=raw["user_id"],
+                job_ids=raw["job_ids"],
+                terminal_status=raw["terminal_status"],
+            )
         else:
             if set(raw) != {
                 "schema_version",
@@ -1019,11 +1077,29 @@ class ErasureJournal:
         if isinstance(tombstone, OrphanWorkspaceErasureTombstone):
             if tombstone.kind != "orphan_workspace":
                 raise ErasureJournalError("Erasure journal orphan workspace event is invalid")
-            if not tombstone.job_ids or any(
+            if not isinstance(tombstone.job_ids, list) or not tombstone.job_ids or any(
                 not isinstance(job_id, str) or not _IDENTIFIER.fullmatch(job_id)
                 for job_id in tombstone.job_ids
             ):
                 raise ErasureJournalError("Erasure journal orphan workspace identifiers are invalid")
+            if tombstone.job_ids != sorted(set(tombstone.job_ids)):
+                raise ErasureJournalError("Erasure journal job identifiers are not canonical")
+            return
+        if isinstance(tombstone, JobTerminalErasureTombstone):
+            if (
+                tombstone.kind != "job_terminal"
+                or tombstone.terminal_status not in {"cancelled", "failed"}
+            ):
+                raise ErasureJournalError("Erasure journal terminal job event is invalid")
+            if not isinstance(tombstone.user_id, str) or not _IDENTIFIER.fullmatch(
+                tombstone.user_id,
+            ):
+                raise ErasureJournalError("Erasure journal account identifier is invalid")
+            if not isinstance(tombstone.job_ids, list) or not tombstone.job_ids or any(
+                not isinstance(job_id, str) or not _IDENTIFIER.fullmatch(job_id)
+                for job_id in tombstone.job_ids
+            ):
+                raise ErasureJournalError("Erasure journal terminal job identifiers are invalid")
             if tombstone.job_ids != sorted(set(tombstone.job_ids)):
                 raise ErasureJournalError("Erasure journal job identifiers are not canonical")
             return

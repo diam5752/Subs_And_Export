@@ -7,9 +7,11 @@ from sqlalchemy.engine import CursorResult
 
 from backend.app.core.config import settings
 from backend.app.core.database import Database
+from backend.app.core.job_lifecycle import (
+    ACTIVE_JOB_STATUSES,
+    TERMINAL_JOB_STATUSES,
+)
 from backend.app.db.models import DbJob
-
-TERMINAL_JOB_STATUSES = frozenset({"completed", "failed", "cancelled"})
 
 
 @dataclass(slots=True)
@@ -212,12 +214,12 @@ class JobStore:
             return int(count or 0)
 
     def count_active_jobs_for_user(self, user_id: str) -> int:
-        """Count active (pending or processing) jobs for a user."""
+        """Count jobs that can still have a live or unwinding worker."""
         with self.db.session() as session:
             count = session.scalar(
                 select(func.count())
                 .select_from(DbJob)
-                .where(DbJob.user_id == user_id, DbJob.status.in_(["pending", "processing"]))
+                .where(DbJob.user_id == user_id, DbJob.status.in_(ACTIVE_JOB_STATUSES))
             )
             return int(count or 0)
 
@@ -293,6 +295,35 @@ class JobStore:
                 DbJob.status.in_(statuses),
             )
             rows = list(session.scalars(stmt).all())
+        return [
+            Job(
+                id=row.id,
+                user_id=row.user_id,
+                status=row.status,
+                progress=row.progress,
+                message=row.message,
+                created_at=row.created_at,
+                updated_at=row.updated_at,
+                result_data=row.result_data,
+            )
+            for row in rows
+        ]
+
+    def list_jobs_with_statuses(
+        self,
+        statuses: set[str] | frozenset[str],
+    ) -> list[Job]:
+        """List all jobs in selected lifecycle states deterministically."""
+        if not statuses:
+            return []
+        with self.db.session() as session:
+            rows = list(
+                session.scalars(
+                    select(DbJob)
+                    .where(DbJob.status.in_(statuses))
+                    .order_by(DbJob.created_at.asc(), DbJob.id.asc()),
+                ).all(),
+            )
         return [
             Job(
                 id=row.id,

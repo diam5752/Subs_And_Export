@@ -32,7 +32,12 @@ from ...services.social_intelligence import (
     build_social_copy_llm,
 )
 from ...services.usage_ledger import UsageLedgerStore
-from ..deps import get_current_user, get_db, get_job_store, get_usage_ledger_store
+from ..deps import (
+    get_current_user_with_locked_media_job,
+    get_db,
+    get_job_store,
+    get_usage_ledger_store,
+)
 from .file_utils import data_roots
 
 logger = logging.getLogger(__name__)
@@ -69,7 +74,7 @@ def _social_copy_schema(content: SocialContent) -> SocialCopySchema:
 @router.post("/jobs/{job_id}/fact-check", response_model=FactCheckResponse, dependencies=[Depends(limiter_content)])
 def fact_check_video(
     job_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_with_locked_media_job),
     job_store: JobStore = Depends(get_job_store),
     ledger_store: UsageLedgerStore = Depends(get_usage_ledger_store),
     db: Database = Depends(get_db),
@@ -158,7 +163,7 @@ def fact_check_video(
 @router.post("/jobs/{job_id}/social-copy", response_model=SocialCopyResponse, dependencies=[Depends(limiter_content)])
 def generate_social_copy_video(
     job_id: str,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_with_locked_media_job),
     job_store: JobStore = Depends(get_job_store),
     ledger_store: UsageLedgerStore = Depends(get_usage_ledger_store),
     db: Database = Depends(get_db),

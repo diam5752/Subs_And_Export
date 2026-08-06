@@ -1098,6 +1098,7 @@ def test_backup_verifier_authenticates_and_validates_every_archive() -> None:
     verifier = deployment_text("verify-backup.sh")
 
     assert "sha256sums_sha256=" in backup_script
+    assert "cd /data && tar -czf - ." in backup_script
     assert "INDEPENDENT_BACKUP_DIRECTORY" in verifier
     assert "Independent backup copy must be mounted on a different filesystem device" in verifier
     assert "Independent backup copy differs from server file" in verifier

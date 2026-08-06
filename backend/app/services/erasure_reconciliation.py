@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
@@ -12,10 +13,14 @@ from backend.app.core.auth import UserStore
 from backend.app.core.database import Database
 from backend.app.core.erasure_journal import (
     ErasureJournal,
+    ErasureJournalEntry,
     ErasureTombstone,
+    JobTerminalErasureTombstone,
+    JobTerminalStatus,
     OrphanWorkspaceErasureTombstone,
     ProviderTranscriptErasureTombstone,
 )
+from backend.app.core.job_lifecycle import ACTIVE_JOB_STATUSES
 from backend.app.core.workspace_deletion import (
     delete_job_workspace,
     lock_job_workspace,
@@ -28,6 +33,7 @@ from backend.app.services.account_erasure import (
 )
 from backend.app.services.billing import BillingService
 from backend.app.services.points import PointsStore
+from backend.app.services.usage_ledger import UsageLedgerStore
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,6 +41,7 @@ class ErasureReconciliationReport:
     replayed_events: int
     workspace_events: int
     job_events: int
+    job_terminal_events: int
     account_events: int
     orphan_workspace_events: int
     provider_transcript_events: int
@@ -58,9 +65,12 @@ def reconcile_erasure_journal(
     user_store = UserStore(db=db)
     workspace_events = 0
     job_events = 0
+    job_terminal_events = 0
     account_events = 0
     orphan_workspace_events = 0
     provider_transcript_events = 0
+    resolved_terminal_intents = _resolve_job_terminal_intents(entries)
+    replayed_terminal_jobs: set[tuple[str, str]] = set()
 
     for entry in entries:
         if isinstance(entry, ProviderTranscriptErasureTombstone):
@@ -75,6 +85,20 @@ def reconcile_erasure_journal(
                 tombstone=entry,
             )
             orphan_workspace_events += 1
+        elif isinstance(entry, JobTerminalErasureTombstone):
+            for job_id in entry.job_ids:
+                intent_key = (entry.user_id, job_id)
+                if intent_key in replayed_terminal_jobs:
+                    continue
+                _replay_job_terminal_erasure(
+                    db=db,
+                    data_dir=data_dir,
+                    user_id=entry.user_id,
+                    job_id=job_id,
+                    terminal_status=resolved_terminal_intents[intent_key],
+                )
+                replayed_terminal_jobs.add(intent_key)
+            job_terminal_events += 1
         elif entry.kind == "workspace":
             _replay_workspace_erasure(
                 db=db,
@@ -109,11 +133,101 @@ def reconcile_erasure_journal(
         replayed_events=len(entries),
         workspace_events=workspace_events,
         job_events=job_events,
+        job_terminal_events=job_terminal_events,
         account_events=account_events,
         orphan_workspace_events=orphan_workspace_events,
         provider_transcript_events=provider_transcript_events,
         pruned_events=pruned_events,
     )
+
+
+def _resolve_job_terminal_intents(
+    entries: list[ErasureJournalEntry],
+) -> dict[tuple[str, str], JobTerminalStatus]:
+    """Resolve duplicate/racing intents once, with user cancellation winning."""
+    resolved: dict[tuple[str, str], JobTerminalStatus] = {}
+    owner_by_job_id: dict[str, str] = {}
+    for entry in entries:
+        if not isinstance(entry, JobTerminalErasureTombstone):
+            continue
+        for job_id in entry.job_ids:
+            prior_owner = owner_by_job_id.setdefault(job_id, entry.user_id)
+            if prior_owner != entry.user_id:
+                raise ErasureReplayConflictError(
+                    "Terminal erasure intents conflict on project ownership",
+                )
+            key = (entry.user_id, job_id)
+            prior_status = resolved.get(key)
+            if prior_status is None or entry.terminal_status == "cancelled":
+                resolved[key] = entry.terminal_status
+    return resolved
+
+
+def _replay_job_terminal_erasure(
+    *,
+    db: Database,
+    data_dir: Path,
+    user_id: str,
+    job_id: str,
+    terminal_status: JobTerminalStatus,
+) -> None:
+    """Restore media cleanup, credit compensation and non-active DB state."""
+    uploads_dir = data_dir / "uploads"
+    artifacts_dir = data_dir / "artifacts"
+    ledger_store = UsageLedgerStore(
+        db=db,
+        points_store=PointsStore(db=db),
+    )
+    with lock_job_workspace(data_dir=data_dir, job_id=job_id):
+        with db.session() as session:
+            restored_job = session.scalar(
+                select(DbJob).where(DbJob.id == job_id).with_for_update(),
+            )
+            if restored_job is not None and restored_job.user_id != user_id:
+                raise ErasureReplayConflictError(
+                    "Restored project ownership conflicts with terminal erasure intent",
+                )
+            if restored_job is not None and restored_job.status == "completed":
+                raise ErasureReplayConflictError(
+                    "Restored completed project conflicts with terminal erasure intent",
+                )
+            if restored_job is not None and restored_job.status not in (
+                ACTIVE_JOB_STATUSES | {"failed", "cancelled"}
+            ):
+                raise ErasureReplayConflictError(
+                    "Restored project has an unsupported terminal state",
+                )
+
+            delete_job_workspace(
+                job_id=job_id,
+                uploads_dir=uploads_dir,
+                artifacts_dir=artifacts_dir,
+                expected_user_id=user_id,
+            )
+
+            effective_status: JobTerminalStatus = terminal_status
+            if restored_job is not None and restored_job.status in {
+                "cancelling",
+                "cancelled",
+            }:
+                effective_status = "cancelled"
+            ledger_store.fail_job_reservations(
+                job_id,
+                error=(
+                    "Cancellation recovered from restore-safe erasure intent"
+                    if effective_status == "cancelled"
+                    else "Processing failure recovered from restore-safe erasure intent"
+                ),
+                status=effective_status,
+            )
+            if restored_job is not None:
+                restored_job.status = effective_status
+                restored_job.message = (
+                    "Cancelled by user"
+                    if effective_status == "cancelled"
+                    else "Processing failed before restore"
+                )
+                restored_job.updated_at = int(time.time())
 
 
 def _replay_provider_transcript_erasure(
@@ -176,6 +290,7 @@ def _replay_workspace_erasure(
                     job_id=job_id,
                     uploads_dir=uploads_dir,
                     artifacts_dir=artifacts_dir,
+                    expected_user_id=tombstone.user_id,
                 )
 
             if not delete_database_jobs:

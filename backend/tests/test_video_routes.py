@@ -386,7 +386,7 @@ def test_delete_active_job_is_blocked_and_preserves_workspace(
             lambda: (tmp_path, uploads_root, artifacts_root),
         )
 
-        for active_status in ("pending", "processing"):
+        for active_status in ("pending", "processing", "cancelling"):
             status["value"] = active_status
             job_id = f"active-{active_status}"
             input_file = uploads_root / f"{job_id}_input.mp4"
@@ -465,7 +465,7 @@ def test_delete_job_fails_closed_when_erasure_journal_is_unavailable(
     assert store.get_job(job_id) is not None
 
 
-def test_cancel_job_journals_exact_workspace_before_status_transition(
+def test_cancel_job_journals_exact_workspace_after_nonterminal_transition(
     client: TestClient,
     user_auth_headers: dict[str, str],
     monkeypatch,
@@ -483,10 +483,10 @@ def test_cancel_job_journals_exact_workspace_before_status_transition(
     recorded: list[dict[str, object]] = []
 
     class RecordingJournal:
-        def append(self, **payload: object) -> None:
+        def append_job_terminal(self, **payload: object) -> None:
             current = store.get_job(job_id)
             assert current is not None
-            assert current.status == "pending"
+            assert current.status == "cancelling"
             recorded.append(payload)
 
     monkeypatch.setattr(
@@ -503,14 +503,14 @@ def test_cancel_job_journals_exact_workspace_before_status_transition(
     assert response.status_code == 200
     assert recorded == [
         {
-            "kind": "workspace",
             "user_id": user_id,
             "job_ids": [job_id],
+            "terminal_status": "cancelled",
         }
     ]
     updated = store.get_job(job_id)
     assert updated is not None
-    assert updated.status == "cancelled"
+    assert updated.status == "cancelling"
 
 
 def test_cancel_job_does_not_overwrite_a_concurrent_completion(
@@ -546,7 +546,11 @@ def test_cancel_job_does_not_overwrite_a_concurrent_completion(
     monkeypatch.setattr(
         job_routes,
         "configured_erasure_journal",
-        lambda: type("Journal", (), {"append": lambda self, **_payload: None})(),
+        lambda: type(
+            "Journal",
+            (),
+            {"append_job_terminal": lambda self, **_payload: None},
+        )(),
     )
     app.dependency_overrides[deps.get_job_store] = lambda: store
 
@@ -565,7 +569,7 @@ def test_cancel_job_does_not_overwrite_a_concurrent_completion(
     assert completed.status == "completed"
 
 
-def test_cancel_job_fails_closed_before_status_transition_when_journal_is_unavailable(
+def test_cancel_job_leaves_nonterminal_state_when_journal_is_unavailable(
     client: TestClient,
     user_auth_headers: dict[str, str],
     monkeypatch,
@@ -583,7 +587,7 @@ def test_cancel_job_fails_closed_before_status_transition_when_journal_is_unavai
     store.create_job(job_id, user_id)
 
     class BrokenJournal:
-        def append(self, **_payload: object) -> None:
+        def append_job_terminal(self, **_payload: object) -> None:
             raise ErasureJournalError("secret storage failure")
 
     monkeypatch.setattr(
@@ -599,9 +603,9 @@ def test_cancel_job_fails_closed_before_status_transition_when_journal_is_unavai
 
     assert response.status_code == 503
     assert response.json() == {"detail": "Privacy protection is temporarily unavailable. Please try again."}
-    unchanged = store.get_job(job_id)
-    assert unchanged is not None
-    assert unchanged.status == "pending"
+    deferred = store.get_job(job_id)
+    assert deferred is not None
+    assert deferred.status == "cancelling"
 
 
 def test_list_jobs_paginated(client: TestClient, user_auth_headers: dict, monkeypatch):

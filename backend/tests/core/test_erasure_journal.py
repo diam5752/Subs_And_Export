@@ -12,6 +12,8 @@ from backend.app.core import erasure_journal as journal_module
 from backend.app.core.erasure_journal import (
     ErasureJournal,
     ErasureJournalError,
+    ErasureTombstone,
+    JobTerminalErasureTombstone,
 )
 
 
@@ -168,7 +170,14 @@ def test_journal_recovers_fsynced_append_from_pending_checkpoint(
     monkeypatch.setattr(journal, "_write_checkpoint_unlocked", write_checkpoint)
     recovered = journal.read_all()
     assert recovered[0] == first
-    assert [entry.job_ids for entry in recovered] == [["job-1"], ["job-2"]]
+    assert len(recovered) == 2
+    for entry, expected_job_ids in zip(
+        recovered,
+        [["job-1"], ["job-2"]],
+        strict=True,
+    ):
+        assert isinstance(entry, ErasureTombstone)
+        assert entry.job_ids == expected_job_ids
     assert not journal.pending_path.exists()
 
 
@@ -204,7 +213,9 @@ def test_journal_recovers_checkpoint_before_external_anchor_update(
 
     monkeypatch.setattr(journal, "_write_anchor_unlocked", write_anchor)
     recovered = journal.read_all()
-    assert [entry.job_ids for entry in recovered] == [["job-1"]]
+    assert len(recovered) == 1
+    assert isinstance(recovered[0], ErasureTombstone)
+    assert recovered[0].job_ids == ["job-1"]
     assert journal.checkpoint_path.read_bytes() == anchor_path.read_bytes()
     assert not journal.pending_path.exists()
 
@@ -326,6 +337,78 @@ def test_orphan_workspace_tombstone_contains_only_exact_job_ids(
         "job_ids",
     }
     assert "user_id" not in raw
+
+
+def test_job_terminal_tombstone_roundtrips_canonical_restore_intent(
+    tmp_path: Path,
+) -> None:
+    journal = ErasureJournal(tmp_path / "journal", retention_days=30)
+
+    appended = journal.append_job_terminal(
+        user_id="user-1",
+        job_ids=["job-b", "job-a", "job-a"],
+        terminal_status="cancelled",
+        now=1_800_000_000,
+    )
+
+    assert isinstance(appended, JobTerminalErasureTombstone)
+    assert appended.job_ids == ["job-a", "job-b"]
+    assert journal.read_all() == [appended]
+    raw = json.loads(journal.journal_path.read_text(encoding="utf-8"))
+    assert set(raw) == {
+        "schema_version",
+        "event_id",
+        "kind",
+        "created_at",
+        "user_id",
+        "job_ids",
+        "terminal_status",
+    }
+    assert raw["kind"] == "job_terminal"
+    assert raw["terminal_status"] == "cancelled"
+
+
+@pytest.mark.parametrize(
+    ("mutation", "error"),
+    [
+        ({"terminal_status": "completed"}, "terminal job event"),
+        ({"job_ids": []}, "terminal job identifiers"),
+        ({"job_ids": ["job-b", "job-a"]}, "not canonical"),
+    ],
+)
+def test_job_terminal_decode_rejects_invalid_restore_intent(
+    mutation: dict[str, object],
+    error: str,
+) -> None:
+    raw: dict[str, object] = {
+        "schema_version": 1,
+        "event_id": "a" * 32,
+        "kind": "job_terminal",
+        "created_at": 1_800_000_000,
+        "user_id": "user-1",
+        "job_ids": ["job-a"],
+        "terminal_status": "cancelled",
+    }
+    raw.update(mutation)
+
+    with pytest.raises(ErasureJournalError, match=error):
+        ErasureJournal._decode(
+            json.dumps(raw, separators=(",", ":"), sort_keys=True).encode() + b"\n",
+        )
+
+
+def test_job_terminal_decode_rejects_incomplete_schema() -> None:
+    raw = {
+        "schema_version": 1,
+        "event_id": "a" * 32,
+        "kind": "job_terminal",
+        "created_at": 1_800_000_000,
+        "user_id": "user-1",
+        "job_ids": ["job-a"],
+    }
+
+    with pytest.raises(ErasureJournalError, match="invalid record schema"):
+        ErasureJournal._decode(json.dumps(raw).encode() + b"\n")
 
 
 def test_journal_rejects_malformed_incomplete_and_oversized_records(

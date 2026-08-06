@@ -4,8 +4,15 @@ from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 
 from ..core.auth import SessionStore, User, UserStore
+from ..core.config import settings
 from ..core.database import Database
 from ..core.oauth_state import OAuthStateStore
+from ..core.workspace_deletion import (
+    AccountLifecycleLockTimeoutError,
+    JobWorkspaceLockTimeoutError,
+    lock_account_lifecycle,
+    lock_job_workspace,
+)
 from ..services.billing import BillingService
 from ..services.billing_consumer_records import BillingConsumerRecordStore
 from ..services.history import HistoryStore
@@ -76,3 +83,56 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
     return user
+
+
+def get_current_user_with_media_lifecycle(
+    current_user: User = Depends(get_current_user),
+    db: Database = Depends(get_db),
+) -> Generator[User, None, None]:
+    """Hold the shared account barrier for one media-creation request.
+
+    Authentication can complete immediately before a concurrent account
+    erasure. Reloading the user only after acquiring the barrier prevents that
+    stale request from creating an upload or reprocess workspace after erasure
+    has already returned success.
+    """
+    try:
+        with lock_account_lifecycle(
+            data_dir=settings.data_dir,
+            user_id=current_user.id,
+            shared=True,
+        ):
+            if UserStore(db=db).get_user_by_id(current_user.id) is None:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Could not validate credentials",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+            yield current_user
+    except AccountLifecycleLockTimeoutError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
+
+
+def get_current_user_with_locked_media_job(
+    job_id: str,
+    current_user: User = Depends(get_current_user_with_media_lifecycle),
+) -> Generator[User, None, None]:
+    """Hold account-then-job barriers for transcript-derived work.
+
+    The nested dependency makes account erasure wait for the complete request,
+    while the per-job lock makes individual project deletion wait as well.
+    """
+    try:
+        with lock_job_workspace(
+            data_dir=settings.data_dir,
+            job_id=job_id,
+        ):
+            yield current_user
+    except JobWorkspaceLockTimeoutError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc

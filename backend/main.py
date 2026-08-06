@@ -1,4 +1,5 @@
 import asyncio
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
 
 from backend.app.core.errors import register_exception_handlers
@@ -30,12 +31,16 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from backend.app.api.endpoints import auth, billing, billing_admin, history, videos
 from backend.app.api.endpoints.file_utils import sanitize_download_filename
+from backend.app.api.endpoints.processing_tasks import (
+    reconcile_stranded_cancellations,
+)
 from backend.app.core.auth import SessionStore, User
 from backend.app.core.cleanup import retention_worker
 from backend.app.core.config import settings
 from backend.app.core.database import Database
 from backend.app.core.erasure_journal import configured_erasure_journal
 from backend.app.core.ratelimit import get_client_ip, limiter_static
+from backend.app.core.workspace_deletion import reclaim_abandoned_lifecycle_locks
 from backend.app.services.consumer_contracts import (
     assert_consumer_contract_registry_approved,
 )
@@ -70,18 +75,32 @@ def assert_runtime_privacy_configuration() -> None:
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Startup
     assert_runtime_billing_configuration()
     assert_runtime_privacy_configuration()
     app.state.db = Database()
     retention_task: asyncio.Task[None] | None = None
-    if settings.retention_cleanup_enabled:
-        retention_task = asyncio.create_task(
-            retention_worker(app.state.db),
-            name="workspace-retention",
-        )
     try:
+        reclaimed_locks = reclaim_abandoned_lifecycle_locks(
+            data_dir=settings.data_dir,
+        )
+        if reclaimed_locks:
+            logger.warning(
+                "Reclaimed abandoned media lifecycle locks before startup",
+                extra={"reclaimed_locks": reclaimed_locks},
+            )
+        reconciled_cancellations = reconcile_stranded_cancellations(app.state.db)
+        if reconciled_cancellations:
+            logger.warning(
+                "Recovered stranded media cancellations before startup",
+                extra={"reconciled_cancellations": reconciled_cancellations},
+            )
+        if settings.retention_cleanup_enabled:
+            retention_task = asyncio.create_task(
+                retention_worker(app.state.db),
+                name="workspace-retention",
+            )
         yield
     finally:
         if retention_task is not None:
