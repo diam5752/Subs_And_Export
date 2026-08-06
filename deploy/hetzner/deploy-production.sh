@@ -505,7 +505,12 @@ prepare_erasure_anchor_directory() {
         return 1
       fi
     fi
-    if ! install -d -m 700 -o 10001 -g 10001 "$ERASURE_ANCHOR_DIR"; then
+    # Some install implementations resolve -o/-g through the host account
+    # database. The container UID/GID intentionally need not exist there, so
+    # create the private directory first and apply numeric ownership with
+    # chown.
+    if ! install -d -m 700 "$ERASURE_ANCHOR_DIR" ||
+      ! chown 10001:10001 "$ERASURE_ANCHOR_DIR"; then
       echo "Could not create the private erasure-journal anchor directory." >&2
       return 1
     fi
