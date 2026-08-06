@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import errno
+import os
 import stat
 from pathlib import Path
 
@@ -7,12 +9,83 @@ import pytest
 
 from backend.app.core.workspace_ownership import (
     WorkspaceOwnershipConflictError,
+    WorkspaceOwnershipError,
     get_workspace_owner,
     list_owned_workspace_ids,
     list_workspace_ownership_markers,
     record_workspace_ownership,
     remove_workspace_ownership_after_verified_cleanup,
 )
+
+
+def test_first_registry_write_fsyncs_parent_before_registry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # REGRESSION: a crash could retain media while losing the first registry link.
+    parent_identity = (tmp_path.stat().st_dev, tmp_path.stat().st_ino)
+    fsync_identities: list[tuple[int, int]] = []
+    real_fsync = os.fsync
+
+    def tracking_fsync(fd: int) -> None:
+        descriptor_stat = os.fstat(fd)
+        fsync_identities.append((descriptor_stat.st_dev, descriptor_stat.st_ino))
+        real_fsync(fd)
+
+    monkeypatch.setattr(os, "fsync", tracking_fsync)
+
+    record_workspace_ownership(
+        data_dir=tmp_path,
+        job_id="job-1",
+        user_id="user-1",
+    )
+    record_workspace_ownership(
+        data_dir=tmp_path,
+        job_id="job-1",
+        user_id="user-1",
+    )
+
+    registry = tmp_path / ".workspace-ownership"
+    registry_identity = (registry.stat().st_dev, registry.stat().st_ino)
+    assert fsync_identities.count(parent_identity) == 2
+    assert registry_identity in fsync_identities
+    assert fsync_identities.index(parent_identity) < fsync_identities.index(
+        registry_identity,
+    )
+
+
+def test_parent_fsync_failure_prevents_media_write(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # REGRESSION: ownership durability must fail closed before any caller media.
+    parent_identity = (tmp_path.stat().st_dev, tmp_path.stat().st_ino)
+    real_fsync = os.fsync
+
+    def fail_parent_fsync(fd: int) -> None:
+        descriptor_stat = os.fstat(fd)
+        identity = (descriptor_stat.st_dev, descriptor_stat.st_ino)
+        if identity == parent_identity:
+            raise OSError(errno.EIO, "simulated parent directory fsync failure")
+        real_fsync(fd)
+
+    monkeypatch.setattr(os, "fsync", fail_parent_fsync)
+    media_path = tmp_path / "job-1" / "source.mp4"
+
+    def write_media_after_marker() -> None:
+        record_workspace_ownership(
+            data_dir=tmp_path,
+            job_id="job-1",
+            user_id="user-1",
+        )
+        media_path.parent.mkdir(parents=True)
+        media_path.write_bytes(b"media")
+
+    with pytest.raises(WorkspaceOwnershipError, match="registry is unavailable"):
+        write_media_after_marker()
+
+    assert not media_path.exists()
+    assert not list((tmp_path / ".workspace-ownership").glob("*.json"))
 
 
 def test_workspace_ownership_marker_is_private_canonical_and_idempotent(

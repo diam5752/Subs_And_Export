@@ -248,6 +248,7 @@ def _locked_registry(
         return
 
     directory_fd: int | None = None
+    parent_fd: int | None = None
     lock_fd: int | None = None
     locked = False
     try:
@@ -261,6 +262,19 @@ def _locked_registry(
                 "Workspace ownership registry is invalid",
             )
         os.fchmod(directory_fd, 0o700)
+        if create:
+            parent_fd = os.open(
+                root.parent,
+                os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC | os.O_NOFOLLOW,
+            )
+            parent_stat = os.fstat(parent_fd)
+            if not stat.S_ISDIR(parent_stat.st_mode):
+                raise WorkspaceOwnershipError(
+                    "Workspace ownership registry parent is invalid",
+                )
+            os.fsync(parent_fd)
+            os.close(parent_fd)
+            parent_fd = None
         lock_fd = os.open(
             _REGISTRY_LOCK,
             os.O_RDWR | os.O_CREAT | os.O_CLOEXEC | os.O_NOFOLLOW,
@@ -288,6 +302,8 @@ def _locked_registry(
             fcntl.flock(lock_fd, fcntl.LOCK_UN)
         if lock_fd is not None:
             os.close(lock_fd)
+        if parent_fd is not None:
+            os.close(parent_fd)
         if directory_fd is not None:
             os.close(directory_fd)
 
