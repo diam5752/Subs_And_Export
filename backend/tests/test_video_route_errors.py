@@ -23,8 +23,8 @@ def test_cancel_job_success(client: TestClient, user_auth_headers: dict, monkeyp
                     )
                 return None
 
-            def update_job(self, job_id, **kwargs):
-                pass
+            def update_job_if_status(self, job_id, **kwargs):
+                return True
 
             def count_active_jobs_for_user(self, user_id):
                 return 0

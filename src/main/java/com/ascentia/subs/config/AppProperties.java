@@ -39,14 +39,6 @@ public class AppProperties {
     private Map<String, Integer> creditsMinTranscribe = Map.of("standard", 25, "pro", 50);
     private Map<String, Integer> creditsMinSocialCopy = Map.of("standard", 10, "pro", 20);
     private Map<String, Integer> creditsMinFactCheck = Map.of("standard", 20, "pro", 40);
-    private String gcsBucket = "";
-    private String gcsUploadsPrefix = "uploads";
-    private String gcsStaticPrefix = "static";
-    private int gcsUploadUrlTtlSeconds = 3600;
-    private int gcsDownloadUrlTtlSeconds = 600;
-    private boolean gcsKeepUploads = true;
-    private String gcsSignerEmail = "";
-    private String adminEmails = "";
 
     public String env() {
         return env;
@@ -336,67 +328,4 @@ public class AppProperties {
         this.creditsMinFactCheck = creditsMinFactCheck;
     }
 
-    public String getGcsBucket() {
-        return gcsBucket;
-    }
-
-    public void setGcsBucket(String gcsBucket) {
-        this.gcsBucket = gcsBucket;
-    }
-
-    public String getGcsUploadsPrefix() {
-        return gcsUploadsPrefix;
-    }
-
-    public void setGcsUploadsPrefix(String gcsUploadsPrefix) {
-        this.gcsUploadsPrefix = gcsUploadsPrefix;
-    }
-
-    public String getGcsStaticPrefix() {
-        return gcsStaticPrefix;
-    }
-
-    public void setGcsStaticPrefix(String gcsStaticPrefix) {
-        this.gcsStaticPrefix = gcsStaticPrefix;
-    }
-
-    public int getGcsUploadUrlTtlSeconds() {
-        return gcsUploadUrlTtlSeconds;
-    }
-
-    public void setGcsUploadUrlTtlSeconds(int gcsUploadUrlTtlSeconds) {
-        this.gcsUploadUrlTtlSeconds = gcsUploadUrlTtlSeconds;
-    }
-
-    public int getGcsDownloadUrlTtlSeconds() {
-        return gcsDownloadUrlTtlSeconds;
-    }
-
-    public void setGcsDownloadUrlTtlSeconds(int gcsDownloadUrlTtlSeconds) {
-        this.gcsDownloadUrlTtlSeconds = gcsDownloadUrlTtlSeconds;
-    }
-
-    public boolean isGcsKeepUploads() {
-        return gcsKeepUploads;
-    }
-
-    public void setGcsKeepUploads(boolean gcsKeepUploads) {
-        this.gcsKeepUploads = gcsKeepUploads;
-    }
-
-    public String getGcsSignerEmail() {
-        return gcsSignerEmail;
-    }
-
-    public void setGcsSignerEmail(String gcsSignerEmail) {
-        this.gcsSignerEmail = gcsSignerEmail;
-    }
-
-    public String getAdminEmails() {
-        return adminEmails;
-    }
-
-    public void setAdminEmails(String adminEmails) {
-        this.adminEmails = adminEmails;
-    }
 }

@@ -1,4 +1,4 @@
-export type AppEnv = 'dev' | 'production';
+type AppEnv = 'dev' | 'production';
 
 const DEV_ALIASES = new Set(['dev', 'development', 'local', 'localhost']);
 const PROD_ALIASES = new Set(['prod', 'production']);
@@ -14,4 +14,3 @@ export function normalizeAppEnv(raw?: string | null): AppEnv {
 export function isDevEnv(env: AppEnv): boolean {
   return env === 'dev';
 }
-

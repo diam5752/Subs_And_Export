@@ -2,7 +2,7 @@ import time
 from dataclasses import dataclass
 from typing import Any, cast
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.engine import CursorResult
 
 from backend.app.core.config import settings
@@ -86,6 +86,44 @@ class JobStore:
             if result_data is not None:
                 job.result_data = result_data
             job.updated_at = int(time.time())
+
+    def update_job_if_status(
+        self,
+        job_id: str,
+        *,
+        expected_statuses: set[str] | frozenset[str],
+        status: str | None = None,
+        progress: int | None = None,
+        message: str | None = None,
+        result_data: dict[str, Any] | None = None,
+    ) -> bool:
+        """Atomically update a job only while it remains in an expected state."""
+        if not expected_statuses:
+            return False
+
+        values: dict[str, Any] = {"updated_at": int(time.time())}
+        if status is not None:
+            values["status"] = status
+        if progress is not None:
+            values["progress"] = progress
+        if message is not None:
+            values["message"] = message
+        if result_data is not None:
+            values["result_data"] = result_data
+
+        with self.db.session() as session:
+            result = cast(
+                CursorResult[Any],
+                session.execute(
+                    update(DbJob)
+                    .where(
+                        DbJob.id == job_id,
+                        DbJob.status.in_(expected_statuses),
+                    )
+                    .values(**values)
+                ),
+            )
+            return result.rowcount == 1
 
     def get_job(self, job_id: str) -> Job | None:
         with self.db.session() as session:

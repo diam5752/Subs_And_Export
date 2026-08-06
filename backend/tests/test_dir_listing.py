@@ -1,24 +1,33 @@
 
 import shutil
+import uuid
 from urllib.parse import quote
 
-from backend.app.core import config
+from backend.app.core.database import Database
+from backend.app.services.jobs import JobStore
+from backend.main import DATA_DIR
 
 
-def test_directory_listing_disabled(client):
+def test_directory_listing_disabled(client, user_auth_headers):
     """
     Test that directory listing is DISABLED for /static/ endpoints.
     """
     # 1. Setup: Ensure DATA_DIR exists and has a subdirectory
-    data_dir = config.PROJECT_ROOT / "data"
-    test_subdir = data_dir / "test_listing_vuln"
+    user_id = client.get("/auth/me", headers=user_auth_headers).json()["id"]
+    job_id = f"listing-{uuid.uuid4().hex}"
+    store = JobStore(Database())
+    store.create_job(job_id, user_id)
+    test_subdir = DATA_DIR / "artifacts" / job_id / "nested"
     test_subdir.mkdir(parents=True, exist_ok=True)
 
     # Create a file inside
     (test_subdir / "secret.txt").write_text("This should not be listed")
 
     # 2. Access: Try to list the directory via /static/
-    response = client.get("/static/test_listing_vuln")
+    response = client.get(
+        f"/static/artifacts/{job_id}/nested",
+        headers=user_auth_headers,
+    )
 
     # 3. Assert: We expect 404 Not Found (as configured in fix)
     # This confirms directory listing is disabled and existence is hidden
@@ -30,20 +39,25 @@ def test_directory_listing_disabled(client):
     # But usually TestClient handles paths.
 
     # Cleanup
-    shutil.rmtree(test_subdir)
+    shutil.rmtree(test_subdir.parent)
+    store.delete_job(job_id)
 
 
-def test_static_download_uses_requested_safe_export_filename(client) -> None:
+def test_static_download_uses_requested_safe_export_filename(client, user_auth_headers) -> None:
     """REGRESSION: the response header overrode the browser's _subs filename."""
-    data_dir = config.PROJECT_ROOT / "data"
-    export_path = data_dir / "test_download_name" / "processed_1080x1920.mp4"
+    user_id = client.get("/auth/me", headers=user_auth_headers).json()["id"]
+    job_id = f"download-{uuid.uuid4().hex}"
+    store = JobStore(Database())
+    store.create_job(job_id, user_id)
+    export_path = DATA_DIR / "artifacts" / job_id / "processed_1080x1920.mp4"
     export_path.parent.mkdir(parents=True, exist_ok=True)
     export_path.write_bytes(b"video")
 
     try:
         filename = "Ε Isous_subs.mp4"
         response = client.get(
-            "/static/test_download_name/processed_1080x1920.mp4",
+            f"/static/artifacts/{job_id}/processed_1080x1920.mp4",
+            headers=user_auth_headers,
             params={"download": "true", "filename": filename},
         )
 
@@ -54,3 +68,4 @@ def test_static_download_uses_requested_safe_export_filename(client) -> None:
         assert "processed_1080x1920" not in disposition
     finally:
         shutil.rmtree(export_path.parent, ignore_errors=True)
+        store.delete_job(job_id)

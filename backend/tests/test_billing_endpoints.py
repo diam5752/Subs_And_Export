@@ -442,7 +442,7 @@ def test_consumer_contract_vault_and_withdrawal_api_are_authenticated_and_durabl
         headers=user_auth_headers,
     )
     assert confirmation.status_code == 200
-    assert confirmation.headers["cache-control"] == "private, no-transform"
+    assert confirmation.headers["cache-control"] == "private, no-store"
     assert confirmation.headers["content-disposition"] == (f'attachment; filename="gsubs-contract-{purchase_id}.json"')
     assert confirmation.headers["x-content-type-options"] == "nosniff"
     assert confirmation.headers["etag"].startswith('"')
@@ -504,7 +504,7 @@ def test_consumer_contract_vault_and_withdrawal_api_are_authenticated_and_durabl
         headers=user_auth_headers,
     )
     assert acknowledgement.status_code == 200
-    assert acknowledgement.headers["cache-control"] == "private, no-transform"
+    assert acknowledgement.headers["cache-control"] == "private, no-store"
     acknowledgement_document = acknowledgement.json()
     assert acknowledgement_document["document_type"] == "gsubs_withdrawal_acknowledgement"
     assert acknowledgement_document["automatic_stripe_refund_executed"] is False

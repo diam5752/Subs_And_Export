@@ -36,27 +36,59 @@ describe('LegalPage', () => {
             .toHaveAttribute('src', '/brand/gsubs-logo.svg');
         expect(screen.getByRole('heading', { name: 'Πολιτική Απορρήτου' })).toBeInTheDocument();
         expect(screen.getByText(/χρειάζεται το gsubs/)).toBeInTheDocument();
-        expect(screen.getByText(/ElevenLabs Scribe v2/)).toBeInTheDocument();
-        expect(screen.getByText(/Stripe επεξεργάζεται τις πληρωμές paid credits.*e-Τιμολόγιο της ΑΑΔΕ/)).toBeInTheDocument();
-        expect(screen.getByText(/αρχεία.*εξαγωγές.*24 ώρες.*τελευταία δραστηριότητα/)).toBeInTheDocument();
-        expect(screen.getByRole('heading', { name: '3. Πληρωμές και παραστατικά' })).toBeInTheDocument();
+        expect(screen.getByText(/ElevenLabs Scribe v2.*εκτελούσα την επεξεργασία/)).toBeInTheDocument();
+        expect(screen.getByText(/αναγνωριστικό του transcript.*ημερολόγιο διαγραφών 30 ημερών.*επαναληφθεί/)).toBeInTheDocument();
+        expect(screen.getByText(/τυπική υπηρεσία ElevenLabs.*ΗΠΑ.*Zero Retention Mode.*ευρωπαϊκή διαμονή/)).toBeInTheDocument();
+        expect(screen.getByText(/Stripe λαμβάνει δεδομένα πληρωμής.*e-Τιμολόγιο της ΑΑΔΕ/)).toBeInTheDocument();
+        expect(screen.getByText(/ενεργό τοπικό workspace.*24 ώρες.*Ιστορικό.*άμεσα.*14 ημέρες.*restore/)).toBeInTheDocument();
+        expect(screen.getByText(/τρέχον ημερολόγιο συνέχειας.*online.*restore.*χαθεί ολόκληρος ο host.*παραμείνει offline.*δεν πρέπει να επαναφερθούν/)).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: '3. Γιατί και με ποια νομική βάση επεξεργαζόμαστε δεδομένα' })).toBeInTheDocument();
+        expect(screen.getByText(/εκτέλεση της σύμβασής μας.*έννομα συμφέροντά μας.*νομικές υποχρεώσεις/)).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: '4. Πληρωμές και παραστατικά' })).toBeInTheDocument();
         expect(screen.getByText(/προσφέρει εφάπαξ αγορές.*paid credits.*Stripe-hosted Checkout.*όνομα.*email.*διεύθυνση χρέωσης/)).toBeInTheDocument();
         expect(screen.getByText(/δεν λαμβάνει ούτε αποθηκεύει.*πλήρη αριθμό κάρτας.*CVC/)).toBeInTheDocument();
         expect(screen.getByText(/MARK, διατηρούνται μέχρι το τέλος του πέμπτου πλήρους έτους μετά το σχετικό φορολογικό έτος/)).toBeInTheDocument();
         expect(screen.getByText(/απόδειξη πληρωμής της Stripe.*αποτελεί αποδεικτικό πληρωμής, όχι φορολογικό παραστατικό της ΑΑΔΕ/)).toBeInTheDocument();
         expect(screen.queryByText(/κρυπτογραφικό hash.*credits εγγραφής/)).not.toBeInTheDocument();
         expect(screen.queryByText(/Groq/)).not.toBeInTheDocument();
+        expect(screen.getByText(/Αρχή Προστασίας Δεδομένων Προσωπικού Χαρακτήρα.*www\.dpa\.gr/)).toBeInTheDocument();
+        expect(screen.getByText(/Υπεύθυνος επεξεργασίας.*Ascentia G\.P\..*Αγίας Βαρβάρας 4/)).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: /API διαγραφής transcript/ })).toHaveAttribute(
+            'href',
+            'https://elevenlabs.io/docs/api-reference/speech-to-text/delete',
+        );
+        expect(screen.getByRole('link', { name: /Zero Retention Mode/ })).toHaveAttribute(
+            'href',
+            'https://elevenlabs.io/docs/eleven-api/resources/zero-retention-mode',
+        );
+        expect(screen.getByRole('link', { name: /Διαμονή δεδομένων/ })).toHaveAttribute(
+            'href',
+            'https://elevenlabs.io/docs/overview/administration/data-residency',
+        );
+        expect(screen.getByRole('link', { name: /Data Processing Addendum/ })).toHaveAttribute(
+            'href',
+            'https://elevenlabs.io/dpa',
+        );
         expect(screen.getByRole('link', { name: 'Όροι Χρήσης' })).toHaveAttribute('href', '/terms');
     });
 
     it('renders the English privacy payment disclosures', () => {
         renderPage('privacy', 'en');
 
-        expect(screen.getByRole('heading', { name: '3. Payments and receipts' })).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: '4. Payments and receipts' })).toBeInTheDocument();
         expect(screen.getByText(/offers one-off paid-credit purchases.*Stripe-hosted Checkout.*name.*email address.*billing address/)).toBeInTheDocument();
         expect(screen.getByText(/MARK, is retained through the end of the fifth full year after the relevant tax year/)).toBeInTheDocument();
         expect(screen.getByText(/Account deletion does not erase records/)).toBeInTheDocument();
-        expect(screen.getByText(/Stripe processes paid-credit payments.*AADE e-Timologio/)).toBeInTheDocument();
+        expect(screen.getByText(/GSUBS sends the extracted audio.*processor.*immediate deletion.*United States.*Zero Retention Mode.*EU data residency/)).toBeInTheDocument();
+        expect(screen.getByText(/provider transcript identifier.*30-day deletion journal.*retried and replayed/)).toBeInTheDocument();
+        expect(screen.getByText(/current continuity journal.*restore.*online.*whole host.*remain offline.*must not be restored/)).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: /Transcript deletion API/ })).toHaveAttribute('target', '_blank');
+        expect(screen.getByRole('link', { name: /Data residency/ })).toHaveAttribute(
+            'rel',
+            'noopener noreferrer',
+        );
+        expect(screen.getByText(/Hellenic Data Protection Authority.*www\.dpa\.gr/)).toBeInTheDocument();
+        expect(screen.getByText(/data controller.*Ascentia G\.P\..*Agias Varvaras 4/)).toBeInTheDocument();
         expect(screen.queryByText(/cryptographic hash.*signup credits/)).not.toBeInTheDocument();
     });
 

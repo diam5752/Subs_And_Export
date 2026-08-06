@@ -14,6 +14,14 @@
 		reverse_proxy backend:8080
 	}
 
+	@video_stream path /videos/process-stream
+	handle @video_stream {
+		request_body {
+			max_size 500MB
+		}
+		reverse_proxy backend:8080
+	}
+
 	@backend path /auth /auth/* /billing /billing/* /videos /videos/* /history /history/* /static/* /health
 	handle @backend {
 		reverse_proxy backend:8080
@@ -97,7 +105,10 @@
 		}
 	}
 
-	@google_oauth_certs path /oauth2/v1/certs
+	@google_oauth_certs {
+		method GET
+		path /oauth2/v1/certs
+	}
 	handle @google_oauth_certs {
 		reverse_proxy https://www.googleapis.com {
 			header_up Host www.googleapis.com
@@ -112,6 +123,19 @@
 		request_body {
 			max_size 32MB
 		}
+		uri strip_prefix /elevenlabs
+		reverse_proxy https://api.elevenlabs.io {
+			header_up Host api.elevenlabs.io
+		}
+	}
+
+	@elevenlabs_transcript_delete {
+		method DELETE
+		path_regexp elevenlabs_transcript_delete ^/elevenlabs/v1/speech-to-text/transcripts/[A-Za-z0-9][A-Za-z0-9_-]{0,127}$
+	}
+	# Keep access logging disabled on this internal relay. In particular, never
+	# emit transcript deletion identifiers or request bodies to container logs.
+	handle @elevenlabs_transcript_delete {
 		uri strip_prefix /elevenlabs
 		reverse_proxy https://api.elevenlabs.io {
 			header_up Host api.elevenlabs.io

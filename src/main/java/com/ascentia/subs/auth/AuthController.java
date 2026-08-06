@@ -85,19 +85,44 @@ public class AuthController {
     TokenResponse token(
             @RequestParam("username") String username,
             @RequestParam("password") String password,
-            HttpServletRequest servletRequest
+            HttpServletRequest servletRequest,
+            HttpServletResponse servletResponse
     ) {
         String ip = clientIpResolver.resolve(servletRequest);
         rateLimitService.check("login", ip, 5, 60);
         CurrentUser user = authStore.authenticateLocal(username, password)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Incorrect email or password"));
         String token = authStore.issueSession(user, servletRequest.getHeader("User-Agent"));
+        setMediaSessionCookie(servletResponse, token, AuthStore.SESSION_TTL_SECONDS);
         return new TokenResponse(token, "bearer", user.id(), user.name());
     }
 
     @GetMapping("/me")
-    UserResponse me(Authentication authentication) {
+    UserResponse me(Authentication authentication, HttpServletResponse servletResponse) {
+        Object credentials = authentication == null ? null : authentication.getCredentials();
+        if (credentials instanceof String token && !token.isBlank()) {
+            // Existing bearer-only browser sessions predate the private media
+            // cookie. Refresh it on the normal session check so media elements
+            // continue to work without forcing users to sign in again.
+            setMediaSessionCookie(servletResponse, token, AuthStore.SESSION_TTL_SECONDS);
+        }
         return UserResponse.from(CurrentUserAccess.require(authentication));
+    }
+
+    @PostMapping("/logout")
+    Map<String, String> logout(
+            Authentication authentication,
+            HttpServletResponse servletResponse
+    ) {
+        CurrentUserAccess.require(authentication);
+        Object credentials = authentication.getCredentials();
+        if (!(credentials instanceof String token) || token.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Could not validate credentials");
+        }
+        authStore.revokeSession(token);
+        clearMediaSessionCookie(servletResponse);
+        servletResponse.setHeader(HttpHeaders.CACHE_CONTROL, "no-store");
+        return Map.of("status", "success");
     }
 
     @GetMapping("/points")
@@ -115,7 +140,11 @@ public class AuthController {
     }
 
     @PutMapping("/password")
-    Map<String, String> updatePassword(@Valid @RequestBody UpdatePasswordRequest request, Authentication authentication) {
+    Map<String, String> updatePassword(
+            @Valid @RequestBody UpdatePasswordRequest request,
+            Authentication authentication,
+            HttpServletResponse servletResponse
+    ) {
         CurrentUser currentUser = CurrentUserAccess.require(authentication);
         rateLimitService.check("auth_change", currentUser.id(), 5, 60);
         if (!"local".equals(currentUser.provider())) {
@@ -126,6 +155,7 @@ public class AuthController {
         }
         authStore.updatePassword(currentUser.id(), request.password());
         authStore.revokeAllSessions(currentUser.id());
+        clearMediaSessionCookie(servletResponse);
         return Map.of("status", "success");
     }
 
@@ -140,13 +170,14 @@ public class AuthController {
     }
 
     @DeleteMapping("/me")
-    Map<String, String> deleteMe(Authentication authentication) {
+    Map<String, String> deleteMe(Authentication authentication, HttpServletResponse servletResponse) {
         CurrentUser currentUser = CurrentUserAccess.require(authentication);
         rateLimitService.check("auth_change", currentUser.id(), 5, 60);
-        jobStore.listJobsForUser(currentUser.id(), 1_000).forEach(job -> jobArtifactService.deleteArtifacts(job.id()));
+        jobStore.listJobIdsForUser(currentUser.id()).forEach(jobArtifactService::deleteArtifacts);
         authStore.revokeAllSessions(currentUser.id());
         authStore.deleteUser(currentUser.id());
-        return Map.of("status", "deleted", "message", "Account and all data have been permanently deleted");
+        clearMediaSessionCookie(servletResponse);
+        return Map.of("status", "deleted", "message", "Account data and live local media have been deleted");
     }
 
     @GetMapping("/google/nonce")
@@ -198,6 +229,7 @@ public class AuthController {
                 servletRequest.getHeader("User-Agent")
         );
         clearGoogleNonceCookie(servletResponse);
+        setMediaSessionCookie(servletResponse, token, AuthStore.SESSION_TTL_SECONDS);
         return new TokenResponse(
                 token,
                 "bearer",
@@ -237,6 +269,25 @@ public class AuthController {
 
     private void clearGoogleNonceCookie(HttpServletResponse response) {
         setGoogleNonceCookie(response, "", 0);
+    }
+
+    private void setMediaSessionCookie(
+            HttpServletResponse response,
+            String value,
+            int maxAgeSeconds
+    ) {
+        ResponseCookie cookie = ResponseCookie.from(BearerTokenAuthenticationFilter.MEDIA_SESSION_COOKIE, value)
+                .httpOnly(true)
+                .secure(isProduction())
+                .sameSite("Lax")
+                .path("/static")
+                .maxAge(Duration.ofSeconds(maxAgeSeconds))
+                .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+    }
+
+    private void clearMediaSessionCookie(HttpServletResponse response) {
+        setMediaSessionCookie(response, "", 0);
     }
 
     private boolean isProduction() {

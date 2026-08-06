@@ -1,57 +1,41 @@
-"""Reprocess and admin routes."""
+"""Reprocess routes."""
 
 from __future__ import annotations
 
-import logging
-import os
-import time
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from ...core.auth import User
-from ...core.cleanup import delete_job_workspace
 from ...core.config import settings
 from ...core.database import Database
+from ...core.erasure_journal import configured_erasure_journal
 from ...core.errors import sanitize_message
-from ...core.gcs import get_gcs_settings
 from ...core.ratelimit import limiter_processing
+from ...core.workspace_deletion import delete_job_workspace, lock_job_workspace
 from ...schemas.base import JobResponse
-from ...schemas.usage import UsageSummaryResponse, UsageSummaryRow
 from ...services import pricing
-from ...services.charge_plans import reserve_processing_charges
+from ...services.charge_plans import (
+    preflight_processing_charges,
+    reserve_processing_charges,
+)
 from ...services.ffmpeg_utils import probe_media
 from ...services.history import HistoryStore
 from ...services.jobs import JobStore
 from ...services.usage_ledger import UsageLedgerStore
 from ..deps import get_current_user, get_db, get_history_store, get_job_store, get_usage_ledger_store
-from .file_utils import MAX_UPLOAD_BYTES, data_roots, link_or_copy_file, require_storage_capacity
+from .file_utils import data_roots, link_or_copy_file, require_storage_capacity
 from .processing_tasks import (
     record_event_safe,
     refund_charge_best_effort,
-    run_gcs_video_processing,
     run_video_processing,
 )
 from .settings import build_processing_settings
 from .validation import ALLOWED_VIDEO_EXTENSIONS
 
-logger = logging.getLogger(__name__)
 router = APIRouter()
-
-
-
-
-def _ensure_admin(current_user: User) -> None:
-    admin_emails_str = os.getenv("GSP_ADMIN_EMAILS", "")
-    admin_emails = [e.strip().lower() for e in admin_emails_str.split(",") if e.strip()]
-
-    if not admin_emails:
-        raise HTTPException(status_code=403, detail="Admin access not configured")
-
-    if current_user.email.strip().lower() not in admin_emails:
-        raise HTTPException(status_code=403, detail="Not authorized")
 
 
 class ReprocessRequest(BaseModel):
@@ -72,10 +56,31 @@ class ReprocessRequest(BaseModel):
     watermark_enabled: bool = False
 
 
-class RetentionResponse(BaseModel):
-    status: str
-    deleted_count: int
-    message: str
+def _record_and_delete_failed_reprocess(
+    *,
+    job_id: str,
+    user_id: str,
+    input_path: Path,
+    artifacts_root: Path,
+    database_job_may_exist: bool,
+    job_store: JobStore,
+    history_store: HistoryStore,
+) -> None:
+    """Persist restore-safe intent before removing a failed reprocess copy."""
+    with lock_job_workspace(data_dir=artifacts_root.parent, job_id=job_id):
+        configured_erasure_journal().append(
+            kind="job" if database_job_may_exist else "workspace",
+            user_id=user_id,
+            job_ids=[job_id],
+        )
+        delete_job_workspace(
+            job_id=job_id,
+            uploads_dir=input_path.parent,
+            artifacts_dir=artifacts_root,
+        )
+        if database_job_may_exist:
+            history_store.delete_job_events([job_id])
+            job_store.delete_job(job_id)
 
 
 @router.post("/jobs/{job_id}/reprocess", response_model=JobResponse, dependencies=[Depends(limiter_processing)])
@@ -123,87 +128,6 @@ def reprocess_job(
 
     data_dir, uploads_dir, artifacts_root = data_roots()
 
-    gcs_settings = get_gcs_settings()
-    source_gcs_object = (source_job.result_data or {}).get("source_gcs_object")
-    if (
-        gcs_settings
-        and isinstance(source_gcs_object, str)
-        and source_gcs_object.startswith(f"{gcs_settings.uploads_prefix}/{current_user.id}/")
-    ):
-        require_storage_capacity(
-            data_dir,
-            required_bytes=MAX_UPLOAD_BYTES * 2,
-            db=db,
-        )
-        file_ext = Path(source_gcs_object).suffix.lower()
-        if file_ext not in ALLOWED_VIDEO_EXTENSIONS:
-            raise HTTPException(status_code=400, detail="Invalid source video extension")
-
-        new_job_id = str(uuid.uuid4())
-        input_path = uploads_dir / f"{new_job_id}_input{file_ext}"
-        output_path = artifacts_root / new_job_id / "processed.mp4"
-        artifact_path = artifacts_root / new_job_id
-
-        job = job_store.create_job(new_job_id, current_user.id)
-
-        try:
-            llm_models = pricing.resolve_llm_models(proc_settings.transcribe_tier)
-            source_duration_seconds = (source_job.result_data or {}).get("duration_seconds")
-            estimated_duration_seconds = (
-                float(source_duration_seconds)
-                if isinstance(source_duration_seconds, (int, float)) and source_duration_seconds > 0
-                else float(settings.max_video_duration_seconds)
-            )
-            charge_plan, new_balance = reserve_processing_charges(
-                ledger_store=ledger_store,
-                user_id=current_user.id,
-                job_id=new_job_id,
-                tier=proc_settings.transcribe_tier,
-                duration_seconds=estimated_duration_seconds,
-                use_llm=proc_settings.use_llm,
-                llm_model=llm_models.social,
-                provider=proc_settings.transcribe_provider,
-                stt_model=pricing.resolve_requested_transcribe_model(
-                    tier=proc_settings.transcribe_tier,
-                    provider=proc_settings.transcribe_provider,
-                    openai_model=proc_settings.openai_model,
-                ),
-            )
-        except Exception:
-            job_store.delete_job(new_job_id)
-            raise
-
-        try:
-            # Job already created above
-
-            record_event_safe(
-                history_store, current_user, "process_started",
-                f"Reprocessing {source_job.result_data.get('original_filename', 'video') if source_job.result_data else 'video'}",
-                {"job_id": new_job_id, "source_job_id": job_id, "provider": proc_settings.transcribe_provider, "transcribe_tier": proc_settings.transcribe_tier, "source": "gcs"},
-            )
-
-            background_tasks.add_task(
-                run_gcs_video_processing,
-                job_id=new_job_id,
-                gcs_object_name=source_gcs_object,
-                input_path=input_path,
-                output_path=output_path,
-                artifact_dir=artifact_path,
-                settings=proc_settings,
-                job_store=job_store,
-                history_store=history_store,
-                user=current_user,
-                original_name=(source_job.result_data or {}).get("original_filename"),
-                ledger_store=ledger_store,
-                charge_plan=charge_plan,
-            )
-
-        except Exception as exc:
-            refund_charge_best_effort(ledger_store, charge_plan, status="failed", error=sanitize_message(str(exc)))
-            raise
-
-        return JobResponse.model_validate(job).model_copy(update={"balance": new_balance})
-
     # Local file reprocessing
     source_input: Path | None = None
     for ext in sorted(ALLOWED_VIDEO_EXTENSIONS):
@@ -246,7 +170,26 @@ def reprocess_job(
     if probe.duration_s is None or probe.duration_s <= 0:
         raise HTTPException(status_code=400, detail="Could not determine video duration")
     if probe.duration_s > settings.max_video_duration_seconds:
-        raise HTTPException(status_code=400, detail=f"Video too long (max {settings.max_video_duration_seconds/60:.1f} minutes)")
+        raise HTTPException(
+            status_code=400, detail=f"Video too long (max {settings.max_video_duration_seconds / 60:.1f} minutes)"
+        )
+
+    llm_models = pricing.resolve_llm_models(proc_settings.transcribe_tier)
+    stt_model = pricing.resolve_requested_transcribe_model(
+        tier=proc_settings.transcribe_tier,
+        provider=proc_settings.transcribe_provider,
+        openai_model=proc_settings.openai_model,
+    )
+    preflight_processing_charges(
+        ledger_store=ledger_store,
+        user_id=current_user.id,
+        tier=proc_settings.transcribe_tier,
+        duration_seconds=float(probe.duration_s),
+        use_llm=proc_settings.use_llm,
+        llm_model=llm_models.social,
+        provider=proc_settings.transcribe_provider,
+        stt_model=stt_model,
+    )
 
     new_job_id = str(uuid.uuid4())
     input_path = uploads_dir / f"{new_job_id}_input{file_ext}"
@@ -255,13 +198,40 @@ def reprocess_job(
 
     try:
         link_or_copy_file(source_input, input_path)
-    except FileNotFoundError:
-        raise HTTPException(status_code=404, detail="Source video not found; upload again to reprocess")
-
-    job = job_store.create_job(new_job_id, current_user.id)
+    except BaseException as exc:
+        _record_and_delete_failed_reprocess(
+            job_id=new_job_id,
+            user_id=current_user.id,
+            input_path=input_path,
+            artifacts_root=artifacts_root,
+            database_job_may_exist=False,
+            job_store=job_store,
+            history_store=history_store,
+        )
+        if isinstance(exc, FileNotFoundError):
+            raise HTTPException(
+                status_code=404,
+                detail="Source video not found; upload again to reprocess",
+            ) from exc
+        raise
 
     try:
-        llm_models = pricing.resolve_llm_models(proc_settings.transcribe_tier)
+        job = job_store.create_job(new_job_id, current_user.id)
+    except BaseException:
+        _record_and_delete_failed_reprocess(
+            job_id=new_job_id,
+            user_id=current_user.id,
+            input_path=input_path,
+            artifacts_root=artifacts_root,
+            # create_job can fail after its transaction commits. A job
+            # tombstone and idempotent exact deletes cover both outcomes.
+            database_job_may_exist=True,
+            job_store=job_store,
+            history_store=history_store,
+        )
+        raise
+
+    try:
         charge_plan, new_balance = reserve_processing_charges(
             ledger_store=ledger_store,
             user_id=current_user.id,
@@ -271,120 +241,62 @@ def reprocess_job(
             use_llm=proc_settings.use_llm,
             llm_model=llm_models.social,
             provider=proc_settings.transcribe_provider,
-            stt_model=pricing.resolve_requested_transcribe_model(
-                tier=proc_settings.transcribe_tier,
-                provider=proc_settings.transcribe_provider,
-                openai_model=proc_settings.openai_model,
-            ),
+            stt_model=stt_model,
         )
-    except Exception:
-        job_store.delete_job(new_job_id)
-        input_path.unlink(missing_ok=True)
+    except BaseException:
+        _record_and_delete_failed_reprocess(
+            job_id=new_job_id,
+            user_id=current_user.id,
+            input_path=input_path,
+            artifacts_root=artifacts_root,
+            database_job_may_exist=True,
+            job_store=job_store,
+            history_store=history_store,
+        )
         raise
-
-
     try:
         # Job already created above
         record_event_safe(
-            history_store, current_user, "process_started",
+            history_store,
+            current_user,
+            "process_started",
             f"Reprocessing {source_job.result_data.get('original_filename', 'video') if source_job.result_data else 'video'}",
-            {"job_id": new_job_id, "source_job_id": job_id, "provider": proc_settings.transcribe_provider, "transcribe_tier": proc_settings.transcribe_tier, "source": "local"},
+            {
+                "job_id": new_job_id,
+                "source_job_id": job_id,
+                "provider": proc_settings.transcribe_provider,
+                "transcribe_tier": proc_settings.transcribe_tier,
+                "source": "local",
+            },
         )
 
         background_tasks.add_task(
             run_video_processing,
-            new_job_id, input_path, output_path, artifact_path, proc_settings,
-            job_store, history_store, current_user,
+            new_job_id,
+            input_path,
+            output_path,
+            artifact_path,
+            proc_settings,
+            job_store,
+            history_store,
+            current_user,
             (source_job.result_data or {}).get("original_filename"),
             ledger_store=ledger_store,
             charge_plan=charge_plan,
             source_probe=probe,
         )
 
-    except Exception as exc:
+    except BaseException as exc:
         refund_charge_best_effort(ledger_store, charge_plan, status="failed", error=sanitize_message(str(exc)))
-        input_path.unlink(missing_ok=True)
+        _record_and_delete_failed_reprocess(
+            job_id=new_job_id,
+            user_id=current_user.id,
+            input_path=input_path,
+            artifacts_root=artifacts_root,
+            database_job_may_exist=True,
+            job_store=job_store,
+            history_store=history_store,
+        )
         raise
 
     return JobResponse.model_validate(job).model_copy(update={"balance": new_balance})
-
-
-@router.post("/jobs/cleanup", response_model=RetentionResponse)
-def run_retention_policy(
-    days: int = 30,
-    job_store: JobStore = Depends(get_job_store),
-    history_store: HistoryStore = Depends(get_history_store),
-    current_user: User = Depends(get_current_user),
-) -> RetentionResponse:
-    """Manually trigger retention policy: Delete jobs older than {days} days."""
-    _ensure_admin(current_user)
-
-    cutoff = int(time.time()) - (days * 24 * 3600)
-    old_jobs = job_store.list_jobs_created_before(cutoff)
-
-    if not old_jobs:
-        return RetentionResponse(
-            status="success",
-            deleted_count=0,
-            message="No old jobs found",
-        )
-
-    _, uploads_dir, artifacts_root = data_roots()
-    deleted_ids = []
-
-    for job in old_jobs:
-        delete_job_workspace(
-            job_id=job.id,
-            uploads_dir=uploads_dir,
-            artifacts_dir=artifacts_root,
-        )
-        deleted_ids.append(job.id)
-
-    history_store.delete_job_events(deleted_ids)
-    for jid in deleted_ids:
-        job_store.delete_job(jid)
-
-    return RetentionResponse(
-        status="success",
-        deleted_count=len(deleted_ids),
-        message=f"Deleted {len(deleted_ids)} jobs older than {days} days",
-    )
-
-
-@router.get("/admin/usage/summary", response_model=UsageSummaryResponse)
-def get_usage_summary(
-    group_by: str = Query("day", max_length=16),
-    start_ts: int | None = Query(None, ge=0),
-    end_ts: int | None = Query(None, ge=0),
-    current_user: User = Depends(get_current_user),
-    ledger_store: UsageLedgerStore = Depends(get_usage_ledger_store),
-) -> UsageSummaryResponse:
-    """Admin usage summary by day/month/user/action."""
-    _ensure_admin(current_user)
-
-    now = int(time.time())
-    start = start_ts if start_ts is not None else now - (30 * 24 * 3600)
-    end = end_ts if end_ts is not None else now
-    if start > end:
-        raise HTTPException(status_code=400, detail="start_ts must be <= end_ts")
-
-    try:
-        items = ledger_store.summarize(start_ts=start, end_ts=end, group_by=group_by)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-    return UsageSummaryResponse(
-        group_by=group_by,
-        start_ts=start,
-        end_ts=end,
-        items=[
-            UsageSummaryRow(
-                bucket=item.bucket,
-                credits_reserved=item.credits_reserved,
-                credits_charged=item.credits_charged,
-                cost_usd=item.cost_usd,
-                count=item.count,
-            )
-            for item in items
-        ],
-    )

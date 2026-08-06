@@ -1,3 +1,5 @@
+from backend.tests.process_stream import post_process_stream
+
 
 def test_process_video_resolution_length_limit(client, user_auth_headers):
     """
@@ -5,47 +7,47 @@ def test_process_video_resolution_length_limit(client, user_auth_headers):
     """
     long_string = "a" * 1000
 
-    response = client.post(
-        "/videos/process",
-        headers=user_auth_headers,
-        files={"file": ("test_video.mp4", b"fake content", "video/mp4")},
-        data={
-            "video_resolution": long_string
-        }
+    response = post_process_stream(
+        client,
+        user_auth_headers,
+        filename="test_video.mp4",
+        content=b"fake content",
+        metadata={"video_resolution": long_string},
     )
 
     assert response.status_code == 400
-    assert "Resolution string too long" in response.json()["detail"]
+    assert response.json()["detail"] == "Invalid upload metadata"
+
 
 def test_process_provider_length_limit(client, user_auth_headers):
     long_string = "a" * 1000
 
-    response = client.post(
-        "/videos/process",
-        headers=user_auth_headers,
-        files={"file": ("test_video.mp4", b"fake content", "video/mp4")},
-        data={
-            "transcribe_provider": long_string
-        }
+    response = post_process_stream(
+        client,
+        user_auth_headers,
+        filename="test_video.mp4",
+        content=b"fake content",
+        metadata={"transcribe_provider": long_string},
     )
 
     assert response.status_code == 400
-    assert "Provider name too long" in response.json()["detail"]
+    assert response.json()["detail"] == "Invalid upload metadata"
+
 
 def test_process_openai_model_length_limit(client, user_auth_headers):
     long_string = "a" * 1000
 
-    response = client.post(
-        "/videos/process",
-        headers=user_auth_headers,
-        files={"file": ("test_video.mp4", b"fake content", "video/mp4")},
-        data={
-            "openai_model": long_string
-        }
+    response = post_process_stream(
+        client,
+        user_auth_headers,
+        filename="test_video.mp4",
+        content=b"fake content",
+        metadata={"openai_model": long_string},
     )
 
     assert response.status_code == 400
-    assert "OpenAI model name too long" in response.json()["detail"]
+    assert response.json()["detail"] == "Invalid upload metadata"
+
 
 def test_process_highlight_style_length_limit(client, user_auth_headers):
     """
@@ -53,14 +55,13 @@ def test_process_highlight_style_length_limit(client, user_auth_headers):
     """
     long_string = "a" * 1000
 
-    response = client.post(
-        "/videos/process",
-        headers=user_auth_headers,
-        files={"file": ("test_video.mp4", b"fake content", "video/mp4")},
-        data={
-            "highlight_style": long_string
-        }
+    response = post_process_stream(
+        client,
+        user_auth_headers,
+        filename="test_video.mp4",
+        content=b"fake content",
+        metadata={"highlight_style": long_string},
     )
 
     assert response.status_code == 400
-    assert "Highlight style too long" in response.json()["detail"]
+    assert response.json()["detail"] == "Invalid upload metadata"

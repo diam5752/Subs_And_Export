@@ -25,7 +25,7 @@ public class AuthStore {
 
     private static final Pattern EMAIL_PATTERN = Pattern.compile("^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\\.[a-zA-Z0-9-.]+$");
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
-    private static final int SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
+    static final int SESSION_TTL_SECONDS = 60 * 60 * 24 * 30;
     private static final int SCRYPT_N = 1 << 14;
     private static final int SCRYPT_R = 8;
     private static final int SCRYPT_P = 1;
@@ -254,6 +254,13 @@ public class AuthStore {
                 .param("userAgent", userAgent)
                 .update();
         return token;
+    }
+
+    @Transactional
+    public void revokeSession(String token) {
+        jdbcClient.sql("DELETE FROM sessions WHERE token_hash = :tokenHash")
+                .param("tokenHash", hashToken(token))
+                .update();
     }
 
     @Transactional

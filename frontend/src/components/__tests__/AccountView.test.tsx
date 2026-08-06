@@ -112,7 +112,7 @@ describe('AccountView', () => {
         // Initial delete button shows confirmation
         fireEvent.click(screen.getByRole('button', { name: 'Delete Account' }));
         expect(screen.getByText(
-            /Permanently delete your account, projects, and media files.*billing, contact, address, and tax-document data.*legally required period.*required by law/i,
+            /Permanently delete your live GSUBS account, projects, and local media.*erasure records.*backup resurrection.*financial records.*provider-side residual copies.*Privacy Policy/i,
         )).toBeInTheDocument();
         expect(screen.queryByText(/signup credits/i)).not.toBeInTheDocument();
 
@@ -146,7 +146,7 @@ describe('AccountView', () => {
 
         // Confirmation should disappear
         expect(screen.queryByText(
-            /Permanently delete your account, projects, and media files/i,
+            /Permanently delete your live GSUBS account, projects, and local media/i,
         )).not.toBeInTheDocument();
     });
 
@@ -154,7 +154,10 @@ describe('AccountView', () => {
         const { unmount } = renderAccountView();
 
         expect(screen.getByText(
-            /account, projects, and media files are deleted.*billing, contact, address, and tax-document data.*legally required period.*required by law/i,
+            /live GSUBS account, project records, and local media.*erasure records.*recovery backups.*billing, contact, address, and tax-document data.*legally required period.*provider-side residual copies/i,
+        )).toBeInTheDocument();
+        expect(screen.getByText(
+            /current continuity journal.*whole-host loss.*remain offline.*user data must not be restored from backup/i,
         )).toBeInTheDocument();
         expect(screen.queryByText(/signup credits/i)).not.toBeInTheDocument();
         unmount();
@@ -162,12 +165,18 @@ describe('AccountView', () => {
 
         renderAccountView({}, 'el');
         expect(screen.getByText(
-            /λογαριασμός, τα projects και τα αρχεία πολυμέσων διαγράφονται.*στοιχεία χρέωσης, επικοινωνίας, διεύθυνσης και φορολογικών παραστατικών.*νόμιμης περιόδου.*απαιτείται από τον νόμο/i,
+            /ενεργό λογαριασμό GSUBS.*projects.*τοπικά αρχεία πολυμέσων.*εγγραφές διαγραφής.*backup.*στοιχεία χρέωσης, επικοινωνίας, διεύθυνσης και φορολογικών παραστατικών.*νόμιμη περίοδο.*αντίγραφα παρόχων/i,
+        )).toBeInTheDocument();
+        expect(screen.getByText(
+            /τρέχον ημερολόγιο συνέχειας.*απώλεια ολόκληρου του host.*παραμείνει offline.*δεν πρέπει να επαναφερθούν από backup/i,
         )).toBeInTheDocument();
         expect(screen.queryByText(/credits εγγραφής/i)).not.toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', { name: 'Διαγραφή λογαριασμού' }));
         expect(screen.getByText(
-            /Να διαγραφούν οριστικά ο λογαριασμός, τα projects και τα αρχεία πολυμέσων.*στοιχεία χρέωσης, επικοινωνίας, διεύθυνσης και φορολογικών παραστατικών.*νόμιμης περιόδου.*απαιτείται από τον νόμο/i,
+            /Να διαγραφούν οριστικά ο ενεργός λογαριασμός GSUBS, τα projects και τα τοπικά αρχεία πολυμέσων.*εγγραφές διαγραφής.*backup.*οικονομικά αρχεία.*αντίγραφα παρόχων.*Πολιτικής Απορρήτου/i,
+        )).toBeInTheDocument();
+        expect(screen.getByText(
+            /χωρίς αυτό το ημερολόγιο.*παραμείνει offline.*δεδομένα χρηστών δεν πρέπει να επαναφερθούν από backup/i,
         )).toBeInTheDocument();
         expect(screen.queryByText(/credits εγγραφής/i)).not.toBeInTheDocument();
     });

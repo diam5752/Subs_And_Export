@@ -1,6 +1,7 @@
 package com.ascentia.subs;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import jakarta.servlet.http.Cookie;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
@@ -22,6 +23,9 @@ class ApiContractIT extends IntegrationTestSupport {
 
     @Test
     void healthRootCorsAndStaticContracts() throws Exception {
+        AuthSession owner = registerAndLogin("Static Owner");
+        AuthSession other = registerAndLogin("Static Other");
+        jobStore.createJob("static-contract", owner.userId());
         writeArtifactFile("static-contract", "hello.txt", "hello".getBytes(StandardCharsets.UTF_8));
         java.nio.file.Files.createDirectories(java.nio.file.Path.of("data", "test-listing"));
 
@@ -41,15 +45,27 @@ class ApiContractIT extends IntegrationTestSupport {
                 .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN, "http://localhost:3000"));
 
         mockMvc.perform(get("/static/artifacts/static-contract/hello.txt"))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/static/artifacts/static-contract/hello.txt")
+                        .header(HttpHeaders.AUTHORIZATION, other.authorization()))
+                .andExpect(status().isNotFound());
+
+        mockMvc.perform(get("/static/artifacts/static-contract/hello.txt")
+                        .cookie(new Cookie("gsubs_media_session", owner.token())))
                 .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "private, no-store"))
                 .andExpect(header().string(HttpHeaders.CONTENT_TYPE, org.hamcrest.Matchers.containsString("text/plain")))
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string("hello"));
 
-        mockMvc.perform(get("/static/artifacts/static-contract/hello.txt").param("download", "true"))
+        mockMvc.perform(get("/static/artifacts/static-contract/hello.txt")
+                        .header(HttpHeaders.AUTHORIZATION, owner.authorization())
+                        .param("download", "true"))
                 .andExpect(status().isOk())
                 .andExpect(header().string(HttpHeaders.CONTENT_DISPOSITION, org.hamcrest.Matchers.containsString("attachment")));
 
         mockMvc.perform(get("/static/artifacts/static-contract/hello.txt")
+                        .header(HttpHeaders.AUTHORIZATION, owner.authorization())
                         .param("download", "true")
                         .param("filename", "Ε Isous_subs.txt"))
                 .andExpect(status().isOk())
@@ -58,7 +74,8 @@ class ApiContractIT extends IntegrationTestSupport {
                         org.hamcrest.Matchers.containsString("%CE%95%20Isous_subs.txt")
                 ));
 
-        mockMvc.perform(get("/static/test-listing"))
+        mockMvc.perform(get("/static/test-listing")
+                        .header(HttpHeaders.AUTHORIZATION, owner.authorization()))
                 .andExpect(status().isNotFound());
     }
 
@@ -68,6 +85,10 @@ class ApiContractIT extends IntegrationTestSupport {
 
         mockMvc.perform(get("/auth/me").header(HttpHeaders.AUTHORIZATION, session.authorization()))
                 .andExpect(status().isOk())
+                .andExpect(header().string(
+                        HttpHeaders.SET_COOKIE,
+                        org.hamcrest.Matchers.containsString("gsubs_media_session=")
+                ))
                 .andExpect(jsonPath("$.email").value(session.email()))
                 .andExpect(jsonPath("$.name").value("Auth User"));
 
@@ -140,6 +161,38 @@ class ApiContractIT extends IntegrationTestSupport {
 
         assertThat(java.nio.file.Files.exists(java.nio.file.Path.of("data", "artifacts", jobId, "processed.mp4"))).isFalse();
         assertThat(java.nio.file.Files.exists(java.nio.file.Path.of("data", "uploads", jobId + "_input.mp4"))).isFalse();
+    }
+
+    @Test
+    void logoutRevokesOnlyThePresentedSessionAndExpiresTheMediaCookie() throws Exception {
+        AuthSession current = registerAndLogin("Logout User");
+        AuthSession other = login(current.email(), current.password());
+
+        // REGRESSION: the Java compatibility surface issued a 30-day media
+        // cookie but exposed no normal endpoint that revoked its exact session.
+        mockMvc.perform(post("/auth/logout"))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(post("/auth/logout")
+                        .header(HttpHeaders.AUTHORIZATION, current.authorization()))
+                .andExpect(status().isOk())
+                .andExpect(header().string(
+                        HttpHeaders.SET_COOKIE,
+                        org.hamcrest.Matchers.allOf(
+                                org.hamcrest.Matchers.containsString("gsubs_media_session="),
+                                org.hamcrest.Matchers.containsString("Max-Age=0"),
+                                org.hamcrest.Matchers.containsString("Path=/static")
+                        )
+                ))
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "no-store"))
+                .andExpect(jsonPath("$.status").value("success"));
+
+        mockMvc.perform(get("/auth/me")
+                        .header(HttpHeaders.AUTHORIZATION, current.authorization()))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/auth/me")
+                        .header(HttpHeaders.AUTHORIZATION, other.authorization()))
+                .andExpect(status().isOk());
     }
 
     @Test

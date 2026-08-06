@@ -1,4 +1,3 @@
-import io
 import types
 import uuid
 from pathlib import Path
@@ -16,6 +15,7 @@ from backend.app.services.charge_plans import reserve_processing_charges
 from backend.app.services.history import HistoryStore
 from backend.app.services.points import PointsStore
 from backend.app.services.usage_ledger import UsageLedgerStore
+from backend.tests.process_stream import post_process_stream
 
 
 def _auth_header(client: TestClient, email: str | None = None) -> dict[str, str]:
@@ -86,6 +86,63 @@ def test_job_store_lifecycle(tmp_path: Path):
     assert store.get_job(j2.id) is None
     assert store.get_job(j3.id) is None
     assert len(store.list_jobs_for_user(user_id)) == 0
+
+
+def test_job_store_compare_and_set_preserves_cancelled_as_terminal() -> None:
+    db = Database()
+    store = jobs.JobStore(db)
+    user_id = (
+        backend_auth.UserStore(db=db)
+        .register_local_user(
+            f"job-cas-{uuid.uuid4().hex}@example.com",
+            "testpassword123",
+            "Job CAS",
+        )
+        .id
+    )
+    job = store.create_job(f"job-cas-{uuid.uuid4().hex}", user_id)
+
+    # REGRESSION: separate read/write worker updates could overwrite a
+    # concurrent cancellation with processing, completion, or failure.
+    assert store.update_job_if_status(
+        job.id,
+        expected_statuses={"pending"},
+        status="processing",
+        progress=1,
+        message="Started",
+    )
+    assert store.update_job_if_status(
+        job.id,
+        expected_statuses={"pending", "processing"},
+        status="cancelled",
+        message="Cancelled by user",
+    )
+    assert not store.update_job_if_status(
+        job.id,
+        expected_statuses={"processing"},
+        status="completed",
+        progress=100,
+        message="Done!",
+        result_data={"video_path": "late.mp4"},
+    )
+    assert not store.update_job_if_status(
+        job.id,
+        expected_statuses={"processing"},
+        status="failed",
+        message="late failure",
+    )
+    assert not store.update_job_if_status(
+        job.id,
+        expected_statuses=set(),
+        progress=75,
+    )
+
+    cancelled = store.get_job(job.id)
+    assert cancelled is not None
+    assert cancelled.status == "cancelled"
+    assert cancelled.progress == 1
+    assert cancelled.message == "Cancelled by user"
+    assert cancelled.result_data is None
 
 
 def test_job_store_lists_are_scoped_unbounded_and_deterministic() -> None:
@@ -425,129 +482,114 @@ def test_run_video_processing_does_not_restart_cancelled_job_and_refunds(monkeyp
     assert cancelled and cancelled.status == "cancelled"
 
 
-def test_run_gcs_video_processing_does_not_restart_cancelled_job_and_refunds(monkeypatch, tmp_path: Path):
-    # REGRESSION: cancelled jobs must not download/process GCS uploads, and charges must be refunded.
+def test_run_video_processing_failure_cannot_overwrite_concurrent_cancellation(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    # REGRESSION: a worker exception after cancellation used to replace the
+    # terminal cancelled state with failed through an unconditional update.
     monkeypatch.setattr(config.settings, "project_root", tmp_path)
-
-    import types
-
-    monkeypatch.setattr(processing_tasks, "get_gcs_settings", lambda: types.SimpleNamespace(keep_uploads=True))
-    monkeypatch.setattr(
-        processing_tasks,
-        "download_object",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("should not download cancelled jobs")),
-    )
-
     db = Database()
-    job_store = jobs.JobStore(db)
-    points_store = PointsStore(db=db)
-    ledger_store = UsageLedgerStore(db=db, points_store=points_store)
-
+    store = jobs.JobStore(db)
     user_id = (
         backend_auth.UserStore(db=db)
-        .register_local_user(f"cancelled_gcs_{uuid.uuid4().hex}@example.com", "testpassword123", "Runner")
+        .register_local_user(
+            f"cancel-failure-race-{uuid.uuid4().hex}@example.com",
+            "testpassword123",
+            "Cancellation Race",
+        )
         .id
     )
-    job = job_store.create_job(f"job-cancelled-gcs-{uuid.uuid4().hex}", user_id)
-    points_store.credit(
-        user_id,
-        100,
-        reason="test_paid_funding",
-        paid_credit_delta=100,
-    )
-    starting_balance = points_store.get_balance(user_id)
+    job = store.create_job(f"job-cancel-failure-{uuid.uuid4().hex}", user_id)
+    input_path = tmp_path / "cancel-failure-input.mp4"
+    input_path.write_bytes(b"data")
+    artifact_dir = tmp_path / "cancel-failure-artifacts"
+    output_path = artifact_dir / "out.mp4"
 
-    llm_models = pricing.resolve_llm_models("standard")
-    charge_plan, _ = reserve_processing_charges(
-        ledger_store=ledger_store,
-        user_id=user_id,
-        job_id=job.id,
-        tier="standard",
-        duration_seconds=60.0,
-        use_llm=False,
-        llm_model=llm_models.social,
-        provider="groq",
-        stt_model=pricing.resolve_transcribe_model("standard"),
-    )
-    expected_charge = pricing.credits_for_video_duration(60.0)
-    assert points_store.get_balance(user_id) == starting_balance - expected_charge
+    def cancel_then_fail(*_args, **_kwargs):
+        store.update_job(job.id, status="cancelled", message="Cancelled by user")
+        raise RuntimeError("late worker failure")
 
-    job_store.update_job(job.id, status="cancelled", message="Cancelled by user")
+    monkeypatch.setattr(processing_tasks, "process_video_pipeline", cancel_then_fail)
 
-    settings = ProcessingSettings()
-    processing_tasks.run_gcs_video_processing(
-        job_id=job.id,
-        gcs_object_name="uploads/test.mp4",
-        input_path=tmp_path / "in.mp4",
-        output_path=tmp_path / "out.mp4",
-        artifact_dir=tmp_path / "artifacts",
-        settings=settings,
-        job_store=job_store,
-        ledger_store=ledger_store,
-        charge_plan=charge_plan,
+    processing_tasks.run_video_processing(
+        job.id,
+        input_path,
+        output_path,
+        artifact_dir,
+        ProcessingSettings(),
+        store,
     )
 
-    assert points_store.get_balance(user_id) == starting_balance
-    cancelled = job_store.get_job(job.id)
-    assert cancelled and cancelled.status == "cancelled"
+    cancelled = store.get_job(job.id)
+    assert cancelled is not None
+    assert cancelled.status == "cancelled"
+    assert cancelled.message == "Cancelled by user"
 
 
-def test_run_gcs_video_processing_uses_app_settings_for_duration_limit(monkeypatch, tmp_path: Path):
-    # REGRESSION: ProcessingSettings must not shadow app config during GCS validation.
+def test_run_video_processing_completion_cannot_overwrite_concurrent_cancellation(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    # REGRESSION: cancellation could win after the worker's final status read
+    # but lose to its later unconditional completed write.
     monkeypatch.setattr(config.settings, "project_root", tmp_path)
-    monkeypatch.setattr(config.settings, "max_video_duration_seconds", 10)
-
     db = Database()
-    job_store = jobs.JobStore(db)
+    store = jobs.JobStore(db)
     user_id = (
         backend_auth.UserStore(db=db)
-        .register_local_user(f"gcs_limit_{uuid.uuid4().hex}@example.com", "testpassword123", "Runner")
+        .register_local_user(
+            f"cancel-completion-race-{uuid.uuid4().hex}@example.com",
+            "testpassword123",
+            "Completion Race",
+        )
         .id
     )
-    job = job_store.create_job(f"job-gcs-limit-{uuid.uuid4().hex}", user_id)
+    job = store.create_job(f"job-cancel-completion-{uuid.uuid4().hex}", user_id)
+    input_path = tmp_path / "cancel-completion-input.mp4"
+    input_path.write_bytes(b"data")
+    artifact_dir = tmp_path / "cancel-completion-artifacts"
+    output_path = artifact_dir / "out.mp4"
 
-    monkeypatch.setattr(
-        processing_tasks,
-        "get_gcs_settings",
-        lambda: types.SimpleNamespace(keep_uploads=True),
-    )
-    monkeypatch.setattr(
-        processing_tasks,
-        "download_object",
-        lambda **kwargs: kwargs["destination"].write_bytes(b"video"),
-    )
-    monkeypatch.setattr(
-        processing_tasks,
-        "probe_media",
-        lambda _path: types.SimpleNamespace(duration_s=30.0, width=1920, height=1080),
-    )
-    monkeypatch.setattr(
-        processing_tasks,
-        "run_video_processing",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("should fail before processing")),
-    )
+    def cancel_after_final_check(*_args, **_kwargs):
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_bytes(b"late output")
+        return output_path
 
-    processing_tasks.run_gcs_video_processing(
-        job_id=job.id,
-        gcs_object_name="uploads/test.mp4",
-        input_path=tmp_path / "gcs-input.mp4",
-        output_path=tmp_path / "gcs-output.mp4",
-        artifact_dir=tmp_path / "gcs-artifacts",
-        settings=ProcessingSettings(),
-        job_store=job_store,
+    original_update = store.update_job_if_status
+
+    def race_completion(job_id: str, **kwargs):
+        if kwargs.get("status") == "completed":
+            store.update_job(job_id, status="cancelled", message="Cancelled by user")
+        return original_update(job_id, **kwargs)
+
+    monkeypatch.setattr(processing_tasks, "process_video_pipeline", cancel_after_final_check)
+    monkeypatch.setattr(store, "update_job_if_status", race_completion)
+
+    processing_tasks.run_video_processing(
+        job.id,
+        input_path,
+        output_path,
+        artifact_dir,
+        ProcessingSettings(),
+        store,
     )
 
-    failed = job_store.get_job(job.id)
-    assert failed and failed.status == "failed"
-    assert failed.message is not None and "Video too long" in failed.message
+    cancelled = store.get_job(job.id)
+    assert cancelled is not None
+    assert cancelled.status == "cancelled"
+    assert cancelled.message == "Cancelled by user"
+    assert cancelled.result_data is None
 
 
 def test_process_video_rejects_invalid_extension(client: TestClient):
     headers = _auth_header(client, email="reject@example.com")
-    resp = client.post(
-        "/videos/process",
-        headers=headers,
-        files={"file": ("notes.txt", b"nope", "text/plain")},
+    resp = post_process_stream(
+        client,
+        headers,
+        filename="notes.txt",
+        content=b"nope",
+        content_type="text/plain",
     )
     assert resp.status_code == 400
 
@@ -560,11 +602,7 @@ def test_process_video_creates_job(client: TestClient, monkeypatch):
         called["job"] = job_id
 
     monkeypatch.setattr(videos, "run_video_processing", fake_run)
-    resp = client.post(
-        "/videos/process",
-        headers=headers,
-        files={"file": ("clip.mp4", io.BytesIO(b"123"), "video/mp4")},
-    )
+    resp = post_process_stream(client, headers, content=b"123")
     assert resp.status_code == 200
     body = resp.json()
     assert body["id"]
@@ -587,15 +625,15 @@ def test_process_video_accepts_openai_provider_override(client: TestClient, monk
 
     monkeypatch.setattr(videos, "reserve_processing_charges", fake_reserve_processing_charges)
 
-    resp = client.post(
-        "/videos/process",
-        headers=headers,
-        data={
+    resp = post_process_stream(
+        client,
+        headers,
+        content=b"123",
+        metadata={
             "transcribe_tier": "pro",
             "transcribe_provider": "openai",
             "openai_model": "whisper-1",
         },
-        files={"file": ("clip.mp4", io.BytesIO(b"123"), "video/mp4")},
     )
 
     assert resp.status_code == 200
@@ -615,16 +653,16 @@ def test_process_video_forces_mock_before_charge_planning(client: TestClient, mo
 
     monkeypatch.setattr(videos, "reserve_processing_charges", fake_reserve_processing_charges)
 
-    response = client.post(
-        "/videos/process",
-        headers=headers,
-        data={
+    response = post_process_stream(
+        client,
+        headers,
+        content=b"123",
+        metadata={
             "transcribe_tier": "pro",
             "transcribe_provider": "openai",
             "openai_model": "gpt-4o-transcribe",
-            "use_llm": "true",
+            "use_llm": True,
         },
-        files={"file": ("clip.mp4", io.BytesIO(b"123"), "video/mp4")},
     )
 
     assert response.status_code == 200
@@ -646,14 +684,14 @@ def test_process_video_accepts_local_provider_override(client: TestClient, monke
 
     monkeypatch.setattr(videos, "reserve_processing_charges", fake_reserve_processing_charges)
 
-    resp = client.post(
-        "/videos/process",
-        headers=headers,
-        data={
+    resp = post_process_stream(
+        client,
+        headers,
+        content=b"123",
+        metadata={
             "transcribe_tier": "standard",
             "transcribe_provider": "local",
         },
-        files={"file": ("clip.mp4", io.BytesIO(b"123"), "video/mp4")},
     )
 
     assert resp.status_code == 200
@@ -673,8 +711,6 @@ def test_export_video_falls_back_to_result_video_path(client: TestClient, monkey
     uploads_dir.mkdir(parents=True, exist_ok=True)
     artifacts_dir.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(export_routes, "data_roots", lambda: (data_dir, uploads_dir, artifacts_dir))
-    monkeypatch.setattr(export_routes, "get_gcs_settings", lambda: None)
-
     db = Database()
     store = jobs.JobStore(db)
     job_id = f"job-export-{uuid.uuid4().hex}"
@@ -750,11 +786,7 @@ def test_reprocess_job_creates_new_job(client: TestClient, monkeypatch):
         paid_credit_delta=1000,
     )
 
-    source = client.post(
-        "/videos/process",
-        headers=headers,
-        files={"file": ("clip.mp4", io.BytesIO(b"123"), "video/mp4")},
-    )
+    source = post_process_stream(client, headers, content=b"123")
     assert source.status_code == 200
     source_job_id = source.json()["id"]
 
@@ -762,7 +794,6 @@ def test_reprocess_job_creates_new_job(client: TestClient, monkeypatch):
     assert source_job_id in calls
 
     resp = client.post(f"/videos/jobs/{source_job_id}/reprocess", headers=headers, json={})
-    print(f"DEBUG: reprocess response status={resp.status_code}, body={resp.text}")
     assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
     new_job_id = resp.json()["id"]
     assert new_job_id != source_job_id
@@ -777,11 +808,7 @@ def test_reprocess_job_requires_completed_source_job(client: TestClient, monkeyp
     headers = _auth_header(client, email="reprocess_pending@example.com")
 
     monkeypatch.setattr(videos, "run_video_processing", lambda *args, **kwargs: None)
-    source = client.post(
-        "/videos/process",
-        headers=headers,
-        files={"file": ("clip.mp4", io.BytesIO(b"123"), "video/mp4")},
-    )
+    source = post_process_stream(client, headers, content=b"123")
     assert source.status_code == 200
     source_job_id = source.json()["id"]
 
@@ -806,11 +833,7 @@ def test_cancel_job_success(client: TestClient, monkeypatch, tmp_path: Path):
     monkeypatch.setattr(videos, "run_video_processing", fake_run)
 
     # Create a job via process endpoint
-    resp = client.post(
-        "/videos/process",
-        headers=headers,
-        files={"file": ("clip.mp4", io.BytesIO(b"123"), "video/mp4")},
-    )
+    resp = post_process_stream(client, headers, content=b"123")
     assert resp.status_code == 200
     job_id = resp.json()["id"]
 

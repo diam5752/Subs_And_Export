@@ -19,6 +19,22 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class StoreBehaviorIT extends IntegrationTestSupport {
 
     @Test
+    void retiredCloudUploadMetadataTableIsAbsentAfterMigrations() {
+        // REGRESSION: the retired external-storage path left an unused table in
+        // fresh and upgraded Java-compatible databases.
+        Integer tableCount = jdbcClient.sql("""
+                SELECT count(*)
+                FROM information_schema.tables
+                WHERE table_schema = 'public'
+                  AND table_name = 'gcs_uploads'
+                """)
+                .query(Integer.class)
+                .single();
+
+        assertThat(tableCount).isZero();
+    }
+
+    @Test
     void flywayCreatesTemporaryUsageResultReplaySchema() {
         // REGRESSION: the Java compatibility surface must migrate the same
         // replay-result schema and lifecycle constraints as Alembic.

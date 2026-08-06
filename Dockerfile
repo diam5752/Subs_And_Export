@@ -29,8 +29,8 @@ RUN pip install --no-cache-dir /wheels/* && rm -rf /wheels
 COPY backend/ .
 COPY gsubs-logo.png /gsubs-logo.png
 
-# Create directories for data and logs
-RUN mkdir -p /data/uploads /data/artifacts /logs /app/logs
+# Create the only persistent runtime directories used by this image.
+RUN mkdir -p /data/uploads /data/artifacts /privacy-erasure-journal
 
 # Whisper model cache directory (mount as volume for persistence)
 ENV HF_HOME=/models
@@ -56,12 +56,12 @@ ENV GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD=0
 RUN rm -rf /app/backend && ln -s /app /app/backend
 
 # Drop root privileges for runtime.
-# Cloud Run runs containers as root by default; use a dedicated unprivileged user instead.
+# Run the API with a dedicated unprivileged user.
 RUN useradd --create-home --uid 10001 --user-group --shell /usr/sbin/nologin appuser \
-    && chown -R appuser:appuser /data /logs /models /app/logs
+    && chown -R appuser:appuser /data /models /privacy-erasure-journal
 USER appuser
 
-# Default environment (override via Cloud Run env vars)
+# Default environment (overridden by the production Compose environment).
 ENV APP_ENV=production
 
 # Health check

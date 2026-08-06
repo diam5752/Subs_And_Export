@@ -1,4 +1,3 @@
-
 import time
 import uuid
 
@@ -45,30 +44,3 @@ def test_job_store_retention(tmp_path):
     assert any(j.id == old_id for j in old_terminal_jobs)
     assert all(j.id != recent_id for j in old_terminal_jobs)
     assert store.list_jobs_updated_before(cutoff, set()) == []
-
-def test_cleanup_api_integration(client, funded_user_auth_headers):
-    """Full integration test mocking the DB state."""
-    import os
-    from unittest.mock import patch
-
-    # Create job
-    files = {"file": ("immediate_delete.mp4", b"data", "video/mp4")}
-    resp = client.post("/videos/process", headers=funded_user_auth_headers, files=files)
-    assert resp.status_code == 200
-    job_id = resp.json()["id"]
-
-    me = client.get("/auth/me", headers=funded_user_auth_headers)
-    assert me.status_code == 200
-    admin_email = me.json()["email"]
-
-    # Call cleanup with days=-1 (cutoff = NOW + 24h) to delete everything
-    with patch.dict(os.environ, {"GSP_ADMIN_EMAILS": admin_email}):
-        cleanup_resp = client.post("/videos/jobs/cleanup?days=-1", headers=funded_user_auth_headers)
-        assert cleanup_resp.status_code == 200
-        assert cleanup_resp.json()["deleted_count"] >= 1
-
-    # Verify job gone
-    job_resp = client.get(f"/videos/jobs/{job_id}", headers=funded_user_auth_headers)
-    # Depending on implementation, get_job might return 404 or just fail auth if user deleted?
-    # Actually delete_job removes from DB, so 404.
-    assert job_resp.status_code == 404

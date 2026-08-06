@@ -5,9 +5,11 @@ import com.ascentia.subs.auth.CurrentUserAccess;
 import com.ascentia.subs.auth.AuthStore;
 import com.ascentia.subs.auth.BearerTokenAuthenticationFilter;
 import com.ascentia.subs.config.AppProperties;
+import com.ascentia.subs.jobs.JobStore;
 import com.ascentia.subs.web.AppController;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.Cookie;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
@@ -42,15 +44,7 @@ import static org.mockito.Mockito.when;
 
 class CommonUnitTest {
 
-    private static final List<Path> GENERATED_STATIC_FIXTURES = List.of(
-            Path.of("data", "unit-static.txt"),
-            Path.of("data", "unit-video.mp4"),
-            Path.of("data", "unit-video.mov"),
-            Path.of("data", "unit-video.avi"),
-            Path.of("data", "unit-video.webm"),
-            Path.of("data", "unit-video.mkv"),
-            Path.of("data", "unit-static-dir")
-    );
+    private static final Path GENERATED_STATIC_FIXTURE = Path.of("data", "artifacts", "unit-static-job");
 
     private static final class ValidationTarget {
         @SuppressWarnings("unused")
@@ -60,8 +54,13 @@ class CommonUnitTest {
 
     @AfterEach
     void removeGeneratedStaticFixtures() throws IOException {
-        for (Path path : GENERATED_STATIC_FIXTURES) {
-            Files.deleteIfExists(path);
+        if (Files.notExists(GENERATED_STATIC_FIXTURE)) {
+            return;
+        }
+        try (java.util.stream.Stream<Path> walk = Files.walk(GENERATED_STATIC_FIXTURE)) {
+            for (Path path : walk.sorted(java.util.Comparator.reverseOrder()).toList()) {
+                Files.deleteIfExists(path);
+            }
         }
     }
 
@@ -222,7 +221,33 @@ class CommonUnitTest {
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
         SecurityContextHolder.clearContext();
 
+        MockHttpServletRequest blankBearerRequest = new MockHttpServletRequest();
+        blankBearerRequest.addHeader(HttpHeaders.AUTHORIZATION, "Bearer   ");
+        filter.doFilter(blankBearerRequest, new MockHttpServletResponse(), new MockFilterChain());
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        SecurityContextHolder.clearContext();
+
         filter.doFilter(new MockHttpServletRequest(), new MockHttpServletResponse(), new MockFilterChain());
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+
+        MockHttpServletRequest staticCookieRequest = new MockHttpServletRequest("GET", "/static/artifacts/job/file");
+        staticCookieRequest.setCookies(new Cookie("gsubs_media_session", "valid-token"));
+        filter.doFilter(staticCookieRequest, new MockHttpServletResponse(), new MockFilterChain());
+        assertThat(SecurityContextHolder.getContext().getAuthentication().getPrincipal()).isEqualTo(currentUser);
+        SecurityContextHolder.clearContext();
+
+        MockHttpServletRequest blankStaticCookieRequest = new MockHttpServletRequest(
+                "GET",
+                "/static/artifacts/job/file"
+        );
+        blankStaticCookieRequest.setCookies(new Cookie("gsubs_media_session", "  "));
+        filter.doFilter(blankStaticCookieRequest, new MockHttpServletResponse(), new MockFilterChain());
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        SecurityContextHolder.clearContext();
+
+        MockHttpServletRequest nonStaticCookieRequest = new MockHttpServletRequest("GET", "/auth/me");
+        nonStaticCookieRequest.setCookies(new Cookie("gsubs_media_session", "valid-token"));
+        filter.doFilter(nonStaticCookieRequest, new MockHttpServletResponse(), new MockFilterChain());
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
     }
 
@@ -233,43 +258,93 @@ class CommonUnitTest {
 
         AppProperties properties = new AppProperties();
         ClientIpResolver clientIpResolver = new ClientIpResolver();
-        AppController controller = new AppController(properties, rateLimitService, clientIpResolver);
+        JobStore jobStore = mock(JobStore.class);
+        AppController controller = new AppController(properties, rateLimitService, clientIpResolver, jobStore);
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setRemoteAddr("127.0.0.1");
+        CurrentUser owner = new CurrentUser("u1", "user@example.com", "User", "local", null, null, "2026-01-01T00:00:00Z", false);
+        UsernamePasswordAuthenticationToken ownerAuthentication = new UsernamePasswordAuthenticationToken(owner, "token");
+        JobStore.Job job = new JobStore.Job("unit-static-job", owner.id(), "completed", 100, "done", 1, 1, null);
+        when(jobStore.getJob("unit-static-job")).thenReturn(java.util.Optional.of(job));
 
-        assertThatThrownBy(() -> controller.serveStatic("../pom.xml", false, null, request))
+        assertThatThrownBy(() -> controller.serveStatic("../pom.xml", false, null, request, ownerAuthentication))
                 .isInstanceOf(ResponseStatusException.class)
-                .hasMessageContaining("403 FORBIDDEN");
+                .hasMessageContaining("404 NOT_FOUND");
+        assertThatThrownBy(() -> controller.serveStatic("artifacts//file.txt", false, null, request, ownerAuthentication))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("404 NOT_FOUND");
+        assertThatThrownBy(() -> controller.serveStatic("artifacts/unit-static-job/", false, null, request, ownerAuthentication))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("404 NOT_FOUND");
 
-        Path file = Path.of("data", "unit-static.txt");
+        JobStore.Job invalidPathJob = new JobStore.Job("..", owner.id(), "completed", 100, "done", 1, 1, null);
+        when(jobStore.getJob("..")).thenReturn(java.util.Optional.of(invalidPathJob));
+        assertThatThrownBy(() -> controller.serveStatic("artifacts/../file.txt", false, null, request, ownerAuthentication))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("404 NOT_FOUND");
+        assertThatThrownBy(() -> controller.serveStatic("artifacts/unit-static-job/../../file.txt", false, null, request, ownerAuthentication))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("404 NOT_FOUND");
+
+        JobStore.Job missingRootJob = new JobStore.Job("missing-root", owner.id(), "completed", 100, "done", 1, 1, null);
+        when(jobStore.getJob("missing-root")).thenReturn(java.util.Optional.of(missingRootJob));
+        assertThatThrownBy(() -> controller.serveStatic("artifacts/missing-root/file.txt", false, null, request, ownerAuthentication))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("404 NOT_FOUND");
+
+        Path file = GENERATED_STATIC_FIXTURE.resolve("unit-static.txt");
         Files.createDirectories(file.getParent());
         Files.write(file, "hello".getBytes(StandardCharsets.UTF_8));
 
-        assertThat(controller.serveStatic("unit-static.txt", false, null, request).getBody()).isNotNull();
-        assertThat(controller.serveStatic("unit-static.txt", true, null, request).getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION))
+        String filePath = "artifacts/unit-static-job/unit-static.txt";
+        assertThat(controller.serveStatic(filePath, false, null, request, ownerAuthentication).getBody()).isNotNull();
+        assertThat(controller.serveStatic(filePath, false, null, request, ownerAuthentication).getHeaders().getFirst(HttpHeaders.CACHE_CONTROL))
+                .isEqualTo("private, no-store");
+
+        Path linkedDirectory = GENERATED_STATIC_FIXTURE.resolve("linked");
+        Files.createSymbolicLink(linkedDirectory, Path.of("."));
+        assertThatThrownBy(() -> controller.serveStatic(
+                "artifacts/unit-static-job/linked/unit-static.txt",
+                false,
+                null,
+                request,
+                ownerAuthentication
+        )).isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("404 NOT_FOUND");
+        assertThat(controller.serveStatic(filePath, true, null, request, ownerAuthentication).getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION))
                 .contains("attachment");
 
-        Path directory = Path.of("data", "unit-static-dir");
+        Path directory = GENERATED_STATIC_FIXTURE.resolve("unit-static-dir");
         Files.createDirectories(directory);
-        assertThatThrownBy(() -> controller.serveStatic("unit-static-dir", false, null, request))
+        assertThatThrownBy(() -> controller.serveStatic("artifacts/unit-static-job/unit-static-dir", false, null, request, ownerAuthentication))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("404 NOT_FOUND");
 
-        Path video = Path.of("data", "unit-video.mp4");
+        Path video = GENERATED_STATIC_FIXTURE.resolve("unit-video.mp4");
         Files.write(video, "video".getBytes(StandardCharsets.UTF_8));
-        assertThat(controller.serveStatic("unit-video.mp4", false, null, request).getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION))
+        assertThat(controller.serveStatic("artifacts/unit-static-job/unit-video.mp4", false, null, request, ownerAuthentication).getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION))
                 .contains("unit-video.mp4");
         for (String extension : List.of(".mov", ".avi", ".webm", ".mkv")) {
             String filename = "unit-video" + extension;
-            Files.write(Path.of("data", filename), "video".getBytes(StandardCharsets.UTF_8));
-            assertThat(controller.serveStatic(filename, false, null, request).getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION))
+            Files.write(GENERATED_STATIC_FIXTURE.resolve(filename), "video".getBytes(StandardCharsets.UTF_8));
+            assertThat(controller.serveStatic("artifacts/unit-static-job/" + filename, false, null, request, ownerAuthentication).getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION))
                     .contains(filename);
         }
-        assertThatThrownBy(() -> controller.serveStatic(null, false, null, request))
+        assertThatThrownBy(() -> controller.serveStatic(null, false, null, request, ownerAuthentication))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("404 NOT_FOUND");
-        assertThatThrownBy(() -> controller.serveStatic("missing.txt", false, null, request))
+        assertThatThrownBy(() -> controller.serveStatic("artifacts/unit-static-job/missing.txt", false, null, request, ownerAuthentication))
                 .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("404 NOT_FOUND");
+
+        CurrentUser other = new CurrentUser("u2", "other@example.com", "Other", "local", null, null, "2026-01-01T00:00:00Z", false);
+        assertThatThrownBy(() -> controller.serveStatic(
+                filePath,
+                false,
+                null,
+                request,
+                new UsernamePasswordAuthenticationToken(other, "token")
+        )).isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("404 NOT_FOUND");
     }
 }

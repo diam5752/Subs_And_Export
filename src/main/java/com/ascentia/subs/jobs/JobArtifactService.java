@@ -42,7 +42,8 @@ public class JobArtifactService {
     }
 
     public void deleteArtifacts(String jobId) {
-        deleteRecursively(artifactsRoot().resolve(jobId));
+        Path jobArtifacts = resolveJobArtifacts(jobId);
+        deleteRecursively(jobArtifacts);
         for (String extension : INPUT_EXTENSIONS) {
             deleteIfExists(uploadsDir().resolve(jobId + "_input" + extension));
         }
@@ -85,22 +86,42 @@ public class JobArtifactService {
         return dataDir().resolve("artifacts");
     }
 
+    private Path resolveJobArtifacts(String jobId) {
+        if (jobId == null || !jobId.matches("[A-Za-z0-9][A-Za-z0-9_-]{0,127}")) {
+            throw new IllegalArgumentException("Invalid job id");
+        }
+        Path root = artifactsRoot();
+        Path resolved = root.resolve(jobId).normalize();
+        if (!root.equals(resolved.getParent())) {
+            throw new IllegalArgumentException("Invalid job id");
+        }
+        return resolved;
+    }
+
     private void deleteRecursively(Path root) {
         if (Files.notExists(root)) {
             return;
         }
         try (Stream<Path> walk = Files.walk(root)) {
-            walk.sorted(Comparator.reverseOrder()).forEach(this::deleteIfExists);
-        } catch (IOException ignored) {
-            // Best-effort cleanup to preserve endpoint behavior.
+            for (Path path : walk.sorted(Comparator.reverseOrder()).toList()) {
+                deleteIfExists(path);
+            }
+        } catch (IOException exception) {
+            throw new ArtifactDeletionException("Could not delete local job artifacts", exception);
         }
     }
 
     private void deleteIfExists(Path path) {
         try {
             Files.deleteIfExists(path);
-        } catch (IOException ignored) {
-            // Best-effort cleanup to preserve endpoint behavior.
+        } catch (IOException exception) {
+            throw new ArtifactDeletionException("Could not delete local job artifacts", exception);
+        }
+    }
+
+    public static final class ArtifactDeletionException extends RuntimeException {
+        ArtifactDeletionException(String message, IOException cause) {
+            super(message, cause);
         }
     }
 }

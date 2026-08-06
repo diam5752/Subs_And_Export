@@ -2,10 +2,51 @@ from pathlib import Path
 
 import typer
 
+from backend.app.core.cleanup import run_configured_retention
 from backend.app.core.config import settings
+from backend.app.core.database import Database
+from backend.app.core.erasure_journal import configured_erasure_journal
+from backend.app.services.erasure_reconciliation import reconcile_erasure_journal
 from backend.app.services.video_processing import process_video_pipeline
 
 app = typer.Typer(help="Normalize vertical videos and prepare styled Greek subtitles.")
+
+
+@app.command("reconcile-erasures")
+def reconcile_erasures() -> None:
+    """Replay privacy tombstones before restored services return online."""
+    db = Database()
+    try:
+        report = reconcile_erasure_journal(
+            db=db,
+            data_dir=settings.data_dir,
+            journal=configured_erasure_journal(),
+        )
+    finally:
+        db.dispose()
+    typer.echo(
+        "Erasure reconciliation complete: "
+        f"events={report.replayed_events} pruned={report.pruned_events}",
+    )
+
+
+@app.command("run-retention")
+def run_retention() -> None:
+    """Run media and financial retention synchronously while offline."""
+    db = Database()
+    try:
+        report = run_configured_retention(db)
+    finally:
+        db.dispose()
+    typer.echo(
+        "Retention complete: "
+        f"deleted_jobs={len(report.deleted_job_ids)} "
+        f"failed_jobs={len(report.failed_job_ids)} "
+        f"deleted_orphans={report.deleted_orphan_items} "
+        f"failed_orphans={report.failed_orphan_items}",
+    )
+    if report.failed_job_ids or report.failed_orphan_items:
+        raise typer.Exit(code=1)
 
 
 @app.command("process")

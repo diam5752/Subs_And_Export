@@ -1,6 +1,10 @@
-## Security Checklist (Cloud Run + Docker)
+## Security checklist (Hetzner + Docker)
 
-This repository contains security hardening in code, but **production security also depends on your Cloud Run + GCP configuration**.
+The persistent production media-storage path is local-only. Source videos and
+generated artifacts must remain inside the dedicated backend Docker volume;
+do not add external object storage or storage credentials. The separately
+disclosed ElevenLabs processing boundary still receives extracted audio and is
+governed by the controls below.
 
 ### Required App Config (Production)
 - Set `APP_ENV=production`.
@@ -10,29 +14,32 @@ This repository contains security hardening in code, but **production security a
 
 ### Upload Limits
 - Backend enforces a **500 MB maximum upload size** and **10-minute maximum duration** by default.
-- Cloud Run has request body limits; for large uploads use **direct-to-GCS uploads** (signed URL / resumable upload), then pass the object name to the backend.
-- When `GSP_GCS_BUCKET` is set, processed `/static/*` responses can be served via **signed GCS URLs** (redirect), so artifacts persist across Cloud Run restarts.
+- Uploads go through the authenticated backend stream endpoint into the dedicated local volume.
+- Keep the backend and database off the public network; only the edge proxy may reach them.
 
-### GCS Hardening (Recommended)
-- Use a dedicated bucket with **Uniform bucket-level access** enabled.
-- Apply a **Lifecycle Policy** to auto-delete old objects (uploads/artifacts) according to your retention policy.
-- IAM (minimum):
-  - Cloud Run runtime SA: `roles/storage.objectViewer` + `roles/storage.objectCreator` (or `roles/storage.objectAdmin`) on the bucket.
-  - Cloud Run runtime SA: `roles/iam.serviceAccountTokenCreator` on itself (required for Signed URL `signBlob` on Cloud Run).
-- Bucket CORS (required for browser direct uploads / `/static` redirects):
-  - Allow your frontend origin for `PUT` (upload) and `GET` (download).
-  - Allow request header `Content-Type`.
+### Media retention and erasure
+- Keep automatic retention enabled. Production defaults are 24 hours for terminal workspaces, 6 hours for stale active jobs, and 1 hour for orphan files.
+- Project and account erasure must remove both database ownership records and the exact local workspace before reporting success.
+- Encrypted server and independent backups have a 14-day default retention. An erased item may persist only in an already-created encrypted backup until that backup expires.
+- After any restore, keep public traffic closed until automatic retention and the durable post-backup erasure reconciliation have completed successfully.
+- Restore is supported only while the current host continuity state and live erasure-journal volume both survive. If either is lost, fail closed: do not restore/publish an older user database or media backup. The zero-extra-storage policy accepts data loss after total host loss; disaster recovery of user data would require a continuously updated encrypted journal copy in another failure domain.
+
+### ElevenLabs processor boundary
+- The edge permits only Scribe creation and deletion of a validated transcript ID; it does not provide a general ElevenLabs proxy.
+- The backend must require the returned transcript ID, copy the result locally, request immediate provider deletion, and retry a failed deletion from the durable privacy journal.
+- Offline restore/deploy reconciliation uses a temporary private relay with no published port and only the validated transcript DELETE route; stop it before reopening the public edge.
+- Do not set or claim `enable_logging=false`, Zero Retention Mode, or EU data residency unless the actual ElevenLabs account has been contractually enabled and independently verified. Standard provider-side retention and transfers remain governed by the applicable DPA and account settings.
+- Recheck the official [transcript deletion API](https://elevenlabs.io/docs/api-reference/speech-to-text/delete), [Zero Retention documentation](https://elevenlabs.io/docs/eleven-api/resources/zero-retention-mode), [data-residency documentation](https://elevenlabs.io/docs/overview/administration/data-residency), and [DPA](https://elevenlabs.io/dpa) before changing this boundary.
 
 ### Secrets
 - Do not bake secrets into the image.
-- Prefer **Secret Manager** and mount secrets as env vars in Cloud Run.
+- Keep production secrets only in the host's untracked, mode-0600 `.env.production` file; grant read access only to the deployment operator and the exact containers that require each value.
 - Treat any key that ever appeared in logs or a committed file as compromised and rotate it.
 
-### Cloud Run Hardening
-- Use a dedicated **service account** with minimum permissions.
-- Restrict ingress if possible (e.g. only via HTTPS LB + Cloud Armor).
-- Add **Cloud Armor WAF + rate limiting** in front of the services.
-- Enable **Cloud Audit Logs** and set alerting for suspicious patterns (auth failures, spikes, 4xx/5xx bursts).
+### Host hardening
+- Restrict ingress to the public edge proxy and SSH administration path.
+- Encrypt backup archives before they leave the host and keep the age identity in separate custody.
+- Enable host and edge event logging with alerting for authentication failures and traffic spikes; do not log request bodies, media, transcript IDs, or bearer credentials. The internal ElevenLabs relay intentionally has no Caddy access-log directive.
 
 ### Local + CI Security Scans
 - Backend: `python3 -m pytest` and `ruff check backend`
@@ -47,8 +54,4 @@ This repository contains security hardening in code, but **production security a
   - Confirm security headers, CORS behavior, auth flows, and IDOR protections.
 
 ### Packet / Request Tracing
-- Prefer platform telemetry over raw packet capture:
-  - Cloud Logging request logs
-  - Cloud Trace (latency + request tracing)
-  - Cloud Armor logs (blocked requests)
-  - VPC Flow Logs (egress visibility, if using VPC connectors)
+- Prefer application, edge and host telemetry over raw packet capture, which can expose user media or credentials.

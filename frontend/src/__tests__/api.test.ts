@@ -28,7 +28,9 @@ describe('API Client', () => {
         await api.login('qa@example.com', 'password123');
 
         expect(API_BASE).toBe('');
-        expect(fetch).toHaveBeenCalledWith('/auth/token', expect.any(Object));
+        expect(fetch).toHaveBeenCalledWith('/auth/token', expect.objectContaining({
+            credentials: 'include',
+        }));
     });
 
     describe('login', () => {
@@ -167,6 +169,86 @@ describe('API Client', () => {
             );
         });
 
+        it('uses the cookie-scoped endpoint when no bearer is stored', async () => {
+            (fetch as jest.Mock).mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({ status: 'success' }),
+            });
+
+            const { api } = await import('@/lib/api');
+            await expect(api.revokeSession()).resolves.toEqual({
+                status: 'success',
+            });
+
+            expect(fetch).toHaveBeenCalledTimes(1);
+            expect(fetch).toHaveBeenCalledWith(
+                expect.stringContaining('/static/auth/logout'),
+                expect.objectContaining({
+                    method: 'POST',
+                    keepalive: true,
+                    credentials: 'include',
+                    headers: expect.not.objectContaining({
+                        Authorization: expect.any(String),
+                    }),
+                }),
+            );
+        });
+
+        it('falls back to cookie-scoped logout after a rejected bearer', async () => {
+            localStorage.setItem('auth_token', 'stale-token');
+            (fetch as jest.Mock)
+                .mockResolvedValueOnce({
+                    ok: false,
+                    status: 401,
+                    json: async () => ({ detail: 'Could not validate credentials' }),
+                })
+                .mockResolvedValueOnce({
+                    ok: true,
+                    json: async () => ({ status: 'success' }),
+                });
+
+            jest.resetModules();
+            const { api } = await import('@/lib/api');
+            await expect(api.revokeSession()).resolves.toEqual({
+                status: 'success',
+            });
+
+            expect(fetch).toHaveBeenCalledTimes(2);
+            expect(fetch).toHaveBeenNthCalledWith(
+                1,
+                expect.stringContaining('/auth/logout'),
+                expect.objectContaining({
+                    headers: expect.objectContaining({
+                        Authorization: 'Bearer stale-token',
+                    }),
+                }),
+            );
+            expect(fetch).toHaveBeenNthCalledWith(
+                2,
+                expect.stringContaining('/static/auth/logout'),
+                expect.objectContaining({
+                    headers: expect.not.objectContaining({
+                        Authorization: expect.any(String),
+                    }),
+                }),
+            );
+        });
+
+        it('does not mask a transient bearer logout failure with cookie fallback', async () => {
+            localStorage.setItem('auth_token', 'stored-token');
+            (fetch as jest.Mock).mockResolvedValueOnce({
+                ok: false,
+                status: 503,
+                json: async () => ({ detail: 'Temporarily unavailable' }),
+            });
+
+            jest.resetModules();
+            const { api } = await import('@/lib/api');
+
+            await expect(api.revokeSession()).rejects.toThrow('Temporarily unavailable');
+            expect(fetch).toHaveBeenCalledTimes(1);
+        });
+
         it('preserves the HTTP status in a typed API error', async () => {
             (fetch as jest.Mock).mockResolvedValueOnce({
                 ok: false,
@@ -193,6 +275,26 @@ describe('API Client', () => {
     });
 
     describe('billing admin', () => {
+        it('sends same-origin credentials when downloading a protected billing artifact', async () => {
+            const artifact = new Blob(['contract'], { type: 'application/pdf' });
+            (fetch as jest.Mock).mockResolvedValueOnce({
+                ok: true,
+                blob: async () => artifact,
+            });
+
+            const { api } = await import('@/lib/api');
+            await expect(
+                api.downloadBillingArtifact('/billing/purchases/purchase-1/contract'),
+            ).resolves.toBe(artifact);
+
+            expect(fetch).toHaveBeenCalledWith(
+                expect.stringContaining('/billing/purchases/purchase-1/contract'),
+                expect.objectContaining({
+                    credentials: 'include',
+                }),
+            );
+        });
+
         it('lists the first page of pending AADE records with a bounded limit', async () => {
             const response = {
                 items: [],
@@ -478,6 +580,7 @@ describe('API Client', () => {
             };
             const xhrMock = {
                 open: jest.fn(),
+                withCredentials: false,
                 setRequestHeader: jest.fn(),
                 send: jest.fn(),
                 abort: jest.fn(),
@@ -538,6 +641,7 @@ describe('API Client', () => {
                 'POST',
                 expect.stringContaining('/videos/process-stream'),
             );
+            expect(xhrMock.withCredentials).toBe(true);
             expect(xhrMock.send).toHaveBeenCalledWith(file);
             expect(xhrMock.setRequestHeader).toHaveBeenCalledWith('Content-Type', 'video/mp4');
             const metadataHeader = xhrMock.setRequestHeader.mock.calls.find(
@@ -582,27 +686,23 @@ describe('API Client', () => {
             expect(metadata.karaoke_enabled).toBe(true);
         });
 
-        it('falls back to multipart when metadata cannot safely fit in a request header', async () => {
-            const mockResponse = { id: 'job-fallback', status: 'pending', progress: 0, message: null, created_at: Date.now(), updated_at: Date.now(), result_data: null };
-            const xhrMock = installProcessXhr(200, mockResponse);
+        it('fails locally before creating a request when metadata cannot safely fit in the header', async () => {
+            const xhrMock = installProcessXhr(200, { id: 'never-used' });
             const { api } = await import('@/lib/api');
-            const file = new File(['video'], 'fallback.mp4', { type: 'video/mp4' });
-            const promise = api.processVideo(file, {
+            const file = new File(['video'], 'oversized-settings.mp4', { type: 'video/mp4' });
+
+            await expect(api.processVideo(file, {
                 context_prompt: 'α'.repeat(5000),
+            })).rejects.toMatchObject({
+                name: 'ApiError',
+                message: 'Upload settings are too large to send safely. Shorten the context prompt and try again.',
+                status: 0,
+                code: 'upload_metadata_too_large',
             });
 
-            xhrMock.onload?.();
-            await promise;
-
-            expect(xhrMock.open).toHaveBeenCalledWith(
-                'POST',
-                expect.stringContaining('/videos/process'),
-            );
-            expect(xhrMock.open).not.toHaveBeenCalledWith(
-                'POST',
-                expect.stringContaining('/videos/process-stream'),
-            );
-            expect(xhrMock.send).toHaveBeenCalledWith(expect.any(FormData));
+            expect(global.XMLHttpRequest).not.toHaveBeenCalled();
+            expect(xhrMock.open).not.toHaveBeenCalled();
+            expect(xhrMock.send).not.toHaveBeenCalled();
         });
 
         it('aborts an in-flight upload without starting a second request', async () => {
@@ -618,195 +718,6 @@ describe('API Client', () => {
             expect(xhrMock.abort).toHaveBeenCalledTimes(1);
             expect(xhrMock.send).toHaveBeenCalledTimes(1);
             expect(global.XMLHttpRequest).toHaveBeenCalledTimes(1);
-        });
-    });
-
-    describe('createGcsUploadUrl', () => {
-        it('should request a signed upload URL', async () => {
-            const mockResponse = {
-                upload_id: 'u1',
-                object_name: 'uploads/u/file.mp4',
-                upload_url: 'https://signed.example/upload',
-                expires_at: 123,
-                required_headers: { 'Content-Type': 'video/mp4' },
-            };
-
-            (fetch as jest.Mock).mockResolvedValueOnce({
-                ok: true,
-                json: async () => mockResponse,
-            });
-
-            const { api } = await import('@/lib/api');
-            const file = new File(['video'], 'test.mp4', { type: 'video/mp4' });
-            const result = await api.createGcsUploadUrl(file);
-
-            expect(fetch).toHaveBeenCalledWith(
-                expect.stringContaining('/videos/gcs/upload-url'),
-                expect.objectContaining({
-                    method: 'POST',
-                    body: JSON.stringify({
-                        filename: 'test.mp4',
-                        content_type: 'video/mp4',
-                        size_bytes: file.size,
-                    }),
-                }),
-            );
-            expect(result.upload_url).toBe('https://signed.example/upload');
-        });
-    });
-
-    describe('uploadToSignedUrl', () => {
-        function createSignedUploadXhr(status: number) {
-            return {
-                open: jest.fn(),
-                setRequestHeader: jest.fn(),
-                send: jest.fn(),
-                abort: jest.fn(),
-                upload: {
-                    onprogress: null as null | ((event: {
-                        lengthComputable: boolean;
-                        loaded: number;
-                        total: number;
-                    }) => void),
-                },
-                status,
-                onload: null as null | (() => void),
-                onerror: null as null | (() => void),
-                ontimeout: null as null | (() => void),
-                onabort: null as null | (() => void),
-            };
-        }
-
-        it('should upload via XMLHttpRequest with progress', async () => {
-            const xhrMock = createSignedUploadXhr(200);
-            global.XMLHttpRequest = jest.fn(() => xhrMock) as unknown as typeof XMLHttpRequest;
-            const { api } = await import('@/lib/api');
-            const file = new File(['video'], 'test.mp4', { type: 'video/mp4' });
-            const onProgress = jest.fn();
-            const onUploadComplete = jest.fn();
-
-            const promise = api.uploadToSignedUrl(
-                'https://signed.example/upload',
-                file,
-                'video/mp4',
-                { onProgress, onUploadComplete },
-            );
-
-            xhrMock.upload.onprogress?.({ lengthComputable: true, loaded: 50, total: 100 });
-            xhrMock.onload?.();
-
-            await promise;
-
-            expect(xhrMock.open).toHaveBeenCalledWith('PUT', 'https://signed.example/upload');
-            expect(xhrMock.setRequestHeader).toHaveBeenCalledWith('Content-Type', 'video/mp4');
-            expect(xhrMock.send).toHaveBeenCalledWith(file);
-            expect(onProgress).toHaveBeenCalledWith(50);
-            expect(onUploadComplete).toHaveBeenCalledTimes(1);
-        });
-
-        it('should reject on non-2xx status', async () => {
-            const xhrMock = createSignedUploadXhr(403);
-            global.XMLHttpRequest = jest.fn(() => xhrMock) as unknown as typeof XMLHttpRequest;
-            const { api } = await import('@/lib/api');
-            const file = new File(['video'], 'test.mp4', { type: 'video/mp4' });
-
-            const promise = api.uploadToSignedUrl('https://signed.example/upload', file, 'video/mp4');
-            xhrMock.onload?.();
-
-            await expect(promise).rejects.toThrow('Upload failed with status 403');
-            expect(global.XMLHttpRequest).toHaveBeenCalledTimes(1);
-        });
-
-        it('retries a transient signed upload failure and preserves progress callbacks', async () => {
-            jest.useFakeTimers();
-            try {
-                const firstAttempt = createSignedUploadXhr(503);
-                const secondAttempt = createSignedUploadXhr(200);
-                const attempts = [firstAttempt, secondAttempt];
-                global.XMLHttpRequest = jest.fn(
-                    () => attempts.shift() as typeof firstAttempt,
-                ) as unknown as typeof XMLHttpRequest;
-                const { api } = await import('@/lib/api');
-                const file = new File(['video'], 'retry.mp4', { type: 'video/mp4' });
-                const onProgress = jest.fn();
-                const onRetry = jest.fn();
-                const promise = api.uploadToSignedUrl(
-                    'https://signed.example/upload',
-                    file,
-                    'video/mp4',
-                    { onProgress, onRetry },
-                );
-
-                firstAttempt.upload.onprogress?.({
-                    lengthComputable: true,
-                    loaded: 30,
-                    total: 100,
-                });
-                firstAttempt.onload?.();
-                await Promise.resolve();
-                await jest.advanceTimersByTimeAsync(500);
-                secondAttempt.onload?.();
-
-                await promise;
-                expect(global.XMLHttpRequest).toHaveBeenCalledTimes(2);
-                expect(onProgress).toHaveBeenNthCalledWith(1, 30);
-                expect(onProgress).toHaveBeenNthCalledWith(2, 0);
-                expect(onRetry).toHaveBeenCalledWith(2, 3);
-            } finally {
-                jest.useRealTimers();
-            }
-        });
-    });
-
-    describe('processVideoFromGcs', () => {
-        it('should start processing using an upload id', async () => {
-            const mockResponse = {
-                id: 'job-123',
-                status: 'pending',
-                progress: 0,
-                message: null,
-                created_at: Date.now(),
-                updated_at: Date.now(),
-                result_data: null,
-            };
-
-            (fetch as jest.Mock).mockResolvedValueOnce({
-                ok: true,
-                json: async () => mockResponse,
-            });
-
-            const { api } = await import('@/lib/api');
-            const result = await api.processVideoFromGcs('upload-123', {
-                transcribe_provider: 'groq',
-                source_duration_seconds: 42.5,
-            });
-
-            expect(fetch).toHaveBeenCalledWith(
-                expect.stringContaining('/videos/gcs/process'),
-                expect.objectContaining({
-                    method: 'POST',
-                    body: JSON.stringify({
-                        upload_id: 'upload-123',
-                        transcribe_tier: 'standard',
-                        transcribe_provider: 'groq',
-                        openai_model: '',
-                        source_duration_seconds: 42.5,
-                        video_quality: 'balanced',
-                        video_resolution: '',
-                        use_llm: false,
-                        context_prompt: '',
-                        subtitle_position: 16,
-                        max_subtitle_lines: 2,
-                        subtitle_color: null,
-                        shadow_strength: 4,
-                        highlight_style: 'karaoke',
-                        subtitle_size: 100,
-                        karaoke_enabled: true,
-                        watermark_enabled: false,
-                    }),
-                }),
-            );
-            expect(result.id).toBe('job-123');
         });
     });
 
@@ -988,6 +899,7 @@ describe('API Client', () => {
     describe('deleteAccount', () => {
         it('should delete account and clear token', async () => {
             localStorage.setItem('auth_token', 'existing_token');
+            localStorage.setItem('lastActiveJobId', 'private-job');
             const mockResponse = { status: 'ok', message: 'Account deleted' };
             (fetch as jest.Mock).mockResolvedValueOnce({ ok: true, json: async () => mockResponse });
 
@@ -998,6 +910,7 @@ describe('API Client', () => {
             expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/auth/me'), expect.objectContaining({ method: 'DELETE' }));
             expect(result.status).toBe('ok');
             expect(localStorage.getItem('auth_token')).toBeNull();
+            expect(localStorage.getItem('lastActiveJobId')).toBeNull();
         });
     });
 

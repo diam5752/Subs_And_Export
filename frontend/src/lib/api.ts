@@ -19,7 +19,6 @@ export class ApiError extends Error {
 
 interface UploadCallbacks {
     onProgress?: (percent: number) => void;
-    onRetry?: (nextAttempt: number, maxAttempts: number) => void;
     onUploadComplete?: () => void;
     signal?: AbortSignal;
 }
@@ -42,8 +41,6 @@ interface ProcessVideoSettings {
     watermark_enabled?: boolean;
 }
 
-const SIGNED_UPLOAD_MAX_ATTEMPTS = 3;
-const SIGNED_UPLOAD_RETRY_BASE_DELAY_MS = 500;
 const STREAM_UPLOAD_METADATA_HEADER_MAX_CHARS = 8_000;
 
 function encodeUtf8Base64(value: string): string | null {
@@ -130,33 +127,6 @@ function apiErrorFromPayload(
     return new ApiError(message, status, code);
 }
 
-function isRetryableSignedUploadError(error: unknown): boolean {
-    return error instanceof ApiError
-        && (
-            error.code === 'upload_network_error'
-            || error.code === 'upload_timeout'
-            || error.status === 408
-            || error.status === 429
-            || error.status >= 500
-        );
-}
-
-async function waitForUploadRetry(delayMs: number, signal?: AbortSignal): Promise<void> {
-    if (signal?.aborted) throw uploadCancelledError();
-
-    await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-            signal?.removeEventListener('abort', handleAbort);
-            resolve();
-        }, delayMs);
-        const handleAbort = () => {
-            clearTimeout(timeout);
-            reject(uploadCancelledError());
-        };
-        signal?.addEventListener('abort', handleAbort, { once: true });
-    });
-}
-
 interface TokenResponse {
     access_token: string;
     token_type: string;
@@ -170,7 +140,6 @@ interface JobResultData {
     public_url?: string;
     artifact_url?: string;
     transcription_url?: string;
-    source_gcs_object?: string;
     social?: string | null;
     original_filename?: string | null;
     video_crf?: number;
@@ -193,14 +162,6 @@ export interface JobResponse {
     expires_at?: number | null;
     result_data: JobResultData | null;
     balance?: number | null;
-}
-
-interface GcsUploadUrlResponse {
-    upload_id: string;
-    object_name: string;
-    upload_url: string;
-    expires_at: number;
-    required_headers: Record<string, string>;
 }
 
 interface HistoryEvent {
@@ -561,7 +522,6 @@ interface ExportDataResponse {
     usage_ledger: Record<string, unknown>[];
     token_usage: Record<string, unknown>[];
     provider_budget_reservations: Record<string, unknown>[];
-    gcs_uploads: Record<string, unknown>[];
     sessions: Record<string, unknown>[];
     oauth_states: Record<string, unknown>[];
 }
@@ -616,12 +576,14 @@ class ApiClient {
         /* istanbul ignore next */
         if (typeof window !== 'undefined') {
             localStorage.removeItem('auth_token');
+            localStorage.removeItem('lastActiveJobId');
         }
     }
 
     private async request<T>(
         endpoint: string,
-        options: RequestInit = {}
+        options: RequestInit = {},
+        includeBearer = true,
     ): Promise<T> {
         const url = `${API_BASE}${endpoint}`;
         const headers: Record<string, string> = {};
@@ -634,7 +596,7 @@ class ApiClient {
             });
         }
 
-        if (this.token) {
+        if (includeBearer && this.token) {
             headers['Authorization'] = `Bearer ${this.token}`;
         }
 
@@ -645,7 +607,11 @@ class ApiClient {
             headers['Content-Type'] = 'application/json';
         }
 
-        const response = await fetch(url, { ...options, headers });
+        const response = await fetch(url, {
+            credentials: 'include',
+            ...options,
+            headers,
+        });
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({ detail: 'Request failed' }));
@@ -684,6 +650,7 @@ class ApiClient {
             const handleAbortSignal = () => xhr.abort();
 
             xhr.open('POST', `${API_BASE}${endpoint}`);
+            xhr.withCredentials = true;
             if (this.token) {
                 xhr.setRequestHeader('Authorization', `Bearer ${this.token}`);
             }
@@ -721,64 +688,6 @@ class ApiClient {
         });
     }
 
-    private async uploadSignedUrlAttempt(
-        uploadUrl: string,
-        file: File,
-        contentType: string,
-        callbacks: UploadCallbacks,
-    ): Promise<void> {
-        return new Promise<void>((resolve, reject) => {
-            const xhr = new XMLHttpRequest();
-            const { onProgress, signal } = callbacks;
-            let settled = false;
-
-            const cleanup = () => {
-                signal?.removeEventListener('abort', handleAbortSignal);
-            };
-            const resolveOnce = () => {
-                if (settled) return;
-                settled = true;
-                cleanup();
-                resolve();
-            };
-            const rejectOnce = (error: unknown) => {
-                if (settled) return;
-                settled = true;
-                cleanup();
-                reject(error);
-            };
-            const handleAbortSignal = () => xhr.abort();
-
-            xhr.open('PUT', uploadUrl);
-            xhr.setRequestHeader('Content-Type', contentType);
-            xhr.upload.onprogress = (event) => {
-                if (!onProgress || !event.lengthComputable || event.total <= 0) return;
-                onProgress(Math.min(100, Math.round((event.loaded / event.total) * 100)));
-            };
-            xhr.onload = () => {
-                if (xhr.status >= 200 && xhr.status < 300) {
-                    resolveOnce();
-                    return;
-                }
-                rejectOnce(new ApiError(
-                    `Upload failed with status ${xhr.status}`,
-                    xhr.status,
-                    'upload_http_error',
-                ));
-            };
-            xhr.onerror = () => rejectOnce(signal?.aborted ? uploadCancelledError() : uploadNetworkError());
-            xhr.ontimeout = () => rejectOnce(new ApiError('Upload timed out', 0, 'upload_timeout'));
-            xhr.onabort = () => rejectOnce(uploadCancelledError());
-
-            if (signal?.aborted) {
-                rejectOnce(uploadCancelledError());
-                return;
-            }
-            signal?.addEventListener('abort', handleAbortSignal, { once: true });
-            xhr.send(file);
-        });
-    }
-
     async login(email: string, password: string): Promise<TokenResponse> {
         const formData = new URLSearchParams();
         formData.append('username', email);
@@ -805,10 +714,26 @@ class ApiClient {
     }
 
     async revokeSession(): Promise<LogoutResponse> {
-        return this.request<LogoutResponse>('/auth/logout', {
-            method: 'POST',
-            keepalive: true,
-        });
+        if (this.token) {
+            try {
+                return await this.request<LogoutResponse>('/auth/logout', {
+                    method: 'POST',
+                    keepalive: true,
+                });
+            } catch (error) {
+                if (!(error instanceof ApiError) || error.status !== 401) {
+                    throw error;
+                }
+            }
+        }
+        return this.request<LogoutResponse>(
+            '/static/auth/logout',
+            {
+                method: 'POST',
+                keepalive: true,
+            },
+            false,
+        );
     }
 
     async getPointsBalance(): Promise<PointsBalanceResponse> {
@@ -966,7 +891,10 @@ class ApiClient {
         if (this.token) {
             headers.Authorization = `Bearer ${this.token}`;
         }
-        const response = await fetch(`${API_BASE}${endpoint}`, { headers });
+        const response = await fetch(`${API_BASE}${endpoint}`, {
+            credentials: 'include',
+            headers,
+        });
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({
                 detail: 'Billing artifact download failed',
@@ -991,126 +919,25 @@ class ApiClient {
             ...normalizedSettings,
         }));
         if (
-            encodedMetadata
-            && encodedMetadata.length <= STREAM_UPLOAD_METADATA_HEADER_MAX_CHARS
+            !encodedMetadata
+            || encodedMetadata.length > STREAM_UPLOAD_METADATA_HEADER_MAX_CHARS
         ) {
-            return this.uploadBody<JobResponse>(
-                '/videos/process-stream',
-                file,
-                callbacks,
-                {
-                    'Content-Type': file.type || 'application/octet-stream',
-                    'X-Gsubs-Upload-Metadata': encodedMetadata,
-                },
+            throw new ApiError(
+                'Upload settings are too large to send safely. Shorten the context prompt and try again.',
+                0,
+                'upload_metadata_too_large',
             );
         }
 
-        const formData = new FormData();
-        formData.append('file', file);
-        formData.append('transcribe_tier', normalizedSettings.transcribe_tier);
-        formData.append('transcribe_provider', normalizedSettings.transcribe_provider);
-        formData.append('openai_model', normalizedSettings.openai_model);
-        formData.append('video_quality', normalizedSettings.video_quality);
-        formData.append('video_resolution', normalizedSettings.video_resolution);
-        formData.append('use_llm', String(normalizedSettings.use_llm));
-        formData.append('context_prompt', normalizedSettings.context_prompt);
-        formData.append('subtitle_position', String(normalizedSettings.subtitle_position));
-        formData.append('max_subtitle_lines', String(normalizedSettings.max_subtitle_lines));
-        if (normalizedSettings.subtitle_color) {
-            formData.append('subtitle_color', normalizedSettings.subtitle_color);
-        }
-        formData.append('shadow_strength', String(normalizedSettings.shadow_strength));
-        formData.append('highlight_style', normalizedSettings.highlight_style);
-        formData.append('subtitle_size', String(normalizedSettings.subtitle_size));
-        formData.append('karaoke_enabled', String(normalizedSettings.karaoke_enabled));
-        formData.append('watermark_enabled', String(normalizedSettings.watermark_enabled));
-
-        return this.uploadBody<JobResponse>('/videos/process', formData, callbacks);
-    }
-
-    async createGcsUploadUrl(file: File): Promise<GcsUploadUrlResponse> {
-        const contentType = file.type || 'application/octet-stream';
-        return this.request<GcsUploadUrlResponse>('/videos/gcs/upload-url', {
-            method: 'POST',
-            body: JSON.stringify({
-                filename: file.name,
-                content_type: contentType,
-                size_bytes: file.size,
-            }),
-        });
-    }
-
-    async uploadToSignedUrl(
-        uploadUrl: string,
-        file: File,
-        contentType: string,
-        callbacks: UploadCallbacks = {},
-    ): Promise<void> {
-        for (let attempt = 1; attempt <= SIGNED_UPLOAD_MAX_ATTEMPTS; attempt += 1) {
-            try {
-                await this.uploadSignedUrlAttempt(uploadUrl, file, contentType, callbacks);
-                callbacks.onUploadComplete?.();
-                return;
-            } catch (error) {
-                if (
-                    callbacks.signal?.aborted
-                    || (error instanceof ApiError && error.code === 'upload_cancelled')
-                    || !isRetryableSignedUploadError(error)
-                    || attempt === SIGNED_UPLOAD_MAX_ATTEMPTS
-                ) {
-                    throw error;
-                }
-
-                callbacks.onProgress?.(0);
-                callbacks.onRetry?.(attempt + 1, SIGNED_UPLOAD_MAX_ATTEMPTS);
-                await waitForUploadRetry(
-                    SIGNED_UPLOAD_RETRY_BASE_DELAY_MS * (2 ** (attempt - 1)),
-                    callbacks.signal,
-                );
-            }
-        }
-    }
-
-    async processVideoFromGcs(uploadId: string, settings: {
-        transcribe_tier?: string;
-        transcribe_provider?: string;
-        openai_model?: string;
-        source_duration_seconds?: number | null;
-        video_quality?: string;
-        video_resolution?: string;
-        use_llm?: boolean;
-        context_prompt?: string;
-        subtitle_position?: number;
-        max_subtitle_lines?: number;
-        subtitle_color?: string;
-        shadow_strength?: number;
-        highlight_style?: string;
-        subtitle_size?: number;
-        karaoke_enabled?: boolean;
-        watermark_enabled?: boolean;
-    }): Promise<JobResponse> {
-        return this.request<JobResponse>('/videos/gcs/process', {
-            method: 'POST',
-            body: JSON.stringify({
-                upload_id: uploadId,
-                transcribe_tier: settings.transcribe_tier || 'standard',
-                transcribe_provider: settings.transcribe_provider || 'mock',
-                openai_model: settings.openai_model || '',
-                source_duration_seconds: settings.source_duration_seconds ?? null,
-                video_quality: settings.video_quality || 'balanced',
-                video_resolution: settings.video_resolution || '',
-                use_llm: Boolean(settings.use_llm),
-                context_prompt: settings.context_prompt || '',
-                subtitle_position: settings.subtitle_position ?? 16,
-                max_subtitle_lines: settings.max_subtitle_lines ?? 2,
-                subtitle_color: settings.subtitle_color ?? null,
-                shadow_strength: settings.shadow_strength ?? 4,
-                highlight_style: settings.highlight_style || 'karaoke',
-                subtitle_size: settings.subtitle_size ?? 100,
-                karaoke_enabled: settings.karaoke_enabled ?? true,
-                watermark_enabled: settings.watermark_enabled ?? false,
-            }),
-        });
+        return this.uploadBody<JobResponse>(
+            '/videos/process-stream',
+            file,
+            callbacks,
+            {
+                'Content-Type': file.type || 'application/octet-stream',
+                'X-Gsubs-Upload-Metadata': encodedMetadata,
+            },
+        );
     }
 
     async getJobStatus(jobId: string): Promise<JobResponse> {

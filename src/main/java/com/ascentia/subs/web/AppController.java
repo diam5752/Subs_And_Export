@@ -3,9 +3,13 @@ package com.ascentia.subs.web;
 import com.ascentia.subs.common.ClientIpResolver;
 import com.ascentia.subs.common.RateLimitService;
 import com.ascentia.subs.config.AppProperties;
+import com.ascentia.subs.auth.CurrentUser;
+import com.ascentia.subs.auth.CurrentUserAccess;
+import com.ascentia.subs.jobs.JobStore;
 import jakarta.servlet.http.HttpServletRequest;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.text.Normalizer;
 import java.util.Map;
@@ -16,13 +20,13 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.MediaTypeFactory;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
-import static org.springframework.http.HttpStatus.FORBIDDEN;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
 @RestController
@@ -31,11 +35,18 @@ public class AppController {
     private final AppProperties appProperties;
     private final RateLimitService rateLimitService;
     private final ClientIpResolver clientIpResolver;
+    private final JobStore jobStore;
 
-    public AppController(AppProperties appProperties, RateLimitService rateLimitService, ClientIpResolver clientIpResolver) {
+    public AppController(
+            AppProperties appProperties,
+            RateLimitService rateLimitService,
+            ClientIpResolver clientIpResolver,
+            JobStore jobStore
+    ) {
         this.appProperties = appProperties;
         this.rateLimitService = rateLimitService;
         this.clientIpResolver = clientIpResolver;
+        this.jobStore = jobStore;
     }
 
     @GetMapping("/health")
@@ -57,27 +68,67 @@ public class AppController {
             @PathVariable String filePath,
             @RequestParam(name = "download", defaultValue = "false") boolean download,
             @RequestParam(name = "filename", required = false) String filename,
-            HttpServletRequest request
+            HttpServletRequest request,
+            Authentication authentication
     ) {
+        CurrentUser currentUser = CurrentUserAccess.require(authentication);
         String ip = clientIpResolver.resolve(request);
         rateLimitService.check("static", ip, appProperties.getStaticRateLimit(), appProperties.getStaticRateLimitWindow());
 
         Path dataDir = appProperties.dataDir().toAbsolutePath().normalize();
         String cleanedPath = filePath == null ? "" : filePath.replaceFirst("^/+", "");
-        Path resolvedPath = dataDir.resolve(cleanedPath).normalize();
-        if (!resolvedPath.startsWith(dataDir)) {
-            throw new ResponseStatusException(FORBIDDEN, "Access denied");
+        String artifactPrefix = "artifacts/";
+        if (!cleanedPath.startsWith(artifactPrefix)) {
+            throw new ResponseStatusException(NOT_FOUND, "File not found");
         }
-        if (Files.isDirectory(resolvedPath)) {
+        String artifactPath = cleanedPath.substring(artifactPrefix.length());
+        int separator = artifactPath.indexOf('/');
+        if (separator <= 0 || separator == artifactPath.length() - 1) {
+            throw new ResponseStatusException(NOT_FOUND, "File not found");
+        }
+        String jobId = artifactPath.substring(0, separator);
+        JobStore.Job job = jobStore.getJob(jobId)
+                .filter(candidate -> currentUser.id().equals(candidate.userId()))
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "File not found"));
+
+        Path artifactsRoot = dataDir.resolve("artifacts").normalize();
+        Path jobRoot = artifactsRoot.resolve(job.id()).normalize();
+        Path resolvedPath = artifactsRoot.resolve(artifactPath).normalize();
+        if (!jobRoot.getParent().equals(artifactsRoot)
+                || !resolvedPath.startsWith(jobRoot)
+                || !Files.isDirectory(jobRoot, LinkOption.NOFOLLOW_LINKS)) {
+            throw new ResponseStatusException(NOT_FOUND, "File not found");
+        }
+        if (Files.isDirectory(resolvedPath, LinkOption.NOFOLLOW_LINKS)) {
             throw new ResponseStatusException(NOT_FOUND, "Not found");
         }
-        if (!Files.isRegularFile(resolvedPath)) {
+        if (!Files.isRegularFile(resolvedPath, LinkOption.NOFOLLOW_LINKS)) {
+            throw new ResponseStatusException(NOT_FOUND, "File not found");
+        }
+
+        try {
+            Path current = jobRoot;
+            Path relativeFile = jobRoot.relativize(resolvedPath);
+            for (Path component : relativeFile) {
+                current = current.resolve(component);
+                if (Files.isSymbolicLink(current)) {
+                    throw new ResponseStatusException(NOT_FOUND, "File not found");
+                }
+            }
+            Path realJobRoot = jobRoot.toRealPath();
+            Path realFile = resolvedPath.toRealPath();
+            if (!realFile.startsWith(realJobRoot)) {
+                throw new ResponseStatusException(NOT_FOUND, "File not found");
+            }
+        } catch (java.io.IOException exception) {
             throw new ResponseStatusException(NOT_FOUND, "File not found");
         }
 
         Resource resource = new FileSystemResource(resolvedPath);
         MediaType mediaType = MediaTypeFactory.getMediaType(resource).orElse(MediaType.APPLICATION_OCTET_STREAM);
-        ResponseEntity.BodyBuilder response = ResponseEntity.ok().contentType(mediaType);
+        ResponseEntity.BodyBuilder response = ResponseEntity.ok()
+                .contentType(mediaType)
+                .header(HttpHeaders.CACHE_CONTROL, "private, no-store");
         if (download || isVideoDownload(resolvedPath.getFileName().toString())) {
             String downloadFilename = sanitizeDownloadFilename(
                     filename,

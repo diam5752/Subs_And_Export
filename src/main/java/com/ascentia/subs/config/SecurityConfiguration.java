@@ -39,7 +39,6 @@ public class SecurityConfiguration {
                                 "/",
                                 "/error",
                                 "/health",
-                                "/static/**",
                                 "/auth/register",
                                 "/auth/token",
                                 "/auth/google/**",

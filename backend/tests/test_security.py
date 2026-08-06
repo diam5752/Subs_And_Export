@@ -1,8 +1,7 @@
-
-
 import pytest
 
 from backend.app.core.ratelimit import limiter_login
+from backend.tests.process_stream import post_process_stream
 
 
 def get_auth_headers(client, email, password):
@@ -15,38 +14,40 @@ def get_auth_headers(client, email, password):
         # But if it IS that, we proceed to login.
         # However, to be safe, let's print it.
         if "already exists" not in reg_resp.text:
-             print(f"Registration failed for {email}: {reg_resp.status_code} {reg_resp.text}")
+            print(f"Registration failed for {email}: {reg_resp.status_code} {reg_resp.text}")
 
     # Login
-    response = client.post(
-        "/auth/token",
-        data={"username": email, "password": password}
+    response = client.post("/auth/token", data={"username": email, "password": password})
+    assert response.status_code == 200, (
+        f"Login failed for {email}: {response.text} (Reg status: {reg_resp.status_code})"
     )
-    assert response.status_code == 200, f"Login failed for {email}: {response.text} (Reg status: {reg_resp.status_code})"
     token = response.json().get("access_token")
     assert token, "No access token returned"
     return {"Authorization": f"Bearer {token}"}
+
 
 @pytest.fixture
 def user2_auth_headers(client):
     return get_auth_headers(client, "user2@example.com", "longpassword123")
 
+
 def test_upload_invalid_extension(client, user_auth_headers):
     """Ensure uploads with forbidden extensions are rejected."""
     # Create fake .exe file
     file_content = b"fake content"
-    files = {"file": ("malicious.exe", file_content, "application/x-msdownload")}
-
-    response = client.post(
-        "/videos/process",
-        headers=user_auth_headers,
-        files=files,
-        data={"transcribe_tier": "standard"}
+    response = post_process_stream(
+        client,
+        user_auth_headers,
+        filename="malicious.exe",
+        content=file_content,
+        content_type="application/x-msdownload",
+        metadata={"transcribe_tier": "standard"},
     )
 
     # Expect 400 Bad Request
     assert response.status_code == 400
     assert "Invalid file type" in response.json().get("detail", "")
+
 
 def test_upload_path_traversal_attempt(client, funded_user_auth_headers):
     """Ensure path traversal characters in filename are handled safely."""
@@ -57,13 +58,12 @@ def test_upload_path_traversal_attempt(client, funded_user_auth_headers):
     file_content = b"fake mp4 content"
     # Attempt to write to parent directory
     filename = "../../../../../tmp/hacked.mp4"
-    files = {"file": (filename, file_content, "video/mp4")}
-
-    response = client.post(
-        "/videos/process",
-        headers=funded_user_auth_headers,
-        files=files,
-        data={"transcribe_tier": "standard"}
+    response = post_process_stream(
+        client,
+        funded_user_auth_headers,
+        filename=filename,
+        content=file_content,
+        metadata={"transcribe_tier": "standard"},
     )
 
     # Should succeed (because suffix is .mp4 and name is ignored) -> 200 OK
@@ -73,48 +73,59 @@ def test_upload_path_traversal_attempt(client, funded_user_auth_headers):
     # The file should be saved safely. We can't clear verify FS here easily without mocking,
     # but 200 means it didn't crash.
 
+
 def test_idor_get_results(client, funded_user_auth_headers, user2_auth_headers):
     """Ensure User A cannot access User B's job."""
     # User 1 creates a job
-    files = {"file": ("test.mp4", b"content", "video/mp4")}
-    resp1 = client.post("/videos/process", headers=funded_user_auth_headers, files=files)
+    resp1 = post_process_stream(
+        client,
+        funded_user_auth_headers,
+        content=b"content",
+    )
     assert resp1.status_code == 200
     job_id = resp1.json()["id"]
 
     # User 2 tries to get it
     resp2 = client.get(f"/videos/jobs/{job_id}", headers=user2_auth_headers)
-    assert resp2.status_code == 404 # Should return 404 Not Found (or 403)
+    assert resp2.status_code == 404  # Should return 404 Not Found (or 403)
+
 
 def test_idor_delete_job(client, funded_user_auth_headers, user2_auth_headers):
     """Ensure User A cannot delete User B's job."""
-    files = {"file": ("test.mp4", b"content", "video/mp4")}
-    resp1 = client.post("/videos/process", headers=funded_user_auth_headers, files=files)
+    resp1 = post_process_stream(
+        client,
+        funded_user_auth_headers,
+        content=b"content",
+    )
     job_id = resp1.json()["id"]
 
     # User 2 tries to delete
     resp2 = client.delete(f"/videos/jobs/{job_id}", headers=user2_auth_headers)
     assert resp2.status_code == 404
 
+
 def test_idor_cancel_job(client, funded_user_auth_headers, user2_auth_headers):
     """Ensure User A cannot cancel User B's job."""
-    files = {"file": ("test.mp4", b"content", "video/mp4")}
-    resp1 = client.post("/videos/process", headers=funded_user_auth_headers, files=files)
+    resp1 = post_process_stream(
+        client,
+        funded_user_auth_headers,
+        content=b"content",
+    )
     job_id = resp1.json()["id"]
 
     # User 2 tries to cancel
     resp2 = client.post(f"/videos/jobs/{job_id}/cancel", headers=user2_auth_headers)
     assert resp2.status_code == 404
 
+
 def test_invalid_resize_params(client, funded_user_auth_headers):
     """Test resilience against bad resize parameters."""
-    files = {"file": ("test.mp4", b"content", "video/mp4")}
-
     # Send non-integer resolution attempt
-    response = client.post(
-        "/videos/process",
-        headers=funded_user_auth_headers,
-        files=files,
-        data={"video_resolution": "9999999999x9999999999"} # Valid format but huge
+    response = post_process_stream(
+        client,
+        funded_user_auth_headers,
+        content=b"content",
+        metadata={"video_resolution": "9999999999x9999999999"},  # Valid format but huge
     )
 
     # Backend capped logic checks parsing, it might accept it but fail later?
@@ -125,14 +136,15 @@ def test_invalid_resize_params(client, funded_user_auth_headers):
     assert response.status_code == 200
 
     # Junk resolution
-    response = client.post(
-        "/videos/process",
-        headers=funded_user_auth_headers,
-        files=files,
-        data={"video_resolution": "not-a-resolution"}
+    response = post_process_stream(
+        client,
+        funded_user_auth_headers,
+        content=b"content",
+        metadata={"video_resolution": "not-a-resolution"},
     )
     # _parse_resolution defaults to config.DEFAULT
     assert response.status_code == 200
+
 
 def test_static_path_traversal(client):
     """Ensure static file server prevents path traversal."""
@@ -146,7 +158,8 @@ def test_static_path_traversal(client):
 
     # Try url enccded
     response = client.get("/static/%2e%2e/main.py")
-    assert response.status_code in [404, 400, 403]
+    assert response.status_code in [401, 404, 400, 403]
+
 
 def test_rate_limiting(client, monkeypatch):
     """Ensure login endpoint is rate limited."""
@@ -157,17 +170,11 @@ def test_rate_limiting(client, monkeypatch):
 
     # 5 allowed attempts
     for _ in range(5):
-        response = client.post(
-            "/auth/token",
-            data={"username": "hacker@example.com", "password": "wrongpassword"}
-        )
+        response = client.post("/auth/token", data={"username": "hacker@example.com", "password": "wrongpassword"})
         # Should be 400 (Login failed) or 200 (Success), but NOT 429
         assert response.status_code != 429
 
     # 6th attempt should be blocked
-    response = client.post(
-        "/auth/token",
-        data={"username": "hacker@example.com", "password": "wrongpassword"}
-    )
+    response = client.post("/auth/token", data={"username": "hacker@example.com", "password": "wrongpassword"})
     assert response.status_code == 429
     assert "Too many requests" in response.json()["detail"]

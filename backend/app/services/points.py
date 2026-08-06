@@ -83,6 +83,25 @@ class PointsStore:
                 reversal_debt=int(wallet.reversal_debt or 0),
             )
 
+    def assert_can_spend(
+        self,
+        user_id: str,
+        cost: int,
+        *,
+        require_paid: bool = False,
+    ) -> None:
+        """Advisory balance check; the locked spend remains authoritative."""
+        if cost <= 0:
+            raise HTTPException(status_code=400, detail="Invalid cost")
+        balances = self.get_balances(user_id)
+        self._required_paid_spend(
+            balance=balances.balance,
+            paid_balance=balances.paid_balance,
+            reversal_debt=balances.reversal_debt,
+            cost=cost,
+            require_paid=require_paid,
+        )
+
     def ensure_account(
         self,
         user_id: str,
@@ -697,20 +716,38 @@ class PointsStore:
         now: int,
         require_paid: bool,
     ) -> int:
-        if require_paid and int(wallet.reversal_debt) > 0:
-            raise HTTPException(status_code=402, detail="Outstanding credit reversal")
-        if int(wallet.balance) < cost:
-            raise HTTPException(status_code=402, detail="Insufficient points")
-
-        promotional_balance = max(0, int(wallet.balance) - int(wallet.paid_balance))
-        paid_spend = cost if require_paid else max(0, cost - promotional_balance)
-        if int(wallet.paid_balance) < paid_spend:
-            detail = "Insufficient paid credits" if require_paid else "Insufficient points"
-            raise HTTPException(status_code=402, detail=detail)
+        paid_spend = PointsStore._required_paid_spend(
+            balance=int(wallet.balance),
+            paid_balance=int(wallet.paid_balance),
+            reversal_debt=int(wallet.reversal_debt),
+            cost=cost,
+            require_paid=require_paid,
+        )
 
         wallet.balance -= cost
         wallet.paid_balance -= paid_spend
         wallet.updated_at = now
+        return paid_spend
+
+    @staticmethod
+    def _required_paid_spend(
+        *,
+        balance: int,
+        paid_balance: int,
+        reversal_debt: int,
+        cost: int,
+        require_paid: bool,
+    ) -> int:
+        if require_paid and reversal_debt > 0:
+            raise HTTPException(status_code=402, detail="Outstanding credit reversal")
+        if balance < cost:
+            raise HTTPException(status_code=402, detail="Insufficient points")
+
+        promotional_balance = max(0, balance - paid_balance)
+        paid_spend = cost if require_paid else max(0, cost - promotional_balance)
+        if paid_balance < paid_spend:
+            detail = "Insufficient paid credits" if require_paid else "Insufficient points"
+            raise HTTPException(status_code=402, detail=detail)
         return paid_spend
 
     @staticmethod

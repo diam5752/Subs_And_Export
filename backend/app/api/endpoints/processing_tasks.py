@@ -8,20 +8,20 @@ from pathlib import Path
 from typing import Any
 
 from ...core.auth import User
-from ...core.cleanup import delete_job_workspace
 from ...core.config import settings as app_settings
 from ...core.database import Database
+from ...core.erasure_journal import configured_erasure_journal
 from ...core.errors import (
     ProviderDispatchAlreadyClaimedError,
     sanitize_message,
 )
-from ...core.gcs import GcsSettings, delete_object, download_object, get_gcs_settings, upload_object
+from ...core.workspace_deletion import delete_job_workspace, lock_job_workspace
 from ...services.ffmpeg_utils import MediaProbe, probe_media
 from ...services.history import HistoryStore
 from ...services.jobs import JobStore
 from ...services.usage_ledger import ChargePlan, UsageLedgerStore
 from ...services.video_processing import process_video_pipeline, resolve_runtime_transcribe_provider
-from .file_utils import MAX_UPLOAD_BYTES, data_roots, relpath_safe
+from .file_utils import data_roots, relpath_safe
 from .settings import ProcessingSettings
 
 logger = logging.getLogger(__name__)
@@ -29,6 +29,75 @@ logger = logging.getLogger(__name__)
 
 class DeletedJobError(InterruptedError):
     """Raised when account or job erasure wins a processing race."""
+
+
+class StaleWorkerError(RuntimeError):
+    """Raised when another actor has already moved a job out of processing."""
+
+
+def raise_for_rejected_worker_write(*, job_store: JobStore, job_id: str) -> None:
+    """Translate a rejected compare-and-set into the correct worker stop."""
+    current_job = job_store.get_job(job_id)
+    if current_job is None:
+        raise DeletedJobError("Job was deleted")
+    if current_job.status == "cancelled":
+        raise InterruptedError("Job cancelled by user")
+    raise StaleWorkerError(
+        f"Job is no longer processing (status={current_job.status})"
+    )
+
+
+def delete_local_workspace_best_effort(*, job_id: str) -> None:
+    """Remove one job's local media without masking its terminal status."""
+    try:
+        data_dir, uploads_dir, artifacts_root = data_roots()
+        with lock_job_workspace(data_dir=data_dir, job_id=job_id):
+            _delete_local_workspace_unlocked(
+                job_id=job_id,
+                uploads_dir=uploads_dir,
+                artifacts_root=artifacts_root,
+            )
+    except Exception:
+        logger.exception(
+            "Failed to lock terminal job workspace for cleanup",
+            extra={"job_id": job_id},
+        )
+
+
+def _delete_local_workspace_unlocked(
+    *,
+    job_id: str,
+    uploads_dir: Path,
+    artifacts_root: Path,
+) -> None:
+    """Best-effort deletion used only while the caller holds the job lock."""
+    try:
+        delete_job_workspace(
+            job_id=job_id,
+            uploads_dir=uploads_dir,
+            artifacts_dir=artifacts_root,
+        )
+    except Exception:
+        logger.exception(
+            "Failed to clean terminal job workspace",
+            extra={"job_id": job_id},
+        )
+
+
+def record_and_delete_local_workspace(*, job_id: str, user_id: str) -> None:
+    """Durably record erasure intent immediately before deleting local media."""
+    data_dir, uploads_dir, artifacts_root = data_roots()
+    with lock_job_workspace(data_dir=data_dir, job_id=job_id):
+        configured_erasure_journal().append(
+            kind="workspace",
+            user_id=user_id,
+            job_ids=[job_id],
+        )
+        _delete_local_workspace_unlocked(
+            job_id=job_id,
+            uploads_dir=uploads_dir,
+            artifacts_root=artifacts_root,
+        )
 
 
 def refund_charge_best_effort(
@@ -65,67 +134,13 @@ def abort_deleted_job(
     error: str,
 ) -> None:
     """Refund once and remove the exact local workspace of a deleted job."""
-    try:
-        _, uploads_dir, artifacts_root = data_roots()
-        delete_job_workspace(
-            job_id=job_id,
-            uploads_dir=uploads_dir,
-            artifacts_dir=artifacts_root,
-        )
-    except Exception:
-        logger.exception(
-            "Failed to clean deleted-job workspace",
-            extra={"job_id": job_id},
-        )
+    delete_local_workspace_best_effort(job_id=job_id)
     refund_charge_best_effort(
         ledger_store,
         charge_plan,
         status="cancelled",
         error=error,
     )
-
-
-def upload_source_for_active_job(
-    *,
-    job_id: str,
-    job_store: JobStore,
-    gcs_settings: GcsSettings,
-    object_name: str,
-    source: Path,
-    content_type: str,
-) -> None:
-    """Upload while the job is active and erase if cancellation wins."""
-    current = job_store.get_job(job_id)
-    if current is None or current.status == "cancelled":
-        return
-    try:
-        upload_object(
-            settings=gcs_settings,
-            object_name=object_name,
-            source=source,
-            content_type=content_type,
-        )
-    except Exception as exc:
-        logger.warning(
-            "Failed to upload source for job %s: %s",
-            job_id,
-            exc,
-        )
-        return
-
-    current = job_store.get_job(job_id)
-    if current is not None and current.status != "cancelled":
-        return
-    try:
-        delete_object(
-            settings=gcs_settings,
-            object_name=object_name,
-        )
-    except Exception:
-        logger.exception(
-            "Failed to erase source uploaded after job deletion",
-            extra={"job_id": job_id},
-        )
 
 
 def record_event_safe(
@@ -154,7 +169,6 @@ def run_video_processing(
     history_store: HistoryStore | None = None,
     user: User | None = None,
     original_name: str | None = None,
-    source_gcs_object_name: str | None = None,
     *,
     ledger_store: UsageLedgerStore | None = None,
     charge_plan: ChargePlan | None = None,
@@ -163,19 +177,17 @@ def run_video_processing(
 ) -> None:
     """Background task to run the heavy video processing."""
     try:
-        current = job_store.get_job(job_id)
-        if current is None:
-            abort_deleted_job(
+        if not job_store.update_job_if_status(
+            job_id,
+            expected_statuses={"pending"},
+            status="processing",
+            progress=0,
+            message="Starting processing...",
+        ):
+            raise_for_rejected_worker_write(
+                job_store=job_store,
                 job_id=job_id,
-                ledger_store=ledger_store,
-                charge_plan=charge_plan,
-                error="Job was deleted",
             )
-            return
-        if current.status == "cancelled":
-            raise InterruptedError("Job cancelled by user")
-
-        job_store.update_job(job_id, status="processing", progress=0, message="Starting processing...")
 
         last_update_time = 0.0
         last_check_time = 0.0
@@ -184,7 +196,16 @@ def run_video_processing(
             nonlocal last_update_time
             now = time.time()
             if percent <= 0 or percent >= 100 or (now - last_update_time) >= 1.0:
-                job_store.update_job(job_id, progress=int(percent), message=msg)
+                if not job_store.update_job_if_status(
+                    job_id,
+                    expected_statuses={"processing"},
+                    progress=int(percent),
+                    message=msg,
+                ):
+                    raise_for_rejected_worker_write(
+                        job_store=job_store,
+                        job_id=job_id,
+                    )
                 last_update_time = now
 
         def check_cancelled(*, force: bool = False) -> None:
@@ -279,27 +300,6 @@ def run_video_processing(
         public_path = relpath_safe(final_path, data_dir).as_posix()
         artifact_public = relpath_safe(artifact_dir, data_dir).as_posix()
 
-        gcs_settings = get_gcs_settings()
-        if gcs_settings:
-            try:
-                upload_object(
-                    settings=gcs_settings,
-                    object_name=f"{gcs_settings.static_prefix}/{public_path}",
-                    source=final_path,
-                    content_type="video/mp4",
-                )
-                transcription_path = artifact_dir / "transcription.json"
-                if transcription_path.exists():
-                    transcription_rel = relpath_safe(transcription_path, data_dir).as_posix()
-                    upload_object(
-                        settings=gcs_settings,
-                        object_name=f"{gcs_settings.static_prefix}/{transcription_rel}",
-                        source=transcription_path,
-                        content_type="application/json",
-                    )
-            except Exception as exc:
-                logger.warning("Failed to upload job artifacts to GCS (%s): %s", job_id, exc)
-
         result_data = {
             "video_path": public_path,
             "artifacts_dir": artifact_public,
@@ -323,10 +323,18 @@ def run_video_processing(
             "karaoke_enabled": settings.karaoke_enabled,
             "watermark_enabled": settings.watermark_enabled,
         }
-        if source_gcs_object_name:
-            result_data["source_gcs_object"] = source_gcs_object_name
-
-        job_store.update_job(job_id, status="completed", progress=100, message="Done!", result_data=result_data)
+        if not job_store.update_job_if_status(
+            job_id,
+            expected_statuses={"processing"},
+            status="completed",
+            progress=100,
+            message="Done!",
+            result_data=result_data,
+        ):
+            raise_for_rejected_worker_write(
+                job_store=job_store,
+                job_id=job_id,
+            )
         if job_store.get_job(job_id) is None:
             raise DeletedJobError("Job was deleted")
         record_event_safe(
@@ -350,6 +358,12 @@ def run_video_processing(
             extra={"job_id": job_id},
         )
         return
+    except StaleWorkerError as exc:
+        logger.info(
+            "Stopping stale video-processing worker",
+            extra={"job_id": job_id, "reason": sanitize_message(str(exc))},
+        )
+        return
     except DeletedJobError as exc:
         abort_deleted_job(
             job_id=job_id,
@@ -358,7 +372,8 @@ def run_video_processing(
             error=sanitize_message(str(exc)),
         )
     except InterruptedError as exc:
-        if job_store.get_job(job_id) is None:
+        current_job = job_store.get_job(job_id)
+        if current_job is None:
             abort_deleted_job(
                 job_id=job_id,
                 ledger_store=ledger_store,
@@ -366,7 +381,43 @@ def run_video_processing(
                 error=sanitize_message(str(exc)),
             )
             return
-        job_store.update_job(job_id, status="cancelled", message="Cancelled by user")
+        try:
+            record_and_delete_local_workspace(
+                job_id=job_id,
+                user_id=current_job.user_id,
+            )
+        except Exception:
+            privacy_error = "Privacy cleanup could not be recorded"
+            logger.exception(
+                "Refusing unjournaled cancellation cleanup",
+                extra={"job_id": job_id},
+            )
+            job_store.update_job_if_status(
+                job_id,
+                expected_statuses={"pending", "processing"},
+                status="failed",
+                message=privacy_error,
+            )
+            record_event_safe(
+                history_store,
+                user,
+                "process_failed",
+                f"Privacy cleanup failed for {original_name or input_path.name}",
+                {"job_id": job_id, "error": privacy_error},
+            )
+            refund_charge_best_effort(
+                ledger_store,
+                charge_plan,
+                status="cancelled",
+                error=sanitize_message(str(exc)),
+            )
+            return
+        job_store.update_job_if_status(
+            job_id,
+            expected_statuses={"pending", "processing"},
+            status="cancelled",
+            message="Cancelled by user",
+        )
         record_event_safe(
             history_store,
             user,
@@ -377,7 +428,8 @@ def run_video_processing(
         refund_charge_best_effort(ledger_store, charge_plan, status="cancelled", error=sanitize_message(str(exc)))
     except Exception as exc:
         safe_msg = sanitize_message(str(exc))
-        if job_store.get_job(job_id) is None:
+        current_job = job_store.get_job(job_id)
+        if current_job is None:
             abort_deleted_job(
                 job_id=job_id,
                 ledger_store=ledger_store,
@@ -385,112 +437,78 @@ def run_video_processing(
                 error=safe_msg,
             )
             return
-        job_store.update_job(job_id, status="failed", message=safe_msg)
+        try:
+            record_and_delete_local_workspace(
+                job_id=job_id,
+                user_id=current_job.user_id,
+            )
+        except Exception:
+            privacy_error = "Privacy cleanup could not be recorded"
+            logger.exception(
+                "Refusing unjournaled failure cleanup",
+                extra={"job_id": job_id},
+            )
+            job_store.update_job_if_status(
+                job_id,
+                expected_statuses={"pending", "processing"},
+                status="failed",
+                message=privacy_error,
+            )
+            record_event_safe(
+                history_store,
+                user,
+                "process_failed",
+                f"Privacy cleanup failed for {original_name or input_path.name}",
+                {"job_id": job_id, "error": privacy_error},
+            )
+            refund_charge_best_effort(
+                ledger_store,
+                charge_plan,
+                status="failed",
+                error=safe_msg,
+            )
+            return
+        transitioned_to_failed = job_store.update_job_if_status(
+            job_id,
+            expected_statuses={"pending", "processing"},
+            status="failed",
+            message=safe_msg,
+        )
+        if not transitioned_to_failed:
+            latest_job = job_store.get_job(job_id)
+            if latest_job is None:
+                abort_deleted_job(
+                    job_id=job_id,
+                    ledger_store=ledger_store,
+                    charge_plan=charge_plan,
+                    error=safe_msg,
+                )
+                return
+            if latest_job.status == "cancelled":
+                record_event_safe(
+                    history_store,
+                    user,
+                    "process_cancelled",
+                    f"Processing cancelled for {original_name or input_path.name}",
+                    {"job_id": job_id, "error": safe_msg},
+                )
+                refund_charge_best_effort(
+                    ledger_store,
+                    charge_plan,
+                    status="cancelled",
+                    error=safe_msg,
+                )
+                return
+            logger.info(
+                "Not overwriting terminal job after worker failure",
+                extra={"job_id": job_id, "status": latest_job.status},
+            )
+            return
         record_event_safe(
             history_store,
             user,
             "process_failed",
             f"Processing failed for {original_name or input_path.name}",
-            {"job_id": job_id, "error": safe_msg},
-        )
-        refund_charge_best_effort(ledger_store, charge_plan, status="failed", error=safe_msg)
-
-
-def run_gcs_video_processing(
-    *,
-    job_id: str,
-    gcs_object_name: str,
-    input_path: Path,
-    output_path: Path,
-    artifact_dir: Path,
-    settings: ProcessingSettings,
-    job_store: JobStore,
-    history_store: HistoryStore | None = None,
-    user: User | None = None,
-    original_name: str | None = None,
-    ledger_store: UsageLedgerStore | None = None,
-    charge_plan: ChargePlan | None = None,
-) -> None:
-    """Background task to process a video from GCS."""
-    current = job_store.get_job(job_id)
-    if current is None:
-        abort_deleted_job(
-            job_id=job_id,
-            ledger_store=ledger_store,
-            charge_plan=charge_plan,
-            error="Job was deleted",
-        )
-        return
-
-    gcs_settings = get_gcs_settings()
-    if not gcs_settings:
-        job_store.update_job(job_id, status="failed", message="GCS is not configured")
-        refund_charge_best_effort(ledger_store, charge_plan, status="failed", error="GCS is not configured")
-        return
-
-    try:
-        if current.status == "cancelled":
-            refund_charge_best_effort(ledger_store, charge_plan, status="cancelled", error="Job cancelled by user")
-            return
-
-        job_store.update_job(job_id, status="processing", progress=0, message="Downloading upload…")
-        download_object(
-            settings=gcs_settings,
-            object_name=gcs_object_name,
-            destination=input_path,
-            max_bytes=MAX_UPLOAD_BYTES,
-        )
-
-        try:
-            probe = probe_media(input_path)
-        except Exception as exc:
-            raise ValueError("Could not validate uploaded media file") from exc
-
-        if probe.duration_s is None or probe.duration_s <= 0:
-            raise ValueError("Could not determine video duration")
-        if probe.duration_s > app_settings.max_video_duration_seconds:
-            raise ValueError(f"Video too long (max {app_settings.max_video_duration_seconds / 60:.1f} minutes)")
-
-        run_video_processing(
-            job_id,
-            input_path,
-            output_path,
-            artifact_dir,
-            settings,
-            job_store,
-            history_store,
-            user,
-            original_name,
-            source_gcs_object_name=gcs_object_name,
-            ledger_store=ledger_store,
-            charge_plan=charge_plan,
-            source_probe=probe,
-        )
-
-        if not gcs_settings.keep_uploads:
-            final_job = job_store.get_job(job_id)
-            if final_job and final_job.status == "completed":
-                try:
-                    delete_object(settings=gcs_settings, object_name=gcs_object_name)
-                except Exception as exc:
-                    logger.warning("Failed to delete processed GCS upload %s: %s", gcs_object_name, exc)
-    except Exception as exc:
-        input_path.unlink(missing_ok=True)
-        safe_msg = sanitize_message(str(exc))
-        if job_store.get_job(job_id) is None:
-            abort_deleted_job(
-                job_id=job_id,
-                ledger_store=ledger_store,
-                charge_plan=charge_plan,
-                error=safe_msg,
-            )
-            return
-        job_store.update_job(job_id, status="failed", message=safe_msg)
-        record_event_safe(
-            history_store,
-            user,
-            "process_failed",
-            f"Processing failed for {original_name or gcs_object_name}",
             {"job_id": job_id, "error": safe_msg},
         )
         refund_charge_best_effort(ledger_store, charge_plan, status="failed", error=safe_msg)

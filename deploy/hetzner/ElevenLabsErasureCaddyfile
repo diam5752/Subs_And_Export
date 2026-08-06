@@ -1,0 +1,28 @@
+{
+	auto_https off
+	admin off
+}
+
+# Temporary, private-network-only relay used while the public edge is stopped.
+# It has no published port, no access log, and no provider route except the
+# exact transcript deletion operation needed for durable privacy replay.
+:8082 {
+	@health {
+		method GET
+		path /health
+	}
+	respond @health 200
+
+	@elevenlabs_transcript_delete {
+		method DELETE
+		path_regexp elevenlabs_transcript_delete ^/elevenlabs/v1/speech-to-text/transcripts/[A-Za-z0-9][A-Za-z0-9_-]{0,127}$
+	}
+	handle @elevenlabs_transcript_delete {
+		uri strip_prefix /elevenlabs
+		reverse_proxy https://api.elevenlabs.io {
+			header_up Host api.elevenlabs.io
+		}
+	}
+
+	respond 404
+}

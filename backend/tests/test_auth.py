@@ -3,8 +3,17 @@
 import pytest
 
 from backend.app.api.endpoints import auth as auth_ep
+from backend.app.core.config import AppEnv
 from backend.app.core.database import Database
 from backend.app.db.models import DbUser
+
+
+def _cookie_header(response, cookie_name: str) -> str:
+    return next(
+        header
+        for header in response.headers.get_list("set-cookie")
+        if header.startswith(f"{cookie_name}=")
+    )
 
 
 @pytest.fixture
@@ -37,6 +46,20 @@ class TestAuthEndpoints:
         assert data["provider"] == "local"
         assert "id" in data
 
+    def test_media_session_cookie_is_secure_outside_development(self, monkeypatch):
+        monkeypatch.setattr(auth_ep.settings, "app_env", AppEnv.PRODUCTION)
+
+        cookie_settings = auth_ep.media_session_cookie_settings()
+
+        assert cookie_settings == {
+            "key": auth_ep.MEDIA_SESSION_COOKIE_NAME,
+            "httponly": True,
+            "secure": True,
+            "samesite": "lax",
+            "path": "/static",
+            "max_age": auth_ep.SessionStore.SESSION_TTL_SECONDS,
+        }
+
     def test_register_duplicate_user(self, client, test_user_data):
         """Test that duplicate registration fails."""
         # First registration
@@ -58,6 +81,16 @@ class TestAuthEndpoints:
         assert "access_token" in data
         assert data["token_type"] == "bearer"
         assert data["name"] == test_user_data["name"]
+        media_cookie = _cookie_header(response, auth_ep.MEDIA_SESSION_COOKIE_NAME)
+        assert media_cookie.startswith(
+            f"{auth_ep.MEDIA_SESSION_COOKIE_NAME}={data['access_token']};",
+        )
+        assert "HttpOnly" in media_cookie
+        assert "Max-Age=2592000" in media_cookie
+        assert "Path=/static" in media_cookie
+        assert "SameSite=lax" in media_cookie
+        assert "Secure" not in media_cookie
+        assert response.headers["cache-control"] == "no-store"
 
     def test_login_wrong_password(self, client, test_user_data):
         """Test login with wrong password."""
@@ -128,6 +161,9 @@ class TestAuthEndpoints:
         assert response.status_code == 200
         assert response.json() == {"status": "success"}
         assert response.headers["cache-control"] == "no-store"
+        cleared_cookie = _cookie_header(response, auth_ep.MEDIA_SESSION_COOKIE_NAME)
+        assert "Max-Age=0" in cleared_cookie
+        assert "Path=/static" in cleared_cookie
         assert (
             client.get(
                 "/auth/me",
@@ -155,6 +191,102 @@ class TestAuthEndpoints:
         response = client.post("/auth/logout", headers=headers)
 
         assert response.status_code == 401
+
+    def test_cookie_scoped_logout_revokes_only_the_cookie_session(self, client, test_user_data):
+        """Bearer loss must not leave the private-media session active."""
+        client.post("/auth/register", json=test_user_data)
+        cookie_login = client.post(
+            "/auth/token",
+            data={
+                "username": test_user_data["email"],
+                "password": test_user_data["password"],
+            },
+        )
+        other_login = client.post(
+            "/auth/token",
+            data={
+                "username": test_user_data["email"],
+                "password": test_user_data["password"],
+            },
+        )
+        cookie_token = cookie_login.json()["access_token"]
+        other_token = other_login.json()["access_token"]
+        client.cookies.clear()
+        client.cookies.set(
+            auth_ep.MEDIA_SESSION_COOKIE_NAME,
+            cookie_token,
+            path="/static",
+        )
+
+        # REGRESSION: the cookie Path excluded /auth/logout, so losing the
+        # local bearer left a usable 30-day private-media session behind.
+        response = client.post(
+            "/static/auth/logout",
+            headers={
+                "Origin": "http://testserver",
+                "Sec-Fetch-Site": "same-origin",
+            },
+        )
+
+        assert response.status_code == 200
+        assert response.json() == {"status": "success"}
+        assert response.headers["cache-control"] == "no-store"
+        cleared_cookie = _cookie_header(response, auth_ep.MEDIA_SESSION_COOKIE_NAME)
+        assert "Max-Age=0" in cleared_cookie
+        assert "Path=/static" in cleared_cookie
+        assert (
+            client.get(
+                "/auth/me",
+                headers={"Authorization": f"Bearer {cookie_token}"},
+            ).status_code
+            == 401
+        )
+        assert (
+            client.get(
+                "/auth/me",
+                headers={"Authorization": f"Bearer {other_token}"},
+            ).status_code
+            == 200
+        )
+
+    def test_cookie_scoped_logout_is_idempotent_without_a_cookie(self, client):
+        client.cookies.clear()
+
+        response = client.post("/static/auth/logout")
+
+        assert response.status_code == 200
+        assert response.json() == {"status": "success"}
+        cleared_cookie = _cookie_header(response, auth_ep.MEDIA_SESSION_COOKIE_NAME)
+        assert "Max-Age=0" in cleared_cookie
+        assert "Path=/static" in cleared_cookie
+
+    def test_cookie_scoped_logout_rejects_cross_site_requests(self, client, test_user_data):
+        client.post("/auth/register", json=test_user_data)
+        login = client.post(
+            "/auth/token",
+            data={
+                "username": test_user_data["email"],
+                "password": test_user_data["password"],
+            },
+        )
+        token = login.json()["access_token"]
+
+        response = client.post(
+            "/static/auth/logout",
+            headers={
+                "Origin": "https://attacker.example",
+                "Sec-Fetch-Site": "cross-site",
+            },
+        )
+
+        assert response.status_code == 403
+        assert (
+            client.get(
+                "/auth/me",
+                headers={"Authorization": f"Bearer {token}"},
+            ).status_code
+            == 200
+        )
 
 
 class TestVideoEndpoints:
@@ -219,6 +351,9 @@ class TestUserUpdates:
             headers={"Authorization": f"Bearer {token}"},
         )
         assert response.status_code == 200
+        cleared_cookie = _cookie_header(response, auth_ep.MEDIA_SESSION_COOKIE_NAME)
+        assert "Max-Age=0" in cleared_cookie
+        assert "Path=/static" in cleared_cookie
 
         # Login with new password
         response = client.post("/auth/token", data={"username": test_user_data["email"], "password": new_password})
@@ -326,6 +461,12 @@ class TestGoogleOAuthEndpoints:
         }
         assert "gsubs_google_nonce=" in resp.headers["set-cookie"]
         assert "Max-Age=0" in resp.headers["set-cookie"]
+        media_cookie = _cookie_header(resp, auth_ep.MEDIA_SESSION_COOKIE_NAME)
+        assert media_cookie.startswith(
+            f"{auth_ep.MEDIA_SESSION_COOKIE_NAME}={resp.json()['access_token']};",
+        )
+        assert "HttpOnly" in media_cookie
+        assert "Path=/static" in media_cookie
         me = client.get(
             "/auth/me",
             headers={"Authorization": f"Bearer {resp.json()['access_token']}"},
@@ -409,6 +550,9 @@ class TestDeleteAccount:
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "deleted"
+        cleared_cookie = _cookie_header(response, auth_ep.MEDIA_SESSION_COOKIE_NAME)
+        assert "Max-Age=0" in cleared_cookie
+        assert "Path=/static" in cleared_cookie
 
         # Verify user can't login anymore
         login_again = client.post(

@@ -1,9 +1,55 @@
 from pathlib import Path
+from types import SimpleNamespace
 
 from typer.testing import CliRunner
 
 from backend.app.services.social_intelligence import SocialContent, SocialCopy
 from backend.cli import app
+
+
+class _FakeDatabase:
+    def dispose(self) -> None:
+        return None
+
+
+def test_retention_command_fails_closed_when_any_job_cannot_be_erased(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr("backend.cli.Database", _FakeDatabase)
+    monkeypatch.setattr(
+        "backend.cli.run_configured_retention",
+        lambda _db: SimpleNamespace(
+            deleted_job_ids=["deleted"],
+            failed_job_ids=["privacy-failure"],
+            deleted_orphan_items=0,
+            failed_orphan_items=0,
+        ),
+    )
+
+    result = CliRunner().invoke(app, ["run-retention"])
+
+    assert result.exit_code == 1
+    assert "failed_jobs=1" in result.stdout
+
+
+def test_retention_command_fails_closed_when_an_orphan_cannot_be_erased(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr("backend.cli.Database", _FakeDatabase)
+    monkeypatch.setattr(
+        "backend.cli.run_configured_retention",
+        lambda _db: SimpleNamespace(
+            deleted_job_ids=[],
+            failed_job_ids=[],
+            deleted_orphan_items=0,
+            failed_orphan_items=1,
+        ),
+    )
+
+    result = CliRunner().invoke(app, ["run-retention"])
+
+    assert result.exit_code == 1
+    assert "failed_orphans=1" in result.stdout
 
 
 def test_process_command_invokes_pipeline(monkeypatch, tmp_path: Path) -> None:
@@ -29,7 +75,10 @@ def test_process_command_invokes_pipeline(monkeypatch, tmp_path: Path) -> None:
         return output_video
 
     monkeypatch.setattr("backend.cli.process_video_pipeline", fake_process)
-    result = runner.invoke(app, [str(input_file), "--output", str(output_file)])
+    result = runner.invoke(
+        app,
+        ["process", str(input_file), "--output", str(output_file)],
+    )
 
     assert result.exit_code == 0
     assert output_file.exists()
@@ -53,6 +102,7 @@ def test_process_command_passes_llm_flag(monkeypatch, tmp_path: Path) -> None:
     result = runner.invoke(
         app,
         [
+            "process",
             str(input_file),
             "--output",
             str(output_file),

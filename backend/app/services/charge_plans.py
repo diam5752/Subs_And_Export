@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 from typing import Any
 
 from backend.app.core.config import settings
@@ -11,6 +12,21 @@ from backend.app.services import pricing
 from backend.app.services.credit_economics import assert_provider_economics
 from backend.app.services.points import make_idempotency_id
 from backend.app.services.usage_ledger import ChargePlan, ChargeReservation, UsageLedgerStore
+
+
+@dataclass(frozen=True, slots=True)
+class _ProcessingChargeRequirements:
+    provider: str
+    stt_model: str
+    use_llm: bool
+    credits: int
+    transcription_cost_usd: float
+    social_cost_usd: float
+    require_paid_credits: bool
+
+    @property
+    def total_cost_usd(self) -> float:
+        return self.transcription_cost_usd + self.social_cost_usd
 
 
 def assert_external_provider_budget(
@@ -212,19 +228,15 @@ def reserve_included_llm_charge(
     )
 
 
-def reserve_processing_charges(
+def _processing_charge_requirements(
     *,
-    ledger_store: UsageLedgerStore,
-    user_id: str,
-    job_id: str,
     tier: str,
     duration_seconds: float,
     use_llm: bool,
     llm_model: str,
     provider: str,
     stt_model: str,
-    allow_downward_adjustment: bool = False,
-) -> tuple[ChargePlan, int]:
+) -> _ProcessingChargeRequirements:
     if settings.mock_external_services:
         provider = "mock"
         stt_model = "mock-caption-v1"
@@ -249,13 +261,95 @@ def reserve_processing_charges(
             prompt_tokens=reservation_info["prompt_tokens"],
             completion_tokens=reservation_info["completion_tokens"],
         )
+
+    normalized_provider = provider.strip().lower()
+    provider_requires_paid = (
+        transcription_cost > 0
+        and normalized_provider not in {"local", "mock"}
+    )
+    return _ProcessingChargeRequirements(
+        provider=provider,
+        stt_model=stt_model,
+        use_llm=use_llm,
+        credits=pricing.credits_for_video_duration(duration_seconds),
+        transcription_cost_usd=transcription_cost,
+        social_cost_usd=social_cost,
+        require_paid_credits=(
+            provider_requires_paid or (use_llm and social_cost > 0)
+        ),
+    )
+
+
+def _assert_processing_requirements(
+    *,
+    ledger_store: UsageLedgerStore,
+    requirements: _ProcessingChargeRequirements,
+) -> None:
     assert_external_provider_budget(
         ledger_store=ledger_store,
-        estimated_cost_usd=transcription_cost + social_cost,
+        estimated_cost_usd=requirements.total_cost_usd,
     )
     assert_external_provider_economics(
-        credits=pricing.credits_for_video_duration(duration_seconds),
-        estimated_cost_usd=transcription_cost + social_cost,
+        credits=requirements.credits,
+        estimated_cost_usd=requirements.total_cost_usd,
+    )
+
+
+def preflight_processing_charges(
+    *,
+    ledger_store: UsageLedgerStore,
+    user_id: str,
+    tier: str,
+    duration_seconds: float,
+    use_llm: bool,
+    llm_model: str,
+    provider: str,
+    stt_model: str,
+) -> None:
+    """Reject deterministic charge failures before creating a durable job."""
+    requirements = _processing_charge_requirements(
+        tier=tier,
+        duration_seconds=duration_seconds,
+        use_llm=use_llm,
+        llm_model=llm_model,
+        provider=provider,
+        stt_model=stt_model,
+    )
+    _assert_processing_requirements(
+        ledger_store=ledger_store,
+        requirements=requirements,
+    )
+    ledger_store.points_store.assert_can_spend(
+        user_id,
+        requirements.credits,
+        require_paid=requirements.require_paid_credits,
+    )
+
+
+def reserve_processing_charges(
+    *,
+    ledger_store: UsageLedgerStore,
+    user_id: str,
+    job_id: str,
+    tier: str,
+    duration_seconds: float,
+    use_llm: bool,
+    llm_model: str,
+    provider: str,
+    stt_model: str,
+    allow_downward_adjustment: bool = False,
+) -> tuple[ChargePlan, int]:
+    requirements = _processing_charge_requirements(
+        tier=tier,
+        duration_seconds=duration_seconds,
+        use_llm=use_llm,
+        llm_model=llm_model,
+        provider=provider,
+        stt_model=stt_model,
+    )
+    _assert_processing_requirements(
+        ledger_store=ledger_store,
+        requirements=requirements,
     )
 
     transcription_reservation, balance = reserve_transcription_charge(
@@ -264,15 +358,17 @@ def reserve_processing_charges(
         job_id=job_id,
         tier=tier,
         duration_seconds=duration_seconds,
-        provider=provider,
-        model=stt_model,
+        provider=requirements.provider,
+        model=requirements.stt_model,
         enforce_budget=False,
-        require_paid_credits=use_llm and social_cost > 0,
+        require_paid_credits=(
+            requirements.use_llm and requirements.social_cost_usd > 0
+        ),
         allow_downward_adjustment=allow_downward_adjustment,
     )
 
     social_reservation: ChargeReservation | None = None
-    if use_llm:
+    if requirements.use_llm:
         try:
             social_reservation, balance = reserve_included_llm_charge(
                 ledger_store=ledger_store,

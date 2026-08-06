@@ -75,6 +75,19 @@ env_value() {
   sed -n "s/^$1=//p" "$ENV_FILE" | tail -n 1
 }
 
+RETENTION_DAYS="${SUBFRAME_BACKUP_RETENTION_DAYS:-$(env_value SUBFRAME_BACKUP_RETENTION_DAYS)}"
+RETENTION_DAYS="${RETENTION_DAYS:-14}"
+case "$RETENTION_DAYS" in
+  ''|*[!0-9]*)
+    echo "SUBFRAME_BACKUP_RETENTION_DAYS must be a positive integer." >&2
+    exit 1
+    ;;
+esac
+if [ "$RETENTION_DAYS" -eq 0 ]; then
+  echo "SUBFRAME_BACKUP_RETENTION_DAYS must be a positive integer." >&2
+  exit 1
+fi
+
 sha256_file() {
   if command -v sha256sum >/dev/null 2>&1; then
     checksum_output=$(sha256sum "$1") || return 1
@@ -247,14 +260,15 @@ done
 
 manifest_line_count=$(awk 'NF { count += 1 } END { print count + 0 }' \
   "$BACKUP_DIR/manifest.txt")
-if [ "$manifest_line_count" -ne 5 ]; then
-  echo "Backup manifest must contain exactly five fields." >&2
+if [ "$manifest_line_count" -ne 6 ]; then
+  echo "Backup manifest must contain exactly six fields." >&2
   exit 1
 fi
 if ! awk -F= '
   $1 != "created_at_utc" &&
     $1 != "release_sha" &&
     $1 != "encrypted" &&
+    $1 != "retention_days" &&
     $1 != "database_size_bytes" &&
     $1 != "app_data_size_bytes" { exit 1 }
 ' "$BACKUP_DIR/manifest.txt"; then
@@ -265,6 +279,7 @@ fi
 backup_id=$(manifest_value "$BACKUP_DIR/manifest.txt" created_at_utc)
 backup_release_sha=$(manifest_value "$BACKUP_DIR/manifest.txt" release_sha)
 encrypted=$(manifest_value "$BACKUP_DIR/manifest.txt" encrypted)
+manifest_retention_days=$(manifest_value "$BACKUP_DIR/manifest.txt" retention_days)
 database_size_bytes=$(manifest_value \
   "$BACKUP_DIR/manifest.txt" \
   database_size_bytes)
@@ -288,6 +303,48 @@ if [ "$encrypted" != true ]; then
   echo "Backup manifest must declare encrypted=true." >&2
   exit 1
 fi
+if [ "$manifest_retention_days" != "$RETENTION_DAYS" ]; then
+  echo "Backup retention policy does not match the configured retention days." >&2
+  exit 1
+fi
+oldest_allowed_backup_id=$(
+  date -u -d "$RETENTION_DAYS days ago" +%Y%m%dT%H%M%SZ 2>/dev/null
+) || {
+  echo "GNU date is required to validate backup retention." >&2
+  exit 1
+}
+if awk -v backup="$backup_id" -v oldest="$oldest_allowed_backup_id" \
+  'BEGIN { exit !(backup < oldest) }'; then
+  echo "Backup is older than its configured retention period." >&2
+  exit 1
+fi
+
+# Verification is also a retention gate for the complete independent backup
+# root, not only for the one selected timestamp. The independent mount is
+# intentionally read-only here, so an expired sibling must be pruned by the
+# storage operator before the mount can pass a release drill.
+INDEPENDENT_ROOT=${INDEPENDENT_DIR%/*}
+if [ -z "$INDEPENDENT_ROOT" ] || [ "$INDEPENDENT_ROOT" = "/" ] || \
+  [ ! -d "$INDEPENDENT_ROOT" ] || [ -L "$INDEPENDENT_ROOT" ]; then
+  echo "Independent backup root is not a safe canonical directory." >&2
+  exit 1
+fi
+for candidate in "$INDEPENDENT_ROOT"/*
+do
+  if [ ! -e "$candidate" ] && [ ! -L "$candidate" ]; then
+    continue
+  fi
+  candidate_name=${candidate##*/}
+  case "$candidate_name" in
+    [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9][0-9][0-9]Z) ;;
+    *) continue ;;
+  esac
+  if awk -v backup="$candidate_name" -v oldest="$oldest_allowed_backup_id" \
+    'BEGIN { exit !(backup < oldest) }'; then
+    echo "Independent backup root contains an expired timestamp: $candidate_name" >&2
+    exit 1
+  fi
+done
 for measured_size in "$database_size_bytes" "$app_data_size_bytes"
 do
   case "$measured_size" in
@@ -314,7 +371,7 @@ if [ "$backup_release_sha" != "$TARGET_RELEASE_SHA" ]; then
   exit 1
 fi
 
-for required_command in age df docker findmnt stat tar
+for required_command in age date df docker findmnt stat tar
 do
   command -v "$required_command" >/dev/null 2>&1 || {
     echo "$required_command is required." >&2

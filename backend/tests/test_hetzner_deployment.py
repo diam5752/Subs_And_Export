@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import re
 import shutil
 import subprocess
+import sys
 import time
 from decimal import Decimal
 from pathlib import Path
@@ -16,6 +18,13 @@ SUBPROCESS_START_TIMEOUT_SECONDS = 15.0
 
 def deployment_text(filename: str) -> str:
     return (DEPLOYMENT_ROOT / filename).read_text(encoding="utf-8")
+
+
+def relay_validator_source(verifier: str) -> str:
+    marker = 'docker exec "$edge_id" cat /etc/caddy/Caddyfile | docker exec -i "$backend_id" python -c \'\n'
+    validator = verifier.split(marker, 1)[1].split("\n'; then", 1)[0]
+    assert validator.startswith("from __future__ import annotations\n")
+    return validator
 
 
 def production_compose_decimal(name: str) -> Decimal:
@@ -35,6 +44,37 @@ def write_executable(path: Path, content: str) -> None:
     path.chmod(0o755)
 
 
+def write_gcs_retirement_evidence(repository: Path) -> None:
+    runtime = repository / ".runtime"
+    runtime.mkdir(exist_ok=True)
+    evidence = runtime / "gcs-retirement-evidence"
+    evidence.write_text(
+        "tracked_hetzner_gcs_configuration=never-enabled\nlegacy_database_references=0\n",
+        encoding="utf-8",
+    )
+    evidence.chmod(0o600)
+    evidence_digest = hashlib.sha256(evidence.read_bytes()).hexdigest()
+    receipt = runtime / "gcs-retirement-receipt"
+    receipt.write_text(
+        "\n".join(
+            (
+                "retired=true",
+                "scope=hetzner-production-whole-storage",
+                "retirement_basis=never_configured_on_hetzner",
+                "retirement_base_sha=d0d47ac774995d7eb06f1942c7e5eeacff69b1e1",
+                "objects_after=0",
+                "credentials_revoked=true",
+                "bucket_identity_sha256=none",
+                f"evidence_sha256={evidence_digest}",
+                "verified_at_utc=20260805T120000Z",
+                "",
+            ),
+        ),
+        encoding="utf-8",
+    )
+    receipt.chmod(0o600)
+
+
 def backup_verifier_fixture(tmp_path: Path) -> dict[str, Path]:
     repository = tmp_path / "repository"
     deployment_root = repository / "deploy" / "hetzner"
@@ -48,7 +88,7 @@ def backup_verifier_fixture(tmp_path: Path) -> dict[str, Path]:
     release_sha = "a" * 40
     env_file = repository / ".env.production"
     env_file.write_text(
-        f"POSTGRES_USER=subframe\nSUBFRAME_RELEASE_SHA={release_sha}\n",
+        (f"POSTGRES_USER=subframe\nSUBFRAME_RELEASE_SHA={release_sha}\nSUBFRAME_BACKUP_RETENTION_DAYS=14\n"),
         encoding="utf-8",
     )
     identity_file = tmp_path / "age-identity.txt"
@@ -69,6 +109,7 @@ def backup_verifier_fixture(tmp_path: Path) -> dict[str, Path]:
                 f"created_at_utc={backup_id}",
                 f"release_sha={release_sha}",
                 "encrypted=true",
+                "retention_days=14",
                 "database_size_bytes=1024",
                 "app_data_size_bytes=2048",
                 "",
@@ -135,6 +176,15 @@ case "${FAKE_FINDMNT_MODE:-read-only}" in
   missing) exit 1 ;;
   unknown) printf 'nosuid,nodev,relatime\\n' ;;
   *) exit 2 ;;
+esac
+""",
+    )
+    write_executable(
+        fake_bin / "date",
+        """#!/bin/sh
+case "$*" in
+  *"days ago"*) printf '%s\n' "${FAKE_RETENTION_CUTOFF:-20260722T120000Z}" ;;
+  *) printf '20260805T120000Z\n' ;;
 esac
 """,
     )
@@ -217,6 +267,7 @@ def backup_verifier_environment(
             "FAKE_AVAILABLE_KIB": str(available_kib),
             "FAKE_COMMAND_LOG": str(fixture["command_log"]),
             "FAKE_FINDMNT_MODE": "read-only",
+            "FAKE_RETENTION_CUTOFF": "20260722T120000Z",
         }
     )
     return environment
@@ -248,8 +299,10 @@ def test_production_compose_enables_reviewed_paid_credits_and_budgeted_scribe() 
     assert 'OPENAI_API_KEY: ""' in compose
     assert 'GROQ_API_KEY: ""' in compose
     assert 'ELEVENLABS_API_KEY: "${ELEVENLABS_API_KEY:?ELEVENLABS_API_KEY is required}"' in compose
-    assert 'GSP_GCS_BUCKET: ""' in compose
-    assert 'GOOGLE_APPLICATION_CREDENTIALS: ""' in compose
+    # REGRESSION: the production frontend once required cloud-object uploads
+    # while the production runtime disabled them, making every paid job fail.
+    assert "GSP_GCS" not in compose
+    assert "GOOGLE_APPLICATION_CREDENTIALS" not in compose
     assert 'GOOGLE_CLIENT_SECRET: ""' in compose
     assert 'GOOGLE_REDIRECT_URI: ""' in compose
     assert 'GSP_GOOGLE_OAUTH_CERTS_URL: "http://edge:8081/oauth2/v1/certs"' in compose
@@ -257,10 +310,46 @@ def test_production_compose_enables_reviewed_paid_credits_and_budgeted_scribe() 
     assert 'GSP_EXTERNAL_PROVIDER_DAILY_BUDGET_USD: "10"' in compose
     assert 'GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD: "0.05"' in compose
     assert 'GSP_EXTERNAL_PROVIDER_PRICE_SAFETY_MULTIPLIER: "1.25"' in compose
+    assert 'GSP_WORKSPACE_RETENTION_HOURS: "24"' in compose
+    assert 'GSP_STALE_JOB_RETENTION_HOURS: "6"' in compose
+    assert 'GSP_ORPHAN_RETENTION_HOURS: "1"' in compose
+    assert 'GSP_CLEANUP_INTERVAL_MINUTES: "15"' in compose
+    assert 'GSP_STORAGE_MIN_FREE_MB: "2048"' in compose
+    assert 'GSP_RETENTION_CLEANUP_ENABLED: "1"' in compose
     assert "NEXT_PUBLIC_TRANSCRIBE_PROVIDER: elevenlabs" in compose
     assert "NEXT_PUBLIC_TRANSCRIBE_MODE: pro" in compose
     assert "external: true" in compose
     assert "name: mizai_mizai-private" in compose
+
+
+def test_production_media_storage_is_local_to_the_existing_vm_root_disk() -> None:
+    compose = deployment_text("docker-compose.production.yml")
+    deploy_script = deployment_text("deploy-production.sh")
+    verifier = deployment_text("verify-production.sh")
+    top_level_volumes = compose.split("\nvolumes:\n", 1)[1]
+
+    # REGRESSION: private media storage must not silently provision a Hetzner
+    # block volume, NFS mount, or other separately billed storage backend.
+    assert "driver:" not in top_level_volumes
+    assert "driver_opts:" not in top_level_volumes
+    assert "external:" not in top_level_volumes
+    assert "name: subframe-app-data" in top_level_volumes
+    assert "name: subframe-erasure-journal" in top_level_volumes
+    assert "docker volume inspect" in verifier
+    assert verifier.count("assert_existing_vm_local_volume() {") == 1
+    assert "Existing-VM storage volume must use Docker's local driver" in verifier
+    assert "Existing-VM storage volume is not on the host root filesystem" in verifier
+    assert "subframe-app-data" in verifier
+    assert "subframe-erasure-journal" in verifier
+    assert 'ERASURE_ANCHOR_DIR="$STATE_DIR/privacy-erasure-anchor"' in deploy_script
+    assert 'ERASURE_ANCHOR_DIR="$ROOT_DIR/.runtime/privacy-erasure-anchor"' in verifier
+    assert 'SUBFRAME_ERASURE_ANCHOR_DIR="$ERASURE_ANCHOR_DIR"' in deploy_script
+    assert 'SUBFRAME_ERASURE_ANCHOR_DIR="$ERASURE_ANCHOR_DIR"' in verifier
+    assert "assert_existing_vm_anchor_bind" in verifier
+    assert "Erasure-journal anchor is not on the host root filesystem" in verifier
+    assert "Backend erasure-journal anchor must use its dedicated writable host bind" in verifier
+    assert "api.hetzner" not in compose
+    assert "api.hetzner" not in deploy_script
 
 
 def test_production_provider_budget_is_launch_capacity_not_demo_capacity() -> None:
@@ -282,9 +371,7 @@ def test_production_provider_budget_is_launch_capacity_not_demo_capacity() -> No
         "GSP_EXTERNAL_PROVIDER_PRICE_SAFETY_MULTIPLIER",
     )
 
-    guarded_ten_minute_scribe_cost = (
-        Decimal("10") / Decimal("60") * Decimal("0.22") * safety_multiplier
-    )
+    guarded_ten_minute_scribe_cost = Decimal("10") / Decimal("60") * Decimal("0.22") * safety_multiplier
     assert guarded_ten_minute_scribe_cost <= per_request
     assert per_request < guarded_ten_minute_scribe_cost * Decimal("1.10")
     assert daily / guarded_ten_minute_scribe_cost >= Decimal("200")
@@ -312,8 +399,6 @@ def test_production_verifier_requires_every_fail_closed_runtime_setting() -> Non
         "STRIPE_WEBHOOK_SECRET=",
         "OPENAI_API_KEY=",
         "GROQ_API_KEY=",
-        "GSP_GCS_BUCKET=",
-        "GOOGLE_APPLICATION_CREDENTIALS=",
         "GOOGLE_CLIENT_SECRET=",
         "GOOGLE_REDIRECT_URI=",
         "GSP_GOOGLE_OAUTH_CERTS_URL=http://edge:8081/oauth2/v1/certs",
@@ -328,13 +413,120 @@ def test_production_verifier_requires_every_fail_closed_runtime_setting() -> Non
         "GSP_CLEANUP_INTERVAL_MINUTES=15",
         "GSP_STORAGE_MIN_FREE_MB=2048",
         "GSP_RETENTION_CLEANUP_ENABLED=1",
+        "GSP_ERASURE_JOURNAL_DIR=/privacy-erasure-journal",
+        "GSP_ERASURE_JOURNAL_RETENTION_DAYS=30",
     ):
         assert expected in verifier
+    assert "GSP_ERASURE_JOURNAL_CONTINUITY_ID=" in verifier
+    assert "Retired GCS settings remain in the production env" in verifier
+    assert "Backend container still exposes retired GCS settings" in verifier
     assert "settings.assert_paid_credits_configuration()" in verifier
+    assert "Production CORS requires an explicit origin allow-list" in verifier
+    assert "Production CORS origins must be exact HTTPS origins" in verifier
+    assert '"*" in origin' in verifier
+    assert 'origin != f"https://{parsed.netloc}"' in verifier
     assert 'catalog.get("checkout_enabled") is not True' in verifier
     assert 'catalog.get("consumer_contract_status") != "approved"' in verifier
-    assert "Stripe API relay is unavailable" in verifier
-    assert "ElevenLabs API relay is unavailable" in verifier
+    assert "Running provider relay contract is unsafe" in verifier
+    assert "Provider relay local default-deny checks failed" in verifier
+
+
+def test_release_scripts_reject_retired_gcs_environment_keys(
+    tmp_path: Path,
+) -> None:
+    repository = tmp_path / "repository"
+    deployment_root = repository / "deploy" / "hetzner"
+    deployment_root.mkdir(parents=True)
+    for script_name in ("deploy-production.sh", "verify-production.sh"):
+        shutil.copy2(DEPLOYMENT_ROOT / script_name, deployment_root)
+
+    for retired_assignment in (
+        "GSP_GCS_BUCKET=obsolete-bucket",
+        "GOOGLE_APPLICATION_CREDENTIALS=/obsolete/key.json",
+    ):
+        env_file = repository / ".env.production"
+        env_file.write_text(f"{retired_assignment}\n", encoding="utf-8")
+        environment = os.environ.copy()
+        environment["SUBFRAME_ENV_FILE"] = str(env_file)
+
+        for script_name in ("deploy-production.sh", "verify-production.sh"):
+            completed = subprocess.run(
+                [str(deployment_root / script_name)],
+                check=False,
+                capture_output=True,
+                env=environment,
+                text=True,
+                timeout=10,
+            )
+
+            assert completed.returncode == 1
+            assert "GCS settings" in completed.stderr
+
+
+def test_release_blocks_legacy_gcs_reference_loss_before_migration() -> None:
+    deploy_script = deployment_text("deploy-production.sh")
+    verifier = deployment_text("verify-production.sh")
+    retirement_verifier = deployment_text("verify-gcs-retirement.sh")
+
+    # REGRESSION: the original retirement migration could destroy the only
+    # remaining object-name evidence before provider cleanup was established.
+    assert "assert_no_legacy_gcs_references()" in deploy_script
+    assert "SELECT to_regclass('public.gcs_uploads') IS NOT NULL;" in deploy_script
+    assert "SELECT count(*) FROM gcs_uploads;" in deploy_script
+    assert "result_data ? 'source_gcs_object'" in deploy_script
+    assert "Legacy GCS retirement preflight failed before database migration." in deploy_script
+    assert deploy_script.index("if ! assert_no_legacy_gcs_references; then") < deploy_script.index(
+        "if ! compose stop edge; then",
+    )
+
+    assert "assert_legacy_gcs_retirement_complete()" in verifier
+    assert "to_regclass('public.gcs_uploads') IS NOT NULL" in verifier
+    assert "result_data ? 'source_gcs_object'" in verifier
+    assert "Legacy GCS retirement invariant failed after database migration." in verifier
+
+    for script in (deploy_script, verifier):
+        assert "verify-gcs-retirement.sh" in script
+    assert "gcs-retirement-receipt" in retirement_verifier
+    assert "gcs-retirement-evidence" in retirement_verifier
+    assert "provider_inventory_zero" in retirement_verifier
+    assert "never_configured_on_hetzner" in retirement_verifier
+    assert "evidence_sha256" in retirement_verifier
+    assert "credentials_revoked" in retirement_verifier
+    assert "objects_after" in retirement_verifier
+    assert "GCS retirement receipt is invalid" in retirement_verifier
+
+
+def test_gcs_retirement_receipt_binds_exact_private_evidence(tmp_path: Path) -> None:
+    repository = tmp_path / "repository"
+    deployment_root = repository / "deploy" / "hetzner"
+    deployment_root.mkdir(parents=True)
+    verifier = deployment_root / "verify-gcs-retirement.sh"
+    shutil.copy2(DEPLOYMENT_ROOT / verifier.name, verifier)
+    write_gcs_retirement_evidence(repository)
+    runtime = repository / ".runtime"
+    evidence = runtime / "gcs-retirement-evidence"
+
+    valid = subprocess.run(
+        [str(verifier)],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert valid.returncode == 0, valid.stderr
+
+    # REGRESSION: a receipt must not remain valid after its underlying audit
+    # evidence is modified, substituted, or partially overwritten.
+    evidence.write_text("tampered=true\n", encoding="utf-8")
+    invalid = subprocess.run(
+        [str(verifier)],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert invalid.returncode == 1
+    assert "evidence digest does not match" in invalid.stderr
 
 
 def test_production_environment_defaults_do_not_prune_shared_cache() -> None:
@@ -355,6 +547,9 @@ def test_production_environment_defaults_do_not_prune_shared_cache() -> None:
     assert "GSP_CLEANUP_INTERVAL_MINUTES=15" in environment
     assert "GSP_STORAGE_MIN_FREE_MB=2048" in environment
     assert "GSP_RETENTION_CLEANUP_ENABLED=1" in environment
+    assert "GSP_ERASURE_JOURNAL_DIR=/privacy-erasure-journal" in environment
+    assert "GSP_ERASURE_JOURNAL_RETENTION_DAYS=30" in environment
+    assert not any(line.startswith("GSP_ERASURE_JOURNAL_CONTINUITY_ID=") for line in environment.splitlines())
     assert "GOOGLE_CLIENT_ID=replace-with-google-web-client-id" in environment
     assert "GOOGLE_CLIENT_SECRET=" in environment
     assert "GOOGLE_REDIRECT_URI=" in environment
@@ -390,6 +585,100 @@ def test_production_environment_defaults_do_not_prune_shared_cache() -> None:
     assert "${SUBFRAME_ALLOW_SCHEMA_COMPATIBLE_ROLLBACK:-0}" in deploy_script
     assert "automatic rollback is disabled because the database schema may have advanced" in (deploy_script)
     assert "SUBFRAME_ALLOW_SCHEMA_COMPATIBLE_ROLLBACK must be 0 or 1" in deploy_script
+    rollback_body = deploy_script.split("rollback() {", 1)[1].split("\n}\n", 1)[0]
+    assert "compose stop edge" in rollback_body
+    assert "compose up -d --no-build db backend frontend" in rollback_body
+    assert "compose up -d --no-build;" not in rollback_body
+    assert "the public edge remains stopped" in rollback_body
+
+
+def test_erasure_journal_is_separate_and_reconciled_before_public_cutover() -> None:
+    # REGRESSION: restoring database/app-data backups could resurrect a user
+    # deletion because no durable record survived outside those restore units.
+    compose = deployment_text("docker-compose.production.yml")
+    deploy_script = deployment_text("deploy-production.sh")
+    verifier = deployment_text("verify-production.sh")
+    privacy_caddyfile = deployment_text("ElevenLabsErasureCaddyfile")
+
+    assert 'GSP_ERASURE_JOURNAL_DIR: "/privacy-erasure-journal"' in compose
+    assert 'GSP_ERASURE_JOURNAL_RETENTION_DAYS: "30"' in compose
+    assert 'GSP_ERASURE_JOURNAL_CONTINUITY_ID: "${SUBFRAME_PRIVACY_CONTINUITY_ID:-}"' in compose
+    assert 'GSP_ERASURE_JOURNAL_ANCHOR_PATH: "/privacy-erasure-anchor/checkpoint.json"' in compose
+    assert "- erasure_journal:/privacy-erasure-journal" in compose
+    assert (
+        "- ${SUBFRAME_ERASURE_ANCHOR_DIR:-../../.runtime/privacy-erasure-anchor}:/privacy-erasure-anchor"
+    ) in compose
+    assert "name: subframe-erasure-journal" in compose
+    assert compose.count("erasure_journal:/privacy-erasure-journal") == 1
+    assert compose.count("/privacy-erasure-anchor") == 3
+    assert "app_logs" not in compose
+
+    privacy_service = compose.split("  privacy-relay:", 1)[1].split("\nnetworks:", 1)[0]
+    assert "privacy-maintenance" in privacy_service
+    assert "ElevenLabsErasureCaddyfile" in privacy_service
+    assert "provider_egress" in privacy_service
+    assert "ports:" not in privacy_service
+    assert "provider_egress:" in compose
+    assert "internal: true" not in compose.split("  provider_egress:", 1)[1].split("\n\n", 1)[0]
+    assert "method DELETE" in privacy_caddyfile
+    assert "method POST" not in privacy_caddyfile
+    assert "reverse_proxy https://api.elevenlabs.io" in privacy_caddyfile
+    assert "path /elevenlabs/*" not in privacy_caddyfile
+    assert "log {" not in privacy_caddyfile
+
+    cutover = deploy_script.split('install -d -m 700 "$STATE_DIR"', 1)[1]
+    edge_stop = cutover.index("compose stop edge")
+    db_start = cutover.index("compose up -d db")
+    continuity_gate = cutover.index("initialize_or_verify_privacy_continuity")
+    core_start = cutover.index("compose up -d backend frontend")
+    retention = cutover.index("python -m backend.cli run-retention")
+    relay_start = cutover.index("compose up -d privacy-relay")
+    reconcile = cutover.index("python -m backend.cli reconcile-erasures")
+    relay_stop = cutover.index("compose stop privacy-relay")
+    receipt = cutover.index('mv -f -- "$erasure_receipt_temp"')
+    edge_start = cutover.index("compose up -d --force-recreate edge")
+    assert (
+        edge_stop
+        < db_start
+        < continuity_gate
+        < core_start
+        < relay_start
+        < retention
+        < reconcile
+        < relay_stop
+        < receipt
+        < edge_start
+    )
+    assert (
+        cutover.count(
+            "GSP_ELEVENLABS_API_BASE=http://privacy-relay:8082/elevenlabs",
+        )
+        == 2
+    )
+    assert "Local retention reconciliation failed" in deploy_script
+    assert "the public edge remains stopped" in deploy_script
+    assert "A successful erasure reconciliation receipt is required" in verifier
+    assert "reconciled_epoch" in verifier
+    assert "backend_started_epoch" in verifier
+    assert "subframe-erasure-journal|true" in verifier
+    assert "Erasure journal retention must cover" in verifier
+    assert "Temporary privacy relay must be stopped" in verifier
+    assert "privacy-continuity-id" in deploy_script
+    assert "privacy-continuity-id" in verifier
+    assert "continuity-aware release" in deploy_script
+    assert "Refusing to initialize a new erasure journal beside restored user data" in deploy_script
+    assert "Refusing to initialize a new erasure journal beside restored media" in deploy_script
+    assert "configured_erasure_journal().initialize()" in deploy_script
+    assert deploy_script.count("configured_erasure_journal().initialize()") == 1
+    assert deploy_script.count("configured_erasure_journal().read_all()") == 1
+    assert 'INITIALIZE_CONTINUITY="$privacy_continuity_bootstrap"' in deploy_script
+    assert "Live erasure journal continuity marker does not match" in verifier
+    assert "configured_erasure_journal().read_all()" in verifier
+    assert "Erasure-journal integrity validation failed" in verifier
+    assert "10001:10001" in deploy_script
+    assert "10001:10001" in verifier
+    assert "Erasure-journal anchor directory permissions are unsafe" in verifier
+    assert "Erasure-journal anchor directory ownership is unsafe" in verifier
 
 
 def test_schema_changing_deploy_requires_a_matching_restore_drill_receipt() -> None:
@@ -416,6 +705,256 @@ def test_schema_changing_deploy_requires_a_matching_restore_drill_receipt() -> N
     assert "Restore-drill receipt timestamps are not ordered" in deploy_script
     assert "Restore-drill receipt is older than 24 hours" in deploy_script
     assert "Schema-changing releases require a successful backup restore drill" in deploy_script
+
+
+def legacy_journal_transition_fixture(tmp_path: Path) -> dict[str, Path | str]:
+    repository = tmp_path / "repository"
+    deployment_root = repository / "deploy" / "hetzner"
+    deployment_root.mkdir(parents=True)
+    shutil.copy2(DEPLOYMENT_ROOT / "deploy-production.sh", deployment_root)
+    (deployment_root / "docker-compose.production.yml").write_text(
+        "services: {}\n",
+        encoding="utf-8",
+    )
+
+    previous_sha = "a" * 40
+    release_sha = "b" * 40
+    env_file = repository / ".env.production"
+    env_file.write_text(
+        f"SUBFRAME_RELEASE_SHA={release_sha}\n",
+        encoding="utf-8",
+    )
+    state_dir = repository / ".runtime"
+    state_dir.mkdir()
+    (state_dir / "last-successful-release").write_text(
+        f"{previous_sha}\n",
+        encoding="utf-8",
+    )
+
+    fake_bin = tmp_path / "fake-bin"
+    fake_bin.mkdir()
+    docker_log = tmp_path / "docker.log"
+    write_executable(
+        fake_bin / "git",
+        """#!/bin/sh
+case "$*" in
+  *"status --porcelain --untracked-files=normal"*) ;;
+  *"rev-parse HEAD"*) printf '%s\n' "$FAKE_RELEASE_SHA" ;;
+  *"cat-file -e"*) ;;
+  *"show "*) printf 'services:\n  backend:\n    environment: {}\n' ;;
+  *"diff --quiet"*) exit 1 ;;
+  *) exit 1 ;;
+esac
+""",
+    )
+    write_executable(
+        fake_bin / "docker",
+        """#!/bin/sh
+printf '%s\n' "$*" >> "$FAKE_DOCKER_LOG"
+case "$*" in
+  "inspect --format {{.Id}} subframe-edge-1") printf '%s\n' "$FAKE_EDGE_ID" ;;
+  "inspect --format {{.Id}} subframe-backend-1") printf '%s\n' "$FAKE_BACKEND_ID" ;;
+  "inspect --format {{.State.Running}} $FAKE_EDGE_ID") printf '%s\n' "${FAKE_EDGE_RUNNING:-false}" ;;
+  "inspect --format {{.State.Running}} $FAKE_BACKEND_ID") printf '%s\n' "${FAKE_BACKEND_RUNNING:-false}" ;;
+  "inspect --format {{.Id}}|{{.State.Running}}|{{.State.StartedAt}}|{{.State.FinishedAt}}|{{.RestartCount}} $FAKE_EDGE_ID")
+    printf '%s|%s|2026-08-05T11:00:00Z|2026-08-05T12:00:00Z|0\n' \
+      "$FAKE_EDGE_ID" "${FAKE_EDGE_RUNNING:-false}"
+    ;;
+  "inspect --format {{.Id}}|{{.State.Running}}|{{.State.StartedAt}}|{{.State.FinishedAt}}|{{.RestartCount}} $FAKE_BACKEND_ID")
+    printf '%s|%s|2026-08-05T11:00:00Z|2026-08-05T12:00:00Z|0\n' \
+      "$FAKE_BACKEND_ID" "${FAKE_BACKEND_RUNNING:-false}"
+    ;;
+esac
+""",
+    )
+    write_executable(
+        fake_bin / "date",
+        """#!/bin/sh
+case "$*" in
+  "-u +%Y%m%dT%H%M%SZ") printf '20260805T120000Z\n' ;;
+  "-u -d 2026-08-05T11:59:59Z +%s") printf '1785931199\n' ;;
+  "-u -d @1785931199 +%Y%m%dT%H%M%SZ") printf '20260805T115959Z\n' ;;
+  "-u -d 2026-08-05T12:00:00Z +%s") printf '1785931200\n' ;;
+  "-u -d @1785931200 +%Y%m%dT%H%M%SZ") printf '20260805T120000Z\n' ;;
+  "-u -d 2026-08-05T12:00:01Z +%s") printf '1785931201\n' ;;
+  "-u -d @1785931201 +%Y%m%dT%H%M%SZ") printf '20260805T120001Z\n' ;;
+  "-u +%s") printf '1785934800\n' ;;
+  *) exit 1 ;;
+esac
+""",
+    )
+
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "PATH": f"{fake_bin}:{environment['PATH']}",
+            "SUBFRAME_ENV_FILE": str(env_file),
+            "FAKE_RELEASE_SHA": release_sha,
+            "FAKE_EDGE_ID": "c" * 64,
+            "FAKE_BACKEND_ID": "e" * 64,
+            "FAKE_DOCKER_LOG": str(docker_log),
+        },
+    )
+    return {
+        "repository": repository,
+        "script": deployment_root / "deploy-production.sh",
+        "state_dir": state_dir,
+        "docker_log": docker_log,
+        "environment": json.dumps(environment),
+        "previous_sha": previous_sha,
+        "release_sha": release_sha,
+    }
+
+
+def run_legacy_journal_transition_fixture(
+    fixture: dict[str, Path | str],
+    *,
+    edge_running: bool = False,
+    backend_running: bool = False,
+) -> subprocess.CompletedProcess[str]:
+    environment = json.loads(str(fixture["environment"]))
+    if edge_running:
+        environment["FAKE_EDGE_RUNNING"] = "true"
+    if backend_running:
+        environment["FAKE_BACKEND_RUNNING"] = "true"
+    return subprocess.run(
+        [str(fixture["script"])],
+        check=False,
+        capture_output=True,
+        env=environment,
+        text=True,
+        timeout=20,
+    )
+
+
+def test_first_legacy_journal_transition_quiesces_writers_and_requires_fresh_backup(
+    tmp_path: Path,
+) -> None:
+    # REGRESSION: the old flow could accept a backup created before an account
+    # deletion and initialize the first journal after that deletion.
+    fixture = legacy_journal_transition_fixture(tmp_path)
+
+    completed = run_legacy_journal_transition_fixture(fixture)
+
+    assert completed.returncode == 1
+    marker = Path(fixture["state_dir"]) / "legacy-journal-bootstrap-transition"
+    assert marker.is_file()
+    assert marker.stat().st_mode & 0o777 == 0o600
+    marker_text = marker.read_text(encoding="utf-8")
+    assert "schema_version=2" in marker_text
+    assert f"previous_release_sha={fixture['previous_sha']}" in marker_text
+    assert f"target_release_sha={fixture['release_sha']}" in marker_text
+    assert "edge_container_id=" in marker_text
+    assert "backend_container_id=" in marker_text
+    assert re.search(r"^services_stopped_at_utc=[0-9]{8}T[0-9]{6}Z$", marker_text, re.MULTILINE)
+    assert "Create a fresh backup" in completed.stderr
+    docker_commands = Path(fixture["docker_log"]).read_text(encoding="utf-8")
+    assert "stop edge backend" in docker_commands
+    assert " build " not in f" {docker_commands} "
+
+
+def test_legacy_journal_transition_rejects_tampering_and_restarted_writers(
+    tmp_path: Path,
+) -> None:
+    fixture = legacy_journal_transition_fixture(tmp_path)
+    first_run = run_legacy_journal_transition_fixture(fixture)
+    assert first_run.returncode == 1
+    marker = Path(fixture["state_dir"]) / "legacy-journal-bootstrap-transition"
+    original_marker = marker.read_text(encoding="utf-8")
+
+    marker.write_text(
+        original_marker.replace(str(fixture["release_sha"]), "d" * 40),
+        encoding="utf-8",
+    )
+    marker.chmod(0o600)
+    docker_log = Path(fixture["docker_log"])
+    docker_log.write_text("", encoding="utf-8")
+    tampered = run_legacy_journal_transition_fixture(fixture)
+    assert tampered.returncode == 1
+    assert "marker is malformed or belongs to another release" in tampered.stderr
+    assert "transition validation failed; edge and backend remain closed" in tampered.stderr
+    tampered_commands = docker_log.read_text(encoding="utf-8")
+    assert "stop edge backend" in tampered_commands
+    assert "stop subframe-edge-1 subframe-backend-1" in tampered_commands
+    assert "ps --status running -q edge backend" in tampered_commands
+
+    marker.write_text(original_marker, encoding="utf-8")
+    marker.chmod(0o600)
+    docker_log.write_text("", encoding="utf-8")
+    restarted = run_legacy_journal_transition_fixture(fixture, edge_running=True)
+    assert restarted.returncode == 1
+    assert "edge or backend restarted after the transition marker" in restarted.stderr
+    restarted_commands = docker_log.read_text(encoding="utf-8")
+    assert "stop edge backend" in restarted_commands
+    assert "stop subframe-edge-1 subframe-backend-1" in restarted_commands
+    assert "ps --status running -q edge backend" in restarted_commands
+
+    docker_log.write_text("", encoding="utf-8")
+    backend_restarted = run_legacy_journal_transition_fixture(
+        fixture,
+        backend_running=True,
+    )
+    assert backend_restarted.returncode == 1
+    assert "edge or backend restarted after the transition marker" in backend_restarted.stderr
+    backend_commands = docker_log.read_text(encoding="utf-8")
+    assert "stop edge backend" in backend_commands
+    assert "stop subframe-edge-1 subframe-backend-1" in backend_commands
+    assert "ps --status running -q edge backend" in backend_commands
+
+
+def test_legacy_journal_transition_rejects_a_pre_quiescence_backup(
+    tmp_path: Path,
+) -> None:
+    fixture = legacy_journal_transition_fixture(tmp_path)
+    first_run = run_legacy_journal_transition_fixture(fixture)
+    assert first_run.returncode == 1
+    receipt = Path(fixture["state_dir"]) / "last-backup-restore-drill"
+    receipt.write_text(
+        "\n".join(
+            (
+                f"backup_release_sha={fixture['release_sha']}",
+                "backup_created_at_utc=20260805T115959Z",
+                f"target_release_sha={fixture['release_sha']}",
+                "verified_at_utc=20260805T120001Z",
+                "restore_drill=true",
+                "independent_backup_copy_verified=true",
+                "ciphertext_checksums=true",
+                "age_decrypt=true",
+                "pg_restore_archive=true",
+                "tar_archive=true",
+                "database_restore=true",
+                "database_removed_before_app_restore=true",
+                "volume_restore=true",
+                "sequential_restore=true",
+                "restore_size_multiplier=2",
+                "restore_fixed_reserve_bytes=10737418240",
+                "schema_rollback_evidence=postgres_dump",
+                "app_data_authoritative=false",
+                "cleanup=true",
+                "",
+            ),
+        ),
+        encoding="utf-8",
+    )
+    receipt.chmod(0o600)
+
+    second_run = run_legacy_journal_transition_fixture(fixture)
+
+    assert second_run.returncode == 1
+    assert "backup must be created after the legacy edge is quiesced" in second_run.stderr
+
+
+def test_legacy_journal_transition_requires_post_quiescence_restore_receipt() -> None:
+    deploy_script = deployment_text("deploy-production.sh")
+    runbook = deployment_text("README.md")
+
+    assert 'TRANSITION_STATE_FILE="$STATE_DIR/legacy-journal-bootstrap-transition"' in deploy_script
+    assert 'backup_created_epoch" -le "$transition_stopped_epoch' in deploy_script
+    assert "backup must be created after the legacy edge is quiesced" in deploy_script
+    assert "first invocation" in runbook
+    assert "second invocation" in runbook
+    assert "legacy-journal-bootstrap-transition" in runbook
+    assert "edge and backend" in runbook
 
 
 def test_deploy_and_verifier_reject_open_stripe_rows_without_consumer_contract_evidence() -> None:
@@ -446,7 +985,7 @@ def test_deploy_and_verifier_reject_open_stripe_rows_without_consumer_contract_e
     assert verifier_sql == deploy_sql
 
     deploy_preflight = deploy_script.index(f"if ! {function_name}; then")
-    deploy_cutover = deploy_script.index("compose up -d db backend frontend")
+    deploy_cutover = deploy_script.index("compose up -d db")
     assert deploy_preflight < deploy_cutover
     assert "Open Stripe purchase preflight failed before database migration." in deploy_script
 
@@ -464,6 +1003,7 @@ def test_deploy_aborts_before_cutover_when_current_database_preflight_is_unavail
     deployment_root = repository / "deploy" / "hetzner"
     deployment_root.mkdir(parents=True)
     shutil.copy2(DEPLOYMENT_ROOT / "deploy-production.sh", deployment_root)
+    shutil.copy2(DEPLOYMENT_ROOT / "verify-gcs-retirement.sh", deployment_root)
     (deployment_root / "docker-compose.production.yml").write_text(
         "services: {}\n",
         encoding="utf-8",
@@ -484,6 +1024,10 @@ def test_deploy_aborts_before_cutover_when_current_database_preflight_is_unavail
     state_dir.mkdir()
     state_file = state_dir / "last-successful-release"
     state_file.write_text(f"{old_release_sha}\n", encoding="utf-8")
+    (state_dir / "privacy-continuity-id").write_text(
+        f"{'1' * 64}\n",
+        encoding="utf-8",
+    )
 
     fake_bin = tmp_path / "fake-bin"
     fake_bin.mkdir()
@@ -536,7 +1080,7 @@ fi
     assert "preflight failed before database migration" in completed.stderr
     commands = command_log.read_text(encoding="utf-8")
     assert "exec -T db" in commands
-    assert "up -d db backend frontend" not in commands
+    assert "up -d db" not in commands
 
 
 def test_backup_verifier_authenticates_and_validates_every_archive() -> None:
@@ -553,6 +1097,35 @@ def test_backup_verifier_authenticates_and_validates_every_archive() -> None:
     assert "postgres.dump.age" in verifier
     assert "app-data.tgz.age" in verifier
     assert "manifest.txt" in verifier
+    assert 'manifest_value "$BACKUP_DIR/manifest.txt" retention_days' in verifier
+    assert "Backup is older than its configured retention period" in verifier
+
+
+def test_backup_verifier_rejects_an_expired_backup(tmp_path: Path) -> None:
+    # REGRESSION: a valid encrypted copy could previously be restored after its
+    # declared GDPR backup-retention window had elapsed.
+    fixture = backup_verifier_fixture(tmp_path)
+    environment = backup_verifier_environment(
+        fixture,
+        available_kib=30_000_000,
+    )
+    environment["FAKE_RETENTION_CUTOFF"] = "20260727T000000Z"
+
+    completed = subprocess.run(
+        [
+            str(fixture["verifier"]),
+            str(fixture["server_backup"]),
+            str(fixture["independent_backup"]),
+        ],
+        check=False,
+        capture_output=True,
+        env=environment,
+        text=True,
+        timeout=20,
+    )
+
+    assert completed.returncode == 1
+    assert "older than its configured retention period" in completed.stderr
 
 
 def test_backup_verifier_requires_a_read_only_independent_mount() -> None:
@@ -764,14 +1337,99 @@ def test_backup_root_preflight_rejects_broad_or_ambiguous_targets(
 
 def test_backup_retention_prunes_only_exact_complete_backup_directories() -> None:
     backup_script = deployment_text("backup.sh")
+    prune_script = deployment_text("prune-backups.sh")
 
-    assert 'prune_backup_directory "$candidate"' in backup_script
-    assert 'candidate_parent="$BACKUP_ROOT"' in backup_script
-    assert "created_at_utc=$backup_name" in backup_script
-    assert 'rm -f -- "$candidate/postgres.dump.age"' in backup_script
-    assert 'rmdir -- "$candidate"' in backup_script
-    assert "-exec rm -rf" not in backup_script
-    assert "rm -rf" not in backup_script
+    assert 'prune-backups.sh" "$BACKUP_ROOT" "$RETENTION_DAYS"' in backup_script
+    assert 'prune_backup_directory "$candidate"' in prune_script
+    assert "actual_candidate_parent" in prune_script
+    assert "created_at_utc=$backup_name" in prune_script
+    assert 'rm -f -- "$candidate/postgres.dump.age"' in prune_script
+    assert 'rmdir -- "$candidate"' in prune_script
+    assert "-exec rm -rf" not in prune_script
+    assert "rm -rf" not in prune_script
+
+
+def test_backup_pruner_applies_the_same_exact_policy_to_any_backup_root(
+    tmp_path: Path,
+) -> None:
+    # REGRESSION: only the server copy was pruned; the independent encrypted
+    # copy could retain erased media indefinitely.
+    backup_root = tmp_path / "independent-backups"
+    backup_root.mkdir()
+
+    def create_backup(name: str, *, extra_file: bool = False) -> Path:
+        directory = backup_root / name
+        directory.mkdir()
+        for filename in (
+            "postgres.dump.age",
+            "app-data.tgz.age",
+            "SHA256SUMS",
+        ):
+            (directory / filename).write_text(filename, encoding="utf-8")
+        (directory / "manifest.txt").write_text(
+            f"created_at_utc={name}\n",
+            encoding="utf-8",
+        )
+        if extra_file:
+            (directory / "unexpected.txt").write_text("preserve", encoding="utf-8")
+        return directory
+
+    expired = create_backup("20260701T000000Z")
+    current = create_backup("20260730T000000Z")
+    noncanonical = create_backup("20260702T000000Z", extra_file=True)
+    incomplete = backup_root / "20260703T000000Z"
+    incomplete.mkdir()
+
+    fake_bin = tmp_path / "fake-pruner-bin"
+    fake_bin.mkdir()
+    write_executable(
+        fake_bin / "date",
+        "#!/bin/sh\nprintf '20260722T000000Z\\n'\n",
+    )
+    environment = os.environ.copy()
+    environment["PATH"] = f"{fake_bin}:{environment['PATH']}"
+
+    completed = subprocess.run(
+        [str(DEPLOYMENT_ROOT / "prune-backups.sh"), str(backup_root), "14"],
+        check=False,
+        capture_output=True,
+        env=environment,
+        text=True,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert not expired.exists()
+    assert current.is_dir()
+    assert noncanonical.is_dir()
+    assert incomplete.is_dir()
+
+
+def test_backup_verifier_rejects_expired_independent_sibling(
+    tmp_path: Path,
+) -> None:
+    fixture = backup_verifier_fixture(tmp_path)
+    independent_root = fixture["independent_backup"].parent
+    (independent_root / "20260701T000000Z").mkdir()
+    environment = backup_verifier_environment(
+        fixture,
+        available_kib=30_000_000,
+    )
+
+    completed = subprocess.run(
+        [
+            str(fixture["verifier"]),
+            str(fixture["server_backup"]),
+            str(fixture["independent_backup"]),
+        ],
+        check=False,
+        capture_output=True,
+        env=environment,
+        text=True,
+        timeout=20,
+    )
+
+    assert completed.returncode == 1
+    assert "contains an expired timestamp: 20260701T000000Z" in completed.stderr
 
 
 def test_restore_drill_uses_exact_disposable_resources_and_safe_cleanup() -> None:
@@ -1004,6 +1662,7 @@ def test_candidate_verifier_failure_preserves_previous_release_state(
     deployment_root = repository / "deploy" / "hetzner"
     deployment_root.mkdir(parents=True)
     shutil.copy2(DEPLOYMENT_ROOT / "deploy-production.sh", deployment_root)
+    shutil.copy2(DEPLOYMENT_ROOT / "verify-gcs-retirement.sh", deployment_root)
     (deployment_root / "docker-compose.production.yml").write_text(
         "services: {}\n",
         encoding="utf-8",
@@ -1028,9 +1687,17 @@ exit 1
     state_dir.mkdir()
     state_file = state_dir / "last-successful-release"
     state_file.write_text(f"{old_release_sha}\n", encoding="utf-8")
+    (state_dir / "privacy-continuity-id").write_text(
+        f"{'2' * 64}\n",
+        encoding="utf-8",
+    )
+    anchor_dir = state_dir / "privacy-erasure-anchor"
+    anchor_dir.mkdir(mode=0o700)
+    write_gcs_retirement_evidence(repository)
 
     fake_bin = tmp_path / "fake-bin"
     fake_bin.mkdir()
+    docker_command_log = tmp_path / "docker-commands.log"
     write_executable(
         fake_bin / "git",
         """#!/bin/sh
@@ -1046,9 +1713,25 @@ esac
     write_executable(
         fake_bin / "docker",
         """#!/bin/sh
+printf '%s\n' "$*" >> "$FAKE_DOCKER_COMMAND_LOG"
+case "$*" in
+  *"to_regclass"*) printf 'f\n' ;;
+  *"source_gcs_object"*) printf '0\n' ;;
+esac
 if [ "${1:-}" = "inspect" ]; then
   printf 'healthy\\n'
 fi
+""",
+    )
+    write_executable(
+        fake_bin / "stat",
+        """#!/bin/sh
+case "$*" in
+  *"%a"*privacy-erasure-anchor|*"%Lp"*privacy-erasure-anchor) printf '700\n' ;;
+  *"%a"*|*"%Lp"*) printf '600\n' ;;
+  *"%u"*|*"%g"*) printf '10001\n' ;;
+  *) exec /usr/bin/stat "$@" ;;
+esac
 """,
     )
     environment = os.environ.copy()
@@ -1058,6 +1741,7 @@ fi
             "SUBFRAME_ENV_FILE": str(env_file),
             "FAKE_NEW_RELEASE_SHA": new_release_sha,
             "FAKE_VERIFIER_LOG": str(verifier_log),
+            "FAKE_DOCKER_COMMAND_LOG": str(docker_command_log),
         }
     )
 
@@ -1074,6 +1758,12 @@ fi
     assert state_file.read_text(encoding="utf-8").strip() == old_release_sha
     assert verifier_log.read_text(encoding="utf-8").strip() == "--candidate"
     assert "previous successful-release state was preserved" in completed.stderr
+    docker_commands = docker_command_log.read_text(encoding="utf-8")
+    assert "configured_erasure_journal().read_all()" in docker_commands
+    assert "configured_erasure_journal().initialize()" not in docker_commands
+    assert docker_commands.index("configured_erasure_journal().read_all()") < docker_commands.index(
+        "up -d backend frontend",
+    )
 
 
 def test_release_runbook_requires_off_server_copy_and_restore_drill() -> None:
@@ -1096,6 +1786,12 @@ def test_release_runbook_requires_off_server_copy_and_restore_drill() -> None:
     assert "last-backup-restore-drill" in runbook
     assert "same exact target release SHA" in runbook
     assert "24 hours" in runbook
+    assert "prune-backups.sh" in runbook
+    assert "Both\nlocations must use the same configured retention" in runbook
+    assert "only until that backup's configured expiry" in runbook
+    assert "subframe-erasure-journal" in runbook
+    assert "reconcile-erasures" in runbook
+    assert "last-erasure-reconciliation" in runbook
 
 
 def test_edge_routes_billing_api_and_verifier_smokes_catalog() -> None:
@@ -1125,6 +1821,21 @@ def test_edge_caps_stripe_webhook_body_before_generic_billing_proxy() -> None:
     assert "reverse_proxy backend:8080" in stripe_handler
 
 
+def test_edge_caps_the_only_streaming_video_upload_route() -> None:
+    caddyfile = deployment_text("Caddyfile")
+
+    stream_matcher = "@video_stream path /videos/process-stream"
+    assert stream_matcher in caddyfile
+    assert caddyfile.index(stream_matcher) < caddyfile.index("@backend path")
+    stream_handler = caddyfile.split(stream_matcher, 1)[1].split(
+        "@backend path",
+        1,
+    )[0]
+    assert "request_body" in stream_handler
+    assert "max_size 500MB" in stream_handler
+    assert "reverse_proxy backend:8080" in stream_handler
+
+
 def test_google_oauth_certificates_use_a_scoped_internal_edge_relay() -> None:
     """REGRESSION: the internal-only backend could not resolve Google's cert host."""
     compose = deployment_text("docker-compose.production.yml")
@@ -1136,10 +1847,14 @@ def test_google_oauth_certificates_use_a_scoped_internal_edge_relay() -> None:
     assert 'GSP_GOOGLE_OAUTH_CERTS_URL: "http://edge:8081/oauth2/v1/certs"' in compose
     assert ":8081" in caddyfile
     assert "/oauth2/v1/certs" in caddyfile
+    google_matcher = caddyfile.split("@google_oauth_certs {", 1)[1].split("}", 1)[0]
+    assert "method GET" in google_matcher
+    assert "method POST" not in google_matcher
     assert "reverse_proxy https://www.googleapis.com" in caddyfile
     assert "compose run --rm --no-deps --entrypoint caddy edge validate" in deploy_script
     assert "compose up -d --force-recreate edge" in deploy_script
-    assert "google_oauth_certs_http=" in verifier
+    assert '"@google_oauth_certs": (' in verifier
+    assert '"path /oauth2/v1/certs"' in verifier
 
 
 def test_stripe_api_uses_a_method_and_path_scoped_internal_edge_relay() -> None:
@@ -1168,9 +1883,10 @@ def test_stripe_api_uses_a_method_and_path_scoped_internal_edge_relay() -> None:
     assert "uri strip_prefix /stripe" in caddyfile
     assert "reverse_proxy https://api.stripe.com" in caddyfile
     assert "header_up Host api.stripe.com" in caddyfile
-    assert "stripe_relay_http=" in verifier
-    assert '[ "$stripe_relay_http" = "401,401,401" ]' in verifier
-    assert 'probes = ((base, "GET"), (f"{base}/capture", "POST"), (f"{base}/cancel", "POST"))' in verifier
+    assert '"@stripe_payment_intent_retrieve": (' in verifier
+    assert '"@stripe_payment_intent_capture": (' in verifier
+    assert '"@stripe_payment_intent_cancel": (' in verifier
+    assert '"https://api.stripe.com": 6' in verifier
     assert "GSP_STRIPE_RESTRICTED_KEY" not in caddyfile
 
 
@@ -1184,13 +1900,92 @@ def test_elevenlabs_scribe_uses_a_method_and_path_scoped_internal_edge_relay() -
     assert "@elevenlabs_scribe" in caddyfile
     assert "method POST" in caddyfile
     assert "path /elevenlabs/v1/speech-to-text" in caddyfile
+    assert "method DELETE" in caddyfile
+    assert (
+        "path_regexp elevenlabs_transcript_delete "
+        "^/elevenlabs/v1/speech-to-text/transcripts/"
+        "[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+    ) in caddyfile
     assert "max_size 32MB" in caddyfile
     assert "uri strip_prefix /elevenlabs" in caddyfile
     assert "reverse_proxy https://api.elevenlabs.io" in caddyfile
     assert "header_up Host api.elevenlabs.io" in caddyfile
-    assert "elevenlabs_relay_http=" in verifier
-    assert "400,404,404|401,404,404|422,404,404" in verifier
+    assert '"@elevenlabs_scribe": (' in verifier
+    assert '"@elevenlabs_transcript_delete": (' in verifier
+    assert '"https://api.elevenlabs.io": 2' in verifier
+    assert 'transcripts/invalid/path", "DELETE"' in verifier
+    assert "path /elevenlabs/*" not in caddyfile
     assert "ELEVENLABS_API_KEY" not in caddyfile
+    assert "log {" not in caddyfile
+    assert "request>body" not in caddyfile
+    scribe_matcher = caddyfile.split("@elevenlabs_scribe {", 1)[1].split("}", 1)[0]
+    delete_matcher = caddyfile.split("@elevenlabs_transcript_delete {", 1)[1].split("}", 1)[0]
+    assert "method POST" in scribe_matcher
+    assert "method DELETE" not in scribe_matcher
+    assert "path /elevenlabs/v1/speech-to-text" in scribe_matcher
+    assert "method DELETE" in delete_matcher
+    assert "method POST" not in delete_matcher
+
+
+def test_production_verifier_never_calls_an_allowed_third_party_relay_route() -> None:
+    verifier = deployment_text("verify-production.sh")
+    runbook = deployment_text("README.md")
+
+    # REGRESSION: candidate verification used real Google, Stripe and
+    # ElevenLabs endpoints as health checks. Even bogus IDs still disclosed a
+    # request to a third party and made a release depend on provider state.
+    assert "runtime_caddyfile_sha" in verifier
+    assert "caddy validate" in verifier
+    assert "expected_matchers" in verifier
+    assert "actual_upstreams" in verifier
+    assert "relay_deny_http=" in verifier
+    assert '"404,404,404,404,404,404,404"' in verifier
+    assert "google_oauth_certs_http=" not in verifier
+    assert "stripe_relay_http=" not in verifier
+    assert "elevenlabs_relay_http=" not in verifier
+    assert "pi_gsubs_relay_probe" not in verifier
+    assert 'transcripts/gsubs_relay_probe", "DELETE"' not in verifier
+    assert '(f"{base}/v1/speech-to-text", "POST")' not in verifier
+    assert "it never sends a verification request to a third-party" in runbook
+
+
+def test_runtime_relay_contract_validator_accepts_only_the_reviewed_allow_list() -> None:
+    verifier = deployment_text("verify-production.sh")
+    caddyfile = deployment_text("Caddyfile")
+    validator = relay_validator_source(verifier)
+
+    accepted = subprocess.run(
+        [sys.executable, "-c", validator],
+        check=False,
+        capture_output=True,
+        input=caddyfile,
+        text=True,
+        timeout=10,
+    )
+    assert accepted.returncode == 0, accepted.stderr
+
+    unsafe_variants = (
+        caddyfile.replace(
+            "@google_oauth_certs {\n\t\tmethod GET",
+            "@google_oauth_certs {\n\t\tmethod POST",
+            1,
+        ),
+        caddyfile.replace(
+            "\trespond 404\n}",
+            "\treverse_proxy https://unreviewed.invalid\n\n\trespond 404\n}",
+            1,
+        ),
+    )
+    for unsafe in unsafe_variants:
+        rejected = subprocess.run(
+            [sys.executable, "-c", validator],
+            check=False,
+            capture_output=True,
+            input=unsafe,
+            text=True,
+            timeout=10,
+        )
+        assert rejected.returncode != 0
 
 
 def test_docker_build_context_excludes_production_secrets_and_state() -> None:
@@ -1208,6 +2003,9 @@ def test_backend_image_contains_the_gsubs_watermark() -> None:
 
     assert watermark.is_file()
     assert "COPY gsubs-logo.png /gsubs-logo.png" in dockerfile
+    assert "mkdir -p /data/uploads /data/artifacts /privacy-erasure-journal" in dockerfile
+    assert "app_logs" not in dockerfile
+    assert "/app/logs" not in dockerfile
     # REGRESSION: The selected waveform-to-subtitles watermark was replaced by
     # an unapproved compact-split asset.
     assert hashlib.sha256(watermark.read_bytes()).hexdigest() == (
@@ -1215,17 +2013,24 @@ def test_backend_image_contains_the_gsubs_watermark() -> None:
     )
 
 
-def test_frontend_image_applies_the_patched_dependency_compatibility_export() -> None:
+def test_frontend_image_uses_native_patched_dependencies_without_postinstall_shim() -> None:
     dockerfile = (REPOSITORY_ROOT / "frontend" / "Dockerfile").read_text(encoding="utf-8")
     package = (REPOSITORY_ROOT / "frontend" / "package.json").read_text(encoding="utf-8")
+    package_lock = json.loads((REPOSITORY_ROOT / "frontend" / "package-lock.json").read_text(encoding="utf-8"))
     patch_script = REPOSITORY_ROOT / "frontend" / "scripts" / "patch-brace-expansion.cjs"
     script_copy = "COPY scripts/patch-brace-expansion.cjs"
 
-    assert '"brace-expansion": "5.0.8"' in package
-    assert '"postinstall": "node scripts/patch-brace-expansion.cjs"' in package
-    assert patch_script.is_file()
-    assert script_copy in dockerfile
-    assert dockerfile.index(script_copy) < dockerfile.index("RUN npm ci")
+    brace_versions = {
+        metadata["version"]
+        for path, metadata in package_lock["packages"].items()
+        if path.endswith("node_modules/brace-expansion")
+    }
+    assert brace_versions == {"1.1.18", "2.1.4", "5.0.9"}
+    assert '"postcss": "8.5.25"' in package
+    assert '"brace-expansion"' not in package
+    assert '"postinstall"' not in package
+    assert not patch_script.exists()
+    assert script_copy not in dockerfile
 
 
 def test_frontend_build_context_excludes_generated_and_local_state() -> None:
@@ -1252,6 +2057,7 @@ def test_deployment_shell_scripts_have_valid_syntax() -> None:
     for filename in (
         "backup.sh",
         "deploy-production.sh",
+        "prune-backups.sh",
         "verify-backup.sh",
         "verify-production.sh",
     ):

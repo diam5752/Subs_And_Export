@@ -71,10 +71,14 @@ RETENTION_DAYS="${SUBFRAME_BACKUP_RETENTION_DAYS:-$(env_value SUBFRAME_BACKUP_RE
 RETENTION_DAYS="${RETENTION_DAYS:-14}"
 case "$RETENTION_DAYS" in
   ''|*[!0-9]*)
-    echo "SUBFRAME_BACKUP_RETENTION_DAYS must be a non-negative integer." >&2
+    echo "SUBFRAME_BACKUP_RETENTION_DAYS must be a positive integer." >&2
     exit 1
     ;;
 esac
+if [ "$RETENTION_DAYS" -eq 0 ]; then
+  echo "SUBFRAME_BACKUP_RETENTION_DAYS must be a positive integer." >&2
+  exit 1
+fi
 RECIPIENT="${SUBFRAME_BACKUP_AGE_RECIPIENT:-$(env_value SUBFRAME_BACKUP_AGE_RECIPIENT)}"
 POSTGRES_USER="${POSTGRES_USER:-$(env_value POSTGRES_USER)}"
 POSTGRES_DB="${POSTGRES_DB:-$(env_value POSTGRES_DB)}"
@@ -164,44 +168,6 @@ compose() {
   docker compose --project-name subframe --env-file "$ENV_FILE" -f "$COMPOSE_FILE" "$@"
 }
 
-prune_backup_directory() {
-  candidate=$1
-  if [ ! -d "$candidate" ] || [ -L "$candidate" ]; then
-    return 0
-  fi
-  backup_name=${candidate##*/}
-  case "$backup_name" in
-    [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]T[0-9][0-9][0-9][0-9][0-9][0-9]Z) ;;
-    *) return 0 ;;
-  esac
-
-  candidate_parent="$BACKUP_ROOT"
-  actual_candidate_parent=$(CDPATH= cd -- "$candidate/.." && pwd -P)
-  if [ "$actual_candidate_parent" != "$candidate_parent" ]; then
-    echo "Skipping retention candidate outside the canonical backup root: $candidate" >&2
-    return 0
-  fi
-  for required_file in postgres.dump.age app-data.tgz.age manifest.txt SHA256SUMS
-  do
-    if [ ! -f "$candidate/$required_file" ] || [ -L "$candidate/$required_file" ]; then
-      echo "Skipping incomplete retention candidate: $candidate" >&2
-      return 0
-    fi
-  done
-  entry_count=$(find "$candidate" -mindepth 1 -maxdepth 1 -print | wc -l | tr -d '[:space:]')
-  if [ "$entry_count" -ne 4 ] ||
-    ! grep -Fqx "created_at_utc=$backup_name" "$candidate/manifest.txt"; then
-    echo "Skipping non-canonical retention candidate: $candidate" >&2
-    return 0
-  fi
-
-  rm -f -- "$candidate/postgres.dump.age" \
-    "$candidate/app-data.tgz.age" \
-    "$candidate/manifest.txt" \
-    "$candidate/SHA256SUMS"
-  rmdir -- "$candidate"
-}
-
 encrypt_command() {
   output_file=$1
   shift
@@ -261,6 +227,7 @@ cat > "$target/manifest.txt" <<EOF
 created_at_utc=$timestamp
 release_sha=$SUBFRAME_RELEASE_SHA
 encrypted=true
+retention_days=$RETENTION_DAYS
 database_size_bytes=$database_size_bytes
 app_data_size_bytes=$app_data_size_bytes
 EOF
@@ -271,15 +238,7 @@ if ! printf '%s\n' "$sums_sha" | grep -Eq '^[0-9A-Fa-f]{64}$'; then
   echo "Could not calculate the backup SHA256SUMS digest." >&2
   exit 1
 fi
-for candidate in "$BACKUP_ROOT"/*
-do
-  if [ ! -d "$candidate" ] || [ -L "$candidate" ]; then
-    continue
-  fi
-  if [ -n "$(find "$candidate" -prune -type d -mtime +"$RETENTION_DAYS" -print)" ]; then
-    prune_backup_directory "$candidate"
-  fi
-done
+"$ROOT_DIR/deploy/hetzner/prune-backups.sh" "$BACKUP_ROOT" "$RETENTION_DAYS"
 complete=true
 printf 'sha256sums_sha256=%s\n' "$sums_sha" >&2
 printf '%s\n' "$target"

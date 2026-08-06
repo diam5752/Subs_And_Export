@@ -623,7 +623,7 @@ export function ProcessProvider({
 
         const resolvedUrl = transcriptionUrl.startsWith('http') ? transcriptionUrl : `${API_BASE}${transcriptionUrl}`;
 
-        fetch(resolvedUrl)
+        fetch(resolvedUrl, { credentials: 'include' })
             .then(res => {
                 if (!res.ok) throw new Error('Failed to fetch transcription');
                 return res.json();

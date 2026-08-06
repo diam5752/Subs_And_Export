@@ -14,6 +14,7 @@ from backend.app.core.database import Database
 from backend.app.services import pricing
 from backend.app.services.jobs import JobStore
 from backend.app.services.points import PointsStore
+from backend.tests.process_stream import post_process_stream
 
 
 def _db_from_env() -> Database:
@@ -71,11 +72,11 @@ def test_process_video_charges_points_and_returns_balance(
     )
     _grant_paid_credits(client, user_auth_headers)
     before = client.get("/auth/points", headers=user_auth_headers).json()["balance"]
-    resp = client.post(
-        "/videos/process",
-        headers=user_auth_headers,
-        files={"file": ("clip.mp4", b"123", "video/mp4")},
-        data={"transcribe_tier": "standard"},
+    resp = post_process_stream(
+        client,
+        user_auth_headers,
+        content=b"123",
+        metadata={"transcribe_tier": "standard"},
     )
     assert resp.status_code == 200, resp.text
     body = resp.json()
@@ -84,6 +85,7 @@ def test_process_video_charges_points_and_returns_balance(
 
     after = client.get("/auth/points", headers=user_auth_headers).json()["balance"]
     assert after == body["balance"]
+
 
 def test_process_video_refunds_points_when_processing_fails(
     client: TestClient,
@@ -106,11 +108,11 @@ def test_process_video_refunds_points_when_processing_fails(
 
     _grant_paid_credits(client, user_auth_headers)
     before = client.get("/auth/points", headers=user_auth_headers).json()["balance"]
-    resp = client.post(
-        "/videos/process",
-        headers=user_auth_headers,
-        files={"file": ("clip.mp4", b"123", "video/mp4")},
-        data={"transcribe_tier": "standard"},
+    resp = post_process_stream(
+        client,
+        user_auth_headers,
+        content=b"123",
+        metadata={"transcribe_tier": "standard"},
     )
     assert resp.status_code == 200, resp.text
     body = resp.json()
@@ -125,9 +127,7 @@ def test_process_video_refunds_points_when_processing_fails(
     assert job.json()["status"] == "failed"
 
 
-def test_process_video_rejects_on_insufficient_points(
-    client: TestClient, user_auth_headers: dict[str, str]
-) -> None:
+def test_process_video_rejects_on_insufficient_points(client: TestClient, user_auth_headers: dict[str, str]) -> None:
     me = client.get("/auth/me", headers=user_auth_headers)
     assert me.status_code == 200
     user_id = me.json()["id"]
@@ -137,11 +137,11 @@ def test_process_video_rejects_on_insufficient_points(
     current_balance = points_store.get_balance(user_id)
     assert current_balance == 0
 
-    resp = client.post(
-        "/videos/process",
-        headers=user_auth_headers,
-        files={"file": ("clip.mp4", b"123", "video/mp4")},
-        data={"transcribe_tier": "standard"},
+    resp = post_process_stream(
+        client,
+        user_auth_headers,
+        content=b"123",
+        metadata={"transcribe_tier": "standard"},
     )
     assert resp.status_code == 402
     assert resp.json()["detail"] == "Insufficient points"
@@ -160,7 +160,9 @@ def test_fact_check_charges_points_and_rejects_on_insufficient_balance(
     artifacts_dir = data_dir / "artifacts"
     uploads_dir.mkdir(parents=True)
     artifacts_dir.mkdir(parents=True)
-    monkeypatch.setattr("backend.app.api.endpoints.intelligence_routes.data_roots", lambda: (data_dir, uploads_dir, artifacts_dir))
+    monkeypatch.setattr(
+        "backend.app.api.endpoints.intelligence_routes.data_roots", lambda: (data_dir, uploads_dir, artifacts_dir)
+    )
     monkeypatch.setattr(videos_endpoints, "data_roots", lambda: (data_dir, uploads_dir, artifacts_dir))
     monkeypatch.setattr(videos_endpoints, "run_video_processing", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
@@ -171,11 +173,11 @@ def test_fact_check_charges_points_and_rejects_on_insufficient_balance(
     )
     _grant_paid_credits(client, user_auth_headers, amount=1000)
 
-    process_resp = client.post(
-        "/videos/process",
-        headers=user_auth_headers,
-        files={"file": ("clip.mp4", b"123", "video/mp4")},
-        data={"transcribe_tier": "standard"},
+    process_resp = post_process_stream(
+        client,
+        user_auth_headers,
+        content=b"123",
+        metadata={"transcribe_tier": "standard"},
     )
     assert process_resp.status_code == 200, process_resp.text
     job_id = process_resp.json()["id"]
@@ -194,8 +196,7 @@ def test_fact_check_charges_points_and_rejects_on_insufficient_balance(
         tier="standard",
         max_prompt_chars=(config.settings.max_llm_input_chars * 2) + 10_000,
         max_completion_tokens=(
-            config.settings.max_llm_output_tokens_extraction
-            + config.settings.max_llm_output_tokens_factcheck
+            config.settings.max_llm_output_tokens_extraction + config.settings.max_llm_output_tokens_factcheck
         ),
         min_credits=config.settings.credits_min_fact_check["standard"],
     )["credits"]
@@ -246,7 +247,9 @@ def test_fact_check_refunds_points_when_generation_fails(
     artifacts_dir = data_dir / "artifacts"
     uploads_dir.mkdir(parents=True)
     artifacts_dir.mkdir(parents=True)
-    monkeypatch.setattr("backend.app.api.endpoints.intelligence_routes.data_roots", lambda: (data_dir, uploads_dir, artifacts_dir))
+    monkeypatch.setattr(
+        "backend.app.api.endpoints.intelligence_routes.data_roots", lambda: (data_dir, uploads_dir, artifacts_dir)
+    )
     monkeypatch.setattr(videos_endpoints, "data_roots", lambda: (data_dir, uploads_dir, artifacts_dir))
 
     monkeypatch.setattr(

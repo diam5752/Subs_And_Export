@@ -2189,7 +2189,7 @@ def test_accepted_withdrawal_requires_and_exposes_completed_manual_actions(
         headers=headers,
     )
     assert artifact.status_code == 200
-    assert artifact.headers["cache-control"] == "private, no-transform"
+    assert artifact.headers["cache-control"] == "private, no-store"
     document = artifact.json()
     assert document["customer_explanation"] == explanation
     assert document["mandatory_consumer_rights_preserved"] is True

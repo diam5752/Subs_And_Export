@@ -19,10 +19,33 @@ interface LegalSection {
     body: MessageKey;
 }
 
+const elevenLabsPrivacyLinks: ReadonlyArray<{
+    href: string;
+    label: MessageKey;
+}> = [
+    {
+        href: 'https://elevenlabs.io/docs/api-reference/speech-to-text/delete',
+        label: 'privacyElevenLabsDeleteLink',
+    },
+    {
+        href: 'https://elevenlabs.io/docs/eleven-api/resources/zero-retention-mode',
+        label: 'privacyElevenLabsZrmLink',
+    },
+    {
+        href: 'https://elevenlabs.io/docs/overview/administration/data-residency',
+        label: 'privacyElevenLabsResidencyLink',
+    },
+    {
+        href: 'https://elevenlabs.io/dpa',
+        label: 'privacyElevenLabsDpaLink',
+    },
+];
+
 const sections: Record<LegalPageKind, LegalSection[]> = {
     privacy: [
         { title: 'privacyCollectionTitle', body: 'privacyCollectionBody' },
         { title: 'privacyRetentionTitle', body: 'privacyRetentionBody' },
+        { title: 'privacyLawfulBasisTitle', body: 'privacyLawfulBasisBody' },
         { title: 'privacyPaymentsTitle', body: 'privacyPaymentsBody' },
         { title: 'privacyFinancialRetentionTitle', body: 'privacyFinancialRetentionBody' },
         { title: 'privacyProvidersTitle', body: 'privacyProvidersBody' },
@@ -126,6 +149,25 @@ export function LegalPage({ kind }: LegalPageProps) {
                             >
                                 <h2 className="text-xl font-bold tracking-[-0.02em] sm:text-2xl">{t(section.title)}</h2>
                                 <p className="mt-4 text-[15px] leading-7 text-[#5f636b] sm:text-base sm:leading-8">{t(section.body)}</p>
+                                {isPrivacy && section.body === 'privacyProvidersBody' && (
+                                    <div className="mt-5 text-sm leading-6 text-[#5f636b]">
+                                        <p className="font-semibold">{t('privacyElevenLabsLinksIntro')}</p>
+                                        <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
+                                            {elevenLabsPrivacyLinks.map((link) => (
+                                                <li key={link.href}>
+                                                    <a
+                                                        href={link.href}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="font-semibold text-[var(--accent)] underline decoration-current underline-offset-4"
+                                                    >
+                                                        {t(link.label)} ↗
+                                                    </a>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
                             </section>
                         ))}
                     </div>

@@ -17,7 +17,7 @@ interface AuthContextType {
     login: (email: string, password: string) => Promise<void>;
     register: (email: string, password: string, name: string) => Promise<void>;
     googleLogin: (idToken: string) => Promise<void>;
-    logout: () => void;
+    logout: () => Promise<void>;
     refreshUser: () => Promise<void>;
 }
 
@@ -30,9 +30,30 @@ function hasStoredAuthToken(): boolean {
     return Boolean(localStorage.getItem('auth_token'));
 }
 
+function isDefinitiveSessionRejection(error: unknown): boolean {
+    return typeof error === 'object'
+        && error !== null
+        && 'status' in error
+        && error.status === 401;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+
+    const clearRejectedSession = useCallback(async (): Promise<boolean> => {
+        try {
+            // A rejected bearer can coexist with the path-scoped HttpOnly
+            // media cookie. Revoke that exact cookie session before presenting
+            // the browser as signed out.
+            await api.revokeSession();
+        } catch {
+            return false;
+        }
+        api.clearToken();
+        setUser(null);
+        return true;
+    }, []);
 
     const refreshUser = useCallback(async () => {
         if (!hasStoredAuthToken()) {
@@ -42,11 +63,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
             const userData = await api.getCurrentUser();
             setUser(userData);
-        } catch {
-            api.clearToken();
-            setUser(null);
+        } catch (error) {
+            if (isDefinitiveSessionRejection(error)) {
+                await clearRejectedSession();
+            }
         }
-    }, []);
+    }, [clearRejectedSession]);
 
     useEffect(() => {
         // Check for existing session
@@ -59,14 +81,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             try {
                 const userData = await api.getCurrentUser();
                 setUser(userData);
-            } catch {
-                api.clearToken();
-            } finally {
                 setIsLoading(false);
+            } catch (error) {
+                if (!isDefinitiveSessionRejection(error)) {
+                    // Authentication is unknown while the API is temporarily
+                    // unavailable. Keep the guarded loading state and stored
+                    // bearer instead of falsely rendering a signed-out UI.
+                    return;
+                }
+                if (await clearRejectedSession()) {
+                    setIsLoading(false);
+                }
             }
         };
         checkAuth();
-    }, []);
+    }, [clearRejectedSession]);
 
     const login = useCallback(async (email: string, password: string) => {
         await api.login(email, password);
@@ -83,14 +112,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await refreshUser();
     }, [refreshUser]);
 
-    const logout = useCallback(() => {
-        setUser(null);
-        const revokeSession = api.revokeSession();
+    const logout = useCallback(async () => {
+        // The HttpOnly private-media cookie cannot be cleared by JavaScript.
+        // Keep the browser visibly signed in until the server has revoked the
+        // session and returned the cookie-expiry header.
+        await api.revokeSession();
         api.clearToken();
-        void revokeSession.catch(() => {
-            // Local sign-out must still succeed while offline or if the
-            // server session has already expired.
-        });
+        setUser(null);
     }, []);
 
     return (

@@ -27,13 +27,27 @@ credentials, a closed budget, an unsupported tier/provider pair or a provider
 error fails closed before work is accepted or refunds the idempotent
 reservation.
 
+The backend copies each Scribe result locally, requires its provider
+`transcription_id`, then calls ElevenLabs' narrowly relayed transcript-deletion
+endpoint. A missing ID or failed deletion fails closed and is retained for
+idempotent retry; the edge exposes only `POST /v1/speech-to-text` and
+`DELETE /v1/speech-to-text/transcripts/<validated-id>`, never a general
+ElevenLabs proxy. This minimizes provider copies but does not turn on Zero
+Retention Mode or EU residency. ElevenLabs documents those as Enterprise
+features and states that ordinary deleted records can remain in its backups for
+up to 30 days. See the official
+[transcript deletion API](https://elevenlabs.io/docs/api-reference/speech-to-text/delete),
+[Zero Retention documentation](https://elevenlabs.io/docs/eleven-api/resources/zero-retention-mode),
+[data-residency documentation](https://elevenlabs.io/docs/overview/administration/data-residency),
+and [Data Processing Addendum](https://elevenlabs.io/dpa).
+
 Paid Checkout is enabled by the tracked release contract:
 `GSP_PAID_CREDITS_ENABLED=1`, with the consumer-policy,
 durable-confirmation-channel and manual-adjustment gates also fixed to `1`.
 Stripe Automatic Tax remains fixed to `0` for the reviewed tax-inclusive
-Greek B2C catalog. The Compose file also forces `GSP_GCS_BUCKET=""` and the
-billing-admin allowlist to an empty value. New accounts receive no automatic
-credits, and external provider spend requires an existing paid-credit balance.
+Greek B2C catalog. The Compose file forces the billing-admin allowlist to an
+empty value. New accounts receive no automatic credits, and external provider
+spend requires an existing paid-credit balance.
 
 The Compose contract requires one complete live Stripe bundle (restricted key,
 webhook signing secret and all three Price IDs) from the untracked production
@@ -44,12 +58,109 @@ retrieval/capture/cancellation and Refund listing. Values placed only in
 `.env.production` cannot bypass the tracked Automatic Tax, legal publication,
 or approval contract.
 
-GCS activation has a separate privacy blocker: individual and batch terminal
-project deletion must first delete every exact static artifact object before
-the job's persisted `result_data` is removed. Account deletion already erases
-its exact known GCS objects, but that does not close the per-project deletion
-gap. Keep `GSP_GCS_BUCKET` empty until this behavior and its cross-user
-isolation tests are implemented and reviewed.
+Source videos and generated media live only in the dedicated local
+`subframe-app-data` Docker volume. Browser uploads go through the authenticated
+backend stream endpoint; there is no cloud-object-storage path or credential.
+`subframe-app-data` and `subframe-erasure-journal` are ordinary Docker `local`
+volumes on the existing VM root filesystem. The journal's rollback-detection
+anchor is a host bind at
+`/home/mizai/subframe/.runtime/privacy-erasure-anchor`, on that same existing
+root filesystem. This release does not create or request a Hetzner Block
+Volume, Storage Box, Object Storage bucket, NFS mount or any other separately
+billed storage product, and neither release script calls the Hetzner API.
+`verify-production.sh` enforces the local driver, empty driver options and root
+filesystem device for both named volumes, then enforces the anchor's exact
+writable bind, real-directory type, mode `0700`, owner `10001:10001` and root
+filesystem device.
+Before the first release on an upgraded host, remove every `GSP_GCS_*` and
+`GOOGLE_APPLICATION_CREDENTIALS` assignment from `.env.production`, delete any
+obsolete credential file, and revoke the retired cloud service-account access
+at its issuer. Deployment and production verification fail if a retired key is
+still injected into the application container.
+
+### One-time retired GCS evidence
+
+The schema-removal release will not discard the old object-name columns on an
+operator assertion alone. Before migration, `deploy-production.sh` verifies
+that the legacy upload table has zero rows and that no job contains a
+`source_gcs_object` reference. It also requires the private, mode-`0600` files
+`.runtime/gcs-retirement-evidence` and
+`.runtime/gcs-retirement-receipt`; the receipt is bound to the evidence file by
+SHA-256 and to the exact pre-removal release
+`d0d47ac774995d7eb06f1942c7e5eeacff69b1e1`.
+
+For this Hetzner lane, `never_configured_on_hetzner` is valid only when the
+evidence records all of the following without recording secret values:
+
+- every tracked Hetzner backend image from its first release through the
+  pre-removal release was built from `backend/requirements.mock.txt`, which did
+  not contain `google-cloud-storage`, so the optional client could neither
+  issue a signed upload URL nor write an object;
+- all retired GCS and Google credential keys are absent from the live untracked
+  environment and the running container; and
+- the read-only live database checks report zero upload rows and zero job
+  object references.
+
+That proof uses only Git, environment-key presence checks and read-only SQL; it
+does not contact Google and creates no provider request or charge. In this
+basis, `credentials_revoked=true` means that no GCS credential exists in the
+Hetzner deployment and no obsolete credential file remains. If any historical
+deployment could actually reach a bucket, do not use this basis: preserve the
+database mappings and use `provider_inventory_zero` only after an authenticated
+inventory proves the exact bucket and every retired prefix empty and the
+credential has been revoked.
+
+The receipt contains exactly these nine fields:
+
+```text
+retired=true
+scope=hetzner-production-whole-storage
+retirement_basis=never_configured_on_hetzner
+retirement_base_sha=d0d47ac774995d7eb06f1942c7e5eeacff69b1e1
+objects_after=0
+credentials_revoked=true
+bucket_identity_sha256=none
+evidence_sha256=<sha256-of-gcs-retirement-evidence>
+verified_at_utc=<YYYYMMDDTHHMMSSZ>
+```
+
+`verify-gcs-retirement.sh` rejects missing, symlinked, non-private, malformed or
+evidence-mismatched files. Keep both files as retirement audit evidence; they
+contain no media, account data, credential value or bucket name.
+
+Individual, batch and account deletion remove the exact local workspace, while
+the retention worker removes terminal workspaces after 24 hours, stale active
+jobs after 6 hours and orphaned files after 1 hour. Production must keep
+`GSP_RETENTION_CLEANUP_ENABLED=1`; a restore must stay unavailable to users
+until retention and post-backup erasure reconciliation have both completed.
+
+Deletion tombstones are pseudonymous and live in the separate named volume
+`subframe-erasure-journal`, mounted only by the backend at
+`/privacy-erasure-journal`. Its 30-day retention covers the 14-day backup
+window plus safety margin. Neither `postgres.dump.age` nor `app-data.tgz.age`
+contains this journal, and a database/app-data restore must never replace it.
+The deploy script binds that live volume to the host through a generated
+continuity identifier stored in `.runtime/privacy-continuity-id`; the backend
+also writes a monotonic integrity checkpoint to
+`.runtime/privacy-erasure-anchor/checkpoint.json`, mounted at
+`/privacy-erasure-anchor/checkpoint.json`. The checkpoint is isolated from the
+journal named volume so restoring or rolling that volume back cannot silently
+erase newer tombstones. The deploy and production-verification paths fail
+closed when the continuity state, journal, checkpoint or external anchor is
+missing, mismatched, truncated or rolled back. This is a fail-closed privacy
+control, not an independent disaster backup of the journal: both stores remain
+on the already-paid VM root disk.
+After total host or journal-volume loss, the supported no-extra-storage policy
+is to lose the recovery copy: do not restore or publish an older user database
+or media archive. Start an empty service instead. Supporting user-data disaster
+recovery in that scenario would require a continuously updated encrypted copy
+of the journal in an independent failure domain.
+While the public edge is stopped, provider-deletion tombstones are replayed
+through the temporary `privacy-relay` service. That service has no host port,
+joins only the private application network and a dedicated outbound-only
+network, and proxies only a validated ElevenLabs transcript DELETE. It is
+stopped before any public cutover; production verification fails if it remains
+running.
 
 The billing-aware release applies and verifies every database migration before
 the candidate can become active. The manual AADE/MARK record endpoint remains
@@ -80,6 +191,31 @@ Before every release:
 3. Set `SUBFRAME_RELEASE_SHA` to the exact clean, reviewed commit being
    deployed.
 
+The one-time release that introduces journal continuity beside existing
+production data is deliberately a two-stage operation. The first invocation of
+`deploy-production.sh` stops the existing public edge and legacy backend
+immediately, fingerprints both stopped Docker states, and atomically writes the private mode-`0600`
+`.runtime/legacy-journal-bootstrap-transition` marker on the existing server
+root disk. It then exits without building, migrating, or opening any service.
+Do not restart or replace the edge or backend after this marker exists. Keeping
+the legacy backend stopped is essential because its retention worker predates
+the durable erasure journal and could otherwise delete state after the backup.
+
+Only after that first invocation may the operator create the fresh encrypted
+backup, copy it off-server, and run `verify-backup.sh --drill` for the exact
+target SHA. The second invocation validates the marker, proves that the same
+edge and backend have remained stopped, and requires the backup creation timestamp to be
+strictly later than the marker timestamp. A missing or modified marker, a
+restarted/replaced edge or backend, or a pre-marker backup fails closed and requires the
+transition to be investigated and restaged with a new backup. This prevents an
+account/project deletion from falling between the accepted backup and creation
+of the first durable journal. Only that independently gated first-use path may
+create the mode-`0700`, UID/GID-`10001` anchor directory and call the journal's
+explicit initializer. Later releases require the existing continuity state,
+journal marker and external anchor; they run a complete fail-closed journal
+read before starting the application or reopening the public edge, and none of
+those files is silently recreated.
+
 ### Backup verification and restore drill
 
 `backup.sh` prints the backup directory on standard output and the SHA-256 of
@@ -94,7 +230,9 @@ operator home, relative paths, symlinks and paths with dot components are
 rejected before any backup command runs. Retention never recursively removes
 the configured root: it prunes only direct timestamped children containing
 exactly the four expected regular backup files and a matching manifest, using
-exact file removal followed by `rmdir`. Any other directory is preserved.
+exact file removal followed by `rmdir`. Any other directory is preserved. The
+default retention is 14 days and the checksum-protected manifest records the
+configured value. `verify-backup.sh` rejects a backup older than that value.
 
 ```bash
 backup_dir=$(
@@ -110,6 +248,21 @@ mount that storage read-only on the verifier host. Preserve the exact
 timestamped directory name and all four files. The server directory and mounted
 copy must be canonical absolute paths on different Linux filesystem devices;
 two paths into the same filesystem do not count as an independent copy.
+
+The server backup command prunes its own root. The independent storage operator
+must run the same reviewed exact-target pruner on its writable backup root at
+least daily, then mount the selected copy read-only for verification. Both
+locations must use the same configured retention:
+
+```bash
+SUBFRAME_BACKUP_RETENTION_DAYS=14 \
+  ./deploy/hetzner/prune-backups.sh \
+  /srv/independent-subframe-backups/production
+```
+
+Do not exempt individual backups from this lifecycle. Media or account data
+erased from the live service may remain only inside an already-created
+encrypted backup and only until that backup's configured expiry.
 
 Validate the mounted copy independently before starting the drill:
 
@@ -128,6 +281,10 @@ not equivalent to a read-only mount and does not satisfy this gate.
 
 The verifier then reads both directories itself: a scalar checksum copied into
 an environment variable is not accepted as evidence of an independent backup.
+It also inspects every timestamp-named sibling in the mounted independent
+backup root and fails if any is older than the configured retention window;
+run the exact-target pruner on the writable storage before remounting it
+read-only for verification.
 Make the age identity available from separate secure custody only for this
 operation; do not put the identity or its contents in `.env.production`, shell
 history, source control, or either backup directory.
@@ -149,8 +306,9 @@ The verifier fails closed unless all of these checks succeed:
    `findmnt` resolves the independent directory to a mount whose options
    contain `ro` and not `rw`, and every one of the four files matches across
    copies.
-3. The checksum-protected manifest has the exact release, timestamp, encryption
-   and database/app-data size fields required by the restore-capacity gate.
+3. The checksum-protected manifest has the exact release, timestamp, encryption,
+   retention and database/app-data size fields required by the restore gates;
+   an expired backup is rejected.
 4. `age` authenticates and decrypts both ciphertexts; `pg_restore --list`
    accepts the PostgreSQL custom archive and `tar -tzf` accepts the app-data
    archive.
@@ -186,6 +344,53 @@ is only a best-effort recovery convenience for the product's ephemeral,
 quiesced with the database dump. Never use that media archive as billing,
 invoice or payment evidence.
 
+### Production restore privacy gate
+
+A real restore is an offline operation. It is supported only on the same live
+host while both `.runtime/privacy-continuity-id` and the matching
+`subframe-erasure-journal/.continuity-id` still exist and
+`.runtime/privacy-erasure-anchor/checkpoint.json` matches the live journal.
+Stop the public edge before replacing the PostgreSQL or `subframe-app-data`
+state and leave both the journal volume and anchor directory untouched. If any
+continuity or integrity side is missing, do not restore user data and do not
+reopen the edge. After the restored backend is healthy, run both the configured
+local retention pass and the idempotent erasure replay:
+
+```bash
+docker compose --project-name subframe \
+  --env-file /home/mizai/subframe/.env.production \
+  -f deploy/hetzner/docker-compose.production.yml \
+  --profile privacy-maintenance up -d privacy-relay
+docker compose --project-name subframe \
+  --env-file /home/mizai/subframe/.env.production \
+  -f deploy/hetzner/docker-compose.production.yml \
+  --profile privacy-maintenance exec -T \
+  -e GSP_ELEVENLABS_API_BASE=http://privacy-relay:8082/elevenlabs \
+  backend python -m backend.cli run-retention
+docker compose --project-name subframe \
+  --env-file /home/mizai/subframe/.env.production \
+  -f deploy/hetzner/docker-compose.production.yml \
+  --profile privacy-maintenance exec -T \
+  -e GSP_ELEVENLABS_API_BASE=http://privacy-relay:8082/elevenlabs \
+  backend python -m backend.cli reconcile-erasures
+docker compose --project-name subframe \
+  --env-file /home/mizai/subframe/.env.production \
+  -f deploy/hetzner/docker-compose.production.yml \
+  --profile privacy-maintenance stop privacy-relay
+```
+
+The normal `deploy-production.sh` path does this automatically: it stops the
+edge, invalidates `.runtime/last-erasure-reconciliation`, starts only the core
+services, replays and prunes the journal, writes a new receipt atomically, and
+only then recreates the edge. Provider replay uses the private temporary relay
+while the public edge remains stopped, and the relay is torn down before the
+receipt and cutover. `verify-production.sh` rejects a running privacy relay or a missing,
+malformed, release-mismatched or stale receipt, including one written before
+the current backend container started. Never reopen public traffic manually if
+the replay exits nonzero or the journal is malformed. When the live continuity
+checks above pass, this replay prevents a backup from resurrecting projects or
+accounts erased after that backup was created.
+
 A schema-changing release is any release that changes
 `backend/alembic/versions`, plus a first release for which no valid prior
 release SHA is recorded. `deploy-production.sh` refuses such a release unless
@@ -219,8 +424,13 @@ ssh -N -L 127.0.0.1:18090:127.0.0.1:18090 root@SERVER
 
 `verify-production.sh` checks container health and image SHAs, every reviewed
 payment/provider setting, the non-empty Scribe credential without printing it,
-the complete live Stripe bundle, the method/path-scoped Stripe and ElevenLabs
-relays, the Google certificate relay, the Alembic head, and that
+the complete live Stripe bundle, and the method/path-scoped Google, Stripe and
+ElevenLabs relays. Relay verification compares and validates the exact runtime
+Caddyfile, checks its structural allow-list and exercises only local
+default-deny routes; it never sends a verification request to a third-party
+provider. The verifier also checks the local-volume and anchor-bind storage
+contract, a complete authenticated read of the erasure journal, the Alembic
+head, and that
 `/billing/catalog` returns `checkout_enabled=true` with the approved contract.
 `deploy-production.sh` runs that complete verifier in candidate mode before it
 atomically replaces `.runtime/last-successful-release`. A candidate-verification
@@ -237,7 +447,11 @@ Automatic rollback is disabled unless the operator sets
 `SUBFRAME_ALLOW_SCHEMA_COMPATIBLE_ROLLBACK=1`. Use that opt-in only after
 proving that the previous image recognizes the database's current Alembic
 revision and that both schemas are code-compatible. A backup is mandatory but
-does not by itself prove rollback compatibility.
+does not by itself prove rollback compatibility. Even with that opt-in, a
+failed candidate restores only the previous core containers: it invalidates
+the erasure receipt and leaves the public edge stopped. Do not expose the
+rollback directly. Complete retention and durable erasure reconciliation, then
+ship a verified roll-forward release through the normal privacy gate.
 
 The deploy script does not prune the shared Docker build cache by default,
 because the VM also hosts MizAI and other projects. Set

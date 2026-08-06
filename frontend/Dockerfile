@@ -4,7 +4,6 @@ WORKDIR /app
 
 # Install dependencies
 COPY package.json package-lock.json ./
-COPY scripts/patch-brace-expansion.cjs ./scripts/patch-brace-expansion.cjs
 RUN npm ci
 
 # Builder stage
