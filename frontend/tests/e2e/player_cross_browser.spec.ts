@@ -81,7 +81,21 @@ test('player and subtitle manipulation stay clear across browser engines', async
   });
   await expect(page.getByTestId('preview-gesture-feedback')).toHaveCount(0);
 
-  await video.press('Enter');
+  if (isTouchProject) {
+    // Exercise the real browser touch path. This catches transport bugs that
+    // synthetic pointer dispatch and keyboard activation both bypass.
+    await video.tap();
+    await expect.poll(async () => video.evaluate(
+      (element) => (element as HTMLVideoElement).paused,
+    )).toBe(false);
+    await video.tap();
+    await expect.poll(async () => video.evaluate(
+      (element) => (element as HTMLVideoElement).paused,
+    )).toBe(true);
+    await video.tap();
+  } else {
+    await video.press('Enter');
+  }
   await expect.poll(async () => video.evaluate(
     (element) => (element as HTMLVideoElement).paused,
   )).toBe(false);
@@ -96,7 +110,7 @@ test('player and subtitle manipulation stay clear across browser engines', async
     clientX: gestureStartX,
     clientY: gestureY,
   });
-  await page.waitForTimeout(400);
+  await page.waitForTimeout(550);
   await expect.poll(async () => video.evaluate(
     (element) => (element as HTMLVideoElement).playbackRate,
   )).toBe(2);
@@ -128,56 +142,166 @@ test('player and subtitle manipulation stay clear across browser engines', async
     await expect(page.getByTestId('subtitle-drag-handle')).toBeHidden();
     await expect(page.getByTestId('subtitle-resize-handle')).toBeHidden();
     await expect(page.getByTestId('subtitle-touch-manipulation-hint')).toHaveCount(0);
+    await expect(phone.locator('.preview-gesture-surface')).toHaveCSS('touch-action', 'none');
 
+    const initialFontSize = Number(await overlay.getAttribute('data-font-size'));
+    const pinchStartTime = await video.evaluate(
+      (element) => (element as HTMLVideoElement).currentTime,
+    );
     const centerX = phoneBox!.x + (phoneBox!.width / 2);
     const centerY = phoneBox!.y + (phoneBox!.height / 2);
-    await overlay.dispatchEvent('pointerdown', {
-      bubbles: true,
-      cancelable: true,
-      pointerId: 41,
-      pointerType: 'touch',
-      isPrimary: true,
-      clientX: centerX - 40,
-      clientY: centerY,
-    });
-    await overlay.dispatchEvent('pointerdown', {
-      bubbles: true,
-      cancelable: true,
-      pointerId: 42,
-      pointerType: 'touch',
-      isPrimary: false,
-      clientX: centerX + 40,
-      clientY: centerY,
-    });
-    await overlay.dispatchEvent('pointermove', {
-      bubbles: true,
-      cancelable: true,
-      pointerId: 42,
-      pointerType: 'touch',
-      isPrimary: false,
-      clientX: centerX + 60,
-      clientY: centerY,
-    });
+    let finishPinch: () => Promise<void>;
+
+    if (testInfo.project.name === 'android-chromium') {
+      // CDP touch injection creates genuine active contacts, hit testing, and
+      // pointer-capture transfer. Synthetic dispatchEvent cannot cover those.
+      const overlayBox = await overlay.boundingBox();
+      expect(overlayBox).not.toBeNull();
+      const session = await page.context().newCDPSession(page);
+      const touch = (id: number, x: number, y: number) => ({
+        id,
+        x,
+        y,
+        radiusX: 6,
+        radiusY: 6,
+        force: 1,
+      });
+      const firstTouch = touch(
+        1,
+        Math.max(phoneBox!.x + 4, overlayBox!.x - 12),
+        overlayBox!.y + (overlayBox!.height / 2),
+      );
+      const secondStart = touch(
+        2,
+        overlayBox!.x + (overlayBox!.width / 2),
+        overlayBox!.y + (overlayBox!.height / 2),
+      );
+      const secondOutward = touch(
+        2,
+        Math.min(phoneBox!.x + phoneBox!.width - 4, secondStart.x + 40),
+        secondStart.y,
+      );
+      const secondInward = touch(
+        2,
+        firstTouch.x + Math.max(20, (secondStart.x - firstTouch.x) * 0.45),
+        secondStart.y,
+      );
+
+      await session.send('Input.dispatchTouchEvent', {
+        type: 'touchStart',
+        touchPoints: [firstTouch],
+      });
+      await session.send('Input.dispatchTouchEvent', {
+        type: 'touchStart',
+        touchPoints: [firstTouch, secondStart],
+      });
+      await page.waitForTimeout(550);
+      await expect.poll(async () => video.evaluate(
+        (element) => (element as HTMLVideoElement).playbackRate,
+      )).toBe(1);
+      await session.send('Input.dispatchTouchEvent', {
+        type: 'touchMove',
+        touchPoints: [firstTouch, secondOutward],
+      });
+
+      finishPinch = async () => {
+        await session.send('Input.dispatchTouchEvent', {
+          type: 'touchEnd',
+          touchPoints: [],
+        });
+        await session.detach();
+      };
+
+      await expect.poll(async () => Number(await overlay.getAttribute('data-font-size')))
+        .toBeGreaterThan(initialFontSize);
+      await session.send('Input.dispatchTouchEvent', {
+        type: 'touchMove',
+        touchPoints: [firstTouch, secondInward],
+      });
+    } else {
+      await video.dispatchEvent('pointerdown', {
+        bubbles: true,
+        cancelable: true,
+        pointerId: 41,
+        pointerType: 'touch',
+        isPrimary: true,
+        clientX: centerX - 40,
+        clientY: centerY,
+      });
+      await overlay.dispatchEvent('pointerdown', {
+        bubbles: true,
+        cancelable: true,
+        pointerId: 42,
+        pointerType: 'touch',
+        isPrimary: false,
+        clientX: centerX + 40,
+        clientY: centerY,
+      });
+      await page.waitForTimeout(550);
+      await expect.poll(async () => video.evaluate(
+        (element) => (element as HTMLVideoElement).playbackRate,
+      )).toBe(1);
+      await overlay.dispatchEvent('pointermove', {
+        bubbles: true,
+        cancelable: true,
+        pointerId: 42,
+        pointerType: 'touch',
+        isPrimary: false,
+        clientX: centerX + 60,
+        clientY: centerY,
+      });
+      await expect.poll(async () => Number(await overlay.getAttribute('data-font-size')))
+        .toBeGreaterThan(initialFontSize);
+      await overlay.dispatchEvent('pointermove', {
+        bubbles: true,
+        cancelable: true,
+        pointerId: 42,
+        pointerType: 'touch',
+        isPrimary: false,
+        clientX: centerX + 20,
+        clientY: centerY,
+      });
+
+      finishPinch = async () => {
+        await overlay.dispatchEvent('pointerup', {
+          bubbles: true,
+          cancelable: true,
+          pointerId: 42,
+          pointerType: 'touch',
+          isPrimary: false,
+          clientX: centerX + 20,
+          clientY: centerY,
+        });
+        await video.dispatchEvent('pointerup', {
+          bubbles: true,
+          cancelable: true,
+          pointerId: 41,
+          pointerType: 'touch',
+          isPrimary: true,
+          clientX: centerX - 40,
+          clientY: centerY,
+        });
+      };
+    }
+
     await expect.poll(async () => Number(await overlay.getAttribute('data-font-size')))
-      .toBeGreaterThan(100);
-    await overlay.dispatchEvent('pointerup', {
-      bubbles: true,
-      cancelable: true,
-      pointerId: 42,
-      pointerType: 'touch',
-      isPrimary: false,
-      clientX: centerX + 60,
-      clientY: centerY,
-    });
-    await overlay.dispatchEvent('pointerup', {
-      bubbles: true,
-      cancelable: true,
-      pointerId: 41,
-      pointerType: 'touch',
-      isPrimary: true,
-      clientX: centerX - 40,
-      clientY: centerY,
-    });
+      .toBeLessThan(initialFontSize);
+    await expect(page.getByTestId('preview-gesture-feedback')).toHaveCount(0);
+    await expect.poll(async () => video.evaluate(
+      (element) => (element as HTMLVideoElement).currentTime,
+    )).toBeCloseTo(pinchStartTime, 1);
+    await finishPinch();
+
+    if (testInfo.project.name === 'android-chromium') {
+      await page.touchscreen.tap(gestureStartX, gestureY);
+      await expect.poll(async () => video.evaluate(
+        (element) => (element as HTMLVideoElement).paused,
+      )).toBe(false);
+      await page.touchscreen.tap(gestureStartX, gestureY);
+      await expect.poll(async () => video.evaluate(
+        (element) => (element as HTMLVideoElement).paused,
+      )).toBe(true);
+    }
 
     await page.getByRole('tab', { name: el.tabStyles }).click();
     const workspace = page.getByTestId('editor-workspace');

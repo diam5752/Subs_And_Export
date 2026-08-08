@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, memo } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, memo } from 'react';
 import { TranscriptionCue } from '../lib/api';
 import {
     findCueAtTime,
@@ -15,6 +15,7 @@ export type Cue = TranscriptionCue;
 const SUBTITLE_SIZE_MIN = 50;
 const SUBTITLE_SIZE_MAX = 150;
 const POINTER_DRAG_THRESHOLD_PX = 3;
+const TOUCH_DRAG_THRESHOLD_PX = 12;
 
 interface SubtitleOverlayEditorState {
     cueIndex: number;
@@ -55,6 +56,7 @@ interface SubtitleOverlayProps {
     videoHeight?: number;
     inlineEditor?: SubtitleOverlayEditorState;
     transformControls?: SubtitleTransformControls;
+    gestureResetToken?: number;
 }
 
 type PointerPoint = {
@@ -98,6 +100,7 @@ export const SubtitleOverlay = memo<SubtitleOverlayProps>(({
     videoHeight = 1920,
     inlineEditor,
     transformControls,
+    gestureResetToken = 0,
 }) => {
     const overlayRef = useRef<HTMLDivElement>(null);
     const gestureRef = useRef<TransformGesture | null>(null);
@@ -108,6 +111,40 @@ export const SubtitleOverlay = memo<SubtitleOverlayProps>(({
     const activeCue = useMemo(() => {
         return findCueAtTime(cues, currentTime);
     }, [currentTime, cues]);
+
+    const resetTransformGesture = useCallback(() => {
+        const pointerIds = new Set(activeTouchPointsRef.current.keys());
+        const gesture = gestureRef.current;
+        if (gesture?.mode === 'pinch') {
+            for (const pointerId of gesture.pointerIds) pointerIds.add(pointerId);
+        } else if (gesture) {
+            pointerIds.add(gesture.pointerId);
+        }
+
+        gestureRef.current = null;
+        activeTouchPointsRef.current.clear();
+        suppressClickRef.current = false;
+
+        for (const pointerId of pointerIds) {
+            try {
+                if (overlayRef.current?.hasPointerCapture?.(pointerId)) {
+                    overlayRef.current.releasePointerCapture(pointerId);
+                }
+            } catch {
+                // Capture can disappear when WebKit removes or retargets a cue.
+            }
+        }
+    }, []);
+
+    useEffect(() => {
+        if (!activeCue) resetTransformGesture();
+    }, [activeCue, resetTransformGesture]);
+
+    useEffect(() => {
+        resetTransformGesture();
+    }, [gestureResetToken, resetTransformGesture]);
+
+    useEffect(() => resetTransformGesture, [resetTransformGesture]);
 
     const activeCueLines = useMemo(() => {
         if (!activeCue) return [];
@@ -261,7 +298,10 @@ export const SubtitleOverlay = memo<SubtitleOverlayProps>(({
 
         const deltaX = event.clientX - gesture.startX;
         const deltaY = event.clientY - gesture.startY;
-        if (!gesture.moved && Math.hypot(deltaX, deltaY) < POINTER_DRAG_THRESHOLD_PX) return;
+        const dragThreshold = event.pointerType === 'touch'
+            ? TOUCH_DRAG_THRESHOLD_PX
+            : POINTER_DRAG_THRESHOLD_PX;
+        if (!gesture.moved && Math.hypot(deltaX, deltaY) < dragThreshold) return;
 
         event.preventDefault();
         gesture.moved = true;
@@ -305,26 +345,49 @@ export const SubtitleOverlay = memo<SubtitleOverlayProps>(({
         if (gesture.mode === 'pinch') {
             if (!gesture.pointerIds.includes(event.pointerId)) return;
 
-            for (const pointerId of gesture.pointerIds) {
-                if (overlayRef.current?.hasPointerCapture?.(pointerId)) {
-                    overlayRef.current.releasePointerCapture(pointerId);
+            const pointerIds = gesture.pointerIds;
+            gestureRef.current = null;
+            activeTouchPointsRef.current.clear();
+            suppressClickRef.current = !cancelled;
+            for (const pointerId of pointerIds) {
+                try {
+                    if (overlayRef.current?.hasPointerCapture?.(pointerId)) {
+                        overlayRef.current.releasePointerCapture(pointerId);
+                    }
+                } catch {
+                    // Capture can already be gone after a browser interruption.
                 }
             }
-            suppressClickRef.current = !cancelled;
-            gestureRef.current = null;
             return;
         }
 
         if (gesture.pointerId !== event.pointerId) return;
 
-        if (overlayRef.current?.hasPointerCapture?.(event.pointerId)) {
-            overlayRef.current.releasePointerCapture(event.pointerId);
+        gestureRef.current = null;
+        try {
+            if (overlayRef.current?.hasPointerCapture?.(event.pointerId)) {
+                overlayRef.current.releasePointerCapture(event.pointerId);
+            }
+        } catch {
+            // Capture can already be gone after a browser interruption.
         }
         if (cancelled || !gesture.moved) {
             suppressClickRef.current = false;
         }
-        gestureRef.current = null;
     }, []);
+
+    const handleLostPointerCapture = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+        const gesture = gestureRef.current;
+        if (!gesture) {
+            activeTouchPointsRef.current.delete(event.pointerId);
+            return;
+        }
+
+        const ownsPointer = gesture.mode === 'pinch'
+            ? gesture.pointerIds.includes(event.pointerId)
+            : gesture.pointerId === event.pointerId;
+        if (ownsPointer) resetTransformGesture();
+    }, [resetTransformGesture]);
 
     const handleClickCapture = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
         if (!suppressClickRef.current) return;
@@ -441,6 +504,7 @@ export const SubtitleOverlay = memo<SubtitleOverlayProps>(({
                     onPointerMove={transformControls ? handlePointerMove : undefined}
                     onPointerUp={transformControls ? finishTransform : undefined}
                     onPointerCancel={transformControls ? (event) => finishTransform(event, true) : undefined}
+                    onLostPointerCapture={transformControls ? handleLostPointerCapture : undefined}
                     onClickCapture={transformControls ? handleClickCapture : undefined}
                 >
                     {inlineEditor ? (
@@ -587,6 +651,7 @@ export const SubtitleOverlay = memo<SubtitleOverlayProps>(({
         transformControls,
         finishTransform,
         handleClickCapture,
+        handleLostPointerCapture,
         handlePointerMove,
         handlePositionKeyDown,
         handlePositionPointerDown,
