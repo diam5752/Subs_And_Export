@@ -395,6 +395,69 @@ describe('SubtitleOverlay', () => {
         expect(onSizeChange).toHaveBeenLastCalledWith(50);
     });
 
+    it('keeps a resize gesture active while cue objects are regenerated', () => {
+        // REGRESSION: production resegments cues whenever font size changes,
+        // creating fresh cue objects. That rerender must not release the drag
+        // after its first pointermove.
+        const onSizeChange = jest.fn();
+
+        function StatefulOverlay() {
+            const [fontSize, setFontSize] = React.useState(100);
+            return (
+                <SubtitleOverlay
+                    currentTime={0.5}
+                    cues={[{ start: 0, end: 2, text: 'regenerated cue' }]}
+                    settings={{
+                        position: 20,
+                        color: '#FFFF00',
+                        fontSize,
+                        karaoke: false,
+                        maxLines: 2,
+                        shadowStrength: 4,
+                    }}
+                    videoWidth={400}
+                    videoHeight={1000}
+                    transformControls={{
+                        labels: {
+                            move: 'Move subtitles',
+                            resize: 'Resize subtitles',
+                        },
+                        onPositionChange: jest.fn(),
+                        onSizeChange: (size) => {
+                            onSizeChange(size);
+                            setFontSize(size);
+                        },
+                    }}
+                />
+            );
+        }
+
+        render(<StatefulOverlay />);
+        const overlay = screen.getByTestId('subtitle-overlay');
+        const resizeHandle = screen.getByRole('slider', { name: 'Resize subtitles' });
+
+        firePointer(resizeHandle, 'pointerdown', {
+            button: 0,
+            pointerId: 54,
+            clientX: 100,
+            clientY: 100,
+        });
+        firePointer(overlay, 'pointermove', {
+            pointerId: 54,
+            clientX: 140,
+            clientY: 140,
+        });
+        firePointer(overlay, 'pointermove', {
+            pointerId: 54,
+            clientX: 180,
+            clientY: 180,
+        });
+
+        expect(onSizeChange).toHaveBeenCalledTimes(2);
+        expect(onSizeChange).toHaveBeenLastCalledWith(120);
+        expect(screen.getByTestId('subtitle-overlay')).toHaveAttribute('data-font-size', '120');
+    });
+
     it('resizes with a two-finger pinch and does not open editing after the gesture', () => {
         // REGRESSION: mobile transform chrome covered the caption. Touch users
         // now resize the caption directly with a clean two-finger gesture.
@@ -485,5 +548,85 @@ describe('SubtitleOverlay', () => {
         expect(onInteractionStart).toHaveBeenCalledTimes(1);
         expect(onSizeChange).toHaveBeenLastCalledWith(150);
         expect(onBeginEdit).not.toHaveBeenCalled();
+    });
+
+    it('clears every tracked touch when a pinch ends outside the resized caption', () => {
+        // REGRESSION: releasing one captured finger ended the pinch but left
+        // the other pointer in memory. If that finger ended outside the now
+        // resized caption, the next single touch became a phantom pinch.
+        const onPositionChange = jest.fn();
+        const onSizeChange = jest.fn();
+
+        render(
+            <SubtitleOverlay
+                currentTime={0.5}
+                cues={[{ start: 0, end: 2, text: 'repeat pinch safely' }]}
+                settings={{
+                    position: 20,
+                    color: '#FFFF00',
+                    fontSize: 100,
+                    karaoke: false,
+                    maxLines: 2,
+                    shadowStrength: 4,
+                }}
+                videoWidth={400}
+                videoHeight={1000}
+                transformControls={{
+                    labels: {
+                        move: 'Move subtitles',
+                        resize: 'Resize subtitles',
+                    },
+                    onPositionChange,
+                    onSizeChange,
+                }}
+            />,
+        );
+
+        const overlay = screen.getByTestId('subtitle-overlay');
+        firePointer(overlay, 'pointerdown', {
+            pointerId: 51,
+            pointerType: 'touch',
+            clientX: 100,
+            clientY: 100,
+        });
+        firePointer(overlay, 'pointerdown', {
+            pointerId: 52,
+            pointerType: 'touch',
+            clientX: 200,
+            clientY: 100,
+        });
+        firePointer(overlay, 'pointermove', {
+            pointerId: 52,
+            pointerType: 'touch',
+            clientX: 230,
+            clientY: 100,
+        });
+        firePointer(overlay, 'pointerup', {
+            pointerId: 51,
+            pointerType: 'touch',
+            clientX: 100,
+            clientY: 100,
+        });
+
+        onPositionChange.mockClear();
+        onSizeChange.mockClear();
+
+        // Pointer 52 finishes outside the overlay, so no event reaches this
+        // element. Pointer 53 must nevertheless start a fresh one-finger move.
+        firePointer(overlay, 'pointerdown', {
+            pointerId: 53,
+            pointerType: 'touch',
+            clientX: 120,
+            clientY: 120,
+        });
+        firePointer(overlay, 'pointermove', {
+            pointerId: 53,
+            pointerType: 'touch',
+            clientX: 120,
+            clientY: 160,
+        });
+
+        expect(onSizeChange).not.toHaveBeenCalled();
+        expect(onPositionChange).toHaveBeenCalled();
     });
 });

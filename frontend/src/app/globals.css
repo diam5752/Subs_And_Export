@@ -1494,8 +1494,16 @@ body {
   display: none !important;
 }
 
-.preview-video {
+.preview-gesture-surface {
   touch-action: pan-y pinch-zoom;
+}
+
+.preview-gesture-surface[data-subtitle-pinch-enabled='true'] {
+  touch-action: none;
+}
+
+.preview-video {
+  touch-action: inherit;
   user-select: none;
   -webkit-touch-callout: none;
   -webkit-user-select: none;

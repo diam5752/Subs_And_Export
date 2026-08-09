@@ -27,7 +27,7 @@ export const PhoneFrame: React.FC<PhoneFrameProps> = ({
             <div className="absolute inset-0 rounded-[32px] overflow-hidden bg-black flex flex-col items-center">
                 {/* Notch/Dynamic Island - slightly refined shape */}
                 {showNotch && (
-                    <div className="absolute top-4 w-[100px] h-[28px] bg-black rounded-full z-40" />
+                    <div className="pointer-events-none absolute top-4 w-[100px] h-[28px] bg-black rounded-full z-40" />
                 )}
 
                 {/* Signal/Battery Icons */}
