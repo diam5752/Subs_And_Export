@@ -856,6 +856,16 @@ for (const [label, viewport] of Object.entries(viewports)) {
       await stabilizeUi(page);
       await expectNoHorizontalOverflow(page);
       await expect(page.getByText(el.registerSubtitle)).toBeVisible();
+      const legalNotice = page.locator('#register-legal-notice');
+      await expect(legalNotice).toBeVisible();
+      await expect(legalNotice.getByRole('link', {
+        name: el.registerLegalTermsLink,
+      })).toHaveAttribute('href', '/terms');
+      await expect(legalNotice.getByRole('link', {
+        name: el.registerLegalPrivacyLink,
+      })).toHaveAttribute('href', '/privacy');
+      await expect(page.getByRole('button', { name: el.registerSubmit }))
+        .toHaveAttribute('aria-describedby', 'register-legal-notice');
       await expect(page.getByText(/Mock|€0/)).toHaveCount(0);
       if (viewport.width <= 640) {
         await expect(page.locator('.auth-promise')).toBeHidden();

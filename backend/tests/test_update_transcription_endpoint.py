@@ -46,7 +46,7 @@ def _auth_header(client: TestClient, email: str) -> dict[str, str]:
     return headers
 
 
-def test_update_transcription_overwrites_job_artifacts(monkeypatch, tmp_path: Path) -> None:
+def test_completed_job_edit_is_preserved_in_owned_srt_export(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("APP_ENV", "dev")
     monkeypatch.setenv("GSP_DATABASE_PATH", str(tmp_path / "app.db"))
 
@@ -72,9 +72,11 @@ def test_update_transcription_overwrites_job_artifacts(monkeypatch, tmp_path: Pa
         encoding="utf-8",
     )
 
-    from backend.main import app
+    from backend import main as backend_main
 
-    with TestClient(app) as client:
+    monkeypatch.setattr(backend_main, "DATA_DIR", data_dir)
+
+    with TestClient(backend_main.app) as client:
         headers = _auth_header(client, f"update-transcript-{uuid.uuid4().hex}@example.com")
         me_resp = client.get("/auth/me", headers=headers)
         assert me_resp.status_code == 200, me_resp.text
@@ -127,3 +129,19 @@ def test_update_transcription_overwrites_job_artifacts(monkeypatch, tmp_path: Pa
         job_detail = client.get(f"/videos/jobs/{job_id}", headers=headers)
         assert job_detail.status_code == 200, job_detail.text
         assert job_detail.json()["result_data"]["transcription_edited"] is True
+
+        # REGRESSION: the editor, exporter, and private static route must all
+        # use the latest persisted transcript instead of the original SRT.
+        export_response = client.post(
+            f"/videos/jobs/{job_id}/export",
+            headers=headers,
+            json={"resolution": "srt"},
+        )
+        assert export_response.status_code == 200, export_response.text
+        srt_url = export_response.json()["result_data"]["variants"]["srt"]
+        assert srt_url == f"/static/artifacts/{job_id}/processed.srt"
+
+        static_response = client.get(srt_url, headers=headers)
+        assert static_response.status_code == 200, static_response.text
+        assert static_response.headers["cache-control"] == "private, no-store"
+        assert "ΓΕΙΑ ΚΟΣΜΕ" in static_response.text

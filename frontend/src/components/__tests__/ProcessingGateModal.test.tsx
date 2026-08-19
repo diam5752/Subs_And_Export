@@ -50,7 +50,13 @@ describe('ProcessingGateModal', () => {
 
         fireEvent.change(screen.getByLabelText('loginEmailLabel'), { target: { value: 'creator@example.com' } });
         fireEvent.change(screen.getByLabelText('loginPasswordLabel'), { target: { value: 'correct-password' } });
-        fireEvent.click(screen.getByRole('button', { name: 'processingGateLoginSubmit' }));
+        const loginButton = screen.getByRole('button', { name: 'processingGateLoginSubmit' });
+        expect(screen.queryByRole('link', { name: 'registerLegalTermsLink' }))
+            .not.toBeInTheDocument();
+        expect(screen.queryByRole('link', { name: 'registerLegalPrivacyLink' }))
+            .not.toBeInTheDocument();
+        expect(loginButton).not.toHaveAttribute('aria-describedby');
+        fireEvent.click(loginButton);
 
         await waitFor(() => {
             expect(login).toHaveBeenCalledWith('creator@example.com', 'correct-password');
@@ -75,10 +81,25 @@ describe('ProcessingGateModal', () => {
         );
 
         fireEvent.click(screen.getByRole('button', { name: 'processingGateCreateAccount' }));
+        const legalNotice = document.getElementById('processing-gate-register-legal-notice');
+        expect(legalNotice).toBeInTheDocument();
+        expect(legalNotice).toHaveTextContent('registerLegalIntro');
+        expect(legalNotice).toHaveTextContent('registerLegalConnector');
+        expect(screen.getByRole('link', { name: 'registerLegalTermsLink' }))
+            .toHaveAttribute('href', '/terms');
+        expect(screen.getByRole('link', { name: 'registerLegalPrivacyLink' }))
+            .toHaveAttribute('href', '/privacy');
+
         fireEvent.change(screen.getByLabelText('registerNameLabel'), { target: { value: 'Creator' } });
         fireEvent.change(screen.getByLabelText('loginEmailLabel'), { target: { value: 'new@example.com' } });
         fireEvent.change(screen.getByLabelText('loginPasswordLabel'), { target: { value: 'twelve-chars!' } });
-        fireEvent.click(screen.getByRole('button', { name: 'processingGateRegisterSubmit' }));
+        const registerButton = screen.getByRole('button', { name: 'processingGateRegisterSubmit' });
+        expect(registerButton).toHaveAttribute(
+            'aria-describedby',
+            'processing-gate-register-legal-notice',
+        );
+        expect(legalNotice?.nextElementSibling).toBe(registerButton);
+        fireEvent.click(registerButton);
 
         await waitFor(() => {
             expect(register).toHaveBeenCalledWith('new@example.com', 'twelve-chars!', 'Creator');

@@ -196,11 +196,13 @@ describe('DashboardPage', () => {
     const mockSetSelectedJob = jest.fn();
     const {
         __setBalanceMock,
+        __setWalletMock,
         __refreshBalanceMock,
         __setPointsStateMock,
         __resetPointsStateMock,
     } = jest.requireMock('@/context/PointsContext') as {
         __setBalanceMock: jest.Mock;
+        __setWalletMock: jest.Mock;
         __refreshBalanceMock: jest.Mock;
         __setPointsStateMock: (state: {
             balance?: number;
@@ -425,6 +427,251 @@ describe('DashboardPage', () => {
         expect(api.getCreditCatalog).toHaveBeenCalledTimes(1);
     });
 
+    it.each(['paid', 'partially_refunded'])(
+        'reconciles an already-%s checkout, refreshes the wallet, and clears the return URL',
+        async (status) => {
+            const sessionId = `cs_test_${status}`;
+            const wallet = {
+                balance: 225,
+                paid_balance: 100,
+                promotional_balance: 125,
+                reversal_debt: 0,
+                ai_spendable_balance: 100,
+            };
+            window.history.replaceState(
+                {},
+                '',
+                `/?checkout=success&session_id=${sessionId}`,
+            );
+            (api.getCreditCheckoutStatus as jest.Mock).mockResolvedValue({
+                purchase_id: `purchase-${status}`,
+                package_key: 'starter',
+                credits: 100,
+                amount_eur_cents: 100,
+                status,
+                checkout_session_id: sessionId,
+                wallet,
+            });
+
+            render(<DashboardPage />);
+
+            expect(await screen.findByRole('status')).toHaveTextContent('creditPurchaseSuccess');
+            expect(api.getCreditCheckoutStatus).toHaveBeenCalledTimes(1);
+            expect(__setWalletMock).toHaveBeenCalledWith(wallet);
+            expect(screen.getByRole('link', { name: 'billingContractDownload' })).toBeInTheDocument();
+            await waitFor(() => {
+                expect(window.location.search).toBe('');
+            });
+        },
+    );
+
+    it('cleans a cancelled checkout once while preserving unrelated URL state', async () => {
+        window.history.replaceState(
+            {},
+            '',
+            '/?checkout=cancelled&session_id=cs_test_cancelled&campaign=beta#credits',
+        );
+
+        render(<DashboardPage />);
+
+        expect(await screen.findByRole('status')).toHaveTextContent('creditPurchaseCancelled');
+        expect(api.getCreditCheckoutStatus).not.toHaveBeenCalled();
+        expect(window.location.search).toBe('?campaign=beta');
+        expect(window.location.hash).toBe('#credits');
+    });
+
+    it('keeps every known nonterminal checkout status until it becomes paid', async () => {
+        jest.useFakeTimers();
+        const sessionId = 'cs_test_pending_then_paid';
+        const pendingWallet = {
+            balance: 125,
+            paid_balance: 0,
+            promotional_balance: 125,
+            reversal_debt: 0,
+            ai_spendable_balance: 0,
+        };
+        const paidWallet = {
+            balance: 225,
+            paid_balance: 100,
+            promotional_balance: 125,
+            reversal_debt: 0,
+            ai_spendable_balance: 100,
+        };
+        window.history.replaceState(
+            {},
+            '',
+            `/?checkout=success&session_id=${sessionId}`,
+        );
+        (api.getCreditCheckoutStatus as jest.Mock)
+            .mockResolvedValueOnce({
+                purchase_id: 'purchase-pending',
+                package_key: 'starter',
+                credits: 100,
+                amount_eur_cents: 100,
+                status: 'creating',
+                checkout_session_id: sessionId,
+                wallet: pendingWallet,
+            })
+            .mockResolvedValueOnce({
+                purchase_id: 'purchase-pending',
+                package_key: 'starter',
+                credits: 100,
+                amount_eur_cents: 100,
+                status: 'checkout_created',
+                checkout_session_id: sessionId,
+                wallet: pendingWallet,
+            })
+            .mockResolvedValueOnce({
+                purchase_id: 'purchase-pending',
+                package_key: 'starter',
+                credits: 100,
+                amount_eur_cents: 100,
+                status: 'awaiting_payment',
+                checkout_session_id: sessionId,
+                wallet: pendingWallet,
+            })
+            .mockResolvedValueOnce({
+                purchase_id: 'purchase-pending',
+                package_key: 'starter',
+                credits: 100,
+                amount_eur_cents: 100,
+                status: 'paid',
+                checkout_session_id: sessionId,
+                wallet: paidWallet,
+            });
+
+        render(<DashboardPage />);
+
+        await act(async () => {
+            await Promise.resolve();
+        });
+        expect(api.getCreditCheckoutStatus).toHaveBeenCalledTimes(1);
+        expect(screen.getByRole('status')).toHaveTextContent('creditPurchasePending');
+        expect(window.location.search).toContain('session_id=cs_test_pending_then_paid');
+
+        await act(async () => {
+            jest.advanceTimersByTime(1_000);
+            await Promise.resolve();
+        });
+        expect(api.getCreditCheckoutStatus).toHaveBeenCalledTimes(2);
+        expect(screen.getByRole('status')).toHaveTextContent('creditPurchasePending');
+        expect(window.location.search).toContain('session_id=cs_test_pending_then_paid');
+
+        await act(async () => {
+            jest.advanceTimersByTime(2_000);
+            await Promise.resolve();
+        });
+        expect(api.getCreditCheckoutStatus).toHaveBeenCalledTimes(3);
+        expect(screen.getByRole('status')).toHaveTextContent('creditPurchasePending');
+        expect(window.location.search).toContain('session_id=cs_test_pending_then_paid');
+
+        await act(async () => {
+            jest.advanceTimersByTime(4_000);
+            await Promise.resolve();
+        });
+
+        expect(api.getCreditCheckoutStatus).toHaveBeenCalledTimes(4);
+        expect(screen.getByRole('status')).toHaveTextContent('creditPurchaseSuccess');
+        expect(__setWalletMock).toHaveBeenLastCalledWith(paidWallet);
+        expect(window.location.search).toBe('');
+    });
+
+    it('preserves a slow checkout session and provides a bounded manual retry', async () => {
+        jest.useFakeTimers();
+        const sessionId = 'cs_test_slow_pending';
+        const pendingStatus = {
+            purchase_id: 'purchase-slow',
+            package_key: 'starter',
+            credits: 100,
+            amount_eur_cents: 100,
+            status: 'future_provider_pending_state',
+            checkout_session_id: sessionId,
+            wallet: {
+                balance: 125,
+                paid_balance: 0,
+                promotional_balance: 125,
+                reversal_debt: 0,
+                ai_spendable_balance: 0,
+            },
+        };
+        window.history.replaceState(
+            {},
+            '',
+            `/?checkout=success&session_id=${sessionId}`,
+        );
+        (api.getCreditCheckoutStatus as jest.Mock).mockResolvedValue(pendingStatus);
+
+        render(<DashboardPage />);
+
+        await act(async () => {
+            await Promise.resolve();
+            await jest.runAllTimersAsync();
+        });
+
+        expect(api.getCreditCheckoutStatus).toHaveBeenCalledTimes(6);
+        expect(screen.getByRole('status')).toHaveTextContent('creditPurchasePendingRetry');
+        expect(screen.getByRole('button', { name: 'creditPurchaseRetry' })).toBeInTheDocument();
+        expect(window.location.search).toContain('session_id=cs_test_slow_pending');
+
+        (api.getCreditCheckoutStatus as jest.Mock).mockResolvedValueOnce({
+            ...pendingStatus,
+            status: 'paid',
+            wallet: {
+                ...pendingStatus.wallet,
+                balance: 225,
+                paid_balance: 100,
+                ai_spendable_balance: 100,
+            },
+        });
+        fireEvent.click(screen.getByRole('button', { name: 'creditPurchaseRetry' }));
+        await act(async () => {
+            await Promise.resolve();
+        });
+
+        expect(api.getCreditCheckoutStatus).toHaveBeenCalledTimes(7);
+        expect(screen.getByRole('status')).toHaveTextContent('creditPurchaseSuccess');
+        expect(window.location.search).toBe('');
+    });
+
+    it('cancels delayed checkout polling when the dashboard unmounts', async () => {
+        jest.useFakeTimers();
+        const sessionId = 'cs_test_unmounted_pending';
+        window.history.replaceState(
+            {},
+            '',
+            `/?checkout=success&session_id=${sessionId}`,
+        );
+        (api.getCreditCheckoutStatus as jest.Mock).mockResolvedValue({
+            purchase_id: 'purchase-unmounted',
+            package_key: 'starter',
+            credits: 100,
+            amount_eur_cents: 100,
+            status: 'awaiting_payment',
+            checkout_session_id: sessionId,
+            wallet: {
+                balance: 125,
+                paid_balance: 0,
+                promotional_balance: 125,
+                reversal_debt: 0,
+                ai_spendable_balance: 0,
+            },
+        });
+
+        const { unmount } = render(<DashboardPage />);
+        await act(async () => {
+            await Promise.resolve();
+        });
+        expect(api.getCreditCheckoutStatus).toHaveBeenCalledTimes(1);
+
+        unmount();
+        await act(async () => {
+            await jest.runAllTimersAsync();
+        });
+
+        expect(api.getCreditCheckoutStatus).toHaveBeenCalledTimes(1);
+        expect(window.location.search).toContain('session_id=cs_test_unmounted_pending');
+    });
+
     it.each([
         ['failed', 'creditPurchaseFailed'],
         ['expired', 'creditPurchaseExpired'],
@@ -456,7 +703,11 @@ describe('DashboardPage', () => {
 
             expect(await screen.findByRole('status')).toHaveTextContent(expectedNotice);
             expect(api.getCreditCheckoutStatus).toHaveBeenCalledTimes(1);
+            expect(__setWalletMock).toHaveBeenCalledWith(expect.objectContaining({
+                balance: 100,
+            }));
             expect(screen.queryByText('creditPurchasePending')).not.toBeInTheDocument();
+            expect(window.location.search).toBe('');
         },
     );
 
