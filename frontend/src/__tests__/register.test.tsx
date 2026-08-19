@@ -36,6 +36,8 @@ describe('RegisterPage', () => {
         expect(screen.getByText(el.registerTitle)).toBeInTheDocument();
     });
 
+    // REGRESSION: legal navigation replaced the registration document and
+    // discarded already-entered account details.
     it.each([
         ['el', el],
         ['en', en],
@@ -46,12 +48,18 @@ describe('RegisterPage', () => {
         expect(notice).toBeInTheDocument();
         expect(notice).toHaveTextContent(copy.registerLegalIntro);
         expect(notice).toHaveTextContent(copy.registerLegalConnector);
-        expect(within(notice as HTMLElement).getByRole('link', {
+        const termsLink = within(notice as HTMLElement).getByRole('link', {
             name: copy.registerLegalTermsLink,
-        })).toHaveAttribute('href', '/terms');
-        expect(within(notice as HTMLElement).getByRole('link', {
+        });
+        const privacyLink = within(notice as HTMLElement).getByRole('link', {
             name: copy.registerLegalPrivacyLink,
-        })).toHaveAttribute('href', '/privacy');
+        });
+        expect(termsLink).toHaveAttribute('href', '/terms');
+        expect(termsLink).toHaveAttribute('target', '_blank');
+        expect(termsLink).toHaveAttribute('rel', 'noopener noreferrer');
+        expect(privacyLink).toHaveAttribute('href', '/privacy');
+        expect(privacyLink).toHaveAttribute('target', '_blank');
+        expect(privacyLink).toHaveAttribute('rel', 'noopener noreferrer');
 
         const submitButton = screen.getByRole('button', { name: copy.registerSubmit });
         expect(submitButton).toHaveAttribute('aria-describedby', 'register-legal-notice');

@@ -405,6 +405,8 @@
   "creditPurchaseRetry": "Check again",
   "creditPurchaseFailed": "Payment failed. No credits were added. Please try another payment method.",
   "creditPurchaseExpired": "The payment session expired. No credits were added. Start a new purchase.",
+  "creditPurchaseReversed": "This payment was reversed. Its credits are no longer available, and your balance has been updated.",
+  "creditPurchaseDisputed": "This payment is disputed. Its credits are unavailable while the payment issue is handled, and your balance has been updated.",
   "creditPurchaseStatusError": "The payment could not be confirmed.",
   "adminBillingKicker": "INTERNAL PAYMENT RECONCILIATION",
   "adminBillingTitle": "Stripe → AADE e-Timologio",

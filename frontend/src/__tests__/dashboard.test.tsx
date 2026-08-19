@@ -711,6 +711,70 @@ describe('DashboardPage', () => {
         },
     );
 
+    // REGRESSION: owner-reachable reversed and disputed purchases fell through
+    // to the unknown-status path, which polled them forever as if they were
+    // pending and retained stale checkout return parameters.
+    it.each([
+        [
+            'reversed',
+            'creditPurchaseReversed',
+            {
+                balance: 25,
+                paid_balance: 0,
+                promotional_balance: 25,
+                reversal_debt: 0,
+                ai_spendable_balance: 0,
+            },
+        ],
+        [
+            'disputed',
+            'creditPurchaseDisputed',
+            {
+                balance: 0,
+                paid_balance: 0,
+                promotional_balance: 0,
+                reversal_debt: 75,
+                ai_spendable_balance: 0,
+            },
+        ],
+    ])(
+        'settles a %s checkout return without retrying or starting another purchase',
+        async (status, expectedNotice, wallet) => {
+            jest.useFakeTimers();
+            const sessionId = `cs_test_${status}`;
+            window.history.replaceState(
+                {},
+                '',
+                `/?checkout=success&session_id=${sessionId}&campaign=beta#credits`,
+            );
+            (api.getCreditCheckoutStatus as jest.Mock).mockResolvedValue({
+                purchase_id: `purchase-${status}`,
+                package_key: 'starter',
+                credits: 100,
+                amount_eur_cents: 100,
+                status,
+                checkout_session_id: sessionId,
+                wallet,
+            });
+
+            render(<DashboardPage />);
+            await act(async () => {
+                await Promise.resolve();
+            });
+
+            expect(screen.getByRole('status')).toHaveTextContent(expectedNotice);
+            expect(api.getCreditCheckoutStatus).toHaveBeenCalledTimes(1);
+            expect(__setWalletMock).toHaveBeenCalledWith(wallet);
+            expect(api.createCreditCheckout).not.toHaveBeenCalled();
+            expect(screen.queryByRole('button', { name: 'creditPurchaseRetry' }))
+                .not.toBeInTheDocument();
+            expect(screen.queryByRole('link', { name: 'billingContractDownload' }))
+                .not.toBeInTheDocument();
+            expect(window.location.search).toBe('?campaign=beta');
+            expect(window.location.hash).toBe('#credits');
+        },
+    );
+
     it('opens account settings only from the profile avatar', () => {
         render(<DashboardPage />);
 

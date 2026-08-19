@@ -849,6 +849,8 @@ for (const [label, viewport] of Object.entries(viewports)) {
       }
     });
 
+    // REGRESSION: legal navigation replaced the registration page and lost
+    // fields already entered by the user.
     test('register page layout stays contained', async ({ page }) => {
       await mockApi(page, { authenticated: false });
       await page.goto('/register');
@@ -858,12 +860,18 @@ for (const [label, viewport] of Object.entries(viewports)) {
       await expect(page.getByText(el.registerSubtitle)).toBeVisible();
       const legalNotice = page.locator('#register-legal-notice');
       await expect(legalNotice).toBeVisible();
-      await expect(legalNotice.getByRole('link', {
+      const termsLink = legalNotice.getByRole('link', {
         name: el.registerLegalTermsLink,
-      })).toHaveAttribute('href', '/terms');
-      await expect(legalNotice.getByRole('link', {
+      });
+      const privacyLink = legalNotice.getByRole('link', {
         name: el.registerLegalPrivacyLink,
-      })).toHaveAttribute('href', '/privacy');
+      });
+      await expect(termsLink).toHaveAttribute('href', '/terms');
+      await expect(termsLink).toHaveAttribute('target', '_blank');
+      await expect(termsLink).toHaveAttribute('rel', 'noopener noreferrer');
+      await expect(privacyLink).toHaveAttribute('href', '/privacy');
+      await expect(privacyLink).toHaveAttribute('target', '_blank');
+      await expect(privacyLink).toHaveAttribute('rel', 'noopener noreferrer');
       await expect(page.getByRole('button', { name: el.registerSubmit }))
         .toHaveAttribute('aria-describedby', 'register-legal-notice');
       await expect(page.getByText(/Mock|€0/)).toHaveCount(0);

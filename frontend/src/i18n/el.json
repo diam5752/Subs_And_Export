@@ -405,6 +405,8 @@
   "creditPurchaseRetry": "Έλεγχος ξανά",
   "creditPurchaseFailed": "Η πληρωμή απέτυχε. Δεν προστέθηκαν credits. Δοκίμασε άλλο τρόπο πληρωμής.",
   "creditPurchaseExpired": "Η συνεδρία πληρωμής έληξε. Δεν προστέθηκαν credits. Ξεκίνα νέα αγορά.",
+  "creditPurchaseReversed": "Η πληρωμή αντιλογίστηκε. Τα credits της δεν είναι πλέον διαθέσιμα και το υπόλοιπό σου ενημερώθηκε.",
+  "creditPurchaseDisputed": "Η πληρωμή βρίσκεται σε αμφισβήτηση. Τα credits της δεν είναι διαθέσιμα όσο εξετάζεται το ζήτημα και το υπόλοιπό σου ενημερώθηκε.",
   "creditPurchaseStatusError": "Δεν ήταν δυνατή η επιβεβαίωση της πληρωμής.",
   "adminBillingKicker": "ΕΣΩΤΕΡΙΚΗ ΣΥΜΦΩΝΙΑ ΠΛΗΡΩΜΩΝ",
   "adminBillingTitle": "Stripe → e-Τιμολόγιο",

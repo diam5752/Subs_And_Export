@@ -65,6 +65,8 @@ describe('ProcessingGateModal', () => {
         expect(onConfirm).not.toHaveBeenCalled();
     });
 
+    // REGRESSION: legal navigation replaced the upload workspace and lost the
+    // guest's selected video and inline registration state.
     it('supports account creation inside the same gate', async () => {
         render(
             <ProcessingGateModal
@@ -85,10 +87,14 @@ describe('ProcessingGateModal', () => {
         expect(legalNotice).toBeInTheDocument();
         expect(legalNotice).toHaveTextContent('registerLegalIntro');
         expect(legalNotice).toHaveTextContent('registerLegalConnector');
-        expect(screen.getByRole('link', { name: 'registerLegalTermsLink' }))
-            .toHaveAttribute('href', '/terms');
-        expect(screen.getByRole('link', { name: 'registerLegalPrivacyLink' }))
-            .toHaveAttribute('href', '/privacy');
+        const termsLink = screen.getByRole('link', { name: 'registerLegalTermsLink' });
+        const privacyLink = screen.getByRole('link', { name: 'registerLegalPrivacyLink' });
+        expect(termsLink).toHaveAttribute('href', '/terms');
+        expect(termsLink).toHaveAttribute('target', '_blank');
+        expect(termsLink).toHaveAttribute('rel', 'noopener noreferrer');
+        expect(privacyLink).toHaveAttribute('href', '/privacy');
+        expect(privacyLink).toHaveAttribute('target', '_blank');
+        expect(privacyLink).toHaveAttribute('rel', 'noopener noreferrer');
 
         fireEvent.change(screen.getByLabelText('registerNameLabel'), { target: { value: 'Creator' } });
         fireEvent.change(screen.getByLabelText('loginEmailLabel'), { target: { value: 'new@example.com' } });

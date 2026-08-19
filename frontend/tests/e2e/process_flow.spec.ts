@@ -301,6 +301,8 @@ test.describe('Video Processing Flow', () => {
         await expect.poll(() => processRequests).toBe(1);
     });
 
+    // REGRESSION: legal navigation from inline registration replaced the page
+    // and discarded the guest's selected upload.
     test('guest keeps the uploaded file through login and sees cost before start', async ({ page }) => {
         await mockApi(page, { authenticated: false });
         let processRequests = 0;
@@ -342,12 +344,18 @@ test.describe('Video Processing Flow', () => {
         }).click();
         const legalNotice = authDialog.locator('#processing-gate-register-legal-notice');
         await expect(legalNotice).toBeVisible();
-        await expect(legalNotice.getByRole('link', {
+        const termsLink = legalNotice.getByRole('link', {
             name: el.registerLegalTermsLink,
-        })).toHaveAttribute('href', '/terms');
-        await expect(legalNotice.getByRole('link', {
+        });
+        const privacyLink = legalNotice.getByRole('link', {
             name: el.registerLegalPrivacyLink,
-        })).toHaveAttribute('href', '/privacy');
+        });
+        await expect(termsLink).toHaveAttribute('href', '/terms');
+        await expect(termsLink).toHaveAttribute('target', '_blank');
+        await expect(termsLink).toHaveAttribute('rel', 'noopener noreferrer');
+        await expect(privacyLink).toHaveAttribute('href', '/privacy');
+        await expect(privacyLink).toHaveAttribute('target', '_blank');
+        await expect(privacyLink).toHaveAttribute('rel', 'noopener noreferrer');
         await expect(authDialog.getByRole('button', {
             name: el.processingGateRegisterSubmit,
         })).toHaveAttribute(

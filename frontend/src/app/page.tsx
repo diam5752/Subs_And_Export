@@ -39,12 +39,20 @@ const CHECKOUT_NONTERMINAL_STATUSES = new Set([
   'awaiting_payment',
 ]);
 
-type CheckoutReconciliationStatus = 'success' | 'failed' | 'expired' | 'pending';
+type CheckoutReconciliationStatus =
+  | 'success'
+  | 'failed'
+  | 'expired'
+  | 'reversed'
+  | 'disputed'
+  | 'pending';
 
 function classifyCheckoutStatus(status: string): CheckoutReconciliationStatus {
   if (status === 'paid' || status === 'partially_refunded') return 'success';
   if (status === 'failed') return 'failed';
   if (status === 'expired') return 'expired';
+  if (status === 'reversed') return 'reversed';
+  if (status === 'disputed') return 'disputed';
   if (CHECKOUT_NONTERMINAL_STATUSES.has(status)) return 'pending';
 
   // Future provider states must fail safe: retain the checkout context and let
@@ -582,6 +590,16 @@ export default function DashboardPage() {
           }
           if (reconciliationStatus === 'expired') {
             setCheckoutNotice(t('creditPurchaseExpired'));
+            reachedTerminalStatus = true;
+            break;
+          }
+          if (reconciliationStatus === 'reversed') {
+            setCheckoutNotice(t('creditPurchaseReversed'));
+            reachedTerminalStatus = true;
+            break;
+          }
+          if (reconciliationStatus === 'disputed') {
+            setCheckoutNotice(t('creditPurchaseDisputed'));
             reachedTerminalStatus = true;
             break;
           }

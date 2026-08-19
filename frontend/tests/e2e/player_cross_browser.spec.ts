@@ -5,6 +5,11 @@ import { mockApi, stabilizeUi } from './mocks';
 test('player and subtitle manipulation stay clear across browser engines', async ({
   page,
 }, testInfo) => {
+  // This intentionally exhaustive media-interaction scenario includes a
+  // bounded 30s editor wait plus browser stabilization and long-press input.
+  // Keep its budget local instead of weakening the suite-wide timeout.
+  test.setTimeout(60_000);
+
   await mockApi(page);
   await page.addInitScript(() => {
     localStorage.setItem('lastActiveJobId', 'job-futurist');

@@ -152,3 +152,95 @@ test('checkout return preserves retry context after a status error', async ({ pa
   await expect.poll(() => new URL(page.url()).search).toBe('');
   expect(statusChecks).toBe(2);
 });
+
+test('reversed and disputed checkout returns settle without another purchase', async ({ page }) => {
+  const checkoutPosts: string[] = [];
+  let currentWallet = {
+    balance: 125,
+    paid_balance: 100,
+    promotional_balance: 25,
+    reversal_debt: 0,
+    ai_spendable_balance: 100,
+  };
+  page.on('request', (request) => {
+    if (
+      request.method() === 'POST'
+      && new URL(request.url()).pathname.endsWith('/billing/checkout')
+    ) {
+      checkoutPosts.push(request.url());
+    }
+  });
+  await mockApi(page);
+  await page.route('**/auth/points', async (route) => {
+    if (route.request().method() === 'OPTIONS') {
+      await route.fallback();
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(currentWallet),
+    });
+  });
+
+  for (const terminal of [
+    {
+      status: 'reversed',
+      notice: el.creditPurchaseReversed,
+      balance: 25,
+      promotionalBalance: 25,
+      reversalDebt: 0,
+    },
+    {
+      status: 'disputed',
+      notice: el.creditPurchaseDisputed,
+      balance: 0,
+      promotionalBalance: 0,
+      reversalDebt: 75,
+    },
+  ]) {
+    const sessionId = `cs_test_${terminal.status}`;
+    let statusChecks = 0;
+    currentWallet = {
+      balance: terminal.balance,
+      paid_balance: 0,
+      promotional_balance: terminal.promotionalBalance,
+      reversal_debt: terminal.reversalDebt,
+      ai_spendable_balance: 0,
+    };
+    await page.route(`**/billing/checkout/${sessionId}`, async (route) => {
+      statusChecks += 1;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          purchase_id: `purchase-${terminal.status}`,
+          package_key: 'starter',
+          credits: 100,
+          amount_eur_cents: 100,
+          status: terminal.status,
+          checkout_session_id: sessionId,
+          wallet: currentWallet,
+        }),
+      });
+    });
+
+    await page.goto(
+      `/?checkout=success&session_id=${sessionId}&campaign=beta#credits`,
+    );
+    await waitForUploadWorkspace(page);
+
+    await expect(page.getByRole('status')).toContainText(terminal.notice);
+    await expect(page.getByTestId('credits-balance')).toHaveAttribute(
+      'aria-label',
+      `Credits: ${terminal.balance}`,
+    );
+    await expect.poll(() => new URL(page.url()).search).toBe('?campaign=beta');
+    expect(new URL(page.url()).hash).toBe('#credits');
+    expect(statusChecks).toBe(1);
+
+    await page.unroute(`**/billing/checkout/${sessionId}`);
+  }
+
+  expect(checkoutPosts).toEqual([]);
+});
