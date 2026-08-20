@@ -1,19 +1,25 @@
 # gsubs
 
-gsubs is a mock-first subtitle studio for turning a raw vertical clip into editable,
-word-timed captions and an export-ready video. The current mode is deliberately
-zero-cost: it performs the complete workflow with deterministic mock transcript
-and intelligence services and never calls OpenAI, Groq, or another AI provider.
+gsubs is a local-first subtitle studio for turning a raw vertical clip into editable,
+word-timed captions and an export-ready video. The default development profile is
+deliberately zero-cost: it performs the complete workflow with deterministic mock
+transcription and intelligence services and never calls an external provider. The
+separate production profile uses ElevenLabs Scribe v2 for caption transcription and
+Stripe-hosted Checkout for prepaid credits under fail-closed release guards.
 
 ## What is included
 
 - Next.js 16, React 19 and Tailwind CSS 4 responsive PWA.
 - FastAPI processing API with authenticated jobs, history and exports.
 - FFmpeg/libass rendering for 9:16 video, SRT and animated subtitles.
-- Deterministic Greek mock transcription with per-word timing.
-- Honest mock fact-check cards and local social-copy preview.
-- Provider capability catalog with Scribe v2 staged for a later opt-in live mode.
-- Hard provider budgets defaulting to `$0.00` per request and per month.
+- Deterministic Greek mock transcription with per-word timing for local development.
+- ElevenLabs Scribe v2 production transcription guarded by purchased credits and
+  provider budgets.
+- Honest mock fact-check cards and local social-copy preview; provider-backed
+  intelligence remains dormant in production.
+- Stripe-hosted prepaid-credit Checkout with server-owned prices and fulfillment.
+- Hard provider budgets that default to `$0.00` outside the reviewed production
+  profile.
 - PostgreSQL persistence and Docker Compose packaging.
 - Java 25 compatibility surface for the gradual Spring migration.
 
@@ -29,9 +35,14 @@ Open:
 - Web app: <http://localhost:3000>
 - API health: <http://localhost:8080/health>
 
-The tracked Compose configuration forces mock mode and zero provider budgets,
-even if a client submits `elevenlabs`, `groq`, or `openai` as its preferred engine. API keys do
-not belong in this repository and are not needed for the current product.
+The root `docker-compose.yml` forces mock mode and keeps provider budgets at zero,
+even if a client requests `elevenlabs`, `groq`, or `openai`; the example local
+environment also disables paid credits. It is the safe local/default profile.
+Production is a separate, tracked contract in
+`deploy/hetzner/docker-compose.production.yml`; its release procedure, backup and
+restore-drill gates, and exact verifier are documented in
+`deploy/hetzner/README.md`. Credentials belong only in the untracked production
+environment and must never be committed.
 
 ## Local development
 
@@ -82,7 +93,11 @@ cd frontend && npm run build && npm run e2e
 - `docs/architecture.md`: runtime boundaries and mock/live engine policy.
 - `docs/credits-usage.md`: points and usage-ledger semantics.
 
-Live providers remain disabled until credentials and non-zero app budgets are
-explicitly configured. The caption pipeline only exposes engines that can
-produce the timestamps required by the renderer; newer text-only transcription
-models are catalogued separately instead of being presented as caption-ready.
+The default local profile keeps every live provider disabled. The production
+profile enables only ElevenLabs Scribe v2 for captions and requires an existing
+purchased-credit balance, the complete Stripe configuration and non-zero guarded
+provider budgets. OpenAI and Groq credentials remain empty there, so
+provider-backed fact-check and social-copy intelligence is dormant. The caption
+pipeline only exposes engines that can produce the timestamps required by the
+renderer; newer text-only transcription models are catalogued separately instead
+of being presented as caption-ready.

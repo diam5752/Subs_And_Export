@@ -32,6 +32,33 @@ const statusStyles: Record<string, string> = {
 
 const RESTORABLE_ACTIVE_JOB_STATUSES = new Set(['pending', 'processing', 'cancelling']);
 const CANCELLABLE_JOB_STATUSES = new Set(['pending', 'processing']);
+const CHECKOUT_RECONCILIATION_DELAYS_MS = [0, 1_000, 2_000, 4_000, 8_000, 15_000] as const;
+const CHECKOUT_NONTERMINAL_STATUSES = new Set([
+  'creating',
+  'checkout_created',
+  'awaiting_payment',
+]);
+
+type CheckoutReconciliationStatus =
+  | 'success'
+  | 'failed'
+  | 'expired'
+  | 'reversed'
+  | 'disputed'
+  | 'pending';
+
+function classifyCheckoutStatus(status: string): CheckoutReconciliationStatus {
+  if (status === 'paid' || status === 'partially_refunded') return 'success';
+  if (status === 'failed') return 'failed';
+  if (status === 'expired') return 'expired';
+  if (status === 'reversed') return 'reversed';
+  if (status === 'disputed') return 'disputed';
+  if (CHECKOUT_NONTERMINAL_STATUSES.has(status)) return 'pending';
+
+  // Future provider states must fail safe: retain the checkout context and let
+  // reconciliation retry instead of treating an unknown value as terminal.
+  return 'pending';
+}
 
 type PendingProcessingAction =
   | { kind: 'new'; options: ProcessingOptions }
@@ -82,6 +109,8 @@ export default function DashboardPage() {
   const [showCreditPurchase, setShowCreditPurchase] = useState(false);
   const [checkoutNotice, setCheckoutNotice] = useState('');
   const [checkoutContractAvailable, setCheckoutContractAvailable] = useState(false);
+  const [checkoutCanRetry, setCheckoutCanRetry] = useState(false);
+  const [checkoutRetryRequest, setCheckoutRetryRequest] = useState(0);
 
   // Account Modal State
   const [showAccountPanel, setShowAccountPanel] = useState(false);
@@ -499,12 +528,21 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!user || typeof window === 'undefined') return;
     let active = true;
+    let retryTimeout: number | null = null;
+    let releaseRetryDelay: (() => void) | null = null;
     const params = new URLSearchParams(window.location.search);
     const checkoutState = params.get('checkout');
     const sessionId = params.get('session_id');
+    const clearCheckoutReturnParams = () => {
+      const cleaned = new URL(window.location.href);
+      cleaned.searchParams.delete('checkout');
+      cleaned.searchParams.delete('session_id');
+      window.history.replaceState({}, '', `${cleaned.pathname}${cleaned.search}${cleaned.hash}`);
+    };
     if (checkoutState !== 'success' || !sessionId) {
       if (checkoutState === 'cancelled') {
         const cancelledNotice = t('creditPurchaseCancelled');
+        clearCheckoutReturnParams();
         queueMicrotask(() => {
           if (active) setCheckoutNotice(cancelledNotice);
         });
@@ -515,22 +553,54 @@ export default function DashboardPage() {
     }
 
     const reconcileCheckout = async () => {
-      for (let attempt = 0; attempt < 6 && active; attempt += 1) {
+      setCheckoutCanRetry(false);
+      setCheckoutContractAvailable(false);
+      let reachedTerminalStatus = false;
+
+      for (const delayMs of CHECKOUT_RECONCILIATION_DELAYS_MS) {
+        if (delayMs > 0) {
+          await new Promise<void>((resolve) => {
+            const release = () => {
+              if (releaseRetryDelay !== release) return;
+              releaseRetryDelay = null;
+              retryTimeout = null;
+              resolve();
+            };
+            releaseRetryDelay = release;
+            retryTimeout = window.setTimeout(release, delayMs);
+          });
+        }
+        if (!active) return;
+
         try {
           const status = await api.getCreditCheckoutStatus(sessionId);
           if (!active) return;
           setWallet(status.wallet);
-          if (status.status === 'paid' || status.status === 'partially_refunded') {
+          const reconciliationStatus = classifyCheckoutStatus(status.status);
+          if (reconciliationStatus === 'success') {
             setCheckoutNotice(t('creditPurchaseSuccess', { count: status.credits }));
             setCheckoutContractAvailable(true);
+            reachedTerminalStatus = true;
             break;
           }
-          if (status.status === 'failed') {
+          if (reconciliationStatus === 'failed') {
             setCheckoutNotice(t('creditPurchaseFailed'));
+            reachedTerminalStatus = true;
             break;
           }
-          if (status.status === 'expired') {
+          if (reconciliationStatus === 'expired') {
             setCheckoutNotice(t('creditPurchaseExpired'));
+            reachedTerminalStatus = true;
+            break;
+          }
+          if (reconciliationStatus === 'reversed') {
+            setCheckoutNotice(t('creditPurchaseReversed'));
+            reachedTerminalStatus = true;
+            break;
+          }
+          if (reconciliationStatus === 'disputed') {
+            setCheckoutNotice(t('creditPurchaseDisputed'));
+            reachedTerminalStatus = true;
             break;
           }
           setCheckoutNotice(t('creditPurchasePending'));
@@ -541,22 +611,31 @@ export default function DashboardPage() {
               ? checkoutError.message
               : t('creditPurchaseStatusError'),
           );
-          break;
+          setCheckoutCanRetry(true);
+          return;
         }
-        await new Promise((resolve) => window.setTimeout(resolve, 1000));
       }
-      if (active) {
-        const cleaned = new URL(window.location.href);
-        cleaned.searchParams.delete('checkout');
-        cleaned.searchParams.delete('session_id');
-        window.history.replaceState({}, '', `${cleaned.pathname}${cleaned.search}${cleaned.hash}`);
+
+      if (!active) return;
+      if (!reachedTerminalStatus) {
+        setCheckoutNotice(t('creditPurchasePendingRetry'));
+        setCheckoutCanRetry(true);
+        return;
       }
+
+      if (active) clearCheckoutReturnParams();
     };
     void reconcileCheckout();
     return () => {
       active = false;
+      if (retryTimeout !== null) {
+        window.clearTimeout(retryTimeout);
+      }
+      retryTimeout = null;
+      releaseRetryDelay?.();
+      releaseRetryDelay = null;
     };
-  }, [setWallet, t, user]);
+  }, [checkoutRetryRequest, setWallet, t, user]);
 
   const handleProfileSave = useCallback(async (name: string, password?: string, confirmPassword?: string) => {
     if (!user) return;
@@ -727,6 +806,18 @@ export default function DashboardPage() {
               className="mb-5 flex items-center justify-between gap-4 rounded-2xl border border-sky-400/20 bg-sky-400/[0.07] px-4 py-3 text-sm text-[var(--foreground)]"
             >
               <span>{checkoutNotice}</span>
+              {checkoutCanRetry && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCheckoutCanRetry(false);
+                    setCheckoutRetryRequest((request) => request + 1);
+                  }}
+                  className="min-h-10 shrink-0 rounded-xl border border-[var(--accent)] px-3 font-semibold text-[var(--accent)] hover:bg-[var(--accent)]/10"
+                >
+                  {t('creditPurchaseRetry')}
+                </button>
+              )}
               {checkoutContractAvailable && (
                 <Link
                   href="/account/billing"

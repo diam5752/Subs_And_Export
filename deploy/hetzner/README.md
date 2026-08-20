@@ -468,5 +468,8 @@ The frontend uses a same-origin API URL, so changing the domain does not require
 a separate frontend code change.
 
 After the script-level verification, confirm the public `https://gsubs.gr` UI,
-`/health`, paid-credit catalog, terms/privacy pages, upload-to-login gate and a
-non-charging Checkout redirect in a real browser.
+`/health`, paid-credit catalog, terms/privacy pages and upload-to-login gate in a
+real browser. Test a Checkout redirect only with explicit operator authorization:
+the redirect itself does not complete a charge, but its `POST /billing/checkout`
+creates a real purchase record and a live Stripe Checkout Session, so it is not a
+routine read-only smoke check.

@@ -6,6 +6,8 @@ import '@testing-library/jest-dom';
 
 import manifest from '@/app/manifest';
 import OfflinePage from '@/app/offline/page';
+import robots from '@/app/robots';
+import sitemap from '@/app/sitemap';
 
 describe('static application routes', () => {
     it('publishes installable gsubs metadata', () => {
@@ -27,6 +29,41 @@ describe('static application routes', () => {
         expect(screen.getByText('GSUBS / OFFLINE')).toBeInTheDocument();
         expect(screen.getByRole('heading')).toHaveTextContent('Δεν υπάρχει σύνδεση');
         expect(screen.getByRole('link', { name: 'Δοκιμή ξανά' })).toHaveAttribute('href', '/');
+    });
+
+    it('publishes only public pages for production search discovery', () => {
+        expect(robots()).toEqual({
+            rules: {
+                userAgent: '*',
+                allow: '/',
+                disallow: [
+                    '/account/',
+                    '/admin/',
+                    '/login',
+                    '/offline',
+                    '/register',
+                ],
+            },
+            sitemap: 'https://gsubs.gr/sitemap.xml',
+            host: 'https://gsubs.gr',
+        });
+        expect(sitemap()).toEqual([
+            {
+                url: 'https://gsubs.gr/',
+                changeFrequency: 'weekly',
+                priority: 1,
+            },
+            {
+                url: 'https://gsubs.gr/terms',
+                changeFrequency: 'yearly',
+                priority: 0.3,
+            },
+            {
+                url: 'https://gsubs.gr/privacy',
+                changeFrequency: 'yearly',
+                priority: 0.3,
+            },
+        ]);
     });
 
     it('ships the production logo, mark, icon and watermark assets', () => {

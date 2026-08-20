@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { CoinsIcon } from '@/components/icons';
 import { Spinner } from '@/components/Spinner';
 import { useAuth } from '@/context/AuthContext';
@@ -181,10 +182,39 @@ export function ProcessingGateModal({
                                 </p>
                             )}
 
+                            {authMode === 'register' && (
+                                <p
+                                    id="processing-gate-register-legal-notice"
+                                    className="text-xs leading-5 text-[var(--muted)]"
+                                >
+                                    {t('registerLegalIntro')}{' '}
+                                    <Link
+                                        href="/terms"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="rounded-sm font-semibold text-[var(--accent)] underline underline-offset-2 hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2"
+                                    >
+                                        {t('registerLegalTermsLink')}
+                                    </Link>{' '}
+                                    {t('registerLegalConnector')}{' '}
+                                    <Link
+                                        href="/privacy"
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="rounded-sm font-semibold text-[var(--accent)] underline underline-offset-2 hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2"
+                                    >
+                                        {t('registerLegalPrivacyLink')}
+                                    </Link>.
+                                </p>
+                            )}
+
                             <button
                                 type="submit"
                                 disabled={isSubmitting}
                                 aria-busy={isSubmitting}
+                                aria-describedby={authMode === 'register'
+                                    ? 'processing-gate-register-legal-notice'
+                                    : undefined}
                                 className="btn-primary flex min-h-12 w-full items-center justify-center gap-2 disabled:cursor-not-allowed disabled:opacity-50"
                             >
                                 {isSubmitting && <Spinner className="h-4 w-4" />}

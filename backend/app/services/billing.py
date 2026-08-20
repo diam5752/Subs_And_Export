@@ -9,6 +9,7 @@ import secrets
 import string
 import time
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Protocol
 from urllib.parse import urlparse
@@ -619,8 +620,10 @@ class StripeSdkGateway:
 
     def verify_webhook(self, payload: bytes, signature: str) -> dict[str, Any]:
         try:
-            # Stripe's Webhook facade is not typed; normalize its output below.
-            event = self._stripe.Webhook.construct_event(  # type: ignore[no-untyped-call]
+            # Keep this boundary typed across Stripe SDK releases: older
+            # versions expose an untyped facade while newer releases annotate it.
+            construct_event: Callable[..., object] = self._stripe.Webhook.construct_event
+            event = construct_event(
                 payload,
                 signature,
                 self._webhook_secret,

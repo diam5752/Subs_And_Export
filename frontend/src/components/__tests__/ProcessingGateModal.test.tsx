@@ -50,7 +50,13 @@ describe('ProcessingGateModal', () => {
 
         fireEvent.change(screen.getByLabelText('loginEmailLabel'), { target: { value: 'creator@example.com' } });
         fireEvent.change(screen.getByLabelText('loginPasswordLabel'), { target: { value: 'correct-password' } });
-        fireEvent.click(screen.getByRole('button', { name: 'processingGateLoginSubmit' }));
+        const loginButton = screen.getByRole('button', { name: 'processingGateLoginSubmit' });
+        expect(screen.queryByRole('link', { name: 'registerLegalTermsLink' }))
+            .not.toBeInTheDocument();
+        expect(screen.queryByRole('link', { name: 'registerLegalPrivacyLink' }))
+            .not.toBeInTheDocument();
+        expect(loginButton).not.toHaveAttribute('aria-describedby');
+        fireEvent.click(loginButton);
 
         await waitFor(() => {
             expect(login).toHaveBeenCalledWith('creator@example.com', 'correct-password');
@@ -59,6 +65,8 @@ describe('ProcessingGateModal', () => {
         expect(onConfirm).not.toHaveBeenCalled();
     });
 
+    // REGRESSION: legal navigation replaced the upload workspace and lost the
+    // guest's selected video and inline registration state.
     it('supports account creation inside the same gate', async () => {
         render(
             <ProcessingGateModal
@@ -75,10 +83,29 @@ describe('ProcessingGateModal', () => {
         );
 
         fireEvent.click(screen.getByRole('button', { name: 'processingGateCreateAccount' }));
+        const legalNotice = document.getElementById('processing-gate-register-legal-notice');
+        expect(legalNotice).toBeInTheDocument();
+        expect(legalNotice).toHaveTextContent('registerLegalIntro');
+        expect(legalNotice).toHaveTextContent('registerLegalConnector');
+        const termsLink = screen.getByRole('link', { name: 'registerLegalTermsLink' });
+        const privacyLink = screen.getByRole('link', { name: 'registerLegalPrivacyLink' });
+        expect(termsLink).toHaveAttribute('href', '/terms');
+        expect(termsLink).toHaveAttribute('target', '_blank');
+        expect(termsLink).toHaveAttribute('rel', 'noopener noreferrer');
+        expect(privacyLink).toHaveAttribute('href', '/privacy');
+        expect(privacyLink).toHaveAttribute('target', '_blank');
+        expect(privacyLink).toHaveAttribute('rel', 'noopener noreferrer');
+
         fireEvent.change(screen.getByLabelText('registerNameLabel'), { target: { value: 'Creator' } });
         fireEvent.change(screen.getByLabelText('loginEmailLabel'), { target: { value: 'new@example.com' } });
         fireEvent.change(screen.getByLabelText('loginPasswordLabel'), { target: { value: 'twelve-chars!' } });
-        fireEvent.click(screen.getByRole('button', { name: 'processingGateRegisterSubmit' }));
+        const registerButton = screen.getByRole('button', { name: 'processingGateRegisterSubmit' });
+        expect(registerButton).toHaveAttribute(
+            'aria-describedby',
+            'processing-gate-register-legal-notice',
+        );
+        expect(legalNotice?.nextElementSibling).toBe(registerButton);
+        fireEvent.click(registerButton);
 
         await waitFor(() => {
             expect(register).toHaveBeenCalledWith('new@example.com', 'twelve-chars!', 'Creator');

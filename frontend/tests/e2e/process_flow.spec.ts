@@ -301,6 +301,8 @@ test.describe('Video Processing Flow', () => {
         await expect.poll(() => processRequests).toBe(1);
     });
 
+    // REGRESSION: legal navigation from inline registration replaced the page
+    // and discarded the guest's selected upload.
     test('guest keeps the uploaded file through login and sees cost before start', async ({ page }) => {
         await mockApi(page, { authenticated: false });
         let processRequests = 0;
@@ -333,8 +335,39 @@ test.describe('Video Processing Flow', () => {
         const startButton = page.getByRole('button', { name: new RegExp(el.startProcessing) });
         expect((await startButton.innerText()).match(/([\d,.]+)\s*$/)?.[1]).toBeTruthy();
         await startButton.click();
-        await expect(page.getByRole('dialog', { name: el.processingGateAuthTitle })).toBeVisible();
+        const authDialog = page.getByRole('dialog', { name: el.processingGateAuthTitle });
+        await expect(authDialog).toBeVisible();
         expect(processRequests).toBe(0);
+
+        await authDialog.getByRole('button', {
+            name: el.processingGateCreateAccount,
+        }).click();
+        const legalNotice = authDialog.locator('#processing-gate-register-legal-notice');
+        await expect(legalNotice).toBeVisible();
+        const termsLink = legalNotice.getByRole('link', {
+            name: el.registerLegalTermsLink,
+        });
+        const privacyLink = legalNotice.getByRole('link', {
+            name: el.registerLegalPrivacyLink,
+        });
+        await expect(termsLink).toHaveAttribute('href', '/terms');
+        await expect(termsLink).toHaveAttribute('target', '_blank');
+        await expect(termsLink).toHaveAttribute('rel', 'noopener noreferrer');
+        await expect(privacyLink).toHaveAttribute('href', '/privacy');
+        await expect(privacyLink).toHaveAttribute('target', '_blank');
+        await expect(privacyLink).toHaveAttribute('rel', 'noopener noreferrer');
+        await expect(authDialog.getByRole('button', {
+            name: el.processingGateRegisterSubmit,
+        })).toHaveAttribute(
+            'aria-describedby',
+            'processing-gate-register-legal-notice',
+        );
+
+        await authDialog.getByRole('button', { name: el.processingGateUseLogin }).click();
+        await expect(legalNotice).toHaveCount(0);
+        await expect(authDialog.getByRole('button', {
+            name: el.processingGateLoginSubmit,
+        })).not.toHaveAttribute('aria-describedby');
 
         const emailInput = page.getByLabel(el.loginEmailLabel, { exact: true });
         const passwordInput = page.getByLabel(el.loginPasswordLabel, { exact: true });

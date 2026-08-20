@@ -109,10 +109,35 @@ export default function RegisterPage() {
                             </div>
                         )}
 
+                        <p
+                            id="register-legal-notice"
+                            className="text-xs leading-5 text-[var(--muted)]"
+                        >
+                            {t('registerLegalIntro')}{' '}
+                            <Link
+                                href="/terms"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="rounded-sm font-semibold text-[var(--accent)] underline underline-offset-2 hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2"
+                            >
+                                {t('registerLegalTermsLink')}
+                            </Link>{' '}
+                            {t('registerLegalConnector')}{' '}
+                            <Link
+                                href="/privacy"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="rounded-sm font-semibold text-[var(--accent)] underline underline-offset-2 hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2"
+                            >
+                                {t('registerLegalPrivacyLink')}
+                            </Link>.
+                        </p>
+
                         <button
                             type="submit"
                             disabled={isLoading}
                             aria-busy={isLoading}
+                            aria-describedby="register-legal-notice"
                             className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                         >
                             {isLoading && <Spinner className="w-5 h-5" />}
