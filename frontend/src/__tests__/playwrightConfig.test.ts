@@ -15,6 +15,9 @@ describe('Playwright server isolation', () => {
 
     expect(DEFAULT_PLAYWRIGHT_PORT).toBe(31873);
     expect(config.use?.baseURL).toBe('http://127.0.0.1:31873');
+    // REGRESSION: the production PWA worker could claim an E2E page and bypass
+    // page.route(), sending mocked auth requests to the Next server as 404s.
+    expect(config.use?.serviceWorkers).toBe('block');
     expect(config.failOnFlakyTests).toBe(Boolean(process.env.CI));
     expect(webServer).toMatchObject({
       command: (

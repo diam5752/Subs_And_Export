@@ -11,7 +11,13 @@ async function openGuestAuthGate(page: Page) {
   await waitForUploadWorkspace(page, { authenticated: false });
   await page.locator('input[type="file"]').setInputFiles(fixturePath);
   await expect(page.getByRole('heading', { name: 'demo_output.mp4' })).toBeVisible();
-  await page.getByRole('button', { name: new RegExp(el.startProcessing) }).click();
+  await expect(page.getByTestId('video-credit-pricing')).toContainText(
+    el.videoCreditPricingDuration.replace('{duration}', '0:09'),
+    { timeout: 15_000 },
+  );
+  const startButton = page.getByRole('button', { name: new RegExp(el.startProcessing) });
+  await expect(startButton).toBeEnabled();
+  await startButton.click();
 
   const authDialog = page.getByRole('dialog', {
     name: el.processingGateAuthTitle,
@@ -45,9 +51,19 @@ test.describe('Inline processing gate on mobile browsers', () => {
     await expect(googleButton).toBeVisible();
     await expect.poll(() => googleNonceRequests).toBe(1);
 
-    await authDialog.getByRole('button', {
+    const createAccountButton = authDialog.getByRole('button', {
       name: el.processingGateCreateAccount,
-    }).click();
+    });
+    const lockedRootOffset = await page.evaluate(() => window.scrollY);
+    // REGRESSION: iOS WebKit could move the root scroller while making a
+    // control actionable, leaving the modal visible but offsetting hit tests
+    // so <html> intercepted the following pointer click.
+    await page.evaluate((attemptedOffset) => {
+      document.documentElement.scrollTop = attemptedOffset;
+      window.dispatchEvent(new Event('scroll'));
+    }, lockedRootOffset + 241);
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(lockedRootOffset);
+    await createAccountButton.click();
     await expect(authDialog.getByRole('button', {
       name: el.processingGateUseLogin,
     })).toBeVisible();
@@ -103,21 +119,28 @@ test.describe('Inline processing gate on mobile browsers', () => {
       content: 'body::after { content: ""; display: block; height: 1400px; }',
     });
     await page.locator('input[type="file"]').setInputFiles(fixturePath);
+    await expect(page.getByTestId('video-credit-pricing')).toContainText(
+      el.videoCreditPricingDuration.replace('{duration}', '0:09'),
+      { timeout: 15_000 },
+    );
+    const startButton = page.getByRole('button', { name: new RegExp(el.startProcessing) });
+    await expect(startButton).toBeEnabled();
     await page.evaluate(() => window.scrollTo(0, 360));
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
 
-    const startButton = page.getByRole('button', { name: new RegExp(el.startProcessing) });
     const originalState = await startButton.evaluate((button) => {
       const state = {
         scrollX: window.scrollX,
         scrollY: window.scrollY,
         rootOverflow: document.documentElement.style.overflow,
         rootOverscroll: document.documentElement.style.overscrollBehavior,
+        rootHeight: document.documentElement.style.height,
         bodyOverflow: document.body.style.overflow,
         bodyPosition: document.body.style.position,
         bodyTop: document.body.style.top,
         bodyLeft: document.body.style.left,
         bodyWidth: document.body.style.width,
+        bodyHeight: document.body.style.height,
         bodyOverscroll: document.body.style.overscrollBehavior,
       };
       // Keep the scroll snapshot and event atomic. Locator.click() scrolls an
@@ -146,6 +169,8 @@ test.describe('Inline processing gate on mobile browsers', () => {
         bodyPosition: bodyStyle.position,
         bodyTop: bodyStyle.top,
         bodyRectTop: bodyRect.top,
+        rootHeight: document.documentElement.style.height,
+        bodyHeight: document.body.style.height,
         windowScrollX: window.scrollX,
         windowScrollY: window.scrollY,
       };
@@ -155,6 +180,8 @@ test.describe('Inline processing gate on mobile browsers', () => {
     expect(lockedState.bodyOverflow).toBe('hidden');
     expect(lockedState.bodyOverscroll).toBe('none');
     expect(lockedState.bodyPosition).toBe('fixed');
+    expect(lockedState.rootHeight).toBe('100%');
+    expect(lockedState.bodyHeight).toBe('100%');
     expect(Number.parseFloat(lockedState.bodyTop)).toBeCloseTo(-originalState.scrollY, 0);
 
     const layout = await page.evaluate(() => {
@@ -241,11 +268,13 @@ test.describe('Inline processing gate on mobile browsers', () => {
       scrollY: window.scrollY,
       rootOverflow: document.documentElement.style.overflow,
       rootOverscroll: document.documentElement.style.overscrollBehavior,
+      rootHeight: document.documentElement.style.height,
       bodyOverflow: document.body.style.overflow,
       bodyPosition: document.body.style.position,
       bodyTop: document.body.style.top,
       bodyLeft: document.body.style.left,
       bodyWidth: document.body.style.width,
+      bodyHeight: document.body.style.height,
       bodyOverscroll: document.body.style.overscrollBehavior,
     }));
     expect(restoredState).toEqual(originalState);

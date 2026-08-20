@@ -76,6 +76,7 @@ export function ProcessingGateModal({
             overflow: root.style.overflow,
             overscrollBehavior: root.style.overscrollBehavior,
             scrollBehavior: root.style.scrollBehavior,
+            height: root.style.height,
         };
         const previousBodyStyles = {
             overflow: body.style.overflow,
@@ -84,26 +85,38 @@ export function ProcessingGateModal({
             top: body.style.top,
             left: body.style.left,
             width: body.style.width,
+            height: body.style.height,
+        };
+        const restoreLockedPosition = () => {
+            if (window.scrollX !== scrollX || window.scrollY !== scrollY) {
+                window.scrollTo(scrollX, scrollY);
+            }
         };
 
         root.style.overflow = 'hidden';
         root.style.overscrollBehavior = 'none';
+        root.style.height = '100%';
         body.style.overflow = 'hidden';
         body.style.overscrollBehavior = 'none';
         body.style.position = 'fixed';
         body.style.top = `${-scrollY}px`;
         body.style.left = `${-scrollX}px`;
         body.style.width = '100%';
+        body.style.height = '100%';
+        window.addEventListener('scroll', restoreLockedPosition, { passive: true });
 
         return () => {
+            window.removeEventListener('scroll', restoreLockedPosition);
             root.style.overflow = previousRootStyles.overflow;
             root.style.overscrollBehavior = previousRootStyles.overscrollBehavior;
+            root.style.height = previousRootStyles.height;
             body.style.overflow = previousBodyStyles.overflow;
             body.style.overscrollBehavior = previousBodyStyles.overscrollBehavior;
             body.style.position = previousBodyStyles.position;
             body.style.top = previousBodyStyles.top;
             body.style.left = previousBodyStyles.left;
             body.style.width = previousBodyStyles.width;
+            body.style.height = previousBodyStyles.height;
 
             // Global CSS uses smooth scrolling. Override it for this one
             // restoration so closing the modal cannot visibly animate the page.
@@ -129,7 +142,7 @@ export function ProcessingGateModal({
 
     useEffect(() => {
         if (isOpen && stage === 'auth') {
-            emailRef.current?.focus();
+            emailRef.current?.focus({ preventScroll: true });
         }
     }, [isOpen, stage]);
 

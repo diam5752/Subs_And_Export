@@ -57,6 +57,7 @@ describe('video utils', () => {
 
         beforeEach(() => {
             events['loadedmetadata'] = () => { };
+            events['durationchange'] = () => { };
             events['seeked'] = () => { };
             events['error'] = () => { };
 
@@ -98,7 +99,86 @@ describe('video utils', () => {
         });
 
         afterEach(() => {
+            jest.useRealTimers();
             jest.restoreAllMocks();
+        });
+
+        it('recovers when WebKit publishes a finite duration after early metadata', async () => {
+            // REGRESSION: WebKit can publish loadedmetadata before duration is
+            // finite. The old 1.2s frame fallback then resolved duration 0 and
+            // disabled Start Processing permanently for a valid local MP4.
+            jest.useFakeTimers();
+            (mockVideo as unknown as { duration: number }).duration = Number.NaN;
+            const file = new File(['video'], 'delayed-metadata.mp4', { type: 'video/mp4' });
+            let settled = false;
+            const promise = validateVideoAspectRatio(file).then((result) => {
+                settled = true;
+                return result;
+            });
+
+            events['loadedmetadata']();
+            // A valid local file can take longer than the old three-second
+            // ceiling to publish finite metadata on a busy iOS/WebKit device.
+            jest.advanceTimersByTime(4_000);
+            await Promise.resolve();
+            expect(settled).toBe(false);
+
+            (mockVideo as unknown as { videoWidth: number }).videoWidth = 1080;
+            (mockVideo as unknown as { videoHeight: number }).videoHeight = 1920;
+            (mockVideo as unknown as { duration: number }).duration = 8.633333;
+            events['durationchange']();
+            events['seeked']();
+
+            await expect(promise).resolves.toEqual({
+                width: 1080,
+                height: 1920,
+                durationSeconds: 8.633333,
+                aspectWarning: false,
+                thumbnailUrl: 'data:image/jpeg;base64,test',
+            });
+        });
+
+        it('fails closed after a bounded timeout when metadata never becomes usable', async () => {
+            // REGRESSION: a browser that emitted neither usable metadata nor a
+            // terminal error left validation pending forever.
+            jest.useFakeTimers();
+            (mockVideo as unknown as { duration: number }).duration = Number.NaN;
+            const file = new File(['invalid'], 'invalid.mp4', { type: 'video/mp4' });
+            let result: Awaited<ReturnType<typeof validateVideoAspectRatio>> | undefined;
+            void validateVideoAspectRatio(file).then((value) => {
+                result = value;
+            });
+
+            jest.runOnlyPendingTimers();
+            await Promise.resolve();
+
+            expect(result).toEqual({
+                width: 0,
+                height: 0,
+                durationSeconds: 0,
+                aspectWarning: true,
+                thumbnailUrl: null,
+            });
+        });
+
+        it('keeps an unrecovered media error fail-closed until the readiness timeout', async () => {
+            jest.useFakeTimers();
+            (mockVideo as unknown as { duration: number }).duration = Number.NaN;
+            const file = new File(['invalid'], 'errored.mp4', { type: 'video/mp4' });
+            let result: Awaited<ReturnType<typeof validateVideoAspectRatio>> | undefined;
+            void validateVideoAspectRatio(file).then((value) => {
+                result = value;
+            });
+
+            events['error']();
+            await Promise.resolve();
+            expect(result).toBeUndefined();
+
+            jest.runOnlyPendingTimers();
+            await Promise.resolve();
+            expect(result?.durationSeconds).toBe(0);
+            expect(result?.aspectWarning).toBe(true);
+            expect(result?.thumbnailUrl).toBeNull();
         });
 
         it('should validate valid 9:16 video', async () => {
@@ -134,10 +214,12 @@ describe('video utils', () => {
         });
 
         it('should handle video load errors', async () => {
+            jest.useFakeTimers();
             const file = new File([''], 'test.mp4', { type: 'video/mp4' });
             const promise = validateVideoAspectRatio(file);
 
             events['error']();
+            jest.runOnlyPendingTimers();
 
             const result = await promise;
             expect(result).toEqual({
@@ -197,6 +279,7 @@ describe('video utils', () => {
         });
 
         it('should handle video.load throwing', async () => {
+            jest.useFakeTimers();
             const consoleSpy = jest.spyOn(console, 'warn').mockImplementation(() => { });
             mockVideo.load = jest.fn(() => { throw new Error('Load failed'); });
 
@@ -204,6 +287,7 @@ describe('video utils', () => {
             const promise = validateVideoAspectRatio(file);
 
             events['error']();
+            jest.runOnlyPendingTimers();
 
             const result = await promise;
             expect(result.thumbnailUrl).toBeNull();

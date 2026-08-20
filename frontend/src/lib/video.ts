@@ -31,20 +31,28 @@ export const describeResolutionString = (resolution?: string | null): { text: st
     return describeResolution(parsed.width, parsed.height);
 };
 
+const VIDEO_METADATA_READINESS_TIMEOUT_MS = 10_000;
+const VIDEO_FRAME_CAPTURE_TIMEOUT_MS = 1_200;
+
 export const validateVideoAspectRatio = (file: File): Promise<{ width: number; height: number; aspectWarning: boolean; thumbnailUrl: string | null; durationSeconds: number }> => {
     return new Promise((resolve) => {
         const video = document.createElement('video');
         const objectUrl = URL.createObjectURL(file);
         let resolved = false;
-        let fallbackTimeout: number | undefined;
+        let captureStarted = false;
+        let metadataTimeout: number | undefined;
+        let frameCaptureTimeout: number | undefined;
 
         video.preload = 'auto';
         video.muted = true;
         video.playsInline = true;
 
         const cleanup = () => {
-            if (fallbackTimeout) {
-                window.clearTimeout(fallbackTimeout);
+            if (metadataTimeout !== undefined) {
+                window.clearTimeout(metadataTimeout);
+            }
+            if (frameCaptureTimeout !== undefined) {
+                window.clearTimeout(frameCaptureTimeout);
             }
             URL.revokeObjectURL(objectUrl);
             video.removeAttribute('src');
@@ -60,7 +68,9 @@ export const validateVideoAspectRatio = (file: File): Promise<{ width: number; h
             resolved = true;
             const width = video.videoWidth || 0;
             const height = video.videoHeight || 0;
-            const durationSeconds = Number.isFinite(video.duration) ? video.duration : 0;
+            const durationSeconds = Number.isFinite(video.duration) && video.duration > 0
+                ? video.duration
+                : 0;
             const ratio = width && height ? width / height : 0;
             const is916 = ratio >= 0.5 && ratio <= 0.625;
             cleanup();
@@ -81,35 +91,69 @@ export const validateVideoAspectRatio = (file: File): Promise<{ width: number; h
                 finish(null);
                 return;
             }
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            finish(canvas.toDataURL('image/jpeg', 0.7));
+            try {
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                finish(canvas.toDataURL('image/jpeg', 0.7));
+            } catch {
+                finish(null);
+            }
+        };
+
+        const beginFrameCaptureWhenMetadataIsUsable = () => {
+            if (
+                resolved
+                || captureStarted
+                || !Number.isFinite(video.duration)
+                || video.duration <= 0
+                || !video.videoWidth
+                || !video.videoHeight
+            ) {
+                return;
+            }
+
+            captureStarted = true;
+            if (metadataTimeout !== undefined) {
+                window.clearTimeout(metadataTimeout);
+                metadataTimeout = undefined;
+            }
+            const targetTime = video.duration > 1
+                ? Math.min(0.5, video.duration - 0.1)
+                : 0;
+            // Fallback in case the seek never resolves.
+            frameCaptureTimeout = window.setTimeout(
+                () => captureFrame(),
+                VIDEO_FRAME_CAPTURE_TIMEOUT_MS,
+            );
+            try {
+                video.currentTime = targetTime;
+            } catch {
+                captureFrame();
+            }
         };
 
         video.addEventListener(
             'loadedmetadata',
-            () => {
-                const duration = Number.isFinite(video.duration) ? video.duration : 0;
-                const targetTime = duration > 1 ? Math.min(0.5, duration - 0.1) : 0;
-                // Fallback in case the seek never resolves
-                fallbackTimeout = window.setTimeout(() => captureFrame(), 1200);
-                try {
-                    video.currentTime = targetTime;
-                } catch {
-                    captureFrame();
-                }
-            },
+            beginFrameCaptureWhenMetadataIsUsable,
             { once: true }
         );
+        // WebKit can publish loadedmetadata before the local file duration is
+        // finite. Keep a bounded durationchange recovery path open instead of
+        // permanently classifying the file as unreadable at the frame fallback.
+        video.addEventListener('durationchange', beginFrameCaptureWhenMetadataIsUsable);
 
         video.addEventListener('seeked', captureFrame, { once: true });
         video.addEventListener(
             'error',
             () => {
-                finish(null);
+                beginFrameCaptureWhenMetadataIsUsable();
             },
             { once: true }
         );
 
+        metadataTimeout = window.setTimeout(
+            () => finish(null),
+            VIDEO_METADATA_READINESS_TIMEOUT_MS,
+        );
         video.src = objectUrl;
         try {
             video.load();
