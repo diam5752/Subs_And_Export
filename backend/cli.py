@@ -1,4 +1,6 @@
+from collections.abc import Callable
 from pathlib import Path
+from typing import TypeVar
 
 import typer
 
@@ -9,21 +11,47 @@ from backend.app.core.erasure_journal import configured_erasure_journal
 from backend.app.services.erasure_reconciliation import reconcile_erasure_journal
 from backend.app.services.video_processing import process_video_pipeline
 
-app = typer.Typer(help="Normalize vertical videos and prepare styled Greek subtitles.")
+app = typer.Typer(
+    help="Normalize vertical videos and prepare styled Greek subtitles.",
+    pretty_exceptions_show_locals=False,
+)
+
+_PrivacyResultT = TypeVar("_PrivacyResultT")
+
+
+def _run_privacy_operation(
+    operation: Callable[[Database], _PrivacyResultT],
+    *,
+    failure_message: str,
+) -> _PrivacyResultT:
+    """Run a privacy operation without rendering exception details."""
+    try:
+        db = Database()
+    except Exception:
+        typer.echo(failure_message, err=True)
+        raise typer.Exit(code=1) from None
+
+    try:
+        try:
+            return operation(db)
+        finally:
+            db.dispose()
+    except Exception:
+        typer.echo(failure_message, err=True)
+        raise typer.Exit(code=1) from None
 
 
 @app.command("reconcile-erasures")
 def reconcile_erasures() -> None:
     """Replay privacy tombstones before restored services return online."""
-    db = Database()
-    try:
-        report = reconcile_erasure_journal(
+    report = _run_privacy_operation(
+        lambda db: reconcile_erasure_journal(
             db=db,
             data_dir=settings.data_dir,
             journal=configured_erasure_journal(),
-        )
-    finally:
-        db.dispose()
+        ),
+        failure_message="Erasure reconciliation command failed.",
+    )
     typer.echo(
         "Erasure reconciliation complete: "
         f"events={report.replayed_events} pruned={report.pruned_events}",
@@ -33,11 +61,10 @@ def reconcile_erasures() -> None:
 @app.command("run-retention")
 def run_retention() -> None:
     """Run media and financial retention synchronously while offline."""
-    db = Database()
-    try:
-        report = run_configured_retention(db)
-    finally:
-        db.dispose()
+    report = _run_privacy_operation(
+        run_configured_retention,
+        failure_message="Retention command failed.",
+    )
     typer.echo(
         "Retention complete: "
         f"deleted_jobs={len(report.deleted_job_ids)} "

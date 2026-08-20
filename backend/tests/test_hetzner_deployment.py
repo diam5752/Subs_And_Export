@@ -641,6 +641,8 @@ def test_erasure_journal_is_separate_and_reconciled_before_public_cutover() -> N
     db_start = cutover.index("compose up -d db")
     continuity_gate = cutover.index("initialize_or_verify_privacy_continuity")
     core_start = cutover.index("compose up -d backend frontend")
+    # The app worker delays its first scheduled pass, so cutover must retain
+    # this synchronous retention gate while the public edge is stopped.
     retention = cutover.index("python -m backend.cli run-retention")
     relay_start = cutover.index("compose up -d privacy-relay")
     reconcile = cutover.index("python -m backend.cli reconcile-erasures")

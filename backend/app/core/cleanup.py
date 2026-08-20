@@ -291,15 +291,18 @@ def run_configured_retention(db: Database) -> CleanupReport:
 
 
 async def retention_worker(db: Database) -> None:
-    """Run cleanup immediately and then at the configured bounded interval."""
+    """Delay the first cleanup and then run at the configured bounded interval."""
     while True:
+        await asyncio.sleep(settings.cleanup_interval_minutes * 60)
         try:
             await asyncio.to_thread(run_configured_retention, db)
         except asyncio.CancelledError:
             raise
-        except Exception:
-            logger.exception("Scheduled workspace cleanup failed")
-        await asyncio.sleep(settings.cleanup_interval_minutes * 60)
+        except Exception as exc:
+            logger.error(
+                "Scheduled workspace cleanup failed",
+                extra={"data": {"error_type": type(exc).__name__}},
+            )
 
 
 def _cleanup_orphan_uploads(
