@@ -127,9 +127,10 @@ describe('Sidebar Tabs', () => {
         expect(container.querySelectorAll('#cue-0')).toHaveLength(1);
     });
 
-    it('brings the live preview into view when styles are opened on mobile', () => {
+    it('keeps completed-job actions above the mobile style scroll target', () => {
         const setActiveSidebarTab = jest.fn();
-        const scrollIntoView = jest.fn();
+        const previewSectionScrollIntoView = jest.fn();
+        const workspaceScrollIntoView = jest.fn();
         const originalMatchMedia = window.matchMedia;
         const originalScrollIntoView = Element.prototype.scrollIntoView;
         const requestAnimationFrame = jest
@@ -145,9 +146,20 @@ describe('Sidebar Tabs', () => {
                 matches: query === '(max-width: 899px)',
             })),
         });
-        Element.prototype.scrollIntoView = scrollIntoView;
+        Element.prototype.scrollIntoView = jest.fn();
+        const previewSection = document.createElement('div');
+        previewSection.id = 'preview-section';
+        Object.defineProperty(previewSection, 'scrollIntoView', {
+            configurable: true,
+            value: previewSectionScrollIntoView,
+        });
+        document.body.appendChild(previewSection);
         const workspace = document.createElement('div');
         workspace.id = 'editor-workspace';
+        Object.defineProperty(workspace, 'scrollIntoView', {
+            configurable: true,
+            value: workspaceScrollIntoView,
+        });
         document.body.appendChild(workspace);
         (useProcessContext as jest.Mock).mockReturnValue({
             ...mockContextValue,
@@ -166,11 +178,13 @@ describe('Sidebar Tabs', () => {
             fireEvent.click(screen.getByRole('tab', { name: /styles/i }));
 
             expect(setActiveSidebarTab).toHaveBeenCalledWith('styles');
-            expect(scrollIntoView).toHaveBeenCalledWith({
+            expect(previewSectionScrollIntoView).toHaveBeenCalledWith({
                 behavior: 'smooth',
                 block: 'start',
             });
+            expect(workspaceScrollIntoView).not.toHaveBeenCalled();
         } finally {
+            previewSection.remove();
             workspace.remove();
             requestAnimationFrame.mockRestore();
             Element.prototype.scrollIntoView = originalScrollIntoView;

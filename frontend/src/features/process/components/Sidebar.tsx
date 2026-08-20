@@ -248,11 +248,14 @@ export function Sidebar() {
         }
 
         window.requestAnimationFrame(() => {
-            const workspace = document.getElementById('editor-workspace');
+            // Keep the completed-job actions in the scroll target. Scrolling
+            // the workspace itself placed the preceding New Video / Export
+            // row underneath the fixed mobile header.
+            const previewSection = document.getElementById('preview-section');
             const reduceMotion = window.matchMedia?.(
                 '(prefers-reduced-motion: reduce)',
             ).matches;
-            workspace?.scrollIntoView?.({
+            previewSection?.scrollIntoView?.({
                 behavior: reduceMotion ? 'auto' : 'smooth',
                 block: 'start',
             });
