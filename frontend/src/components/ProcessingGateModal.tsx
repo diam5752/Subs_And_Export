@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
+import { GoogleSignInControl } from '@/components/GoogleSignInControl';
 import { CoinsIcon } from '@/components/icons';
 import { Spinner } from '@/components/Spinner';
 import { useAuth } from '@/context/AuthContext';
@@ -46,10 +47,71 @@ export function ProcessingGateModal({
     const [authError, setAuthError] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const emailRef = useRef<HTMLInputElement>(null);
+    const authSessionGenerationRef = useRef(0);
 
     const close = useCallback(() => {
         onClose();
     }, [onClose]);
+
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const sessionGeneration = authSessionGenerationRef.current + 1;
+        authSessionGenerationRef.current = sessionGeneration;
+        return () => {
+            if (authSessionGenerationRef.current === sessionGeneration) {
+                authSessionGenerationRef.current += 1;
+            }
+        };
+    }, [isOpen]);
+
+    useEffect(() => {
+        if (!isOpen) return;
+
+        const root = document.documentElement;
+        const body = document.body;
+        const scrollX = window.scrollX;
+        const scrollY = window.scrollY;
+        const previousRootStyles = {
+            overflow: root.style.overflow,
+            overscrollBehavior: root.style.overscrollBehavior,
+            scrollBehavior: root.style.scrollBehavior,
+        };
+        const previousBodyStyles = {
+            overflow: body.style.overflow,
+            overscrollBehavior: body.style.overscrollBehavior,
+            position: body.style.position,
+            top: body.style.top,
+            left: body.style.left,
+            width: body.style.width,
+        };
+
+        root.style.overflow = 'hidden';
+        root.style.overscrollBehavior = 'none';
+        body.style.overflow = 'hidden';
+        body.style.overscrollBehavior = 'none';
+        body.style.position = 'fixed';
+        body.style.top = `${-scrollY}px`;
+        body.style.left = `${-scrollX}px`;
+        body.style.width = '100%';
+
+        return () => {
+            root.style.overflow = previousRootStyles.overflow;
+            root.style.overscrollBehavior = previousRootStyles.overscrollBehavior;
+            body.style.overflow = previousBodyStyles.overflow;
+            body.style.overscrollBehavior = previousBodyStyles.overscrollBehavior;
+            body.style.position = previousBodyStyles.position;
+            body.style.top = previousBodyStyles.top;
+            body.style.left = previousBodyStyles.left;
+            body.style.width = previousBodyStyles.width;
+
+            // Global CSS uses smooth scrolling. Override it for this one
+            // restoration so closing the modal cannot visibly animate the page.
+            root.style.scrollBehavior = 'auto';
+            window.scrollTo(scrollX, scrollY);
+            root.style.scrollBehavior = previousRootStyles.scrollBehavior;
+        };
+    }, [isOpen]);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -59,19 +121,21 @@ export function ProcessingGateModal({
         };
 
         document.addEventListener('keydown', handleKeyDown);
-        document.body.style.overflow = 'hidden';
-        if (stage === 'auth') {
-            emailRef.current?.focus();
-        }
 
         return () => {
             document.removeEventListener('keydown', handleKeyDown);
-            document.body.style.overflow = '';
         };
-    }, [close, isOpen, stage]);
+    }, [close, isOpen]);
+
+    useEffect(() => {
+        if (isOpen && stage === 'auth') {
+            emailRef.current?.focus();
+        }
+    }, [isOpen, stage]);
 
     const handleAuthSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
+        const sessionGeneration = authSessionGenerationRef.current;
         setAuthError('');
         setIsSubmitting(true);
 
@@ -81,11 +145,20 @@ export function ProcessingGateModal({
             } else {
                 await login(email, password);
             }
+            if (sessionGeneration !== authSessionGenerationRef.current) {
+                return;
+            }
             await onAuthenticated();
         } catch (authFailure) {
-            setAuthError(authFailure instanceof Error ? authFailure.message : t('processingGateAuthError'));
+            if (sessionGeneration === authSessionGenerationRef.current) {
+                setAuthError(authFailure instanceof Error
+                    ? authFailure.message
+                    : t('processingGateAuthError'));
+            }
         } finally {
-            setIsSubmitting(false);
+            if (sessionGeneration === authSessionGenerationRef.current) {
+                setIsSubmitting(false);
+            }
         }
     };
 
@@ -101,13 +174,14 @@ export function ProcessingGateModal({
             aria-modal="true"
             aria-labelledby="processing-gate-title"
             aria-describedby="processing-gate-description"
-            className="fixed inset-0 z-[70] flex items-end justify-center bg-black/55 px-4 pt-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] backdrop-blur-sm sm:items-center sm:py-8"
+            className="fixed inset-0 z-[70] flex items-end justify-center overflow-y-auto overscroll-contain bg-black/55 px-4 pt-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] backdrop-blur-sm sm:items-center sm:py-8"
             onClick={close}
             data-testid="processing-gate"
         >
             <div
-                className="relative w-full max-w-md overflow-hidden rounded-[24px] border border-black/10 bg-white shadow-2xl"
+                className="relative max-h-full w-full max-w-md overflow-x-hidden overflow-y-auto overscroll-contain rounded-[24px] border border-black/10 bg-white shadow-2xl"
                 onClick={(event) => event.stopPropagation()}
+                data-testid="processing-gate-card"
             >
                 <div className="h-1 bg-[var(--accent)]" />
                 <div className="p-6 sm:p-8">
@@ -134,7 +208,15 @@ export function ProcessingGateModal({
                     </div>
 
                     {stage === 'auth' ? (
-                        <form onSubmit={handleAuthSubmit} className="space-y-4">
+                        <div className="space-y-4">
+                            <GoogleSignInControl
+                                onAuthenticated={onAuthenticated}
+                                recoveryStrategy="reinitialize"
+                            />
+                            <div className="auth-divider !my-0">
+                                <span>{t('loginOrEmail')}</span>
+                            </div>
+                            <form onSubmit={handleAuthSubmit} className="space-y-4">
                             {authMode === 'register' && (
                                 <div>
                                     <label htmlFor="gate-name" className="auth-label">{t('registerNameLabel')}</label>
@@ -221,17 +303,18 @@ export function ProcessingGateModal({
                                 {authMode === 'register' ? t('processingGateRegisterSubmit') : t('processingGateLoginSubmit')}
                             </button>
 
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setAuthMode((mode) => mode === 'login' ? 'register' : 'login');
-                                    setAuthError('');
-                                }}
-                                className="min-h-11 w-full text-sm font-semibold text-[var(--foreground)] hover:text-[var(--accent)]"
-                            >
-                                {authMode === 'login' ? t('processingGateCreateAccount') : t('processingGateUseLogin')}
-                            </button>
-                        </form>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setAuthMode((mode) => mode === 'login' ? 'register' : 'login');
+                                        setAuthError('');
+                                    }}
+                                    className="min-h-11 w-full text-sm font-semibold text-[var(--foreground)] hover:text-[var(--accent)]"
+                                >
+                                    {authMode === 'login' ? t('processingGateCreateAccount') : t('processingGateUseLogin')}
+                                </button>
+                            </form>
+                        </div>
                     ) : (
                         <div className="space-y-5">
                             <div className="rounded-2xl border border-[#e7dfbd] bg-[#fffdf3] p-5">

@@ -54,7 +54,9 @@ export default defineConfig({
     },
     {
       name: 'android-chromium',
-      testMatch: /player_cross_browser\.spec\.ts/,
+      // Keep mobile-only regressions bounded to the surfaces that need real
+      // Android Chromium coverage instead of multiplying the full E2E suite.
+      testMatch: /(?:player|modal)_cross_browser\.spec\.ts/,
       use: {
         ...devices['Pixel 7'],
         browserName: 'chromium',
@@ -63,7 +65,9 @@ export default defineConfig({
     },
     {
       name: 'ios-webkit',
-      testMatch: /player_cross_browser\.spec\.ts/,
+      // REGRESSION: body-only overflow locking passed desktop Chromium while
+      // the inline auth gate still moved the page in an iOS mail WebView.
+      testMatch: /(?:player|modal)_cross_browser\.spec\.ts/,
       use: {
         ...devices['iPhone 13'],
         browserName: 'webkit',

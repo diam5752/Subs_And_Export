@@ -53,7 +53,7 @@ describe('Playwright server isolation', () => {
     expect(qualityGates.commands['check:all'].steps).toContain('check:e2e');
   });
 
-  test('keeps focused player coverage on Android, iOS WebKit, and Firefox', () => {
+  test('keeps focused player and modal coverage on their required browser engines', () => {
     const projects = config.projects ?? [];
     expect(projects.map((project) => project.name)).toEqual([
       'chromium',
@@ -64,12 +64,12 @@ describe('Playwright server isolation', () => {
     expect(projects.slice(1)).toEqual(expect.arrayContaining([
       expect.objectContaining({
         name: 'android-chromium',
-        testMatch: /player_cross_browser\.spec\.ts/,
+        testMatch: /(?:player|modal)_cross_browser\.spec\.ts/,
         use: expect.objectContaining({ browserName: 'chromium', hasTouch: true }),
       }),
       expect.objectContaining({
         name: 'ios-webkit',
-        testMatch: /player_cross_browser\.spec\.ts/,
+        testMatch: /(?:player|modal)_cross_browser\.spec\.ts/,
         use: expect.objectContaining({ browserName: 'webkit', hasTouch: true }),
       }),
       expect.objectContaining({
