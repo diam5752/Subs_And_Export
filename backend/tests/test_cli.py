@@ -1,6 +1,8 @@
 from pathlib import Path
 from types import SimpleNamespace
+from typing import NoReturn
 
+import pytest
 from typer.testing import CliRunner
 
 from backend.app.services.social_intelligence import SocialContent, SocialCopy
@@ -10,6 +12,176 @@ from backend.cli import app
 class _FakeDatabase:
     def dispose(self) -> None:
         return None
+
+
+class _TrackingDatabase:
+    def __init__(self, *, dispose_error: Exception | None = None) -> None:
+        self.dispose_calls = 0
+        self._dispose_error = dispose_error
+
+    def dispose(self) -> None:
+        self.dispose_calls += 1
+        if self._dispose_error is not None:
+            raise self._dispose_error
+
+
+def _raise_sensitive_privacy_error() -> NoReturn:
+    try:
+        raise RuntimeError(
+            "xi-api-key=fake-provider-key Authorization=Bearer-fake-header "
+            "transcript_id=fake-provider-id "
+            "url=https://provider.invalid/transcripts/fake-provider-id",
+        )
+    except RuntimeError as exc:
+        raise RuntimeError("privacy provider operation failed") from exc
+
+
+@pytest.mark.parametrize(
+    ("command", "operation_name", "failure_message"),
+    [
+        ("run-retention", "run_configured_retention", "Retention command failed."),
+        (
+            "reconcile-erasures",
+            "reconcile_erasure_journal",
+            "Erasure reconciliation command failed.",
+        ),
+    ],
+)
+def test_privacy_commands_redact_chained_operation_errors(
+    monkeypatch: pytest.MonkeyPatch,
+    command: str,
+    operation_name: str,
+    failure_message: str,
+) -> None:
+    database = _TrackingDatabase()
+
+    def fail_operation(*_args: object, **_kwargs: object) -> NoReturn:
+        _raise_sensitive_privacy_error()
+
+    monkeypatch.setattr("backend.cli.Database", lambda: database)
+    monkeypatch.setattr(f"backend.cli.{operation_name}", fail_operation)
+    monkeypatch.setattr("backend.cli.configured_erasure_journal", lambda: object())
+
+    # REGRESSION: uncaught privacy-operation exceptions used Typer's rich
+    # traceback renderer, which could expose provider credentials and IDs.
+    result = CliRunner().invoke(app, [command])
+
+    assert result.exit_code == 1
+    assert result.stdout == ""
+    assert result.stderr == f"{failure_message}\n"
+    assert database.dispose_calls == 1
+    for marker in (
+        "fake-provider-key",
+        "Bearer-fake-header",
+        "fake-provider-id",
+        "provider.invalid",
+        "Traceback",
+    ):
+        assert marker not in result.output
+
+
+def test_privacy_command_redacts_database_initialization_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_database_initialization() -> NoReturn:
+        _raise_sensitive_privacy_error()
+
+    monkeypatch.setattr("backend.cli.Database", fail_database_initialization)
+
+    result = CliRunner().invoke(app, ["run-retention"])
+
+    assert result.exit_code == 1
+    assert result.stdout == ""
+    assert result.stderr == "Retention command failed.\n"
+    assert "fake-provider-key" not in result.output
+    assert "fake-provider-id" not in result.output
+    assert "Traceback" not in result.output
+
+
+def test_privacy_command_redacts_database_disposal_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    try:
+        raise RuntimeError(
+            "Authorization=Bearer-fake-header "
+            "url=https://provider.invalid/transcripts/fake-provider-id",
+        )
+    except RuntimeError as exc:
+        dispose_error = RuntimeError("database disposal failed")
+        dispose_error.__cause__ = exc
+    database = _TrackingDatabase(dispose_error=dispose_error)
+    monkeypatch.setattr("backend.cli.Database", lambda: database)
+    monkeypatch.setattr(
+        "backend.cli.run_configured_retention",
+        lambda _db: SimpleNamespace(
+            deleted_job_ids=[],
+            failed_job_ids=[],
+            deleted_orphan_items=0,
+            failed_orphan_items=0,
+        ),
+    )
+
+    result = CliRunner().invoke(app, ["run-retention"])
+
+    assert result.exit_code == 1
+    assert result.stdout == ""
+    assert result.stderr == "Retention command failed.\n"
+    assert database.dispose_calls == 1
+    assert "Bearer-fake-header" not in result.output
+    assert "fake-provider-id" not in result.output
+    assert "provider.invalid" not in result.output
+    assert "Traceback" not in result.output
+
+
+def test_typer_disables_pretty_exception_locals() -> None:
+    assert app.pretty_exceptions_show_locals is False
+
+
+def test_retention_command_reports_success_and_disposes_database(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    database = _TrackingDatabase()
+    monkeypatch.setattr("backend.cli.Database", lambda: database)
+    monkeypatch.setattr(
+        "backend.cli.run_configured_retention",
+        lambda _db: SimpleNamespace(
+            deleted_job_ids=["deleted"],
+            failed_job_ids=[],
+            deleted_orphan_items=2,
+            failed_orphan_items=0,
+        ),
+    )
+
+    result = CliRunner().invoke(app, ["run-retention"])
+
+    assert result.exit_code == 0
+    assert result.stdout == (
+        "Retention complete: deleted_jobs=1 failed_jobs=0 "
+        "deleted_orphans=2 failed_orphans=0\n"
+    )
+    assert result.stderr == ""
+    assert database.dispose_calls == 1
+
+
+def test_reconciliation_command_reports_success_and_disposes_database(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    database = _TrackingDatabase()
+    monkeypatch.setattr("backend.cli.Database", lambda: database)
+    monkeypatch.setattr("backend.cli.configured_erasure_journal", lambda: object())
+    monkeypatch.setattr(
+        "backend.cli.reconcile_erasure_journal",
+        lambda **_kwargs: SimpleNamespace(replayed_events=3, pruned_events=2),
+    )
+
+    result = CliRunner().invoke(app, ["reconcile-erasures"])
+
+    assert result.exit_code == 0
+    assert result.stdout == (
+        "Erasure reconciliation complete: events=3 pruned=2\n"
+    )
+    assert result.stderr == ""
+    assert database.dispose_calls == 1
 
 
 def test_retention_command_fails_closed_when_any_job_cannot_be_erased(

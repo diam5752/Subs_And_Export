@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import asyncio
+import json
+import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -13,7 +16,9 @@ from backend.app.core.cleanup import (
     ensure_storage_capacity,
     run_configured_retention,
 )
+from backend.app.core.config import settings
 from backend.app.core.erasure_journal import ErasureJournal
+from backend.app.core.logging import JSONFormatter
 from backend.app.core.workspace_ownership import (
     get_workspace_owner,
     record_workspace_ownership,
@@ -594,3 +599,86 @@ def test_provider_erasure_outage_does_not_block_local_retention(
         run_configured_retention(object())  # type: ignore[arg-type]
 
     assert calls == ["local-media-deleted"]
+
+
+def test_retention_worker_waits_before_first_scheduled_pass(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, object]] = []
+    db = object()
+    sleep_calls = 0
+
+    async def fake_sleep(delay: float) -> None:
+        nonlocal sleep_calls
+        sleep_calls += 1
+        calls.append(("sleep", delay))
+        if sleep_calls == 2:
+            raise asyncio.CancelledError
+
+    async def fake_to_thread(
+        function: object,
+        *args: object,
+    ) -> None:
+        calls.append(("retention", (function, args)))
+
+    monkeypatch.setattr(settings, "cleanup_interval_minutes", 15)
+    monkeypatch.setattr(asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(asyncio, "to_thread", fake_to_thread)
+
+    # REGRESSION: every backend replica used to run retention immediately at
+    # startup, duplicating the synchronous deployment pass during a rollout.
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(
+            cleanup_module.retention_worker(db),  # type: ignore[arg-type]
+        )
+
+    assert calls == [
+        ("sleep", 900),
+        ("retention", (cleanup_module.run_configured_retention, (db,))),
+        ("sleep", 900),
+    ]
+
+
+def test_retention_worker_does_not_log_provider_transcript_ids(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    transcript_id = "private-provider-transcript-id"
+    sleep_calls = 0
+
+    async def fake_sleep(_delay: float) -> None:
+        nonlocal sleep_calls
+        sleep_calls += 1
+        if sleep_calls == 2:
+            raise asyncio.CancelledError
+
+    async def fail_to_thread(
+        _function: object,
+        *_args: object,
+    ) -> None:
+        provider_error = RuntimeError(
+            "503 Server Error for url: "
+            f"https://api.elevenlabs.io/transcripts/{transcript_id}",
+        )
+        raise RuntimeError("Provider transcript deletion failed") from provider_error
+
+    monkeypatch.setattr(settings, "cleanup_interval_minutes", 15)
+    monkeypatch.setattr(asyncio, "sleep", fake_sleep)
+    monkeypatch.setattr(asyncio, "to_thread", fail_to_thread)
+    caplog.set_level(logging.ERROR, logger=cleanup_module.__name__)
+
+    # REGRESSION: logger.exception rendered the chained provider HTTP error,
+    # exposing the transcript identifier embedded in its DELETE URL.
+    with pytest.raises(asyncio.CancelledError):
+        asyncio.run(
+            cleanup_module.retention_worker(object()),  # type: ignore[arg-type]
+        )
+
+    assert "Scheduled workspace cleanup failed" in caplog.text
+    assert transcript_id not in caplog.text
+    rendered_record = JSONFormatter().format(caplog.records[-1])
+    parsed_record = json.loads(rendered_record)
+
+    assert parsed_record["data"]["error_type"] == "RuntimeError"
+    assert transcript_id not in rendered_record
+    assert "https://api.elevenlabs.io/transcripts/" not in rendered_record
