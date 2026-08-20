@@ -313,25 +313,48 @@ test('player and subtitle manipulation stay clear across browser engines', async
     const previewPanel = page.getByTestId('editor-preview-panel');
     const sidebar = page.getByTestId('editor-sidebar');
     const sidebarBody = sidebar.locator('.editor-sidebar-body');
+    const fixedHeader = page.locator('.studio-header');
+    const readyActions = page.locator('.editor-ready-actions');
 
     await expect(workspace).toHaveClass(/editor-workspace-style-mode/);
-    await expect.poll(async () => workspace.evaluate(
-      (element) => element.getBoundingClientRect().top,
-    )).toBeGreaterThanOrEqual(63);
-    await expect.poll(async () => workspace.evaluate(
-      (element) => element.getBoundingClientRect().top,
-    )).toBeLessThanOrEqual(80);
+    // REGRESSION: scrolling the style workspace directly placed the preceding
+    // New Video / Export row underneath the fixed mobile header. Partial
+    // visibility still satisfies Playwright's toBeVisible(), so compare the
+    // rendered rectangles and require the entire action row to remain usable.
+    await expect.poll(async () => {
+      const headerBox = await fixedHeader.boundingBox();
+      const actionsBox = await readyActions.boundingBox();
+      if (!headerBox || !actionsBox) return -1;
+      return actionsBox.y - (headerBox.y + headerBox.height);
+    }).toBeGreaterThanOrEqual(0);
     await expect(previewPanel).toBeVisible();
     await expect(page.getByRole('slider', { name: el.sizeLabel })).toBeVisible();
     await expect(sidebar.getByRole('status')).toHaveCount(0);
     await expect(page.getByRole('heading', { name: el.customSettings })).toHaveCount(0);
 
+    const headerBox = await fixedHeader.boundingBox();
+    const actionsBox = await readyActions.boundingBox();
+    const newVideoBox = await page.getByRole('button', { name: el.newVideoButton }).boundingBox();
+    const exportTriggerBox = await page.getByRole('button', {
+      name: el.exportMenuButton,
+      exact: true,
+    }).boundingBox();
     const previewBox = await previewPanel.boundingBox();
     const stylePhoneBox = await phone.boundingBox();
     const sidebarBox = await sidebar.boundingBox();
+    expect(headerBox).not.toBeNull();
+    expect(actionsBox).not.toBeNull();
+    expect(newVideoBox).not.toBeNull();
+    expect(exportTriggerBox).not.toBeNull();
     expect(previewBox).not.toBeNull();
     expect(stylePhoneBox).not.toBeNull();
     expect(sidebarBox).not.toBeNull();
+    expect(actionsBox!.y).toBeGreaterThanOrEqual(headerBox!.y + headerBox!.height);
+    expect(newVideoBox!.y).toBeGreaterThanOrEqual(headerBox!.y + headerBox!.height);
+    expect(exportTriggerBox!.y).toBeGreaterThanOrEqual(headerBox!.y + headerBox!.height);
+    expect(actionsBox!.y + actionsBox!.height).toBeLessThanOrEqual(
+      page.viewportSize()!.height,
+    );
     expect(stylePhoneBox!.width).toBeGreaterThanOrEqual(180);
     expect(sidebarBox!.y).toBeGreaterThanOrEqual(
       previewBox!.y + previewBox!.height,
