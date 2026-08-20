@@ -42,6 +42,94 @@ test.describe('Video Processing Flow', () => {
         })).toBeEnabled();
     });
 
+    test('authoritative 30-to-60 quote change requires a second explicit confirmation', async ({ page }) => {
+        // REGRESSION: the browser must not silently retry when server-measured
+        // duration crosses a pricing boundary after the first confirmation.
+        await mockApi(page);
+        const processMetadata: Array<Record<string, unknown>> = [];
+        let processRequests = 0;
+        await page.route('**/videos/process*', async route => {
+            processRequests += 1;
+            const encodedMetadata = route.request().headers()['x-gsubs-upload-metadata'];
+            processMetadata.push(JSON.parse(
+                Buffer.from(encodedMetadata, 'base64').toString('utf8'),
+            ) as Record<string, unknown>);
+            if (processRequests === 1) {
+                await route.fulfill({
+                    status: 409,
+                    json: {
+                        detail: 'Processing quote changed',
+                        code: 'PROCESSING_QUOTE_CHANGED',
+                        details: {
+                            duration_seconds: 180.001,
+                            required_credits: 60,
+                        },
+                    },
+                });
+                return;
+            }
+            await route.fulfill({
+                json: {
+                    id: 'job-quote-confirmed',
+                    status: 'pending',
+                    created_at: Date.now(),
+                    updated_at: Date.now(),
+                    progress: 0,
+                    message: 'Queued',
+                    result_data: {},
+                },
+            });
+        });
+
+        await page.goto('/');
+        await waitForUploadWorkspace(page);
+        await page.locator('input[type="file"]').setInputFiles(
+            resolve(process.cwd(), '../backend/tests/data/demo_output.mp4'),
+        );
+        await page.getByRole('button', {
+            name: new RegExp(el.startProcessing),
+        }).click();
+
+        const costDialog = page.getByRole('dialog', {
+            name: el.processingGateCostTitle,
+        });
+        await costDialog.getByRole('button', {
+            name: new RegExp(el.processingGateConfirm.replace('{cost}', '30')),
+        }).click();
+
+        await expect(costDialog).toBeVisible();
+        await expect(costDialog.getByText('60', { exact: true })).toBeVisible();
+        await expect(costDialog.getByRole('alert')).toContainText('180.001');
+        await expect(costDialog.getByRole('alert')).toContainText('60');
+        await expect(page.locator('[data-testid="upload-section"] h4')).toHaveText(
+            'demo_output.mp4',
+        );
+        expect(processRequests).toBe(1);
+        expect(processMetadata[0]).toEqual(expect.objectContaining({
+            authorized_credits: 30,
+            filename: 'demo_output.mp4',
+        }));
+
+        await page.waitForTimeout(250);
+        expect(processRequests).toBe(1);
+
+        await costDialog.getByRole('button', {
+            name: new RegExp(el.processingGateConfirm.replace('{cost}', '60')),
+        }).click();
+        await expect.poll(() => processRequests).toBe(2);
+        expect(processMetadata[1]).toEqual(expect.objectContaining({
+            authorized_credits: 60,
+            filename: 'demo_output.mp4',
+        }));
+        const { authorized_credits: firstCredits, ...firstSettings } = processMetadata[0];
+        const { authorized_credits: secondCredits, ...secondSettings } = processMetadata[1];
+        expect(firstCredits).toBe(30);
+        expect(secondCredits).toBe(60);
+        expect(secondSettings).toEqual(firstSettings);
+        await page.waitForTimeout(250);
+        expect(processRequests).toBe(2);
+    });
+
     test('complete flow: upload -> processing -> completed -> download', async ({ page }) => {
         // 1. Mock API with specific job sequence
         await mockApi(page);

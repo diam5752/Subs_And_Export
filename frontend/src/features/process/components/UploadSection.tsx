@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback, useEffect } from 'react';
+import React, { useMemo, useState, useCallback, useEffect, useEffectEvent } from 'react';
 import Image from 'next/image';
 import { useI18n } from '@/context/I18nContext';
 import { useProcessContext } from '../ProcessContext';
@@ -25,6 +25,12 @@ const MAX_VIDEO_DURATION_SECONDS = Number.isFinite(parsedMaxVideoDurationSeconds
 const MAX_VIDEO_DURATION_LABEL = `${Math.floor(MAX_VIDEO_DURATION_SECONDS / 60)}:${String(MAX_VIDEO_DURATION_SECONDS % 60).padStart(2, '0')}`;
 const ALLOWED_VIDEO_EXT = /\.(mp4|mov|mkv)$/i;
 
+type FileValidationErrorKind =
+    | 'unsupported-type'
+    | 'file-too-large'
+    | 'duration-unreadable'
+    | 'duration-too-long';
+
 function formatVideoDuration(durationSeconds: number): string {
     const roundedSeconds = Math.max(1, Math.ceil(durationSeconds));
     return `${Math.floor(roundedSeconds / 60)}:${String(roundedSeconds % 60).padStart(2, '0')}`;
@@ -32,10 +38,6 @@ function formatVideoDuration(durationSeconds: number): string {
 
 export function UploadSection() {
     const { t } = useI18n();
-    const unsupportedTypeError = t('uploadUnsupportedType');
-    const oversizedFileError = t('uploadFileTooLarge', { size: MAX_UPLOAD_MB });
-    const unreadableDurationError = t('uploadDurationUnreadable');
-    const excessiveDurationError = t('uploadDurationTooLong', { duration: MAX_VIDEO_DURATION_LABEL });
 
     const {
         selectedFile,
@@ -61,7 +63,8 @@ export function UploadSection() {
     } = useProcessContext();
 
     const [isDragOver, setIsDragOver] = useState(false);
-    const [fileValidationError, setFileValidationError] = useState<string | null>(null);
+    const [fileValidationErrorKind, setFileValidationErrorKind] = useState<FileValidationErrorKind | null>(null);
+    const [validatedFile, setValidatedFile] = useState<File | null>(null);
     // Step 1 starts with a compact summary for an existing file. Step 2 expands
     // the same input summary to show processing controls and progress.
     const [collapsePreference, setCollapsePreference] = useState<{
@@ -69,6 +72,21 @@ export function UploadSection() {
         collapsed: boolean;
     } | null>(null);
     const validationRequestId = React.useRef(0);
+    const isVideoValidationPending = selectedFile !== null && validatedFile !== selectedFile;
+    const fileValidationError = useMemo(() => {
+        switch (fileValidationErrorKind) {
+            case 'unsupported-type':
+                return t('uploadUnsupportedType');
+            case 'file-too-large':
+                return t('uploadFileTooLarge', { size: MAX_UPLOAD_MB });
+            case 'duration-unreadable':
+                return t('uploadDurationUnreadable');
+            case 'duration-too-long':
+                return t('uploadDurationTooLong', { duration: MAX_VIDEO_DURATION_LABEL });
+            default:
+                return null;
+        }
+    }, [fileValidationErrorKind, t]);
 
     const localCollapsed = collapsePreference?.step === currentStep
         ? collapsePreference.collapsed
@@ -77,19 +95,19 @@ export function UploadSection() {
 
     const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0] || null;
-        setFileValidationError(null);
+        setFileValidationErrorKind(null);
         if (file) {
             if (!ALLOWED_VIDEO_EXT.test(file.name)) {
-                setFileValidationError(unsupportedTypeError);
+                setFileValidationErrorKind('unsupported-type');
                 return;
             }
             if (file.size > MAX_UPLOAD_BYTES) {
-                setFileValidationError(oversizedFileError);
+                setFileValidationErrorKind('file-too-large');
                 return;
             }
             onFileSelect(file);
         }
-    }, [onFileSelect, oversizedFileError, unsupportedTypeError]);
+    }, [onFileSelect]);
 
     const handleUploadCardClick = useCallback(() => {
         if (!isProcessing) {
@@ -135,62 +153,84 @@ export function UploadSection() {
         const files = e.dataTransfer.files;
         if (files && files.length > 0) {
             const file = files[0];
-            setFileValidationError(null);
+            setFileValidationErrorKind(null);
             if (!ALLOWED_VIDEO_EXT.test(file.name)) {
-                setFileValidationError(unsupportedTypeError);
+                setFileValidationErrorKind('unsupported-type');
                 return;
             }
             if (file.size > MAX_UPLOAD_BYTES) {
-                setFileValidationError(oversizedFileError);
+                setFileValidationErrorKind('file-too-large');
                 return;
             }
             onFileSelect(file);
             setOverrideStep(null);
         }
-    }, [isProcessing, onFileSelect, oversizedFileError, setOverrideStep, unsupportedTypeError]);
+    }, [isProcessing, onFileSelect, setOverrideStep]);
+
+    const clearSelectedVideoState = useEffectEvent(() => {
+        setVideoInfo(null);
+        setPreviewVideoUrl(null);
+        setCues([]);
+        setFileValidationErrorKind(null);
+        setValidatedFile(null);
+    });
+
+    const prepareSelectedVideoState = useEffectEvent((blobUrl: string) => {
+        setVideoInfo(null);
+        setPreviewVideoUrl(blobUrl);
+        setCues([]);
+        setFileValidationErrorKind(null);
+        setValidatedFile(null);
+    });
+
+    const commitSelectedVideoValidation = useEffectEvent((
+        file: File,
+        info: Awaited<ReturnType<typeof validateVideoAspectRatio>>,
+    ) => {
+        setVideoInfo(info);
+        if (info.durationSeconds <= 0) {
+            setFileValidationErrorKind('duration-unreadable');
+        } else if (info.durationSeconds > MAX_VIDEO_DURATION_SECONDS) {
+            setFileValidationErrorKind('duration-too-long');
+        }
+        setValidatedFile(file);
+    });
 
     // Effect for validating video when selectedFile changes
     useEffect(() => {
         let isCancelled = false;
         const requestId = ++validationRequestId.current;
+        const validationController = new AbortController();
 
         if (!selectedFile) {
             queueMicrotask(() => {
                 if (isCancelled || requestId !== validationRequestId.current) return;
-                setVideoInfo(null);
-                setPreviewVideoUrl(null);
-                setCues([]);
-                setFileValidationError(null);
+                clearSelectedVideoState();
             });
             return () => {
                 isCancelled = true;
+                validationController.abort();
             };
         }
 
         const blobUrl = URL.createObjectURL(selectedFile);
         queueMicrotask(() => {
             if (isCancelled || requestId !== validationRequestId.current) return;
-            setPreviewVideoUrl(blobUrl);
-            setCues([]);
-            setFileValidationError(null);
+            prepareSelectedVideoState(blobUrl);
         });
 
-        void validateVideoAspectRatio(selectedFile).then(info => {
+        void validateVideoAspectRatio(selectedFile, validationController.signal).then(info => {
             if (!isCancelled && requestId === validationRequestId.current) {
-                setVideoInfo(info);
-                if (info.durationSeconds <= 0) {
-                    setFileValidationError(unreadableDurationError);
-                } else if (info.durationSeconds > MAX_VIDEO_DURATION_SECONDS) {
-                    setFileValidationError(excessiveDurationError);
-                }
+                commitSelectedVideoValidation(selectedFile, info);
             }
         });
 
         return () => {
             isCancelled = true;
+            validationController.abort();
             URL.revokeObjectURL(blobUrl);
         };
-    }, [excessiveDurationError, selectedFile, setCues, setPreviewVideoUrl, setVideoInfo, unreadableDurationError]);
+    }, [selectedFile]);
 
     const handleSummaryToggle = useCallback(() => {
         if (!isProcessing) {
@@ -399,13 +439,14 @@ export function UploadSection() {
                                                         // If selectedJob is present but mismatch, we allow re-processing
                                                         return (
                                                             <button
-                                                                disabled={Boolean(fileValidationError)}
+                                                                disabled={isVideoValidationPending || Boolean(fileValidationError)}
+                                                                aria-busy={isVideoValidationPending || undefined}
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
-                                                                    if (fileValidationError) return;
+                                                                    if (isVideoValidationPending || fileValidationError) return;
                                                                     handleStart();
                                                                 }}
-                                                                className={`group px-5 py-2 text-xs font-bold rounded-lg transition-all active:scale-95 flex items-center gap-2 ${fileValidationError
+                                                                className={`group px-5 py-2 text-xs font-bold rounded-lg transition-all active:scale-95 flex items-center gap-2 ${isVideoValidationPending || fileValidationError
                                                                     ? 'bg-[var(--border)] text-[var(--muted)] cursor-not-allowed'
                                                                     : 'bg-[var(--accent)] text-[var(--background)] hover:brightness-110 shadow-lg shadow-[var(--accent)]/20'
                                                                     }`}
@@ -605,6 +646,6 @@ export function UploadSection() {
         isExpanded,
         handleUploadCardClick, handleDragEnter, handleDragLeave, handleDragOver,
         handleDrop, fileInputRef, handleFileChange, fileValidationError, videoUrl, progress, statusMessage, onCancelProcessing,
-        onJobSelect, setOverrideStep, transcribeMode, transcribeProvider
+        onJobSelect, setOverrideStep, transcribeMode, transcribeProvider, isVideoValidationPending
     ]);
 }

@@ -101,11 +101,13 @@ describe('ProcessingGateModal', () => {
         document.documentElement.style.overflow = 'clip';
         document.documentElement.style.overscrollBehavior = 'contain';
         document.documentElement.style.scrollBehavior = 'smooth';
+        document.documentElement.style.height = '83%';
         document.body.style.overflow = 'auto';
         document.body.style.position = 'relative';
         document.body.style.top = '3px';
         document.body.style.left = '4px';
         document.body.style.width = '95%';
+        document.body.style.height = '87%';
         document.body.style.overscrollBehavior = 'auto';
 
         const view = render(
@@ -124,11 +126,13 @@ describe('ProcessingGateModal', () => {
 
         expect(document.documentElement.style.overflow).toBe('hidden');
         expect(document.documentElement.style.overscrollBehavior).toBe('none');
+        expect(document.documentElement.style.height).toBe('100%');
         expect(document.body.style.overflow).toBe('hidden');
         expect(document.body.style.position).toBe('fixed');
         expect(document.body.style.top).toBe('-240px');
         expect(document.body.style.left).toBe('-17px');
         expect(document.body.style.width).toBe('100%');
+        expect(document.body.style.height).toBe('100%');
         expect(document.body.style.overscrollBehavior).toBe('none');
 
         view.rerender(
@@ -148,11 +152,13 @@ describe('ProcessingGateModal', () => {
         expect(document.documentElement.style.overflow).toBe('clip');
         expect(document.documentElement.style.overscrollBehavior).toBe('contain');
         expect(document.documentElement.style.scrollBehavior).toBe('smooth');
+        expect(document.documentElement.style.height).toBe('83%');
         expect(document.body.style.overflow).toBe('auto');
         expect(document.body.style.position).toBe('relative');
         expect(document.body.style.top).toBe('3px');
         expect(document.body.style.left).toBe('4px');
         expect(document.body.style.width).toBe('95%');
+        expect(document.body.style.height).toBe('87%');
         expect(document.body.style.overscrollBehavior).toBe('auto');
         expect(scrollTo).toHaveBeenCalledTimes(1);
         expect(scrollTo).toHaveBeenCalledWith(17, 240);
@@ -193,6 +199,71 @@ describe('ProcessingGateModal', () => {
         expect(document.body.style.position).toBe('fixed');
         expect(document.body.style.top).toBe('-180px');
         expect(scrollTo).not.toHaveBeenCalled();
+    });
+
+    // REGRESSION: WebKit can move the root scrolling element while bringing a
+    // focused or clicked modal control into view, offsetting pointer hit tests.
+    it('clamps an unexpected root scroll while the fixed-body lock is active', () => {
+        let scrollX = 11;
+        let scrollY = 180;
+        Object.defineProperty(window, 'scrollX', {
+            configurable: true,
+            get: () => scrollX,
+        });
+        Object.defineProperty(window, 'scrollY', {
+            configurable: true,
+            get: () => scrollY,
+        });
+        scrollTo.mockImplementation((nextX: number, nextY: number) => {
+            scrollX = nextX;
+            scrollY = nextY;
+        });
+
+        render(
+            <ProcessingGateModal
+                isOpen
+                stage="auth"
+                cost={25}
+                balance={null}
+                isBalanceLoading={false}
+                error=""
+                onClose={onClose}
+                onAuthenticated={onAuthenticated}
+                onConfirm={onConfirm}
+            />,
+        );
+
+        scrollX = 29;
+        scrollY = 241;
+        fireEvent.scroll(window);
+
+        expect(scrollTo).toHaveBeenCalledTimes(1);
+        expect(scrollTo).toHaveBeenCalledWith(11, 180);
+        expect(window.scrollX).toBe(11);
+        expect(window.scrollY).toBe(180);
+    });
+
+    // REGRESSION: focusing the email input without preventScroll could move
+    // WebKit's root scroller after the body had already been fixed.
+    it('autofocuses the email field without scrolling the locked document', () => {
+        const focus = jest.spyOn(HTMLInputElement.prototype, 'focus');
+
+        render(
+            <ProcessingGateModal
+                isOpen
+                stage="auth"
+                cost={25}
+                balance={null}
+                isBalanceLoading={false}
+                error=""
+                onClose={onClose}
+                onAuthenticated={onAuthenticated}
+                onConfirm={onConfirm}
+            />,
+        );
+
+        expect(focus).toHaveBeenCalledWith({ preventScroll: true });
+        focus.mockRestore();
     });
 
     it('contains scrolling inside a viewport-bounded modal surface', () => {

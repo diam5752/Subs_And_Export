@@ -183,6 +183,7 @@
   "processingGateCostKicker": "BEFORE STARTING",
   "processingGateCostTitle": "Confirm cost",
   "processingGateCostDescription": "Review the cost before processing starts.",
+  "processingGateQuoteChanged": "The video measured {duration} seconds. Confirm the new cost of {cost} credits before processing starts.",
   "processingGateCostLabel": "Processing cost",
   "processingGateBalanceLabel": "Available purchased credits",
   "processingGateTotalBalanceLabel": "Available local credits",

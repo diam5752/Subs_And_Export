@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from fastapi import BackgroundTasks, HTTPException
+from pydantic import ValidationError
 
 from backend.app.api.endpoints import reprocess_routes
 from backend.app.api.endpoints.reprocess_routes import ReprocessRequest
@@ -18,6 +19,22 @@ from backend.app.services.history import HistoryStore
 from backend.app.services.jobs import Job, JobStore
 from backend.app.services.points import PointsStore
 from backend.app.services.usage_ledger import ChargePlan, UsageLedgerStore
+
+
+@pytest.mark.parametrize(
+    "payload",
+    (
+        {},
+        {"authorized_credits": True},
+        {"authorized_credits": "30"},
+        {"authorized_credits": 29},
+    ),
+)
+def test_reprocess_requires_a_strict_canonical_authorized_credit_tier(
+    payload: dict[str, object],
+) -> None:
+    with pytest.raises(ValidationError):
+        ReprocessRequest.model_validate(payload)
 
 
 @pytest.mark.parametrize(
@@ -170,7 +187,11 @@ def test_reprocess_copy_failures_are_journaled_before_exact_cleanup(
         reprocess_routes.reprocess_job(
             source_job_id,
             ReprocessRequest.model_validate(
-                {"transcribe_provider": "mock", "use_llm": False},
+                {
+                    "authorized_credits": 100,
+                    "transcribe_provider": "mock",
+                    "use_llm": False,
+                },
             ),
             background_tasks,
             current_user=current_user,
@@ -269,7 +290,11 @@ def test_repeated_zero_credit_reprocesses_leave_no_new_jobs_files_or_tombstones(
     monkeypatch.setattr(reprocess_routes, "link_or_copy_file", copy_file)
 
     request = ReprocessRequest.model_validate(
-        {"transcribe_provider": "local", "use_llm": False},
+        {
+            "authorized_credits": 100,
+            "transcribe_provider": "local",
+            "use_llm": False,
+        },
     )
     for _ in range(25):
         with pytest.raises(HTTPException) as exc_info:
@@ -297,6 +322,106 @@ def test_repeated_zero_credit_reprocesses_leave_no_new_jobs_files_or_tombstones(
     copy_file.assert_not_called()
     reserve.assert_not_called()
     budget_reserve.assert_not_called()
+
+
+def test_reprocess_rejects_nan_probe_before_copy_or_financial_side_effects(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    user = User(
+        id="nan-reprocess-user",
+        email="nan-reprocess@example.com",
+        name="NaN Reprocess",
+        provider="local",
+    )
+    source_job_id = "nan-source-job"
+    source_job = Job(
+        id=source_job_id,
+        user_id=user.id,
+        status="completed",
+        progress=100,
+        message="done",
+        created_at=1,
+        updated_at=1,
+        result_data={"original_filename": "source.mp4"},
+    )
+    data_dir = tmp_path / "data"
+    uploads_dir = data_dir / "uploads"
+    artifacts_root = data_dir / "artifacts"
+    uploads_dir.mkdir(parents=True)
+    artifacts_root.mkdir(parents=True)
+    source_input = uploads_dir / f"{source_job_id}_input.mp4"
+    source_input.write_bytes(b"private source")
+
+    job_store = MagicMock()
+    job_store.get_job.return_value = source_job
+    job_store.count_active_jobs_for_user.return_value = 0
+    ledger_store = MagicMock()
+    charge_preflight = MagicMock(
+        side_effect=AssertionError("invalid duration must precede wallet preflight"),
+    )
+    uuid_namespace = MagicMock()
+    uuid_namespace.uuid4.side_effect = AssertionError(
+        "invalid duration must precede job id allocation",
+    )
+    copy_file = MagicMock(
+        side_effect=AssertionError("invalid duration must precede source copying"),
+    )
+    reserve_plan = MagicMock(
+        side_effect=AssertionError("invalid duration must precede reservation"),
+    )
+    provider_dispatch = MagicMock(
+        side_effect=AssertionError("invalid duration must precede provider dispatch"),
+    )
+    background_tasks = MagicMock(spec=BackgroundTasks)
+    monkeypatch.setattr(
+        reprocess_routes,
+        "data_roots",
+        lambda: (data_dir, uploads_dir, artifacts_root),
+    )
+    monkeypatch.setattr(reprocess_routes, "require_storage_capacity", MagicMock())
+    monkeypatch.setattr(
+        reprocess_routes,
+        "probe_media",
+        lambda _path: MagicMock(duration_s=float("nan")),
+    )
+    monkeypatch.setattr(reprocess_routes, "preflight_processing_charges", charge_preflight)
+    monkeypatch.setattr(reprocess_routes, "uuid", uuid_namespace)
+    monkeypatch.setattr(reprocess_routes, "link_or_copy_file", copy_file)
+    monkeypatch.setattr(reprocess_routes, "reserve_processing_charges", reserve_plan)
+    monkeypatch.setattr(reprocess_routes, "run_video_processing", provider_dispatch)
+
+    with pytest.raises(HTTPException) as exc_info:
+        reprocess_routes.reprocess_job(
+            source_job_id,
+            ReprocessRequest.model_validate(
+                {
+                    "authorized_credits": 30,
+                    "transcribe_provider": "local",
+                    "use_llm": False,
+                },
+            ),
+            background_tasks,
+            current_user=user,
+            job_store=job_store,
+            history_store=MagicMock(),
+            ledger_store=ledger_store,
+            db=MagicMock(),
+        )
+
+    assert exc_info.value.status_code == 400
+    assert exc_info.value.detail == "Could not determine video duration"
+    charge_preflight.assert_not_called()
+    uuid_namespace.uuid4.assert_not_called()
+    copy_file.assert_not_called()
+    job_store.create_job.assert_not_called()
+    reserve_plan.assert_not_called()
+    ledger_store.reserve.assert_not_called()
+    provider_dispatch.assert_not_called()
+    background_tasks.add_task.assert_not_called()
+    assert source_input.read_bytes() == b"private source"
+    assert list(uploads_dir.iterdir()) == [source_input]
+    assert list(artifacts_root.iterdir()) == []
 
 
 def test_reprocess_budget_preflight_rejects_before_uuid_or_copy(
@@ -355,6 +480,7 @@ def test_reprocess_budget_preflight_rejects_before_uuid_or_copy(
             source_job_id,
             ReprocessRequest.model_validate(
                 {
+                    "authorized_credits": 100,
                     "transcribe_tier": "pro",
                     "transcribe_provider": "elevenlabs",
                     "use_llm": False,

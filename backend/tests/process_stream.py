@@ -22,7 +22,10 @@ def post_process_stream(
     extra_headers: Mapping[str, str] | None = None,
 ) -> Response:
     """Post one raw upload using the browser-facing streaming metadata contract."""
-    payload: dict[str, Any] = {"filename": filename}
+    payload: dict[str, Any] = {
+        "filename": filename,
+        "authorized_credits": 100,
+    }
     if metadata is not None:
         payload.update(metadata)
     encoded_metadata = base64.b64encode(

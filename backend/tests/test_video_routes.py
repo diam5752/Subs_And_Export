@@ -1,10 +1,196 @@
+import base64
+import json
 import uuid
+from unittest.mock import MagicMock
 
+import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from backend.main import app
 from backend.tests.process_stream import post_process_stream
+
+
+@pytest.mark.parametrize(
+    "authorized_credits",
+    (None, True, "30", 29),
+)
+def test_stream_requires_a_strict_canonical_authorized_credit_tier_before_writing(
+    client: TestClient,
+    user_auth_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+    authorized_credits: object,
+) -> None:
+    from backend.app.api.endpoints import videos as videos_module
+
+    payload: dict[str, object] = {"filename": "clip.mp4"}
+    if authorized_credits is not None:
+        payload["authorized_credits"] = authorized_credits
+    encoded = base64.b64encode(json.dumps(payload).encode("utf-8")).decode("ascii")
+    save = MagicMock(side_effect=AssertionError("invalid authorization must precede upload writes"))
+    monkeypatch.setattr(videos_module, "save_request_stream_with_limit", save)
+
+    response = client.post(
+        "/videos/process-stream",
+        headers={
+            **user_auth_headers,
+            "Content-Type": "video/mp4",
+            "X-Gsubs-Upload-Metadata": encoded,
+        },
+        content=b"private-video",
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "Invalid upload metadata"}
+    save.assert_not_called()
+
+
+def test_stream_rejects_authoritative_quote_increase_before_financial_or_provider_work(
+    client: TestClient,
+    funded_user_auth_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from backend.app.api.endpoints import videos as videos_module
+    from backend.app.services.ffmpeg_utils import MediaProbe
+    from backend.app.services.jobs import JobStore
+    from backend.app.services.usage_ledger import UsageLedgerStore
+
+    # REGRESSION: the browser/container quote can be exactly 180.000 seconds
+    # while authoritative ffprobe resolves 180.001 seconds. The backend must
+    # never turn the already-confirmed 30-credit quote into a 60-credit charge.
+    budget_preflight = MagicMock()
+    charge_preflight = MagicMock(
+        side_effect=AssertionError("quote check must precede wallet preflight"),
+    )
+    create_job = MagicMock(
+        side_effect=AssertionError("quote check must precede job creation"),
+    )
+    reserve_plan = MagicMock(
+        side_effect=AssertionError("quote check must precede charge reservation"),
+    )
+    ledger_reserve = MagicMock(
+        side_effect=AssertionError("quote check must precede ledger reservation"),
+    )
+    provider_dispatch = MagicMock(
+        side_effect=AssertionError("quote check must precede provider dispatch"),
+    )
+    monkeypatch.setattr(
+        videos_module,
+        "probe_media",
+        lambda _path: MediaProbe(duration_s=180.001, audio_codec="aac"),
+    )
+    monkeypatch.setattr(
+        videos_module,
+        "preflight_processing_provider_budget",
+        budget_preflight,
+    )
+    monkeypatch.setattr(videos_module, "preflight_processing_charges", charge_preflight)
+    monkeypatch.setattr(videos_module, "reserve_processing_charges", reserve_plan)
+    monkeypatch.setattr(videos_module, "run_video_processing", provider_dispatch)
+    monkeypatch.setattr(JobStore, "create_job", create_job)
+    monkeypatch.setattr(UsageLedgerStore, "reserve", ledger_reserve)
+
+    response = post_process_stream(
+        client,
+        funded_user_auth_headers,
+        content=b"private-video",
+        metadata={"authorized_credits": 30},
+    )
+
+    assert response.status_code == 409
+    assert response.json() == {
+        "detail": "Processing quote changed",
+        "code": "PROCESSING_QUOTE_CHANGED",
+        "details": {
+            "duration_seconds": 180.001,
+            "required_credits": 60,
+        },
+    }
+    budget_preflight.assert_called_once()
+    charge_preflight.assert_not_called()
+    create_job.assert_not_called()
+    reserve_plan.assert_not_called()
+    ledger_reserve.assert_not_called()
+    provider_dispatch.assert_not_called()
+    _data_dir, uploads_dir, artifacts_root = videos_module.data_roots()
+    assert list(uploads_dir.iterdir()) == []
+    assert list(artifacts_root.iterdir()) == []
+
+
+def test_stream_rejects_nan_probe_with_full_cleanup_and_no_side_effects(
+    client: TestClient,
+    funded_user_auth_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from backend.app.api.endpoints import videos as videos_module
+    from backend.app.core.workspace_ownership import get_workspace_owner
+    from backend.app.services.ffmpeg_utils import MediaProbe
+    from backend.app.services.jobs import JobStore
+    from backend.app.services.usage_ledger import UsageLedgerStore
+
+    # REGRESSION: NaN compares false to both <= 0 and > max. It previously
+    # escaped duration validation, then raised during pricing without removing
+    # the private upload or its ownership marker.
+    fixed_uuid = uuid.UUID("22222222-2222-4222-8222-222222222222")
+    uuid_namespace = MagicMock()
+    uuid_namespace.uuid4.return_value = fixed_uuid
+    budget_preflight = MagicMock()
+    charge_preflight = MagicMock(
+        side_effect=AssertionError("invalid duration must precede wallet preflight"),
+    )
+    create_job = MagicMock(
+        side_effect=AssertionError("invalid duration must precede job creation"),
+    )
+    reserve_plan = MagicMock(
+        side_effect=AssertionError("invalid duration must precede charge reservation"),
+    )
+    ledger_reserve = MagicMock(
+        side_effect=AssertionError("invalid duration must precede ledger reservation"),
+    )
+    provider_dispatch = MagicMock(
+        side_effect=AssertionError("invalid duration must precede provider dispatch"),
+    )
+    journal = MagicMock()
+    monkeypatch.setattr(
+        videos_module,
+        "probe_media",
+        lambda _path: MediaProbe(duration_s=float("nan"), audio_codec="aac"),
+    )
+    monkeypatch.setattr(videos_module, "uuid", uuid_namespace)
+    monkeypatch.setattr(
+        videos_module,
+        "preflight_processing_provider_budget",
+        budget_preflight,
+    )
+    monkeypatch.setattr(videos_module, "preflight_processing_charges", charge_preflight)
+    monkeypatch.setattr(videos_module, "reserve_processing_charges", reserve_plan)
+    monkeypatch.setattr(videos_module, "run_video_processing", provider_dispatch)
+    monkeypatch.setattr(videos_module, "configured_erasure_journal", lambda: journal)
+    monkeypatch.setattr(JobStore, "create_job", create_job)
+    monkeypatch.setattr(UsageLedgerStore, "reserve", ledger_reserve)
+
+    response = post_process_stream(
+        client,
+        funded_user_auth_headers,
+        content=b"private-video",
+        metadata={"authorized_credits": 30},
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {"detail": "Could not determine video duration"}
+    budget_preflight.assert_called_once()
+    charge_preflight.assert_not_called()
+    create_job.assert_not_called()
+    reserve_plan.assert_not_called()
+    ledger_reserve.assert_not_called()
+    provider_dispatch.assert_not_called()
+    journal.append.assert_not_called()
+    uuid_namespace.uuid4.assert_called_once_with()
+    data_dir, uploads_dir, artifacts_root = videos_module.data_roots()
+    job_id = str(fixed_uuid)
+    assert list(uploads_dir.iterdir()) == []
+    assert list(artifacts_root.iterdir()) == []
+    assert get_workspace_owner(data_dir=data_dir, job_id=job_id) is None
 
 
 def test_stream_upload_writes_the_browser_body_directly_once(

@@ -39,6 +39,10 @@ export default defineConfig({
   },
   use: {
     baseURL: playwrightBaseUrl,
+    // The production bundle registers the PWA worker. A claimed worker can
+    // bypass page.route(), so mocked API requests may reach the Next server
+    // instead of the deterministic E2E handlers.
+    serviceWorkers: 'block',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'off',

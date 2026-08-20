@@ -19,17 +19,18 @@ import binascii
 import errno
 import json
 import logging
+import math
 import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from ...core.auth import User
 from ...core.config import settings
 from ...core.database import Database
 from ...core.erasure_journal import TombstoneKind, configured_erasure_journal
-from ...core.errors import sanitize_message
+from ...core.errors import ProcessingQuoteChangedError, sanitize_message
 from ...core.ratelimit import limiter_processing
 from ...core.workspace_deletion import (
     UPLOAD_SUFFIXES,
@@ -70,7 +71,12 @@ from .processing_tasks import (
     run_video_processing,
 )
 from .settings import ProcessingSettings, build_processing_settings
-from .validation import ALLOWED_VIDEO_EXTENSIONS, validate_upload_content_type
+from .validation import (
+    ALLOWED_VIDEO_EXTENSIONS,
+    assert_processing_quote_authorized,
+    validate_authorized_credits,
+    validate_upload_content_type,
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -102,6 +108,7 @@ class StreamProcessMetadata(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     filename: str = Field(..., min_length=1, max_length=255)
+    authorized_credits: int = Field(..., strict=True)
     transcribe_tier: str = Field(settings.default_transcribe_tier, max_length=50)
     transcribe_provider: str = Field(
         settings.transcribe_tier_provider[settings.default_transcribe_tier],
@@ -120,6 +127,11 @@ class StreamProcessMetadata(BaseModel):
     subtitle_size: int = 100
     karaoke_enabled: bool = True
     watermark_enabled: bool = False
+
+    @field_validator("authorized_credits")
+    @classmethod
+    def authorized_credits_must_be_canonical(cls, value: int) -> int:
+        return validate_authorized_credits(value)
 
 
 def _decode_stream_process_metadata(encoded: str | None) -> StreamProcessMetadata:
@@ -260,6 +272,7 @@ def _queue_saved_upload(
     artifacts_root: Path,
     filename: str,
     video_resolution: str,
+    authorized_credits: int,
     proc_settings: ProcessingSettings,
     current_user: User,
     job_store: JobStore,
@@ -281,7 +294,11 @@ def _queue_saved_upload(
         logger.warning("Failed to probe uploaded media; rejecting upload: %s", exc)
         raise HTTPException(status_code=400, detail="Could not validate uploaded media file")
 
-    if probe.duration_s is None or probe.duration_s <= 0:
+    if (
+        probe.duration_s is None
+        or not math.isfinite(probe.duration_s)
+        or probe.duration_s <= 0
+    ):
         _record_and_delete_rejected_upload(
             job_id=job_id,
             user_id=current_user.id,
@@ -303,6 +320,21 @@ def _queue_saved_upload(
             status_code=400,
             detail=f"Video too long (max {settings.max_video_duration_seconds / 60:.1f} minutes)",
         )
+
+    try:
+        assert_processing_quote_authorized(
+            duration_seconds=float(probe.duration_s),
+            authorized_credits=authorized_credits,
+        )
+    except ProcessingQuoteChangedError:
+        _record_and_delete_rejected_upload(
+            job_id=job_id,
+            user_id=current_user.id,
+            input_path=input_path,
+            artifacts_root=artifacts_root,
+            kind="workspace",
+        )
+        raise
 
     try:
         llm_models = pricing.resolve_llm_models(proc_settings.transcribe_tier)
@@ -529,6 +561,7 @@ async def process_video_stream(
         artifacts_root=artifacts_root,
         filename=filename,
         video_resolution=metadata.video_resolution,
+        authorized_credits=metadata.authorized_credits,
         proc_settings=proc_settings,
         current_user=current_user,
         job_store=job_store,

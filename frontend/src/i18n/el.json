@@ -89,6 +89,7 @@
   "processingGateCostKicker": "ΠΡΙΝ ΤΗΝ ΕΝΑΡΞΗ",
   "processingGateCostTitle": "Επιβεβαίωση κόστους",
   "processingGateCostDescription": "Έλεγξε το κόστος πριν ξεκινήσει η επεξεργασία.",
+  "processingGateQuoteChanged": "Το βίντεο μετρήθηκε στα {duration} δευτερόλεπτα. Επιβεβαίωσε ξανά το νέο κόστος των {cost} credits.",
   "processingGateCostLabel": "Κόστος επεξεργασίας",
   "processingGateBalanceLabel": "Διαθέσιμα αγορασμένα credits",
   "processingGateTotalBalanceLabel": "Διαθέσιμα local credits",

@@ -1,6 +1,6 @@
 /* eslint-disable @next/next/no-img-element */
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { UploadSection } from '../UploadSection';
 import { useProcessContext } from '../../ProcessContext';
@@ -200,6 +200,88 @@ describe('UploadSection', () => {
         expect(contextValue.handleStart).not.toHaveBeenCalled();
     });
 
+    it('keeps processing disabled until the selected file validation settles', async () => {
+        contextValue.selectedFile = new File(['video'], 'delayed.mp4', { type: 'video/mp4' });
+        let resolveValidation!: (info: {
+            width: number;
+            height: number;
+            aspectWarning: boolean;
+            thumbnailUrl: string | null;
+            durationSeconds: number;
+        }) => void;
+        (validateVideoAspectRatio as jest.Mock).mockReturnValueOnce(new Promise((resolve) => {
+            resolveValidation = resolve;
+        }));
+
+        renderUpload();
+
+        const startButton = screen.getByRole('button', { name: /startProcessing/i });
+        expect(startButton).toBeDisabled();
+        expect(startButton).toHaveAttribute('aria-busy', 'true');
+        fireEvent.click(startButton);
+        expect(contextValue.handleStart).not.toHaveBeenCalled();
+
+        await act(async () => {
+            resolveValidation({
+                width: 1080,
+                height: 1920,
+                aspectWarning: false,
+                thumbnailUrl: 'blob:thumb',
+                durationSeconds: 8.633333,
+            });
+            await Promise.resolve();
+        });
+
+        expect(startButton).toBeEnabled();
+        expect(startButton).not.toHaveAttribute('aria-busy');
+        fireEvent.click(startButton);
+        expect(contextValue.handleStart).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not reopen a settled same-file validation when context callbacks change', async () => {
+        // REGRESSION: effect dependencies unrelated to the File identity could
+        // restart validation, clear a hard error, and briefly re-enable Start
+        // with no authoritative duration or quote.
+        contextValue.selectedFile = new File(['video'], 'too-long.mp4', { type: 'video/mp4' });
+        (validateVideoAspectRatio as jest.Mock).mockResolvedValueOnce({
+            width: 1080,
+            height: 1920,
+            aspectWarning: false,
+            thumbnailUrl: 'blob:thumb',
+            durationSeconds: 601,
+        });
+        const view = renderUpload();
+
+        const startButton = screen.getByRole('button', { name: /startProcessing/i });
+        await waitFor(() => {
+            expect(screen.getAllByText('uploadDurationTooLong').length).toBeGreaterThan(0);
+            expect(startButton).toBeDisabled();
+        });
+        expect(validateVideoAspectRatio).toHaveBeenCalledTimes(1);
+
+        contextValue.setCues = jest.fn();
+        view.rerender(<UploadSection />);
+
+        expect(validateVideoAspectRatio).toHaveBeenCalledTimes(1);
+        expect(startButton).toBeDisabled();
+        expect(screen.getAllByText('uploadDurationTooLong').length).toBeGreaterThan(0);
+    });
+
+    it('aborts stale metadata validation when the selected file changes', () => {
+        contextValue.selectedFile = new File(['first'], 'first.mp4', { type: 'video/mp4' });
+        (validateVideoAspectRatio as jest.Mock).mockReturnValue(new Promise(() => undefined));
+        const view = renderUpload();
+        const firstSignal = (validateVideoAspectRatio as jest.Mock).mock.calls[0][1] as AbortSignal;
+        expect(firstSignal.aborted).toBe(false);
+
+        contextValue.selectedFile = new File(['second'], 'second.mp4', { type: 'video/mp4' });
+        view.rerender(<UploadSection />);
+
+        expect(firstSignal.aborted).toBe(true);
+        expect(validateVideoAspectRatio).toHaveBeenCalledTimes(2);
+        expect((validateVideoAspectRatio as jest.Mock).mock.calls[1][1]).toBeInstanceOf(AbortSignal);
+    });
+
     it('handles drag-and-drop uploads and unlock-step reset', () => {
         const { getByRole } = renderUpload();
 
@@ -351,7 +433,7 @@ describe('UploadSection', () => {
         expect(screen.queryByRole('button', { name: /startProcessing/i })).not.toBeInTheDocument();
     });
 
-    it('shows the exact 3, 6 and 10 minute pricing tier for the selected video', () => {
+    it('shows the exact 3, 6 and 10 minute pricing tier for the selected video', async () => {
         contextValue.selectedFile = new File(['video'], 'priced.mp4', { type: 'video/mp4' });
         contextValue.videoInfo = {
             width: 1080,
@@ -368,6 +450,9 @@ describe('UploadSection', () => {
         expect(pricing).toHaveTextContent('60 creditsLabel');
         expect(pricing).toHaveTextContent('100 creditsLabel');
         expect(pricing.querySelector('[data-active="true"]')).toHaveTextContent('100 creditsLabel');
-        expect(screen.getByRole('button', { name: /startProcessing 100/i })).toBeInTheDocument();
+        const startButton = screen.getByRole('button', { name: /startProcessing 100/i });
+        await waitFor(() => {
+            expect(startButton).toBeEnabled();
+        });
     });
 });

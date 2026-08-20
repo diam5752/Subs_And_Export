@@ -85,6 +85,7 @@ def test_rejected_media_with_verified_cleanup_does_not_retain_tombstone(
             artifacts_root=artifacts_root,
             filename="video.mp4",
             video_resolution="",
+            authorized_credits=100,
             proc_settings=ProcessingSettings(),
             current_user=types.SimpleNamespace(id=user_id),
             job_store=job_store,
@@ -149,6 +150,7 @@ def test_post_save_failures_use_the_correct_durable_erasure_scope(
             artifacts_root=artifacts_root,
             filename="video.mp4",
             video_resolution="",
+            authorized_credits=100,
             proc_settings=ProcessingSettings(),
             current_user=types.SimpleNamespace(id=user_id),
             job_store=job_store,
@@ -219,6 +221,7 @@ def test_repeated_zero_credit_uploads_leave_no_jobs_files_or_tombstones(
                 artifacts_root=artifacts_root,
                 filename="video.mp4",
                 video_resolution="",
+                authorized_credits=100,
                 proc_settings=ProcessingSettings(
                     transcribe_provider="local",
                     use_llm=False,
@@ -376,7 +379,11 @@ def test_stream_save_error_with_verified_cleanup_does_not_retain_tombstone(
         captured["path"] = destination
         raise OSError(errno.ENOSPC, "disk full")
 
-    metadata = base64.b64encode(json.dumps({"filename": "video.mp4"}).encode("utf-8")).decode("ascii")
+    metadata = base64.b64encode(
+        json.dumps(
+            {"filename": "video.mp4", "authorized_credits": 100},
+        ).encode("utf-8"),
+    ).decode("ascii")
     monkeypatch.setattr(videos, "save_request_stream_with_limit", fail_save)
     monkeypatch.setattr(videos, "configured_erasure_journal", lambda: journal)
 
@@ -416,6 +423,7 @@ def test_stream_budget_preflight_rejects_before_uuid_or_workspace_write(
         json.dumps(
             {
                 "filename": "video.mp4",
+                "authorized_credits": 100,
                 "transcribe_provider": "elevenlabs",
                 "transcribe_tier": "pro",
             },
