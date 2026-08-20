@@ -87,3 +87,9 @@ export function loadGoogleIdentityScript(): Promise<void> {
 
     return googleIdentityScriptPromise;
 }
+
+export function reloadGoogleIdentityPage(
+    reload: () => void = () => window.location.reload(),
+): void {
+    reload();
+}

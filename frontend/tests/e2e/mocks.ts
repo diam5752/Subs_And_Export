@@ -36,6 +36,7 @@ type MockHistoryEvent = {
 
 type MockApiOptions = {
   authenticated?: boolean;
+  googleNonceExpiresIn?: number;
 };
 
 const corsHeaders = {
@@ -232,7 +233,7 @@ function withCors(body: unknown, status = 200) {
 }
 
 export async function mockApi(page: Page, options: MockApiOptions = {}): Promise<void> {
-  const { authenticated = true } = options;
+  const { authenticated = true, googleNonceExpiresIn = 600 } = options;
   let signedIn = authenticated;
   let currentTranscription = mockTranscription.map((cue) => ({
     ...cue,
@@ -381,7 +382,7 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
     await route.fulfill({
       ...withCors({
         nonce: 'e2e-google-nonce',
-        expires_in: 600,
+        expires_in: googleNonceExpiresIn,
         client_id: 'e2e-google-client',
       }),
       headers: {

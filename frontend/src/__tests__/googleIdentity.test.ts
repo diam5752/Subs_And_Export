@@ -1,4 +1,7 @@
-import { loadGoogleIdentityScript } from '@/lib/googleIdentity';
+import {
+    loadGoogleIdentityScript,
+    reloadGoogleIdentityPage,
+} from '@/lib/googleIdentity';
 
 describe('Google Identity Services loader', () => {
     beforeEach(() => {
@@ -25,5 +28,13 @@ describe('Google Identity Services loader', () => {
         expect(document.querySelectorAll(
             'script[src="https://accounts.google.com/gsi/client"]',
         )).toHaveLength(1);
+    });
+
+    it('uses a full-page reload to reset the nonce and GIS state', () => {
+        const reload = jest.fn();
+
+        reloadGoogleIdentityPage(reload);
+
+        expect(reload).toHaveBeenCalledTimes(1);
     });
 });

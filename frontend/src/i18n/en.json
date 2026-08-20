@@ -113,6 +113,8 @@
   "loginErrorGoogle": "Google login failed",
   "loginErrorGeneral": "Login failed",
   "loginGoogleUnavailable": "Google login not available",
+  "loginGoogleExpired": "Google sign-in expired for your security.",
+  "loginGoogleReload": "Reload Google sign-in",
   "registerTitle": "Create account",
   "registerSubtitle": "Create your account and start in seconds.",
   "registerNameLabel": "Full Name",
