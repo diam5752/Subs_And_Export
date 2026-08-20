@@ -1,14 +1,17 @@
 import React from 'react';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import LoginPage from '@/app/login/page';
 import { api } from '@/lib/api';
 import {
     loadGoogleIdentityScript,
+    reloadGoogleIdentityPage,
     type GoogleCredentialResponse,
 } from '@/lib/googleIdentity';
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
+
+let mockGoogleUnavailableMessage = 'loginGoogleUnavailable';
 
 jest.mock('@/lib/api', () => ({
     api: {
@@ -25,11 +28,16 @@ jest.mock('@/context/AuthContext', () => ({
 }));
 
 jest.mock('@/context/I18nContext', () => ({
-    useI18n: () => ({ t: (key: string) => key }),
+    useI18n: () => ({
+        t: (key: string) => (
+            key === 'loginGoogleUnavailable' ? mockGoogleUnavailableMessage : key
+        ),
+    }),
 }));
 
 jest.mock('@/lib/googleIdentity', () => ({
     loadGoogleIdentityScript: jest.fn(),
+    reloadGoogleIdentityPage: jest.fn(),
 }));
 
 jest.mock('next/navigation', () => ({
@@ -43,6 +51,7 @@ describe('LoginPage', () => {
     let googleCallback: ((response: GoogleCredentialResponse) => void) | undefined;
     beforeEach(() => {
         jest.clearAllMocks();
+        mockGoogleUnavailableMessage = 'loginGoogleUnavailable';
         localStorage.clear();
         (useAuth as jest.Mock).mockReturnValue({
             login: mockLogin,
@@ -73,6 +82,10 @@ describe('LoginPage', () => {
                 },
             },
         };
+    });
+
+    afterEach(() => {
+        jest.useRealTimers();
     });
 
     it('renders login form by default', () => {
@@ -151,6 +164,160 @@ describe('LoginPage', () => {
             );
             expect(screen.getByText('official-google-button')).toBeInTheDocument();
         });
+    });
+
+    it('does not rotate the nonce when the stored locale hydrates', async () => {
+        // REGRESSION: translating the availability fallback used to restart the
+        // initialization effect and issue an overlapping nonce-cookie rotation.
+        const view = render(<LoginPage />);
+
+        await waitFor(() => expect(googleCallback).toBeDefined());
+        mockGoogleUnavailableMessage = 'Google login not available';
+        view.rerender(<LoginPage />);
+
+        await act(async () => {
+            await Promise.resolve();
+        });
+        expect(api.getGoogleAuthNonce).toHaveBeenCalledTimes(1);
+        expect(window.google?.accounts?.id?.initialize).toHaveBeenCalledTimes(1);
+    });
+
+    it('aborts a pending nonce request when the login page unmounts', async () => {
+        let requestedSignal: AbortSignal | undefined;
+        (api.getGoogleAuthNonce as jest.Mock).mockImplementation((signal?: AbortSignal) => {
+            requestedSignal = signal;
+            return new Promise(() => undefined);
+        });
+
+        const view = render(<LoginPage />);
+        await waitFor(() => expect(requestedSignal).toBeDefined());
+
+        view.unmount();
+
+        expect(requestedSignal?.aborted).toBe(true);
+        expect(loadGoogleIdentityScript).not.toHaveBeenCalled();
+    });
+
+    it('expires the Google button from expires_in and never posts its stale credential', async () => {
+        // REGRESSION: a login page left open past the nonce-cookie TTL used to
+        // submit the old Google credential and surface a raw nonce error.
+        jest.useFakeTimers();
+        jest.setSystemTime(new Date('2026-08-20T12:00:00Z'));
+        (api.getGoogleAuthNonce as jest.Mock).mockResolvedValue({
+            nonce: 'short-lived-nonce',
+            expires_in: 10,
+            client_id: 'google-client-id',
+        });
+
+        render(<LoginPage />);
+
+        await waitFor(() => expect(googleCallback).toBeDefined());
+        const staleCallback = googleCallback;
+
+        act(() => {
+            jest.advanceTimersByTime(10_000);
+        });
+
+        expect(screen.getByRole('status')).toHaveTextContent('loginGoogleExpired');
+        expect(screen.getByRole('button', { name: 'loginGoogleReload' })).toBeVisible();
+
+        act(() => {
+            staleCallback?.({ credential: 'expired-google-id-token' });
+        });
+
+        expect(mockGoogleLogin).not.toHaveBeenCalled();
+        fireEvent.click(screen.getByRole('button', { name: 'loginGoogleReload' }));
+        expect(reloadGoogleIdentityPage).toHaveBeenCalledTimes(1);
+    });
+
+    it('checks nonce expiry again when a throttled timer has not fired', async () => {
+        jest.useFakeTimers();
+        jest.setSystemTime(new Date('2026-08-20T12:00:00Z'));
+        (api.getGoogleAuthNonce as jest.Mock).mockResolvedValue({
+            nonce: 'short-lived-nonce',
+            expires_in: 10,
+            client_id: 'google-client-id',
+        });
+
+        render(<LoginPage />);
+
+        await waitFor(() => expect(googleCallback).toBeDefined());
+        jest.setSystemTime(new Date('2026-08-20T12:00:10Z'));
+
+        act(() => {
+            googleCallback?.({ credential: 'expired-google-id-token' });
+        });
+
+        expect(mockGoogleLogin).not.toHaveBeenCalled();
+        expect(screen.getByRole('status')).toHaveTextContent('loginGoogleExpired');
+    });
+
+    it('does not initialize GIS when the nonce expires while its script is loading', async () => {
+        jest.useFakeTimers();
+        jest.setSystemTime(new Date('2026-08-20T12:00:00Z'));
+        let finishScriptLoad: (() => void) | undefined;
+        (loadGoogleIdentityScript as jest.Mock).mockReturnValue(new Promise<void>((resolve) => {
+            finishScriptLoad = resolve;
+        }));
+        (api.getGoogleAuthNonce as jest.Mock).mockResolvedValue({
+            nonce: 'short-lived-nonce',
+            expires_in: 10,
+            client_id: 'google-client-id',
+        });
+
+        render(<LoginPage />);
+
+        await waitFor(() => expect(finishScriptLoad).toBeDefined());
+        jest.setSystemTime(new Date('2026-08-20T12:00:10Z'));
+        await act(async () => {
+            finishScriptLoad?.();
+            await Promise.resolve();
+        });
+
+        expect(window.google?.accounts?.id?.initialize).not.toHaveBeenCalled();
+        expect(screen.getByRole('status')).toHaveTextContent('loginGoogleExpired');
+    });
+
+    it('fails closed when expires_in is not a positive lifetime', async () => {
+        (api.getGoogleAuthNonce as jest.Mock).mockResolvedValue({
+            nonce: 'invalid-lifetime-nonce',
+            expires_in: 0,
+            client_id: 'google-client-id',
+        });
+
+        render(<LoginPage />);
+
+        await waitFor(() => {
+            expect(screen.getByRole('status')).toHaveTextContent('loginGoogleUnavailable');
+        });
+        expect(loadGoogleIdentityScript).not.toHaveBeenCalled();
+        expect(mockGoogleLogin).not.toHaveBeenCalled();
+    });
+
+    it('localizes a server nonce rejection and never retries the submitted credential', async () => {
+        // REGRESSION: when the HttpOnly nonce cookie expired just before POST,
+        // the backend detail was shown in English and the stale attempt could
+        // remain attached to an apparently active Google button.
+        mockGoogleLogin.mockRejectedValue(new Error('Google login nonce is required.'));
+        render(<LoginPage />);
+
+        await waitFor(() => expect(googleCallback).toBeDefined());
+        const staleCallback = googleCallback;
+        await act(async () => {
+            staleCallback?.({ credential: 'stale-google-id-token' });
+            await Promise.resolve();
+        });
+
+        await waitFor(() => {
+            expect(screen.getByRole('status')).toHaveTextContent('loginGoogleExpired');
+        });
+        expect(screen.queryByText('Google login nonce is required.')).not.toBeInTheDocument();
+        expect(mockGoogleLogin).toHaveBeenCalledTimes(1);
+
+        act(() => {
+            staleCallback?.({ credential: 'stale-google-id-token' });
+        });
+        expect(mockGoogleLogin).toHaveBeenCalledTimes(1);
     });
 
     it('exchanges the Google credential and opens the app', async () => {

@@ -990,13 +990,14 @@ class ApiClient {
         });
     }
 
-    async getGoogleAuthNonce(): Promise<{
+    async getGoogleAuthNonce(signal?: AbortSignal): Promise<{
         nonce: string;
         expires_in: number;
         client_id: string;
     }> {
         return this.request('/auth/google/nonce', {
             credentials: 'include',
+            signal,
         });
     }
 

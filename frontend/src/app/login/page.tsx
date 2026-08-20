@@ -7,11 +7,36 @@ import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 import {
     loadGoogleIdentityScript,
+    reloadGoogleIdentityPage,
     type GoogleCredentialResponse,
 } from '@/lib/googleIdentity';
 import { useI18n } from '@/context/I18nContext';
 import { Spinner } from '@/components/Spinner';
 import { BrandLogo } from '@/components/BrandLogo';
+
+type GoogleRecoveryReason = 'expired' | 'failed';
+
+const GOOGLE_NONCE_REQUEST_SAFETY_MS = 1_000;
+const GOOGLE_NONCE_REJECTION_MESSAGES = new Set([
+    'Google login nonce is required.',
+    'Google login nonce could not be verified.',
+]);
+
+function googleNonceUsableDurationMs(expiresInSeconds: number): number {
+    const ttlMilliseconds = Math.floor(expiresInSeconds * 1_000);
+    if (!Number.isFinite(ttlMilliseconds) || ttlMilliseconds <= 0) {
+        return 0;
+    }
+    const safetyWindow = Math.min(
+        GOOGLE_NONCE_REQUEST_SAFETY_MS,
+        Math.floor(ttlMilliseconds / 10),
+    );
+    return ttlMilliseconds - safetyWindow;
+}
+
+function isGoogleNonceRejection(error: unknown): boolean {
+    return error instanceof Error && GOOGLE_NONCE_REJECTION_MESSAGES.has(error.message);
+}
 
 export default function LoginPage() {
     const [email, setEmail] = useState('');
@@ -21,12 +46,28 @@ export default function LoginPage() {
     const [googleLoading, setGoogleLoading] = useState(false);
     const [googleReady, setGoogleReady] = useState(false);
     const [googleUnavailable, setGoogleUnavailable] = useState(false);
+    const [googleRecoveryReason, setGoogleRecoveryReason] =
+        useState<GoogleRecoveryReason | null>(null);
     const { login, googleLogin } = useAuth();
     const router = useRouter();
     const { t } = useI18n();
     const googleButtonContainerRef = useRef<HTMLDivElement>(null);
+    const googleNonceUsableUntilRef = useRef(0);
+    const googleCredentialSubmittedRef = useRef(false);
+    const googleInitializationGenerationRef = useRef(0);
     const googleUnavailableMessage = t('loginGoogleUnavailable');
     const googleErrorMessage = t('loginErrorGoogle');
+    const googleExpiredMessage = t('loginGoogleExpired');
+
+    const requireFreshGooglePage = useCallback((reason: GoogleRecoveryReason) => {
+        googleNonceUsableUntilRef.current = 0;
+        googleCredentialSubmittedRef.current = true;
+        googleButtonContainerRef.current?.replaceChildren();
+        setGoogleReady(false);
+        setGoogleLoading(false);
+        setGoogleUnavailable(false);
+        setGoogleRecoveryReason(reason);
+    }, []);
 
     const handleGoogleCredential = useCallback(async (
         credentialResponse: GoogleCredentialResponse,
@@ -35,17 +76,33 @@ export default function LoginPage() {
             setError(googleErrorMessage);
             return;
         }
+        if (googleCredentialSubmittedRef.current) {
+            return;
+        }
+        if (
+            googleNonceUsableUntilRef.current === 0
+            || Date.now() >= googleNonceUsableUntilRef.current
+        ) {
+            requireFreshGooglePage('expired');
+            return;
+        }
+        googleCredentialSubmittedRef.current = true;
         setError('');
         setGoogleLoading(true);
         try {
             await googleLogin(credentialResponse.credential);
             router.push('/');
         } catch (err) {
-            setError(err instanceof Error ? err.message : googleErrorMessage);
+            if (isGoogleNonceRejection(err)) {
+                requireFreshGooglePage('expired');
+            } else {
+                setError(err instanceof Error ? err.message : googleErrorMessage);
+                requireFreshGooglePage('failed');
+            }
         } finally {
             setGoogleLoading(false);
         }
-    }, [googleErrorMessage, googleLogin, router]);
+    }, [googleErrorMessage, googleLogin, requireFreshGooglePage, router]);
     const handleGoogleCredentialRef = useRef(handleGoogleCredential);
 
     useEffect(() => {
@@ -60,30 +117,66 @@ export default function LoginPage() {
         const googleButtonContainer = container;
 
         let cancelled = false;
+        let expiryTimeoutId: number | undefined;
+        const abortController = new AbortController();
+        const initializationGeneration = googleInitializationGenerationRef.current + 1;
+        googleInitializationGenerationRef.current = initializationGeneration;
         googleButtonContainer.replaceChildren();
+        googleNonceUsableUntilRef.current = 0;
+        googleCredentialSubmittedRef.current = false;
         setGoogleReady(false);
         setGoogleUnavailable(false);
+        setGoogleRecoveryReason(null);
 
         async function initializeGoogle() {
             try {
-                const nonce = await api.getGoogleAuthNonce();
+                const nonce = await api.getGoogleAuthNonce(abortController.signal);
+                if (
+                    cancelled
+                    || initializationGeneration !== googleInitializationGenerationRef.current
+                ) {
+                    return;
+                }
                 const clientId = nonce.client_id.trim();
                 if (!clientId) {
-                    throw new Error(googleUnavailableMessage);
+                    throw new Error('Google login is unavailable.');
                 }
+                const nonceUsableDuration = googleNonceUsableDurationMs(nonce.expires_in);
+                if (nonceUsableDuration === 0) {
+                    throw new Error('Google login is unavailable.');
+                }
+                googleNonceUsableUntilRef.current = Date.now() + nonceUsableDuration;
+                expiryTimeoutId = window.setTimeout(() => {
+                    if (!cancelled && !googleCredentialSubmittedRef.current) {
+                        requireFreshGooglePage('expired');
+                    }
+                }, nonceUsableDuration);
                 await loadGoogleIdentityScript();
-                if (cancelled) {
+                if (
+                    cancelled
+                    || initializationGeneration !== googleInitializationGenerationRef.current
+                ) {
+                    return;
+                }
+                if (Date.now() >= googleNonceUsableUntilRef.current) {
+                    requireFreshGooglePage('expired');
                     return;
                 }
                 const googleId = window.google?.accounts?.id;
                 if (!googleId?.initialize || !googleId.renderButton) {
-                    throw new Error(googleUnavailableMessage);
+                    throw new Error('Google login is unavailable.');
                 }
                 googleId.initialize({
                     client_id: clientId,
                     nonce: nonce.nonce,
                     ux_mode: 'popup',
                     callback: (response: GoogleCredentialResponse) => {
+                        if (
+                            initializationGeneration
+                            !== googleInitializationGenerationRef.current
+                        ) {
+                            return;
+                        }
                         void handleGoogleCredentialRef.current(response);
                     },
                 });
@@ -108,8 +201,15 @@ export default function LoginPage() {
                 });
                 setGoogleReady(true);
             } catch {
-                if (!cancelled) {
+                if (
+                    !cancelled
+                    && initializationGeneration === googleInitializationGenerationRef.current
+                    && !googleCredentialSubmittedRef.current
+                ) {
+                    googleNonceUsableUntilRef.current = 0;
+                    googleCredentialSubmittedRef.current = true;
                     setGoogleUnavailable(true);
+                    setGoogleRecoveryReason(null);
                     setError('');
                 }
             }
@@ -118,9 +218,18 @@ export default function LoginPage() {
         void initializeGoogle();
         return () => {
             cancelled = true;
+            abortController.abort();
+            if (googleInitializationGenerationRef.current === initializationGeneration) {
+                googleInitializationGenerationRef.current += 1;
+            }
+            if (expiryTimeoutId !== undefined) {
+                window.clearTimeout(expiryTimeoutId);
+            }
+            googleNonceUsableUntilRef.current = 0;
+            googleCredentialSubmittedRef.current = true;
             googleButtonContainer.replaceChildren();
         };
-    }, [googleUnavailableMessage]);
+    }, [requireFreshGooglePage]);
 
     const handleSubmit = async (event: React.FormEvent) => {
         event.preventDefault();
@@ -158,7 +267,26 @@ export default function LoginPage() {
                         <p>{t('loginSubtitle')}</p>
                     </div>
 
-                    {!googleUnavailable ? (
+                    {googleRecoveryReason ? (
+                        <div
+                            className="auth-google-unavailable flex-col gap-2 text-center"
+                            role="status"
+                            aria-live="polite"
+                        >
+                            <span>
+                                {googleRecoveryReason === 'expired'
+                                    ? googleExpiredMessage
+                                    : googleErrorMessage}
+                            </span>
+                            <button
+                                type="button"
+                                onClick={() => reloadGoogleIdentityPage()}
+                                className="font-semibold text-[var(--accent)] underline underline-offset-2"
+                            >
+                                {t('loginGoogleReload')}
+                            </button>
+                        </div>
+                    ) : !googleUnavailable ? (
                         <div
                             className="auth-google-shell"
                             aria-busy={!googleReady || googleLoading}

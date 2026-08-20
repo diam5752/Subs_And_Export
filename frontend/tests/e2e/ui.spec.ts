@@ -31,6 +31,45 @@ test('Google Identity Services login exchanges an ID token for a GSUBS session',
   await expect(page.getByTestId('profile-avatar-image')).toBeVisible();
 });
 
+test('expired Google nonce requires a full reload and never posts the stale credential', async ({ page }) => {
+  // REGRESSION: a login tab left open past the nonce TTL used to send the old
+  // credential, fail with an English backend detail, and require a manual retry.
+  let googleNonceRequests = 0;
+  let googleCredentialPosts = 0;
+  page.on('request', (request) => {
+    const { pathname } = new URL(request.url());
+    if (pathname === '/auth/google/nonce') googleNonceRequests += 1;
+    if (pathname === '/auth/google' && request.method() === 'POST') {
+      googleCredentialPosts += 1;
+    }
+  });
+
+  await mockApi(page, { authenticated: false, googleNonceExpiresIn: 1 });
+  await page.goto('/login');
+  await expect(page.getByRole('button', { name: 'Σύνδεση με Google' })).toBeVisible();
+
+  await expect(page.getByRole('status')).toContainText(el.loginGoogleExpired, {
+    timeout: 3_000,
+  });
+  await page.evaluate(() => {
+    const browserWindow = window as typeof window & {
+      __mockGoogleCallback?: (response: { credential?: string }) => void;
+    };
+    browserWindow.__mockGoogleCallback?.({
+      credential: 'signed-e2e-google-id-token',
+    });
+  });
+  await page.waitForTimeout(100);
+  expect(googleCredentialPosts).toBe(0);
+
+  const mainFrameReloaded = page.waitForEvent('framenavigated', (frame) => (
+    frame === page.mainFrame()
+  ));
+  await page.getByRole('button', { name: el.loginGoogleReload }).click();
+  await mainFrameReloaded;
+  await expect.poll(() => googleNonceRequests).toBeGreaterThanOrEqual(2);
+});
+
 test('Google sign-in stays contained when the auth viewport shrinks', async ({ page }) => {
   await page.setViewportSize(viewports.desktop);
   await mockApi(page, { authenticated: false });

@@ -143,6 +143,8 @@
   "loginErrorGoogle": "Η σύνδεση Google απέτυχε",
   "loginErrorGeneral": "Η σύνδεση απέτυχε",
   "loginGoogleUnavailable": "Η σύνδεση Google δεν είναι διαθέσιμη",
+  "loginGoogleExpired": "Η σύνδεση Google έληξε για λόγους ασφάλειας.",
+  "loginGoogleReload": "Ανανέωση σύνδεσης Google",
   "registerTitle": "Δημιουργία λογαριασμού",
   "registerSubtitle": "Δημιούργησε λογαριασμό και ξεκίνα σε λίγα δευτερόλεπτα.",
   "registerNameLabel": "Ονοματεπώνυμο",

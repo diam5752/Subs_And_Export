@@ -857,20 +857,21 @@ describe('API Client', () => {
     });
 
     describe('getGoogleAuthNonce', () => {
-        it('should fetch a Google Identity Services nonce', async () => {
+        it('should fetch a Google Identity Services nonce with the caller signal', async () => {
             const mockResponse = {
                 nonce: 'nonce-123',
                 expires_in: 600,
                 client_id: 'google-client-id',
             };
             (fetch as jest.Mock).mockResolvedValueOnce({ ok: true, json: async () => mockResponse });
+            const controller = new AbortController();
 
             const { api } = await import('@/lib/api');
-            const result = await api.getGoogleAuthNonce();
+            const result = await api.getGoogleAuthNonce(controller.signal);
 
             expect(fetch).toHaveBeenCalledWith(
                 expect.stringContaining('/auth/google/nonce'),
-                expect.anything(),
+                expect.objectContaining({ signal: controller.signal }),
             );
             expect(result.nonce).toBe('nonce-123');
         });
