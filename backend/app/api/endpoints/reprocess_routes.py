@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import math
 import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from ...core.auth import User
 from ...core.config import settings
@@ -47,12 +48,17 @@ from .processing_tasks import (
     run_video_processing,
 )
 from .settings import build_processing_settings
-from .validation import ALLOWED_VIDEO_EXTENSIONS
+from .validation import (
+    ALLOWED_VIDEO_EXTENSIONS,
+    assert_processing_quote_authorized,
+    validate_authorized_credits,
+)
 
 router = APIRouter()
 
 
 class ReprocessRequest(BaseModel):
+    authorized_credits: int = Field(..., strict=True)
     transcribe_tier: str = Field(settings.default_transcribe_tier, max_length=50)
     transcribe_provider: str = Field(settings.transcribe_tier_provider[settings.default_transcribe_tier], max_length=50)
     openai_model: str = Field("", max_length=50)
@@ -68,6 +74,11 @@ class ReprocessRequest(BaseModel):
     subtitle_size: int = 100
     karaoke_enabled: bool = True
     watermark_enabled: bool = False
+
+    @field_validator("authorized_credits")
+    @classmethod
+    def authorized_credits_must_be_canonical(cls, value: int) -> int:
+        return validate_authorized_credits(value)
 
 
 def _record_and_delete_failed_reprocess(
@@ -198,12 +209,21 @@ def reprocess_job(
     except Exception as exc:
         raise HTTPException(status_code=400, detail="Could not validate source media file") from exc
 
-    if probe.duration_s is None or probe.duration_s <= 0:
+    if (
+        probe.duration_s is None
+        or not math.isfinite(probe.duration_s)
+        or probe.duration_s <= 0
+    ):
         raise HTTPException(status_code=400, detail="Could not determine video duration")
     if probe.duration_s > settings.max_video_duration_seconds:
         raise HTTPException(
             status_code=400, detail=f"Video too long (max {settings.max_video_duration_seconds / 60:.1f} minutes)"
         )
+
+    assert_processing_quote_authorized(
+        duration_seconds=float(probe.duration_s),
+        authorized_credits=request.authorized_credits,
+    )
 
     llm_models = pricing.resolve_llm_models(proc_settings.transcribe_tier)
     stt_model = pricing.resolve_requested_transcribe_model(

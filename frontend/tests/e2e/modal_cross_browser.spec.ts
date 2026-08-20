@@ -112,6 +112,18 @@ test.describe('Inline processing gate on mobile browsers', () => {
     // REGRESSION: setting only body overflow hidden did not lock the background
     // in iOS WebViews, and the taller auth card could escape a short viewport.
     await page.setViewportSize(compactViewport);
+    // REGRESSION: GitHub iOS WebKit twice kept native media metadata at NaN/0
+    // for this valid MP4. Force that engine state here so the bounded ISO BMFF
+    // parser, not a lucky native metadata event, proves duration and dimensions.
+    await page.addInitScript(() => {
+      Object.defineProperties(HTMLMediaElement.prototype, {
+        duration: { configurable: true, get: () => Number.NaN },
+      });
+      Object.defineProperties(HTMLVideoElement.prototype, {
+        videoWidth: { configurable: true, get: () => 0 },
+        videoHeight: { configurable: true, get: () => 0 },
+      });
+    });
     await mockApi(page, { authenticated: false });
     await page.goto('/');
     await waitForUploadWorkspace(page, { authenticated: false });

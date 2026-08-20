@@ -267,6 +267,21 @@ describe('UploadSection', () => {
         expect(screen.getAllByText('uploadDurationTooLong').length).toBeGreaterThan(0);
     });
 
+    it('aborts stale metadata validation when the selected file changes', () => {
+        contextValue.selectedFile = new File(['first'], 'first.mp4', { type: 'video/mp4' });
+        (validateVideoAspectRatio as jest.Mock).mockReturnValue(new Promise(() => undefined));
+        const view = renderUpload();
+        const firstSignal = (validateVideoAspectRatio as jest.Mock).mock.calls[0][1] as AbortSignal;
+        expect(firstSignal.aborted).toBe(false);
+
+        contextValue.selectedFile = new File(['second'], 'second.mp4', { type: 'video/mp4' });
+        view.rerender(<UploadSection />);
+
+        expect(firstSignal.aborted).toBe(true);
+        expect(validateVideoAspectRatio).toHaveBeenCalledTimes(2);
+        expect((validateVideoAspectRatio as jest.Mock).mock.calls[1][1]).toBeInstanceOf(AbortSignal);
+    });
+
     it('handles drag-and-drop uploads and unlock-step reset', () => {
         const { getByRole } = renderUpload();
 

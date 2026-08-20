@@ -793,7 +793,11 @@ def test_reprocess_job_creates_new_job(client: TestClient, monkeypatch):
     # The fake_run should have been called for the source job, completing it
     assert source_job_id in calls
 
-    resp = client.post(f"/videos/jobs/{source_job_id}/reprocess", headers=headers, json={})
+    resp = client.post(
+        f"/videos/jobs/{source_job_id}/reprocess",
+        headers=headers,
+        json={"authorized_credits": 100},
+    )
     assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
     new_job_id = resp.json()["id"]
     assert new_job_id != source_job_id
@@ -804,6 +808,112 @@ def test_reprocess_job_creates_new_job(client: TestClient, monkeypatch):
     assert calls[1] == new_job_id
 
 
+def test_reprocess_rejects_authoritative_quote_increase_before_financial_or_provider_work(
+    client: TestClient,
+    monkeypatch,
+) -> None:
+    headers = _auth_header(client, email="reprocess_quote@example.com")
+    from unittest.mock import MagicMock
+
+    from backend.app.api.endpoints import reprocess_routes
+    from backend.app.services.ffmpeg_utils import MediaProbe
+    from backend.app.services.jobs import JobStore
+
+    def complete_source(
+        job_id,
+        _input_path,
+        _output_path,
+        _artifact_dir,
+        _settings,
+        job_store,
+        *_args,
+        **_kwargs,
+    ) -> None:
+        job_store.update_job(job_id, status="completed", progress=100, message="Done!")
+
+    monkeypatch.setattr(videos, "run_video_processing", complete_source)
+    monkeypatch.setattr(
+        videos,
+        "probe_media",
+        lambda _path: MediaProbe(duration_s=180.000, audio_codec="aac"),
+    )
+    source = post_process_stream(
+        client,
+        headers,
+        content=b"private-source",
+        metadata={"authorized_credits": 30},
+    )
+    assert source.status_code == 200
+    source_job_id = source.json()["id"]
+    user_id = client.get("/auth/me", headers=headers).json()["id"]
+    points_store = PointsStore(Database())
+    balance_before = points_store.get_balance(user_id)
+
+    # REGRESSION: a stored source confirmed at 180.000 seconds can be resolved
+    # by the authoritative reprocess probe as 180.001. Reprocess must require a
+    # new confirmation without creating or reserving a second job.
+    charge_preflight = MagicMock(
+        side_effect=AssertionError("quote check must precede wallet preflight"),
+    )
+    uuid4 = MagicMock(
+        side_effect=AssertionError("quote check must precede job id allocation"),
+    )
+    copy_file = MagicMock(
+        side_effect=AssertionError("quote check must precede source copying"),
+    )
+    create_job = MagicMock(
+        side_effect=AssertionError("quote check must precede job creation"),
+    )
+    reserve_plan = MagicMock(
+        side_effect=AssertionError("quote check must precede reservation"),
+    )
+    ledger_reserve = MagicMock(
+        side_effect=AssertionError("quote check must precede ledger reservation"),
+    )
+    provider_dispatch = MagicMock(
+        side_effect=AssertionError("quote check must precede provider dispatch"),
+    )
+    monkeypatch.setattr(
+        reprocess_routes,
+        "probe_media",
+        lambda _path: MediaProbe(duration_s=180.001, audio_codec="aac"),
+    )
+    monkeypatch.setattr(reprocess_routes, "preflight_processing_charges", charge_preflight)
+    monkeypatch.setattr(reprocess_routes.uuid, "uuid4", uuid4)
+    monkeypatch.setattr(reprocess_routes, "link_or_copy_file", copy_file)
+    monkeypatch.setattr(JobStore, "create_job", create_job)
+    monkeypatch.setattr(reprocess_routes, "reserve_processing_charges", reserve_plan)
+    monkeypatch.setattr(UsageLedgerStore, "reserve", ledger_reserve)
+    monkeypatch.setattr(reprocess_routes, "run_video_processing", provider_dispatch)
+
+    response = client.post(
+        f"/videos/jobs/{source_job_id}/reprocess",
+        headers=headers,
+        json={"authorized_credits": 30},
+    )
+
+    assert response.status_code == 409
+    assert response.json() == {
+        "detail": "Processing quote changed",
+        "code": "PROCESSING_QUOTE_CHANGED",
+        "details": {
+            "duration_seconds": 180.001,
+            "required_credits": 60,
+        },
+    }
+    charge_preflight.assert_not_called()
+    uuid4.assert_not_called()
+    copy_file.assert_not_called()
+    create_job.assert_not_called()
+    reserve_plan.assert_not_called()
+    ledger_reserve.assert_not_called()
+    provider_dispatch.assert_not_called()
+    assert points_store.get_balance(user_id) == balance_before
+    assert [job.id for job in JobStore(Database()).list_jobs_for_user(user_id)] == [
+        source_job_id,
+    ]
+
+
 def test_reprocess_job_requires_completed_source_job(client: TestClient, monkeypatch):
     headers = _auth_header(client, email="reprocess_pending@example.com")
 
@@ -812,7 +922,11 @@ def test_reprocess_job_requires_completed_source_job(client: TestClient, monkeyp
     assert source.status_code == 200
     source_job_id = source.json()["id"]
 
-    resp = client.post(f"/videos/jobs/{source_job_id}/reprocess", headers=headers, json={})
+    resp = client.post(
+        f"/videos/jobs/{source_job_id}/reprocess",
+        headers=headers,
+        json={"authorized_credits": 100},
+    )
     assert resp.status_code == 400
 
 

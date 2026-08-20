@@ -601,7 +601,7 @@ describe('API Client', () => {
             const xhrMock = installProcessXhr(400, { message: 'Custom error message' });
             const { api } = await import('@/lib/api');
             const file = new File(['video'], 'test.mp4', { type: 'video/mp4' });
-            const promise = api.processVideo(file, {});
+            const promise = api.processVideo(file, { authorized_credits: 30 });
 
             xhrMock.onload?.();
 
@@ -612,11 +612,39 @@ describe('API Client', () => {
             const xhrMock = installProcessXhr(400, 'Generic error string');
             const { api } = await import('@/lib/api');
             const file = new File(['video'], 'test.mp4', { type: 'video/mp4' });
-            const promise = api.processVideo(file, {});
+            const promise = api.processVideo(file, { authorized_credits: 30 });
 
             xhrMock.onload?.();
 
             await expect(promise).rejects.toThrow('Generic error string');
+        });
+
+        it('retains the authoritative structured quote-change contract', async () => {
+            // REGRESSION: XHR failures previously flattened structured details
+            // into a string, so the UI could not safely request reconfirmation.
+            const xhrMock = installProcessXhr(409, {
+                detail: 'Processing quote changed',
+                code: 'PROCESSING_QUOTE_CHANGED',
+                details: {
+                    duration_seconds: 180.001,
+                    required_credits: 60,
+                },
+            });
+            const { api } = await import('@/lib/api');
+            const file = new File(['video'], 'boundary.mp4', { type: 'video/mp4' });
+            const promise = api.processVideo(file, { authorized_credits: 30 });
+
+            xhrMock.onload?.();
+
+            await expect(promise).rejects.toMatchObject({
+                name: 'ApiError',
+                status: 409,
+                code: 'PROCESSING_QUOTE_CHANGED',
+                details: {
+                    duration_seconds: 180.001,
+                    required_credits: 60,
+                },
+            });
         });
 
         it('uploads video with settings and reports browser upload progress', async () => {
@@ -628,7 +656,11 @@ describe('API Client', () => {
             const onUploadComplete = jest.fn();
             const promise = api.processVideo(
                 file,
-                { transcribe_tier: 'standard', video_quality: 'high' },
+                {
+                    authorized_credits: 30,
+                    transcribe_tier: 'standard',
+                    video_quality: 'high',
+                },
                 { onProgress, onUploadComplete },
             );
 
@@ -652,6 +684,7 @@ describe('API Client', () => {
             ) as Record<string, unknown>;
             expect(metadata).toEqual(expect.objectContaining({
                 filename: 'test.mp4',
+                authorized_credits: 30,
                 transcribe_tier: 'standard',
                 video_quality: 'high',
             }));
@@ -665,7 +698,7 @@ describe('API Client', () => {
             const xhrMock = installProcessXhr(200, mockResponse);
             const { api } = await import('@/lib/api');
             const file = new File(['video'], 'default.mp4', { type: 'video/mp4' });
-            const promise = api.processVideo(file, {});
+            const promise = api.processVideo(file, { authorized_credits: 30 });
 
             xhrMock.onload?.();
             await promise;
@@ -684,6 +717,27 @@ describe('API Client', () => {
             expect(metadata.max_subtitle_lines).toBe(2);
             expect(metadata.subtitle_size).toBe(100);
             expect(metadata.karaoke_enabled).toBe(true);
+            expect(metadata.authorized_credits).toBe(30);
+        });
+
+        it('rejects a non-canonical credit ceiling before opening an upload', async () => {
+            const xhrMock = installProcessXhr(200, { id: 'never-used' });
+            const { api } = await import('@/lib/api');
+            const file = new File(['video'], 'invalid-credit-ceiling.mp4', {
+                type: 'video/mp4',
+            });
+
+            await expect(api.processVideo(file, {
+                authorized_credits: 45 as 30,
+            })).rejects.toMatchObject({
+                name: 'ApiError',
+                status: 0,
+                code: 'invalid_authorized_credits',
+            });
+
+            expect(global.XMLHttpRequest).not.toHaveBeenCalled();
+            expect(xhrMock.open).not.toHaveBeenCalled();
+            expect(xhrMock.send).not.toHaveBeenCalled();
         });
 
         it('fails locally before creating a request when metadata cannot safely fit in the header', async () => {
@@ -692,6 +746,7 @@ describe('API Client', () => {
             const file = new File(['video'], 'oversized-settings.mp4', { type: 'video/mp4' });
 
             await expect(api.processVideo(file, {
+                authorized_credits: 30,
                 context_prompt: 'α'.repeat(5000),
             })).rejects.toMatchObject({
                 name: 'ApiError',
@@ -710,7 +765,11 @@ describe('API Client', () => {
             const controller = new AbortController();
             const { api } = await import('@/lib/api');
             const file = new File(['video'], 'cancel.mp4', { type: 'video/mp4' });
-            const promise = api.processVideo(file, {}, { signal: controller.signal });
+            const promise = api.processVideo(
+                file,
+                { authorized_credits: 30 },
+                { signal: controller.signal },
+            );
 
             controller.abort();
 
@@ -718,6 +777,87 @@ describe('API Client', () => {
             expect(xhrMock.abort).toHaveBeenCalledTimes(1);
             expect(xhrMock.send).toHaveBeenCalledTimes(1);
             expect(global.XMLHttpRequest).toHaveBeenCalledTimes(1);
+        });
+    });
+
+    describe('reprocessJob', () => {
+        it('sends the confirmed canonical credit ceiling in the JSON request', async () => {
+            const response = {
+                id: 'reprocessed-job',
+                status: 'pending',
+                progress: 0,
+                message: null,
+                created_at: Date.now(),
+                updated_at: Date.now(),
+                result_data: null,
+            };
+            (fetch as jest.Mock).mockResolvedValueOnce({
+                ok: true,
+                json: async () => response,
+            });
+
+            const { api } = await import('@/lib/api');
+            await api.reprocessJob('source-job', {
+                authorized_credits: 30,
+                transcribe_provider: 'mock',
+                watermark_enabled: true,
+            });
+
+            expect(fetch).toHaveBeenCalledWith(
+                expect.stringContaining('/videos/jobs/source-job/reprocess'),
+                expect.objectContaining({
+                    method: 'POST',
+                    body: expect.any(String),
+                }),
+            );
+            const request = (fetch as jest.Mock).mock.calls[0][1] as RequestInit;
+            expect(JSON.parse(request.body as string)).toEqual(expect.objectContaining({
+                authorized_credits: 30,
+                transcribe_provider: 'mock',
+                watermark_enabled: true,
+            }));
+        });
+
+        it('retains authoritative quote details from a JSON reprocess response', async () => {
+            (fetch as jest.Mock).mockResolvedValueOnce({
+                ok: false,
+                status: 409,
+                json: async () => ({
+                    detail: 'Processing quote changed',
+                    code: 'PROCESSING_QUOTE_CHANGED',
+                    details: {
+                        duration_seconds: 180.001,
+                        required_credits: 60,
+                    },
+                }),
+            });
+
+            const { api } = await import('@/lib/api');
+            await expect(api.reprocessJob('source-job', {
+                authorized_credits: 30,
+            })).rejects.toMatchObject({
+                name: 'ApiError',
+                status: 409,
+                code: 'PROCESSING_QUOTE_CHANGED',
+                details: {
+                    duration_seconds: 180.001,
+                    required_credits: 60,
+                },
+            });
+        });
+
+        it('rejects a non-canonical reprocess ceiling before making a request', async () => {
+            const { api } = await import('@/lib/api');
+
+            await expect(api.reprocessJob('source-job', {
+                authorized_credits: 45 as 30,
+            })).rejects.toMatchObject({
+                name: 'ApiError',
+                status: 0,
+                code: 'invalid_authorized_credits',
+            });
+
+            expect(fetch).not.toHaveBeenCalled();
         });
     });
 

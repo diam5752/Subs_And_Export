@@ -1,5 +1,7 @@
-export const PROCESS_VIDEO_DEFAULT_COST = 100;
-const PROCESS_VIDEO_MODEL_COSTS: Record<string, number> = {
+export type ProcessingCreditTier = 30 | 60 | 100;
+
+export const PROCESS_VIDEO_DEFAULT_COST: ProcessingCreditTier = 100;
+const PROCESS_VIDEO_MODEL_COSTS: Record<string, ProcessingCreditTier> = {
     standard: PROCESS_VIDEO_DEFAULT_COST,
     pro: PROCESS_VIDEO_DEFAULT_COST,
 };
@@ -7,7 +9,7 @@ const PROCESS_VIDEO_MODEL_COSTS: Record<string, number> = {
 interface VideoCreditQuote {
     key: 'up_to_3m' | 'up_to_6m' | 'up_to_10m';
     maxDurationSeconds: number;
-    credits: number;
+    credits: ProcessingCreditTier;
 }
 
 export const VIDEO_CREDIT_BRACKETS: readonly VideoCreditQuote[] = [
@@ -19,7 +21,13 @@ export const VIDEO_CREDIT_BRACKETS: readonly VideoCreditQuote[] = [
 export const FACT_CHECK_COST = 20;
 export const SOCIAL_COPY_COST = 10;
 
-export function processVideoCostForTranscribeModel(transcribeModel: string): number {
+export function isProcessingCreditTier(value: unknown): value is ProcessingCreditTier {
+    return value === 30 || value === 60 || value === 100;
+}
+
+export function processVideoCostForTranscribeModel(
+    transcribeModel: string,
+): ProcessingCreditTier {
     const normalized = transcribeModel.trim().toLowerCase();
     return PROCESS_VIDEO_MODEL_COSTS[normalized] ?? PROCESS_VIDEO_DEFAULT_COST;
 }
@@ -42,7 +50,7 @@ export function videoCreditQuoteForDuration(
 
 export function processVideoCostForDuration(
     durationSeconds: number | null | undefined,
-): number {
+): ProcessingCreditTier {
     return videoCreditQuoteForDuration(durationSeconds).credits;
 }
 
@@ -65,7 +73,7 @@ export function processVideoCostForSelection(
     provider: string | null | undefined,
     mode: string | null | undefined,
     durationSeconds?: number | null,
-): number {
+): ProcessingCreditTier {
     // Provider and model no longer change the public video price. Keep them in
     // the signature for compatibility with existing callers while duration is
     // the sole pricing authority.

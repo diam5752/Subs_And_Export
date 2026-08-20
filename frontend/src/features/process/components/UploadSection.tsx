@@ -200,6 +200,7 @@ export function UploadSection() {
     useEffect(() => {
         let isCancelled = false;
         const requestId = ++validationRequestId.current;
+        const validationController = new AbortController();
 
         if (!selectedFile) {
             queueMicrotask(() => {
@@ -208,6 +209,7 @@ export function UploadSection() {
             });
             return () => {
                 isCancelled = true;
+                validationController.abort();
             };
         }
 
@@ -217,7 +219,7 @@ export function UploadSection() {
             prepareSelectedVideoState(blobUrl);
         });
 
-        void validateVideoAspectRatio(selectedFile).then(info => {
+        void validateVideoAspectRatio(selectedFile, validationController.signal).then(info => {
             if (!isCancelled && requestId === validationRequestId.current) {
                 commitSelectedVideoValidation(selectedFile, info);
             }
@@ -225,6 +227,7 @@ export function UploadSection() {
 
         return () => {
             isCancelled = true;
+            validationController.abort();
             URL.revokeObjectURL(blobUrl);
         };
     }, [selectedFile]);

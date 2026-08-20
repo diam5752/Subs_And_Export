@@ -21,6 +21,15 @@ class ProviderDispatchAlreadyClaimedError(RuntimeError):
     """Raised when another worker already owns the paid provider dispatch."""
 
 
+class ProcessingQuoteChangedError(RuntimeError):
+    """Raised before processing when authoritative pricing needs confirmation."""
+
+    def __init__(self, *, duration_seconds: float, required_credits: int) -> None:
+        super().__init__("Processing quote changed")
+        self.duration_seconds = duration_seconds
+        self.required_credits = required_credits
+
+
 # Regex to detect internal paths (Unix/Linux focus for container env)
 _PATH_PATTERN = re.compile(r"(\/(?:app|home|var|tmp|usr|etc|opt)\/[\w\-\.\/]+)")
 
@@ -120,6 +129,26 @@ async def provider_budget_exception_handler(request: Request, _exc: Exception) -
         "PROVIDER_BUDGET_REACHED",
     )
 
+
+async def processing_quote_changed_exception_handler(
+    _request: Request,
+    exc: Exception,
+) -> JSONResponse:
+    """Return the safe authoritative quote without job or provider metadata."""
+    quote_exc = cast(ProcessingQuoteChangedError, exc)
+    return JSONResponse(
+        status_code=status.HTTP_409_CONFLICT,
+        content={
+            "detail": "Processing quote changed",
+            "code": "PROCESSING_QUOTE_CHANGED",
+            "details": {
+                "duration_seconds": quote_exc.duration_seconds,
+                "required_credits": quote_exc.required_credits,
+            },
+        },
+    )
+
+
 async def global_exception_handler(request: Request, _exc: Exception) -> JSONResponse:
     """
     Catch-all for unhandled exceptions.
@@ -138,5 +167,9 @@ def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(StarletteHTTPException, http_exception_handler)
     app.add_exception_handler(RequestValidationError, validation_exception_handler)
     app.add_exception_handler(ProviderBudgetExceededError, provider_budget_exception_handler)
+    app.add_exception_handler(
+        ProcessingQuoteChangedError,
+        processing_quote_changed_exception_handler,
+    )
     app.add_exception_handler(SQLAlchemyError, database_exception_handler)
     app.add_exception_handler(Exception, global_exception_handler)

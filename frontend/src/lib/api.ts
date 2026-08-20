@@ -1,3 +1,8 @@
+import {
+    isProcessingCreditTier,
+    type ProcessingCreditTier,
+} from '@/lib/points';
+
 // An explicitly empty production value keeps every API request same-origin.
 // That makes the standalone image portable across verified hostnames without
 // rebuilding it for each public URL. Development still keeps its local API
@@ -5,15 +10,24 @@
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL
     ?? (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:8080');
 
+type ApiErrorDetails = Readonly<Record<string, unknown>>;
+
 export class ApiError extends Error {
     readonly status: number;
     readonly code: string | null;
+    readonly details: ApiErrorDetails | null;
 
-    constructor(message: string, status: number, code: string | null = null) {
+    constructor(
+        message: string,
+        status: number,
+        code: string | null = null,
+        details: ApiErrorDetails | null = null,
+    ) {
         super(message);
         this.name = 'ApiError';
         this.status = status;
         this.code = code;
+        this.details = details;
     }
 }
 
@@ -24,6 +38,7 @@ interface UploadCallbacks {
 }
 
 interface ProcessVideoSettings {
+    authorized_credits: ProcessingCreditTier;
     transcribe_tier?: string;
     transcribe_provider?: string;
     openai_model?: string;
@@ -43,6 +58,17 @@ interface ProcessVideoSettings {
 
 const STREAM_UPLOAD_METADATA_HEADER_MAX_CHARS = 8_000;
 
+function requireAuthorizedCredits(value: unknown): ProcessingCreditTier {
+    if (!isProcessingCreditTier(value)) {
+        throw new ApiError(
+            'Processing requires an explicitly confirmed credit ceiling.',
+            0,
+            'invalid_authorized_credits',
+        );
+    }
+    return value;
+}
+
 function encodeUtf8Base64(value: string): string | null {
     try {
         const binary = encodeURIComponent(value).replace(
@@ -57,6 +83,7 @@ function encodeUtf8Base64(value: string): string | null {
 
 function normalizedProcessVideoSettings(settings: ProcessVideoSettings) {
     return {
+        authorized_credits: requireAuthorizedCredits(settings.authorized_credits),
         transcribe_tier: settings.transcribe_tier || 'standard',
         transcribe_provider: settings.transcribe_provider || 'mock',
         openai_model: settings.openai_model || '',
@@ -104,6 +131,7 @@ function apiErrorFromPayload(
 ): ApiError {
     let message = fallbackMessage;
     let code: string | null = null;
+    let details: ApiErrorDetails | null = null;
 
     if (typeof payload === 'string' && payload) {
         message = payload;
@@ -122,9 +150,16 @@ function apiErrorFromPayload(
                 message += ` [${errorData.code}]`;
             }
         }
+        if (
+            typeof errorData.details === 'object'
+            && errorData.details !== null
+            && !Array.isArray(errorData.details)
+        ) {
+            details = { ...(errorData.details as Record<string, unknown>) };
+        }
     }
 
-    return new ApiError(message, status, code);
+    return new ApiError(message, status, code, details);
 }
 
 interface TokenResponse {
@@ -1059,6 +1094,7 @@ class ApiClient {
     }
 
     async reprocessJob(jobId: string, settings: {
+        authorized_credits: ProcessingCreditTier;
         transcribe_tier?: string;
         transcribe_provider?: string;
         openai_model?: string;
@@ -1078,6 +1114,7 @@ class ApiClient {
         return this.request<JobResponse>(`/videos/jobs/${jobId}/reprocess`, {
             method: 'POST',
             body: JSON.stringify({
+                authorized_credits: requireAuthorizedCredits(settings.authorized_credits),
                 transcribe_tier: settings.transcribe_tier || 'standard',
                 transcribe_provider: settings.transcribe_provider || 'mock',
                 openai_model: settings.openai_model || '',

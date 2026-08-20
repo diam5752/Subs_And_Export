@@ -6,6 +6,8 @@ import re
 
 from fastapi import HTTPException
 
+from ...core.errors import ProcessingQuoteChangedError
+from ...services import pricing
 from ...services.settings_utils import SUBTITLE_POSITION_MAX, SUBTITLE_POSITION_MIN
 
 # Constants
@@ -21,6 +23,27 @@ ALLOWED_TRANSCRIBE_TIERS = {"standard", "pro"}
 ALLOWED_VIDEO_QUALITIES = {"low size", "balanced", "high quality"}
 ALLOWED_HIGHLIGHT_STYLES = {"static", "karaoke", "pop", "active-graphics"}
 MODEL_NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/\\-]{0,63}$")
+
+
+def validate_authorized_credits(value: int) -> int:
+    """Accept only a canonical video-price ceiling explicitly confirmed by the user."""
+    if value not in {quote.credits for quote in pricing.VIDEO_CREDIT_BRACKETS}:
+        raise ValueError("Invalid authorized credits")
+    return value
+
+
+def assert_processing_quote_authorized(
+    *,
+    duration_seconds: float,
+    authorized_credits: int,
+) -> None:
+    """Require a fresh confirmation before authoritative credits can increase."""
+    required_credits = pricing.credits_for_video_duration(duration_seconds)
+    if required_credits > authorized_credits:
+        raise ProcessingQuoteChangedError(
+            duration_seconds=duration_seconds,
+            required_credits=required_credits,
+        )
 
 
 def validate_transcribe_provider(provider: str) -> str:

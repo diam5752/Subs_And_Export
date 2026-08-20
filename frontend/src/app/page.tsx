@@ -15,8 +15,10 @@ import { ProcessingGateModal, type ProcessingGateStage } from '@/components/Proc
 import { useJobs } from '@/hooks/useJobs';
 import { useJobPolling, JobPollingCallbacks } from '@/hooks/useJobPolling';
 import {
+  isProcessingCreditTier,
   processVideoCostForSelection,
   transcribeProviderRequiresPaidCredits,
+  type ProcessingCreditTier,
 } from '@/lib/points';
 import { paidCreditLegalPublicationIsApproved } from '@/lib/paidCreditLegal';
 import Link from 'next/link';
@@ -61,8 +63,47 @@ function classifyCheckoutStatus(status: string): CheckoutReconciliationStatus {
 }
 
 type PendingProcessingAction =
-  | { kind: 'new'; options: ProcessingOptions }
-  | { kind: 'reprocess'; sourceJobId: string; options: ProcessingOptions };
+  | {
+    kind: 'new';
+    options: ProcessingOptions;
+    authorizedCredits?: ProcessingCreditTier;
+  }
+  | {
+    kind: 'reprocess';
+    sourceJobId: string;
+    options: ProcessingOptions;
+    authorizedCredits?: ProcessingCreditTier;
+  };
+
+interface ProcessingQuoteChange {
+  durationSeconds: number;
+  requiredCredits: ProcessingCreditTier;
+}
+
+function processingQuoteChangeFromError(error: unknown): ProcessingQuoteChange | null {
+  if (typeof error !== 'object' || error === null) return null;
+  const candidate = error as Record<string, unknown>;
+  if (candidate.status !== 409 || candidate.code !== 'PROCESSING_QUOTE_CHANGED') {
+    return null;
+  }
+  if (
+    typeof candidate.details !== 'object'
+    || candidate.details === null
+    || Array.isArray(candidate.details)
+  ) return null;
+
+  const details = candidate.details as Record<string, unknown>;
+  const durationSeconds = details.duration_seconds;
+  const requiredCredits = details.required_credits;
+  if (
+    typeof durationSeconds !== 'number'
+    || !Number.isFinite(durationSeconds)
+    || durationSeconds <= 0
+    || !isProcessingCreditTier(requiredCredits)
+  ) return null;
+
+  return { durationSeconds, requiredCredits };
+}
 
 export default function DashboardPage() {
   const { user, isLoading, logout, refreshUser } = useAuth();
@@ -303,7 +344,30 @@ export default function DashboardPage() {
     t,
   });
 
-  const executeStartProcessing = useCallback(async (options: ProcessingOptions) => {
+  const reopenAuthoritativeQuote = useCallback((
+    error: unknown,
+    action: PendingProcessingAction,
+  ): boolean => {
+    const quoteChange = processingQuoteChangeFromError(error);
+    if (!quoteChange) return false;
+
+    setPendingProcessingAction({
+      ...action,
+      authorizedCredits: quoteChange.requiredCredits,
+    });
+    setProcessingGateError(t('processingGateQuoteChanged', {
+      duration: quoteChange.durationSeconds,
+      cost: quoteChange.requiredCredits,
+    }));
+    setProcessingGateStage('cost');
+    setProcessError('');
+    return true;
+  }, [t]);
+
+  const executeStartProcessing = useCallback(async (
+    options: ProcessingOptions,
+    authorizedCredits: ProcessingCreditTier,
+  ) => {
     if (!selectedFile) return;
 
     const uploadController = new AbortController();
@@ -332,6 +396,7 @@ export default function DashboardPage() {
 
     try {
       const settings = {
+        authorized_credits: authorizedCredits,
         transcribe_tier: selectedModel,
         transcribe_provider: provider,
         source_duration_seconds: options.sourceDurationSeconds ?? null,
@@ -367,7 +432,10 @@ export default function DashboardPage() {
         && typeof err.code === 'string'
         ? err.code
         : null;
-      if (uploadController.signal.aborted || uploadErrorCode === 'upload_cancelled') {
+      if (reopenAuthoritativeQuote(err, { kind: 'new', options })) {
+        // The server has not charged credits, created a job, or called the
+        // provider. Keep the file/settings and require a fresh explicit click.
+      } else if (uploadController.signal.aborted || uploadErrorCode === 'upload_cancelled') {
         setProcessError(t('processingCancelled'));
       } else if (uploadErrorCode === 'upload_network_error' || uploadErrorCode === 'upload_timeout') {
         setProcessError(t('uploadConnectionError'));
@@ -383,9 +451,20 @@ export default function DashboardPage() {
         activeUploadAbortRef.current = null;
       }
     }
-  }, [refreshBalance, selectedFile, setPointsBalance, t, setSelectedJob]);
+  }, [
+    refreshBalance,
+    reopenAuthoritativeQuote,
+    selectedFile,
+    setPointsBalance,
+    t,
+    setSelectedJob,
+  ]);
 
-  const executeReprocessJob = useCallback(async (sourceJobId: string, options: ProcessingOptions) => {
+  const executeReprocessJob = useCallback(async (
+    sourceJobId: string,
+    options: ProcessingOptions,
+    authorizedCredits: ProcessingCreditTier,
+  ) => {
     setIsProcessing(true);
     setCanCancelProcessing(false);
     setProcessError('');
@@ -397,6 +476,7 @@ export default function DashboardPage() {
 
     try {
       const settings = {
+        authorized_credits: authorizedCredits,
         transcribe_tier: selectedModel,
         transcribe_provider: provider,
         video_quality: options.outputQuality,
@@ -421,15 +501,17 @@ export default function DashboardPage() {
       }
       void refreshBalance();
     } catch (err) {
-      setProcessError(err instanceof Error ? err.message : t('startProcessingError'));
+      if (!reopenAuthoritativeQuote(err, { kind: 'reprocess', sourceJobId, options })) {
+        setProcessError(err instanceof Error ? err.message : t('startProcessingError'));
+      }
       setIsProcessing(false);
       setCanCancelProcessing(false);
     }
-  }, [refreshBalance, setPointsBalance, t]);
+  }, [refreshBalance, reopenAuthoritativeQuote, setPointsBalance, t]);
 
   const pendingProcessingCost = useMemo(() => {
     if (!pendingProcessingAction) return 0;
-    return processVideoCostForSelection(
+    return pendingProcessingAction.authorizedCredits ?? processVideoCostForSelection(
       pendingProcessingAction.options.transcribeProvider,
       pendingProcessingAction.options.transcribeMode,
       pendingProcessingAction.options.sourceDurationSeconds,
@@ -500,17 +582,19 @@ export default function DashboardPage() {
   const handleGateConfirm = useCallback(async () => {
     if (
       !pendingProcessingAction
+      || !isProcessingCreditTier(pendingProcessingCost)
       || processingGateBalance === null
       || processingGateBalance < pendingProcessingCost
     ) return;
 
     const action = pendingProcessingAction;
+    const authorizedCredits = pendingProcessingCost;
     closeProcessingGate();
     if (action.kind === 'new') {
-      await executeStartProcessing(action.options);
+      await executeStartProcessing(action.options, authorizedCredits);
       return;
     }
-    await executeReprocessJob(action.sourceJobId, action.options);
+    await executeReprocessJob(action.sourceJobId, action.options, authorizedCredits);
   }, [
     closeProcessingGate,
     executeReprocessJob,

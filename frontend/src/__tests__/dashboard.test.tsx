@@ -962,6 +962,7 @@ describe('DashboardPage', () => {
         expect(api.processVideo).toHaveBeenCalledWith(
             expect.any(File),
             expect.objectContaining({
+                authorized_credits: 30,
                 watermark_enabled: true,
             }),
             expect.objectContaining({
@@ -971,6 +972,110 @@ describe('DashboardPage', () => {
             }),
         );
         expect(__setBalanceMock).toHaveBeenCalledWith(800);
+    });
+
+    it('reconfirms an authoritative 30-to-60 quote change before one explicit retry', async () => {
+        // REGRESSION: a measured duration just above three minutes must never
+        // auto-retry at a higher credit ceiling without the user's new consent.
+        (api.processVideo as jest.Mock)
+            .mockRejectedValueOnce(Object.assign(new Error('Processing quote changed'), {
+                status: 409,
+                code: 'PROCESSING_QUOTE_CHANGED',
+                details: {
+                    duration_seconds: 180.001,
+                    required_credits: 60,
+                },
+            }))
+            .mockResolvedValueOnce({ id: 'job-quote-confirmed', status: 'pending' });
+        render(<DashboardPage />);
+
+        fireEvent.click(screen.getByText('Select File'));
+        fireEvent.click(screen.getByText('Start Process'));
+        await confirmProcessingCost();
+
+        const updatedDialog = await screen.findByRole('dialog', {
+            name: 'processingGateCostTitle',
+        });
+        expect(within(updatedDialog).getByText('60')).toBeInTheDocument();
+        expect(within(updatedDialog).getByRole('alert')).toHaveTextContent(
+            'processingGateQuoteChanged',
+        );
+        expect(api.processVideo).toHaveBeenCalledTimes(1);
+        const firstCall = (api.processVideo as jest.Mock).mock.calls[0];
+        expect(firstCall[1]).toEqual(expect.objectContaining({
+            authorized_credits: 30,
+        }));
+
+        await act(async () => {
+            await Promise.resolve();
+        });
+        expect(api.processVideo).toHaveBeenCalledTimes(1);
+
+        await confirmProcessingCost();
+        await waitFor(() => expect(api.processVideo).toHaveBeenCalledTimes(2));
+
+        const secondCall = (api.processVideo as jest.Mock).mock.calls[1];
+        expect(secondCall[0]).toBe(firstCall[0]);
+        expect(secondCall[1]).toEqual(expect.objectContaining({
+            authorized_credits: 60,
+        }));
+        const { authorized_credits: firstCredits, ...firstSettings } = firstCall[1];
+        const { authorized_credits: secondCredits, ...secondSettings } = secondCall[1];
+        expect(firstCredits).toBe(30);
+        expect(secondCredits).toBe(60);
+        expect(secondSettings).toEqual(firstSettings);
+    });
+
+    it('reconfirms an authoritative reprocess quote change before one explicit retry', async () => {
+        // REGRESSION: reprocessing uses the same fail-closed consent boundary
+        // as a new upload and must retain the source job and all settings.
+        (api.reprocessJob as jest.Mock)
+            .mockRejectedValueOnce(Object.assign(new Error('Processing quote changed'), {
+                status: 409,
+                code: 'PROCESSING_QUOTE_CHANGED',
+                details: {
+                    duration_seconds: 180.001,
+                    required_credits: 60,
+                },
+            }))
+            .mockResolvedValueOnce({ id: 'job-reprocess-quote-confirmed', status: 'pending' });
+        render(<DashboardPage />);
+
+        fireEvent.click(screen.getByText('Reprocess'));
+        await confirmProcessingCost();
+
+        const updatedDialog = await screen.findByRole('dialog', {
+            name: 'processingGateCostTitle',
+        });
+        expect(within(updatedDialog).getByText('60')).toBeInTheDocument();
+        expect(within(updatedDialog).getByRole('alert')).toHaveTextContent(
+            'processingGateQuoteChanged',
+        );
+        expect(api.reprocessJob).toHaveBeenCalledTimes(1);
+        const firstCall = (api.reprocessJob as jest.Mock).mock.calls[0];
+        expect(firstCall[0]).toBe('job1');
+        expect(firstCall[1]).toEqual(expect.objectContaining({
+            authorized_credits: 30,
+        }));
+
+        await act(async () => {
+            await Promise.resolve();
+        });
+        expect(api.reprocessJob).toHaveBeenCalledTimes(1);
+
+        await confirmProcessingCost();
+        await waitFor(() => expect(api.reprocessJob).toHaveBeenCalledTimes(2));
+
+        const secondCall = (api.reprocessJob as jest.Mock).mock.calls[1];
+        expect(secondCall[0]).toBe(firstCall[0]);
+        expect(secondCall[1]).toEqual(expect.objectContaining({
+            authorized_credits: 60,
+        }));
+        const { authorized_credits: firstCredits, ...firstSettings } = firstCall[1];
+        const { authorized_credits: secondCredits, ...secondSettings } = secondCall[1];
+        expect(firstCredits).toBe(30);
+        expect(secondCredits).toBe(60);
+        expect(secondSettings).toEqual(firstSettings);
     });
 
     it('uses promotional credits for mock processing', async () => {
@@ -1227,6 +1332,7 @@ describe('DashboardPage', () => {
         expect(api.reprocessJob).toHaveBeenCalledWith(
             'job1',
             expect.objectContaining({
+                authorized_credits: 30,
                 watermark_enabled: true,
             }),
         );
