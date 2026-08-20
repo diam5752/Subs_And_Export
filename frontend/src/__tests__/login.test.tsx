@@ -2,6 +2,7 @@ import React from 'react';
 import { act, render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import LoginPage from '@/app/login/page';
+import { GoogleSignInControl } from '@/components/GoogleSignInControl';
 import { api } from '@/lib/api';
 import {
     loadGoogleIdentityScript,
@@ -370,5 +371,101 @@ describe('LoginPage', () => {
         await waitFor(() => {
             expect(screen.getByText('loginGoogleUnavailable')).toBeInTheDocument();
         });
+    });
+
+    it('reinitializes inline with a fresh nonce and leaves the stale callback inert', async () => {
+        // REGRESSION: inline auth cannot reload the page because doing so discards
+        // the guest's selected video and processing settings.
+        (api.getGoogleAuthNonce as jest.Mock)
+            .mockResolvedValueOnce({
+                nonce: 'first-nonce',
+                expires_in: 600,
+                client_id: 'google-client-id',
+            })
+            .mockResolvedValueOnce({
+                nonce: 'fresh-nonce',
+                expires_in: 600,
+                client_id: 'google-client-id',
+            });
+        const onAuthenticated = jest.fn();
+
+        render(
+            <GoogleSignInControl
+                onAuthenticated={onAuthenticated}
+                recoveryStrategy="reinitialize"
+            />,
+        );
+
+        await waitFor(() => expect(googleCallback).toBeDefined());
+        const staleCallback = googleCallback;
+        mockGoogleLogin.mockRejectedValueOnce(
+            new Error('Google login nonce could not be verified.'),
+        );
+        await act(async () => {
+            staleCallback?.({ credential: 'stale-google-id-token' });
+            await Promise.resolve();
+        });
+
+        await waitFor(() => {
+            expect(screen.getByRole('status')).toHaveTextContent('loginGoogleExpired');
+        });
+        fireEvent.click(screen.getByRole('button', { name: 'loginGoogleReload' }));
+
+        await waitFor(() => {
+            expect(api.getGoogleAuthNonce).toHaveBeenCalledTimes(2);
+            expect(window.google?.accounts?.id?.initialize).toHaveBeenLastCalledWith(
+                expect.objectContaining({ nonce: 'fresh-nonce' }),
+            );
+        });
+        expect(reloadGoogleIdentityPage).not.toHaveBeenCalled();
+
+        act(() => {
+            staleCallback?.({ credential: 'stale-google-id-token' });
+        });
+        expect(mockGoogleLogin).toHaveBeenCalledTimes(1);
+        expect(onAuthenticated).not.toHaveBeenCalled();
+
+        mockGoogleLogin.mockResolvedValueOnce(undefined);
+        await act(async () => {
+            googleCallback?.({ credential: 'fresh-google-id-token' });
+            await Promise.resolve();
+        });
+
+        await waitFor(() => {
+            expect(mockGoogleLogin).toHaveBeenLastCalledWith('fresh-google-id-token');
+            expect(onAuthenticated).toHaveBeenCalledTimes(1);
+        });
+    });
+
+    // REGRESSION: closing an inline auth surface while Google exchange was in
+    // flight could let the stale continuation reopen the next modal stage.
+    it('does not continue authentication after the Google control unmounts', async () => {
+        let resolveGoogleLogin: (() => void) | undefined;
+        mockGoogleLogin.mockReturnValue(new Promise<void>((resolve) => {
+            resolveGoogleLogin = resolve;
+        }));
+        const onAuthenticated = jest.fn();
+        const view = render(
+            <GoogleSignInControl
+                onAuthenticated={onAuthenticated}
+                recoveryStrategy="reinitialize"
+            />,
+        );
+
+        await waitFor(() => expect(googleCallback).toBeDefined());
+        act(() => {
+            googleCallback?.({ credential: 'in-flight-google-id-token' });
+        });
+        await waitFor(() => {
+            expect(mockGoogleLogin).toHaveBeenCalledWith('in-flight-google-id-token');
+        });
+
+        view.unmount();
+        await act(async () => {
+            resolveGoogleLogin?.();
+            await Promise.resolve();
+        });
+
+        expect(onAuthenticated).not.toHaveBeenCalled();
     });
 });
