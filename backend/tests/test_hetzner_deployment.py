@@ -2026,6 +2026,66 @@ def test_backend_image_contains_the_gsubs_watermark() -> None:
     )
 
 
+def test_backend_image_normalizes_checkout_modes_before_non_root_runtime() -> None:
+    dockerfile = (REPOSITORY_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    source_copy = "COPY backend/ ."
+    mode_normalization = "RUN chmod -R a=rX,u+w /app \\\n    && chmod 0644 /gsubs-logo.png"
+    non_root_runtime = "USER appuser"
+
+    # REGRESSION: a release checkout created under umask 077 gave modified
+    # Python files mode 0600. Docker preserved those modes and the non-root
+    # runtime failed to import cleanup.py before it could become healthy.
+    assert source_copy in dockerfile
+    assert mode_normalization in dockerfile
+    assert non_root_runtime in dockerfile
+    assert dockerfile.index(source_copy) < dockerfile.index(mode_normalization)
+    assert dockerfile.index(mode_normalization) < dockerfile.index(non_root_runtime)
+    assert "/data" not in mode_normalization
+    assert "/models" not in mode_normalization
+    assert "/privacy-erasure-journal" not in mode_normalization
+
+
+def test_deploy_preflights_backend_import_before_public_cutover() -> None:
+    deploy_script = deployment_text("deploy-production.sh")
+    image_build = "compose build --pull backend frontend"
+    probe = (
+        "compose run --rm --no-deps --entrypoint python backend -c \\\n"
+        "  'from pathlib import Path; import os; root = Path(\"/app\"); "
+        "assert all(os.access(path, os.R_OK | (os.X_OK if path.is_dir() else 0)) "
+        "for path in (root, *root.rglob(\"*\"))); import main'"
+    )
+    public_cutover = "if ! compose stop edge; then"
+
+    # REGRESSION: candidate image startup was first exercised only after the
+    # public edge had closed, turning a source-mode build defect into downtime.
+    assert image_build in deploy_script
+    assert probe in deploy_script
+    assert public_cutover in deploy_script
+    assert deploy_script.index(image_build) < deploy_script.index(probe)
+    assert deploy_script.index(probe) < deploy_script.index(public_cutover)
+
+    # The preflight may read packaged source and import the ASGI module only.
+    # It must not start dependencies, enter lifespan, touch the database, or
+    # issue a provider request while the current production release is live.
+    assert "--no-deps" in probe
+    assert "--entrypoint python" in probe
+    assert "import main" in probe
+    assert 'Path("/app")' in probe
+    assert "os.R_OK" in probe
+    assert "os.X_OK" in probe
+    for unsafe_fragment in (
+        "Database(",
+        "lifespan(",
+        "run_configured_retention",
+        "reconcile_erasure_journal",
+        "requests.",
+        "stripe.",
+        "http://",
+        "https://",
+    ):
+        assert unsafe_fragment not in probe
+
+
 def test_frontend_image_uses_native_patched_dependencies_without_postinstall_shim() -> None:
     dockerfile = (REPOSITORY_ROOT / "frontend" / "Dockerfile").read_text(encoding="utf-8")
     package = (REPOSITORY_ROOT / "frontend" / "package.json").read_text(encoding="utf-8")

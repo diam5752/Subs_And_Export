@@ -762,6 +762,11 @@ if ! compose build --pull backend frontend; then
   echo "Image build failed; the running production release was not changed." >&2
   exit 1
 fi
+if ! compose run --rm --no-deps --entrypoint python backend -c \
+  'from pathlib import Path; import os; root = Path("/app"); assert all(os.access(path, os.R_OK | (os.X_OK if path.is_dir() else 0)) for path in (root, *root.rglob("*"))); import main'; then
+  echo "Backend source readability/import preflight failed; the running production release was not changed." >&2
+  exit 1
+fi
 # Cache pruning affects every project on this shared VM, so it is opt-in and
 # should be used only during an explicit disk-recovery operation.
 if [ "${SUBFRAME_PRUNE_BUILD_CACHE:-0}" = 1 ]; then
