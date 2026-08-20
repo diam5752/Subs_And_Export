@@ -29,6 +29,13 @@ RUN pip install --no-cache-dir /wheels/* && rm -rf /wheels
 COPY backend/ .
 COPY gsubs-logo.png /gsubs-logo.png
 
+# Git can materialize non-executable files as mode 0600 when a release checkout
+# is created under a restrictive umask. Normalize only immutable runtime source
+# and the public watermark before dropping privileges; persistent data and
+# secret mounts retain their separately enforced private modes.
+RUN chmod -R a=rX,u+w /app \
+    && chmod 0644 /gsubs-logo.png
+
 # Create the only persistent runtime directories used by this image.
 RUN mkdir -p /data/uploads /data/artifacts /privacy-erasure-journal
 
