@@ -41,6 +41,9 @@ def resolve_audio_extraction_timeout_seconds(
 
 
 def _wait_after_termination(process: subprocess.Popen[str]) -> None:
+    if process.poll() is not None:
+        process.wait()
+        return
     try:
         process.wait(timeout=5.0)
     except subprocess.TimeoutExpired:
@@ -144,13 +147,7 @@ def extract_audio(
                     "Audio extraction exceeded timeout of "
                     f"{resolved_timeout:.1f}s",
                 )
-            try:
-                process.wait(timeout=remaining)
-            except subprocess.TimeoutExpired as exc:
-                raise TimeoutError(
-                    "Audio extraction exceeded timeout of "
-                    f"{resolved_timeout:.1f}s",
-                ) from exc
+            process.wait()
             if process.returncode != 0:
                 raise subprocess.CalledProcessError(
                     process.returncode,
