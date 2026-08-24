@@ -76,7 +76,15 @@ def test_startup_recovery_fails_job_refunds_and_deletes_workspace(
         lambda: journal,
     )
 
-    assert reconcile_interrupted_media_jobs(db) == 1
+    # The PostgreSQL quality gate intentionally shares one database across the
+    # suite, so prior tests may have left additional interrupted jobs for this
+    # global startup reconciler. Assert the exact pre-call population instead
+    # of assuming this test is the only writer.
+    expected_reconciled = len(
+        job_store.list_jobs_with_statuses({"pending", "processing"}),
+    )
+    assert expected_reconciled >= 1
+    assert reconcile_interrupted_media_jobs(db) == expected_reconciled
 
     recovered_job = job_store.get_job(job_id)
     assert recovered_job is not None
