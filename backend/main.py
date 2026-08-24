@@ -26,7 +26,7 @@ from secure import (
 )
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
-from starlette.types import ASGIApp
+from starlette.types import ASGIApp, Receive, Scope, Send
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from backend.app.api.endpoints import auth, billing, billing_admin, history, videos
@@ -177,8 +177,28 @@ app.add_middleware(
     ],
 )
 
-# Enable GZip compression for responses > 1000 bytes
-app.add_middleware(GZipMiddleware, minimum_size=1000)
+class PrivateMediaAwareGZipMiddleware:
+    """Compress text/JSON without recompressing private media files."""
+
+    def __init__(self, app: ASGIApp, minimum_size: int = 1000) -> None:
+        self.app = app
+        self.compressed_app = GZipMiddleware(app, minimum_size=minimum_size)
+
+    async def __call__(
+        self,
+        scope: Scope,
+        receive: Receive,
+        send: Send,
+    ) -> None:
+        path = str(scope.get("path", ""))
+        if scope["type"] == "http" and path.startswith("/static/"):
+            await self.app(scope, receive, send)
+            return
+        await self.compressed_app(scope, receive, send)
+
+
+# MP4/MOV files are already compressed and must retain exact byte ranges.
+app.add_middleware(PrivateMediaAwareGZipMiddleware, minimum_size=1000)
 
 default_trusted_hosts = (
     ["localhost", "127.0.0.1", "0.0.0.0", "[::1]", "testserver"] if settings.is_dev else []

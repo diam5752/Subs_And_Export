@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hmac
 import logging
 import re
 from pathlib import Path
@@ -25,7 +26,9 @@ from ...services.subtitle_exports import (
     MalformedTranscriptError,
     export_subtitle_file,
 )
+from ...services.video_export_cache import build_video_export_signature
 from ...services.video_processing import generate_video_variant
+from ...services.video_quality import crf_for_video_quality
 from ..deps import get_current_user, get_db, get_job_store
 from .file_utils import data_roots, relpath_safe, require_storage_capacity
 from .validation import (
@@ -63,8 +66,9 @@ class ExportRequest(BaseModel):
     subtitle_size: int | None = None
     karaoke_enabled: bool | None = None
     watermark_enabled: bool | None = None
+    video_quality: str | None = Field(None, max_length=50)
 
-    @field_validator('subtitle_color')
+    @field_validator("subtitle_color")
     @classmethod
     def validate_subtitle_color(cls, v: str | None) -> str | None:
         if v is None:
@@ -72,6 +76,15 @@ class ExportRequest(BaseModel):
         if not re.match(r"^&H[0-9A-Fa-f]{8}$", v):
             raise ValueError("Invalid subtitle color format (expected &HAABBGGRR)")
         return v
+
+    @field_validator("video_quality")
+    @classmethod
+    def validate_video_quality_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip().lower()
+        crf_for_video_quality(normalized)
+        return normalized
 
     @field_validator("resolution")
     @classmethod
@@ -222,39 +235,119 @@ def _export_video_locked(
     if not input_video:
         raise HTTPException(404, "Original input video not found")
 
-    width, height = (int(part) for part in request.resolution.split("x"))
-    pixel_multiplier = max(1.0, (width * height) / (1080 * 1920))
-    require_storage_capacity(
-        data_dir,
-        required_bytes=int(input_video.stat().st_size * pixel_multiplier),
-        db=db,
-    )
-
     try:
-        subtitle_settings = request.model_dump(exclude_defaults=True)
-        subtitle_settings.pop("resolution", None)
+        result_data = dict(job.result_data or {})
+        subtitle_settings = request.model_dump(
+            exclude_none=True,
+            exclude={"resolution", "video_quality"},
+        )
         if subtitle_settings.get("highlight_style"):
             subtitle_settings["highlight_style"] = validate_highlight_style(str(subtitle_settings["highlight_style"]))
         if subtitle_settings.get("subtitle_position") is not None:
-            subtitle_settings["subtitle_position"] = validate_subtitle_position(int(subtitle_settings["subtitle_position"]))
+            subtitle_settings["subtitle_position"] = validate_subtitle_position(
+                int(subtitle_settings["subtitle_position"])
+            )
         if subtitle_settings.get("max_subtitle_lines") is not None:
-            subtitle_settings["max_subtitle_lines"] = validate_max_subtitle_lines(int(subtitle_settings["max_subtitle_lines"]))
+            subtitle_settings["max_subtitle_lines"] = validate_max_subtitle_lines(
+                int(subtitle_settings["max_subtitle_lines"])
+            )
         if subtitle_settings.get("shadow_strength") is not None:
             subtitle_settings["shadow_strength"] = validate_shadow_strength(int(subtitle_settings["shadow_strength"]))
         if subtitle_settings.get("subtitle_size") is not None:
             subtitle_settings["subtitle_size"] = validate_subtitle_size(int(subtitle_settings["subtitle_size"]))
 
-        output_path = generate_video_variant(
-            job_id, input_video, artifact_dir, request.resolution,
-            job_store, current_user.id, subtitle_settings=subtitle_settings or None,
+        if request.video_quality is not None:
+            video_crf = crf_for_video_quality(request.video_quality)
+        else:
+            stored_crf = result_data.get("video_crf")
+            video_crf = int(stored_crf) if stored_crf is not None else settings.default_video_crf
+
+        output_path = artifact_dir / f"processed_{request.resolution}.mp4"
+        export_signature = build_video_export_signature(
+            input_video=input_video,
+            artifact_dir=artifact_dir,
+            resolution=request.resolution,
+            subtitle_settings=subtitle_settings,
+            result_data=result_data,
+            video_crf=video_crf,
+        )
+        export_cache_value = result_data.get("export_cache")
+        export_cache = dict(export_cache_value) if isinstance(export_cache_value, dict) else {}
+        cache_record = export_cache.get(request.resolution)
+        if (
+            isinstance(cache_record, dict)
+            and isinstance(cache_record.get("signature"), str)
+            and hmac.compare_digest(cache_record["signature"], export_signature)
+            and isinstance(cache_record.get("size"), int)
+            and not isinstance(cache_record["size"], bool)
+            and cache_record["size"] > 0
+            and output_path.is_file()
+            and output_path.stat().st_size == cache_record["size"]
+        ):
+            variants_value = result_data.get("variants")
+            variants = dict(variants_value) if isinstance(variants_value, dict) else {}
+            public_path = relpath_safe(output_path, data_dir).as_posix()
+            variants[request.resolution] = f"/static/{public_path}"
+            result_data["variants"] = variants
+            job_store.update_job(
+                job_id,
+                result_data=result_data,
+                status="completed",
+                progress=100,
+            )
+            updated_job = job_store.get_job(job_id)
+            if updated_job is None:
+                raise HTTPException(
+                    status_code=500,
+                    detail="Cached export job could not be reloaded",
+                )
+            logger.info(
+                "Reused exact rendered video export",
+                extra={"job_id": job_id, "resolution": request.resolution},
+            )
+            return JobResponse.model_validate(updated_job)
+
+        width, height = (int(part) for part in request.resolution.split("x"))
+        pixel_multiplier = max(1.0, (width * height) / (1080 * 1920))
+        require_storage_capacity(
+            data_dir,
+            required_bytes=int(input_video.stat().st_size * pixel_multiplier),
+            db=db,
         )
 
-        result_data = job.result_data.copy() if job.result_data else {}
-        variants = result_data.get("variants", {})
+        output_path = generate_video_variant(
+            job_id,
+            input_video,
+            artifact_dir,
+            request.resolution,
+            job_store,
+            current_user.id,
+            subtitle_settings=subtitle_settings or None,
+            video_crf=video_crf,
+        )
+
+        # Rendering may create or replace the ASS file. Persist the signature
+        # of the exact subtitle asset that produced this MP4.
+        export_signature = build_video_export_signature(
+            input_video=input_video,
+            artifact_dir=artifact_dir,
+            resolution=request.resolution,
+            subtitle_settings=subtitle_settings,
+            result_data=result_data,
+            video_crf=video_crf,
+        )
+
+        variants_value = result_data.get("variants")
+        variants = dict(variants_value) if isinstance(variants_value, dict) else {}
 
         public_path = relpath_safe(output_path, data_dir).as_posix()
         variants[request.resolution] = f"/static/{public_path}"
         result_data["variants"] = variants
+        export_cache[request.resolution] = {
+            "signature": export_signature,
+            "size": output_path.stat().st_size,
+        }
+        result_data["export_cache"] = export_cache
 
         job_store.update_job(job_id, result_data=result_data, status="completed", progress=100)
         updated_job = job_store.get_job(job_id)

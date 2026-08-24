@@ -4,7 +4,10 @@
 }
 
 :8080 {
-	encode zstd gzip
+	@compressible_response {
+		not path /static/*
+	}
+	encode @compressible_response zstd gzip
 
 	@stripe_webhook path /billing/webhook
 	handle @stripe_webhook {

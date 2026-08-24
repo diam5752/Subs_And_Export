@@ -48,17 +48,29 @@ def test_ass_generation_forces_1080p_playres():
         assert kwargs["play_res_x"] == 1080
         assert kwargs["play_res_y"] == 1920
 
-def test_generate_video_variant_forces_1080p_playres():
+def test_generate_video_variant_forces_1080p_playres(tmp_path: Path):
     """Verify export logic also forces 1080p reference."""
+    def write_mock_export(
+        _input_path: Path,
+        _ass_path: Path,
+        output_path: Path,
+        **_kwargs: object,
+    ) -> None:
+        output_path.write_bytes(b"complete-video")
+
     with patch("backend.app.services.video_processing.subtitle_renderer.create_styled_subtitle_file") as mock_create_ass, \
          patch("backend.app.services.video_processing.Path.exists", return_value=True), \
          patch("backend.app.services.ffmpeg_utils.probe_media"), \
-         patch("backend.app.services.ffmpeg_utils.run_ffmpeg_with_subs"):
+         patch(
+             "backend.app.services.ffmpeg_utils.run_ffmpeg_with_subs",
+             side_effect=write_mock_export,
+         ):
 
         job_id = "test_job"
         user_id = "user123"
-        input_path = Path("/tmp/input.mp4")
-        artifact_dir = Path("/tmp/artifacts")
+        input_path = tmp_path / "input.mp4"
+        artifact_dir = tmp_path / "artifacts"
+        artifact_dir.mkdir()
 
         # Mock job store
         mock_job_store = MagicMock()

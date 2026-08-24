@@ -218,7 +218,11 @@ describe('ProcessProvider export handling', () => {
             await waitFor(() => {
                 expect(screen.getByTestId('video-url')).toHaveTextContent('https://static.local/static/artifacts/job-1/processed-1080.mp4');
             });
-            expect(api.exportVideo).toHaveBeenCalledWith('job-1', '1080x1920', expect.any(Object));
+            expect(api.exportVideo).toHaveBeenCalledWith(
+                'job-1',
+                '1080x1920',
+                expect.objectContaining({ video_quality: 'balanced' }),
+            );
             expect(onRefreshJobs).toHaveBeenCalled();
             expect(clickSpy).toHaveBeenCalled();
             const clickedLink = clickSpy.mock.instances.at(-1) as unknown as HTMLAnchorElement;
