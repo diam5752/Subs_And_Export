@@ -134,7 +134,7 @@ def build_filtergraph(
 
 
 def resolve_ffmpeg_thread_count(requested_threads: int | None = None) -> int:
-    """Bound one encoder to at most two host CPUs on the shared VM."""
+    """Bound each FFmpeg decode/filter/encode pool on the shared VM."""
     available_threads = max(1, os.cpu_count() or 1)
     if requested_threads is None:
         return min(available_threads, _FFMPEG_MAX_THREADS)
@@ -219,6 +219,7 @@ def run_ffmpeg_with_subs(
         total_duration=total_duration,
         timeout_seconds=timeout_seconds,
     )
+    threads = resolve_ffmpeg_thread_count(thread_count)
     filtergraph = build_filtergraph(
         ass_path,
         target_width=output_width,
@@ -232,6 +233,13 @@ def run_ffmpeg_with_subs(
         "-nostats",
         "-progress",
         "pipe:2",
+        "-filter_threads",
+        str(threads),
+        "-filter_complex_threads",
+        str(threads),
+        # Input-scoped codec option: cap software decoder pools too.
+        "-threads",
+        str(threads),
         "-i",
         str(input_path),
         "-vf",
@@ -249,8 +257,6 @@ def run_ffmpeg_with_subs(
             str(q_val),
         ]
     else:
-        # Keep one render from consuming the complete shared MizAI VM.
-        threads = resolve_ffmpeg_thread_count(thread_count)
         cmd += [
             "-c:v",
             "libx264",
@@ -258,6 +264,7 @@ def run_ffmpeg_with_subs(
             video_preset,
             "-crf",
             str(video_crf),
+            # Output-scoped codec option: cap software encoder pools.
             "-threads",
             str(threads),
             "-tune",
