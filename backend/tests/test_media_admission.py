@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import errno
 import uuid
 from collections.abc import Callable
 
@@ -83,6 +84,48 @@ def test_live_provider_requires_paid_credits_before_upload(
     assert response.status_code == 402
     assert response.json()["detail"] == "Insufficient paid credits"
     assert upload_reader_called() is False
+
+
+def test_authorized_credits_are_reserved_before_upload_body_and_refunded_on_failure(
+    client: TestClient,
+    funded_user_auth_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # REGRESSION: a balance check alone let one paid balance authorize repeated
+    # uploads without creating an outstanding wallet reservation.
+    user_id = client.get(
+        "/auth/me",
+        headers=funded_user_auth_headers,
+    ).json()["id"]
+    points_store = PointsStore(Database())
+    starting_balance = points_store.get_balance(user_id)
+    observed_balances: list[int] = []
+
+    async def fail_after_observing_reservation(*_args, **_kwargs) -> None:
+        observed_balances.append(points_store.get_balance(user_id))
+        raise OSError(errno.ENOSPC, "synthetic disk failure")
+
+    monkeypatch.setattr(settings, "mock_external_services", False)
+    monkeypatch.setattr(
+        videos_endpoints,
+        "save_request_stream_with_limit",
+        fail_after_observing_reservation,
+    )
+
+    response = post_process_stream(
+        client,
+        funded_user_auth_headers,
+        metadata={
+            "authorized_credits": 30,
+            "transcribe_provider": "elevenlabs",
+        },
+        content=b"private-video",
+    )
+
+    assert response.status_code == 507
+    assert observed_balances == [starting_balance - 30]
+    assert points_store.get_balance(user_id) == starting_balance
+    assert JobStore(Database()).list_jobs_for_user(user_id) == []
 
 
 def test_global_active_job_limit_rejects_new_upload_before_body_read(
