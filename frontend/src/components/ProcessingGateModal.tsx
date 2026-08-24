@@ -46,16 +46,47 @@ export function ProcessingGateModal({
     const [password, setPassword] = useState('');
     const [authError, setAuthError] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isCostActionPending, setIsCostActionPending] = useState(false);
     const dialogRef = useRef<HTMLDivElement>(null);
     const closeButtonRef = useRef<HTMLButtonElement>(null);
     const emailRef = useRef<HTMLInputElement>(null);
     const costActionRef = useRef<HTMLButtonElement>(null);
     const returnFocusRef = useRef<HTMLElement | null>(null);
     const authSessionGenerationRef = useRef(0);
+    const costActionInFlightRef = useRef(false);
 
     const close = useCallback(() => {
         onClose();
     }, [onClose]);
+
+    const confirmCostAction = useCallback(async () => {
+        if (costActionInFlightRef.current || isBalanceLoading) return;
+        costActionInFlightRef.current = true;
+        setIsCostActionPending(true);
+        try {
+            await onConfirm();
+        } finally {
+            costActionInFlightRef.current = false;
+            setIsCostActionPending(false);
+        }
+    }, [isBalanceLoading, onConfirm]);
+
+    const purchaseCredits = useCallback(() => {
+        if (
+            costActionInFlightRef.current
+            || isBalanceLoading
+            || !onPurchaseCredits
+        ) return;
+        costActionInFlightRef.current = true;
+        setIsCostActionPending(true);
+        onPurchaseCredits();
+    }, [isBalanceLoading, onPurchaseCredits]);
+
+    useEffect(() => {
+        if (isOpen && stage === 'cost') return;
+        costActionInFlightRef.current = false;
+        setIsCostActionPending(false);
+    }, [isOpen, stage]);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -449,20 +480,24 @@ export function ProcessingGateModal({
                                     <button
                                         ref={costActionRef}
                                         type="button"
-                                        onClick={() => void onConfirm()}
-                                        disabled={isBalanceLoading}
-                                        className="btn-primary min-h-12 px-4 disabled:cursor-not-allowed disabled:opacity-45"
+                                        onClick={() => void confirmCostAction()}
+                                        disabled={isBalanceLoading || isCostActionPending}
+                                        aria-busy={isCostActionPending}
+                                        className="btn-primary flex min-h-12 items-center justify-center gap-2 px-4 disabled:cursor-not-allowed disabled:opacity-45"
                                     >
+                                        {isCostActionPending && <Spinner className="h-4 w-4" />}
                                         {t('processingGateConfirm', { cost })}
                                     </button>
                                 ) : onPurchaseCredits ? (
                                     <button
                                         ref={costActionRef}
                                         type="button"
-                                        onClick={onPurchaseCredits}
-                                        disabled={isBalanceLoading}
-                                        className="btn-primary min-h-12 px-4 disabled:cursor-not-allowed disabled:opacity-45"
+                                        onClick={purchaseCredits}
+                                        disabled={isBalanceLoading || isCostActionPending}
+                                        aria-busy={isCostActionPending}
+                                        className="btn-primary flex min-h-12 items-center justify-center gap-2 px-4 disabled:cursor-not-allowed disabled:opacity-45"
                                     >
+                                        {isCostActionPending && <Spinner className="h-4 w-4" />}
                                         {t('processingGateBuyCredits')}
                                     </button>
                                 ) : null}
