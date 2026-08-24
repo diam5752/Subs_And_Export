@@ -45,6 +45,7 @@ from backend.app.services.consumer_contracts import (
     assert_consumer_contract_registry_approved,
 )
 from backend.app.services.jobs import JobStore
+from backend.app.services.startup_recovery import reconcile_interrupted_media_jobs
 
 
 def assert_runtime_billing_configuration() -> None:
@@ -95,6 +96,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             logger.warning(
                 "Recovered stranded media cancellations before startup",
                 extra={"reconciled_cancellations": reconciled_cancellations},
+            )
+        reconciled_interrupted_jobs = reconcile_interrupted_media_jobs(
+            app.state.db,
+        )
+        if reconciled_interrupted_jobs:
+            logger.warning(
+                "Failed and refunded media jobs interrupted by restart",
+                extra={
+                    "reconciled_interrupted_jobs": reconciled_interrupted_jobs,
+                },
             )
         if settings.retention_cleanup_enabled:
             retention_task = asyncio.create_task(
