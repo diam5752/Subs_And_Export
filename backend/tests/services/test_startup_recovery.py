@@ -76,15 +76,25 @@ def test_startup_recovery_fails_job_refunds_and_deletes_workspace(
         lambda: journal,
     )
 
-    # The PostgreSQL quality gate intentionally shares one database across the
-    # suite, so prior tests may have left additional interrupted jobs for this
-    # global startup reconciler. Assert the exact pre-call population instead
-    # of assuming this test is the only writer.
-    expected_reconciled = len(
-        job_store.list_jobs_with_statuses({"pending", "processing"}),
+    # The canonical PostgreSQL quality gate shares one database across tests.
+    # Restrict this regression to its own job so invoking the global startup
+    # reconciler cannot mutate unrelated fixtures created earlier in the suite.
+    original_list_jobs = JobStore.list_jobs_with_statuses
+
+    def list_only_target_job(self: JobStore, statuses: set[str] | frozenset[str]):
+        return [
+            job
+            for job in original_list_jobs(self, statuses)
+            if job.id == job_id
+        ]
+
+    monkeypatch.setattr(
+        JobStore,
+        "list_jobs_with_statuses",
+        list_only_target_job,
     )
-    assert expected_reconciled >= 1
-    assert reconcile_interrupted_media_jobs(db) == expected_reconciled
+
+    assert reconcile_interrupted_media_jobs(db) == 1
 
     recovered_job = job_store.get_job(job_id)
     assert recovered_job is not None
