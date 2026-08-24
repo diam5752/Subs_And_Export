@@ -174,7 +174,7 @@ def terminate_process_tree(process: subprocess.Popen[str]) -> None:
         try:
             os.killpg(pid, signal.SIGKILL)
             return
-        except (ProcessLookupError, PermissionError, OSError):
+        except OSError:
             pass
     process.kill()
 
