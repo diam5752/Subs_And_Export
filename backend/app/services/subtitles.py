@@ -19,7 +19,9 @@ from backend.app.services.subtitle_types import Cue, TimeRange
 
 logger = logging.getLogger(__name__)
 
-TIME_PATTERN = re.compile(r"time=(\d{2}):(\d{2}):(\d{2}\.\d{2})")
+TIME_PATTERN = re.compile(
+    r"(?:time|out_time)=(\d+):(\d{2}):(\d{2}(?:\.\d+)?)",
+)
 
 
 def resolve_audio_extraction_timeout_seconds(
@@ -71,6 +73,10 @@ def extract_audio(
     cmd = [
         "ffmpeg",
         "-y",
+        "-nostdin",
+        "-nostats",
+        "-progress",
+        "pipe:2",
         "-i",
         str(input_video),
         "-vn",
@@ -110,7 +116,8 @@ def extract_audio(
                     check_cancelled()
                     last_cancel_check = now
 
-                # Non-blocking read keeps cancellation and timeout responsive.
+                # Programmatic FFmpeg progress is newline-delimited, so a
+                # readiness notification cannot strand readline on '\r' stats.
                 if process.stderr:
                     reads, _, _ = select.select(
                         [process.stderr],
@@ -121,20 +128,19 @@ def extract_audio(
                     if reads:
                         line = process.stderr.readline()
                         if line and progress_callback and total_duration and total_duration > 0:
-                            if "time=" in line:
-                                match = TIME_PATTERN.search(line)
-                                if match:
-                                    h, m, s = match.groups()
-                                    current_seconds = (
-                                        int(h) * 3600
-                                        + int(m) * 60
-                                        + float(s)
-                                    )
-                                    progress = min(
-                                        100.0,
-                                        (current_seconds / total_duration) * 100.0,
-                                    )
-                                    progress_callback(progress)
+                            match = TIME_PATTERN.search(line)
+                            if match:
+                                h, m, s = match.groups()
+                                current_seconds = (
+                                    int(h) * 3600
+                                    + int(m) * 60
+                                    + float(s)
+                                )
+                                progress = min(
+                                    100.0,
+                                    (current_seconds / total_duration) * 100.0,
+                                )
+                                progress_callback(progress)
                 else:
                     time.sleep(min(0.1, max(0.0, deadline - now)))
 
