@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { ProcessingGateModal } from '@/components/ProcessingGateModal';
 import { useAuth } from '@/context/AuthContext';
@@ -104,5 +104,45 @@ describe('ProcessingGateModal focus management', () => {
         );
 
         await waitFor(() => expect(launchButton).toHaveFocus());
+    });
+
+    it('submits the processing confirmation only once while it is in flight', async () => {
+        let resolveConfirmation: (() => void) | null = null;
+        const pendingConfirmation = new Promise<void>((resolve) => {
+            resolveConfirmation = resolve;
+        });
+        const confirm = jest.fn(() => pendingConfirmation);
+
+        render(
+            <ProcessingGateModal
+                isOpen
+                stage="cost"
+                cost={30}
+                balance={100}
+                isBalanceLoading={false}
+                error=""
+                onClose={onClose}
+                onAuthenticated={onAuthenticated}
+                onConfirm={confirm}
+            />,
+        );
+
+        const confirmButton = screen.getByRole('button', {
+            name: 'processingGateConfirm',
+        });
+        fireEvent.click(confirmButton);
+        fireEvent.click(confirmButton);
+
+        expect(confirm).toHaveBeenCalledTimes(1);
+        expect(confirmButton).toBeDisabled();
+        expect(confirmButton).toHaveAttribute('aria-busy', 'true');
+
+        await act(async () => {
+            resolveConfirmation?.();
+            await pendingConfirmation;
+        });
+
+        expect(confirmButton).not.toBeDisabled();
+        expect(confirmButton).toHaveAttribute('aria-busy', 'false');
     });
 });
