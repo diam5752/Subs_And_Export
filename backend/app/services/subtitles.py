@@ -14,7 +14,10 @@ from typing import Callable, Iterable, Sequence
 
 from backend.app.core.config import settings
 from backend.app.core.media_capacity import lock_media_cpu
-from backend.app.services.ffmpeg_utils import terminate_process_tree
+from backend.app.services.ffmpeg_utils import (
+    resolve_ffmpeg_thread_count,
+    terminate_process_tree,
+)
 from backend.app.services.subtitle_types import Cue, TimeRange
 
 logger = logging.getLogger(__name__)
@@ -60,6 +63,7 @@ def extract_audio(
     progress_callback: Callable[[float], None] | None = None,
     total_duration: float | None = None,
     timeout_seconds: float | None = None,
+    thread_count: int | None = None,
 ) -> Path:
     """Extract one mono WAV under the shared-host FFmpeg capacity guard."""
     output_dir = output_dir or Path(tempfile.mkdtemp())
@@ -69,6 +73,7 @@ def extract_audio(
         total_duration=total_duration,
         timeout_seconds=timeout_seconds,
     )
+    threads = resolve_ffmpeg_thread_count(thread_count)
 
     cmd = [
         "ffmpeg",
@@ -77,6 +82,9 @@ def extract_audio(
         "-nostats",
         "-progress",
         "pipe:2",
+        # Input-scoped codec option: cap software audio decoder pools.
+        "-threads",
+        str(threads),
         "-i",
         str(input_video),
         "-vn",
