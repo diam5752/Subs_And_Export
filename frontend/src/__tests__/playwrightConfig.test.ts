@@ -63,8 +63,9 @@ describe('Playwright server isolation', () => {
       'android-chromium',
       'ios-webkit',
       'desktop-firefox',
+      'low-end-chromium',
     ]);
-    expect(projects.slice(1)).toEqual(expect.arrayContaining([
+    expect(projects).toEqual(expect.arrayContaining([
       expect.objectContaining({
         name: 'android-chromium',
         testMatch: /(?:player|modal)_cross_browser\.spec\.ts/,
@@ -80,6 +81,22 @@ describe('Playwright server isolation', () => {
         testMatch: /player_cross_browser\.spec\.ts/,
         use: expect.objectContaining({ browserName: 'firefox' }),
       }),
+      expect.objectContaining({
+        name: 'low-end-chromium',
+        testMatch: /low_end_resilience\.spec\.ts/,
+        grep: /@performance/,
+        dependencies: [
+          'chromium',
+          'android-chromium',
+          'ios-webkit',
+          'desktop-firefox',
+        ],
+        use: expect.objectContaining({ browserName: 'chromium' }),
+      }),
     ]));
+    expect(projects[0]).toMatchObject({
+      name: 'chromium',
+      grepInvert: /@performance/,
+    });
   });
 });

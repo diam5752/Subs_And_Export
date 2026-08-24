@@ -57,6 +57,7 @@ interface ProcessVideoSettings {
 }
 
 const STREAM_UPLOAD_METADATA_HEADER_MAX_CHARS = 8_000;
+export const API_REQUEST_TIMEOUT_MS = 12_000;
 
 function requireAuthorizedCredits(value: unknown): ProcessingCreditTier {
     if (!isProcessingCreditTier(value)) {
@@ -619,6 +620,7 @@ class ApiClient {
         endpoint: string,
         options: RequestInit = {},
         includeBearer = true,
+        timeoutMs?: number,
     ): Promise<T> {
         const url = `${API_BASE}${endpoint}`;
         const headers: Record<string, string> = {};
@@ -642,11 +644,46 @@ class ApiClient {
             headers['Content-Type'] = 'application/json';
         }
 
-        const response = await fetch(url, {
-            credentials: 'include',
-            ...options,
-            headers,
-        });
+        let timeoutTriggered = false;
+        let timeoutId: ReturnType<typeof globalThis.setTimeout> | null = null;
+        let timeoutController: AbortController | null = null;
+        let requestSignal = options.signal;
+
+        // Caller-owned signals keep their exact identity and lifecycle. Only
+        // explicitly bounded session requests receive a fallback timer; long
+        // export and AI operations retain their existing lifecycle. Streaming
+        // uploads use their separate XHR cancellation contract below.
+        if (!requestSignal && timeoutMs !== undefined) {
+            timeoutController = new AbortController();
+            requestSignal = timeoutController.signal;
+            timeoutId = globalThis.setTimeout(() => {
+                timeoutTriggered = true;
+                timeoutController?.abort();
+            }, timeoutMs);
+        }
+
+        let response: Response;
+        try {
+            response = await fetch(url, {
+                credentials: 'include',
+                ...options,
+                headers,
+                signal: requestSignal,
+            });
+        } catch (error) {
+            if (timeoutTriggered) {
+                throw new ApiError(
+                    'Request timed out. Check your connection and try again.',
+                    0,
+                    'request_timeout',
+                );
+            }
+            throw error;
+        } finally {
+            if (timeoutId !== null) {
+                globalThis.clearTimeout(timeoutId);
+            }
+        }
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({ detail: 'Request failed' }));
@@ -745,7 +782,7 @@ class ApiClient {
     }
 
     async getCurrentUser(): Promise<UserResponse> {
-        return this.request<UserResponse>('/auth/me');
+        return this.request<UserResponse>('/auth/me', {}, true, API_REQUEST_TIMEOUT_MS);
     }
 
     async revokeSession(): Promise<LogoutResponse> {
@@ -754,7 +791,7 @@ class ApiClient {
                 return await this.request<LogoutResponse>('/auth/logout', {
                     method: 'POST',
                     keepalive: true,
-                });
+                }, true, API_REQUEST_TIMEOUT_MS);
             } catch (error) {
                 if (!(error instanceof ApiError) || error.status !== 401) {
                     throw error;
@@ -768,6 +805,7 @@ class ApiClient {
                 keepalive: true,
             },
             false,
+            API_REQUEST_TIMEOUT_MS,
         );
     }
 
@@ -976,7 +1014,12 @@ class ApiClient {
     }
 
     async getJobStatus(jobId: string): Promise<JobResponse> {
-        return this.request<JobResponse>(`/videos/jobs/${jobId}`);
+        return this.request<JobResponse>(
+            `/videos/jobs/${jobId}`,
+            {},
+            true,
+            API_REQUEST_TIMEOUT_MS,
+        );
     }
 
     async getJobs(): Promise<JobResponse[]> {

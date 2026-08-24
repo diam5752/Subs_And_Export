@@ -189,6 +189,9 @@ select:focus-visible,
 }
 
 .studio-loading-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
   min-height: 100dvh;
   display: grid;
   place-items: center;
@@ -788,6 +791,87 @@ select:focus-visible,
   .studio-loading-wave span:nth-child(2),
   .studio-loading-wave span:nth-child(4) {
     height: 25px;
+  }
+}
+
+/* Low-end and data-saving browsers keep the same readable surfaces without
+   continuous backdrop compositing or decorative motion. The runtime marker is
+   set from conservative hardware/data hints; media queries remain the no-JS
+   fallback for reduced-motion and slow-update displays. */
+:root[data-visual-effects='reduced'] {
+  scroll-behavior: auto;
+}
+
+:root[data-visual-effects='reduced'] *,
+:root[data-visual-effects='reduced'] *::before,
+:root[data-visual-effects='reduced'] *::after {
+  animation-duration: 1ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 1ms !important;
+}
+
+:root[data-visual-effects='reduced'] .glass,
+:root[data-visual-effects='reduced'] .glass-premium,
+:root[data-visual-effects='reduced'] .glass-active,
+:root[data-visual-effects='reduced'] .studio-sidebar,
+:root[data-visual-effects='reduced'] .studio-header,
+:root[data-visual-effects='reduced'] .preview-gesture-feedback,
+:root[data-visual-effects='reduced'] .preview-seek-feedback,
+:root[data-visual-effects='reduced'] .editor-export-backdrop {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+:root[data-visual-effects='reduced'] .studio-header {
+  background: #f7f7f5;
+}
+
+:root[data-visual-effects='reduced'] .glass,
+:root[data-visual-effects='reduced'] .glass-premium,
+:root[data-visual-effects='reduced'] .glass-active,
+:root[data-visual-effects='reduced'] .studio-sidebar,
+:root[data-visual-effects='reduced'] .video-container-glow,
+:root[data-visual-effects='reduced'] .preview-card-glow,
+:root[data-visual-effects='reduced'] .play-button-glow {
+  box-shadow: none;
+}
+
+:root[data-visual-effects='reduced'] body {
+  background: var(--background);
+}
+
+:root[data-visual-effects='reduced'] .studio-loading-logo,
+:root[data-visual-effects='reduced'] .editor-phone-shell {
+  filter: none;
+}
+
+@media (prefers-reduced-motion: reduce), (update: slow) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+
+  .glass,
+  .glass-premium,
+  .glass-active,
+  .studio-sidebar,
+  .studio-header,
+  .preview-gesture-feedback,
+  .preview-seek-feedback,
+  .editor-export-backdrop {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  .studio-header {
+    background: #f7f7f5 !important;
   }
 }
 

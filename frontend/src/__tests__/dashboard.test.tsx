@@ -191,6 +191,7 @@ describe('DashboardPage', () => {
     const mockUser = { id: '1', name: 'Test User', email: 'test@example.com', provider: 'local' };
     const mockLoadJobs = jest.fn();
     const mockRefreshUser = jest.fn();
+    const mockRetrySession = jest.fn();
     const mockLogin = jest.fn();
     const mockRegister = jest.fn();
     const mockSetSelectedJob = jest.fn();
@@ -226,7 +227,9 @@ describe('DashboardPage', () => {
         (useAuth as jest.Mock).mockReturnValue({
             user: mockUser,
             isLoading: false,
+            sessionUnavailable: false,
             refreshUser: mockRefreshUser,
+            retrySession: mockRetrySession,
             logout: jest.fn(),
             login: mockLogin,
             register: mockRegister,
@@ -877,7 +880,9 @@ describe('DashboardPage', () => {
         (useAuth as jest.Mock).mockReturnValue({
             user: null,
             isLoading: true,
+            sessionUnavailable: false,
             refreshUser: mockRefreshUser,
+            retrySession: mockRetrySession,
             logout: jest.fn(),
         });
 
@@ -887,6 +892,27 @@ describe('DashboardPage', () => {
         expect(loadingState).toHaveAttribute('aria-busy', 'true');
         expect(within(loadingState).getByRole('img', { name: 'gsubs' })).toBeInTheDocument();
         expect(within(loadingState).getByText('loading')).toBeInTheDocument();
+    });
+
+    it('replaces an unbounded loading state with session recovery', () => {
+        // REGRESSION: transient session verification failures previously left
+        // the dashboard on the loading screen with no user action available.
+        (useAuth as jest.Mock).mockReturnValue({
+            user: null,
+            isLoading: false,
+            sessionUnavailable: true,
+            refreshUser: mockRefreshUser,
+            retrySession: mockRetrySession,
+            logout: jest.fn(),
+        });
+
+        render(<DashboardPage />);
+
+        expect(screen.getByRole('heading', { name: 'sessionUnavailableTitle' }))
+            .toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'sessionRetry' }));
+        expect(mockRetrySession).toHaveBeenCalledTimes(1);
+        expect(screen.queryByText('loading')).not.toBeInTheDocument();
     });
 
     it('renders the upload workspace for guests without redirecting', () => {
@@ -1409,7 +1435,7 @@ describe('DashboardPage', () => {
         render(<DashboardPage />);
 
         // Trigger reset via captured callback
-        fireEvent.click(screen.getByText('Reset'));
+        fireEvent.click(await screen.findByText('Reset'));
 
         // Test verifies the code path is executed without errors
         expect(capturedOnReset).toBeDefined();

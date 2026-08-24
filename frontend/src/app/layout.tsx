@@ -8,6 +8,7 @@ import { normalizeAppEnv } from "@/lib/appEnv";
 import { PointsProvider } from "@/context/PointsContext";
 import { PwaRegistration } from "@/components/PwaRegistration";
 import { BRAND } from "@/lib/brand";
+import { AdaptivePerformance } from "@/components/AdaptivePerformance";
 
 
 const inter = Inter({ subsets: ["latin"] });
@@ -52,6 +53,7 @@ export default function RootLayout({
         <I18nProvider>
           <AuthProvider>
             <PointsProvider>
+              <AdaptivePerformance />
               <PwaRegistration />
               {children}
               <CookieConsent />

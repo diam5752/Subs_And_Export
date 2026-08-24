@@ -16,12 +16,23 @@ jest.mock('@/lib/api', () => ({
 }));
 
 function AuthHarness() {
-    const { user, isLoading, login, register, googleLogin, logout, refreshUser } = useAuth();
+    const {
+        user,
+        isLoading,
+        sessionUnavailable,
+        login,
+        register,
+        googleLogin,
+        logout,
+        refreshUser,
+        retrySession,
+    } = useAuth();
 
     return (
         <div>
             <div data-testid="user-email">{user?.email ?? 'none'}</div>
             <div data-testid="loading">{String(isLoading)}</div>
+            <div data-testid="session-unavailable">{String(sessionUnavailable)}</div>
             <button type="button" onClick={() => void login('user@example.com', 'secret')}>
                 login
             </button>
@@ -36,6 +47,9 @@ function AuthHarness() {
             </button>
             <button type="button" onClick={() => void refreshUser()}>
                 refresh
+            </button>
+            <button type="button" onClick={() => void retrySession()}>
+                retry session
             </button>
         </div>
     );
@@ -105,8 +119,17 @@ describe('AuthContext', () => {
         });
     });
 
-    it('does not falsely sign out while the initial session check is transiently unavailable', async () => {
-        (api.getCurrentUser as jest.Mock).mockRejectedValueOnce({ status: 503 });
+    it('offers recovery without clearing a token after a transient initial session failure', async () => {
+        // REGRESSION: a transient /auth/me failure used to leave the entire app
+        // on an unbounded loading screen with no retry path.
+        (api.getCurrentUser as jest.Mock)
+            .mockRejectedValueOnce({ status: 503 })
+            .mockResolvedValueOnce({
+                id: 'u1',
+                email: 'user@example.com',
+                name: 'User',
+                provider: 'local',
+            });
 
         render(
             <AuthProvider>
@@ -114,11 +137,44 @@ describe('AuthContext', () => {
             </AuthProvider>,
         );
 
-        await waitFor(() => expect(api.getCurrentUser).toHaveBeenCalledTimes(1));
+        await waitFor(() => {
+            expect(api.getCurrentUser).toHaveBeenCalledTimes(1);
+            expect(screen.getByTestId('loading')).toHaveTextContent('false');
+            expect(screen.getByTestId('session-unavailable')).toHaveTextContent('true');
+        });
         expect(api.revokeSession).not.toHaveBeenCalled();
         expect(api.clearToken).not.toHaveBeenCalled();
         expect(localStorage.getItem('auth_token')).toBe('test-token');
-        expect(screen.getByTestId('loading')).toHaveTextContent('true');
+
+        fireEvent.click(screen.getByRole('button', { name: 'retry session' }));
+
+        await waitFor(() => {
+            expect(api.getCurrentUser).toHaveBeenCalledTimes(2);
+            expect(screen.getByTestId('user-email')).toHaveTextContent('user@example.com');
+            expect(screen.getByTestId('loading')).toHaveTextContent('false');
+            expect(screen.getByTestId('session-unavailable')).toHaveTextContent('false');
+        });
+    });
+
+    it('offers recovery when a rejected session cannot yet revoke its media cookie', async () => {
+        // REGRESSION: a failed cookie revocation after a 401 also left the
+        // guarded loading screen active forever.
+        (api.getCurrentUser as jest.Mock).mockRejectedValueOnce({ status: 401 });
+        (api.revokeSession as jest.Mock).mockRejectedValueOnce(new Error('network unavailable'));
+
+        render(
+            <AuthProvider>
+                <AuthHarness />
+            </AuthProvider>,
+        );
+
+        await waitFor(() => {
+            expect(api.revokeSession).toHaveBeenCalledTimes(1);
+            expect(screen.getByTestId('loading')).toHaveTextContent('false');
+            expect(screen.getByTestId('session-unavailable')).toHaveTextContent('true');
+        });
+        expect(api.clearToken).not.toHaveBeenCalled();
+        expect(localStorage.getItem('auth_token')).toBe('test-token');
     });
 
     it('logs in and refreshes the user profile', async () => {

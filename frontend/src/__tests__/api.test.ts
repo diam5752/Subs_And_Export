@@ -125,6 +125,51 @@ describe('API Client', () => {
                 })
             );
         });
+
+        it('aborts a stalled session lookup at the bounded JSON request timeout', async () => {
+            // REGRESSION: an indefinitely pending fetch kept authenticated
+            // browsers on the full-screen loading state forever.
+            jest.useFakeTimers();
+            try {
+                (fetch as jest.Mock).mockImplementationOnce(
+                    (_url: string, options: RequestInit) => new Promise((_resolve, reject) => {
+                        options.signal?.addEventListener('abort', () => {
+                            const abortError = new Error('aborted');
+                            abortError.name = 'AbortError';
+                            reject(abortError);
+                        });
+                    }),
+                );
+
+                const { API_REQUEST_TIMEOUT_MS, api } = await import('@/lib/api');
+                const request = api.getCurrentUser();
+                const assertion = expect(request).rejects.toMatchObject({
+                    name: 'ApiError',
+                    status: 0,
+                    code: 'request_timeout',
+                });
+
+                await jest.advanceTimersByTimeAsync(API_REQUEST_TIMEOUT_MS);
+                await assertion;
+            } finally {
+                jest.useRealTimers();
+            }
+        });
+    });
+
+    it('does not apply the session timeout to ordinary API operations', async () => {
+        // Export and AI-backed requests can legitimately exceed the bounded
+        // session-probe window, so the generic request path stays unbounded.
+        (fetch as jest.Mock).mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({ balance: 125 }),
+        });
+
+        const { api } = await import('@/lib/api');
+        await api.getPointsBalance();
+
+        const requestOptions = (fetch as jest.Mock).mock.calls[0][1] as RequestInit;
+        expect(requestOptions.signal).toBeUndefined();
     });
 
     describe('revokeSession', () => {
@@ -870,6 +915,8 @@ describe('API Client', () => {
             const result = await api.getJobStatus('job-123');
 
             expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/videos/jobs/job-123'), expect.anything());
+            const requestOptions = (fetch as jest.Mock).mock.calls[0][1] as RequestInit;
+            expect(requestOptions.signal).toBeInstanceOf(AbortSignal);
             expect(result.status).toBe('completed');
         });
     });

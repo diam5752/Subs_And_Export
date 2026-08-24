@@ -24,6 +24,7 @@ import { paidCreditLegalPublicationIsApproved } from '@/lib/paidCreditLegal';
 import Link from 'next/link';
 import { BrandLogo } from '@/components/BrandLogo';
 import { ProfileAvatar } from '@/components/ProfileAvatar';
+import { SessionRecoveryScreen } from '@/components/SessionRecoveryScreen';
 
 const statusStyles: Record<string, string> = {
   completed: 'bg-green-500/15 text-green-300 border-green-500/30',
@@ -106,7 +107,15 @@ function processingQuoteChangeFromError(error: unknown): ProcessingQuoteChange |
 }
 
 export default function DashboardPage() {
-  const { user, isLoading, logout, refreshUser } = useAuth();
+  const {
+    user,
+    isLoading,
+    sessionUnavailable,
+    logout,
+    refreshUser,
+    retrySession,
+  } = useAuth();
+  const authenticatedUserId = user?.id ?? null;
   const paidCreditSalesUiApproved = paidCreditLegalPublicationIsApproved();
   const {
     balance,
@@ -116,8 +125,12 @@ export default function DashboardPage() {
     refreshBalance,
   } = usePoints();
   const { t } = useI18n();
-  const didRestoreSession = useRef(false);
+  const restoreAttemptUserIdRef = useRef<string | null>(null);
+  const restoreRequestGenerationRef = useRef(0);
   const activeUploadAbortRef = useRef<AbortController | null>(null);
+  const [sessionJobIdToRestore, setSessionJobIdToRestore] = useState<string | null>(() => (
+    typeof window === 'undefined' ? null : localStorage.getItem('lastActiveJobId')
+  ));
 
   // Custom Hooks
   const {
@@ -230,46 +243,62 @@ export default function DashboardPage() {
 
   // Restore session
   useEffect(() => {
-    if (!user || selectedFile || didRestoreSession.current) return;
-    didRestoreSession.current = true;
+    if (!authenticatedUserId) {
+      restoreAttemptUserIdRef.current = null;
+      restoreRequestGenerationRef.current += 1;
+      return;
+    }
+    if (!sessionJobIdToRestore) return;
+    if (selectedFile) {
+      restoreRequestGenerationRef.current += 1;
+      queueMicrotask(() => setSessionJobIdToRestore(null));
+      return;
+    }
+    if (restoreAttemptUserIdRef.current === authenticatedUserId) return;
+    restoreAttemptUserIdRef.current = authenticatedUserId;
+    const requestGeneration = restoreRequestGenerationRef.current + 1;
+    restoreRequestGenerationRef.current = requestGeneration;
+    const restoreJobId = sessionJobIdToRestore;
 
     const restoreSession = async () => {
-      const lastJobId = localStorage.getItem('lastActiveJobId');
-      if (lastJobId && !selectedJob && !jobId) {
-        try {
-          const job = await api.getJobStatus(lastJobId);
-          const completedFilesAreAvailable = job.status !== 'completed'
-            || Boolean(job.result_data && !job.result_data.files_missing);
+      try {
+        const job = await api.getJobStatus(restoreJobId);
+        if (requestGeneration !== restoreRequestGenerationRef.current) return;
 
-          if (RESTORABLE_ACTIVE_JOB_STATUSES.has(job.status)) {
-            setJobId(job.id);
-            setIsProcessing(true);
-            setCanCancelProcessing(CANCELLABLE_JOB_STATUSES.has(job.status));
-            setProgress(job.progress ?? 0);
-            setStatusMessage(
-              job.status === 'cancelling'
-                ? t('cancellationRequested')
-                : job.message || t('statusProcessingEllipsis'),
-            );
-            setProcessError('');
-            return;
-          }
+        const completedFilesAreAvailable = job.status !== 'completed'
+          || Boolean(job.result_data && !job.result_data.files_missing);
+        setSessionJobIdToRestore(null);
 
-          // A completed job whose local artifacts were cleaned up cannot render
-          // a preview or transcript, so it must not reopen as a broken editor.
-          if (job.status === 'completed' && completedFilesAreAvailable) {
-            setSelectedJob(job);
-          } else {
-            localStorage.removeItem('lastActiveJobId');
-          }
-        } catch (err) {
-          console.warn('Failed to restore session job:', err);
+        if (RESTORABLE_ACTIVE_JOB_STATUSES.has(job.status)) {
+          setJobId(job.id);
+          setIsProcessing(true);
+          setCanCancelProcessing(CANCELLABLE_JOB_STATUSES.has(job.status));
+          setProgress(job.progress ?? 0);
+          setStatusMessage(
+            job.status === 'cancelling'
+              ? t('cancellationRequested')
+              : job.message || t('statusProcessingEllipsis'),
+          );
+          setProcessError('');
+          return;
+        }
+
+        // A completed job whose local artifacts were cleaned up cannot render
+        // a preview or transcript, so it must not reopen as a broken editor.
+        if (job.status === 'completed' && completedFilesAreAvailable) {
+          setSelectedJob(job);
+        } else {
           localStorage.removeItem('lastActiveJobId');
         }
+      } catch (err) {
+        if (requestGeneration !== restoreRequestGenerationRef.current) return;
+        console.warn('Failed to restore session job:', err);
+        localStorage.removeItem('lastActiveJobId');
+        setSessionJobIdToRestore(null);
       }
     };
     void restoreSession();
-  }, [jobId, selectedFile, selectedJob, setSelectedJob, t, user]);
+  }, [authenticatedUserId, selectedFile, sessionJobIdToRestore, setSelectedJob, t]);
 
   // Persist both in-flight and completed sessions so a reload can resume
   // polling or reopen the finished editor respectively.
@@ -786,7 +815,19 @@ export default function DashboardPage() {
     }
   }, [setShowAccountPanel]);
 
-  if (isLoading) {
+  const storedJobRestorePending = Boolean(
+    user
+    && sessionJobIdToRestore
+    && !selectedFile
+    && !selectedJob
+    && !jobId
+  );
+
+  if (sessionUnavailable) {
+    return <SessionRecoveryScreen onRetry={retrySession} />;
+  }
+
+  if (isLoading || storedJobRestorePending) {
     return (
       <div
         className="studio-loading-screen"
