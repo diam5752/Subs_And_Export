@@ -50,6 +50,9 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
+      // The throttled benchmark runs only after every functional project so
+      // host contention cannot masquerade as main-thread work in its TBT data.
+      grepInvert: /@performance/,
       use: {
         browserName: 'chromium',
         viewport: { width: 1280, height: 800 },
@@ -84,6 +87,22 @@ export default defineConfig({
       use: {
         browserName: 'firefox',
         viewport: { width: 1280, height: 800 },
+        colorScheme: 'light',
+      },
+    },
+    {
+      name: 'low-end-chromium',
+      testMatch: /low_end_resilience\.spec\.ts/,
+      grep: /@performance/,
+      dependencies: [
+        'chromium',
+        'android-chromium',
+        'ios-webkit',
+        'desktop-firefox',
+      ],
+      use: {
+        browserName: 'chromium',
+        viewport: { width: 390, height: 844 },
         colorScheme: 'light',
       },
     },

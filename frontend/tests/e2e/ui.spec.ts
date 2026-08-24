@@ -634,10 +634,14 @@ test('intelligence entry stays hidden while the feature is disabled', async ({ p
   }
 });
 
-test('style controls balance color below size against the lines column', async ({ page }) => {
+test('style controls stay responsive when reduced effects are active', async ({ page }) => {
   await mockApi(page);
   await page.addInitScript(() => {
     localStorage.setItem('lastActiveJobId', 'job-futurist');
+    Object.defineProperty(navigator, 'hardwareConcurrency', {
+      configurable: true,
+      value: 2,
+    });
   });
   await page.goto('/');
   await page.getByTestId('completed-editor').waitFor({ timeout: 30_000 });
@@ -674,6 +678,9 @@ test('style controls balance color below size against the lines column', async (
   expect(Math.abs(desktop.color.bottom - desktop.lines.bottom)).toBeLessThanOrEqual(2);
 
   await page.setViewportSize(viewports.mobile);
+  await page.evaluate(() => new Promise<void>((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+  }));
   const mobile = await measureControls();
   expect(mobile.color.y).toBeGreaterThanOrEqual(mobile.size.bottom);
   expect(mobile.lines.y).toBeGreaterThanOrEqual(mobile.color.bottom);

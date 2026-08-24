@@ -14,11 +14,13 @@ export interface User {
 interface AuthContextType {
     user: User | null;
     isLoading: boolean;
+    sessionUnavailable: boolean;
     login: (email: string, password: string) => Promise<void>;
     register: (email: string, password: string, name: string) => Promise<void>;
     googleLogin: (idToken: string) => Promise<void>;
     logout: () => Promise<void>;
     refreshUser: () => Promise<void>;
+    retrySession: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -40,6 +42,7 @@ function isDefinitiveSessionRejection(error: unknown): boolean {
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [sessionUnavailable, setSessionUnavailable] = useState(false);
 
     const clearRejectedSession = useCallback(async (): Promise<boolean> => {
         try {
@@ -70,32 +73,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
     }, [clearRejectedSession]);
 
-    useEffect(() => {
-        // Check for existing session
-        const checkAuth = async () => {
-            if (!hasStoredAuthToken()) {
-                setUser(null);
-                setIsLoading(false);
-                return;
-            }
-            try {
-                const userData = await api.getCurrentUser();
-                setUser(userData);
-                setIsLoading(false);
-            } catch (error) {
-                if (!isDefinitiveSessionRejection(error)) {
-                    // Authentication is unknown while the API is temporarily
-                    // unavailable. Keep the guarded loading state and stored
-                    // bearer instead of falsely rendering a signed-out UI.
-                    return;
+    const retrySession = useCallback(async () => {
+        setIsLoading(true);
+        setSessionUnavailable(false);
+
+        if (!hasStoredAuthToken()) {
+            setUser(null);
+            setIsLoading(false);
+            return;
+        }
+
+        try {
+            const userData = await api.getCurrentUser();
+            setUser(userData);
+        } catch (error) {
+            if (isDefinitiveSessionRejection(error)) {
+                const cleared = await clearRejectedSession();
+                if (!cleared) {
+                    setSessionUnavailable(true);
                 }
-                if (await clearRejectedSession()) {
-                    setIsLoading(false);
-                }
+            } else {
+                // Preserve the bearer and avoid falsely rendering a signed-out
+                // session. The app now exposes an explicit retry surface rather
+                // than retaining an unbounded full-screen loading state.
+                setSessionUnavailable(true);
             }
-        };
-        checkAuth();
+        } finally {
+            setIsLoading(false);
+        }
     }, [clearRejectedSession]);
+
+    useEffect(() => {
+        let active = true;
+        queueMicrotask(() => {
+            if (active) void retrySession();
+        });
+        return () => {
+            active = false;
+        };
+    }, [retrySession]);
 
     const login = useCallback(async (email: string, password: string) => {
         await api.login(email, password);
@@ -122,7 +138,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, []);
 
     return (
-        <AuthContext.Provider value={{ user, isLoading, login, register, googleLogin, logout, refreshUser }}>
+        <AuthContext.Provider value={{
+            user,
+            isLoading,
+            sessionUnavailable,
+            login,
+            register,
+            googleLogin,
+            logout,
+            refreshUser,
+            retrySession,
+        }}>
             {children}
         </AuthContext.Provider>
     );

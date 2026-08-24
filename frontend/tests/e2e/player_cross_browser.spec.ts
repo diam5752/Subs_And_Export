@@ -375,6 +375,16 @@ test('player and subtitle manipulation stay clear across browser engines', async
     await expect.poll(async () => sidebarBody.evaluate((element) => element.scrollTop))
       .toBe(0);
   } else {
+    // Keep the desktop handle assertion tied to an active cue. Under a loaded
+    // parallel suite the deliberately playing preview can otherwise advance
+    // beyond the short fixture while earlier gesture assertions are running.
+    await video.evaluate((element) => {
+      const media = element as HTMLVideoElement;
+      media.pause();
+      media.currentTime = 0.5;
+      media.dispatchEvent(new Event('seeked'));
+    });
+    await expect(overlay).toBeVisible();
     await expect(page.getByTestId('subtitle-drag-handle')).toBeVisible();
     await expect(page.getByTestId('subtitle-resize-handle')).toBeVisible();
   }
