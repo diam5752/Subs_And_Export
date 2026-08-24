@@ -80,7 +80,7 @@ def test_run_ffmpeg_timeout_kills_hung_process_group(
     assert popen_kwargs["start_new_session"] is True
 
 
-def test_run_ffmpeg_command_uses_bounded_threads(
+def test_run_ffmpeg_command_uses_bounded_threads_and_progress_pipe(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -108,17 +108,27 @@ def test_run_ffmpeg_command_uses_bounded_threads(
     )
 
     thread_index = command.index("-threads")
+    progress_index = command.index("-progress")
     assert command[thread_index + 1] == "2"
+    assert command[progress_index + 1] == "pipe:2"
+    assert "-nostats" in command
+    assert "-nostdin" in command
 
 
-def test_extract_audio_timeout_kills_hung_process(
+def test_extract_audio_timeout_kills_hung_process_and_uses_progress_pipe(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
     process = HangingProcess()
+    command: list[str] = []
     ticks = iter([0.0, 0.0, 0.02, 0.02])
+
+    def fake_popen(cmd, **_kwargs):
+        command.extend(cmd)
+        return process
+
     monkeypatch.setattr(settings, "data_dir", tmp_path)
-    monkeypatch.setattr(subtitles.subprocess, "Popen", lambda *_args, **_kwargs: process)
+    monkeypatch.setattr(subtitles.subprocess, "Popen", fake_popen)
     monkeypatch.setattr(subtitles.select, "select", lambda *_args: ([], [], []))
     monkeypatch.setattr(subtitles.time, "monotonic", lambda: next(ticks, 0.02))
 
@@ -129,7 +139,21 @@ def test_extract_audio_timeout_kills_hung_process(
             timeout_seconds=0.01,
         )
 
+    progress_index = command.index("-progress")
     assert process.killed is True
+    assert command[progress_index + 1] == "pipe:2"
+    assert "-nostats" in command
+    assert "-nostdin" in command
+
+
+def test_programmatic_progress_timestamps_are_parsed() -> None:
+    line = "out_time=00:00:05.123456"
+    ffmpeg_match = ffmpeg_utils.TIME_PATTERN.search(line)
+    extraction_match = subtitles.TIME_PATTERN.search(line)
+    assert ffmpeg_match is not None
+    assert extraction_match is not None
+    assert ffmpeg_match.groups() == ("00", "00", "05.123456")
+    assert extraction_match.groups() == ("00", "00", "05.123456")
 
 
 def test_timeout_resolvers_reject_invalid_values() -> None:
