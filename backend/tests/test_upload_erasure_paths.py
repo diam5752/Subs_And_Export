@@ -328,14 +328,14 @@ def test_many_verified_pre_job_cleanups_do_not_grow_durable_journal(
     assert journal.read_all() == []
 
 
-def test_stream_save_error_with_verified_cleanup_does_not_retain_tombstone(
+def test_stream_save_error_with_verified_cleanup_records_job_tombstone(
     client: TestClient,
-    user_auth_headers: dict[str, str],
+    funded_user_auth_headers: dict[str, str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     captured: dict[str, object] = {}
     journal = MagicMock()
-    me = client.get("/auth/me", headers=user_auth_headers)
+    me = client.get("/auth/me", headers=funded_user_auth_headers)
     assert me.status_code == 200
     user_id = me.json()["id"]
 
@@ -390,7 +390,7 @@ def test_stream_save_error_with_verified_cleanup_does_not_retain_tombstone(
     response = client.post(
         "/videos/process-stream",
         headers={
-            **user_auth_headers,
+            **funded_user_auth_headers,
             "content-type": "video/mp4",
             "x-gsubs-upload-metadata": metadata,
         },
@@ -402,7 +402,11 @@ def test_stream_save_error_with_verified_cleanup_does_not_retain_tombstone(
     assert isinstance(path, Path) and not path.exists()
     job_id = path.stem.removesuffix("_input")
     assert get_workspace_owner(data_dir=path.parent.parent, job_id=job_id) is None
-    journal.append.assert_not_called()
+    journal.append.assert_called_once_with(
+        kind="job",
+        user_id=user_id,
+        job_ids=[job_id],
+    )
 
 
 def test_stream_budget_preflight_rejects_before_uuid_or_workspace_write(

@@ -46,12 +46,41 @@ export function ProcessingGateModal({
     const [password, setPassword] = useState('');
     const [authError, setAuthError] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isCostActionPending, setIsCostActionPending] = useState(false);
+    const dialogRef = useRef<HTMLDivElement>(null);
+    const closeButtonRef = useRef<HTMLButtonElement>(null);
     const emailRef = useRef<HTMLInputElement>(null);
+    const costActionRef = useRef<HTMLButtonElement>(null);
+    const returnFocusRef = useRef<HTMLElement | null>(null);
     const authSessionGenerationRef = useRef(0);
+    const costActionInFlightRef = useRef(false);
 
     const close = useCallback(() => {
         onClose();
     }, [onClose]);
+
+    const confirmCostAction = useCallback(async () => {
+        if (costActionInFlightRef.current || isBalanceLoading) return;
+        costActionInFlightRef.current = true;
+        setIsCostActionPending(true);
+        try {
+            await onConfirm();
+        } finally {
+            costActionInFlightRef.current = false;
+            setIsCostActionPending(false);
+        }
+    }, [isBalanceLoading, onConfirm]);
+
+    const purchaseCredits = useCallback(() => {
+        if (
+            costActionInFlightRef.current
+            || isBalanceLoading
+            || !onPurchaseCredits
+        ) return;
+        costActionInFlightRef.current = true;
+        setIsCostActionPending(true);
+        onPurchaseCredits();
+    }, [isBalanceLoading, onPurchaseCredits]);
 
     useEffect(() => {
         if (!isOpen) return;
@@ -129,20 +158,80 @@ export function ProcessingGateModal({
     useEffect(() => {
         if (!isOpen) return;
 
+        returnFocusRef.current = document.activeElement instanceof HTMLElement
+            ? document.activeElement
+            : null;
+
         const handleKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') close();
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                close();
+                return;
+            }
+            if (event.key !== 'Tab' || !dialogRef.current) return;
+
+            const focusable = Array.from(
+                dialogRef.current.querySelectorAll<HTMLElement>(
+                    'a[href], button:not([disabled]), input:not([disabled]), '
+                    + 'select:not([disabled]), textarea:not([disabled]), '
+                    + '[tabindex]:not([tabindex="-1"])',
+                ),
+            ).filter((element) => (
+                element.getAttribute('aria-hidden') !== 'true'
+                && element.getClientRects().length > 0
+            ));
+
+            if (focusable.length === 0) {
+                event.preventDefault();
+                dialogRef.current.focus({ preventScroll: true });
+                return;
+            }
+
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            const activeElement = document.activeElement;
+            if (
+                event.shiftKey
+                && (activeElement === first || !dialogRef.current.contains(activeElement))
+            ) {
+                event.preventDefault();
+                last.focus({ preventScroll: true });
+            } else if (
+                !event.shiftKey
+                && (activeElement === last || !dialogRef.current.contains(activeElement))
+            ) {
+                event.preventDefault();
+                first.focus({ preventScroll: true });
+            }
         };
 
         document.addEventListener('keydown', handleKeyDown);
 
         return () => {
             document.removeEventListener('keydown', handleKeyDown);
+            const returnTarget = returnFocusRef.current;
+            returnFocusRef.current = null;
+            queueMicrotask(() => {
+                if (returnTarget?.isConnected) {
+                    returnTarget.focus({ preventScroll: true });
+                }
+            });
         };
     }, [close, isOpen]);
 
     useEffect(() => {
-        if (isOpen && stage === 'auth') {
+        if (!isOpen) return;
+
+        if (stage === 'auth') {
             emailRef.current?.focus({ preventScroll: true });
+            return;
+        }
+
+        const costAction = costActionRef.current;
+        if (costAction && !costAction.disabled) {
+            costAction.focus({ preventScroll: true });
+        } else {
+            closeButtonRef.current?.focus({ preventScroll: true });
         }
     }, [isOpen, stage]);
 
@@ -192,6 +281,8 @@ export function ProcessingGateModal({
             data-testid="processing-gate"
         >
             <div
+                ref={dialogRef}
+                tabIndex={-1}
                 className="relative max-h-full w-full max-w-md overflow-x-hidden overflow-y-auto overscroll-contain rounded-[24px] border border-black/10 bg-white shadow-2xl"
                 onClick={(event) => event.stopPropagation()}
                 data-testid="processing-gate-card"
@@ -211,6 +302,7 @@ export function ProcessingGateModal({
                             </p>
                         </div>
                         <button
+                            ref={closeButtonRef}
                             type="button"
                             onClick={close}
                             className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-[var(--border)] text-[var(--muted)] transition-colors hover:bg-[#f5f5f4] hover:text-[var(--foreground)]"
@@ -380,20 +472,26 @@ export function ProcessingGateModal({
                                 </button>
                                 {canAfford ? (
                                     <button
+                                        ref={costActionRef}
                                         type="button"
-                                        onClick={() => void onConfirm()}
-                                        disabled={isBalanceLoading}
-                                        className="btn-primary min-h-12 px-4 disabled:cursor-not-allowed disabled:opacity-45"
+                                        onClick={() => void confirmCostAction()}
+                                        disabled={isBalanceLoading || isCostActionPending}
+                                        aria-busy={isCostActionPending}
+                                        className="btn-primary flex min-h-12 items-center justify-center gap-2 px-4 disabled:cursor-not-allowed disabled:opacity-45"
                                     >
+                                        {isCostActionPending && <Spinner className="h-4 w-4" />}
                                         {t('processingGateConfirm', { cost })}
                                     </button>
                                 ) : onPurchaseCredits ? (
                                     <button
+                                        ref={costActionRef}
                                         type="button"
-                                        onClick={onPurchaseCredits}
-                                        disabled={isBalanceLoading}
-                                        className="btn-primary min-h-12 px-4 disabled:cursor-not-allowed disabled:opacity-45"
+                                        onClick={purchaseCredits}
+                                        disabled={isBalanceLoading || isCostActionPending}
+                                        aria-busy={isCostActionPending}
+                                        className="btn-primary flex min-h-12 items-center justify-center gap-2 px-4 disabled:cursor-not-allowed disabled:opacity-45"
                                     >
+                                        {isCostActionPending && <Spinner className="h-4 w-4" />}
                                         {t('processingGateBuyCredits')}
                                     </button>
                                 ) : null}

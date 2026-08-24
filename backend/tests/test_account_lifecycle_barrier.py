@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 from fastapi import HTTPException
+from starlette.requests import Request
 
 from backend.app.api.deps import get_current_user_with_media_lifecycle
 from backend.app.core.auth import UserStore
@@ -158,9 +159,22 @@ def test_stale_authenticated_writer_is_rejected_after_erasure_wins(
     )
     monkeypatch.setattr(settings, "data_dir", tmp_path)
     result: list[BaseException | str] = []
+    request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": "/videos/jobs",
+            "headers": [],
+            "query_string": b"",
+            "scheme": "http",
+            "server": ("testserver", 80),
+            "client": ("testclient", 50000),
+        },
+    )
 
     def admit_stale_request() -> None:
         dependency = get_current_user_with_media_lifecycle(
+            request=request,
             current_user=user,
             db=db,
         )

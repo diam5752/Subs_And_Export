@@ -50,8 +50,8 @@ from ...services.charge_plans import (
 )
 from ...services.ffmpeg_utils import probe_media
 from ...services.history import HistoryStore
-from ...services.jobs import JobStore
-from ...services.usage_ledger import UsageLedgerStore
+from ...services.jobs import Job, JobStore
+from ...services.usage_ledger import ChargePlan, UsageLedgerStore
 from ..deps import (
     get_current_user_with_media_lifecycle,
     get_db,
@@ -147,6 +147,14 @@ def _decode_stream_process_metadata(encoded: str | None) -> StreamProcessMetadat
         return StreamProcessMetadata.model_validate(payload)
     except (binascii.Error, UnicodeDecodeError, json.JSONDecodeError, ValidationError, ValueError) as exc:
         raise HTTPException(status_code=400, detail="Invalid upload metadata") from exc
+
+
+def _authorized_video_quote(authorized_credits: int) -> pricing.VideoCreditQuote:
+    """Resolve the exact price ceiling already confirmed by the user."""
+    for quote in pricing.VIDEO_CREDIT_BRACKETS:
+        if quote.credits == authorized_credits:
+            return quote
+    raise HTTPException(status_code=400, detail="Invalid authorized credits")
 
 
 def _check_concurrent_job_capacity(job_store: JobStore, current_user: User) -> None:
@@ -264,6 +272,36 @@ def _record_and_delete_rejected_upload(
         )
 
 
+def _cleanup_saved_upload_failure(
+    *,
+    job_id: str,
+    current_user: User,
+    input_path: Path,
+    artifacts_root: Path,
+    job_store: JobStore,
+    ledger_store: UsageLedgerStore,
+    charge_plan: ChargePlan | None,
+    job_created: bool,
+    error: str,
+) -> None:
+    """Refund a provisional reservation, then remove its exact workspace."""
+    if charge_plan is not None:
+        refund_charge_best_effort(
+            ledger_store,
+            charge_plan,
+            status="failed",
+            error=sanitize_message(error),
+        )
+    _record_and_delete_rejected_upload(
+        job_id=job_id,
+        user_id=current_user.id,
+        input_path=input_path,
+        artifacts_root=artifacts_root,
+        kind="job" if job_created else "workspace",
+        job_store=job_store if job_created else None,
+    )
+
+
 def _queue_saved_upload(
     *,
     background_tasks: BackgroundTasks,
@@ -279,17 +317,42 @@ def _queue_saved_upload(
     history_store: HistoryStore,
     ledger_store: UsageLedgerStore,
     db: Database,
+    pre_created_job: Job | None = None,
+    pre_reserved_charge_plan: ChargePlan | None = None,
+    pre_reserved_balance: int | None = None,
 ) -> JobResponse:
-    """Validate a saved upload, reserve its charge, and enqueue processing."""
+    """Validate a saved upload and enqueue it with one durable charge."""
+    pre_reserved = any(
+        value is not None
+        for value in (
+            pre_created_job,
+            pre_reserved_charge_plan,
+            pre_reserved_balance,
+        )
+    )
+    if pre_reserved and (
+        pre_created_job is None
+        or pre_reserved_charge_plan is None
+        or pre_reserved_balance is None
+    ):
+        raise ValueError("Incomplete pre-upload reservation state")
+
+    charge_plan = pre_reserved_charge_plan
+    job_created = pre_created_job is not None
+
     try:
         probe = probe_media(input_path)
     except Exception as exc:
-        _record_and_delete_rejected_upload(
+        _cleanup_saved_upload_failure(
             job_id=job_id,
-            user_id=current_user.id,
+            current_user=current_user,
             input_path=input_path,
             artifacts_root=artifacts_root,
-            kind="workspace",
+            job_store=job_store,
+            ledger_store=ledger_store,
+            charge_plan=charge_plan,
+            job_created=job_created,
+            error="Could not validate uploaded media file",
         )
         logger.warning("Failed to probe uploaded media; rejecting upload: %s", exc)
         raise HTTPException(status_code=400, detail="Could not validate uploaded media file")
@@ -299,108 +362,131 @@ def _queue_saved_upload(
         or not math.isfinite(probe.duration_s)
         or probe.duration_s <= 0
     ):
-        _record_and_delete_rejected_upload(
+        _cleanup_saved_upload_failure(
             job_id=job_id,
-            user_id=current_user.id,
+            current_user=current_user,
             input_path=input_path,
             artifacts_root=artifacts_root,
-            kind="workspace",
+            job_store=job_store,
+            ledger_store=ledger_store,
+            charge_plan=charge_plan,
+            job_created=job_created,
+            error="Could not determine video duration",
         )
         raise HTTPException(status_code=400, detail="Could not determine video duration")
 
     if probe.duration_s > settings.max_video_duration_seconds:
-        _record_and_delete_rejected_upload(
+        detail = f"Video too long (max {settings.max_video_duration_seconds / 60:.1f} minutes)"
+        _cleanup_saved_upload_failure(
             job_id=job_id,
-            user_id=current_user.id,
+            current_user=current_user,
             input_path=input_path,
             artifacts_root=artifacts_root,
-            kind="workspace",
+            job_store=job_store,
+            ledger_store=ledger_store,
+            charge_plan=charge_plan,
+            job_created=job_created,
+            error=detail,
         )
-        raise HTTPException(
-            status_code=400,
-            detail=f"Video too long (max {settings.max_video_duration_seconds / 60:.1f} minutes)",
-        )
+        raise HTTPException(status_code=400, detail=detail)
 
     try:
         assert_processing_quote_authorized(
             duration_seconds=float(probe.duration_s),
             authorized_credits=authorized_credits,
         )
-    except ProcessingQuoteChangedError:
-        _record_and_delete_rejected_upload(
+    except ProcessingQuoteChangedError as exc:
+        _cleanup_saved_upload_failure(
             job_id=job_id,
-            user_id=current_user.id,
+            current_user=current_user,
             input_path=input_path,
             artifacts_root=artifacts_root,
-            kind="workspace",
-        )
-        raise
-
-    try:
-        llm_models = pricing.resolve_llm_models(proc_settings.transcribe_tier)
-        stt_model = pricing.resolve_requested_transcribe_model(
-            tier=proc_settings.transcribe_tier,
-            provider=proc_settings.transcribe_provider,
-            openai_model=proc_settings.openai_model,
-        )
-        preflight_processing_charges(
+            job_store=job_store,
             ledger_store=ledger_store,
-            user_id=current_user.id,
-            tier=proc_settings.transcribe_tier,
-            duration_seconds=float(probe.duration_s),
-            use_llm=proc_settings.use_llm,
-            llm_model=llm_models.social,
-            provider=proc_settings.transcribe_provider,
-            stt_model=stt_model,
-        )
-    except Exception:
-        _record_and_delete_rejected_upload(
-            job_id=job_id,
-            user_id=current_user.id,
-            input_path=input_path,
-            artifacts_root=artifacts_root,
-            kind="workspace",
+            charge_plan=charge_plan,
+            job_created=job_created,
+            error=str(exc),
         )
         raise
 
-    try:
-        job = job_store.create_job(job_id, current_user.id)
-    except Exception:
-        _record_and_delete_rejected_upload(
-            job_id=job_id,
-            user_id=current_user.id,
-            input_path=input_path,
-            artifacts_root=artifacts_root,
+    llm_models = pricing.resolve_llm_models(proc_settings.transcribe_tier)
+    stt_model = pricing.resolve_requested_transcribe_model(
+        tier=proc_settings.transcribe_tier,
+        provider=proc_settings.transcribe_provider,
+        openai_model=proc_settings.openai_model,
+    )
+
+    if pre_created_job is None:
+        try:
+            preflight_processing_charges(
+                ledger_store=ledger_store,
+                user_id=current_user.id,
+                tier=proc_settings.transcribe_tier,
+                duration_seconds=float(probe.duration_s),
+                use_llm=proc_settings.use_llm,
+                llm_model=llm_models.social,
+                provider=proc_settings.transcribe_provider,
+                stt_model=stt_model,
+            )
+        except Exception:
+            _cleanup_saved_upload_failure(
+                job_id=job_id,
+                current_user=current_user,
+                input_path=input_path,
+                artifacts_root=artifacts_root,
+                job_store=job_store,
+                ledger_store=ledger_store,
+                charge_plan=None,
+                job_created=False,
+                error="Processing preflight failed",
+            )
+            raise
+
+        try:
+            job = job_store.create_job(job_id, current_user.id)
+            job_created = True
+        except Exception:
             # The database transaction may have committed before a connection
             # or session-close error reached this caller. Use the conservative
             # job tombstone and an idempotent exact row delete.
-            kind="job",
-            job_store=job_store,
-        )
-        raise
+            _record_and_delete_rejected_upload(
+                job_id=job_id,
+                user_id=current_user.id,
+                input_path=input_path,
+                artifacts_root=artifacts_root,
+                kind="job",
+                job_store=job_store,
+            )
+            raise
 
-    try:
-        charge_plan, new_balance = reserve_processing_charges(
-            ledger_store=ledger_store,
-            user_id=current_user.id,
-            job_id=job_id,
-            tier=proc_settings.transcribe_tier,
-            duration_seconds=float(probe.duration_s),
-            use_llm=proc_settings.use_llm,
-            llm_model=llm_models.social,
-            provider=proc_settings.transcribe_provider,
-            stt_model=stt_model,
-        )
-    except Exception:
-        _record_and_delete_rejected_upload(
-            job_id=job_id,
-            user_id=current_user.id,
-            input_path=input_path,
-            artifacts_root=artifacts_root,
-            kind="job",
-            job_store=job_store,
-        )
-        raise
+        try:
+            charge_plan, new_balance = reserve_processing_charges(
+                ledger_store=ledger_store,
+                user_id=current_user.id,
+                job_id=job_id,
+                tier=proc_settings.transcribe_tier,
+                duration_seconds=float(probe.duration_s),
+                use_llm=proc_settings.use_llm,
+                llm_model=llm_models.social,
+                provider=proc_settings.transcribe_provider,
+                stt_model=stt_model,
+            )
+        except Exception:
+            _record_and_delete_rejected_upload(
+                job_id=job_id,
+                user_id=current_user.id,
+                input_path=input_path,
+                artifacts_root=artifacts_root,
+                kind="job",
+                job_store=job_store,
+            )
+            raise
+    else:
+        if pre_reserved_charge_plan is None or pre_reserved_balance is None:
+            raise ValueError("Incomplete pre-upload reservation state")
+        job = pre_created_job
+        charge_plan = pre_reserved_charge_plan
+        new_balance = pre_reserved_balance
 
     output_path = artifacts_root / job_id / "processed.mp4"
     artifact_path = artifacts_root / job_id
@@ -471,7 +557,7 @@ async def process_video_stream(
     ledger_store: UsageLedgerStore = Depends(get_usage_ledger_store),
     db: Database = Depends(get_db),
 ) -> JobResponse:
-    """Stream a raw video body directly into the processing workspace."""
+    """Reserve the confirmed price, then stream the video into its workspace."""
     metadata = _decode_stream_process_metadata(
         request.headers.get("x-gsubs-upload-metadata"),
     )
@@ -503,6 +589,7 @@ async def process_video_stream(
     )
 
     expected_upload_bytes = _parse_content_length(request)
+    authorized_quote = _authorized_video_quote(metadata.authorized_credits)
     llm_models = pricing.resolve_llm_models(proc_settings.transcribe_tier)
     stt_model = pricing.resolve_requested_transcribe_model(
         tier=proc_settings.transcribe_tier,
@@ -512,12 +599,13 @@ async def process_video_stream(
     preflight_processing_provider_budget(
         ledger_store=ledger_store,
         tier=proc_settings.transcribe_tier,
-        duration_seconds=float(settings.max_video_duration_seconds),
+        duration_seconds=float(authorized_quote.max_duration_seconds),
         use_llm=proc_settings.use_llm,
         llm_model=llm_models.social,
         provider=proc_settings.transcribe_provider,
         stt_model=stt_model,
     )
+
     job_id = str(uuid.uuid4())
     data_dir, uploads_dir, artifacts_root = data_roots()
     require_storage_capacity(
@@ -526,13 +614,53 @@ async def process_video_stream(
         db=db,
     )
     input_path = uploads_dir / f"{job_id}_input{file_ext}"
+
+    with lock_job_workspace(data_dir=data_dir, job_id=job_id):
+        record_workspace_ownership(
+            data_dir=data_dir,
+            job_id=job_id,
+            user_id=current_user.id,
+        )
+
+    try:
+        job = job_store.create_job(job_id, current_user.id)
+    except Exception:
+        _record_and_delete_rejected_upload(
+            job_id=job_id,
+            user_id=current_user.id,
+            input_path=input_path,
+            artifacts_root=artifacts_root,
+            kind="job",
+            job_store=job_store,
+        )
+        raise
+
+    try:
+        charge_plan, reserved_balance = reserve_processing_charges(
+            ledger_store=ledger_store,
+            user_id=current_user.id,
+            job_id=job_id,
+            tier=proc_settings.transcribe_tier,
+            duration_seconds=float(authorized_quote.max_duration_seconds),
+            use_llm=proc_settings.use_llm,
+            llm_model=llm_models.social,
+            provider=proc_settings.transcribe_provider,
+            stt_model=stt_model,
+            allow_downward_adjustment=True,
+        )
+    except Exception:
+        _record_and_delete_rejected_upload(
+            job_id=job_id,
+            user_id=current_user.id,
+            input_path=input_path,
+            artifacts_root=artifacts_root,
+            kind="job",
+            job_store=job_store,
+        )
+        raise
+
     try:
         with lock_job_workspace(data_dir=data_dir, job_id=job_id):
-            record_workspace_ownership(
-                data_dir=data_dir,
-                job_id=job_id,
-                user_id=current_user.id,
-            )
             await save_request_stream_with_limit(
                 request,
                 input_path,
@@ -540,12 +668,19 @@ async def process_video_stream(
                 cleanup_on_error=False,
             )
     except BaseException as exc:
+        refund_charge_best_effort(
+            ledger_store,
+            charge_plan,
+            status="failed",
+            error=sanitize_message(str(exc)),
+        )
         _record_and_delete_rejected_upload(
             job_id=job_id,
             user_id=current_user.id,
             input_path=input_path,
             artifacts_root=artifacts_root,
-            kind="workspace",
+            kind="job",
+            job_store=job_store,
         )
         if isinstance(exc, OSError) and exc.errno == errno.ENOSPC:
             raise HTTPException(
@@ -568,4 +703,7 @@ async def process_video_stream(
         history_store=history_store,
         ledger_store=ledger_store,
         db=db,
+        pre_created_job=job,
+        pre_reserved_charge_plan=charge_plan,
+        pre_reserved_balance=reserved_balance,
     )

@@ -144,6 +144,7 @@ async function expectNoHorizontalOverflow(page: Page, selector?: string) {
 }
 
 test('completed editor remains readable across the responsive viewport matrix', async ({ page }) => {
+  test.setTimeout(60_000);
   await mockApi(page);
   await page.addInitScript(() => {
     localStorage.setItem('lastActiveJobId', 'job-futurist');

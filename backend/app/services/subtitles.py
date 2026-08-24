@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import logging
+import math
 import re
+import select
 import subprocess
 import tempfile
 import time
@@ -11,11 +13,47 @@ from pathlib import Path
 from typing import Callable, Iterable, Sequence
 
 from backend.app.core.config import settings
+from backend.app.core.media_capacity import lock_media_cpu
+from backend.app.services.ffmpeg_utils import (
+    resolve_ffmpeg_thread_count,
+    terminate_process_tree,
+)
 from backend.app.services.subtitle_types import Cue, TimeRange
 
 logger = logging.getLogger(__name__)
 
-TIME_PATTERN = re.compile(r"time=(\d{2}):(\d{2}):(\d{2}\.\d{2})")
+TIME_PATTERN = re.compile(
+    r"(?:time|out_time)=(\d+):(\d{2}):(\d{2}(?:\.\d+)?)",
+)
+
+
+def resolve_audio_extraction_timeout_seconds(
+    *,
+    total_duration: float | None,
+    timeout_seconds: float | None = None,
+) -> float:
+    """Return a strict extraction deadline with a slow-host safety margin."""
+    if timeout_seconds is not None:
+        resolved = float(timeout_seconds)
+        if not math.isfinite(resolved) or resolved <= 0:
+            raise ValueError("Audio extraction timeout must be a positive finite number")
+        return resolved
+    if total_duration is not None:
+        duration = float(total_duration)
+        if math.isfinite(duration) and duration > 0:
+            return max(300.0, duration * 2.0)
+    return 600.0
+
+
+def _wait_after_termination(process: subprocess.Popen[str]) -> None:
+    if process.poll() is not None:
+        process.wait()
+        return
+    try:
+        process.wait(timeout=5.0)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait()
 
 
 def extract_audio(
@@ -24,17 +62,29 @@ def extract_audio(
     check_cancelled: Callable[[], None] | None = None,
     progress_callback: Callable[[float], None] | None = None,
     total_duration: float | None = None,
+    timeout_seconds: float | None = None,
+    thread_count: int | None = None,
 ) -> Path:
-    """
-    Extract the audio track from a video file into a mono WAV for transcription.
-    """
+    """Extract one mono WAV under the shared-host FFmpeg capacity guard."""
     output_dir = output_dir or Path(tempfile.mkdtemp())
     output_dir.mkdir(parents=True, exist_ok=True)
     audio_path = output_dir / f"{input_video.stem}.wav"
+    resolved_timeout = resolve_audio_extraction_timeout_seconds(
+        total_duration=total_duration,
+        timeout_seconds=timeout_seconds,
+    )
+    threads = resolve_ffmpeg_thread_count(thread_count)
 
     cmd = [
         "ffmpeg",
         "-y",
+        "-nostdin",
+        "-nostats",
+        "-progress",
+        "pipe:2",
+        # Input-scoped codec option: cap software audio decoder pools.
+        "-threads",
+        str(threads),
         "-i",
         str(input_video),
         "-vn",
@@ -47,57 +97,82 @@ def extract_audio(
         str(audio_path),
     ]
 
-    process = subprocess.Popen(
-        cmd,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.PIPE,
-        universal_newlines=True,
-        bufsize=1,
-    )
+    with lock_media_cpu():
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            universal_newlines=True,
+            bufsize=1,
+            start_new_session=True,
+        )
+        deadline = time.monotonic() + resolved_timeout
 
-    try:
-        import select
+        try:
+            last_cancel_check = 0.0
 
-        last_cancel_check = 0.0
-
-        while True:
-            # 1. Periodic cancellation check
-            if check_cancelled:
+            while True:
                 now = time.monotonic()
-                # Throttle check to avoid excessive DB overhead (every 0.5s)
-                if now - last_cancel_check > 0.5:
+                if now >= deadline:
+                    raise TimeoutError(
+                        "Audio extraction exceeded timeout of "
+                        f"{resolved_timeout:.1f}s",
+                    )
+
+                # Periodic cancellation check
+                if check_cancelled and now - last_cancel_check > 0.5:
                     check_cancelled()
                     last_cancel_check = now
 
-            # 2. Non-blocking read of ffmpeg stderr
-            if process.stderr:
-                reads, _, _ = select.select([process.stderr], [], [], 0.1)
-                if reads:
-                    line = process.stderr.readline()
-                    if not line:
-                        break  # EOF
-
-                    if progress_callback and total_duration and total_duration > 0:
-                        if "time=" in line:
+                # Programmatic FFmpeg progress is newline-delimited, so a
+                # readiness notification cannot strand readline on '\r' stats.
+                if process.stderr:
+                    reads, _, _ = select.select(
+                        [process.stderr],
+                        [],
+                        [],
+                        min(0.1, max(0.0, deadline - now)),
+                    )
+                    if reads:
+                        line = process.stderr.readline()
+                        if line and progress_callback and total_duration and total_duration > 0:
                             match = TIME_PATTERN.search(line)
                             if match:
                                 h, m, s = match.groups()
-                                current_seconds = int(h) * 3600 + int(m) * 60 + float(s)
-                                progress = min(100.0, (current_seconds / total_duration) * 100.0)
+                                current_seconds = (
+                                    int(h) * 3600
+                                    + int(m) * 60
+                                    + float(s)
+                                )
+                                progress = min(
+                                    100.0,
+                                    (current_seconds / total_duration) * 100.0,
+                                )
                                 progress_callback(progress)
+                else:
+                    time.sleep(min(0.1, max(0.0, deadline - now)))
 
-            if process.poll() is not None:
-                break
+                if process.poll() is not None:
+                    break
 
-        process.wait()
-        if process.returncode != 0:
-            raise subprocess.CalledProcessError(process.returncode, cmd, output=None)
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError(
+                    "Audio extraction exceeded timeout of "
+                    f"{resolved_timeout:.1f}s",
+                )
+            process.wait()
+            if process.returncode != 0:
+                raise subprocess.CalledProcessError(
+                    process.returncode,
+                    cmd,
+                    output=None,
+                )
 
-    except Exception:
-        if process.poll() is None:
-            process.kill()
-        process.wait()
-        raise
+        except Exception:
+            terminate_process_tree(process)
+            _wait_after_termination(process)
+            raise
 
     return audio_path
 
@@ -106,7 +181,9 @@ def write_srt_from_segments(segments: Iterable[TimeRange], dest: Path) -> Path:
     lines: list[str] = []
     for idx, (start, end, text) in enumerate(segments, start=1):
         lines.append(str(idx))
-        lines.append(f"{_format_subtitle_timestamp(start, separator=',')} --> {_format_subtitle_timestamp(end, separator=',')}")
+        start_time = _format_subtitle_timestamp(start, separator=',')
+        end_time = _format_subtitle_timestamp(end, separator=',')
+        lines.append(f"{start_time} --> {end_time}")
         # Security: Sanitize text to prevent SRT injection via double newlines
         # Replace 2+ newlines with a single newline to maintain multiline but prevent cue splitting
         clean_text = re.sub(r'(\r?\n){2,}', '\n', text.strip())
@@ -128,7 +205,9 @@ def write_vtt_from_segments(segments: Iterable[TimeRange], dest: Path) -> Path:
     lines: list[str] = ["WEBVTT", ""]
     for idx, (start, end, text) in enumerate(segments, start=1):
         lines.append(str(idx))
-        lines.append(f"{_format_subtitle_timestamp(start, separator='.')} --> {_format_subtitle_timestamp(end, separator='.')}")
+        start_time = _format_subtitle_timestamp(start, separator='.')
+        end_time = _format_subtitle_timestamp(end, separator='.')
+        lines.append(f"{start_time} --> {end_time}")
         clean_text = re.sub(r"(\r?\n){2,}", "\n", text.strip())
         lines.append(clean_text)
         lines.append("")

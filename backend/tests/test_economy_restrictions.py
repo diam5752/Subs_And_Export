@@ -29,7 +29,7 @@ def test_concurrent_jobs_limit_process(client, user_auth_headers, monkeypatch):
     assert "Too many active jobs" in response.json()["detail"]
 
 
-def test_video_duration_limit(client, user_auth_headers, monkeypatch):
+def test_video_duration_limit(client, funded_user_auth_headers, monkeypatch):
     # Mock count to return 0
     monkeypatch.setattr(JobStore, "count_active_jobs_for_user", lambda self, uid: 0)
 
@@ -41,7 +41,7 @@ def test_video_duration_limit(client, user_auth_headers, monkeypatch):
 
     response = post_process_stream(
         client,
-        user_auth_headers,
+        funded_user_auth_headers,
         filename="video.mp4",
         content=b"fake content",
         metadata={"transcribe_tier": "standard"},
