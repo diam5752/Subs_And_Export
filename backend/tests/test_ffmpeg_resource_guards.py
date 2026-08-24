@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
@@ -121,6 +122,38 @@ def test_run_ffmpeg_command_bounds_decode_filter_and_encode_threads(
     assert command[progress_index + 1] == "pipe:2"
     assert "-nostats" in command
     assert "-nostdin" in command
+
+
+def test_run_ffmpeg_lowers_encoder_priority_on_shared_host(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """The encoder may use idle CPU, but interactive services must preempt it."""
+    process = CompletedProcess()
+    process.pid = 4242
+    priority_calls: list[tuple[int, int, int]] = []
+
+    monkeypatch.setattr(settings, "data_dir", tmp_path)
+    monkeypatch.setattr(ffmpeg_utils.subprocess, "Popen", lambda *_args, **_kwargs: process)
+    monkeypatch.setattr(ffmpeg_utils.time, "sleep", lambda _seconds: None)
+    monkeypatch.setattr(
+        ffmpeg_utils.os,
+        "setpriority",
+        lambda which, who, priority: priority_calls.append((which, who, priority)),
+    )
+
+    ffmpeg_utils.run_ffmpeg_with_subs(
+        Path("input.mp4"),
+        Path("captions.ass"),
+        Path("output.mp4"),
+        video_crf=20,
+        video_preset="veryfast",
+        audio_bitrate="128k",
+        audio_copy=False,
+        timeout_seconds=1.0,
+    )
+
+    assert priority_calls == [(os.PRIO_PROCESS, 4242, 10)]
 
 
 def test_extract_audio_timeout_kills_hung_process_and_bounds_decoder(

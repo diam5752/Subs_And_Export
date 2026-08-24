@@ -139,6 +139,7 @@ describe('ProcessProvider', () => {
 
     expect(onStartProcessing).toHaveBeenCalledWith(
       expect.objectContaining({
+        outputQuality: 'balanced',
         sourceDurationSeconds: 42,
       }),
     );
@@ -184,6 +185,7 @@ describe('ProcessProvider', () => {
     expect(onReprocessJob).toHaveBeenCalledWith(
       'job-1',
       expect.objectContaining({
+        outputQuality: 'balanced',
         transcribeProvider: 'mock',
         transcribeMode: 'standard',
       }),

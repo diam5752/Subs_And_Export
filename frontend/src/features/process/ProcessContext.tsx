@@ -396,7 +396,7 @@ export function ProcessProvider({
                         videoInfo?.durationSeconds
                         ?? selectedJob.result_data?.duration_seconds
                         ?? null,
-                    outputQuality: 'high quality',
+                    outputQuality: 'balanced',
                     outputResolution: '',
                     useAI: false,
                     contextPrompt: '',
@@ -424,7 +424,7 @@ export function ProcessProvider({
             transcribeMode,
             transcribeProvider,
             sourceDurationSeconds: videoInfo?.durationSeconds ?? null,
-            outputQuality: 'high quality',
+            outputQuality: 'balanced',
             outputResolution: '',
             useAI: false,
             contextPrompt: '',
@@ -476,6 +476,7 @@ export function ProcessProvider({
                 subtitle_size: subtitleSize,
                 karaoke_enabled: karaokeEnabled,
                 watermark_enabled: watermarkEnabled,
+                video_quality: subtitleFileFormats.has(resolution) ? undefined : 'balanced',
             });
             if (selectedJobIdRef.current !== exportJobId) return;
             onJobSelect(updatedJob);

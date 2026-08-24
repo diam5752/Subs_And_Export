@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import tempfile
 import time
+import uuid
 from collections.abc import Mapping
 from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
@@ -595,6 +596,7 @@ def generate_video_variant(
     job_store: JobStore,
     user_id: str,
     subtitle_settings: Mapping[str, Any] | None = None,
+    video_crf: int | None = None,
 ) -> Path:
     if not input_path.exists():
         raise FileNotFoundError("Original input video not found")
@@ -699,23 +701,35 @@ def generate_video_variant(
     destination = artifact_dir / output_filename
 
     stored_crf = result_data.get("video_crf")
-    video_crf = int(stored_crf) if stored_crf is not None else settings.default_video_crf
+    resolved_video_crf = (
+        int(video_crf)
+        if video_crf is not None
+        else int(stored_crf) if stored_crf is not None
+        else settings.default_video_crf
+    )
 
     watermark_enabled = bool(subtitle_settings.get("watermark_enabled", False)) if subtitle_settings else bool(result_data.get("watermark_enabled", False))
     audio_copy = ffmpeg_utils.input_audio_is_aac(input_path)
 
-    ffmpeg_utils.run_ffmpeg_with_subs(
-        input_path,
-        ass_path,
-        destination,
-        video_crf=video_crf,
-        video_preset=settings.default_video_preset,
-        audio_bitrate=settings.default_audio_bitrate,
-        audio_copy=audio_copy,
-        use_hw_accel=settings.use_hw_accel,
-        output_width=width,
-        output_height=height,
-        watermark_enabled=watermark_enabled,
+    temporary_destination = artifact_dir / (
+        f".{output_filename}.{uuid.uuid4().hex}.tmp.mp4"
     )
+    try:
+        ffmpeg_utils.run_ffmpeg_with_subs(
+            input_path,
+            ass_path,
+            temporary_destination,
+            video_crf=resolved_video_crf,
+            video_preset=settings.default_video_preset,
+            audio_bitrate=settings.default_audio_bitrate,
+            audio_copy=audio_copy,
+            use_hw_accel=settings.use_hw_accel,
+            output_width=width,
+            output_height=height,
+            watermark_enabled=watermark_enabled,
+        )
+        temporary_destination.replace(destination)
+    finally:
+        temporary_destination.unlink(missing_ok=True)
 
     return destination

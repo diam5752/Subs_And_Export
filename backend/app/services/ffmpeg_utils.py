@@ -28,6 +28,7 @@ TIME_PATTERN = re.compile(
     r"(?:time|out_time)=(\d+):(\d{2}):(\d{2}(?:\.\d+)?)",
 )
 _FFMPEG_MAX_THREADS = 2
+_MEDIA_PROCESS_NICE = 10
 
 
 @dataclass(frozen=True)
@@ -183,6 +184,21 @@ def terminate_process_tree(process: subprocess.Popen[str]) -> None:
     process.kill()
 
 
+def lower_media_process_priority(process: subprocess.Popen[str]) -> None:
+    """Let interactive web/database work preempt an idle-time encoder."""
+    process_id = getattr(process, "pid", None)
+    if (
+        process_id is None
+        or not hasattr(os, "setpriority")
+        or not hasattr(os, "PRIO_PROCESS")
+    ):
+        return
+    try:
+        os.setpriority(os.PRIO_PROCESS, process_id, _MEDIA_PROCESS_NICE)
+    except OSError as exc:
+        logger.debug("Could not lower FFmpeg process priority: %s", exc)
+
+
 def _wait_after_termination(process: subprocess.Popen[str]) -> None:
     # A completed process has already crossed the monitored poll boundary, so
     # a plain wait is immediate and also keeps lightweight test doubles valid.
@@ -288,6 +304,7 @@ def run_ffmpeg_with_subs(
             bufsize=1,  # Line buffered
             start_new_session=True,
         )
+        lower_media_process_priority(process)
 
         # Memory optimization: Use deque to keep only last 200 lines
         stderr_lines: deque[str] = deque(maxlen=200)

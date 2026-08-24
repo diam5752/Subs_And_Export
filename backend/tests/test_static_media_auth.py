@@ -187,7 +187,7 @@ def test_owner_cookie_supports_range_and_safe_downloads(
     # REGRESSION: media elements need cookie auth and byte ranges, while exports
     # need an owner-only attachment response with a sanitized filename.
     monkeypatch.setattr(backend_main, "DATA_DIR", tmp_path)
-    content = b"0123456789"
+    content = b"0123456789" * 200
     store, job_id, media_path = _create_owned_media(
         client,
         user_auth_headers,
@@ -199,20 +199,25 @@ def test_owner_cookie_supports_range_and_safe_downloads(
     try:
         range_response = client.get(
             media_url,
-            headers={"Range": "bytes=2-5"},
+            headers={"Accept-Encoding": "gzip", "Range": "bytes=2-5"},
         )
         assert range_response.status_code == 206
         assert range_response.content == b"2345"
-        assert range_response.headers["content-range"] == "bytes 2-5/10"
+        assert range_response.headers["content-range"] == "bytes 2-5/2000"
         assert range_response.headers["cache-control"] == "private, no-store"
+        assert "content-encoding" not in range_response.headers
+        assert range_response.headers["content-length"] == "4"
 
         filename = "Ιδιωτικό βίντεο.mp4"
         download_response = client.get(
             media_url,
+            headers={"Accept-Encoding": "gzip"},
             params={"download": "true", "filename": filename},
         )
         assert download_response.status_code == 200
         assert download_response.content == content
+        assert "content-encoding" not in download_response.headers
+        assert download_response.headers["content-length"] == str(len(content))
         assert "attachment" in download_response.headers["content-disposition"]
         assert quote(filename) in download_response.headers["content-disposition"]
     finally:

@@ -1822,6 +1822,16 @@ def test_edge_routes_billing_api_and_verifier_smokes_catalog() -> None:
     assert "alembic current --check-heads" in verifier
 
 
+def test_edge_never_recompresses_private_media_downloads() -> None:
+    """MP4 byte ranges must pass through the edge without gzip/zstd work."""
+    caddyfile = deployment_text("Caddyfile")
+
+    assert "@compressible_response {" in caddyfile
+    assert "not path /static/*" in caddyfile
+    assert "encode @compressible_response zstd gzip" in caddyfile
+    assert "\n\tencode zstd gzip" not in caddyfile
+
+
 def test_edge_caps_stripe_webhook_body_before_generic_billing_proxy() -> None:
     caddyfile = deployment_text("Caddyfile")
 

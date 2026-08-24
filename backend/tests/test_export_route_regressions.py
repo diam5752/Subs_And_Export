@@ -91,7 +91,9 @@ def test_successful_delete_waits_for_export_and_leaves_no_recreated_artifact(
             _user_id,
             *,
             subtitle_settings,
+            video_crf,
         ):
+            assert isinstance(video_crf, int)
             export_entered.set()
             assert allow_export_write.wait(timeout=5)
             destination_dir.mkdir(parents=True, exist_ok=True)
@@ -314,6 +316,107 @@ def test_export_video_invalid_resolution_returns_422(client: TestClient, monkeyp
 
         assert response.status_code == 422
         assert "Invalid resolution format" in response.text
+    finally:
+        app.dependency_overrides = {}
+
+
+def test_video_export_reuses_exact_cached_render_and_invalidates_on_transcript_change(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    user_auth_headers: dict[str, str],
+    tmp_path: Path,
+) -> None:
+    """Repeated downloads must not burn the same video through FFmpeg again."""
+    data_dir = tmp_path / "data"
+    uploads_dir = data_dir / "uploads"
+    artifacts_root = data_dir / "artifacts"
+    uploads_dir.mkdir(parents=True)
+    artifacts_root.mkdir(parents=True)
+    monkeypatch.setattr(
+        export_routes,
+        "data_roots",
+        lambda: (data_dir, uploads_dir, artifacts_root),
+    )
+
+    db = Database()
+    store = jobs.JobStore(db)
+    app.dependency_overrides[get_job_store] = lambda: store
+    app.dependency_overrides[get_db] = lambda: db
+
+    try:
+        user = client.get("/auth/me", headers=user_auth_headers).json()
+        job_id = f"cached-export-{uuid.uuid4().hex}"
+        store.create_job(job_id, user["id"])
+        input_video = uploads_dir / f"{job_id}_input.mp4"
+        input_video.write_bytes(b"source-video")
+        artifact_dir = artifacts_root / job_id
+        artifact_dir.mkdir(parents=True)
+        (artifact_dir / f"{job_id}_input.srt").write_text(
+            "1\n00:00:00,000 --> 00:00:01,000\nHello\n",
+            encoding="utf-8",
+        )
+        transcription_path = artifact_dir / "transcription.json"
+        transcription_path.write_text(
+            '[{"start": 0, "end": 1, "text": "Hello"}]',
+            encoding="utf-8",
+        )
+        store.update_job(
+            job_id,
+            status="completed",
+            result_data={"video_crf": 12},
+        )
+
+        render_crfs: list[int | None] = []
+
+        def fake_generate_variant(
+            _job_id: str,
+            _input_video: Path,
+            destination_dir: Path,
+            resolution: str,
+            *_args: object,
+            video_crf: int | None = None,
+            **_kwargs: object,
+        ) -> Path:
+            render_crfs.append(video_crf)
+            output_path = destination_dir / f"processed_{resolution}.mp4"
+            output_path.write_bytes(f"render-{len(render_crfs)}".encode())
+            return output_path
+
+        monkeypatch.setattr(export_routes, "generate_video_variant", fake_generate_variant)
+        payload = {
+            "resolution": "1080x1920",
+            "video_quality": "balanced",
+            "subtitle_size": 85,
+        }
+
+        first = client.post(
+            f"/videos/jobs/{job_id}/export",
+            headers=user_auth_headers,
+            json=payload,
+        )
+        second = client.post(
+            f"/videos/jobs/{job_id}/export",
+            headers=user_auth_headers,
+            json=payload,
+        )
+
+        assert first.status_code == 200, first.text
+        assert second.status_code == 200, second.text
+        assert render_crfs == [20]
+        assert second.json()["result_data"]["export_cache"]["1080x1920"]["size"] == len(b"render-1")
+
+        transcription_path.write_text(
+            '[{"start": 0, "end": 1, "text": "Changed"}]',
+            encoding="utf-8",
+        )
+        changed = client.post(
+            f"/videos/jobs/{job_id}/export",
+            headers=user_auth_headers,
+            json=payload,
+        )
+
+        assert changed.status_code == 200, changed.text
+        assert render_crfs == [20, 20]
     finally:
         app.dependency_overrides = {}
 

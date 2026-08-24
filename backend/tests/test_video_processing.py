@@ -857,6 +857,54 @@ def test_generate_video_variant_success(monkeypatch, tmp_path: Path):
     assert res.exists() # The fake output name
 
 
+def test_generate_video_variant_publishes_atomically(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """A failed re-render must not replace the last valid downloadable file."""
+    artifact_dir = tmp_path / "artifacts"
+    artifact_dir.mkdir()
+    input_video = tmp_path / "in.mp4"
+    input_video.write_bytes(b"input")
+    (artifact_dir / "in.srt").write_text(
+        "1\n00:00:00,000 --> 00:00:01,000\nHello\n",
+        encoding="utf-8",
+    )
+    (artifact_dir / "in.ass").write_text("captions", encoding="utf-8")
+    destination = artifact_dir / "processed_1280x720.mp4"
+    destination.write_bytes(b"known-good-export")
+
+    job_store = MagicMock()
+    job = MagicMock()
+    job.user_id = "u1"
+    job.result_data = {"subtitle_size": 100}
+    job_store.get_job.return_value = job
+
+    def fail_after_partial_write(
+        _input_path: Path,
+        _ass_path: Path,
+        output_path: Path,
+        **_kwargs: object,
+    ) -> None:
+        output_path.write_bytes(b"partial-export")
+        raise subprocess.CalledProcessError(1, ["ffmpeg"])
+
+    monkeypatch.setattr(ffmpeg_utils, "run_ffmpeg_with_subs", fail_after_partial_write)
+
+    with pytest.raises(subprocess.CalledProcessError):
+        video_processing.generate_video_variant(
+            "job1",
+            input_video,
+            artifact_dir,
+            "1280x720",
+            job_store,
+            "u1",
+        )
+
+    assert destination.read_bytes() == b"known-good-export"
+    assert list(artifact_dir.glob(".*.tmp.mp4")) == []
+
+
 @pytest.mark.parametrize("audio_is_aac", [True, False])
 def test_generate_video_variant_only_copies_compatible_aac_audio(
     monkeypatch: pytest.MonkeyPatch,

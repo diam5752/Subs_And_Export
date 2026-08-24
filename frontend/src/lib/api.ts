@@ -1129,6 +1129,7 @@ class ApiClient {
         subtitle_size?: number;
         karaoke_enabled?: boolean;
         watermark_enabled?: boolean;
+        video_quality?: string;
     }): Promise<JobResponse> {
         return this.request<JobResponse>(`/videos/jobs/${jobId}/export`, {
             method: 'POST',

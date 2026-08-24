@@ -27,6 +27,7 @@ from ...services.jobs import JobStore
 from ...services.points import PointsStore
 from ...services.usage_ledger import ChargePlan, UsageLedgerStore
 from ...services.video_processing import process_video_pipeline, resolve_runtime_transcribe_provider
+from ...services.video_quality import crf_for_video_quality
 from .file_utils import data_roots, relpath_safe
 from .settings import ProcessingSettings
 
@@ -364,8 +365,7 @@ def run_video_processing(
             settings.transcribe_tier, app_settings.transcribe_tier_provider[app_settings.default_transcribe_tier]
         )
         provider = resolve_runtime_transcribe_provider(requested_provider)
-        crf_map = {"low size": 28, "balanced": 20, "high quality": 12}
-        video_crf = crf_map.get(settings.video_quality.lower(), 12)
+        video_crf = crf_for_video_quality(settings.video_quality)
         target_width = settings.target_width
         target_height = settings.target_height
         source_duration_seconds: float | None = None
