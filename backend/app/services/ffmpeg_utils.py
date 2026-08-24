@@ -180,6 +180,11 @@ def terminate_process_tree(process: subprocess.Popen[str]) -> None:
 
 
 def _wait_after_termination(process: subprocess.Popen[str]) -> None:
+    # A completed process has already crossed the monitored poll boundary, so
+    # a plain wait is immediate and also keeps lightweight test doubles valid.
+    if process.poll() is not None:
+        process.wait()
+        return
     try:
         process.wait(timeout=5.0)
     except subprocess.TimeoutExpired:
@@ -325,12 +330,9 @@ def run_ffmpeg_with_subs(
                 raise TimeoutError(
                     f"FFmpeg process exceeded timeout of {resolved_timeout:.1f}s",
                 )
-            try:
-                process.wait(timeout=remaining)
-            except subprocess.TimeoutExpired as exc:
-                raise TimeoutError(
-                    f"FFmpeg process exceeded timeout of {resolved_timeout:.1f}s",
-                ) from exc
+            # poll() above already proved termination; this is immediate and
+            # simply finalizes the subprocess object / return code.
+            process.wait()
             if process.returncode != 0:
                 raise subprocess.CalledProcessError(
                     process.returncode,
