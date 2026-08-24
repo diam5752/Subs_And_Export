@@ -80,7 +80,7 @@ def test_run_ffmpeg_timeout_kills_hung_process_group(
     assert popen_kwargs["start_new_session"] is True
 
 
-def test_run_ffmpeg_command_uses_bounded_threads_and_progress_pipe(
+def test_run_ffmpeg_command_bounds_decode_filter_and_encode_threads(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -107,15 +107,23 @@ def test_run_ffmpeg_command_uses_bounded_threads_and_progress_pipe(
         timeout_seconds=1.0,
     )
 
-    thread_index = command.index("-threads")
+    thread_values = [
+        command[index + 1]
+        for index, value in enumerate(command)
+        if value == "-threads"
+    ]
     progress_index = command.index("-progress")
-    assert command[thread_index + 1] == "2"
+    filter_index = command.index("-filter_threads")
+    complex_filter_index = command.index("-filter_complex_threads")
+    assert thread_values == ["2", "2"]
+    assert command[filter_index + 1] == "2"
+    assert command[complex_filter_index + 1] == "2"
     assert command[progress_index + 1] == "pipe:2"
     assert "-nostats" in command
     assert "-nostdin" in command
 
 
-def test_extract_audio_timeout_kills_hung_process_and_uses_progress_pipe(
+def test_extract_audio_timeout_kills_hung_process_and_bounds_decoder(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -128,6 +136,7 @@ def test_extract_audio_timeout_kills_hung_process_and_uses_progress_pipe(
         return process
 
     monkeypatch.setattr(settings, "data_dir", tmp_path)
+    monkeypatch.setattr(ffmpeg_utils.os, "cpu_count", lambda: 64)
     monkeypatch.setattr(subtitles.subprocess, "Popen", fake_popen)
     monkeypatch.setattr(subtitles.select, "select", lambda *_args: ([], [], []))
     monkeypatch.setattr(subtitles.time, "monotonic", lambda: next(ticks, 0.02))
@@ -140,7 +149,9 @@ def test_extract_audio_timeout_kills_hung_process_and_uses_progress_pipe(
         )
 
     progress_index = command.index("-progress")
+    thread_index = command.index("-threads")
     assert process.killed is True
+    assert command[thread_index + 1] == "2"
     assert command[progress_index + 1] == "pipe:2"
     assert "-nostats" in command
     assert "-nostdin" in command
