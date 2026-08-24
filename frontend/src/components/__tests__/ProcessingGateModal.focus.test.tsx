@@ -20,6 +20,19 @@ describe('ProcessingGateModal focus management', () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
+        Object.defineProperty(window, 'scrollTo', {
+            configurable: true,
+            value: jest.fn(),
+            writable: true,
+        });
+        Object.defineProperty(window, 'scrollX', {
+            configurable: true,
+            value: 0,
+        });
+        Object.defineProperty(window, 'scrollY', {
+            configurable: true,
+            value: 0,
+        });
         (useAuth as jest.Mock).mockReturnValue({
             login: jest.fn(),
             register: jest.fn(),
@@ -30,10 +43,12 @@ describe('ProcessingGateModal focus management', () => {
 
     afterEach(() => {
         clientRectsSpy.mockRestore();
+        document.querySelector('[data-testid="focus-launch-control"]')?.remove();
     });
 
     it('traps keyboard focus and restores the launch control after closing', async () => {
         const launchButton = document.createElement('button');
+        launchButton.dataset.testid = 'focus-launch-control';
         launchButton.textContent = 'launch';
         document.body.appendChild(launchButton);
         launchButton.focus();
@@ -89,6 +104,5 @@ describe('ProcessingGateModal focus management', () => {
         );
 
         await waitFor(() => expect(launchButton).toHaveFocus());
-        launchButton.remove();
     });
 });
