@@ -22,7 +22,11 @@ from backend.app.core.media_capacity import lock_media_cpu
 
 logger = logging.getLogger(__name__)
 
-TIME_PATTERN = re.compile(r"time=(\d{2}):(\d{2}):(\d{2}\.\d{2})")
+# Support both legacy human-readable stats and FFmpeg's newline-delimited
+# programmatic progress output. The latter uses microsecond precision.
+TIME_PATTERN = re.compile(
+    r"(?:time|out_time)=(\d+):(\d{2}):(\d{2}(?:\.\d+)?)",
+)
 _FFMPEG_MAX_THREADS = 2
 
 
@@ -224,6 +228,10 @@ def run_ffmpeg_with_subs(
     cmd = [
         "ffmpeg",
         "-y",
+        "-nostdin",
+        "-nostats",
+        "-progress",
+        "pipe:2",
         "-i",
         str(input_path),
         "-vf",
@@ -276,8 +284,7 @@ def run_ffmpeg_with_subs(
 
         # Memory optimization: Use deque to keep only last 200 lines
         stderr_lines: deque[str] = deque(maxlen=200)
-        started_at = time.monotonic()
-        deadline = started_at + resolved_timeout
+        deadline = time.monotonic() + resolved_timeout
 
         try:
             last_cancel_check = 0.0
@@ -305,20 +312,19 @@ def run_ffmpeg_with_subs(
                         if line:
                             stderr_lines.append(line)
                             if progress_callback and total_duration and total_duration > 0:
-                                if "time=" in line:
-                                    match = TIME_PATTERN.search(line)
-                                    if match:
-                                        h, m, s = match.groups()
-                                        current_seconds = (
-                                            int(h) * 3600
-                                            + int(m) * 60
-                                            + float(s)
-                                        )
-                                        progress = min(
-                                            100.0,
-                                            (current_seconds / total_duration) * 100.0,
-                                        )
-                                        progress_callback(progress)
+                                match = TIME_PATTERN.search(line)
+                                if match:
+                                    h, m, s = match.groups()
+                                    current_seconds = (
+                                        int(h) * 3600
+                                        + int(m) * 60
+                                        + float(s)
+                                    )
+                                    progress = min(
+                                        100.0,
+                                        (current_seconds / total_duration) * 100.0,
+                                    )
+                                    progress_callback(progress)
                 else:
                     time.sleep(min(0.1, max(0.0, deadline - now)))
 
