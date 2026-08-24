@@ -235,6 +235,7 @@ describe('PreviewSection', () => {
         const videoExports = screen.getByTestId('video-export-group');
         const subtitleExports = screen.getByTestId('subtitle-export-group');
         expect(within(videoExports).getByText('exportVideoTitle')).toBeInTheDocument();
+        expect(within(videoExports).getByTestId('download-720p-btn')).toBeInTheDocument();
         expect(within(videoExports).getByTestId('download-1080p-btn')).toBeInTheDocument();
         expect(within(videoExports).getByTestId('download-4k-btn')).toBeInTheDocument();
         expect(within(videoExports).queryByTestId('srt-btn')).not.toBeInTheDocument();
@@ -251,12 +252,15 @@ describe('PreviewSection', () => {
         fireEvent.click(exportButton);
         fireEvent.click(screen.getByTestId('txt-btn'));
         fireEvent.click(exportButton);
+        fireEvent.click(screen.getByTestId('download-720p-btn'));
+        fireEvent.click(exportButton);
         fireEvent.click(screen.getByTestId('download-1080p-btn'));
         fireEvent.click(exportButton);
         fireEvent.click(screen.getByTestId('download-4k-btn'));
 
         expect(contextValue.handleExport).toHaveBeenCalledWith('srt');
         expect(contextValue.handleExport).toHaveBeenCalledWith('txt');
+        expect(contextValue.handleExport).toHaveBeenCalledWith('720x1280');
         expect(contextValue.handleExport).toHaveBeenCalledWith('1080x1920');
         expect(contextValue.handleExport).toHaveBeenCalledWith('2160x3840');
         expect(screen.getByTestId('sidebar')).toBeInTheDocument();

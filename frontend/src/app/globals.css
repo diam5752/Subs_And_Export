@@ -2020,6 +2020,10 @@ body {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.editor-export-grid-video .editor-export-action-primary {
+  grid-column: 1 / -1;
+}
+
 .editor-export-grid-subtitles {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }

@@ -466,6 +466,10 @@ export function ProcessProvider({
         try {
             const subtitleFileFormats = new Set(['srt', 'vtt', 'txt']);
             const colorObj = SUBTITLE_COLORS.find(c => c.value === subtitleColor) || SUBTITLE_COLORS[0];
+            let videoQuality: 'low size' | 'balanced' | undefined;
+            if (!subtitleFileFormats.has(resolution)) {
+                videoQuality = resolution === '720x1280' ? 'low size' : 'balanced';
+            }
 
             const updatedJob = await api.exportVideo(selectedJob.id, resolution, {
                 subtitle_position: subtitlePosition,
@@ -476,7 +480,7 @@ export function ProcessProvider({
                 subtitle_size: subtitleSize,
                 karaoke_enabled: karaokeEnabled,
                 watermark_enabled: watermarkEnabled,
-                video_quality: subtitleFileFormats.has(resolution) ? undefined : 'balanced',
+                video_quality: videoQuality,
             });
             if (selectedJobIdRef.current !== exportJobId) return;
             onJobSelect(updatedJob);

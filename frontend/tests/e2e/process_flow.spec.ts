@@ -273,6 +273,7 @@ test.describe('Video Processing Flow', () => {
 
         // 5. Check Download Options
         await exportButton.click();
+        await expect(page.getByTestId('download-720p-btn')).toBeVisible();
         await expect(page.getByTestId('download-1080p-btn')).toBeVisible();
         await expect(page.getByTestId('vtt-btn')).toHaveCount(0);
 
@@ -283,7 +284,7 @@ test.describe('Video Processing Flow', () => {
 
         await exportButton.click();
         const mp4DownloadPromise = page.waitForEvent('download');
-        await page.getByTestId('download-1080p-btn').click();
+        await page.getByTestId('download-720p-btn').click();
         const mp4Download = await mp4DownloadPromise;
         expect(mp4Download.suggestedFilename()).toBe('demo_output_subs.mp4');
 
@@ -296,7 +297,8 @@ test.describe('Video Processing Flow', () => {
                 karaoke_enabled: true,
             }),
             expect.objectContaining({
-                resolution: '1080x1920',
+                resolution: '720x1280',
+                video_quality: 'low size',
                 max_subtitle_lines: 2,
                 subtitle_size: 85,
                 highlight_style: 'active-graphics',

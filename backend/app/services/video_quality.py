@@ -4,8 +4,8 @@ from __future__ import annotations
 
 VIDEO_QUALITY_CRF: dict[str, int] = {
     "low size": 28,
-    "balanced": 20,
-    "high quality": 12,
+    "balanced": 23,
+    "high quality": 18,
 }
 
 

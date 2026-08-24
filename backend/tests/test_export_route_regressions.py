@@ -402,7 +402,7 @@ def test_video_export_reuses_exact_cached_render_and_invalidates_on_transcript_c
 
         assert first.status_code == 200, first.text
         assert second.status_code == 200, second.text
-        assert render_crfs == [20]
+        assert render_crfs == [23]
         assert second.json()["result_data"]["export_cache"]["1080x1920"]["size"] == len(b"render-1")
 
         transcription_path.write_text(
@@ -416,7 +416,7 @@ def test_video_export_reuses_exact_cached_render_and_invalidates_on_transcript_c
         )
 
         assert changed.status_code == 200, changed.text
-        assert render_crfs == [20, 20]
+        assert render_crfs == [23, 23]
     finally:
         app.dependency_overrides = {}
 

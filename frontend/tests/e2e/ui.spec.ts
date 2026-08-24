@@ -324,7 +324,7 @@ test('completed editor remains readable across the responsive viewport matrix', 
     expect(exportMetrics.bottom, `${viewport.width}px export menu bottom containment`)
       .toBeLessThanOrEqual(viewport.height + 1);
     expect(exportMetrics.vttOptions, `${viewport.width}px public VTT option`).toBe(0);
-    expect(exportMetrics.actions).toHaveLength(4);
+    expect(exportMetrics.actions).toHaveLength(5);
     for (const action of exportMetrics.actions) {
       expect(action.height, `${viewport.width}px export touch target height`).toBeGreaterThanOrEqual(44);
       expect(action.width, `${viewport.width}px export touch target width`).toBeGreaterThanOrEqual(42);
