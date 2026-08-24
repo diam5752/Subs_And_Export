@@ -482,6 +482,8 @@ def _queue_saved_upload(
             )
             raise
     else:
+        if pre_reserved_charge_plan is None or pre_reserved_balance is None:
+            raise ValueError("Incomplete pre-upload reservation state")
         job = pre_created_job
         charge_plan = pre_reserved_charge_plan
         new_balance = pre_reserved_balance

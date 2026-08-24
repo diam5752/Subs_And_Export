@@ -88,16 +88,22 @@ def test_live_provider_requires_paid_credits_before_upload(
 
 def test_authorized_credits_are_reserved_before_upload_body_and_refunded_on_failure(
     client: TestClient,
-    funded_user_auth_headers: dict[str, str],
+    user_auth_headers: dict[str, str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     # REGRESSION: a balance check alone let one paid balance authorize repeated
     # uploads without creating an outstanding wallet reservation.
     user_id = client.get(
         "/auth/me",
-        headers=funded_user_auth_headers,
+        headers=user_auth_headers,
     ).json()["id"]
     points_store = PointsStore(Database())
+    points_store.credit(
+        user_id,
+        100,
+        reason="test_paid_upload_reservation",
+        paid_credit_delta=100,
+    )
     starting_balance = points_store.get_balance(user_id)
     observed_balances: list[int] = []
 
@@ -106,6 +112,9 @@ def test_authorized_credits_are_reserved_before_upload_body_and_refunded_on_fail
         raise OSError(errno.ENOSPC, "synthetic disk failure")
 
     monkeypatch.setattr(settings, "mock_external_services", False)
+    monkeypatch.setattr(settings, "external_provider_per_request_budget_usd", 100.0)
+    monkeypatch.setattr(settings, "external_provider_daily_budget_usd", 100.0)
+    monkeypatch.setattr(settings, "external_provider_monthly_budget_usd", 100.0)
     monkeypatch.setattr(
         videos_endpoints,
         "save_request_stream_with_limit",
@@ -114,15 +123,17 @@ def test_authorized_credits_are_reserved_before_upload_body_and_refunded_on_fail
 
     response = post_process_stream(
         client,
-        funded_user_auth_headers,
+        user_auth_headers,
         metadata={
             "authorized_credits": 30,
-            "transcribe_provider": "elevenlabs",
+            "transcribe_provider": settings.transcribe_tier_provider[
+                settings.default_transcribe_tier
+            ],
         },
         content=b"private-video",
     )
 
-    assert response.status_code == 507
+    assert response.status_code == 507, response.text
     assert observed_balances == [starting_balance - 30]
     assert points_store.get_balance(user_id) == starting_balance
     assert JobStore(Database()).list_jobs_for_user(user_id) == []

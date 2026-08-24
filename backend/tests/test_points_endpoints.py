@@ -57,6 +57,15 @@ def test_process_video_charges_points_and_returns_balance(
 ) -> None:
     def _fake_run_video_processing(job_id: str, *_args, **_kwargs) -> None:
         job_store = _args[4]
+        charge_plan = _kwargs["charge_plan"]
+        transcription_reservation = charge_plan.transcription
+        assert transcription_reservation is not None
+        _kwargs["ledger_store"].finalize(
+            transcription_reservation,
+            credits_charged=pricing.credits_for_video_duration(10.0),
+            cost_usd=0.0,
+            units={"audio_seconds": 10.0},
+        )
         job_store.update_job(
             job_id,
             status="completed",
@@ -72,19 +81,23 @@ def test_process_video_charges_points_and_returns_balance(
     )
     _grant_paid_credits(client, user_auth_headers)
     before = client.get("/auth/points", headers=user_auth_headers).json()["balance"]
+    authorized_credits = 100
     resp = post_process_stream(
         client,
         user_auth_headers,
         content=b"123",
-        metadata={"transcribe_tier": "standard"},
+        metadata={
+            "authorized_credits": authorized_credits,
+            "transcribe_tier": "standard",
+        },
     )
     assert resp.status_code == 200, resp.text
     body = resp.json()
     expected_charge = pricing.credits_for_video_duration(10.0)
-    assert body["balance"] == before - expected_charge
+    assert body["balance"] == before - authorized_credits
 
     after = client.get("/auth/points", headers=user_auth_headers).json()["balance"]
-    assert after == body["balance"]
+    assert after == before - expected_charge
 
 
 def test_process_video_refunds_points_when_processing_fails(
@@ -108,16 +121,19 @@ def test_process_video_refunds_points_when_processing_fails(
 
     _grant_paid_credits(client, user_auth_headers)
     before = client.get("/auth/points", headers=user_auth_headers).json()["balance"]
+    authorized_credits = 100
     resp = post_process_stream(
         client,
         user_auth_headers,
         content=b"123",
-        metadata={"transcribe_tier": "standard"},
+        metadata={
+            "authorized_credits": authorized_credits,
+            "transcribe_tier": "standard",
+        },
     )
     assert resp.status_code == 200, resp.text
     body = resp.json()
-    expected_charge = pricing.credits_for_video_duration(10.0)
-    assert body["balance"] == before - expected_charge
+    assert body["balance"] == before - authorized_credits
 
     after = client.get("/auth/points", headers=user_auth_headers).json()["balance"]
     assert after == before

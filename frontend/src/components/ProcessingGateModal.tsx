@@ -83,12 +83,6 @@ export function ProcessingGateModal({
     }, [isBalanceLoading, onPurchaseCredits]);
 
     useEffect(() => {
-        if (isOpen && stage === 'cost') return;
-        costActionInFlightRef.current = false;
-        setIsCostActionPending(false);
-    }, [isOpen, stage]);
-
-    useEffect(() => {
         if (!isOpen) return;
 
         const sessionGeneration = authSessionGenerationRef.current + 1;

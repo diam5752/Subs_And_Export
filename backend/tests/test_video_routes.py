@@ -1,6 +1,7 @@
 import base64
 import json
 import uuid
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -45,32 +46,38 @@ def test_stream_requires_a_strict_canonical_authorized_credit_tier_before_writin
     save.assert_not_called()
 
 
-def test_stream_rejects_authoritative_quote_increase_before_financial_or_provider_work(
+def test_stream_refunds_pre_body_reservation_when_authoritative_quote_increases(
     client: TestClient,
     funded_user_auth_headers: dict[str, str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from backend.app.api.endpoints import videos as videos_module
+    from backend.app.core.database import Database
     from backend.app.services.ffmpeg_utils import MediaProbe
     from backend.app.services.jobs import JobStore
-    from backend.app.services.usage_ledger import UsageLedgerStore
+    from backend.app.services.points import PointsStore
 
     # REGRESSION: the browser/container quote can be exactly 180.000 seconds
     # while authoritative ffprobe resolves 180.001 seconds. The backend must
     # never turn the already-confirmed 30-credit quote into a 60-credit charge.
+    user_id = client.get(
+        "/auth/me",
+        headers=funded_user_auth_headers,
+    ).json()["id"]
+    points_store = PointsStore(Database())
+    starting_balance = points_store.get_balance(user_id)
+    observed_balances: list[int] = []
+
+    async def save_after_observing_reservation(
+        _request: object,
+        destination: Path,
+        **_kwargs: object,
+    ) -> None:
+        observed_balances.append(points_store.get_balance(user_id))
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(b"private-video")
+
     budget_preflight = MagicMock()
-    charge_preflight = MagicMock(
-        side_effect=AssertionError("quote check must precede wallet preflight"),
-    )
-    create_job = MagicMock(
-        side_effect=AssertionError("quote check must precede job creation"),
-    )
-    reserve_plan = MagicMock(
-        side_effect=AssertionError("quote check must precede charge reservation"),
-    )
-    ledger_reserve = MagicMock(
-        side_effect=AssertionError("quote check must precede ledger reservation"),
-    )
     provider_dispatch = MagicMock(
         side_effect=AssertionError("quote check must precede provider dispatch"),
     )
@@ -84,11 +91,12 @@ def test_stream_rejects_authoritative_quote_increase_before_financial_or_provide
         "preflight_processing_provider_budget",
         budget_preflight,
     )
-    monkeypatch.setattr(videos_module, "preflight_processing_charges", charge_preflight)
-    monkeypatch.setattr(videos_module, "reserve_processing_charges", reserve_plan)
+    monkeypatch.setattr(
+        videos_module,
+        "save_request_stream_with_limit",
+        save_after_observing_reservation,
+    )
     monkeypatch.setattr(videos_module, "run_video_processing", provider_dispatch)
-    monkeypatch.setattr(JobStore, "create_job", create_job)
-    monkeypatch.setattr(UsageLedgerStore, "reserve", ledger_reserve)
 
     response = post_process_stream(
         client,
@@ -107,26 +115,26 @@ def test_stream_rejects_authoritative_quote_increase_before_financial_or_provide
         },
     }
     budget_preflight.assert_called_once()
-    charge_preflight.assert_not_called()
-    create_job.assert_not_called()
-    reserve_plan.assert_not_called()
-    ledger_reserve.assert_not_called()
+    assert observed_balances == [starting_balance - 30]
+    assert points_store.get_balance(user_id) == starting_balance
     provider_dispatch.assert_not_called()
+    assert JobStore(Database()).list_jobs_for_user(user_id) == []
     _data_dir, uploads_dir, artifacts_root = videos_module.data_roots()
     assert list(uploads_dir.iterdir()) == []
     assert list(artifacts_root.iterdir()) == []
 
 
-def test_stream_rejects_nan_probe_with_full_cleanup_and_no_side_effects(
+def test_stream_rejects_nan_probe_with_full_cleanup_and_refund(
     client: TestClient,
     funded_user_auth_headers: dict[str, str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from backend.app.api.endpoints import videos as videos_module
+    from backend.app.core.database import Database
     from backend.app.core.workspace_ownership import get_workspace_owner
     from backend.app.services.ffmpeg_utils import MediaProbe
     from backend.app.services.jobs import JobStore
-    from backend.app.services.usage_ledger import UsageLedgerStore
+    from backend.app.services.points import PointsStore
 
     # REGRESSION: NaN compares false to both <= 0 and > max. It previously
     # escaped duration validation, then raised during pricing without removing
@@ -134,19 +142,13 @@ def test_stream_rejects_nan_probe_with_full_cleanup_and_no_side_effects(
     fixed_uuid = uuid.UUID("22222222-2222-4222-8222-222222222222")
     uuid_namespace = MagicMock()
     uuid_namespace.uuid4.return_value = fixed_uuid
+    user_id = client.get(
+        "/auth/me",
+        headers=funded_user_auth_headers,
+    ).json()["id"]
+    points_store = PointsStore(Database())
+    starting_balance = points_store.get_balance(user_id)
     budget_preflight = MagicMock()
-    charge_preflight = MagicMock(
-        side_effect=AssertionError("invalid duration must precede wallet preflight"),
-    )
-    create_job = MagicMock(
-        side_effect=AssertionError("invalid duration must precede job creation"),
-    )
-    reserve_plan = MagicMock(
-        side_effect=AssertionError("invalid duration must precede charge reservation"),
-    )
-    ledger_reserve = MagicMock(
-        side_effect=AssertionError("invalid duration must precede ledger reservation"),
-    )
     provider_dispatch = MagicMock(
         side_effect=AssertionError("invalid duration must precede provider dispatch"),
     )
@@ -162,12 +164,8 @@ def test_stream_rejects_nan_probe_with_full_cleanup_and_no_side_effects(
         "preflight_processing_provider_budget",
         budget_preflight,
     )
-    monkeypatch.setattr(videos_module, "preflight_processing_charges", charge_preflight)
-    monkeypatch.setattr(videos_module, "reserve_processing_charges", reserve_plan)
     monkeypatch.setattr(videos_module, "run_video_processing", provider_dispatch)
     monkeypatch.setattr(videos_module, "configured_erasure_journal", lambda: journal)
-    monkeypatch.setattr(JobStore, "create_job", create_job)
-    monkeypatch.setattr(UsageLedgerStore, "reserve", ledger_reserve)
 
     response = post_process_stream(
         client,
@@ -179,15 +177,17 @@ def test_stream_rejects_nan_probe_with_full_cleanup_and_no_side_effects(
     assert response.status_code == 400
     assert response.json() == {"detail": "Could not determine video duration"}
     budget_preflight.assert_called_once()
-    charge_preflight.assert_not_called()
-    create_job.assert_not_called()
-    reserve_plan.assert_not_called()
-    ledger_reserve.assert_not_called()
+    assert points_store.get_balance(user_id) == starting_balance
     provider_dispatch.assert_not_called()
-    journal.append.assert_not_called()
+    journal.append.assert_called_once_with(
+        kind="job",
+        user_id=user_id,
+        job_ids=[str(fixed_uuid)],
+    )
     uuid_namespace.uuid4.assert_called_once_with()
     data_dir, uploads_dir, artifacts_root = videos_module.data_roots()
     job_id = str(fixed_uuid)
+    assert JobStore(Database()).list_jobs_for_user(user_id) == []
     assert list(uploads_dir.iterdir()) == []
     assert list(artifacts_root.iterdir()) == []
     assert get_workspace_owner(data_dir=data_dir, job_id=job_id) is None

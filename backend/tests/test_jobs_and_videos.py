@@ -14,7 +14,7 @@ from backend.app.services import jobs, pricing
 from backend.app.services.charge_plans import reserve_processing_charges
 from backend.app.services.history import HistoryStore
 from backend.app.services.points import PointsStore
-from backend.app.services.usage_ledger import UsageLedgerStore
+from backend.app.services.usage_ledger import ChargePlan, UsageLedgerStore
 from backend.tests.process_stream import post_process_stream
 
 
@@ -621,7 +621,7 @@ def test_process_video_accepts_openai_provider_override(client: TestClient, monk
 
     def fake_reserve_processing_charges(*args, **kwargs):
         captured.update(kwargs)
-        return None, 5000
+        return ChargePlan(), 5000
 
     monkeypatch.setattr(videos, "reserve_processing_charges", fake_reserve_processing_charges)
 
@@ -649,7 +649,7 @@ def test_process_video_forces_mock_before_charge_planning(client: TestClient, mo
 
     def fake_reserve_processing_charges(*args, **kwargs):
         captured.update(kwargs)
-        return None, 5000
+        return ChargePlan(), 5000
 
     monkeypatch.setattr(videos, "reserve_processing_charges", fake_reserve_processing_charges)
 
@@ -680,7 +680,7 @@ def test_process_video_accepts_local_provider_override(client: TestClient, monke
 
     def fake_reserve_processing_charges(*args, **kwargs):
         captured.update(kwargs)
-        return None, 5000
+        return ChargePlan(), 5000
 
     monkeypatch.setattr(videos, "reserve_processing_charges", fake_reserve_processing_charges)
 
