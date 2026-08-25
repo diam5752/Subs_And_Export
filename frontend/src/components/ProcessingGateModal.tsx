@@ -1,19 +1,32 @@
 'use client';
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, {
+    useCallback,
+    useEffect,
+    useLayoutEffect,
+    useRef,
+    useState,
+} from 'react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { GoogleSignInControl } from '@/components/GoogleSignInControl';
 import { CoinsIcon } from '@/components/icons';
 import { Spinner } from '@/components/Spinner';
 import { useAuth } from '@/context/AuthContext';
 import { useI18n } from '@/context/I18nContext';
 import { formatPoints } from '@/lib/points';
 
+// Email login remains immediately interactive. The Google SDK controller is
+// requested only when this auth-only modal is actually rendered.
+const GoogleSignInControl = dynamic(() => (
+    import('@/components/GoogleSignInControl').then((module) => module.GoogleSignInControl)
+));
+
 export type ProcessingGateStage = 'auth' | 'cost';
 
 interface ProcessingGateModalProps {
     isOpen: boolean;
     stage: ProcessingGateStage;
+    initialScrollPosition?: { x: number; y: number };
     cost: number;
     balance: number | null;
     requiresPaidCredits?: boolean;
@@ -28,6 +41,7 @@ interface ProcessingGateModalProps {
 export function ProcessingGateModal({
     isOpen,
     stage,
+    initialScrollPosition,
     cost,
     balance,
     requiresPaidCredits = true,
@@ -94,13 +108,16 @@ export function ProcessingGateModal({
         };
     }, [isOpen]);
 
-    useEffect(() => {
+    useLayoutEffect(() => {
         if (!isOpen) return;
 
+        // Lock before WebKit paints the newly mounted dialog. A passive effect
+        // leaves a frame where iOS may auto-adjust the document by a few pixels,
+        // making the background jump and restoring to the wrong position.
         const root = document.documentElement;
         const body = document.body;
-        const scrollX = window.scrollX;
-        const scrollY = window.scrollY;
+        const scrollX = initialScrollPosition?.x ?? window.scrollX;
+        const scrollY = initialScrollPosition?.y ?? window.scrollY;
         const previousRootStyles = {
             overflow: root.style.overflow,
             overscrollBehavior: root.style.overscrollBehavior,
@@ -153,7 +170,7 @@ export function ProcessingGateModal({
             window.scrollTo(scrollX, scrollY);
             root.style.scrollBehavior = previousRootStyles.scrollBehavior;
         };
-    }, [isOpen]);
+    }, [initialScrollPosition?.x, initialScrollPosition?.y, isOpen]);
 
     useEffect(() => {
         if (!isOpen) return;

@@ -77,7 +77,7 @@ describe('Sidebar Tabs', () => {
         });
     });
 
-    it('starts style controls directly below the tabs without a repeated file header', () => {
+    it('starts style controls directly below the tabs without a repeated file header', async () => {
         (useProcessContext as jest.Mock).mockReturnValue({
             ...mockContextValue,
             selectedJob: {
@@ -100,7 +100,7 @@ describe('Sidebar Tabs', () => {
         expect(screen.queryByRole('status')).not.toBeInTheDocument();
         expect(screen.queryByText('sample_subs.mp4')).not.toBeInTheDocument();
         expect(screen.queryByRole('heading', { name: 'Custom settings' })).not.toBeInTheDocument();
-        expect(screen.getByRole('slider', { name: 'Size' })).toBeInTheDocument();
+        expect(await screen.findByRole('slider', { name: 'Size' })).toBeInTheDocument();
         expect(screen.queryByRole('slider', { name: 'Position' })).not.toBeInTheDocument();
     });
 
@@ -233,7 +233,7 @@ describe('Sidebar Tabs', () => {
             .toHaveTextContent('Captions');
     });
 
-    it('shows manual style settings without preset cards', () => {
+    it('shows manual style settings without preset cards', async () => {
         (useProcessContext as jest.Mock).mockReturnValue({
             ...mockContextValue,
             activeSidebarTab: 'styles',
@@ -247,6 +247,7 @@ describe('Sidebar Tabs', () => {
             </I18nProvider>
         );
 
+        expect(await screen.findByRole('slider', { name: 'Size' })).toBeInTheDocument();
         expect(screen.queryByRole('heading', { name: /custom settings/i })).not.toBeInTheDocument();
         expect(screen.queryByText('TikTok Pro')).not.toBeInTheDocument();
         expect(screen.queryByText('Cinematic Master')).not.toBeInTheDocument();

@@ -73,6 +73,7 @@ def test_export_request_validates_subtitle_color() -> None:
     assert ExportRequest(resolution="vtt").resolution == "vtt"
     assert ExportRequest(resolution="txt").resolution == "txt"
     assert ExportRequest(resolution="1080x1920", subtitle_color=None).subtitle_color is None
+    assert ExportRequest(resolution="720x1280").resolution == "720x1280"
     assert ExportRequest(resolution="1080x1920", subtitle_color="&H00FFFFFF").subtitle_color == "&H00FFFFFF"
 
     with pytest.raises(ValidationError):

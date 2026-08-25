@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, memo, useRef } from 'react';
+import dynamic from 'next/dynamic';
 import { Spinner } from '@/components/Spinner';
 import { useI18n } from '@/context/I18nContext';
 import { useProcessContext } from '../ProcessContext';
@@ -6,8 +7,15 @@ import { usePlaybackContext } from '../PlaybackContext';
 import { CueItem } from '../CueItem';
 import { Cue } from '@/components/SubtitleOverlay';
 import { findCueIndexAtTime } from '@/lib/subtitleUtils';
-import { SubtitlePositionSelector } from '@/components/SubtitlePositionSelector';
-import { ViralIntelligence } from '@/components/ViralIntelligence';
+
+// This feature flag is currently off. Keep the dormant intelligence workspace
+// out of the transcript/editor critical path while retaining the implementation.
+const ViralIntelligence = dynamic(() => (
+    import('@/components/ViralIntelligence').then((module) => module.ViralIntelligence)
+));
+const SubtitlePositionSelector = dynamic(() => (
+    import('@/components/SubtitlePositionSelector').then((module) => module.SubtitlePositionSelector)
+));
 
 const SHOW_INTELLIGENCE_TAB = false;
 

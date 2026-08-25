@@ -42,7 +42,7 @@ type PreviewSectionLayoutProps = {
 };
 
 type ExportOption = {
-    resolution: '1080x1920' | 'srt' | 'txt' | '2160x3840';
+    resolution: '720x1280' | '1080x1920' | 'srt' | 'txt' | '2160x3840';
     label: string;
     descriptionKey: MessageKey;
     loadingKey: MessageKey;
@@ -52,12 +52,19 @@ type ExportOption = {
 
 const VIDEO_EXPORT_OPTIONS: ExportOption[] = [
     {
+        resolution: '720x1280',
+        label: '720p Fast',
+        descriptionKey: 'exportFastDesc',
+        loadingKey: 'exportRendering',
+        testId: 'download-720p-btn',
+        primary: true,
+    },
+    {
         resolution: '1080x1920',
         label: '1080p',
         descriptionKey: 'exportHdDesc',
         loadingKey: 'exportRendering',
         testId: 'download-1080p-btn',
-        primary: true,
     },
     {
         resolution: '2160x3840',

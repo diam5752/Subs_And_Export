@@ -31,6 +31,9 @@ function ExportHarness() {
             <button type="button" onClick={() => void handleExport('1080x1920')}>
                 export-1080
             </button>
+            <button type="button" onClick={() => void handleExport('720x1280')}>
+                export-720
+            </button>
             <div data-testid="video-url">{videoUrl ?? ''}</div>
             <div data-testid="export-error">{exportError ?? ''}</div>
         </div>
@@ -229,6 +232,41 @@ describe('ProcessProvider export handling', () => {
             expect(clickedLink.download).toBe('E Isous_subs.mp4');
             expect(clickedLink.href).toContain('download=true');
             expect(clickedLink.href).toContain('filename=E%20Isous_subs.mp4');
+        } finally {
+            clickSpy.mockRestore();
+        }
+    });
+
+    it('uses the low-size profile for the fast 720p export', async () => {
+        const updatedJob = {
+            ...baseProps.selectedJob,
+            result_data: {
+                ...baseProps.selectedJob.result_data,
+                variants: {
+                    '720x1280': '/static/artifacts/job-1/processed-720.mp4',
+                },
+            },
+        };
+        const clickSpy = jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => { });
+        (api.exportVideo as jest.Mock).mockResolvedValue(updatedJob);
+
+        try {
+            render(
+                <I18nProvider initialLocale="en">
+                    <ExportTestBed buildStaticUrl={(path) => path ?? null} />
+                </I18nProvider>,
+            );
+
+            fireEvent.click(screen.getByRole('button', { name: 'export-720' }));
+
+            await waitFor(() => {
+                expect(api.exportVideo).toHaveBeenCalledWith(
+                    'job-1',
+                    '720x1280',
+                    expect.objectContaining({ video_quality: 'low size' }),
+                );
+            });
+            expect(clickSpy).toHaveBeenCalled();
         } finally {
             clickSpy.mockRestore();
         }

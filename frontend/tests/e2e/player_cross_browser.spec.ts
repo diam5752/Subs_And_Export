@@ -392,6 +392,7 @@ test('player and subtitle manipulation stay clear across browser engines', async
   await page.getByRole('button', { name: el.exportMenuButton, exact: true }).click();
   const exportMenu = page.getByTestId('editor-export-menu');
   await expect(exportMenu).toBeVisible();
+  await expect(exportMenu.getByTestId('download-720p-btn')).toBeVisible();
   await expect(exportMenu.getByTestId('download-1080p-btn')).toBeVisible();
   await expect(exportMenu.getByTestId('download-4k-btn')).toBeVisible();
   await expect(exportMenu.getByTestId('srt-btn')).toBeVisible();

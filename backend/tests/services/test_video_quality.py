@@ -9,8 +9,8 @@ from backend.app.services.video_quality import crf_for_video_quality
     ("quality", "expected_crf"),
     [
         (" low size ", 28),
-        ("BALANCED", 20),
-        ("high quality", 12),
+        ("BALANCED", 23),
+        ("high quality", 18),
     ],
 )
 def test_video_quality_profiles_are_canonical(

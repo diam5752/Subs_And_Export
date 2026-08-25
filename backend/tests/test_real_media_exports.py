@@ -57,6 +57,7 @@ class ExportJobStore:
 
 
 MEDIA_CASES = (
+    MediaCase("h264-aac-fast-export", "h264_aac.mp4", "720x1280", "h264", "aac"),
     MediaCase("h264-aac-mp4", "h264_aac.mp4", "1080x1920", "h264", "aac"),
     MediaCase("mpeg4-pcm-mov", "mpeg4_pcm.mov", "540x960", "mpeg4", "pcm_s16le"),
     MediaCase("ffv1-silent-mkv", "ffv1_silent.mkv", "540x960", "ffv1", None),

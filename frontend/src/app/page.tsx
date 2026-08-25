@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState, useMemo, useRef } from 'react';
+import dynamic from 'next/dynamic';
 import { useAuth } from '@/context/AuthContext';
 import { usePoints } from '@/context/PointsContext';
 import { api, JobResponse } from '@/lib/api';
@@ -10,7 +11,6 @@ import { LanguageToggle } from '@/components/LanguageToggle';
 import { ProcessView, ProcessingOptions } from '@/features/process/ProcessView';
 import { AccountView } from '@/components/AccountView';
 import { CreditsBadge } from '@/components/CreditsBadge';
-import { CreditPurchaseDialog } from '@/components/CreditPurchaseDialog';
 import { ProcessingGateModal, type ProcessingGateStage } from '@/components/ProcessingGateModal';
 import { useJobs } from '@/hooks/useJobs';
 import { useJobPolling, JobPollingCallbacks } from '@/hooks/useJobPolling';
@@ -25,6 +25,13 @@ import Link from 'next/link';
 import { BrandLogo } from '@/components/BrandLogo';
 import { ProfileAvatar } from '@/components/ProfileAvatar';
 import { SessionRecoveryScreen } from '@/components/SessionRecoveryScreen';
+
+// The purchase form is never visible during the initial workspace render.
+// Keep its catalog, consent and checkout code out of the critical dashboard
+// chunk; Next.js loads it only after an explicit click on the credit balance.
+const CreditPurchaseDialog = dynamic(() => (
+  import('@/components/CreditPurchaseDialog').then((module) => module.CreditPurchaseDialog)
+));
 
 const statusStyles: Record<string, string> = {
   completed: 'bg-green-500/15 text-green-300 border-green-500/30',
@@ -158,6 +165,10 @@ export default function DashboardPage() {
   const [canCancelProcessing, setCanCancelProcessing] = useState(false);
   const [pendingProcessingAction, setPendingProcessingAction] = useState<PendingProcessingAction | null>(null);
   const [processingGateStage, setProcessingGateStage] = useState<ProcessingGateStage | null>(null);
+  const [processingGateScrollPosition, setProcessingGateScrollPosition] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
   const [processingGateError, setProcessingGateError] = useState('');
   const [isGateBalanceLoading, setIsGateBalanceLoading] = useState(false);
   const [showCreditPurchase, setShowCreditPurchase] = useState(false);
@@ -373,6 +384,17 @@ export default function DashboardPage() {
     t,
   });
 
+  const captureProcessingGateScrollPosition = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    const bodyIsFixed = document.body.style.position === 'fixed';
+    const bodyLeft = Number.parseFloat(document.body.style.left);
+    const bodyTop = Number.parseFloat(document.body.style.top);
+    setProcessingGateScrollPosition({
+      x: bodyIsFixed && Number.isFinite(bodyLeft) ? -bodyLeft : window.scrollX,
+      y: bodyIsFixed && Number.isFinite(bodyTop) ? -bodyTop : window.scrollY,
+    });
+  }, []);
+
   const reopenAuthoritativeQuote = useCallback((
     error: unknown,
     action: PendingProcessingAction,
@@ -388,10 +410,11 @@ export default function DashboardPage() {
       duration: quoteChange.durationSeconds,
       cost: quoteChange.requiredCredits,
     }));
+    captureProcessingGateScrollPosition();
     setProcessingGateStage('cost');
     setProcessError('');
     return true;
-  }, [t]);
+  }, [captureProcessingGateScrollPosition, t]);
 
   const executeStartProcessing = useCallback(async (
     options: ProcessingOptions,
@@ -559,6 +582,7 @@ export default function DashboardPage() {
 
   const closeProcessingGate = useCallback(() => {
     setProcessingGateStage(null);
+    setProcessingGateScrollPosition(null);
     setPendingProcessingAction(null);
     setProcessingGateError('');
     setIsGateBalanceLoading(false);
@@ -578,6 +602,7 @@ export default function DashboardPage() {
   }, [setWallet, t]);
 
   const requestProcessingAction = useCallback((action: PendingProcessingAction) => {
+    captureProcessingGateScrollPosition();
     setPendingProcessingAction(action);
     setProcessingGateError('');
 
@@ -588,7 +613,7 @@ export default function DashboardPage() {
 
     setProcessingGateStage('cost');
     void loadGateBalance();
-  }, [loadGateBalance, user]);
+  }, [captureProcessingGateScrollPosition, loadGateBalance, user]);
 
   const requestStartProcessing = useCallback(async (options: ProcessingOptions) => {
     requestProcessingAction({ kind: 'new', options });
@@ -998,6 +1023,7 @@ export default function DashboardPage() {
         <ProcessingGateModal
           isOpen
           stage={processingGateStage}
+          initialScrollPosition={processingGateScrollPosition ?? undefined}
           cost={pendingProcessingCost}
           balance={processingGateBalance}
           requiresPaidCredits={pendingProcessingRequiresPaidCredits}
@@ -1014,13 +1040,14 @@ export default function DashboardPage() {
         />
       )}
 
-      {paidCreditSalesUiApproved && (
+      {paidCreditSalesUiApproved && showCreditPurchase && (
         <CreditPurchaseDialog
-          isOpen={showCreditPurchase}
+          isOpen
           isAuthenticated={Boolean(user)}
           requiredCredits={pendingProcessingCost}
           onClose={closeCreditPurchase}
           onRequireAuth={() => {
+            captureProcessingGateScrollPosition();
             setShowCreditPurchase(false);
             setProcessingGateStage('auth');
           }}

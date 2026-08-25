@@ -1,11 +1,17 @@
 import React, { useState, memo, useId } from 'react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useI18n } from '@/context/I18nContext';
 import { User } from '@/context/AuthContext';
 import { api, JobResponse } from '@/lib/api';
 import { useRouter } from 'next/navigation';
-import { RecentJobsList } from './RecentJobsList';
 import { Spinner } from '@/components/Spinner';
+
+// History is a secondary account tab. Avoid parsing its cards, actions and
+// deletion confirmation on every initial workspace visit.
+const RecentJobsList = dynamic(() => (
+    import('./RecentJobsList').then((module) => module.RecentJobsList)
+));
 
 interface AccountViewProps {
     user: User;
