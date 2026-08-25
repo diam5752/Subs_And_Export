@@ -96,8 +96,11 @@ describe('ProcessingGateModal', () => {
     // REGRESSION: iOS Safari and Gmail's in-app WebView can keep scrolling the
     // root document when only body overflow is hidden behind a fixed modal.
     it('locks both root scrollers and restores the exact page position and styles', () => {
-        Object.defineProperty(window, 'scrollX', { configurable: true, value: 17 });
-        Object.defineProperty(window, 'scrollY', { configurable: true, value: 240 });
+        const initialScrollPosition = { x: 17, y: 240 };
+        // WebKit may adjust the live viewport between the click and the modal
+        // commit. The click-time snapshot remains authoritative.
+        Object.defineProperty(window, 'scrollX', { configurable: true, value: 31 });
+        Object.defineProperty(window, 'scrollY', { configurable: true, value: 267 });
         document.documentElement.style.overflow = 'clip';
         document.documentElement.style.overscrollBehavior = 'contain';
         document.documentElement.style.scrollBehavior = 'smooth';
@@ -114,6 +117,7 @@ describe('ProcessingGateModal', () => {
             <ProcessingGateModal
                 isOpen
                 stage="auth"
+                initialScrollPosition={initialScrollPosition}
                 cost={25}
                 balance={null}
                 isBalanceLoading={false}
@@ -139,6 +143,7 @@ describe('ProcessingGateModal', () => {
             <ProcessingGateModal
                 isOpen={false}
                 stage="auth"
+                initialScrollPosition={initialScrollPosition}
                 cost={25}
                 balance={null}
                 isBalanceLoading={false}
