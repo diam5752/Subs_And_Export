@@ -678,12 +678,19 @@ test('style controls stay responsive when reduced effects are active', async ({ 
   expect(Math.abs(desktop.color.bottom - desktop.lines.bottom)).toBeLessThanOrEqual(2);
 
   await page.setViewportSize(viewports.mobile);
-  await page.evaluate(() => new Promise<void>((resolve) => {
-    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-  }));
-  const mobile = await measureControls();
-  expect(mobile.color.y).toBeGreaterThanOrEqual(mobile.size.bottom);
-  expect(mobile.lines.y).toBeGreaterThanOrEqual(mobile.color.bottom);
+  // A loaded video can keep the previous desktop grid geometry for more than
+  // two animation frames while Chromium applies the mobile media query. Wait
+  // for the layout contract itself instead of racing that asynchronous reflow.
+  await expect.poll(async () => {
+    const mobile = await measureControls();
+    return {
+      colorAfterSize: mobile.color.y >= mobile.size.bottom,
+      linesAfterColor: mobile.lines.y >= mobile.color.bottom,
+    };
+  }).toEqual({
+    colorAfterSize: true,
+    linesAfterColor: true,
+  });
   await expectNoHorizontalOverflow(page, '[data-testid="editor-sidebar"]');
 });
 
