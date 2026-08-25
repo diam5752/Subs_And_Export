@@ -228,7 +228,7 @@ class Settings(BaseSettings):
         validation_alias="GSP_MEDIA_RENDER_SLOTS",
     )
     media_render_threads_per_slot: int = Field(
-        default=1,
+        default=2,
         ge=1,
         le=2,
         validation_alias="GSP_MEDIA_RENDER_THREADS_PER_SLOT",

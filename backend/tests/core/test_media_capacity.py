@@ -76,8 +76,8 @@ def test_media_capacity_lock_rejects_explicit_zero_capacity(tmp_path: Path) -> N
 
 
 def test_two_render_slots_allow_two_holders_and_block_a_third(tmp_path: Path) -> None:
-    # REGRESSION: exports were globally serialized even when two single-thread
-    # encoders fit inside the shared host's bounded CPU budget.
+    # REGRESSION: exports were globally serialized even when two bounded
+    # encoders fit inside the shared host's CPU cgroup.
     barrier = threading.Barrier(3)
     release = threading.Event()
     results: list[str] = []

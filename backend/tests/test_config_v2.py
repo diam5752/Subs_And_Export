@@ -27,7 +27,10 @@ def test_settings_defaults(monkeypatch) -> None:
     # second customer could not upload while the first transcription ran.
     assert settings.max_active_media_jobs == 5
     assert settings.media_render_slots == 2
-    assert settings.media_render_threads_per_slot == 1
+    # Production-like stress evidence on the 3-CPU container showed that two
+    # bounded threads per lane raise five-export throughput without health,
+    # memory, or PID failures.
+    assert settings.media_render_threads_per_slot == 2
     assert settings.media_extraction_slots == 1
     assert settings.media_extraction_threads_per_slot == 1
     assert settings.provider_transcription_slots == 8
