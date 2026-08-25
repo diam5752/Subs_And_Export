@@ -15,7 +15,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from fastapi.responses import FileResponse
 from secure import (
     ContentSecurityPolicy,
     ReferrerPolicy,
@@ -39,6 +38,7 @@ from backend.app.core.cleanup import retention_worker
 from backend.app.core.config import settings
 from backend.app.core.database import Database
 from backend.app.core.erasure_journal import configured_erasure_journal
+from backend.app.core.private_media import PrivateMediaFileResponse
 from backend.app.core.ratelimit import get_client_ip, limiter_static
 from backend.app.core.workspace_deletion import reclaim_abandoned_lifecycle_locks
 from backend.app.services.consumer_contracts import (
@@ -324,7 +324,7 @@ async def serve_static(
     file_path: str,
     download: bool = False,
     filename: str | None = None,
-):
+) -> PrivateMediaFileResponse:
     # Rate limit static file access to prevent egress abuse
     ip = get_client_ip(request)
     limiter_static.check(ip)
@@ -356,13 +356,19 @@ async def serve_static(
         }
         if force_download:
             download_name = sanitize_download_filename(filename, full_path.name)
-            response = FileResponse(
+            response = PrivateMediaFileResponse(
                 full_path,
+                job_id=artifact_parts[1],
+                transfer_kind="download",
                 filename=download_name,
                 content_disposition_type="attachment",
             )
         else:
-            response = FileResponse(full_path)
+            response = PrivateMediaFileResponse(
+                full_path,
+                job_id=artifact_parts[1],
+                transfer_kind="preview",
+            )
         response.headers["Cache-Control"] = "private, no-store"
         return response
 
