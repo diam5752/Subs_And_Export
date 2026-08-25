@@ -788,6 +788,40 @@ describe('DashboardPage', () => {
         expect(screen.getByTestId('account-view')).toBeInTheDocument();
     });
 
+    it('locks both document scrollers while the account dialog is open', () => {
+        const scrollTo = jest.fn();
+        Object.defineProperty(window, 'scrollTo', {
+            configurable: true,
+            value: scrollTo,
+        });
+        Object.defineProperty(window, 'scrollX', { configurable: true, value: 11 });
+        Object.defineProperty(window, 'scrollY', { configurable: true, value: 355 });
+        document.documentElement.style.overflow = 'clip';
+        document.body.style.overflow = 'auto';
+
+        render(<DashboardPage />);
+        fireEvent.click(screen.getByRole('button', { name: 'profileLabel' }));
+
+        expect(document.documentElement.style.overflow).toBe('hidden');
+        expect(document.documentElement.style.overscrollBehavior).toBe('none');
+        expect(document.body.style.overflow).toBe('hidden');
+        expect(document.body.style.position).toBe('fixed');
+        expect(document.body.style.top).toBe('-355px');
+        expect(document.body.style.left).toBe('-11px');
+
+        fireEvent.click(within(
+            screen.getByRole('dialog', { name: 'accountSettingsTitle' }),
+        ).getByRole('button', { name: 'closeLabel' }));
+
+        expect(document.documentElement.style.overflow).toBe('clip');
+        expect(document.body.style.overflow).toBe('auto');
+        expect(document.body.style.position).toBe('');
+        expect(scrollTo).toHaveBeenCalledWith(11, 355);
+
+        document.documentElement.removeAttribute('style');
+        document.body.removeAttribute('style');
+    });
+
     it('closes the account dialog with Escape and restores focus to its opener', async () => {
         render(<DashboardPage />);
 

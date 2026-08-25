@@ -42,6 +42,22 @@ describe('NewVideoConfirmModal', () => {
         expect(screen.getByRole('button', { name: 'Νέο project' })).not.toHaveFocus();
     });
 
+    it('locks and restores both document scrollers', () => {
+        window.scrollTo = jest.fn();
+        const view = render(
+            <NewVideoConfirmModal isOpen onClose={jest.fn()} onConfirm={jest.fn()} />,
+        );
+
+        expect(document.documentElement.style.overflow).toBe('hidden');
+        expect(document.body.style.overflow).toBe('hidden');
+        expect(document.body.style.position).toBe('fixed');
+
+        view.unmount();
+        expect(document.documentElement.style.overflow).toBe('');
+        expect(document.body.style.overflow).toBe('');
+        expect(document.body.style.position).toBe('');
+    });
+
     it('supports Escape, cancel, and explicit confirmation', () => {
         const onClose = jest.fn();
         const onConfirm = jest.fn();

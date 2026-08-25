@@ -5,6 +5,9 @@ import config, {
   resolvePlaywrightPort,
 } from '../../playwright.config';
 import qualityGates from '../../../.codex/quality-gates.json';
+import packageJson from '../../package.json';
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 describe('Playwright server isolation', () => {
   test('uses a dedicated server and never reuses an existing process', () => {
@@ -20,11 +23,10 @@ describe('Playwright server isolation', () => {
     expect(config.use?.serviceWorkers).toBe('block');
     expect(config.failOnFlakyTests).toBe(Boolean(process.env.CI));
     expect(webServer).toMatchObject({
-      command: (
-        'npm run build && npm run start -- '
-        + '--hostname 127.0.0.1 --port 31873'
-      ),
+      command: 'npm run build && npm run start:standalone',
       env: {
+        HOSTNAME: '127.0.0.1',
+        PORT: '31873',
         NEXT_PUBLIC_API_URL: '',
         NEXT_PUBLIC_TRANSCRIBE_PROVIDER: 'mock',
         NEXT_PUBLIC_TRANSCRIBE_MODE: 'standard',
@@ -34,6 +36,15 @@ describe('Playwright server isolation', () => {
     });
     // REGRESSION: an ignored local provider override made the mock E2E suite
     // execute the external-provider flow and fail nondeterministically.
+  });
+
+  test('starts the same standalone artifact shape used by production', () => {
+    expect(packageJson.scripts['start:standalone']).toBe(
+      'node scripts/start-standalone.mjs',
+    );
+    expect(
+      existsSync(resolve(process.cwd(), 'scripts/start-standalone.mjs')),
+    ).toBe(true);
   });
 
   test('rejects invalid port overrides before a browser server can start', () => {

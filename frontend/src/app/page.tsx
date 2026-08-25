@@ -14,6 +14,7 @@ import { CreditsBadge } from '@/components/CreditsBadge';
 import { ProcessingGateModal, type ProcessingGateStage } from '@/components/ProcessingGateModal';
 import { useJobs } from '@/hooks/useJobs';
 import { useJobPolling, JobPollingCallbacks } from '@/hooks/useJobPolling';
+import { useDocumentScrollLock } from '@/hooks/useDocumentScrollLock';
 import {
   isProcessingCreditTier,
   processVideoCostForSelection,
@@ -186,6 +187,8 @@ export default function DashboardPage() {
   const accountDialogRef = useRef<HTMLDivElement>(null);
   const accountCloseButtonRef = useRef<HTMLButtonElement>(null);
   const accountReturnFocusRef = useRef<HTMLElement | null>(null);
+
+  useDocumentScrollLock(showAccountPanel);
 
   const handleCloseAccountPanel = useCallback(() => {
     setShowAccountPanel(false);

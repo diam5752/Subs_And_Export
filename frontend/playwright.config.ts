@@ -110,11 +110,10 @@ export default defineConfig({
   webServer: {
     // Exercise the production bundle and avoid development HMR replacing pages
     // while the long, multi-page browser suite is still running.
-    command: (
-      `npm run build && npm run start -- `
-      + `--hostname ${playwrightHost} --port ${playwrightPort}`
-    ),
+    command: 'npm run build && npm run start:standalone',
     env: {
+      HOSTNAME: playwrightHost,
+      PORT: String(playwrightPort),
       // Keep release E2E deterministic even when a developer has an
       // ignored .env.local configured for a real paid provider.
       NEXT_PUBLIC_API_URL: '',

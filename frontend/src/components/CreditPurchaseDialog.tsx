@@ -12,6 +12,7 @@ import { CoinsIcon } from '@/components/icons';
 import { Spinner } from '@/components/Spinner';
 import { useI18n } from '@/context/I18nContext';
 import { usePoints } from '@/context/PointsContext';
+import { useDocumentScrollLock } from '@/hooks/useDocumentScrollLock';
 import {
     api,
     type CreditCatalogResponse,
@@ -151,6 +152,8 @@ function OpenCreditPurchaseDialog({
     const immediatePerformanceId = useId();
     const withdrawalConsequencesId = useId();
 
+    useDocumentScrollLock(true);
+
     useEffect(() => {
         onCloseRef.current = onClose;
     }, [onClose]);
@@ -189,7 +192,6 @@ function OpenCreditPurchaseDialog({
                 ? document.activeElement
                 : null
         );
-        const previousBodyOverflow = document.body.style.overflow;
         const handleKeyDown = (event: KeyboardEvent) => {
             if (event.key === 'Escape') {
                 event.preventDefault();
@@ -223,11 +225,9 @@ function OpenCreditPurchaseDialog({
             }
         };
         document.addEventListener('keydown', handleKeyDown);
-        document.body.style.overflow = 'hidden';
         queueMicrotask(() => closeButtonRef.current?.focus());
         return () => {
             document.removeEventListener('keydown', handleKeyDown);
-            document.body.style.overflow = previousBodyOverflow;
             queueMicrotask(() => {
                 if (previouslyFocused?.isConnected) {
                     previouslyFocused.focus();

@@ -3,7 +3,6 @@
 import React, {
     useCallback,
     useEffect,
-    useLayoutEffect,
     useRef,
     useState,
 } from 'react';
@@ -13,6 +12,7 @@ import { CoinsIcon } from '@/components/icons';
 import { Spinner } from '@/components/Spinner';
 import { useAuth } from '@/context/AuthContext';
 import { useI18n } from '@/context/I18nContext';
+import { useDocumentScrollLock } from '@/hooks/useDocumentScrollLock';
 import { formatPoints } from '@/lib/points';
 
 // Email login remains immediately interactive. The Google SDK controller is
@@ -108,69 +108,7 @@ export function ProcessingGateModal({
         };
     }, [isOpen]);
 
-    useLayoutEffect(() => {
-        if (!isOpen) return;
-
-        // Lock before WebKit paints the newly mounted dialog. A passive effect
-        // leaves a frame where iOS may auto-adjust the document by a few pixels,
-        // making the background jump and restoring to the wrong position.
-        const root = document.documentElement;
-        const body = document.body;
-        const scrollX = initialScrollPosition?.x ?? window.scrollX;
-        const scrollY = initialScrollPosition?.y ?? window.scrollY;
-        const previousRootStyles = {
-            overflow: root.style.overflow,
-            overscrollBehavior: root.style.overscrollBehavior,
-            scrollBehavior: root.style.scrollBehavior,
-            height: root.style.height,
-        };
-        const previousBodyStyles = {
-            overflow: body.style.overflow,
-            overscrollBehavior: body.style.overscrollBehavior,
-            position: body.style.position,
-            top: body.style.top,
-            left: body.style.left,
-            width: body.style.width,
-            height: body.style.height,
-        };
-        const restoreLockedPosition = () => {
-            if (window.scrollX !== scrollX || window.scrollY !== scrollY) {
-                window.scrollTo(scrollX, scrollY);
-            }
-        };
-
-        root.style.overflow = 'hidden';
-        root.style.overscrollBehavior = 'none';
-        root.style.height = '100%';
-        body.style.overflow = 'hidden';
-        body.style.overscrollBehavior = 'none';
-        body.style.position = 'fixed';
-        body.style.top = `${-scrollY}px`;
-        body.style.left = `${-scrollX}px`;
-        body.style.width = '100%';
-        body.style.height = '100%';
-        window.addEventListener('scroll', restoreLockedPosition, { passive: true });
-
-        return () => {
-            window.removeEventListener('scroll', restoreLockedPosition);
-            root.style.overflow = previousRootStyles.overflow;
-            root.style.overscrollBehavior = previousRootStyles.overscrollBehavior;
-            root.style.height = previousRootStyles.height;
-            body.style.overflow = previousBodyStyles.overflow;
-            body.style.overscrollBehavior = previousBodyStyles.overscrollBehavior;
-            body.style.position = previousBodyStyles.position;
-            body.style.top = previousBodyStyles.top;
-            body.style.left = previousBodyStyles.left;
-            body.style.width = previousBodyStyles.width;
-            body.style.height = previousBodyStyles.height;
-
-            // Global CSS uses smooth scrolling. Override it for this one
-            // restoration so closing the modal cannot visibly animate the page.
-            root.style.scrollBehavior = 'auto';
-            window.scrollTo(scrollX, scrollY);
-            root.style.scrollBehavior = previousRootStyles.scrollBehavior;
-        };
-    }, [initialScrollPosition?.x, initialScrollPosition?.y, isOpen]);
+    useDocumentScrollLock(isOpen, initialScrollPosition);
 
     useEffect(() => {
         if (!isOpen) return;
