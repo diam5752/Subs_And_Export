@@ -23,6 +23,14 @@ def test_settings_defaults(monkeypatch) -> None:
     # silently allowed 1 GiB.
     assert settings.max_upload_mb == 500
     assert settings.max_video_duration_seconds == 600
+    # REGRESSION: production was pinned to one request-long media lane, so a
+    # second customer could not upload while the first transcription ran.
+    assert settings.max_active_media_jobs == 5
+    assert settings.media_render_slots == 2
+    assert settings.media_render_threads_per_slot == 1
+    assert settings.media_extraction_slots == 1
+    assert settings.media_extraction_threads_per_slot == 1
+    assert settings.provider_transcription_slots == 8
     assert settings.workspace_retention_hours == 24
     assert settings.stale_job_retention_hours == 6
     assert settings.orphan_retention_hours == 1
@@ -192,6 +200,12 @@ def test_settings_environment_overrides(monkeypatch) -> None:
     monkeypatch.setenv("GSP_LLM_TEMPERATURE", "0.42")
     monkeypatch.setenv("GSP_MAX_UPLOAD_MB", "123")
     monkeypatch.setenv("GSP_MAX_VIDEO_DURATION_SECONDS", "480")
+    monkeypatch.setenv("GSP_MAX_ACTIVE_MEDIA_JOBS", "7")
+    monkeypatch.setenv("GSP_MEDIA_RENDER_SLOTS", "3")
+    monkeypatch.setenv("GSP_MEDIA_RENDER_THREADS_PER_SLOT", "2")
+    monkeypatch.setenv("GSP_MEDIA_EXTRACTION_SLOTS", "2")
+    monkeypatch.setenv("GSP_MEDIA_EXTRACTION_THREADS_PER_SLOT", "2")
+    monkeypatch.setenv("GSP_PROVIDER_TRANSCRIPTION_SLOTS", "12")
     monkeypatch.setenv("GSP_WORKSPACE_RETENTION_HOURS", "36")
     monkeypatch.setenv("GSP_STALE_JOB_RETENTION_HOURS", "8")
     monkeypatch.setenv("GSP_ORPHAN_RETENTION_HOURS", "2")
@@ -228,6 +242,12 @@ def test_settings_environment_overrides(monkeypatch) -> None:
     assert settings.llm_temperature == 0.42
     assert settings.max_upload_mb == 123
     assert settings.max_video_duration_seconds == 480
+    assert settings.max_active_media_jobs == 7
+    assert settings.media_render_slots == 3
+    assert settings.media_render_threads_per_slot == 2
+    assert settings.media_extraction_slots == 2
+    assert settings.media_extraction_threads_per_slot == 2
+    assert settings.provider_transcription_slots == 12
     assert settings.workspace_retention_hours == 36
     assert settings.stale_job_retention_hours == 8
     assert settings.orphan_retention_hours == 2

@@ -32,22 +32,28 @@ from ...services.charge_plans import (
 )
 from ...services.ffmpeg_utils import probe_media
 from ...services.history import HistoryStore
-from ...services.jobs import JobStore
-from ...services.usage_ledger import UsageLedgerStore
+from ...services.jobs import Job, JobStore
+from ...services.usage_ledger import ChargePlan, UsageLedgerStore
 from ..deps import (
     get_current_user_with_media_lifecycle,
     get_db,
     get_history_store,
     get_job_store,
     get_usage_ledger_store,
+    media_job_admission,
 )
-from .file_utils import data_roots, link_or_copy_file, require_storage_capacity
+from .file_utils import (
+    data_roots,
+    link_or_copy_file,
+    require_storage_capacity,
+    upload_storage_reservation_bytes,
+)
 from .processing_tasks import (
     record_event_safe,
     refund_charge_best_effort,
     run_video_processing,
 )
-from .settings import build_processing_settings
+from .settings import ProcessingSettings, build_processing_settings
 from .validation import (
     ALLOWED_VIDEO_EXTENSIONS,
     assert_processing_quote_authorized,
@@ -125,6 +131,108 @@ def _record_and_delete_failed_reprocess(
         )
 
 
+def _reserve_reprocess_job(
+    *,
+    new_job_id: str,
+    current_user: User,
+    source_input: Path,
+    input_path: Path,
+    data_dir: Path,
+    artifacts_root: Path,
+    proc_settings: ProcessingSettings,
+    duration_seconds: float,
+    source_size_bytes: int,
+    llm_models: pricing.LlmModels,
+    stt_model: str,
+    job_store: JobStore,
+    history_store: HistoryStore,
+    ledger_store: UsageLedgerStore,
+    db: Database,
+) -> tuple[Job, ChargePlan, int]:
+    """Copy, create and charge one reprocess job under atomic admission."""
+    with media_job_admission(db):
+        active_jobs = job_store.count_active_jobs_for_user(current_user.id)
+        if active_jobs >= settings.max_concurrent_jobs:
+            raise HTTPException(
+                status_code=429,
+                detail=(
+                    "Too many active jobs. Please wait for your current jobs "
+                    f"to finish (max {settings.max_concurrent_jobs})."
+                ),
+            )
+
+        require_storage_capacity(
+            data_dir,
+            required_bytes=upload_storage_reservation_bytes(source_size_bytes),
+            db=db,
+        )
+
+        try:
+            with lock_job_workspace(data_dir=data_dir, job_id=new_job_id):
+                record_workspace_ownership(
+                    data_dir=data_dir,
+                    job_id=new_job_id,
+                    user_id=current_user.id,
+                )
+                link_or_copy_file(source_input, input_path)
+        except BaseException as exc:
+            _record_and_delete_failed_reprocess(
+                job_id=new_job_id,
+                user_id=current_user.id,
+                input_path=input_path,
+                artifacts_root=artifacts_root,
+                database_job_may_exist=False,
+                job_store=job_store,
+                history_store=history_store,
+            )
+            if isinstance(exc, FileNotFoundError):
+                raise HTTPException(
+                    status_code=404,
+                    detail="Source video not found; upload again to reprocess",
+                ) from exc
+            raise
+
+        try:
+            job = job_store.create_job(new_job_id, current_user.id)
+        except BaseException:
+            _record_and_delete_failed_reprocess(
+                job_id=new_job_id,
+                user_id=current_user.id,
+                input_path=input_path,
+                artifacts_root=artifacts_root,
+                database_job_may_exist=True,
+                job_store=job_store,
+                history_store=history_store,
+            )
+            raise
+
+        try:
+            charge_plan, new_balance = reserve_processing_charges(
+                ledger_store=ledger_store,
+                user_id=current_user.id,
+                job_id=new_job_id,
+                tier=proc_settings.transcribe_tier,
+                duration_seconds=duration_seconds,
+                use_llm=proc_settings.use_llm,
+                llm_model=llm_models.social,
+                provider=proc_settings.transcribe_provider,
+                stt_model=stt_model,
+            )
+        except BaseException:
+            _record_and_delete_failed_reprocess(
+                job_id=new_job_id,
+                user_id=current_user.id,
+                input_path=input_path,
+                artifacts_root=artifacts_root,
+                database_job_may_exist=True,
+                job_store=job_store,
+                history_store=history_store,
+            )
+            raise
+
+    return job, charge_plan, new_balance
+
+
 @router.post("/jobs/{job_id}/reprocess", response_model=JobResponse, dependencies=[Depends(limiter_processing)])
 def reprocess_job(
     job_id: str,
@@ -198,12 +306,6 @@ def reprocess_job(
         raise HTTPException(status_code=400, detail="Empty source video")
     if size_bytes > (settings.max_upload_mb * 1024 * 1024):
         raise HTTPException(status_code=413, detail=f"File too large; limit is {settings.max_upload_mb}MB")
-    require_storage_capacity(
-        data_dir,
-        required_bytes=size_bytes * 2,
-        db=db,
-    )
-
     try:
         probe = probe_media(source_input)
     except Exception as exc:
@@ -247,70 +349,23 @@ def reprocess_job(
     output_path = artifacts_root / new_job_id / "processed.mp4"
     artifact_path = artifacts_root / new_job_id
 
-    try:
-        with lock_job_workspace(data_dir=data_dir, job_id=new_job_id):
-            record_workspace_ownership(
-                data_dir=data_dir,
-                job_id=new_job_id,
-                user_id=current_user.id,
-            )
-            link_or_copy_file(source_input, input_path)
-    except BaseException as exc:
-        _record_and_delete_failed_reprocess(
-            job_id=new_job_id,
-            user_id=current_user.id,
-            input_path=input_path,
-            artifacts_root=artifacts_root,
-            database_job_may_exist=False,
-            job_store=job_store,
-            history_store=history_store,
-        )
-        if isinstance(exc, FileNotFoundError):
-            raise HTTPException(
-                status_code=404,
-                detail="Source video not found; upload again to reprocess",
-            ) from exc
-        raise
-
-    try:
-        job = job_store.create_job(new_job_id, current_user.id)
-    except BaseException:
-        _record_and_delete_failed_reprocess(
-            job_id=new_job_id,
-            user_id=current_user.id,
-            input_path=input_path,
-            artifacts_root=artifacts_root,
-            # create_job can fail after its transaction commits. A job
-            # tombstone and idempotent exact deletes cover both outcomes.
-            database_job_may_exist=True,
-            job_store=job_store,
-            history_store=history_store,
-        )
-        raise
-
-    try:
-        charge_plan, new_balance = reserve_processing_charges(
-            ledger_store=ledger_store,
-            user_id=current_user.id,
-            job_id=new_job_id,
-            tier=proc_settings.transcribe_tier,
-            duration_seconds=float(probe.duration_s or 0),
-            use_llm=proc_settings.use_llm,
-            llm_model=llm_models.social,
-            provider=proc_settings.transcribe_provider,
-            stt_model=stt_model,
-        )
-    except BaseException:
-        _record_and_delete_failed_reprocess(
-            job_id=new_job_id,
-            user_id=current_user.id,
-            input_path=input_path,
-            artifacts_root=artifacts_root,
-            database_job_may_exist=True,
-            job_store=job_store,
-            history_store=history_store,
-        )
-        raise
+    job, charge_plan, new_balance = _reserve_reprocess_job(
+        new_job_id=new_job_id,
+        current_user=current_user,
+        source_input=source_input,
+        input_path=input_path,
+        data_dir=data_dir,
+        artifacts_root=artifacts_root,
+        proc_settings=proc_settings,
+        duration_seconds=float(probe.duration_s or 0),
+        source_size_bytes=size_bytes,
+        llm_models=llm_models,
+        stt_model=stt_model,
+        job_store=job_store,
+        history_store=history_store,
+        ledger_store=ledger_store,
+        db=db,
+    )
     try:
         # Job already created above
         record_event_safe(

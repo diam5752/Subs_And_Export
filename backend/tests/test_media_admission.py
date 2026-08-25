@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 import errno
+import threading
 import uuid
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 from fastapi.testclient import TestClient
 
 from backend.app.api import deps as api_deps
 from backend.app.api.endpoints import videos as videos_endpoints
+from backend.app.api.endpoints.processing_tasks import refund_charge_best_effort
 from backend.app.core.config import settings
 from backend.app.core.database import Database
 from backend.app.services.jobs import JobStore
@@ -139,7 +142,7 @@ def test_authorized_credits_are_reserved_before_upload_body_and_refunded_on_fail
     assert JobStore(Database()).list_jobs_for_user(user_id) == []
 
 
-def test_global_active_job_limit_rejects_new_upload_before_body_read(
+def test_global_active_job_limit_rejects_the_sixth_before_body_read(
     client: TestClient,
     funded_user_auth_headers: dict[str, str],
     monkeypatch: pytest.MonkeyPatch,
@@ -157,10 +160,13 @@ def test_global_active_job_limit_rejects_new_upload_before_body_read(
         headers=funded_user_auth_headers,
     ).json()["id"]
     job_store = JobStore(Database())
-    active_job = job_store.create_job(
-        f"global-capacity-{uuid.uuid4().hex}",
-        user_id,
-    )
+    active_jobs = [
+        job_store.create_job(
+            f"global-capacity-{uuid.uuid4().hex}",
+            user_id,
+        )
+        for _ in range(settings.max_active_media_jobs)
+    ]
     try:
         response = post_process_stream(
             client,
@@ -169,8 +175,143 @@ def test_global_active_job_limit_rejects_new_upload_before_body_read(
             content=b"must-not-be-consumed",
         )
     finally:
-        job_store.delete_job(active_job.id)
+        for active_job in active_jobs:
+            job_store.delete_job(active_job.id)
 
     assert response.status_code == 429
     assert "currently at capacity" in response.json()["detail"]
     assert upload_reader_called() is False
+
+
+def test_one_active_customer_leaves_capacity_for_four_more(
+    client: TestClient,
+    funded_user_auth_headers: dict[str, str],
+) -> None:
+    # REGRESSION: the production admission guard used a hard-coded global
+    # capacity of one, rejecting every second customer before reading a byte.
+    user_id = client.get(
+        "/auth/me",
+        headers=funded_user_auth_headers,
+    ).json()["id"]
+    job_store = JobStore(Database())
+    active_job = job_store.create_job(
+        f"five-user-capacity-{uuid.uuid4().hex}",
+        user_id,
+    )
+    try:
+        api_deps._assert_global_media_capacity(Database())
+    finally:
+        job_store.delete_job(active_job.id)
+
+
+def test_five_customers_process_concurrently_and_sixth_is_rejected_before_upload(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # REGRESSION: the admission dependency held its global flock through every
+    # background task, silently reducing the whole deployment to one customer.
+    monkeypatch.setattr(
+        api_deps,
+        "_production_media_capacity_enforced",
+        lambda: True,
+    )
+    database = Database()
+    points_store = PointsStore(database)
+    headers_by_user: list[dict[str, str]] = []
+    for index in range(settings.max_active_media_jobs + 1):
+        email = f"capacity-{uuid.uuid4().hex}-{index}@example.com"
+        password = "testpassword123"
+        register = client.post(
+            "/auth/register",
+            json={"email": email, "password": password, "name": f"Capacity {index}"},
+        )
+        assert register.status_code == 200, register.text
+        token = client.post(
+            "/auth/token",
+            data={"username": email, "password": password},
+        ).json()["access_token"]
+        headers = {"Authorization": f"Bearer {token}"}
+        user_id = client.get("/auth/me", headers=headers).json()["id"]
+        points_store.credit(user_id, 100, reason="five_user_capacity_test")
+        headers_by_user.append(headers)
+
+    original_stream_saver = videos_endpoints.save_request_stream_with_limit
+    upload_calls = 0
+    upload_calls_lock = threading.Lock()
+
+    async def tracked_stream_saver(*args, **kwargs) -> int:
+        nonlocal upload_calls
+        with upload_calls_lock:
+            upload_calls += 1
+        return await original_stream_saver(*args, **kwargs)
+
+    monkeypatch.setattr(
+        videos_endpoints,
+        "save_request_stream_with_limit",
+        tracked_stream_saver,
+    )
+
+    all_started = threading.Event()
+    release_processing = threading.Event()
+    started = 0
+    started_lock = threading.Lock()
+
+    def held_processing(
+        job_id,
+        _input_path,
+        _output_path,
+        _artifact_path,
+        _proc_settings,
+        job_store,
+        *_args,
+        ledger_store=None,
+        charge_plan=None,
+        **_kwargs,
+    ) -> None:
+        nonlocal started
+        job_store.update_job(job_id, status="processing")
+        with started_lock:
+            started += 1
+            if started == settings.max_active_media_jobs:
+                all_started.set()
+        assert release_processing.wait(timeout=15)
+        refund_charge_best_effort(
+            ledger_store,
+            charge_plan,
+            status="failed",
+            error="five-user concurrency test complete",
+        )
+        job_store.update_job(job_id, status="failed")
+
+    monkeypatch.setattr(videos_endpoints, "run_video_processing", held_processing)
+
+    def submit(headers: dict[str, str]):
+        return post_process_stream(
+            client,
+            headers,
+            metadata={"authorized_credits": 30},
+            content=b"synthetic-video",
+        )
+
+    with ThreadPoolExecutor(max_workers=settings.max_active_media_jobs) as executor:
+        futures = [
+            executor.submit(submit, headers)
+            for headers in headers_by_user[: settings.max_active_media_jobs]
+        ]
+        assert all_started.wait(timeout=15)
+
+        sixth = submit(headers_by_user[-1])
+        assert sixth.status_code == 429
+        assert "currently at capacity" in sixth.json()["detail"]
+        with upload_calls_lock:
+            assert upload_calls == settings.max_active_media_jobs
+
+        release_processing.set()
+        responses = [future.result(timeout=15) for future in futures]
+
+    assert [response.status_code for response in responses] == [200] * 5
+    assert started == 5
+
+    job_store = JobStore(database)
+    for response in responses:
+        job_store.delete_job(response.json()["id"])

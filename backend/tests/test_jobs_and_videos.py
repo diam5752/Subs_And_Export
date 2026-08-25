@@ -63,7 +63,8 @@ def test_job_store_lifecycle(tmp_path: Path):
     )
 
     job_id = f"job-{uuid.uuid4().hex}"
-    job = store.create_job(job_id, user_id)
+    job = store.create_job(job_id, user_id, result_data={"private": 1})
+    assert job.result_data == {"private": 1}
     store.update_job(job.id, status="processing", progress=25, message="start", result_data={"a": 1})
     updated = store.get_job(job.id)
     assert updated and updated.status == "processing"

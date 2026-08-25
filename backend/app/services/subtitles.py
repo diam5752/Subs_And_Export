@@ -13,8 +13,9 @@ from pathlib import Path
 from typing import Callable, Iterable, Sequence
 
 from backend.app.core.config import settings
-from backend.app.core.media_capacity import lock_media_cpu
+from backend.app.core.media_capacity import lock_audio_extraction
 from backend.app.services.ffmpeg_utils import (
+    lower_media_process_priority,
     resolve_ffmpeg_thread_count,
     terminate_process_tree,
 )
@@ -73,7 +74,12 @@ def extract_audio(
         total_duration=total_duration,
         timeout_seconds=timeout_seconds,
     )
-    threads = resolve_ffmpeg_thread_count(thread_count)
+    requested_threads = (
+        thread_count
+        if thread_count is not None
+        else settings.media_extraction_threads_per_slot
+    )
+    threads = resolve_ffmpeg_thread_count(requested_threads)
 
     cmd = [
         "ffmpeg",
@@ -97,7 +103,7 @@ def extract_audio(
         str(audio_path),
     ]
 
-    with lock_media_cpu():
+    with lock_audio_extraction():
         process = subprocess.Popen(
             cmd,
             stdout=subprocess.DEVNULL,
@@ -106,6 +112,7 @@ def extract_audio(
             bufsize=1,
             start_new_session=True,
         )
+        lower_media_process_priority(process)
         deadline = time.monotonic() + resolved_timeout
 
         try:

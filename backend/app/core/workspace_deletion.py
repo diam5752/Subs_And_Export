@@ -298,7 +298,27 @@ def _open_private_regular_file(
     invalid_message: str,
 ) -> int:
     file_flags = os.O_RDWR | os.O_CREAT | os.O_CLOEXEC | os.O_NOFOLLOW
-    file_fd = os.open(name, file_flags, 0o600, dir_fd=directory_fd)
+    file_fd: int | None = None
+    for attempt in range(3):
+        try:
+            file_fd = os.open(
+                name,
+                file_flags,
+                0o600,
+                dir_fd=directory_fd,
+            )
+            break
+        except FileNotFoundError:
+            # Darwin can transiently report ENOENT when several first-time
+            # callers materialize the same O_CREAT registry inode. The open
+            # directory descriptor remains the trusted boundary, so retrying
+            # the exact relative name is safe and keeps parallel admission
+            # from turning into a 500 response.
+            if attempt == 2:
+                raise
+            time.sleep(0)
+    if file_fd is None:
+        raise RuntimeError("Private lock file could not be opened")
     try:
         file_stat = os.fstat(file_fd)
         if not stat.S_ISREG(file_stat.st_mode):

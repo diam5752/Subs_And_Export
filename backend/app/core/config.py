@@ -215,6 +215,42 @@ class Settings(BaseSettings):
         validation_alias="GSP_MAX_VIDEO_DURATION_SECONDS",
     )
     max_concurrent_jobs: int = 2
+    max_active_media_jobs: int = Field(
+        default=5,
+        ge=1,
+        le=20,
+        validation_alias="GSP_MAX_ACTIVE_MEDIA_JOBS",
+    )
+    media_render_slots: int = Field(
+        default=2,
+        ge=1,
+        le=4,
+        validation_alias="GSP_MEDIA_RENDER_SLOTS",
+    )
+    media_render_threads_per_slot: int = Field(
+        default=1,
+        ge=1,
+        le=2,
+        validation_alias="GSP_MEDIA_RENDER_THREADS_PER_SLOT",
+    )
+    media_extraction_slots: int = Field(
+        default=1,
+        ge=1,
+        le=4,
+        validation_alias="GSP_MEDIA_EXTRACTION_SLOTS",
+    )
+    media_extraction_threads_per_slot: int = Field(
+        default=1,
+        ge=1,
+        le=2,
+        validation_alias="GSP_MEDIA_EXTRACTION_THREADS_PER_SLOT",
+    )
+    provider_transcription_slots: int = Field(
+        default=8,
+        ge=1,
+        le=60,
+        validation_alias="GSP_PROVIDER_TRANSCRIPTION_SLOTS",
+    )
     audio_sample_rate: int = 16000
     audio_channels: int = 1
     audio_codec: str = "pcm_s16le"
