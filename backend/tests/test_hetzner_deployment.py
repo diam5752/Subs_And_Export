@@ -314,7 +314,7 @@ def test_production_compose_enables_reviewed_paid_credits_and_budgeted_scribe() 
     # explicit container budget for bounded multi-user media work.
     assert 'GSP_MAX_ACTIVE_MEDIA_JOBS: "5"' in compose
     assert 'GSP_MEDIA_RENDER_SLOTS: "2"' in compose
-    assert 'GSP_MEDIA_RENDER_THREADS_PER_SLOT: "1"' in compose
+    assert 'GSP_MEDIA_RENDER_THREADS_PER_SLOT: "2"' in compose
     assert 'GSP_MEDIA_EXTRACTION_SLOTS: "1"' in compose
     assert 'GSP_MEDIA_EXTRACTION_THREADS_PER_SLOT: "1"' in compose
     assert 'GSP_PROVIDER_TRANSCRIPTION_SLOTS: "8"' in compose
@@ -430,7 +430,7 @@ def test_production_verifier_requires_every_fail_closed_runtime_setting() -> Non
         "GSP_EXTERNAL_PROVIDER_PRICE_SAFETY_MULTIPLIER=1.25",
         "GSP_MAX_ACTIVE_MEDIA_JOBS=5",
         "GSP_MEDIA_RENDER_SLOTS=2",
-        "GSP_MEDIA_RENDER_THREADS_PER_SLOT=1",
+        "GSP_MEDIA_RENDER_THREADS_PER_SLOT=2",
         "GSP_MEDIA_EXTRACTION_SLOTS=1",
         "GSP_MEDIA_EXTRACTION_THREADS_PER_SLOT=1",
         "GSP_PROVIDER_TRANSCRIPTION_SLOTS=8",
@@ -576,7 +576,7 @@ def test_production_environment_defaults_do_not_prune_shared_cache() -> None:
     assert "GSP_MAX_UPLOAD_MB=500" in environment
     assert "GSP_MAX_ACTIVE_MEDIA_JOBS=5" in environment
     assert "GSP_MEDIA_RENDER_SLOTS=2" in environment
-    assert "GSP_MEDIA_RENDER_THREADS_PER_SLOT=1" in environment
+    assert "GSP_MEDIA_RENDER_THREADS_PER_SLOT=2" in environment
     assert "GSP_MEDIA_EXTRACTION_SLOTS=1" in environment
     assert "GSP_MEDIA_EXTRACTION_THREADS_PER_SLOT=1" in environment
     assert "GSP_PROVIDER_TRANSCRIPTION_SLOTS=8" in environment

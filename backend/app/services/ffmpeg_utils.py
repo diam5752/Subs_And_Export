@@ -323,9 +323,12 @@ def run_ffmpeg_with_subs(
         else lock_media_render(slots_required=slots_required)
     )
 
-    # Two single-thread launch lanes keep normal exports moving concurrently.
-    # A 4K render reserves both lanes and may use both bounded threads. Export
-    # callers can hold the same lease around their atomic disk reservation.
+    # Two bounded launch lanes keep normal exports moving concurrently. Each
+    # normal lane may use both worker threads; the production cgroup owns the
+    # aggregate CPU ceiling and niceness lets interactive API work preempt the
+    # encoders. A 4K render reserves both lanes but remains capped at two total
+    # threads. Export callers can hold the same lease around their atomic disk
+    # reservation.
     with render_capacity:
         process = subprocess.Popen(
             cmd,
