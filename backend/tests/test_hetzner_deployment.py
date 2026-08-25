@@ -44,6 +44,88 @@ def write_executable(path: Path, content: str) -> None:
     path.chmod(0o755)
 
 
+def run_public_edge_verifier(
+    tmp_path: Path,
+    *,
+    protocol: str = "2",
+    status: str = "200",
+    content_type: str = "application/json",
+    alt_svc: str = "",
+    curl_exit: str = "0",
+) -> subprocess.CompletedProcess[str]:
+    fake_curl = tmp_path / "fake-curl"
+    write_executable(
+        fake_curl,
+        """#!/bin/sh
+set -eu
+header_path=""
+while [ "$#" -gt 0 ]; do
+  if [ "$1" = "--dump-header" ]; then
+    shift
+    header_path=$1
+  fi
+  shift
+done
+[ -n "$header_path" ]
+{
+  printf 'HTTP/2 200\\r\\n'
+  printf 'content-type: %s\\r\\n' "$FAKE_CONTENT_TYPE"
+  if [ -n "$FAKE_ALT_SVC" ]; then
+    printf 'alt-svc: %s\\r\\n' "$FAKE_ALT_SVC"
+  fi
+  printf '\\r\\n'
+} > "$header_path"
+if [ "$FAKE_CURL_EXIT" != 0 ]; then
+  exit "$FAKE_CURL_EXIT"
+fi
+printf '%s|%s' "$FAKE_PROTOCOL" "$FAKE_STATUS"
+""",
+    )
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "CURL_BIN": str(fake_curl),
+            "FAKE_PROTOCOL": protocol,
+            "FAKE_STATUS": status,
+            "FAKE_CONTENT_TYPE": content_type,
+            "FAKE_ALT_SVC": alt_svc,
+            "FAKE_CURL_EXIT": curl_exit,
+        }
+    )
+    return subprocess.run(
+        [str(DEPLOYMENT_ROOT / "verify-public-edge.sh")],
+        check=False,
+        capture_output=True,
+        env=environment,
+        text=True,
+        timeout=10,
+    )
+
+
+def install_passing_public_edge_fixture(
+    deployment_root: Path,
+    fake_bin: Path,
+) -> None:
+    shutil.copy2(DEPLOYMENT_ROOT / "verify-public-edge.sh", deployment_root)
+    write_executable(
+        fake_bin / "curl",
+        """#!/bin/sh
+set -eu
+header_path=""
+while [ "$#" -gt 0 ]; do
+  if [ "$1" = "--dump-header" ]; then
+    shift
+    header_path=$1
+  fi
+  shift
+done
+[ -n "$header_path" ]
+printf 'HTTP/2 200\\r\\ncontent-type: application/json\\r\\n\\r\\n' > "$header_path"
+printf '2|200'
+""",
+    )
+
+
 def write_gcs_retirement_evidence(repository: Path) -> None:
     runtime = repository / ".runtime"
     runtime.mkdir(exist_ok=True)
@@ -776,6 +858,7 @@ def legacy_journal_transition_fixture(tmp_path: Path) -> dict[str, Path | str]:
 
     fake_bin = tmp_path / "fake-bin"
     fake_bin.mkdir()
+    install_passing_public_edge_fixture(deployment_root, fake_bin)
     docker_log = tmp_path / "docker.log"
     write_executable(
         fake_bin / "git",
@@ -1074,6 +1157,7 @@ def test_deploy_aborts_before_cutover_when_current_database_preflight_is_unavail
 
     fake_bin = tmp_path / "fake-bin"
     fake_bin.mkdir()
+    install_passing_public_edge_fixture(deployment_root, fake_bin)
     command_log = tmp_path / "docker-commands.log"
     write_executable(
         fake_bin / "git",
@@ -1741,6 +1825,7 @@ exit 1
 
     fake_bin = tmp_path / "fake-bin"
     fake_bin.mkdir()
+    install_passing_public_edge_fixture(deployment_root, fake_bin)
     docker_command_log = tmp_path / "docker-commands.log"
     write_executable(
         fake_bin / "git",
@@ -2177,12 +2262,55 @@ def test_frontend_build_context_excludes_generated_and_local_state() -> None:
         assert expected in dockerignore
 
 
+def test_public_edge_verifier_quarantines_the_slow_http3_path(
+    tmp_path: Path,
+) -> None:
+    # REGRESSION: the public HTTP/3 path once took more than three minutes for
+    # a 49 MiB download while the same authenticated file took under eight
+    # seconds over HTTP/2.
+    accepted = run_public_edge_verifier(tmp_path)
+    assert accepted.returncode == 0, accepted.stderr
+    assert "HTTP/2 200 with no HTTP/3 advertisement" in accepted.stdout
+
+    rejected_cases = (
+        {"protocol": "1.1"},
+        {"status": "503"},
+        {"content_type": "text/html"},
+        {"alt_svc": 'h3=":443"; ma=2592000'},
+        {"curl_exit": "7"},
+    )
+    for index, overrides in enumerate(rejected_cases):
+        case_path = tmp_path / f"case-{index}"
+        case_path.mkdir()
+        rejected = run_public_edge_verifier(case_path, **overrides)
+        assert rejected.returncode != 0
+        assert "Public GSubs transport policy is invalid" in rejected.stderr
+
+
+def test_public_edge_policy_gates_deploy_verification_and_nightly_ci() -> None:
+    deploy_script = deployment_text("deploy-production.sh")
+    verifier = deployment_text("verify-production.sh")
+    nightly = (
+        REPOSITORY_ROOT / ".github" / "workflows" / "nightly-quality.yml"
+    ).read_text(encoding="utf-8")
+    gate = '"$ROOT_DIR/deploy/hetzner/verify-public-edge.sh"'
+
+    # REGRESSION: loopback health and CI were green while the external QUIC
+    # body path was unusably slow. Keep an externally observable guard before
+    # production mutation, after candidate activation and every night.
+    assert gate in deploy_script
+    assert deploy_script.index(gate) < deploy_script.index("privacy_continuity_bootstrap=0")
+    assert gate in verifier
+    assert "./deploy/hetzner/verify-public-edge.sh" in nightly
+
+
 def test_deployment_shell_scripts_have_valid_syntax() -> None:
     for filename in (
         "backup.sh",
         "deploy-production.sh",
         "prune-backups.sh",
         "verify-backup.sh",
+        "verify-public-edge.sh",
         "verify-production.sh",
     ):
         completed = subprocess.run(

@@ -477,6 +477,15 @@ atomically replaces `.runtime/last-successful-release`. A candidate-verification
 failure leaves the previously recorded SHA unchanged and follows the documented
 failure/rollback policy.
 
+The verifier also probes `https://gsubs.gr/health` with HTTP/2 and rejects any
+`Alt-Svc` advertisement for HTTP/3. `deploy-production.sh` runs the same probe
+before it changes an existing production release, and the nightly workflow
+repeats it daily. This is a deliberate quarantine of the shared public edge's
+QUIC path after the 2026-08-25 incident: keep the outer HTTPS listener on
+`protocols h1 h2` until a full authenticated browser download proves HTTP/3 is
+both correct and at least 2 MiB/s. A loopback probe or a small initial range is
+not sufficient evidence to lift the quarantine.
+
 ## Failure and rollback policy
 
 The backend applies `alembic upgrade head` before starting. For that reason the
