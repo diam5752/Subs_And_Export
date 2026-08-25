@@ -14,12 +14,12 @@ No provider, billing, transcription or other paid API was called.
 
 | Measurement | Result |
 | --- | ---: |
-| Exact browser download in the public Caddy access log | 49.0 MiB in 201.737 s, 0.243 MiB/s |
-| Initial 8 MiB range | 1.031 s, 7.74 MiB/s |
-| Isolated 16 MiB range, no cache and no competing request | 50.721 s, 0.315 MiB/s |
-| Isolated range response start | 0.394 s |
-| Isolated range response body after headers | 50.327 s |
-| Same-browser independent 16 MiB control | 1.154 s, 13.86 MiB/s |
+| Exact screenshot-era browser download | 49.0 MiB in 201.737 s, 0.243 MiB/s |
+| Post-release full HTTP/3 browser transfer | 49.0 MiB in 194.966 s, 0.251 MiB/s |
+| Backend emission for that HTTP/3 transfer | 49.0 MiB in 73.537 ms, 666.494 MiB/s |
+| Controlled HTTP/2 16 MiB range | 16 MiB in 1.924 s, 8.318 MiB/s |
+| Controlled HTTP/2 full response | 49.0 MiB in 7.818 s, 6.269 MiB/s |
+| Final native-browser HTTP/2 download | 49.0 MiB in 7.835 s, 6.256 MiB/s |
 
 The public Caddy recorded the exact screenshot-era browser request as a
 successful HTTP/3 200 response containing all 51,392,720 bytes. It finished at
@@ -28,36 +28,47 @@ matching the 19:52:55 UTC screenshot. Diagnostic range responses returned HTTP
 206 with exact `Content-Range`, `Content-Length` and `Accept-Ranges: bytes`, and
 omitted content encoding. This rules out render time, malformed range handling,
 media recompression and a general browser or local-network throughput cap. It
-localizes the delay to the GSubs private-file response body after authentication
-and headers completed.
+also rules out concurrent application work: the production access log contains
+no process or upload request during the incident window. The response was slow
+only on the public HTTP/3 body path after authentication and headers completed.
 
 ## Root cause
 
-The private route used Starlette's default `FileResponse.chunk_size` of 64 KiB.
-With Uvicorn, which does not advertise Starlette's `http.response.pathsend`
-extension, a 16 MiB response is emitted as 257 ASGI body writes. Production
-serves that stream through the internal GSubs Caddy and the public edge. The
-observed long-response backpressure was therefore amplified across hundreds of
-small application writes: the isolated sample spent about 196 ms per emitted
-write on average after the response started.
+The user-visible bottleneck was the shared public Caddy edge's HTTP/3/QUIC path,
+not rendering, authentication, disk reads or the GSubs application. After the
+application release added transfer telemetry, the backend emitted the complete
+51,392,720-byte response in 73.537 ms while the outer Caddy still needed
+194.966 seconds to finish the same HTTP/3 browser response. The same file and
+client path completed in 7.818 seconds when constrained to HTTP/2. That A/B
+result is about 25 times faster and isolates the defective transport layer.
 
-The short 8 MiB burst did not expose the steady-state backpressure, which is why
-the earlier loopback and small-range checks passed while a real 49 MiB browser
-download remained slow. The previous five-download loopback check explicitly
-was not an Internet-path claim and did not simulate chained-proxy backpressure.
+The evidence does not distinguish a Caddy/quic-go congestion-control fault from
+a path-MTU or other UDP-path interaction, so this record does not claim a
+lower-level cause that production data cannot prove. It is sufficient to keep
+HTTP/3 quarantined on this edge until a controlled full-file test demonstrates
+acceptable throughput.
+
+Starlette's default 64 KiB `FileResponse` chunk size was a real secondary
+inefficiency: a 16 MiB response required 257 ASGI body writes because Uvicorn
+does not advertise `http.response.pathsend`. Increasing the bounded chunk to
+1 MiB reduces that to 17 writes and adds useful per-transfer telemetry, but the
+post-release HTTP/3 result proved that write amplification was not the primary
+incident cause.
 
 ## Observability gap
 
-The public Caddy access log recorded the successful request's total response
-size, status and end-to-end duration. The application itself did not record the
-transfer: `uvicorn.access` is disabled, the internal GSubs Caddy has no access
-log, and pipeline metrics are disabled by default in production. The existing
-logs could therefore prove the 201.737-second symptom, but not how the backend's
-body writes progressed, whether a disconnect was partial, or the application-
-side throughput of each authenticated transfer.
+Before the release, the public Caddy access log recorded total response size,
+status and end-to-end duration, but the application could not show its own
+emission time. Structured `private_media_transfer` events now record completion,
+cancellation or failure with emitted bytes, duration and throughput. Comparing
+that event with the outer access log is what separated the fast backend from the
+slow HTTP/3 edge without logging user identity, cookies, filenames or contents.
 
 ## Remediation
 
+- Keep the shared public HTTPS listener on `protocols h1 h2`; do not advertise
+  `Alt-Svc` for HTTP/3. The previous Caddyfile was backed up before the atomic
+  change and both GSubs and Ascentia health endpoints were verified afterwards.
 - Use a bounded 1 MiB private-media chunk size. The same 16 MiB response now
   requires 17 ASGI body writes instead of 257, a 15.1x reduction, while keeping
   memory bounded to about 1 MiB per active response.
@@ -68,15 +79,22 @@ side throughput of each authenticated transfer.
   range presence and measured throughput. Do not log user identity, filename,
   query string, cookie, bearer token or media contents.
 - Cover full responses, ranges, sendfile-capable servers, disconnects and
-  malformed observer metadata with regression tests. The new transfer module
-  has 100% focused line coverage.
+  malformed observer metadata with regression tests. The transfer module has
+  100% focused line coverage.
+- Fail production verification when `https://gsubs.gr/health` is not HTTP/2 200
+  or advertises HTTP/3. Run the same external contract check nightly so a shared
+  edge configuration regression is visible without waiting for a user report.
 
 ## Production acceptance
 
-After deployment, repeat an isolated authenticated 16 MiB range against the
-same public route and read back its structured completion event. The release is
-accepted only if range semantics remain exact, the transfer completes without
-errors and the sustained public-path result is materially above the incident's
-0.315 MiB/s. A result below 2 MiB/s triggers the next bounded step: move the
-post-authentication file body to a dedicated static-serving process rather than
-weakening authentication or caching private media.
+After disabling HTTP/3 on the outer edge, the normal authenticated History
+dialog downloaded the complete 51,392,720-byte MP4 through Chromium in
+8.691 seconds including browser event overhead. The outer Caddy recorded the
+full HTTP/2 200 body in 7.835 seconds (6.256 MiB/s), and `ffprobe` validated the
+downloaded H.264/AAC file as 1080x1920 with an 82.804-second duration. GSubs and
+Ascentia both returned HTTP/2 200 after the shared-edge restart, and every GSubs
+container remained healthy.
+
+HTTP/3 may be reconsidered only after a full authenticated browser download on
+the production Internet path is correct and sustains at least 2 MiB/s. Small
+ranges, loopback tests and green health endpoints are explicitly insufficient.

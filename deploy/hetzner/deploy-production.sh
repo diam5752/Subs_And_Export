@@ -317,6 +317,15 @@ if [ -e "$STATE_FILE" ] || [ -L "$STATE_FILE" ]; then
   fi
 fi
 
+# REGRESSION: the shared public Caddy edge once advertised HTTP/3 even though
+# its QUIC path delivered private media about 25x slower than HTTP/2. Verify
+# the external transport contract before stopping or replacing any service.
+if [ -n "$previous_sha" ] && \
+  ! "$ROOT_DIR/deploy/hetzner/verify-public-edge.sh"; then
+  echo "Public download transport preflight failed; production was not changed." >&2
+  exit 1
+fi
+
 privacy_continuity_bootstrap=0
 legacy_privacy_transition=0
 privacy_continuity_id=""

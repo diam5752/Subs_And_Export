@@ -76,6 +76,13 @@ fi
 export SUBFRAME_ENV_FILE="$ENV_FILE"
 export SUBFRAME_RELEASE_SHA="$release_sha"
 
+# REGRESSION: loopback health stayed green while the shared public HTTP/3 path
+# made a 49 MiB authenticated download take more than three minutes.
+if ! "$ROOT_DIR/deploy/hetzner/verify-public-edge.sh"; then
+  echo "Public download transport verification failed." >&2
+  exit 1
+fi
+
 compose() {
   docker compose --project-name subframe --env-file "$ENV_FILE" -f "$COMPOSE_FILE" "$@"
 }
