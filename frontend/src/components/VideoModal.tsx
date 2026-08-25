@@ -1,4 +1,5 @@
 import React, { useEffect, useCallback, useRef } from 'react';
+import { useDocumentScrollLock } from '@/hooks/useDocumentScrollLock';
 
 interface VideoModalProps {
     isOpen: boolean;
@@ -8,6 +9,8 @@ interface VideoModalProps {
 
 export function VideoModal({ isOpen, onClose, videoUrl }: VideoModalProps) {
     const containerRef = useRef<HTMLDivElement>(null);
+
+    useDocumentScrollLock(isOpen && Boolean(videoUrl));
 
     // Handle escape key to close modal
     const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -20,14 +23,11 @@ export function VideoModal({ isOpen, onClose, videoUrl }: VideoModalProps) {
     useEffect(() => {
         if (isOpen) {
             document.addEventListener('keydown', handleKeyDown);
-            document.body.style.overflow = 'hidden';
         } else {
             document.removeEventListener('keydown', handleKeyDown);
-            document.body.style.overflow = '';
         }
         return () => {
             document.removeEventListener('keydown', handleKeyDown);
-            document.body.style.overflow = '';
         };
     }, [isOpen, handleKeyDown]);
 

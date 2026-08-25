@@ -166,6 +166,36 @@ describe('CreditPurchaseDialog', () => {
         });
     });
 
+    it('locks the root and body scrollers for mobile WebKit', () => {
+        const scrollTo = jest.fn();
+        Object.defineProperty(window, 'scrollTo', {
+            configurable: true,
+            value: scrollTo,
+        });
+        Object.defineProperty(window, 'scrollX', { configurable: true, value: 0 });
+        Object.defineProperty(window, 'scrollY', { configurable: true, value: 220 });
+
+        const view = render(
+            <CreditPurchaseDialog
+                isOpen
+                isAuthenticated
+                onClose={onClose}
+                onRequireAuth={onRequireAuth}
+            />,
+        );
+
+        expect(document.documentElement.style.overflow).toBe('hidden');
+        expect(document.body.style.overflow).toBe('hidden');
+        expect(document.body.style.position).toBe('fixed');
+        expect(document.body.style.top).toBe('-220px');
+
+        view.unmount();
+        expect(document.documentElement.style.overflow).toBe('');
+        expect(document.body.style.overflow).toBe('');
+        expect(document.body.style.position).toBe('');
+        expect(scrollTo).toHaveBeenCalledWith(0, 220);
+    });
+
     it('accepts only the exact Stripe hosted-checkout origin', () => {
         expect(isAllowedStripeCheckoutUrl('https://checkout.stripe.com/c/pay/cs_test_123')).toBe(true);
         expect(isAllowedStripeCheckoutUrl('http://checkout.stripe.com/c/pay/test')).toBe(false);

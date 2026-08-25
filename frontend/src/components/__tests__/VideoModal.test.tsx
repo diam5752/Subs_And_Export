@@ -67,11 +67,16 @@ describe('VideoModal', () => {
         expect(defaultProps.onClose).toHaveBeenCalled();
     });
 
-    it('should manage body overflow', () => {
+    it('should lock and restore both document scrollers', () => {
+        window.scrollTo = jest.fn();
         const { unmount } = render(<VideoModal {...defaultProps} />);
+        expect(document.documentElement.style.overflow).toBe('hidden');
         expect(document.body.style.overflow).toBe('hidden');
+        expect(document.body.style.position).toBe('fixed');
         unmount();
+        expect(document.documentElement.style.overflow).toBe('');
         expect(document.body.style.overflow).toBe('');
+        expect(document.body.style.position).toBe('');
     });
 
     it('should have accessibility attributes and focus management', () => {

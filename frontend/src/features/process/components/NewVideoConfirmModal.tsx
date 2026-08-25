@@ -1,5 +1,6 @@
 import React, { useEffect, useCallback, useRef } from 'react';
 import { useI18n } from '@/context/I18nContext';
+import { useDocumentScrollLock } from '@/hooks/useDocumentScrollLock';
 
 interface NewVideoConfirmModalProps {
     isOpen: boolean;
@@ -11,6 +12,8 @@ export function NewVideoConfirmModal({ isOpen, onClose, onConfirm }: NewVideoCon
     const { t } = useI18n();
     const containerRef = useRef<HTMLDivElement>(null);
     const cancelButtonRef = useRef<HTMLButtonElement>(null);
+
+    useDocumentScrollLock(isOpen);
 
     // Handle escape key to close modal
     const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -28,18 +31,15 @@ export function NewVideoConfirmModal({ isOpen, onClose, onConfirm }: NewVideoCon
 
         if (isOpen) {
             document.addEventListener('keydown', handleKeyDown);
-            document.body.style.overflow = 'hidden';
             // REGRESSION: focus the safe action so pressing Enter cannot discard
             // the current editing view by accident.
             focusTimer = setTimeout(() => cancelButtonRef.current?.focus(), 100);
         } else {
             document.removeEventListener('keydown', handleKeyDown);
-            document.body.style.overflow = '';
         }
         return () => {
             if (focusTimer) clearTimeout(focusTimer);
             document.removeEventListener('keydown', handleKeyDown);
-            document.body.style.overflow = '';
             previouslyFocused?.focus();
         };
     }, [isOpen, handleKeyDown]);

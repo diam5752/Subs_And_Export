@@ -13,6 +13,7 @@ import type { JobResponse } from '@/lib/api';
 import { usePlaybackContext } from '../PlaybackContext';
 import { useProcessContext } from '../ProcessContext';
 import { buildSubtitleExportFilename } from '@/lib/exportFilename';
+import { useDocumentScrollLock } from '@/hooks/useDocumentScrollLock';
 import { NewVideoConfirmModal } from './NewVideoConfirmModal';
 import { Sidebar } from './Sidebar';
 
@@ -194,6 +195,8 @@ const ExportMenu = memo(({
     t: PreviewSectionLayoutProps['t'];
 }) => {
     const menuRef = React.useRef<HTMLElement>(null);
+
+    useDocumentScrollLock(isOpen);
 
     React.useEffect(() => {
         if (!isOpen) return;

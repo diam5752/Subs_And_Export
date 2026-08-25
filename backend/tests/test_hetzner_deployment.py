@@ -1832,6 +1832,16 @@ def test_edge_never_recompresses_private_media_downloads() -> None:
     assert "\n\tencode zstd gzip" not in caddyfile
 
 
+def test_edge_healthcheck_consumes_the_response_body() -> None:
+    """REGRESSION: wget --spider made Caddy log an aborted response every 20s."""
+    compose = deployment_text("docker-compose.production.yml")
+    edge_service = compose.split("  edge:", 1)[1].split("\n  privacy-relay:", 1)[0]
+    healthcheck = edge_service.split("    healthcheck:", 1)[1]
+
+    assert 'test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080"]' in healthcheck
+    assert "--spider" not in healthcheck
+
+
 def test_edge_caps_stripe_webhook_body_before_generic_billing_proxy() -> None:
     caddyfile = deployment_text("Caddyfile")
 

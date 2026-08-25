@@ -229,6 +229,8 @@ describe('PreviewSection', () => {
 
         fireEvent.click(exportButton);
         expect(screen.getByTestId('editor-export-menu')).toBeInTheDocument();
+        expect(document.documentElement.style.overflow).toBe('hidden');
+        expect(document.body.style.position).toBe('fixed');
 
         // REGRESSION: export choices used to permanently consume a large block
         // below the editor. They now appear on demand in two clear groups.
@@ -248,6 +250,8 @@ describe('PreviewSection', () => {
 
         fireEvent.click(screen.getByTestId('srt-btn'));
         expect(screen.queryByTestId('editor-export-menu')).not.toBeInTheDocument();
+        expect(document.documentElement.style.overflow).toBe('');
+        expect(document.body.style.position).toBe('');
 
         fireEvent.click(exportButton);
         fireEvent.click(screen.getByTestId('txt-btn'));
