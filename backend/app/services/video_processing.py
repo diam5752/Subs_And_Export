@@ -617,6 +617,7 @@ def generate_video_variant(
     user_id: str,
     subtitle_settings: Mapping[str, Any] | None = None,
     video_crf: int | None = None,
+    held_render_slots: tuple[int, ...] | None = None,
 ) -> Path:
     if not input_path.exists():
         raise FileNotFoundError("Original input video not found")
@@ -747,6 +748,7 @@ def generate_video_variant(
             output_width=width,
             output_height=height,
             watermark_enabled=watermark_enabled,
+            held_render_slots=held_render_slots,
         )
         temporary_destination.replace(destination)
     finally:

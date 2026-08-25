@@ -24,6 +24,13 @@ the fixed 2 GiB free-space floor. If the requested files do not fit safely,
 the next request receives `507` before its body is consumed; capacity never
 means overcommitting the root disk.
 
+Video exports acquire their bounded render lane before publishing a projected
+output-size reservation. The short admission lock makes those reservations and
+their disk preflight atomic across both render lanes. A queued export therefore
+rechecks current free space only when it can actually render, while a second
+active renderer sees the first renderer's reservation. Abandoned reservation
+metadata is ignored and cleared once its render-slot lock is no longer held.
+
 CPU-heavy stages are deliberately queued inside that five-job envelope:
 
 - one single-thread audio-extraction lane;

@@ -18,6 +18,7 @@ MEDIA_CAPACITY_LOCK_TIMEOUT_SECONDS = 3600.0
 _MEDIA_LOCK_DIR = ".media-capacity-locks"
 _MEDIA_LOCK_POLL_SECONDS = 0.05
 _MAX_CAPACITY_SLOTS = 60
+_MAX_STORAGE_RESERVATION_BYTES = (2**63) - 1
 _POOL_NAMES = frozenset({"audio-extraction", "provider-transcription", "render"})
 
 
@@ -145,6 +146,109 @@ def lock_provider_transcription(
         yield slots
 
 
+def publish_locked_render_storage_reservation(
+    *,
+    data_dir: Path,
+    slot_indexes: tuple[int, ...],
+    reserved_bytes: int,
+    capacity: int | None = None,
+) -> None:
+    """Publish projected output bytes on render slots already held by caller.
+
+    Callers serialize publication with ``lock_media_admission``. Only the
+    first slot carries the value, so a multi-slot 4K lease is counted once.
+    """
+    resolved_capacity = settings.media_render_slots if capacity is None else capacity
+    _validate_slot_count(resolved_capacity, label="capacity")
+    _validate_storage_reservation(reserved_bytes)
+    _validate_slot_indexes(slot_indexes, capacity=resolved_capacity)
+
+    directory_fd = _open_lock_directory(data_dir)
+    try:
+        for position, slot_index in enumerate(slot_indexes):
+            lock_fd = _open_lock_file(
+                directory_fd,
+                f"render-{slot_index}.lock",
+            )
+            try:
+                payload = (
+                    f"{reserved_bytes}\n".encode("ascii")
+                    if position == 0 and reserved_bytes > 0
+                    else b""
+                )
+                os.ftruncate(lock_fd, 0)
+                if payload:
+                    written = os.write(lock_fd, payload)
+                    if written != len(payload):
+                        raise OSError("Incomplete render storage reservation write")
+                os.fsync(lock_fd)
+            finally:
+                os.close(lock_fd)
+    finally:
+        os.close(directory_fd)
+
+
+def active_render_storage_reservation_bytes(
+    *,
+    data_dir: Path,
+    capacity: int | None = None,
+) -> int:
+    """Sum reservations on active render leases and clear abandoned values."""
+    resolved_capacity = settings.media_render_slots if capacity is None else capacity
+    _validate_slot_count(resolved_capacity, label="capacity")
+
+    directory_fd = _open_lock_directory(data_dir)
+    total = 0
+    try:
+        for slot_index in range(resolved_capacity):
+            lock_fd = _open_lock_file(
+                directory_fd,
+                f"render-{slot_index}.lock",
+            )
+            acquired = False
+            try:
+                try:
+                    fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    acquired = True
+                except BlockingIOError:
+                    pass
+
+                if acquired:
+                    # An unlocked slot has no live owner. Remove metadata left
+                    # by a killed worker before admitting more disk work.
+                    if os.fstat(lock_fd).st_size:
+                        os.ftruncate(lock_fd, 0)
+                        os.fsync(lock_fd)
+                    continue
+
+                os.lseek(lock_fd, 0, os.SEEK_SET)
+                raw_value = os.read(lock_fd, 65)
+                if not raw_value:
+                    continue
+                if len(raw_value) > 64:
+                    raise RuntimeError("Render storage reservation is malformed")
+                try:
+                    decoded = raw_value.decode("ascii").strip()
+                except UnicodeDecodeError as exc:
+                    raise RuntimeError(
+                        "Render storage reservation is malformed",
+                    ) from exc
+                if not decoded.isdigit():
+                    raise RuntimeError("Render storage reservation is malformed")
+                reservation = int(decoded)
+                _validate_storage_reservation(reservation)
+                total += reservation
+                if total > _MAX_STORAGE_RESERVATION_BYTES:
+                    raise RuntimeError("Render storage reservations exceed safe bounds")
+            finally:
+                if acquired:
+                    fcntl.flock(lock_fd, fcntl.LOCK_UN)
+                os.close(lock_fd)
+    finally:
+        os.close(directory_fd)
+    return total
+
+
 def _validate_timeout(timeout_seconds: float) -> None:
     if not math.isfinite(timeout_seconds) or timeout_seconds < 0:
         raise ValueError("Media-capacity lock timeout cannot be negative or non-finite")
@@ -160,6 +264,33 @@ def _validate_slot_count(value: int, *, label: str) -> None:
         raise ValueError(
             f"Media-capacity {label} must be between 1 and {_MAX_CAPACITY_SLOTS}",
         )
+
+
+def _validate_storage_reservation(value: int) -> None:
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, int)
+        or value < 0
+        or value > _MAX_STORAGE_RESERVATION_BYTES
+    ):
+        raise ValueError("Render storage reservation is outside safe bounds")
+
+
+def _validate_slot_indexes(
+    slot_indexes: tuple[int, ...],
+    *,
+    capacity: int,
+) -> None:
+    if not slot_indexes or len(set(slot_indexes)) != len(slot_indexes):
+        raise ValueError("Render storage reservation requires unique held slots")
+    if any(
+        isinstance(slot_index, bool)
+        or not isinstance(slot_index, int)
+        or slot_index < 0
+        or slot_index >= capacity
+        for slot_index in slot_indexes
+    ):
+        raise ValueError("Render storage reservation references an invalid slot")
 
 
 def _open_lock_directory(data_dir: Path) -> int:

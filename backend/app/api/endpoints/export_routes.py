@@ -14,6 +14,7 @@ from ...core.auth import User
 from ...core.config import settings
 from ...core.database import Database
 from ...core.errors import sanitize_message
+from ...core.media_capacity import lock_media_render, render_slot_weight
 from ...core.ratelimit import limiter_content
 from ...core.workspace_deletion import (
     JobWorkspaceLockTimeoutError,
@@ -30,7 +31,7 @@ from ...services.video_export_cache import build_video_export_signature
 from ...services.video_processing import generate_video_variant
 from ...services.video_quality import crf_for_video_quality
 from ..deps import get_current_user, get_db, get_job_store
-from .file_utils import data_roots, relpath_safe, require_storage_capacity
+from .file_utils import data_roots, relpath_safe, reserve_render_storage
 from .validation import (
     validate_highlight_style,
     validate_max_subtitle_lines,
@@ -309,22 +310,33 @@ def _export_video_locked(
 
         width, height = (int(part) for part in request.resolution.split("x"))
         pixel_multiplier = max(1.0, (width * height) / (1080 * 1920))
-        require_storage_capacity(
-            data_dir,
-            required_bytes=int(input_video.stat().st_size * pixel_multiplier),
-            db=db,
+        required_output_bytes = int(input_video.stat().st_size * pixel_multiplier)
+        slots_required = render_slot_weight(
+            width,
+            height,
+            capacity=settings.media_render_slots,
         )
-
-        output_path = generate_video_variant(
-            job_id,
-            input_video,
-            artifact_dir,
-            request.resolution,
-            job_store,
-            current_user.id,
-            subtitle_settings=subtitle_settings or None,
-            video_crf=video_crf,
-        )
+        with lock_media_render(
+            data_dir=data_dir,
+            slots_required=slots_required,
+        ) as render_slots:
+            with reserve_render_storage(
+                data_dir=data_dir,
+                required_bytes=required_output_bytes,
+                render_slots=render_slots,
+                db=db,
+            ):
+                output_path = generate_video_variant(
+                    job_id,
+                    input_video,
+                    artifact_dir,
+                    request.resolution,
+                    job_store,
+                    current_user.id,
+                    subtitle_settings=subtitle_settings or None,
+                    video_crf=video_crf,
+                    held_render_slots=render_slots,
+                )
 
         # Rendering may create or replace the ASS file. Persist the signature
         # of the exact subtitle asset that produced this MP4.

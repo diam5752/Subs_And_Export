@@ -10,11 +10,13 @@ from backend.app.core.media_capacity import (
     MediaExtractionCapacityTimeoutError,
     MediaRenderCapacityTimeoutError,
     ProviderTranscriptionCapacityTimeoutError,
+    active_render_storage_reservation_bytes,
     lock_audio_extraction,
     lock_media_admission,
     lock_media_render,
     lock_provider_transcription,
     provider_transcription_slot_weight,
+    publish_locked_render_storage_reservation,
     render_slot_weight,
 )
 
@@ -151,3 +153,81 @@ def test_render_slot_weight_reserves_both_lanes_for_4k() -> None:
     assert render_slot_weight(720, 1280, capacity=2) == 1
     assert render_slot_weight(1080, 1920, capacity=2) == 1
     assert render_slot_weight(2160, 3840, capacity=2) == 2
+
+
+def test_active_render_storage_reservations_are_counted_once_per_lease(
+    tmp_path: Path,
+) -> None:
+    with lock_media_render(data_dir=tmp_path, capacity=2) as first_slots:
+        publish_locked_render_storage_reservation(
+            data_dir=tmp_path,
+            slot_indexes=first_slots,
+            reserved_bytes=400,
+            capacity=2,
+        )
+        with lock_media_render(data_dir=tmp_path, capacity=2) as second_slots:
+            publish_locked_render_storage_reservation(
+                data_dir=tmp_path,
+                slot_indexes=second_slots,
+                reserved_bytes=600,
+                capacity=2,
+            )
+            assert active_render_storage_reservation_bytes(
+                data_dir=tmp_path,
+                capacity=2,
+            ) == 1_000
+
+
+def test_multi_slot_render_storage_reservation_is_not_double_counted(
+    tmp_path: Path,
+) -> None:
+    with lock_media_render(
+        data_dir=tmp_path,
+        capacity=2,
+        slots_required=2,
+    ) as slots:
+        publish_locked_render_storage_reservation(
+            data_dir=tmp_path,
+            slot_indexes=slots,
+            reserved_bytes=900,
+            capacity=2,
+        )
+        assert active_render_storage_reservation_bytes(
+            data_dir=tmp_path,
+            capacity=2,
+        ) == 900
+
+
+def test_abandoned_render_storage_reservation_is_cleared(
+    tmp_path: Path,
+) -> None:
+    with lock_media_render(data_dir=tmp_path, capacity=2) as slots:
+        publish_locked_render_storage_reservation(
+            data_dir=tmp_path,
+            slot_indexes=slots,
+            reserved_bytes=500,
+            capacity=2,
+        )
+
+    assert active_render_storage_reservation_bytes(
+        data_dir=tmp_path,
+        capacity=2,
+    ) == 0
+    reservation_file = tmp_path / ".media-capacity-locks" / f"render-{slots[0]}.lock"
+    assert reservation_file.read_bytes() == b""
+
+
+def test_malformed_active_render_storage_reservation_fails_closed(
+    tmp_path: Path,
+) -> None:
+    with lock_media_render(data_dir=tmp_path, capacity=2) as slots:
+        reservation_file = (
+            tmp_path / ".media-capacity-locks" / f"render-{slots[0]}.lock"
+        )
+        reservation_file.write_text("not-a-byte-count\n", encoding="ascii")
+
+        with pytest.raises(RuntimeError, match="malformed"):
+            active_render_storage_reservation_bytes(
+                data_dir=tmp_path,
+                capacity=2,
+            )

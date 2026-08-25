@@ -8,8 +8,9 @@ import re
 import shutil
 import unicodedata
 from collections.abc import Iterable
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Iterator, Protocol
 
 import anyio
 from fastapi import HTTPException
@@ -19,6 +20,12 @@ from ...core.cleanup import ensure_storage_capacity, run_configured_retention
 from ...core.config import settings
 from ...core.database import Database
 from ...core.job_lifecycle import ACTIVE_JOB_STATUSES
+from ...core.media_capacity import (
+    MediaAdmissionLockTimeoutError,
+    active_render_storage_reservation_bytes,
+    lock_media_admission,
+    publish_locked_render_storage_reservation,
+)
 from ...services.jobs import JobStore
 
 logger = logging.getLogger(__name__)
@@ -165,9 +172,12 @@ def require_storage_capacity(
     required_bytes: int,
     db: Database,
 ) -> None:
-    """Reject if an operation plus in-flight upload reservations are unsafe."""
+    """Reject if an operation plus all in-flight reservations are unsafe."""
     active_jobs = JobStore(db=db).list_jobs_with_statuses(ACTIVE_JOB_STATUSES)
     reserved_bytes = active_upload_storage_reservation_bytes(active_jobs)
+    reserved_bytes += active_render_storage_reservation_bytes(
+        data_dir=data_dir,
+    )
     has_capacity = ensure_storage_capacity(
         data_dir,
         required_bytes=max(0, required_bytes) + reserved_bytes,
@@ -179,6 +189,64 @@ def require_storage_capacity(
             status_code=507,
             detail=("Storage is temporarily busy. Existing projects are safe; please try again in a few minutes."),
         )
+
+
+@contextmanager
+def reserve_render_storage(
+    *,
+    data_dir: Path,
+    required_bytes: int,
+    render_slots: tuple[int, ...],
+    db: Database,
+) -> Iterator[None]:
+    """Publish one export estimate while its bounded render slots are held."""
+    reservation_published = False
+    try:
+        try:
+            with lock_media_admission(data_dir=data_dir):
+                publish_locked_render_storage_reservation(
+                    data_dir=data_dir,
+                    slot_indexes=render_slots,
+                    reserved_bytes=required_bytes,
+                )
+                reservation_published = True
+                try:
+                    # The published value is included with every other active
+                    # upload/export reservation in this atomic preflight.
+                    require_storage_capacity(
+                        data_dir,
+                        required_bytes=0,
+                        db=db,
+                    )
+                except BaseException:
+                    publish_locked_render_storage_reservation(
+                        data_dir=data_dir,
+                        slot_indexes=render_slots,
+                        reserved_bytes=0,
+                    )
+                    reservation_published = False
+                    raise
+        except MediaAdmissionLockTimeoutError as exc:
+            raise HTTPException(status_code=429, detail=str(exc)) from exc
+
+        yield
+    finally:
+        if reservation_published:
+            try:
+                with lock_media_admission(data_dir=data_dir):
+                    publish_locked_render_storage_reservation(
+                        data_dir=data_dir,
+                        slot_indexes=render_slots,
+                        reserved_bytes=0,
+                    )
+            except MediaAdmissionLockTimeoutError:
+                # Render slots are released immediately after this context.
+                # The next preflight recognizes their unlocked files and
+                # clears abandoned metadata before counting capacity.
+                logger.warning(
+                    "Deferred render storage reservation cleanup",
+                    extra={"render_slots": render_slots},
+                )
 
 
 # Initialize the shared data root on import. Callers resolve upload and artifact

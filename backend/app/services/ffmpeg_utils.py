@@ -13,6 +13,7 @@ import signal
 import subprocess
 import time
 from collections import deque
+from contextlib import nullcontext
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
@@ -230,6 +231,7 @@ def run_ffmpeg_with_subs(
     check_cancelled: Callable[[], None] | None = None,
     timeout_seconds: float | None = None,
     thread_count: int | None = None,
+    held_render_slots: tuple[int, ...] | None = None,
 ) -> str:
     resolved_timeout = resolve_ffmpeg_timeout_seconds(
         total_duration=total_duration,
@@ -303,9 +305,28 @@ def run_ffmpeg_with_subs(
         cmd += ["-c:a", "aac", "-b:a", audio_bitrate]
     cmd += ["-movflags", "+faststart", str(output_path)]
 
+    if held_render_slots is not None and (
+        len(held_render_slots) < slots_required
+        or len(set(held_render_slots)) != len(held_render_slots)
+        or any(
+            isinstance(slot_index, bool)
+            or not isinstance(slot_index, int)
+            or slot_index < 0
+            or slot_index >= settings.media_render_slots
+            for slot_index in held_render_slots
+        )
+    ):
+        raise ValueError("Held render capacity does not satisfy this render")
+    render_capacity = (
+        nullcontext(held_render_slots)
+        if held_render_slots is not None
+        else lock_media_render(slots_required=slots_required)
+    )
+
     # Two single-thread launch lanes keep normal exports moving concurrently.
-    # A 4K render reserves both lanes and may use both bounded threads.
-    with lock_media_render(slots_required=slots_required):
+    # A 4K render reserves both lanes and may use both bounded threads. Export
+    # callers can hold the same lease around their atomic disk reservation.
+    with render_capacity:
         process = subprocess.Popen(
             cmd,
             stdout=subprocess.DEVNULL,
