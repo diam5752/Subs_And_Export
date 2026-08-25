@@ -9,6 +9,7 @@ from starlette.requests import Request
 
 from backend.app.api.endpoints import file_utils
 from backend.app.core.database import Database
+from backend.app.core.media_capacity import lock_media_render
 
 
 def _streaming_request(chunks: list[bytes]) -> Request:
@@ -125,6 +126,11 @@ def test_storage_preflight_includes_other_in_flight_uploads(
     job_store = MagicMock()
     job_store.list_jobs_with_statuses.return_value = [active_job]
     monkeypatch.setattr(file_utils, "JobStore", lambda db: job_store)
+    monkeypatch.setattr(
+        file_utils,
+        "active_render_storage_reservation_bytes",
+        lambda **_kwargs: 250,
+    )
     ensure = MagicMock(return_value=True)
     monkeypatch.setattr(file_utils, "ensure_storage_capacity", ensure)
 
@@ -134,7 +140,51 @@ def test_storage_preflight_includes_other_in_flight_uploads(
         db=MagicMock(spec=Database),
     )
 
-    assert ensure.call_args.kwargs["required_bytes"] == 1_000
+    assert ensure.call_args.kwargs["required_bytes"] == 1_250
+
+
+def test_second_render_reservation_cannot_overcommit_same_free_space(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    # REGRESSION: queued exports each checked the same free-space snapshot
+    # before their render slot, so several large variants could all pass and
+    # later exhaust the root disk.
+    job_store = MagicMock()
+    job_store.list_jobs_with_statuses.return_value = []
+    monkeypatch.setattr(file_utils, "JobStore", lambda db: job_store)
+    observed_required_bytes: list[int] = []
+
+    def bounded_capacity(_data_dir: Path, *, required_bytes: int, **_kwargs) -> bool:
+        observed_required_bytes.append(required_bytes)
+        return required_bytes <= 1_000
+
+    monkeypatch.setattr(file_utils, "ensure_storage_capacity", bounded_capacity)
+    database = MagicMock(spec=Database)
+
+    with lock_media_render(data_dir=tmp_path, capacity=2) as first_slots:
+        with file_utils.reserve_render_storage(
+            data_dir=tmp_path,
+            required_bytes=600,
+            render_slots=first_slots,
+            db=database,
+        ):
+            with lock_media_render(data_dir=tmp_path, capacity=2) as second_slots:
+                with pytest.raises(HTTPException) as exc_info:
+                    with file_utils.reserve_render_storage(
+                        data_dir=tmp_path,
+                        required_bytes=600,
+                        render_slots=second_slots,
+                        db=database,
+                    ):
+                        pass
+
+    assert exc_info.value.status_code == 507
+    assert observed_required_bytes == [600, 1_200]
+    assert file_utils.active_render_storage_reservation_bytes(
+        data_dir=tmp_path,
+        capacity=2,
+    ) == 0
 
 
 def test_link_or_copy_file_uses_hard_link_when_available(tmp_path: Path) -> None:

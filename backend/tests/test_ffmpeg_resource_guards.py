@@ -163,6 +163,50 @@ def test_4k_render_reserves_both_lanes_and_uses_both_cpu_threads(
     assert thread_values == ["2", "2"]
 
 
+def test_ffmpeg_reuses_render_slots_held_by_atomic_storage_preflight(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    process = CompletedProcess()
+    monkeypatch.setattr(
+        ffmpeg_utils,
+        "lock_media_render",
+        lambda **_kwargs: (_ for _ in ()).throw(
+            AssertionError("render capacity must not be reacquired"),
+        ),
+    )
+    monkeypatch.setattr(ffmpeg_utils.subprocess, "Popen", lambda *_args, **_kwargs: process)
+    monkeypatch.setattr(ffmpeg_utils.time, "sleep", lambda _seconds: None)
+
+    ffmpeg_utils.run_ffmpeg_with_subs(
+        Path("input.mp4"),
+        Path("captions.ass"),
+        Path("output.mp4"),
+        video_crf=20,
+        video_preset="veryfast",
+        audio_bitrate="128k",
+        audio_copy=False,
+        timeout_seconds=1.0,
+        held_render_slots=(0,),
+    )
+
+
+def test_4k_render_rejects_incomplete_preheld_capacity() -> None:
+    with pytest.raises(ValueError, match="does not satisfy"):
+        ffmpeg_utils.run_ffmpeg_with_subs(
+            Path("input.mp4"),
+            Path("captions.ass"),
+            Path("output.mp4"),
+            video_crf=20,
+            video_preset="veryfast",
+            audio_bitrate="128k",
+            audio_copy=False,
+            output_width=2160,
+            output_height=3840,
+            timeout_seconds=1.0,
+            held_render_slots=(0,),
+        )
+
+
 def test_run_ffmpeg_lowers_encoder_priority_on_shared_host(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
