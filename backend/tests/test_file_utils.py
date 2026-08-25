@@ -1,4 +1,6 @@
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import anyio
 import pytest
@@ -6,6 +8,7 @@ from fastapi import HTTPException
 from starlette.requests import Request
 
 from backend.app.api.endpoints import file_utils
+from backend.app.core.database import Database
 
 
 def _streaming_request(chunks: list[bytes]) -> Request:
@@ -82,6 +85,56 @@ def test_save_request_stream_rejects_empty_body(tmp_path: Path) -> None:
 
     anyio.run(run)
     assert not destination.exists()
+
+
+def test_upload_storage_reservation_uses_declared_size_or_safe_max(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(file_utils, "MAX_UPLOAD_BYTES", 500)
+    monkeypatch.setattr(file_utils, "UPLOAD_WORKING_SPACE_BYTES", 64)
+
+    assert file_utils.upload_storage_reservation_bytes(125) == 189
+    assert file_utils.upload_storage_reservation_bytes(None) == 564
+
+
+def test_active_upload_reservations_ignore_invalid_private_values() -> None:
+    jobs = [
+        SimpleNamespace(
+            result_data={file_utils.UPLOAD_STORAGE_RESERVATION_KEY: 100},
+        ),
+        SimpleNamespace(
+            result_data={file_utils.UPLOAD_STORAGE_RESERVATION_KEY: True},
+        ),
+        SimpleNamespace(
+            result_data={file_utils.UPLOAD_STORAGE_RESERVATION_KEY: -1},
+        ),
+        SimpleNamespace(result_data={}),
+        SimpleNamespace(result_data=None),
+    ]
+
+    assert file_utils.active_upload_storage_reservation_bytes(jobs) == 100
+
+
+def test_storage_preflight_includes_other_in_flight_uploads(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    active_job = SimpleNamespace(
+        result_data={file_utils.UPLOAD_STORAGE_RESERVATION_KEY: 600},
+    )
+    job_store = MagicMock()
+    job_store.list_jobs_with_statuses.return_value = [active_job]
+    monkeypatch.setattr(file_utils, "JobStore", lambda db: job_store)
+    ensure = MagicMock(return_value=True)
+    monkeypatch.setattr(file_utils, "ensure_storage_capacity", ensure)
+
+    file_utils.require_storage_capacity(
+        tmp_path,
+        required_bytes=400,
+        db=MagicMock(spec=Database),
+    )
+
+    assert ensure.call_args.kwargs["required_bytes"] == 1_000
 
 
 def test_link_or_copy_file_uses_hard_link_when_available(tmp_path: Path) -> None:

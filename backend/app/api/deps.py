@@ -3,7 +3,8 @@ from __future__ import annotations
 import base64
 import binascii
 import json
-from contextlib import ExitStack
+from collections.abc import Iterator
+from contextlib import ExitStack, contextmanager
 from typing import Annotated, Generator
 
 from fastapi import Depends, HTTPException, Request, status
@@ -36,7 +37,6 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
 
 _PROCESS_STREAM_PATH = "/videos/process-stream"
 _MAX_UPLOAD_METADATA_HEADER_CHARS = 12_000
-_GLOBAL_ACTIVE_MEDIA_JOB_LIMIT = 1
 _CANONICAL_VIDEO_CREDITS = frozenset({30, 60, 100})
 
 
@@ -182,7 +182,7 @@ def _production_media_capacity_enforced() -> bool:
 
 def _assert_global_media_capacity(db: Database) -> None:
     active_jobs = JobStore(db=db).list_jobs_with_statuses(ACTIVE_JOB_STATUSES)
-    if len(active_jobs) >= _GLOBAL_ACTIVE_MEDIA_JOB_LIMIT:
+    if len(active_jobs) >= settings.max_active_media_jobs:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail=(
@@ -192,18 +192,33 @@ def _assert_global_media_capacity(db: Database) -> None:
         )
 
 
+@contextmanager
+def media_job_admission(db: Database) -> Iterator[None]:
+    """Atomically check global capacity while the caller creates one job."""
+    try:
+        with lock_media_admission(data_dir=settings.data_dir):
+            if _production_media_capacity_enforced():
+                _assert_global_media_capacity(db)
+            yield
+    except MediaAdmissionLockTimeoutError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=str(exc),
+        ) from exc
+
+
 def get_current_user_with_media_lifecycle(
     request: Request,
     current_user: User = Depends(get_current_user),
     db: Database = Depends(get_db),
 ) -> Generator[User, None, None]:
-    """Hold account and launch-admission barriers for media creation.
+    """Hold the per-account lifecycle barrier for media requests.
 
     Authentication can complete immediately before a concurrent account
     erasure. Reloading the user only after acquiring the account barrier
     prevents that stale request from creating media after erasure succeeds.
-    Upload and reprocess admission is exclusive per account and serialized
-    globally so the active-job check cannot race across users.
+    Global admission is deliberately scoped inside each creation endpoint so
+    it ends before upload streaming and background processing begin.
     """
     media_creation = _is_media_creation_request(request)
     try:
@@ -223,9 +238,6 @@ def get_current_user_with_media_lifecycle(
                 )
 
             if media_creation:
-                stack.enter_context(
-                    lock_media_admission(data_dir=settings.data_dir),
-                )
                 if (
                     request.url.path.rstrip("/") == _PROCESS_STREAM_PATH
                     and not settings.mock_external_services
@@ -235,18 +247,10 @@ def get_current_user_with_media_lifecycle(
                         user_id=current_user.id,
                         db=db,
                     )
-                if _production_media_capacity_enforced():
-                    _assert_global_media_capacity(db)
-
             yield current_user
     except AccountLifecycleLockTimeoutError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=str(exc),
-        ) from exc
-    except MediaAdmissionLockTimeoutError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail=str(exc),
         ) from exc
 

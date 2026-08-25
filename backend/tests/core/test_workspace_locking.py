@@ -274,6 +274,40 @@ def test_job_workspace_lock_repairs_private_permissions(tmp_path: Path) -> None:
         assert lock_file.stat().st_mode & 0o777 == 0o600
 
 
+def test_account_registry_retries_transient_first_use_enoent(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    # REGRESSION: five first-time uploads could race while creating the shared
+    # registry on Darwin, returning a 500 to one otherwise valid customer.
+    real_open = workspace_deletion.os.open
+    transient_failures = 0
+
+    def transient_open(
+        path: str | bytes | os.PathLike[str] | os.PathLike[bytes],
+        flags: int,
+        mode: int = 0o777,
+        *,
+        dir_fd: int | None = None,
+    ) -> int:
+        nonlocal transient_failures
+        if path == ".registry" and transient_failures == 0:
+            transient_failures += 1
+            raise FileNotFoundError(2, "synthetic concurrent create")
+        return real_open(path, flags, mode, dir_fd=dir_fd)
+
+    monkeypatch.setattr(workspace_deletion.os, "open", transient_open)
+
+    with workspace_deletion.lock_account_lifecycle(
+        data_dir=tmp_path,
+        user_id="parallel-customer",
+        shared=True,
+    ):
+        pass
+
+    assert transient_failures == 1
+
+
 @dataclass
 class _RetentionJob:
     id: str

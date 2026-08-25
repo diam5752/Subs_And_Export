@@ -3,6 +3,8 @@ import select
 import shutil
 import subprocess
 import types
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -109,6 +111,84 @@ def test_process_video_pipeline_runs_pipeline(monkeypatch, tmp_path: Path):
 
     assert res == output_path
     assert output_path.exists()
+
+
+def test_elevenlabs_pipeline_reserves_weighted_provider_capacity(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    input_video = tmp_path / "ten-minute.mp4"
+    input_video.write_bytes(b"video")
+    observed_slots: list[int] = []
+
+    def fake_extract(
+        _input_video: Path,
+        *,
+        output_dir: Path,
+        **_kwargs: object,
+    ) -> Path:
+        audio_path = output_dir / "audio.wav"
+        audio_path.touch()
+        return audio_path
+
+    class FakeScribeTranscriber:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            pass
+
+        def transcribe(
+            self,
+            _audio_path: Path,
+            *,
+            output_dir: Path,
+            **_kwargs: object,
+        ) -> tuple[Path, list[Cue]]:
+            srt_path = output_dir / "captions.srt"
+            srt_path.write_text(
+                "1\n00:00:00,000 --> 00:00:01,000\nΓεια\n",
+                encoding="utf-8",
+            )
+            return srt_path, [Cue(0, 1, "Γεια")]
+
+    @contextmanager
+    def fake_provider_capacity(
+        *,
+        slots_required: int,
+        **_kwargs: object,
+    ) -> Iterator[tuple[int, ...]]:
+        observed_slots.append(slots_required)
+        yield tuple(range(slots_required))
+
+    monkeypatch.setattr(video_processing.settings, "mock_external_services", False)
+    monkeypatch.setattr(video_processing.settings, "elevenlabs_enabled", True)
+    monkeypatch.setattr(
+        video_processing.llm_utils,
+        "resolve_elevenlabs_api_key",
+        lambda: "test-elevenlabs-key",
+    )
+    monkeypatch.setattr(subtitles, "extract_audio", fake_extract)
+    monkeypatch.setattr(
+        video_processing,
+        "ElevenLabsScribeTranscriber",
+        FakeScribeTranscriber,
+    )
+    monkeypatch.setattr(
+        video_processing,
+        "lock_provider_transcription",
+        fake_provider_capacity,
+    )
+
+    result = video_processing.process_video_pipeline(
+        input_video,
+        tmp_path / "artifacts" / "processed.mp4",
+        artifact_dir=tmp_path / "artifacts",
+        transcribe_provider="elevenlabs",
+        transcribe_tier="pro",
+        transcription_only=True,
+        media_probe=ffmpeg_utils.MediaProbe(600.0, "aac"),
+    )
+
+    assert result.exists()
+    assert observed_slots == [2]
 
 
 def test_mock_transcription_finalizes_with_zero_provider_cost(monkeypatch, tmp_path: Path):

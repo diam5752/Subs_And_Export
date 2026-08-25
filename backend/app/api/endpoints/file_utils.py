@@ -7,7 +7,9 @@ import os
 import re
 import shutil
 import unicodedata
+from collections.abc import Iterable
 from pathlib import Path
+from typing import Any, Protocol
 
 import anyio
 from fastapi import HTTPException
@@ -16,12 +18,40 @@ from starlette.requests import Request
 from ...core.cleanup import ensure_storage_capacity, run_configured_retention
 from ...core.config import settings
 from ...core.database import Database
+from ...core.job_lifecycle import ACTIVE_JOB_STATUSES
+from ...services.jobs import JobStore
 
 logger = logging.getLogger(__name__)
 
 MAX_UPLOAD_BYTES = settings.max_upload_mb * 1024 * 1024
+UPLOAD_WORKING_SPACE_BYTES = 64 * 1024 * 1024
+UPLOAD_STORAGE_RESERVATION_KEY = "_upload_storage_reservation_bytes"
 MAX_DOWNLOAD_FILENAME_CHARS = 180
 _UNSAFE_DOWNLOAD_FILENAME = re.compile(r'[<>:"/\\|?*\x00-\x1f\x7f]')
+
+
+class StorageReservationJob(Protocol):
+    """Minimal active-job shape needed for disk reservation accounting."""
+
+    result_data: dict[str, Any] | None
+
+
+def upload_storage_reservation_bytes(expected_upload_bytes: int | None) -> int:
+    """Reserve an upload plus bounded audio/transcript working space."""
+    upload_bytes = expected_upload_bytes if expected_upload_bytes is not None else MAX_UPLOAD_BYTES
+    return max(0, upload_bytes) + UPLOAD_WORKING_SPACE_BYTES
+
+
+def active_upload_storage_reservation_bytes(
+    jobs: Iterable[StorageReservationJob],
+) -> int:
+    """Return valid private reservations held by uploads not yet on disk."""
+    total = 0
+    for job in jobs:
+        raw_value = (job.result_data or {}).get(UPLOAD_STORAGE_RESERVATION_KEY)
+        if isinstance(raw_value, int) and not isinstance(raw_value, bool) and raw_value > 0:
+            total += raw_value
+    return total
 
 
 def data_roots() -> tuple[Path, Path, Path]:
@@ -135,10 +165,12 @@ def require_storage_capacity(
     required_bytes: int,
     db: Database,
 ) -> None:
-    """Reject before a media operation if its safety reserve is unavailable."""
+    """Reject if an operation plus in-flight upload reservations are unsafe."""
+    active_jobs = JobStore(db=db).list_jobs_with_statuses(ACTIVE_JOB_STATUSES)
+    reserved_bytes = active_upload_storage_reservation_bytes(active_jobs)
     has_capacity = ensure_storage_capacity(
         data_dir,
-        required_bytes=required_bytes,
+        required_bytes=max(0, required_bytes) + reserved_bytes,
         minimum_free_mb=settings.storage_min_free_mb,
         cleanup_callback=lambda: run_configured_retention(db),
     )

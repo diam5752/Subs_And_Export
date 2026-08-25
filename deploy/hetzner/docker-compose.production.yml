@@ -64,6 +64,12 @@ services:
       GSP_EXTERNAL_PROVIDER_DAILY_BUDGET_USD: "10"
       GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD: "0.05"
       GSP_EXTERNAL_PROVIDER_PRICE_SAFETY_MULTIPLIER: "1.25"
+      GSP_MAX_ACTIVE_MEDIA_JOBS: "5"
+      GSP_MEDIA_RENDER_SLOTS: "2"
+      GSP_MEDIA_RENDER_THREADS_PER_SLOT: "1"
+      GSP_MEDIA_EXTRACTION_SLOTS: "1"
+      GSP_MEDIA_EXTRACTION_THREADS_PER_SLOT: "1"
+      GSP_PROVIDER_TRANSCRIPTION_SLOTS: "8"
       GSP_WORKSPACE_RETENTION_HOURS: "24"
       GSP_STALE_JOB_RETENTION_HOURS: "6"
       GSP_ORPHAN_RETENTION_HOURS: "1"
@@ -84,6 +90,9 @@ services:
       db:
         condition: service_healthy
     restart: unless-stopped
+    cpus: "${SUBFRAME_BACKEND_CPUS:-3.0}"
+    mem_limit: "${SUBFRAME_BACKEND_MEMORY_LIMIT:-3g}"
+    pids_limit: 256
     logging: *default-logging
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]

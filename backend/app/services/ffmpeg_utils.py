@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Callable
 
 from backend.app.core.config import settings
-from backend.app.core.media_capacity import lock_media_cpu
+from backend.app.core.media_capacity import lock_media_render, render_slot_weight
 
 logger = logging.getLogger(__name__)
 
@@ -235,7 +235,17 @@ def run_ffmpeg_with_subs(
         total_duration=total_duration,
         timeout_seconds=timeout_seconds,
     )
-    threads = resolve_ffmpeg_thread_count(thread_count)
+    slots_required = render_slot_weight(
+        output_width,
+        output_height,
+        capacity=settings.media_render_slots,
+    )
+    requested_threads = (
+        thread_count
+        if thread_count is not None
+        else settings.media_render_threads_per_slot * slots_required
+    )
+    threads = resolve_ffmpeg_thread_count(requested_threads)
     filtergraph = build_filtergraph(
         ass_path,
         target_width=output_width,
@@ -293,9 +303,9 @@ def run_ffmpeg_with_subs(
         cmd += ["-c:a", "aac", "-b:a", audio_bitrate]
     cmd += ["-movflags", "+faststart", str(output_path)]
 
-    # The single-host launch lane intentionally serializes every local encoder,
-    # including user-requested exports, so gsubs cannot starve MizAI.
-    with lock_media_cpu():
+    # Two single-thread launch lanes keep normal exports moving concurrently.
+    # A 4K render reserves both lanes and may use both bounded threads.
+    with lock_media_render(slots_required=slots_required):
         process = subprocess.Popen(
             cmd,
             stdout=subprocess.DEVNULL,

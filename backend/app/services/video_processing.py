@@ -18,6 +18,10 @@ from backend.app.core import metrics
 from backend.app.core.config import settings
 from backend.app.core.database import Database
 from backend.app.core.errors import ProviderDispatchAlreadyClaimedError
+from backend.app.core.media_capacity import (
+    lock_provider_transcription,
+    provider_transcription_slot_weight,
+)
 from backend.app.services import (
     artifact_manager,
     ffmpeg_utils,
@@ -361,31 +365,47 @@ def process_video_pipeline(
                     "check_cancelled": check_cancelled,
                 }
 
-                if (
-                    ledger_store
-                    and charge_plan
-                    and charge_plan.transcription
-                    and getattr(
-                        charge_plan.transcription,
-                        "estimated_cost_usd",
-                        0.0,
-                    )
-                    > 0
-                ):
-                    if not ledger_store.mark_dispatched(
-                        charge_plan.transcription,
-                    ):
-                        raise ProviderDispatchAlreadyClaimedError(
-                            "Paid provider dispatch is already in progress",
+                def dispatch_transcription() -> tuple[Path, list[Cue]]:
+                    if (
+                        ledger_store
+                        and charge_plan
+                        and charge_plan.transcription
+                        and getattr(
+                            charge_plan.transcription,
+                            "estimated_cost_usd",
+                            0.0,
                         )
+                        > 0
+                    ):
+                        if not ledger_store.mark_dispatched(
+                            charge_plan.transcription,
+                        ):
+                            raise ProviderDispatchAlreadyClaimedError(
+                                "Paid provider dispatch is already in progress",
+                            )
 
-                srt_path, cues = transcriber.transcribe(
-                    audio_path,
-                    output_dir=scratch,
-                    language=language or settings.whisper_language,
-                    model=selected_model,
-                    **transcribe_kwargs,
-                )
+                    return transcriber.transcribe(
+                        audio_path,
+                        output_dir=scratch,
+                        language=language or settings.whisper_language,
+                        model=selected_model,
+                        **transcribe_kwargs,
+                    )
+
+                if provider_name == "elevenlabs":
+                    if progress_callback:
+                        progress_callback(
+                            "Waiting for transcription capacity...",
+                            5.0,
+                        )
+                    with lock_provider_transcription(
+                        slots_required=provider_transcription_slot_weight(
+                            total_duration,
+                        ),
+                    ):
+                        srt_path, cues = dispatch_transcription()
+                else:
+                    srt_path, cues = dispatch_transcription()
 
             if ledger_store and charge_plan and charge_plan.transcription:
                 duration_seconds = total_duration if total_duration > 0 else 0.0

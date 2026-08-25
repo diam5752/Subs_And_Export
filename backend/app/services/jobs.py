@@ -37,7 +37,13 @@ class JobStore:
     def __init__(self, db: Database) -> None:
         self.db = db
 
-    def create_job(self, job_id: str, user_id: str) -> Job:
+    def create_job(
+        self,
+        job_id: str,
+        user_id: str,
+        *,
+        result_data: dict[str, Any] | None = None,
+    ) -> Job:
         now = int(time.time())
         job = Job(
             id=job_id,
@@ -47,7 +53,7 @@ class JobStore:
             message=None,
             created_at=now,
             updated_at=now,
-            result_data=None,
+            result_data=result_data,
         )
         with self.db.session() as session:
             session.add(

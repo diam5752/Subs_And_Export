@@ -310,6 +310,17 @@ def test_production_compose_enables_reviewed_paid_credits_and_budgeted_scribe() 
     assert 'GSP_EXTERNAL_PROVIDER_DAILY_BUDGET_USD: "10"' in compose
     assert 'GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD: "0.05"' in compose
     assert 'GSP_EXTERNAL_PROVIDER_PRICE_SAFETY_MULTIPLIER: "1.25"' in compose
+    # REGRESSION: production previously admitted one customer and had no
+    # explicit container budget for bounded multi-user media work.
+    assert 'GSP_MAX_ACTIVE_MEDIA_JOBS: "5"' in compose
+    assert 'GSP_MEDIA_RENDER_SLOTS: "2"' in compose
+    assert 'GSP_MEDIA_RENDER_THREADS_PER_SLOT: "1"' in compose
+    assert 'GSP_MEDIA_EXTRACTION_SLOTS: "1"' in compose
+    assert 'GSP_MEDIA_EXTRACTION_THREADS_PER_SLOT: "1"' in compose
+    assert 'GSP_PROVIDER_TRANSCRIPTION_SLOTS: "8"' in compose
+    assert 'cpus: "${SUBFRAME_BACKEND_CPUS:-3.0}"' in compose
+    assert 'mem_limit: "${SUBFRAME_BACKEND_MEMORY_LIMIT:-3g}"' in compose
+    assert "pids_limit: 256" in compose
     assert 'GSP_WORKSPACE_RETENTION_HOURS: "24"' in compose
     assert 'GSP_STALE_JOB_RETENTION_HOURS: "6"' in compose
     assert 'GSP_ORPHAN_RETENTION_HOURS: "1"' in compose
@@ -417,6 +428,12 @@ def test_production_verifier_requires_every_fail_closed_runtime_setting() -> Non
         "GSP_EXTERNAL_PROVIDER_DAILY_BUDGET_USD=10",
         "GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD=0.05",
         "GSP_EXTERNAL_PROVIDER_PRICE_SAFETY_MULTIPLIER=1.25",
+        "GSP_MAX_ACTIVE_MEDIA_JOBS=5",
+        "GSP_MEDIA_RENDER_SLOTS=2",
+        "GSP_MEDIA_RENDER_THREADS_PER_SLOT=1",
+        "GSP_MEDIA_EXTRACTION_SLOTS=1",
+        "GSP_MEDIA_EXTRACTION_THREADS_PER_SLOT=1",
+        "GSP_PROVIDER_TRANSCRIPTION_SLOTS=8",
         "GSP_WORKSPACE_RETENTION_HOURS=24",
         "GSP_STALE_JOB_RETENTION_HOURS=6",
         "GSP_ORPHAN_RETENTION_HOURS=1",
@@ -428,6 +445,12 @@ def test_production_verifier_requires_every_fail_closed_runtime_setting() -> Non
     ):
         assert expected in verifier
     assert "GSP_ERASURE_JOURNAL_CONTINUITY_ID=" in verifier
+    assert "{{.HostConfig.NanoCpus}}" in verifier
+    assert '"3000000000"' in verifier
+    assert "{{.HostConfig.Memory}}" in verifier
+    assert '"3221225472"' in verifier
+    assert "{{.HostConfig.PidsLimit}}" in verifier
+    assert '"256"' in verifier
     assert "Retired GCS settings remain in the production env" in verifier
     assert "Backend container still exposes retired GCS settings" in verifier
     assert "settings.assert_paid_credits_configuration()" in verifier
@@ -551,6 +574,14 @@ def test_production_environment_defaults_do_not_prune_shared_cache() -> None:
     # while other runtime defaults silently allowed 1 GiB.
     assert "SUBFRAME_MAX_UPLOAD_MB=500" in environment
     assert "GSP_MAX_UPLOAD_MB=500" in environment
+    assert "GSP_MAX_ACTIVE_MEDIA_JOBS=5" in environment
+    assert "GSP_MEDIA_RENDER_SLOTS=2" in environment
+    assert "GSP_MEDIA_RENDER_THREADS_PER_SLOT=1" in environment
+    assert "GSP_MEDIA_EXTRACTION_SLOTS=1" in environment
+    assert "GSP_MEDIA_EXTRACTION_THREADS_PER_SLOT=1" in environment
+    assert "GSP_PROVIDER_TRANSCRIPTION_SLOTS=8" in environment
+    assert "SUBFRAME_BACKEND_CPUS=3.0" in environment
+    assert "SUBFRAME_BACKEND_MEMORY_LIMIT=3g" in environment
     assert "GSP_WORKSPACE_RETENTION_HOURS=24" in environment
     assert "GSP_STALE_JOB_RETENTION_HOURS=6" in environment
     assert "GSP_ORPHAN_RETENTION_HOURS=1" in environment

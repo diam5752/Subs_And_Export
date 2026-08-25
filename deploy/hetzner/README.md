@@ -12,6 +12,34 @@ legacy infrastructure identifiers stay unchanged to preserve compatibility.
 
 ## Safe release contract
 
+### Five-user media capacity
+
+The existing four-core VM admits at most five active upload/reprocess jobs
+across all accounts. Admission is a short cross-process transaction: the
+capacity check, provisional credit charge and durable job creation complete
+before request streaming starts, so five slow uploads can progress together
+without holding a global request lock. In-flight uploads publish a private
+size reservation and every storage preflight includes those reservations plus
+the fixed 2 GiB free-space floor. If the requested files do not fit safely,
+the next request receives `507` before its body is consumed; capacity never
+means overcommitting the root disk.
+
+CPU-heavy stages are deliberately queued inside that five-job envelope:
+
+- one single-thread audio-extraction lane;
+- eight weighted ElevenLabs Scribe slots (a ten-minute Scribe v2 request uses
+  two, matching the provider's
+  [documented concurrency accounting](https://elevenlabs.io/docs/help-center/product/core-capabilities/speech-to-text/how-many-speech-to-text-requests-can-i-make-and-can-i-increase-it));
+- two single-thread normal render/export lanes; and
+- one 4K render reserves both lanes and uses at most two encoder threads.
+
+The backend container is capped at 3 CPUs, 3 GiB RAM and 256 PIDs. FFmpeg
+children run at reduced priority, leaving one host core and scheduler priority
+for the API, database and the co-located MizAI services. Five accepted jobs can
+therefore upload and wait/process concurrently, but this contract intentionally
+does not promise five simultaneous encoders. The production verifier enforces
+all admission, lane and container limits against the running container.
+
 The tracked production Compose file enables only ElevenLabs Scribe v2 for
 caption transcription. The API key stays in the untracked, mode-0600
 `.env.production` file and the internal-only backend can reach exactly

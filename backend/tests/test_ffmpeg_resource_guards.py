@@ -116,12 +116,51 @@ def test_run_ffmpeg_command_bounds_decode_filter_and_encode_threads(
     progress_index = command.index("-progress")
     filter_index = command.index("-filter_threads")
     complex_filter_index = command.index("-filter_complex_threads")
-    assert thread_values == ["2", "2"]
-    assert command[filter_index + 1] == "2"
-    assert command[complex_filter_index + 1] == "2"
+    assert thread_values == ["1", "1"]
+    assert command[filter_index + 1] == "1"
+    assert command[complex_filter_index + 1] == "1"
     assert command[progress_index + 1] == "pipe:2"
     assert "-nostats" in command
     assert "-nostdin" in command
+
+
+def test_4k_render_reserves_both_lanes_and_uses_both_cpu_threads(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    # REGRESSION: two simultaneous 4K exports could otherwise consume every
+    # shared host core and make interactive API traffic stall.
+    process = CompletedProcess()
+    command: list[str] = []
+
+    def fake_popen(cmd, **_kwargs):
+        command.extend(cmd)
+        return process
+
+    monkeypatch.setattr(settings, "data_dir", tmp_path)
+    monkeypatch.setattr(ffmpeg_utils.os, "cpu_count", lambda: 64)
+    monkeypatch.setattr(ffmpeg_utils.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(ffmpeg_utils.time, "sleep", lambda _seconds: None)
+
+    ffmpeg_utils.run_ffmpeg_with_subs(
+        Path("input.mp4"),
+        Path("captions.ass"),
+        Path("output.mp4"),
+        video_crf=20,
+        video_preset="veryfast",
+        audio_bitrate="128k",
+        audio_copy=False,
+        output_width=2160,
+        output_height=3840,
+        timeout_seconds=1.0,
+    )
+
+    thread_values = [
+        command[index + 1]
+        for index, value in enumerate(command)
+        if value == "-threads"
+    ]
+    assert thread_values == ["2", "2"]
 
 
 def test_run_ffmpeg_lowers_encoder_priority_on_shared_host(
@@ -184,7 +223,7 @@ def test_extract_audio_timeout_kills_hung_process_and_bounds_decoder(
     progress_index = command.index("-progress")
     thread_index = command.index("-threads")
     assert process.killed is True
-    assert command[thread_index + 1] == "2"
+    assert command[thread_index + 1] == "1"
     assert command[progress_index + 1] == "pipe:2"
     assert "-nostats" in command
     assert "-nostdin" in command

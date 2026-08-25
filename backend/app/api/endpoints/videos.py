@@ -58,12 +58,15 @@ from ..deps import (
     get_history_store,
     get_job_store,
     get_usage_ledger_store,
+    media_job_admission,
 )
 from .file_utils import (
     MAX_UPLOAD_BYTES,
+    UPLOAD_STORAGE_RESERVATION_KEY,
     data_roots,
     require_storage_capacity,
     save_request_stream_with_limit,
+    upload_storage_reservation_bytes,
 )
 from .processing_tasks import (
     record_event_safe,
@@ -543,6 +546,86 @@ def _queue_saved_upload(
     return JobResponse.model_validate(job).model_copy(update={"balance": new_balance})
 
 
+def _reserve_stream_upload(
+    *,
+    job_id: str,
+    current_user: User,
+    job_store: JobStore,
+    ledger_store: UsageLedgerStore,
+    db: Database,
+    data_dir: Path,
+    input_path: Path,
+    artifacts_root: Path,
+    expected_upload_bytes: int | None,
+    proc_settings: ProcessingSettings,
+    authorized_quote: pricing.VideoCreditQuote,
+    llm_models: pricing.LlmModels,
+    stt_model: str,
+) -> tuple[Job, ChargePlan, int]:
+    """Create and charge one pending upload under the short admission lock."""
+    with media_job_admission(db):
+        _check_concurrent_job_capacity(job_store, current_user)
+        storage_reservation_bytes = upload_storage_reservation_bytes(
+            expected_upload_bytes,
+        )
+        require_storage_capacity(
+            data_dir,
+            required_bytes=storage_reservation_bytes,
+            db=db,
+        )
+        with lock_job_workspace(data_dir=data_dir, job_id=job_id):
+            record_workspace_ownership(
+                data_dir=data_dir,
+                job_id=job_id,
+                user_id=current_user.id,
+            )
+
+        try:
+            job = job_store.create_job(
+                job_id,
+                current_user.id,
+                result_data={
+                    UPLOAD_STORAGE_RESERVATION_KEY: storage_reservation_bytes,
+                },
+            )
+        except Exception:
+            _record_and_delete_rejected_upload(
+                job_id=job_id,
+                user_id=current_user.id,
+                input_path=input_path,
+                artifacts_root=artifacts_root,
+                kind="job",
+                job_store=job_store,
+            )
+            raise
+
+        try:
+            charge_plan, reserved_balance = reserve_processing_charges(
+                ledger_store=ledger_store,
+                user_id=current_user.id,
+                job_id=job_id,
+                tier=proc_settings.transcribe_tier,
+                duration_seconds=float(authorized_quote.max_duration_seconds),
+                use_llm=proc_settings.use_llm,
+                llm_model=llm_models.social,
+                provider=proc_settings.transcribe_provider,
+                stt_model=stt_model,
+                allow_downward_adjustment=True,
+            )
+        except Exception:
+            _record_and_delete_rejected_upload(
+                job_id=job_id,
+                user_id=current_user.id,
+                input_path=input_path,
+                artifacts_root=artifacts_root,
+                kind="job",
+                job_store=job_store,
+            )
+            raise
+
+    return job, charge_plan, reserved_balance
+
+
 @router.post(
     "/process-stream",
     response_model=JobResponse,
@@ -578,8 +661,6 @@ async def process_video_stream(
         karaoke_enabled=metadata.karaoke_enabled,
         watermark_enabled=metadata.watermark_enabled,
     )
-    _check_concurrent_job_capacity(job_store, current_user)
-
     filename = Path(metadata.filename.replace("\\", "/")).name
     file_ext = Path(filename).suffix.lower()
     if not filename or file_ext not in ALLOWED_VIDEO_EXTENSIONS:
@@ -608,56 +689,22 @@ async def process_video_stream(
 
     job_id = str(uuid.uuid4())
     data_dir, uploads_dir, artifacts_root = data_roots()
-    require_storage_capacity(
-        data_dir,
-        required_bytes=(expected_upload_bytes or MAX_UPLOAD_BYTES) * 2,
-        db=db,
-    )
     input_path = uploads_dir / f"{job_id}_input{file_ext}"
-
-    with lock_job_workspace(data_dir=data_dir, job_id=job_id):
-        record_workspace_ownership(
-            data_dir=data_dir,
-            job_id=job_id,
-            user_id=current_user.id,
-        )
-
-    try:
-        job = job_store.create_job(job_id, current_user.id)
-    except Exception:
-        _record_and_delete_rejected_upload(
-            job_id=job_id,
-            user_id=current_user.id,
-            input_path=input_path,
-            artifacts_root=artifacts_root,
-            kind="job",
-            job_store=job_store,
-        )
-        raise
-
-    try:
-        charge_plan, reserved_balance = reserve_processing_charges(
-            ledger_store=ledger_store,
-            user_id=current_user.id,
-            job_id=job_id,
-            tier=proc_settings.transcribe_tier,
-            duration_seconds=float(authorized_quote.max_duration_seconds),
-            use_llm=proc_settings.use_llm,
-            llm_model=llm_models.social,
-            provider=proc_settings.transcribe_provider,
-            stt_model=stt_model,
-            allow_downward_adjustment=True,
-        )
-    except Exception:
-        _record_and_delete_rejected_upload(
-            job_id=job_id,
-            user_id=current_user.id,
-            input_path=input_path,
-            artifacts_root=artifacts_root,
-            kind="job",
-            job_store=job_store,
-        )
-        raise
+    job, charge_plan, reserved_balance = _reserve_stream_upload(
+        job_id=job_id,
+        current_user=current_user,
+        job_store=job_store,
+        ledger_store=ledger_store,
+        db=db,
+        data_dir=data_dir,
+        input_path=input_path,
+        artifacts_root=artifacts_root,
+        expected_upload_bytes=expected_upload_bytes,
+        proc_settings=proc_settings,
+        authorized_quote=authorized_quote,
+        llm_models=llm_models,
+        stt_model=stt_model,
+    )
 
     try:
         with lock_job_workspace(data_dir=data_dir, job_id=job_id):
@@ -667,6 +714,10 @@ async def process_video_stream(
                 expected_size=expected_upload_bytes,
                 cleanup_on_error=False,
             )
+            # The complete input is now reflected in real filesystem usage;
+            # remove its pre-upload reservation before admitting another job.
+            job_store.update_job(job_id, result_data={})
+            job.result_data = None
     except BaseException as exc:
         refund_charge_best_effort(
             ledger_store,

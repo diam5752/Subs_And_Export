@@ -169,6 +169,22 @@ frontend_image=$(docker inspect --format '{{.Config.Image}}' "$frontend_id")
   exit 1
 }
 
+backend_nano_cpus=$(docker inspect --format '{{.HostConfig.NanoCpus}}' "$backend_id")
+[ "$backend_nano_cpus" = "3000000000" ] || {
+  echo "Backend CPU budget must reserve one host core for interactive services." >&2
+  exit 1
+}
+backend_memory_limit=$(docker inspect --format '{{.HostConfig.Memory}}' "$backend_id")
+[ "$backend_memory_limit" = "3221225472" ] || {
+  echo "Backend memory budget must be exactly 3 GiB." >&2
+  exit 1
+}
+backend_pids_limit=$(docker inspect --format '{{.HostConfig.PidsLimit}}' "$backend_id")
+[ "$backend_pids_limit" = "256" ] || {
+  echo "Backend process budget must be exactly 256 PIDs." >&2
+  exit 1
+}
+
 backend_environment=$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$backend_id")
 if printf '%s\n' "$backend_environment" | grep -Eq \
   '^(GSP_GCS_[A-Z0-9_]*|GOOGLE_APPLICATION_CREDENTIALS)='; then
@@ -200,6 +216,12 @@ for expected in \
   GSP_EXTERNAL_PROVIDER_DAILY_BUDGET_USD=10 \
   GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD=0.05 \
   GSP_EXTERNAL_PROVIDER_PRICE_SAFETY_MULTIPLIER=1.25 \
+  GSP_MAX_ACTIVE_MEDIA_JOBS=5 \
+  GSP_MEDIA_RENDER_SLOTS=2 \
+  GSP_MEDIA_RENDER_THREADS_PER_SLOT=1 \
+  GSP_MEDIA_EXTRACTION_SLOTS=1 \
+  GSP_MEDIA_EXTRACTION_THREADS_PER_SLOT=1 \
+  GSP_PROVIDER_TRANSCRIPTION_SLOTS=8 \
   GSP_WORKSPACE_RETENTION_HOURS=24 \
   GSP_STALE_JOB_RETENTION_HOURS=6 \
   GSP_ORPHAN_RETENTION_HOURS=1 \
