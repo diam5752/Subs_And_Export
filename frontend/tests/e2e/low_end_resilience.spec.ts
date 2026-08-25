@@ -13,6 +13,7 @@ type LowEndMeasurement = {
   readyMs: number;
   cls: number;
   approxTbt: number;
+  initialScriptDecodedBytes: number;
   horizontalOverflow: number;
   backdropFilter: string;
   videoDuration: number;
@@ -22,6 +23,11 @@ type LowEndMeasurement = {
 };
 
 const LOW_END_SAMPLE_COUNT = 3;
+const LOW_END_REFERENCE_READY_MS = 1_500;
+const LOW_END_READY_BUDGET_MS = 3_000;
+const LOW_END_RAW_TBT_CEILING_MS = 600;
+const LOW_END_NORMALIZED_TBT_BUDGET_MS = 350;
+const LOW_END_INITIAL_SCRIPT_BUDGET_BYTES = 780_000;
 
 test('a transient initial session failure exposes retry and then restores the user', async ({ page }) => {
   // REGRESSION: a stored bearer plus a failed /auth/me request previously left
@@ -134,6 +140,13 @@ test('the completed editor stays within low-end mobile performance budgets with 
         const video = document.querySelector('video');
         const header = document.querySelector<HTMLElement>('.studio-header');
         const sortedFrames = [...frames].sort((a, b) => a - b);
+        const initialScriptDecodedBytes = performance.getEntriesByType('resource')
+          .filter((entry): entry is PerformanceResourceTiming => (
+            entry instanceof PerformanceResourceTiming
+            && entry.initiatorType === 'script'
+            && entry.name.includes('/_next/static/')
+          ))
+          .reduce((total, entry) => total + entry.decodedBodySize, 0);
         return {
           readyMs: sampleReadyMs,
           cls: metrics.cls,
@@ -141,6 +154,7 @@ test('the completed editor stays within low-end mobile performance budgets with 
             (total, duration) => total + Math.max(0, duration - 50),
             0,
           ),
+          initialScriptDecodedBytes,
           horizontalOverflow:
             document.documentElement.scrollWidth - document.documentElement.clientWidth,
           backdropFilter: header ? getComputedStyle(header).backdropFilter : '',
@@ -157,19 +171,50 @@ test('the completed editor stays within low-end mobile performance budgets with 
     await cdp.send('Network.disable');
   }
 
-  const sortedTbt = measurements.map((sample) => sample.approxTbt).sort((a, b) => a - b);
-  const medianTbt = sortedTbt[Math.floor(sortedTbt.length / 2)] ?? Number.POSITIVE_INFINITY;
+  const normalizedTbtSamples = measurements.map((sample) => ({
+    rawTbt: sample.approxTbt,
+    normalizedTbt: sample.approxTbt * Math.min(
+      1,
+      LOW_END_REFERENCE_READY_MS / Math.max(1, sample.readyMs),
+    ),
+  }));
+  const sortedRawTbt = normalizedTbtSamples
+    .map((sample) => sample.rawTbt)
+    .sort((a, b) => a - b);
+  const sortedNormalizedTbt = normalizedTbtSamples
+    .map((sample) => sample.normalizedTbt)
+    .sort((a, b) => a - b);
+  const medianRawTbt = sortedRawTbt[Math.floor(sortedRawTbt.length / 2)]
+    ?? Number.POSITIVE_INFINITY;
+  const medianNormalizedTbt = sortedNormalizedTbt[Math.floor(sortedNormalizedTbt.length / 2)]
+    ?? Number.POSITIVE_INFINITY;
   await test.info().attach('low-end-metrics.json', {
-    body: JSON.stringify({ medianTbt, samples: measurements }, null, 2),
+    body: JSON.stringify({
+      medianRawTbt,
+      medianNormalizedTbt,
+      referenceReadyMs: LOW_END_REFERENCE_READY_MS,
+      samples: measurements,
+    }, null, 2),
     contentType: 'application/json',
   });
-  console.info('Low-end mobile metrics:', { medianTbt, samples: measurements });
+  console.info('Low-end mobile metrics:', {
+    medianRawTbt,
+    medianNormalizedTbt,
+    referenceReadyMs: LOW_END_REFERENCE_READY_MS,
+    samples: measurements,
+  });
 
-  // Keep deterministic visual and readiness failures strict on every sample.
-  // TBT uses the median of three cache-disabled samples so one shared-runner
-  // scheduling pause cannot turn an otherwise identical build into a flake.
+  // A fixed CDP multiplier also multiplies differences between GitHub runner
+  // CPUs. Keep hard per-sample ceilings for readiness, raw TBT, initial JS,
+  // layout and frames, then normalize only the median TBT when the whole page
+  // is slower than the measured 1.5 s reference runner. This preserves the
+  // low-end budget without making identical bundles depend on host allocation.
   for (const measurement of measurements) {
-    expect(measurement.readyMs).toBeLessThan(10_000);
+    expect(measurement.readyMs).toBeLessThanOrEqual(LOW_END_READY_BUDGET_MS);
+    expect(measurement.approxTbt).toBeLessThanOrEqual(LOW_END_RAW_TBT_CEILING_MS);
+    expect(measurement.initialScriptDecodedBytes).toBeGreaterThan(0);
+    expect(measurement.initialScriptDecodedBytes)
+      .toBeLessThanOrEqual(LOW_END_INITIAL_SCRIPT_BUDGET_BYTES);
     expect(measurement.cls).toBeLessThanOrEqual(0.1);
     expect(measurement.horizontalOverflow).toBeLessThanOrEqual(1);
     expect(measurement.backdropFilter).toBe('none');
@@ -178,5 +223,5 @@ test('the completed editor stays within low-end mobile performance budgets with 
     expect(measurement.p95FrameMs).toBeLessThanOrEqual(35);
     expect(measurement.framesOver50Ms).toBeLessThanOrEqual(1);
   }
-  expect(medianTbt).toBeLessThanOrEqual(350);
+  expect(medianNormalizedTbt).toBeLessThanOrEqual(LOW_END_NORMALIZED_TBT_BUDGET_MS);
 });
