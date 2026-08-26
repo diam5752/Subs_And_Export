@@ -347,6 +347,90 @@ test('completed editor remains readable across the responsive viewport matrix', 
   }
 });
 
+test('desktop preview stays fixed when switching between transcript and style', async ({ page }) => {
+  // REGRESSION: the taller transcript sidebar vertically centered the phone,
+  // while the natural-height style sidebar moved it almost 100px upward.
+  await page.setViewportSize(viewports.desktop);
+  await mockApi(page);
+  await page.addInitScript(() => {
+    localStorage.setItem('lastActiveJobId', 'job-futurist');
+  });
+  await page.goto('/');
+  await page.getByTestId('completed-editor').waitFor({ timeout: 30_000 });
+  await stabilizeUi(page);
+
+  const readPreviewPosition = () => page.evaluate(() => {
+    const phone = document.querySelector<HTMLElement>('[data-testid="editor-phone"]');
+    const workspace = document.querySelector<HTMLElement>('[data-testid="editor-workspace"]');
+    if (!phone || !workspace) throw new Error('Missing editor preview geometry');
+    return {
+      phoneTop: phone.getBoundingClientRect().top,
+      workspaceTop: workspace.getBoundingClientRect().top,
+      scrollY: window.scrollY,
+    };
+  });
+
+  const transcriptPosition = await readPreviewPosition();
+
+  await page.getByRole('tab', { name: el.tabStyles }).click();
+  await stabilizeUi(page);
+  const stylePosition = await readPreviewPosition();
+  expect(
+    Math.abs(
+      (stylePosition.phoneTop - stylePosition.workspaceTop)
+      - (transcriptPosition.phoneTop - transcriptPosition.workspaceTop),
+    ),
+    `transcript=${JSON.stringify(transcriptPosition)} style=${JSON.stringify(stylePosition)}`,
+  ).toBeLessThanOrEqual(1);
+  expect(
+    Math.abs(
+      (stylePosition.phoneTop + stylePosition.scrollY)
+      - (transcriptPosition.phoneTop + transcriptPosition.scrollY),
+    ),
+    `transcript=${JSON.stringify(transcriptPosition)} style=${JSON.stringify(stylePosition)}`,
+  ).toBeLessThanOrEqual(1);
+
+  await page.getByRole('tab', { name: el.tabTranscript }).click();
+  await stabilizeUi(page);
+  const restoredTranscriptPosition = await readPreviewPosition();
+  expect(
+    Math.abs(
+      (restoredTranscriptPosition.phoneTop - restoredTranscriptPosition.workspaceTop)
+      - (transcriptPosition.phoneTop - transcriptPosition.workspaceTop),
+    ),
+    `initial=${JSON.stringify(transcriptPosition)} restored=${JSON.stringify(restoredTranscriptPosition)}`,
+  ).toBeLessThanOrEqual(1);
+});
+
+test('logo protects an active editor before returning to the home workspace', async ({ page }) => {
+  // REGRESSION: the logo behaved as an unconditional link and offered no safe
+  // way to cancel when a project was already open.
+  await mockApi(page);
+  await page.addInitScript(() => {
+    localStorage.setItem('lastActiveJobId', 'job-futurist');
+  });
+  await page.goto('/');
+  await page.getByTestId('completed-editor').waitFor({ timeout: 30_000 });
+
+  const homeLink = page.getByRole('link', { name: el.brandHomeLabel });
+  await homeLink.click();
+  const dialog = page.getByRole('dialog', { name: el.homeNavigationModalTitle });
+  await expect(dialog).toBeVisible();
+  await expect(page.getByTestId('completed-editor')).toBeVisible();
+
+  await dialog.getByRole('button', { name: el.homeNavigationCancel }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByTestId('completed-editor')).toBeVisible();
+
+  await homeLink.click();
+  await dialog.getByRole('button', { name: el.homeNavigationConfirm }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByTestId('completed-editor')).toHaveCount(0);
+  await waitForUploadWorkspace(page);
+  await expect.poll(() => page.evaluate(() => localStorage.getItem('lastActiveJobId')))
+    .toBeNull();
+});
+
 test('desktop style controls use their natural height without an empty sidebar', async ({ page }) => {
   await page.setViewportSize({ width: 2048, height: 1152 });
   await mockApi(page);

@@ -1813,6 +1813,10 @@ body {
     min-height: 0;
   }
 
+  .editor-preview-panel {
+    justify-content: flex-start;
+  }
+
   .editor-workspace.editor-workspace-style-mode {
     height: auto;
     align-items: start;

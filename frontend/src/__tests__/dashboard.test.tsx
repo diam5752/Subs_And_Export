@@ -402,6 +402,70 @@ describe('DashboardPage', () => {
         expect(screen.queryByRole('button', { name: 'switchLanguage' })).not.toBeInTheDocument();
     });
 
+    it('asks before the logo closes an active workspace and only leaves after confirmation', () => {
+        // REGRESSION: the brand link navigated immediately even while a completed
+        // project was open, without giving the user a chance to keep editing.
+        window.localStorage.setItem('lastActiveJobId', 'job-open-in-editor');
+        (useJobs as jest.Mock).mockReturnValue({
+            selectedJob: {
+                id: 'job-open-in-editor',
+                status: 'completed',
+                result_data: { video_path: 'processed.mp4' },
+            },
+            setSelectedJob: mockSetSelectedJob,
+            recentJobs: [],
+            jobsLoading: false,
+            jobsError: '',
+            loadJobs: mockLoadJobs,
+        });
+        window.scrollTo = jest.fn();
+
+        render(<DashboardPage />);
+
+        const homeLink = screen.getByRole('link', { name: 'brandHomeLabel' });
+        fireEvent.click(homeLink);
+
+        expect(screen.getByRole('dialog', { name: 'homeNavigationModalTitle' }))
+            .toBeInTheDocument();
+        expect(mockSetSelectedJob).not.toHaveBeenCalled();
+        expect(window.localStorage.getItem('lastActiveJobId')).toBe('job-open-in-editor');
+
+        fireEvent.click(screen.getByRole('button', { name: 'homeNavigationCancel' }));
+        expect(screen.queryByRole('dialog', { name: 'homeNavigationModalTitle' }))
+            .not.toBeInTheDocument();
+        expect(mockSetSelectedJob).not.toHaveBeenCalled();
+
+        fireEvent.click(homeLink);
+        fireEvent.click(screen.getByRole('button', { name: 'homeNavigationConfirm' }));
+
+        expect(mockSetSelectedJob).toHaveBeenCalledWith(null);
+        expect(window.localStorage.getItem('lastActiveJobId')).toBeNull();
+        expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' });
+    });
+
+    it('keeps the logo as a direct home link when no work is active', () => {
+        render(<DashboardPage />);
+
+        const homeLink = screen.getByRole('link', { name: 'brandHomeLabel' });
+        expect(homeLink).toHaveAttribute('href', '/');
+        expect(screen.queryByRole('dialog', { name: 'homeNavigationModalTitle' }))
+            .not.toBeInTheDocument();
+    });
+
+    it('protects a selected upload before processing has started', () => {
+        // REGRESSION: work only counted after a server job existed, so a file
+        // selected locally could be discarded by the logo without warning.
+        window.scrollTo = jest.fn();
+        render(<DashboardPage />);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Select File' }));
+        fireEvent.click(screen.getByRole('link', { name: 'brandHomeLabel' }));
+
+        expect(screen.getByRole('dialog', { name: 'homeNavigationModalTitle' }))
+            .toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'homeNavigationCancel' }));
+    });
+
     // REGRESSION: the disabled production UI exposed prices and a purchase
     // dialog even though paid-credit legal publication was not approved.
     it('keeps the balance visible without exposing a purchase entry point', () => {

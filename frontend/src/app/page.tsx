@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useState, useMemo, useRef, type MouseEvent } from 'react';
 import dynamic from 'next/dynamic';
 import { useAuth } from '@/context/AuthContext';
 import { usePoints } from '@/context/PointsContext';
@@ -26,6 +26,7 @@ import Link from 'next/link';
 import { BrandLogo } from '@/components/BrandLogo';
 import { ProfileAvatar } from '@/components/ProfileAvatar';
 import { SessionRecoveryScreen } from '@/components/SessionRecoveryScreen';
+import { ConfirmActionModal } from '@/components/ConfirmActionModal';
 
 // The purchase form is never visible during the initial workspace render.
 // Keep its catalog, consent and checkout code out of the critical dashboard
@@ -173,6 +174,7 @@ export default function DashboardPage() {
   const [processingGateError, setProcessingGateError] = useState('');
   const [isGateBalanceLoading, setIsGateBalanceLoading] = useState(false);
   const [showCreditPurchase, setShowCreditPurchase] = useState(false);
+  const [showHomeNavigationConfirm, setShowHomeNavigationConfirm] = useState(false);
   const [checkoutNotice, setCheckoutNotice] = useState('');
   const [checkoutContractAvailable, setCheckoutContractAvailable] = useState(false);
   const [checkoutCanRetry, setCheckoutCanRetry] = useState(false);
@@ -823,6 +825,19 @@ export default function DashboardPage() {
     localStorage.removeItem('lastActiveJobId');
   }, [setSelectedJob]);
 
+  const hasActiveWorkspace = Boolean(selectedFile || selectedJob || isProcessing || jobId);
+
+  const handleBrandHomeClick = useCallback((event: MouseEvent<HTMLAnchorElement>) => {
+    if (!hasActiveWorkspace) return;
+    event.preventDefault();
+    setShowHomeNavigationConfirm(true);
+  }, [hasActiveWorkspace]);
+
+  const handleConfirmHomeNavigation = useCallback(() => {
+    resetProcessing();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [resetProcessing]);
+
   // Memoized to prevent unnecessary re-renders of ProcessView and its children
   const handleFileSelect = useCallback((file: File | null) => {
     setSelectedFile(file);
@@ -880,7 +895,8 @@ export default function DashboardPage() {
 
   const hasBlockingModal = showAccountPanel
     || processingGateStage !== null
-    || (paidCreditSalesUiApproved && showCreditPurchase);
+    || (paidCreditSalesUiApproved && showCreditPurchase)
+    || showHomeNavigationConfirm;
 
   return (
     <div className="app-shell min-h-dvh relative overflow-x-hidden">
@@ -890,7 +906,12 @@ export default function DashboardPage() {
         aria-hidden={hasBlockingModal || undefined}
         inert={hasBlockingModal ? true : undefined}
       >
-        <Link href="/" className="studio-brand" aria-label={t('brandHomeLabel')}>
+        <Link
+          href="/"
+          className="studio-brand"
+          aria-label={t('brandHomeLabel')}
+          onClick={handleBrandHomeClick}
+        >
           <BrandLogo className="block h-auto w-[68px] sm:w-[80px]" />
         </Link>
 
@@ -1056,6 +1077,16 @@ export default function DashboardPage() {
           }}
         />
       )}
+
+      <ConfirmActionModal
+        isOpen={showHomeNavigationConfirm}
+        title={t('homeNavigationModalTitle')}
+        description={t('homeNavigationModalDesc')}
+        cancelLabel={t('homeNavigationCancel')}
+        confirmLabel={t('homeNavigationConfirm')}
+        onClose={() => setShowHomeNavigationConfirm(false)}
+        onConfirm={handleConfirmHomeNavigation}
+      />
 
       {user && showAccountPanel && (
         <div className="fixed inset-0 z-50 flex items-end justify-center px-4 pt-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] sm:items-start sm:pt-20">
