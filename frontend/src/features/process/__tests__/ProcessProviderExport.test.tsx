@@ -192,7 +192,7 @@ describe('ProcessProvider export handling', () => {
         });
     });
 
-    it('switches the preview to the freshly exported video variant', async () => {
+    it('downloads a video export without switching the preview to the same file', async () => {
         const updatedJob = {
             ...baseProps.selectedJob,
             result_data: {
@@ -218,13 +218,17 @@ describe('ProcessProvider export handling', () => {
 
             fireEvent.click(screen.getByRole('button', { name: 'export-1080' }));
 
+            // REGRESSION: automatically previewing the exported MP4 while also
+            // clicking its download link caused two full private-media fetches.
             await waitFor(() => {
-                expect(screen.getByTestId('video-url')).toHaveTextContent('https://static.local/static/artifacts/job-1/processed-1080.mp4');
+                expect(api.exportVideo).toHaveBeenCalledWith(
+                    'job-1',
+                    '1080x1920',
+                    expect.objectContaining({ video_quality: 'balanced' }),
+                );
             });
-            expect(api.exportVideo).toHaveBeenCalledWith(
-                'job-1',
-                '1080x1920',
-                expect.objectContaining({ video_quality: 'balanced' }),
+            expect(screen.getByTestId('video-url')).toHaveTextContent(
+                'https://static.local/static/artifacts/job-1/processed.mp4',
             );
             expect(onRefreshJobs).toHaveBeenCalled();
             expect(clickSpy).toHaveBeenCalled();
