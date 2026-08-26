@@ -42,6 +42,26 @@ describe('NewVideoConfirmModal', () => {
         expect(screen.getByRole('button', { name: 'Νέο project' })).not.toHaveFocus();
     });
 
+    it('keeps safe focus when its parent rerenders with a new close callback', () => {
+        // REGRESSION: polling rerenders replaced the inline close callback,
+        // which tore down focus management and briefly focused the page behind
+        // the open modal.
+        const view = render(
+            <NewVideoConfirmModal isOpen onClose={jest.fn()} onConfirm={jest.fn()} />,
+        );
+        act(() => {
+            jest.advanceTimersByTime(100);
+        });
+        const safeAction = screen.getByRole('button', { name: 'Συνέχιση επεξεργασίας' });
+        expect(safeAction).toHaveFocus();
+
+        view.rerender(
+            <NewVideoConfirmModal isOpen onClose={jest.fn()} onConfirm={jest.fn()} />,
+        );
+
+        expect(safeAction).toHaveFocus();
+    });
+
     it('locks and restores both document scrollers', () => {
         window.scrollTo = jest.fn();
         const view = render(
