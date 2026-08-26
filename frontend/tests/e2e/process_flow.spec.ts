@@ -134,6 +134,16 @@ test.describe('Video Processing Flow', () => {
         // 1. Mock API with specific job sequence
         await mockApi(page);
         const exportPayloads: Array<Record<string, unknown>> = [];
+        const exportedPreviewRequests: URL[] = [];
+        page.on('request', (request) => {
+            const url = new URL(request.url());
+            if (
+                url.pathname.endsWith('/static/artifacts/job-123/processed_720x1280.mp4')
+                && url.searchParams.get('download') !== 'true'
+            ) {
+                exportedPreviewRequests.push(url);
+            }
+        });
 
         // Override job creation to return a specific ID
         let processRequests = 0;
@@ -287,6 +297,10 @@ test.describe('Video Processing Flow', () => {
         await page.getByTestId('download-720p-btn').click();
         const mp4Download = await mp4DownloadPromise;
         expect(mp4Download.suggestedFilename()).toBe('demo_output_subs.mp4');
+        // REGRESSION: switching the preview to the exported MP4 while starting
+        // its download issued two full private-media requests for one click.
+        await page.waitForTimeout(500);
+        expect(exportedPreviewRequests).toHaveLength(0);
 
         expect(exportPayloads).toEqual([
             expect.objectContaining({

@@ -247,7 +247,6 @@ export function ProcessProvider({
 
     const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null);
     const [previewVideoUrl, setPreviewVideoUrl] = useState<string | null>(null);
-    const [activePreviewVariant, setActivePreviewVariant] = useState<string | null>(null);
     const transcriptionSource = selectedJob?.result_data?.transcription_url ?? null;
     const [cueResource, setCueResource] = useState<{
         source: string | null;
@@ -330,7 +329,6 @@ export function ProcessProvider({
         setEditingCueIndex(null);
         setEditingCueSurface(null);
         setEditingCueDraft('');
-        setActivePreviewVariant(null);
         setOverrideStepState(null);
     }
 
@@ -341,11 +339,8 @@ export function ProcessProvider({
         if (selectedJob?.result_data?.files_missing) {
             return null;
         }
-        const variantPath = activePreviewVariant
-            ? selectedJob?.result_data?.variants?.[activePreviewVariant]
-            : null;
-        return buildStaticUrl(variantPath || selectedJob?.result_data?.public_url || selectedJob?.result_data?.video_path);
-    }, [activePreviewVariant, buildStaticUrl, selectedJob]);
+        return buildStaticUrl(selectedJob?.result_data?.public_url || selectedJob?.result_data?.video_path);
+    }, [buildStaticUrl, selectedJob]);
 
     const persistSubtitleSettings = useCallback(() => {
         const settings: LastUsedSettings = {
@@ -485,9 +480,6 @@ export function ProcessProvider({
             if (selectedJobIdRef.current !== exportJobId) return;
             onJobSelect(updatedJob);
             void onRefreshJobs?.();
-            if (!subtitleFileFormats.has(resolution) && updatedJob.result_data?.variants?.[resolution]) {
-                setActivePreviewVariant(resolution);
-            }
 
             persistSubtitleSettings();
 
