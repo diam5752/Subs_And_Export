@@ -1,0 +1,195 @@
+name: Temporary targeted KIMDIS evidence fetch
+
+on:
+  push:
+    branches:
+      - kimdis-targeted-20260826
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: python -m pip install --disable-pip-version-check requests urllib3
+
+      - name: Fetch exact official metadata, chains and PDFs
+        shell: bash
+        run: |
+          cat > /tmp/fetch_evidence.py <<'PY'
+          from __future__ import annotations
+
+          import hashlib
+          import json
+          import re
+          import time
+          from pathlib import Path
+
+          import requests
+          import urllib3
+
+          urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+          BASE = "https://cerpp.eprocurement.gov.gr/khmdhs-opendata"
+          TARGETS = [
+              "26AWRD019322862", "26AWRD019322515",
+              "26AWRD019282080", "26AWRD019177578",
+              "26AWRD019515386", "26AWRD019369928",
+              "26AWRD018939960", "26AWRD018939759",
+              "26AWRD018893291", "26AWRD018893184",
+              "26AWRD018890185", "26AWRD018834261",
+              "26AWRD019470916", "26AWRD019470580",
+              "26AWRD018997176", "26AWRD018964730",
+              "26AWRD018625628", "26AWRD018624380",
+              "26AWRD019009038", "26AWRD019000326",
+              "26AWRD019276635", "26AWRD019034993",
+              "26AWRD019137752", "26AWRD019034849",
+          ]
+          TYPE_TO_ENDPOINT = {
+              "REQ": "request", "PROC": "notice", "AWRD": "auction",
+              "SYMV": "contract", "PAY": "payment",
+          }
+          ADAM_RE = re.compile(r"^(\d{2})(REQ|PROC|AWRD|SYMV|PAY)(\d{9})$", re.I)
+
+          out = Path("targeted_evidence")
+          out.mkdir(parents=True, exist_ok=True)
+          session = requests.Session()
+          session.headers.update({"Accept": "application/json", "Content-Type": "application/json"})
+
+          def endpoint_for(adam: str) -> str:
+              m = ADAM_RE.match(adam.replace("*", ""))
+              if not m:
+                  raise ValueError(f"Invalid ADAM: {adam}")
+              return TYPE_TO_ENDPOINT[m.group(2).upper()]
+
+          def request(method: str, url: str, **kwargs):
+              last = None
+              for attempt in range(8):
+                  time.sleep(0.35)
+                  try:
+                      response = session.request(method, url, timeout=90, verify=False, allow_redirects=True, **kwargs)
+                      if response.status_code == 429:
+                          time.sleep(min(10 * (attempt + 1), 60))
+                          continue
+                      if response.status_code >= 500:
+                          time.sleep(min(3 * (2 ** attempt), 60))
+                          continue
+                      return response
+                  except Exception as exc:
+                      last = exc
+                      time.sleep(min(3 * (2 ** attempt), 60))
+              raise RuntimeError(f"Failed {method} {url}: {last}")
+
+          def exact_metadata(adam: str):
+              endpoint = endpoint_for(adam)
+              response = request("POST", f"{BASE}/{endpoint}?page=0&size=100", json={"referenceNumber": adam})
+              try:
+                  payload = response.json()
+              except Exception:
+                  payload = {"status": response.status_code, "text": response.text[:5000]}
+              return endpoint, response.status_code, payload
+
+          def chain(adam: str):
+              errors = []
+              for method in ("GET", "POST"):
+                  response = request(method, f"{BASE}/adamChain/{adam}")
+                  try:
+                      payload = response.json()
+                  except Exception:
+                      payload = None
+                  if response.status_code < 400 and isinstance(payload, dict):
+                      return method, response.status_code, payload
+                  errors.append({"method": method, "status": response.status_code, "text": response.text[:2000]})
+              return None, None, {"errors": errors}
+
+          def extract_refs(payload):
+              refs = set()
+              if isinstance(payload, dict):
+                  for value in payload.values():
+                      if isinstance(value, list):
+                          for item in value:
+                              if isinstance(item, str):
+                                  clean = item.replace("*", "").strip().upper()
+                                  if ADAM_RE.match(clean):
+                                      refs.add(clean)
+              return refs
+
+          manifest = {"targets": TARGETS, "acts": {}, "chains": {}, "errors": []}
+          all_refs = set(TARGETS)
+
+          for target in TARGETS:
+              method, status, payload = chain(target)
+              manifest["chains"][target] = {"method": method, "status": status, "payload": payload}
+              all_refs.update(extract_refs(payload))
+
+          first_wave = sorted(all_refs)
+          for ref in first_wave:
+              if ref in manifest["chains"]:
+                  continue
+              method, status, payload = chain(ref)
+              manifest["chains"][ref] = {"method": method, "status": status, "payload": payload}
+              all_refs.update(extract_refs(payload))
+
+          for ref in sorted(all_refs):
+              try:
+                  endpoint, status, payload = exact_metadata(ref)
+                  act_dir = out / ref
+                  act_dir.mkdir(exist_ok=True)
+                  (act_dir / "metadata.json").write_text(
+                      json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8"
+                  )
+                  pdf_url = f"{BASE}/{endpoint}/attachment/{ref}"
+                  pdf_response = request("GET", pdf_url)
+                  pdf_ok = pdf_response.status_code == 200 and pdf_response.content.startswith(b"%PDF")
+                  pdf_sha = None
+                  pdf_path = None
+                  if pdf_ok:
+                      pdf_path = act_dir / f"{ref}.pdf"
+                      pdf_path.write_bytes(pdf_response.content)
+                      pdf_sha = hashlib.sha256(pdf_response.content).hexdigest()
+                  manifest["acts"][ref] = {
+                      "endpoint": endpoint,
+                      "metadata_status": status,
+                      "metadata_count": len(payload.get("content") or []) if isinstance(payload, dict) else None,
+                      "pdf_url": pdf_url,
+                      "pdf_status": pdf_response.status_code,
+                      "pdf_ok": pdf_ok,
+                      "pdf_sha256": pdf_sha,
+                      "pdf_size": len(pdf_response.content),
+                      "pdf_path": str(pdf_path) if pdf_path else None,
+                  }
+                  print(ref, endpoint, "metadata", status, "pdf", pdf_response.status_code, len(pdf_response.content), flush=True)
+              except Exception as exc:
+                  manifest["errors"].append({"ref": ref, "error": repr(exc)})
+                  print("ERROR", ref, repr(exc), flush=True)
+
+          (out / "manifest.json").write_text(
+              json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
+          )
+          (out / "targets.txt").write_text("\n".join(TARGETS) + "\n", encoding="utf-8")
+          print(json.dumps({
+              "targets": len(TARGETS), "all_refs": len(all_refs),
+              "pdfs": sum(1 for x in manifest["acts"].values() if x["pdf_ok"]),
+              "errors": len(manifest["errors"]),
+          }, ensure_ascii=False, indent=2))
+          PY
+          python /tmp/fetch_evidence.py 2>&1 | tee targeted_evidence/run.log
+
+      - name: Upload targeted evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kimdis-targeted-evidence-${{ github.run_id }}
+          path: targeted_evidence/
+          if-no-files-found: error
+          retention-days: 5
+          compression-level: 6
