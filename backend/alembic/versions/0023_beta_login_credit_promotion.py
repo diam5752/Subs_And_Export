@@ -16,6 +16,9 @@ branch_labels = None
 depends_on = None
 
 BETA_CAMPAIGN_ID = "beta_first_20_logins_v1"
+DOWNGRADE_WITH_AWARDS_ERROR = (
+    "Cannot downgrade the Beta login promotion after any campaign slot was awarded."
+)
 
 
 def upgrade() -> None:
@@ -111,7 +114,47 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    """Remove the bounded campaign schema after dropping its claims."""
+    """Remove only an unused campaign; awarded slots are rollback evidence."""
+    connection = op.get_bind()
+    # Serialize against the same campaign table every login claimant locks.
+    # This prevents a grant from landing between the evidence check and DDL.
+    connection.execute(
+        sa.text(
+            """
+            LOCK TABLE credit_promotion_campaigns, credit_promotion_claims
+            IN ACCESS EXCLUSIVE MODE
+            """
+        )
+    )
+    awarded_slots = int(
+        connection.execute(
+            sa.text(
+                """
+                SELECT COALESCE(SUM(claimed_count), 0)
+                FROM credit_promotion_campaigns
+                """
+            )
+        ).scalar_one()
+    )
+    claim_rows = int(
+        connection.execute(
+            sa.text("SELECT COUNT(*) FROM credit_promotion_claims")
+        ).scalar_one()
+    )
+    ledger_rows = int(
+        connection.execute(
+            sa.text(
+                """
+                SELECT COUNT(*)
+                FROM point_transactions
+                WHERE reason = 'beta_login_credit'
+                """
+            )
+        ).scalar_one()
+    )
+    if awarded_slots or claim_rows or ledger_rows:
+        raise RuntimeError(DOWNGRADE_WITH_AWARDS_ERROR)
+
     op.drop_index(
         "ix_credit_promotion_claims_user_id",
         table_name="credit_promotion_claims",
