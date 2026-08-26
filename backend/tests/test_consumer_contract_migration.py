@@ -787,7 +787,7 @@ def test_consumer_contract_migration_is_append_only_and_downgrade_safe() -> None
         ) in refused.stderr
         current = _run_alembic(database_url, "current")
         assert current.returncode == 0, current.stderr
-        assert "0022_cancelling_job_status (head)" in current.stdout
+        assert "0023_beta_login_promotion (head)" in current.stdout
         with psycopg.connect(
             **connection_parameters,
             autocommit=True,
@@ -1109,7 +1109,7 @@ def test_consumer_contract_downgrade_serializes_concurrent_evidence() -> None:
         ) in stderr
         current = _run_alembic(database_url, "current")
         assert current.returncode == 0, current.stderr
-        assert "0022_cancelling_job_status (head)" in current.stdout
+        assert "0023_beta_login_promotion (head)" in current.stdout
         with psycopg.connect(
             **connection_parameters,
             autocommit=True,

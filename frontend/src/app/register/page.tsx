@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { useI18n } from '@/context/I18nContext';
 import { Spinner } from '@/components/Spinner';
-import { BrandLogo } from '@/components/BrandLogo';
+import { BetaBrandLogo } from '@/components/BetaBrandLogo';
 
 export default function RegisterPage() {
     const [name, setName] = useState('');
@@ -37,7 +37,7 @@ export default function RegisterPage() {
         <div className="auth-shell">
             <header className="auth-header">
                 <Link href="/" className="auth-wordmark" aria-label={t('brandHomeLabel')}>
-                    <BrandLogo className="block h-auto w-[68px] sm:w-[80px]" />
+                    <BetaBrandLogo className="block h-auto w-[68px] sm:w-[72px]" />
                 </Link>
             </header>
 

@@ -281,6 +281,8 @@ describe('DashboardPage', () => {
         expect(screen.getByText('heroTitle')).toBeInTheDocument();
         expect(screen.getByTestId('process-view')).toBeInTheDocument();
         expect(screen.getByLabelText('profileLabel')).toBeInTheDocument();
+        expect(screen.getByTestId('beta-badge')).toHaveTextContent('betaBadge');
+        expect(screen.getByText('betaTestingNotice')).toBeInTheDocument();
         expect(mockLoadJobs).not.toHaveBeenCalled();
     });
 

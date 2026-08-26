@@ -17,6 +17,26 @@ const editorViewportMatrix = [
   { width: 1440, height: 900 },
 ] as const;
 
+test('Beta status and testing notice stay discreet and readable', async ({ page }) => {
+  await mockApi(page, { authenticated: false });
+  await page.goto('/');
+  await waitForUploadWorkspace(page, { authenticated: false });
+
+  await expect(page.getByTestId('beta-badge')).toHaveText(el.betaBadge);
+  await expect(page.getByText(el.betaTestingNotice)).toBeVisible();
+
+  for (const viewport of [viewports.mobile, viewports.desktop]) {
+    await page.setViewportSize(viewport);
+    await stabilizeUi(page);
+    await expectNoHorizontalOverflow(page);
+    const badge = page.getByTestId('beta-badge');
+    await expect(badge).toBeVisible();
+    const badgeBox = await badge.boundingBox();
+    expect(badgeBox).not.toBeNull();
+    expect(badgeBox?.height ?? 0).toBeLessThanOrEqual(18);
+  }
+});
+
 test('Google Identity Services login exchanges an ID token for a GSUBS session', async ({ page }) => {
   await mockApi(page, { authenticated: false });
   await page.goto('/login');

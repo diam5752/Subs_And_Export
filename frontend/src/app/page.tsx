@@ -24,6 +24,7 @@ import {
 import { paidCreditLegalPublicationIsApproved } from '@/lib/paidCreditLegal';
 import Link from 'next/link';
 import { BrandLogo } from '@/components/BrandLogo';
+import { BetaBrandLogo } from '@/components/BetaBrandLogo';
 import { ProfileAvatar } from '@/components/ProfileAvatar';
 import { SessionRecoveryScreen } from '@/components/SessionRecoveryScreen';
 import { ConfirmActionModal } from '@/components/ConfirmActionModal';
@@ -912,7 +913,7 @@ export default function DashboardPage() {
           aria-label={t('brandHomeLabel')}
           onClick={handleBrandHomeClick}
         >
-          <BrandLogo className="block h-auto w-[68px] sm:w-[80px]" />
+          <BetaBrandLogo className="block h-auto w-[68px] sm:w-[72px]" />
         </Link>
 
         <div className="studio-header-account">
@@ -1036,6 +1037,7 @@ export default function DashboardPage() {
             <BrandLogo className="block h-auto w-[68px]" />
             <span><small>by Ascentia</small></span>
           </a>
+          <p className="studio-beta-note">{t('betaTestingNotice')}</p>
           <div className="footer-links">
             <a href="/privacy">{t('cookieLearnMore') || 'Privacy Policy'}</a>
             <a href="/terms">{t('cookieTerms') || 'Terms of Service'}</a>

@@ -29,6 +29,7 @@ from ..services.billing import BillingService
 from ..services.billing_consumer_records import BillingConsumerRecordStore
 from ..services.history import HistoryStore
 from ..services.jobs import JobStore
+from ..services.login_promotion import LoginPromotionStore
 from ..services.points import PointsStore
 from ..services.usage_ledger import UsageLedgerStore
 
@@ -75,6 +76,13 @@ def get_oauth_state_store(db: Database = Depends(get_db)) -> OAuthStateStore:
 
 def get_points_store(db: Database = Depends(get_db)) -> PointsStore:
     return PointsStore(db=db)
+
+
+def get_login_promotion_store(
+    db: Database = Depends(get_db),
+    points_store: PointsStore = Depends(get_points_store),
+) -> LoginPromotionStore:
+    return LoginPromotionStore(db=db, points_store=points_store)
 
 
 def get_usage_ledger_store(

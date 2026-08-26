@@ -40,6 +40,7 @@ describe('API Client', () => {
                 token_type: 'bearer',
                 user_id: '123',
                 name: 'Test User',
+                beta_credits_awarded: 30,
             };
 
             (fetch as jest.Mock).mockResolvedValueOnce({
@@ -57,6 +58,7 @@ describe('API Client', () => {
                 })
             );
             expect(result.access_token).toBe('test_token');
+            expect(result.beta_credits_awarded).toBe(30);
             expect(localStorage.getItem('auth_token')).toBe('test_token');
         });
 

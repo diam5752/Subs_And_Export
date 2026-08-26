@@ -153,6 +153,71 @@ class DbPointTransaction(Base):
     )
 
 
+class DbCreditPromotionCampaign(Base):
+    __tablename__ = "credit_promotion_campaigns"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    max_claims: Mapped[int] = mapped_column(Integer)
+    credit_amount: Mapped[int] = mapped_column(Integer)
+    claimed_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    created_at: Mapped[int] = mapped_column(Integer)
+
+    __table_args__ = (
+        CheckConstraint(
+            "max_claims > 0",
+            name="chk_credit_promotion_campaigns_max_claims_positive",
+        ),
+        CheckConstraint(
+            "credit_amount > 0",
+            name="chk_credit_promotion_campaigns_credit_amount_positive",
+        ),
+        CheckConstraint(
+            "claimed_count >= 0 AND claimed_count <= max_claims",
+            name="chk_credit_promotion_campaigns_claimed_count",
+        ),
+    )
+
+
+class DbCreditPromotionClaim(Base):
+    __tablename__ = "credit_promotion_claims"
+
+    campaign_id: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey("credit_promotion_campaigns.id", ondelete="RESTRICT"),
+        primary_key=True,
+    )
+    user_id: Mapped[str] = mapped_column(
+        String(64),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    slot_number: Mapped[int] = mapped_column(Integer)
+    credit_amount: Mapped[int] = mapped_column(Integer)
+    point_transaction_id: Mapped[str] = mapped_column(
+        String(32),
+        ForeignKey("point_transactions.id", ondelete="CASCADE"),
+        unique=True,
+    )
+    claimed_at: Mapped[int] = mapped_column(Integer)
+
+    __table_args__ = (
+        CheckConstraint(
+            "slot_number > 0",
+            name="chk_credit_promotion_claims_slot_positive",
+        ),
+        CheckConstraint(
+            "credit_amount > 0",
+            name="chk_credit_promotion_claims_credit_amount_positive",
+        ),
+        UniqueConstraint(
+            "campaign_id",
+            "slot_number",
+            name="uq_credit_promotion_claims_campaign_slot",
+        ),
+        Index("ix_credit_promotion_claims_user_id", "user_id"),
+    )
+
+
 class DbAIModel(Base):
     """
     Stores pricing information for AI models to allow dynamic updates.
