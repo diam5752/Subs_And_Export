@@ -43,6 +43,7 @@ def test_settings_defaults(monkeypatch) -> None:
     assert settings.erasure_journal_dir == settings.project_root / ".runtime" / "erasure-journal"
     assert settings.erasure_journal_retention_days == 30
     assert settings.erasure_journal_continuity_id == ""
+    assert settings.beta_login_promotion_enabled is False
     assert settings.paid_credits_enabled is False
     assert settings.consumer_policy_approved is False
     assert settings.durable_confirmation_channel_ready is False
@@ -218,6 +219,7 @@ def test_settings_environment_overrides(monkeypatch) -> None:
     monkeypatch.setenv("GSP_ERASURE_JOURNAL_DIR", "/privacy-erasure-journal")
     monkeypatch.setenv("GSP_ERASURE_JOURNAL_RETENTION_DAYS", "45")
     monkeypatch.setenv("GSP_ERASURE_JOURNAL_CONTINUITY_ID", "AB" * 32)
+    monkeypatch.setenv("GSP_BETA_LOGIN_PROMOTION_ENABLED", "true")
     monkeypatch.setenv(
         "GSP_ERASURE_JOURNAL_ANCHOR_PATH",
         "/runtime/erasure-journal-anchor.json",
@@ -260,6 +262,7 @@ def test_settings_environment_overrides(monkeypatch) -> None:
     assert settings.erasure_journal_dir == Path("/privacy-erasure-journal")
     assert settings.erasure_journal_retention_days == 45
     assert settings.erasure_journal_continuity_id == "ab" * 32
+    assert settings.beta_login_promotion_enabled is True
     assert settings.erasure_journal_anchor_path == Path("/runtime/erasure-journal-anchor.json")
     assert settings.allowed_origins == ["https://one.example", "https://two.example"]
     assert settings.trusted_hosts == ["localhost", "127.0.0.1"]

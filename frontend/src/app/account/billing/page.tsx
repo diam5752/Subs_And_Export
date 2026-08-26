@@ -8,7 +8,7 @@ import {
     useRef,
     useState,
 } from 'react';
-import { BrandLogo } from '@/components/BrandLogo';
+import { BetaBrandLogo } from '@/components/BetaBrandLogo';
 import { Spinner } from '@/components/Spinner';
 import { useAuth } from '@/context/AuthContext';
 import { useI18n } from '@/context/I18nContext';
@@ -170,7 +170,7 @@ export default function BillingAccountPage() {
             <header className="border-b border-[#e7e7e5] bg-[#f7f7f5]">
                 <div className="mx-auto flex min-h-[72px] w-full max-w-5xl items-center justify-between gap-4 px-5 sm:px-8">
                     <Link href="/" aria-label={t('brandHomeLabel')}>
-                        <BrandLogo className="block h-auto w-[68px] sm:w-[80px]" />
+                        <BetaBrandLogo className="block h-auto w-[68px] sm:w-[72px]" />
                     </Link>
                     <Link
                         href="/"

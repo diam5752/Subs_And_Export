@@ -29,6 +29,7 @@ from ...db.models import (
     DbBillingInvoice,
     DbBillingWithdrawalRequest,
     DbBillingWithdrawalResolution,
+    DbCreditPromotionClaim,
     DbCreditPurchase,
     DbCreditPurchaseReversal,
     DbOAuthState,
@@ -53,6 +54,7 @@ from ...services.billing_manual_records import (
 )
 from ...services.history import HistoryStore
 from ...services.jobs import JobStore
+from ...services.login_promotion import LoginPromotionStore
 from ...services.points import PointsStore
 from ..deps import (
     get_billing_service,
@@ -61,6 +63,7 @@ from ..deps import (
     get_db,
     get_history_store,
     get_job_store,
+    get_login_promotion_store,
     get_points_store,
     get_session_store,
     get_user_store,
@@ -111,6 +114,7 @@ class Token(BaseModel):
     token_type: str
     user_id: str
     name: str
+    beta_credits_awarded: int = Field(default=0, ge=0)
 
 
 class UserResponse(BaseModel):
@@ -123,6 +127,29 @@ class UserResponse(BaseModel):
 
 class LogoutResponse(BaseModel):
     status: Literal["success"] = "success"
+
+
+def _claim_beta_login_credits(
+    *,
+    user: User,
+    promotion_store: LoginPromotionStore,
+) -> int:
+    """Fail closed so an eligible login is never silently denied its grant."""
+    try:
+        result = promotion_store.claim_for_login(
+            user.id,
+            enabled=settings.beta_login_promotion_enabled,
+        )
+    except Exception as exc:
+        logger.error(
+            "Beta login credit claim failed: %s",
+            sanitize_error(exc),
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Sign-in is temporarily unavailable. Please try again.",
+        ) from exc
+    return result.awarded_credits
 
 
 def _assert_trusted_media_logout_request(request: Request) -> None:
@@ -187,6 +214,7 @@ def login_access_token(
     form_data: OAuth2PasswordRequestForm = Depends(),
     user_store: UserStore = Depends(get_user_store),
     session_store: SessionStore = Depends(get_session_store),
+    promotion_store: LoginPromotionStore = Depends(get_login_promotion_store),
 ) -> Any:
     """OAuth2 compatible token login, get an access token for future requests."""
     # Security: Validate input lengths to prevent DoS via massive strings
@@ -199,9 +227,19 @@ def login_access_token(
     if not user:
         raise HTTPException(status_code=400, detail="Incorrect email or password")
 
+    beta_credits_awarded = _claim_beta_login_credits(
+        user=user,
+        promotion_store=promotion_store,
+    )
     token = session_store.issue_session(user)
     _set_media_session_cookie(response, token)
-    return {"access_token": token, "token_type": "bearer", "user_id": user.id, "name": user.name}
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "user_id": user.id,
+        "name": user.name,
+        "beta_credits_awarded": beta_credits_awarded,
+    }
 
 
 @router.get("/me", response_model=UserResponse)
@@ -362,6 +400,24 @@ def export_my_data(
                 "created_at": row.created_at,
             }
             for row in point_transaction_rows
+        ]
+        credit_promotion_claim_rows = session.scalars(
+            select(DbCreditPromotionClaim)
+            .where(DbCreditPromotionClaim.user_id == current_user.id)
+            .order_by(
+                DbCreditPromotionClaim.claimed_at.asc(),
+                DbCreditPromotionClaim.campaign_id.asc(),
+            )
+        ).all()
+        credit_promotion_claims = [
+            {
+                "campaign_id": row.campaign_id,
+                "slot_number": row.slot_number,
+                "credit_amount": row.credit_amount,
+                "point_transaction_id": row.point_transaction_id,
+                "claimed_at": row.claimed_at,
+            }
+            for row in credit_promotion_claim_rows
         ]
 
         usage_rows = session.scalars(
@@ -833,6 +889,7 @@ def export_my_data(
         "history": history,
         "wallet": wallet,
         "point_transactions": point_transactions,
+        "credit_promotion_claims": credit_promotion_claims,
         "usage_ledger": usage_ledger,
         "token_usage": token_usage,
         "provider_budget_reservations": provider_budget_reservations,
@@ -953,6 +1010,7 @@ def google_login(
     response: Response,
     user_store: UserStore = Depends(get_user_store),
     session_store: SessionStore = Depends(get_session_store),
+    promotion_store: LoginPromotionStore = Depends(get_login_promotion_store),
 ) -> Any:
     """Verify a Google ID token and issue a GSUBS session."""
     if not google_client_id():
@@ -974,6 +1032,10 @@ def google_login(
         logger.warning("Google login rejected: %s", sanitize_error(exc))
         raise HTTPException(status_code=401, detail=str(exc)) from exc
 
+    beta_credits_awarded = _claim_beta_login_credits(
+        user=user,
+        promotion_store=promotion_store,
+    )
     token = session_store.issue_session(user, request.headers.get("user-agent"))
     response.delete_cookie(**_google_nonce_cookie_settings())
     _set_media_session_cookie(response, token)
@@ -982,4 +1044,5 @@ def google_login(
         "token_type": "bearer",
         "user_id": user.id,
         "name": user.name,
+        "beta_credits_awarded": beta_credits_awarded,
     }

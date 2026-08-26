@@ -12,7 +12,8 @@ test('gsubs branding is visible across the public shell and metadata', async ({ 
   // REGRESSION: The owner-selected stacked logo was replaced by a horizontal
   // compact-split pill across the public routes.
   await expect(headerLogo).toHaveAttribute('src', '/brand/gsubs-logo.svg');
-  await expect(headerLogo).toHaveCSS('width', '80px');
+  // Leave room for the discreet Beta pill without increasing the 72px header.
+  await expect(headerLogo).toHaveCSS('width', '72px');
   const footerLogo = page.locator('.footer-brand img');
   await expect(footerLogo).toBeVisible();
   await expect(footerLogo).toHaveAttribute('src', '/brand/gsubs-logo.svg');

@@ -168,6 +168,7 @@ interface TokenResponse {
     token_type: string;
     user_id: string;
     name: string;
+    beta_credits_awarded?: number;
 }
 
 interface JobResultData {

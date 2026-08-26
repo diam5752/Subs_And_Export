@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { LanguageToggle } from '@/components/LanguageToggle';
 import { useI18n } from '@/context/I18nContext';
 import type { MessageKey } from '@/context/i18nMessages';
-import { BrandLogo } from '@/components/BrandLogo';
+import { BetaBrandLogo } from '@/components/BetaBrandLogo';
 import { paidCreditLegalPublicationIsApproved } from '@/lib/paidCreditLegal';
 
 type LegalPageKind = 'privacy' | 'terms';
@@ -119,7 +119,7 @@ export function LegalPage({ kind }: LegalPageProps) {
                         className="inline-flex min-h-11 items-center"
                         aria-label={t('brandHomeLabel')}
                     >
-                        <BrandLogo className="block h-auto w-[68px] sm:w-[80px]" />
+                        <BetaBrandLogo className="block h-auto w-[68px] sm:w-[72px]" />
                     </Link>
                     <LanguageToggle />
                 </div>

@@ -326,6 +326,12 @@ class Settings(BaseSettings):
     credits_min_social_copy: dict[str, int] = {"standard": 10, "pro": 20}
     credits_min_fact_check: dict[str, int] = {"standard": 20, "pro": 40}
 
+    # --- Bounded Beta launch grant (off unless explicitly enabled) ---
+    beta_login_promotion_enabled: bool = Field(
+        default=False,
+        validation_alias="GSP_BETA_LOGIN_PROMOTION_ENABLED",
+    )
+
     # --- Prepaid credit Checkout (owner-gated; disabled until Stripe setup) ---
     paid_credits_enabled: bool = Field(
         default=False,
