@@ -31,9 +31,6 @@ export const metadata: Metadata = {
     icon: BRAND.assets.icon,
     apple: BRAND.assets.appleIcon,
   },
-  alternates: {
-    canonical: '/',
-  },
   openGraph: {
     type: 'website',
     url: '/',
