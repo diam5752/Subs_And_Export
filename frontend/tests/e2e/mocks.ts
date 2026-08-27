@@ -563,18 +563,6 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
     }
 
     const headers: Record<string, string> = { ...corsHeaders };
-    if (url.pathname.startsWith('/static/videos/')) {
-      // REGRESSION: the media mock previously returned text/plain "stub" for
-      // MP4 URLs, leaving duration at zero and making player gestures untestable.
-      await route.fulfill({
-        status: 200,
-        headers,
-        contentType: 'video/mp4',
-        path: resolve(process.cwd(), '../backend/tests/data/demo_output.mp4'),
-      });
-      return;
-    }
-
     const grantFilename = downloadGrantFilenames.get(url.searchParams.get('grant') ?? '');
     if (url.searchParams.get('download') === 'true' || grantFilename) {
       // REGRESSION: The static-artifact mock ignored the public filename query
@@ -588,6 +576,19 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
       headers['content-disposition'] = (
         `attachment; filename*=UTF-8''${encodeURIComponent(filename)}`
       );
+    }
+
+    if (url.pathname.startsWith('/static/videos/') || url.pathname.endsWith('.mp4')) {
+      // REGRESSION: completed previews and their granted downloads can both
+      // use artifact-scoped MP4 paths. Serving those as text leaves duration
+      // at zero and makes player gestures untestable across every engine.
+      await route.fulfill({
+        status: 200,
+        headers,
+        contentType: 'video/mp4',
+        path: resolve(process.cwd(), '../backend/tests/data/demo_output.mp4'),
+      });
+      return;
     }
 
     await route.fulfill({
