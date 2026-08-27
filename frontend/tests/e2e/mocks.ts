@@ -81,9 +81,9 @@ const mockJobs: MockJob[] = [
     updated_at: 1_714_003_600,
     expires_at: Math.floor(Date.now() / 1000) + (24 * 60 * 60),
     result_data: {
-      video_path: '/static/videos/futurist-showcase.mp4',
+      video_path: '/static/artifacts/job-futurist/processed.mp4',
       artifacts_dir: '/static/artifacts/futurist-showcase.zip',
-      public_url: '/static/videos/futurist-showcase.mp4',
+      public_url: '/static/artifacts/job-futurist/processed.mp4',
       artifact_url: '/static/artifacts/futurist-showcase.zip',
       transcription_url: '/static/transcriptions/futurist-showcase.json',
       original_filename: 'GreekSubtitles_CaseStudy_Vertical_Edit_v4.mp4',

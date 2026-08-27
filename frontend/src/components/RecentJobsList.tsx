@@ -1,6 +1,8 @@
 import React, { memo, useState, useCallback, useRef, useEffect } from 'react';
 import { api, JobResponse } from '@/lib/api';
 import { useI18n } from '@/context/I18nContext';
+import { buildSubtitleExportFilename } from '@/lib/exportFilename';
+import { downloadArtifactWithGrant } from '@/lib/artifactDownload';
 import { JobListItem } from './JobListItem';
 
 interface RecentJobsListProps {
@@ -44,6 +46,8 @@ export const RecentJobsList = memo(function RecentJobsList({
     const [confirmBatchDelete, setConfirmBatchDelete] = useState(false);
     const [deletingJobId, setDeletingJobId] = useState<string | null>(null);
     const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+    const [downloadingJobId, setDownloadingJobId] = useState<string | null>(null);
+    const [downloadError, setDownloadError] = useState<string | null>(null);
 
     // Refs for focus management
     const batchDeleteBtnRef = useRef<HTMLButtonElement>(null);
@@ -103,6 +107,34 @@ export const RecentJobsList = memo(function RecentJobsList({
             return newSet;
         });
     }, []);
+
+    const handleDownloadJob = useCallback(async (job: JobResponse) => {
+        const artifactPath = job.result_data?.public_url || job.result_data?.video_path;
+        if (!artifactPath) {
+            setDownloadError(t('downloadError') || 'The secure download could not be prepared.');
+            return;
+        }
+
+        const downloadFilename = buildSubtitleExportFilename(
+            job.result_data?.original_filename,
+            'mp4',
+        );
+        setDownloadError(null);
+        setDownloadingJobId(job.id);
+        try {
+            await downloadArtifactWithGrant(
+                job.id,
+                artifactPath,
+                downloadFilename,
+                buildStaticUrl,
+            );
+        } catch (error) {
+            console.error('History download failed:', error);
+            setDownloadError(t('downloadError') || 'The secure download could not be prepared.');
+        } finally {
+            setDownloadingJobId(null);
+        }
+    }, [buildStaticUrl, t]);
 
     return (
         <div className="recent-jobs-list card mt-6 border-none bg-transparent shadow-none p-0">
@@ -224,6 +256,11 @@ export const RecentJobsList = memo(function RecentJobsList({
                 </div>
             )}
             <div className="space-y-2">
+                {downloadError && (
+                    <p className="rounded-lg border border-[var(--danger)]/40 bg-[var(--danger)]/10 px-3 py-2 text-xs text-[var(--danger)]" role="alert">
+                        {downloadError}
+                    </p>
+                )}
                 {jobs.map((job) => {
                     const publicUrl = buildStaticUrl(job.result_data?.public_url || job.result_data?.video_path);
                     const timestamp = (job.updated_at || job.created_at) * 1000;
@@ -249,8 +286,10 @@ export const RecentJobsList = memo(function RecentJobsList({
                             setShowPreview={setShowPreview}
                             isConfirmingDelete={confirmDeleteId === job.id}
                             isDeleting={deletingJobId === job.id}
+                            isDownloading={downloadingJobId === job.id}
                             setConfirmDeleteId={setConfirmDeleteId}
                             onDeleteConfirmed={handleDeleteJob}
+                            onDownload={handleDownloadJob}
                             t={t as (
                                 key: string,
                                 params?: Record<string, string | number>,

@@ -229,6 +229,8 @@
   "confirmDelete": "Επιβεβαίωση",
   "expired": "Έληξε",
   "download": "Λήψη",
+  "downloading": "Προετοιμασία λήψης",
+  "downloadError": "Η ασφαλής λήψη δεν μπόρεσε να ξεκινήσει. Δοκιμάστε ξανά.",
   "view": "Προβολή",
   "previousPage": "Προηγούμενη",
   "nextPage": "Επόμενη",

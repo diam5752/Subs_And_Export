@@ -33,8 +33,10 @@ describe('JobListItem', () => {
         setShowPreview: jest.fn(),
         isConfirmingDelete: false,
         isDeleting: false,
+        isDownloading: false,
         setConfirmDeleteId: jest.fn(),
         onDeleteConfirmed: jest.fn(),
+        onDownload: jest.fn(),
         t: (key: string) => key,
     };
 
@@ -74,15 +76,14 @@ describe('JobListItem', () => {
         jest.useRealTimers();
     });
 
-    it('shows download and view buttons with accessible labels when completed', () => {
+    it('requests a secure download and shows accessible actions when completed', () => {
         const { container } = render(<JobListItem {...mockProps} />);
         const download = screen.getByLabelText('download test-video.mp4');
-        expect(download).toHaveAttribute('download', 'test-video_subs.mp4');
-        expect(download).toHaveAttribute(
-            'href',
-            'http://example.com/video.mp4?download=true&filename=test-video_subs.mp4',
-        );
+        expect(download).toHaveAttribute('type', 'button');
+        expect(download).not.toHaveAttribute('href');
         expect(download).toHaveClass('min-h-11');
+        fireEvent.click(download);
+        expect(mockProps.onDownload).toHaveBeenCalledWith(mockJob);
         expect(screen.getByLabelText('view test-video.mp4')).toHaveClass('min-h-11');
         expect(screen.getByLabelText('deleteJob test-video.mp4')).toHaveClass(
             'h-11',
@@ -92,6 +93,16 @@ describe('JobListItem', () => {
             'w-full',
             'sm:w-auto',
         );
+    });
+
+    it('disables the download action while its scoped URL is prepared', () => {
+        render(<JobListItem {...mockProps} isDownloading={true} />);
+
+        const download = screen.getByRole('button', {
+            name: 'downloading test-video.mp4',
+        });
+        expect(download).toBeDisabled();
+        expect(download).toHaveAttribute('aria-busy', 'true');
     });
 
     it('handles selection toggle in selection mode', () => {

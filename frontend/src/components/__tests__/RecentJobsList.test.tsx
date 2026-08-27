@@ -20,6 +20,7 @@ jest.mock('@/lib/api', () => ({
     api: {
         deleteJob: jest.fn(),
         deleteJobs: jest.fn(),
+        createArtifactDownloadGrant: jest.fn(),
     },
 }));
 
@@ -31,6 +32,8 @@ jest.mock('../JobListItem', () => ({
         onToggleSelection,
         setConfirmDeleteId,
         onDeleteConfirmed,
+        onDownload,
+        isDownloading,
     }: {
         job: JobResponse;
         isSelected: boolean;
@@ -38,6 +41,8 @@ jest.mock('../JobListItem', () => ({
         onToggleSelection: (id: string, isSelected: boolean) => void;
         setConfirmDeleteId: (id: string | null) => void;
         onDeleteConfirmed: (id: string) => void;
+        onDownload: (job: JobResponse) => void;
+        isDownloading: boolean;
     }) => (
         <div data-testid={`job-${job.id}`}>
             <span>{job.result_data?.original_filename}</span>
@@ -48,6 +53,10 @@ jest.mock('../JobListItem', () => ({
             <button type="button" onClick={() => setConfirmDeleteId(job.id)}>
                 ask-delete-{job.id}
             </button>
+            <button type="button" onClick={() => onDownload(job)}>
+                download-{job.id}
+            </button>
+            <span>{isDownloading ? `downloading-${job.id}` : `idle-${job.id}`}</span>
             {isConfirmingDelete ? (
                 <button type="button" onClick={() => onDeleteConfirmed(job.id)}>
                     delete-{job.id}
@@ -67,8 +76,8 @@ const jobs: JobResponse[] = [
         updated_at: 100,
         result_data: {
             original_filename: 'first.mp4',
-            video_path: '/videos/first.mp4',
-            public_url: '/static/first.mp4',
+            video_path: '/static/artifacts/job-1/processed.mp4',
+            public_url: '/static/artifacts/job-1/processed.mp4',
             artifacts_dir: '/artifacts/job-1',
         },
     },
@@ -81,8 +90,8 @@ const jobs: JobResponse[] = [
         updated_at: 200,
         result_data: {
             original_filename: 'second.mp4',
-            video_path: '/videos/second.mp4',
-            public_url: '/static/second.mp4',
+            video_path: '/static/artifacts/job-2/processed.mp4',
+            public_url: '/static/artifacts/job-2/processed.mp4',
             artifacts_dir: '/artifacts/job-2',
         },
     },
@@ -196,6 +205,76 @@ describe('RecentJobsList', () => {
             expect(setShowPreview).toHaveBeenCalledWith(false);
             expect(onRefreshJobs).toHaveBeenCalled();
         });
+    });
+
+    it('downloads history artifacts through a short-lived cross-browser grant', async () => {
+        const anchorClick = jest
+            .spyOn(HTMLAnchorElement.prototype, 'click')
+            .mockImplementation(() => { });
+        (api.createArtifactDownloadGrant as jest.Mock).mockResolvedValue({
+            download_url: '/static/artifacts/job-1/processed.mp4?grant=history-grant',
+            expires_in: 300,
+        });
+
+        renderList();
+        fireEvent.click(screen.getByRole('button', { name: 'download-job-1' }));
+
+        expect(screen.getByText('downloading-job-1')).toBeInTheDocument();
+        await waitFor(() => {
+            expect(api.createArtifactDownloadGrant).toHaveBeenCalledWith(
+                'job-1',
+                '/static/artifacts/job-1/processed.mp4',
+                'first_subs.mp4',
+            );
+            expect(anchorClick).toHaveBeenCalledTimes(1);
+        });
+        await waitFor(() => {
+            expect(screen.getByText('idle-job-1')).toBeInTheDocument();
+        });
+
+        const anchor = anchorClick.mock.contexts[0] as HTMLAnchorElement;
+        expect(anchor.href).toContain(
+            '/static/artifacts/job-1/processed.mp4?grant=history-grant',
+        );
+        expect(anchor.download).toBe('first_subs.mp4');
+        anchorClick.mockRestore();
+    });
+
+    it('shows a retryable error when the history grant cannot be created', async () => {
+        const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
+        (api.createArtifactDownloadGrant as jest.Mock).mockRejectedValue(
+            new Error('grant failed'),
+        );
+
+        renderList();
+        fireEvent.click(screen.getByRole('button', { name: 'download-job-1' }));
+
+        expect(await screen.findByRole('alert')).toHaveTextContent('downloadError');
+        expect(errorSpy).toHaveBeenCalledWith(
+            'History download failed:',
+            expect.any(Error),
+        );
+        errorSpy.mockRestore();
+    });
+
+    it('rejects a grant response that cannot be mapped to a download URL', async () => {
+        const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
+        (api.createArtifactDownloadGrant as jest.Mock).mockResolvedValue({
+            download_url: '/static/artifacts/job-1/processed.mp4?grant=invalid-url',
+            expires_in: 300,
+        });
+
+        renderList({ buildStaticUrl: () => null });
+        fireEvent.click(screen.getByRole('button', { name: 'download-job-1' }));
+
+        expect(await screen.findByRole('alert')).toHaveTextContent('downloadError');
+        expect(errorSpy).toHaveBeenCalledWith(
+            'History download failed:',
+            expect.objectContaining({
+                message: 'Download grant did not include a usable URL',
+            }),
+        );
+        errorSpy.mockRestore();
     });
 
     it('logs single-delete failures without crashing', async () => {
