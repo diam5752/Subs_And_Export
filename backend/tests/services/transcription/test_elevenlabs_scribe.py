@@ -75,7 +75,7 @@ def test_scribe_parses_word_timestamps_without_real_network(
     monkeypatch.setattr(settings, "mock_external_services", False)
     monkeypatch.setattr(settings, "external_provider_monthly_budget_usd", 1.0)
     monkeypatch.setattr(settings, "external_provider_per_request_budget_usd", 0.25)
-    monkeypatch.setattr(settings, "elevenlabs_api_base", "http://edge:8081/elevenlabs/")
+    monkeypatch.setattr(settings, "elevenlabs_api_base", "http://app-edge:8081/elevenlabs/")
     audio_path = tmp_path / "audio.wav"
     audio_path.write_bytes(b"audio")
     captured: dict[str, Any] = {}
@@ -120,7 +120,7 @@ def test_scribe_parses_word_timestamps_without_real_network(
         progress_callback=progress.append,
     )
 
-    assert captured["args"] == ("http://edge:8081/elevenlabs/v1/speech-to-text",)
+    assert captured["args"] == ("http://app-edge:8081/elevenlabs/v1/speech-to-text",)
     assert captured["headers"] == {"xi-api-key": "test-key"}
     assert captured["data"] == {
         "model_id": "scribe_v2",
@@ -131,7 +131,7 @@ def test_scribe_parses_word_timestamps_without_real_network(
     }
     assert deleted == {
         "args": (
-            "http://edge:8081/elevenlabs/v1/speech-to-text/transcripts/safeTranscript123",
+            "http://app-edge:8081/elevenlabs/v1/speech-to-text/transcripts/safeTranscript123",
         ),
         "headers": {"xi-api-key": "test-key"},
         "timeout": (5.0, 30.0),

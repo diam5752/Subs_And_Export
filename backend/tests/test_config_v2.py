@@ -322,15 +322,15 @@ def test_settings_environment_overrides(monkeypatch) -> None:
     monkeypatch.setenv("GSP_TRUSTED_HOSTS", "localhost, 127.0.0.1")
     monkeypatch.setenv(
         "GSP_GOOGLE_OAUTH_CERTS_URL",
-        "http://edge:8081/oauth2/v1/certs",
+        "http://app-edge:8081/oauth2/v1/certs",
     )
     monkeypatch.setenv(
         "GSP_STRIPE_API_BASE",
-        "http://edge:8081/stripe",
+        "http://app-edge:8081/stripe",
     )
     monkeypatch.setenv(
         "GSP_ELEVENLABS_API_BASE",
-        "http://edge:8081/elevenlabs",
+        "http://app-edge:8081/elevenlabs",
     )
 
     settings = Settings(_env_file=None)
@@ -360,9 +360,9 @@ def test_settings_environment_overrides(monkeypatch) -> None:
     assert settings.erasure_journal_anchor_path == Path("/runtime/erasure-journal-anchor.json")
     assert settings.allowed_origins == ["https://one.example", "https://two.example"]
     assert settings.trusted_hosts == ["localhost", "127.0.0.1"]
-    assert settings.google_oauth_certs_url == "http://edge:8081/oauth2/v1/certs"
-    assert settings.stripe_api_base == "http://edge:8081/stripe"
-    assert settings.elevenlabs_api_base == "http://edge:8081/elevenlabs"
+    assert settings.google_oauth_certs_url == "http://app-edge:8081/oauth2/v1/certs"
+    assert settings.stripe_api_base == "http://app-edge:8081/stripe"
+    assert settings.elevenlabs_api_base == "http://app-edge:8081/elevenlabs"
 
 
 def test_settings_rejects_nonpositive_upload_limit(monkeypatch) -> None:
@@ -546,7 +546,7 @@ def test_stripe_stage_configuration_accepts_complete_live_bundle_while_sales_are
     monkeypatch.setenv("GSP_STRIPE_PRICE_STARTER", "price_starter")
     monkeypatch.setenv("GSP_STRIPE_PRICE_CORE", "price_core")
     monkeypatch.setenv("GSP_STRIPE_PRICE_PRO", "price_pro")
-    monkeypatch.setenv("GSP_STRIPE_API_BASE", "http://edge:8081/stripe")
+    monkeypatch.setenv("GSP_STRIPE_API_BASE", "http://app-edge:8081/stripe")
     monkeypatch.setenv(
         "GSP_STRIPE_SUCCESS_URL",
         "https://gsubs.gr/?checkout=success&session_id={CHECKOUT_SESSION_ID}",

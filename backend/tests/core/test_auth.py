@@ -60,7 +60,7 @@ def test_verify_google_id_token_enforces_nonce_and_claims(monkeypatch):
     monkeypatch.setattr(
         auth.settings,
         "google_oauth_certs_url",
-        "http://edge:8081/oauth2/v1/certs",
+        "http://app-edge:8081/oauth2/v1/certs",
     )
     nonce = auth.create_google_auth_nonce()
     observed: dict[str, object] = {}
@@ -112,7 +112,7 @@ def test_verify_google_id_token_enforces_nonce_and_claims(monkeypatch):
     assert observed["audience"] == "google-client"
     # REGRESSION: the production backend is intentionally isolated from direct
     # egress, so Google signing certificates must use the internal edge relay.
-    assert observed["certs_url"] == "http://edge:8081/oauth2/v1/certs"
+    assert observed["certs_url"] == "http://app-edge:8081/oauth2/v1/certs"
     assert observed["clock_skew_in_seconds"] == 30
 
 
