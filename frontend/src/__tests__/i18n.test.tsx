@@ -130,6 +130,9 @@ describe('i18n provider defaults and persistence', () => {
         expect(Object.keys(messages.el).sort()).toEqual(Object.keys(messages.en).sort());
         expect(messages.el.brandBadge).toBe('GSUBS STUDIO');
         expect(messages.en.brandBadge).toBe('GSUBS STUDIO');
+        expect(messages.el.transcriptionMissingWordTimestamps).toContain('credits');
+        expect(messages.el.transcriptionMissingWordTimestamps).not.toContain('ElevenLabs');
+        expect(messages.en.transcriptionMissingWordTimestamps).toContain('credits');
     });
 
     it('covers every translation key used by production source files', () => {

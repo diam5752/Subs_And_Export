@@ -1615,6 +1615,25 @@ describe('DashboardPage', () => {
         });
     });
 
+    it('localizes a missing word-timestamps failure and refreshes refunded credits', async () => {
+        render(<DashboardPage />);
+        __refreshBalanceMock.mockClear();
+
+        act(() => {
+            capturedPollingCallbacks!.onFailed(
+                'ElevenLabs Scribe v2 response did not include word timestamps.',
+            );
+        });
+
+        await waitFor(() => {
+            expect(screen.getByTestId('process-error')).toHaveTextContent(
+                'transcriptionMissingWordTimestamps',
+            );
+            expect(__refreshBalanceMock).toHaveBeenCalledTimes(1);
+        });
+        expect(screen.getByTestId('process-error')).not.toHaveTextContent('ElevenLabs');
+    });
+
     it('handles polling onError callback', () => {
         render(<DashboardPage />);
 

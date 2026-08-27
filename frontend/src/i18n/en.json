@@ -72,6 +72,7 @@
   "uploadFailed": "The upload failed. Your file is still selected — try again.",
   "statusProcessingEllipsis": "Processing...",
   "statusFailedFallback": "Processing failed",
+  "transcriptionMissingWordTimestamps": "Captions could not be created from this video's audio. The credits for this attempt were returned — try again or use a video with clearer speech.",
   "statusCheckFailed": "Failed to check job status",
   "uploadDropTitle": "Choose video",
   "uploadDropSubtitle": "or drag the file here",
