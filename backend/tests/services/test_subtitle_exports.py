@@ -65,3 +65,61 @@ def test_read_transcript_cues_rejects_malformed_payloads(tmp_path: Path, payload
 
     with pytest.raises(subtitle_exports.MalformedTranscriptError):
         subtitle_exports.read_transcript_cues(transcript)
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        ["not-a-cue"],
+        [{"start": -1, "end": 1, "text": "negative"}],
+        [{"start": 0, "end": 1, "text": "words", "words": "not-a-list"}],
+        [{"start": 0, "end": 1, "text": "words", "words": ["not-a-word"]}],
+    ],
+)
+def test_transcript_parser_rejects_structural_edge_cases(payload) -> None:
+    with pytest.raises(subtitle_exports.MalformedTranscriptError):
+        subtitle_exports.cues_from_transcript_payload(payload)
+
+
+def test_transcript_parser_skips_blank_cues_and_words() -> None:
+    cues = subtitle_exports.cues_from_transcript_payload([
+        {"start": 0, "end": 1, "text": "   "},
+        {
+            "start": 0,
+            "end": 1,
+            "text": "kept",
+            "words": [
+                {"start": 0, "end": 0.5, "text": "   "},
+                {"start": 0.5, "end": 1, "text": "word"},
+            ],
+        },
+    ])
+
+    assert [cue.text for cue in cues] == ["kept"]
+    assert cues[0].words is not None
+    assert [word.text for word in cues[0].words] == ["word"]
+
+
+def test_delivery_can_preserve_normalized_cues_without_resegmentation() -> None:
+    cues = subtitle_exports.cues_from_transcript_payload([
+        {"start": 0, "end": 1, "text": "unchanged"},
+    ])
+
+    delivered = subtitle_exports.prepare_delivery_cues(
+        cues,
+        max_subtitle_lines=0,
+        subtitle_size=100,
+    )
+
+    assert [cue.text for cue in delivered] == ["unchanged"]
+
+
+def test_subtitle_export_rejects_unknown_format(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="Unsupported"):
+        subtitle_exports.export_subtitle_file(
+            transcription_json=tmp_path / "unused.json",
+            export_path=tmp_path / "unused.ass",
+            export_format="ass",
+            max_subtitle_lines=2,
+            subtitle_size=100,
+        )

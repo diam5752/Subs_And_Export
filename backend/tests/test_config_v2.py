@@ -482,7 +482,9 @@ def test_settings_accepts_private_erasure_relay(monkeypatch) -> None:
 
 
 def test_settings_normalizers_handle_empty_and_malformed_inputs() -> None:
+    assert Settings.normalize_env(AppEnv.DEV) == AppEnv.DEV
     assert Settings.normalize_env(None) == AppEnv.PRODUCTION
+    assert Settings.normalize_env(42) == AppEnv.PRODUCTION
     assert Settings.parse_list("") == []
     assert Settings.parse_list("[not-json]") == ["[not-json]"]
     assert Settings.parse_list(("one.example", " ", "two.example")) == [
@@ -490,6 +492,106 @@ def test_settings_normalizers_handle_empty_and_malformed_inputs() -> None:
         "two.example",
     ]
     assert Settings.parse_list(42) == []
+
+
+def test_development_download_grants_ignore_a_short_configured_secret(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("GSP_APP_ENV", "dev")
+    monkeypatch.setenv("GSP_DOWNLOAD_GRANT_SECRET", "short")
+    settings = Settings(_env_file=None)
+
+    assert settings.download_grant_signing_secret() != "short"
+    assert len(settings.download_grant_signing_secret().encode("utf-8")) >= 32
+
+
+def test_disabled_feedback_api_configuration_is_a_noop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("GSP_FEEDBACK_ENABLED", "false")
+    Settings(_env_file=None).assert_feedback_api_configuration()
+
+
+def test_disabled_feedback_worker_refuses_to_start(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("GSP_FEEDBACK_ENABLED", "false")
+    with pytest.raises(RuntimeError, match="feedback is disabled"):
+        Settings(_env_file=None).assert_feedback_worker_configuration()
+
+
+def _configure_feedback_worker(monkeypatch: pytest.MonkeyPatch) -> None:
+    for key, value in {
+        "GSP_FEEDBACK_ENABLED": "true",
+        "GSP_FEEDBACK_NOTIFICATION_TO": "owner@example.com",
+        "GSP_FEEDBACK_MAIL_FROM": "GSUBS <support@example.com>",
+        "GSP_FEEDBACK_SMTP_HOST": "smtp.example.com",
+        "GSP_FEEDBACK_SMTP_STARTTLS": "true",
+        "GSP_FEEDBACK_SMTP_USERNAME": "mailer",
+        "GSP_FEEDBACK_SMTP_PASSWORD": "smtp-password",
+    }.items():
+        monkeypatch.setenv(key, value)
+
+
+def test_feedback_worker_reports_missing_fields(monkeypatch: pytest.MonkeyPatch) -> None:
+    _configure_feedback_worker(monkeypatch)
+    monkeypatch.setenv("GSP_FEEDBACK_SMTP_USERNAME", "")
+
+    with pytest.raises(RuntimeError, match="SMTP username"):
+        Settings(_env_file=None).assert_feedback_worker_configuration()
+
+
+def test_feedback_worker_rejects_bad_sender_and_smtp_host(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _configure_feedback_worker(monkeypatch)
+    monkeypatch.setenv("GSP_FEEDBACK_MAIL_FROM", "not-a-mailbox")
+    with pytest.raises(RuntimeError, match="sender"):
+        Settings(_env_file=None).assert_feedback_worker_configuration()
+
+    _configure_feedback_worker(monkeypatch)
+    monkeypatch.setenv("GSP_FEEDBACK_SMTP_HOST", "smtp host.example.com")
+    with pytest.raises(RuntimeError, match="SMTP host"):
+        Settings(_env_file=None).assert_feedback_worker_configuration()
+
+
+def test_mailbox_validation_rejects_display_names_for_recipient_fields() -> None:
+    assert not Settings._is_valid_mailbox(
+        "Owner <owner@example.com>",
+        allow_display_name=False,
+    )
+    assert Settings._is_valid_mailbox(
+        "Owner <owner@example.com>",
+        allow_display_name=True,
+    )
+    assert not Settings._is_valid_mailbox(
+        "<owner@example.com>",
+        allow_display_name=False,
+    )
+
+
+def test_stripe_stage_configuration_rejects_automatic_tax(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("GSP_STRIPE_RESTRICTED_KEY", "rk_test_placeholder")
+    monkeypatch.setenv("GSP_STRIPE_WEBHOOK_SECRET", "whsec_placeholder")
+    monkeypatch.setenv("GSP_STRIPE_PRICE_STARTER", "price_starter")
+    monkeypatch.setenv("GSP_STRIPE_PRICE_CORE", "price_core")
+    monkeypatch.setenv("GSP_STRIPE_PRICE_PRO", "price_pro")
+    monkeypatch.setenv("GSP_STRIPE_AUTOMATIC_TAX_ENABLED", "true")
+
+    with pytest.raises(RuntimeError, match="Automatic Tax"):
+        Settings(_env_file=None).assert_stripe_stage_configuration()
+
+
+def test_stripe_stage_configuration_rejects_partial_bundle_without_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("GSP_STRIPE_RESTRICTED_KEY", raising=False)
+    monkeypatch.setenv("GSP_STRIPE_WEBHOOK_SECRET", "whsec_placeholder")
+
+    with pytest.raises(RuntimeError, match="restricted key is required"):
+        Settings(_env_file=None).assert_stripe_stage_configuration()
 
 
 def test_settings_pricing_integration() -> None:

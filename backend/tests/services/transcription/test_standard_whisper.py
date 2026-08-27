@@ -90,11 +90,13 @@ class TestStandardTranscriber:
             audio_path.touch()
 
             callback = MagicMock()
+            check_cancelled = MagicMock()
 
             srt_path, cues = transcriber.transcribe(
                 audio_path,
                 output_dir=tmp_path,
-                progress_callback=callback
+                progress_callback=callback,
+                check_cancelled=check_cancelled,
             )
 
             # Verification
@@ -114,6 +116,7 @@ class TestStandardTranscriber:
             # Verify Callback
             assert callback.call_count >= 3 # 5.0, 15.0, 85.0, 100.0?
             callback.assert_any_call(100.0)
+            assert check_cancelled.call_count == 3
 
             # Verify Model usage
             mock_pywhispercpp.Model.assert_called_with("base", print_realtime=False, print_progress=False)

@@ -166,3 +166,78 @@ def test_openai_transcriber_rejects_models_without_word_timestamps(tmp_path):
             tmp_path,
             model="gpt-4o-transcribe",
         )
+
+
+def test_openai_transcriber_requires_a_key(tmp_path):
+    audio_path = tmp_path / "in.wav"
+    audio_path.touch()
+    with patch(
+        "backend.app.services.transcription.openai_cloud.resolve_openai_api_key",
+        return_value=None,
+    ):
+        with pytest.raises(RuntimeError, match="API key is required"):
+            OpenAITranscriber().transcribe(audio_path, tmp_path)
+
+
+def test_openai_transcriber_reports_progress_cancellation_and_word_cues(tmp_path):
+    audio_path = tmp_path / "in.wav"
+    audio_path.touch()
+    progress = MagicMock()
+    cancelled = MagicMock()
+    segment = MagicMock(text=" Hello ", start=1.0, end=2.0)
+    word = MagicMock(word=" Hello ", start=1.1, end=1.8)
+    transcript = MagicMock(segments=[segment], words=[word])
+    client = MagicMock()
+    client.audio.transcriptions.create.return_value = transcript
+
+    with patch(
+        "backend.app.services.transcription.openai_cloud.load_openai_client",
+        return_value=client,
+    ):
+        srt_path, cues = OpenAITranscriber(api_key="k").transcribe(
+            audio_path,
+            tmp_path,
+            language="",
+            model=" WHISPER-1 ",
+            progress_callback=progress,
+            check_cancelled=cancelled,
+        )
+
+    assert cancelled.call_count == 3
+    assert [call.args[0] for call in progress.call_args_list] == [10.0, 90.0, 100.0]
+    assert cues[0].words[0].text.strip() == "HELLO"
+    assert srt_path.exists()
+    assert client.audio.transcriptions.create.call_args.kwargs["language"] == "el"
+
+
+def test_openai_transcriber_accepts_provider_payload_without_segments(tmp_path):
+    audio_path = tmp_path / "in.wav"
+    audio_path.touch()
+    client = MagicMock()
+    client.audio.transcriptions.create.return_value = object()
+    with patch(
+        "backend.app.services.transcription.openai_cloud.load_openai_client",
+        return_value=client,
+    ):
+        srt_path, cues = OpenAITranscriber(api_key="k").transcribe(audio_path, tmp_path)
+
+    assert cues == []
+    assert srt_path.exists()
+
+
+def test_openai_transcriber_keeps_segment_cues_when_word_data_is_empty(tmp_path):
+    audio_path = tmp_path / "in.wav"
+    audio_path.touch()
+    client = MagicMock()
+    client.audio.transcriptions.create.return_value = MagicMock(
+        segments=[MagicMock(text="No words", start=0.0, end=1.0)],
+        words=[],
+    )
+    with patch(
+        "backend.app.services.transcription.openai_cloud.load_openai_client",
+        return_value=client,
+    ):
+        _srt_path, cues = OpenAITranscriber(api_key="k").transcribe(audio_path, tmp_path)
+
+    assert len(cues) == 1
+    assert cues[0].words == []

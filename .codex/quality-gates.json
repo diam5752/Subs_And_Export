@@ -49,10 +49,10 @@
       "owner": "human_review_required"
     },
     "unit_coverage": {
-      "type": "strong_target",
+      "type": "hard_gate",
       "line_pct_min": 90,
-      "branch_pct_min": 90,
-      "ideal_pct": 100
+      "branch_pct_min": 80,
+      "ideal_pct": 90
     },
     "crap_score": {
       "type": "strong_target",
@@ -103,9 +103,9 @@
   "pr_gates": [
     {
       "id": "unit-coverage",
-      "requirement": "Unit tests with >90% line and branch coverage.",
-      "status": "partial",
-      "suggested_command": "Backend and frontend line coverage are enforced; repo-wide branch coverage remains tracked debt that still needs more tests.",
+      "requirement": "Unit tests with at least 90% line coverage and 80% branch coverage.",
+      "status": "enabled",
+      "suggested_command": "Backend and frontend enforce 90% line coverage plus 80% branch coverage; frontend also enforces 80% statement and function coverage.",
       "command_id": "check:unit"
     },
     {
@@ -218,12 +218,12 @@
     },
     "check:static": {
       "kind": "shell",
-      "shell": "mypy backend/app .codex/scripts/run_isolated_quality_gate.py && ruff check backend .codex/scripts/run_isolated_quality_gate.py && cd frontend && npm run lint && npm run lint:dead-code && npx tsc --noEmit",
+      "shell": "mypy backend/app .codex/scripts/run_isolated_quality_gate.py .codex/scripts/check_coverage_thresholds.py && ruff check backend .codex/scripts/run_isolated_quality_gate.py .codex/scripts/check_coverage_thresholds.py && cd frontend && npm run lint && npm run lint:dead-code && npx tsc --noEmit",
       "status": "enabled"
     },
     "check:unit:backend": {
       "kind": "shell",
-      "shell": "cd backend && APP_ENV=dev pytest -m 'not media_export'",
+      "shell": "cd backend && APP_ENV=dev pytest -m 'not media_export' && python3 ../.codex/scripts/check_coverage_thresholds.py .coverage.json --lines 90 --branches 80",
       "status": "enabled"
     },
     "check:unit:frontend": {

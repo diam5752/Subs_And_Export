@@ -9,6 +9,7 @@ import pytest
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 ISOLATED_RUNNER_PATH = REPOSITORY_ROOT / ".codex" / "scripts" / "run_isolated_quality_gate.py"
+COVERAGE_GATE_PATH = REPOSITORY_ROOT / ".codex" / "scripts" / "check_coverage_thresholds.py"
 
 
 def load_isolated_runner() -> ModuleType:
@@ -18,6 +19,18 @@ def load_isolated_runner() -> ModuleType:
     )
     if spec is None or spec.loader is None:
         raise RuntimeError("Unable to load isolated quality runner")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def load_coverage_gate() -> ModuleType:
+    spec = importlib.util.spec_from_file_location(
+        "check_coverage_thresholds",
+        COVERAGE_GATE_PATH,
+    )
+    if spec is None or spec.loader is None:
+        raise RuntimeError("Unable to load coverage threshold gate")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -134,7 +147,67 @@ def test_github_and_make_use_the_same_isolated_local_ci_entrypoint() -> None:
     assert "ci: check-all" in make_contract
     assert "$(ISOLATED_QUALITY_RUNNER) check:all" in make_contract
     assert "mypy backend/app .codex/scripts/run_isolated_quality_gate.py" in (quality_contract)
+    assert "check_coverage_thresholds.py .coverage.json --lines 90 --branches 80" in quality_contract
     assert "`make ci` is the canonical local and GitHub entrypoint" in readme
+
+
+def test_coverage_gate_enforces_lines_and_branches_independently(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    gate = load_coverage_gate()
+    report = tmp_path / "coverage.json"
+    report.write_text(
+        '{"totals":{"covered_lines":91,"num_statements":100,'
+        '"covered_branches":81,"num_branches":100}}',
+        encoding="utf-8",
+    )
+
+    assert gate.main([str(report), "--lines", "90", "--branches", "80"]) == 0
+    assert "PASS: coverage thresholds met" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    ("covered_lines", "covered_branches", "failed_metric"),
+    [(89, 81, "lines"), (91, 79, "branches")],
+)
+def test_coverage_gate_fails_when_one_metric_drops_below_its_floor(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    covered_lines: int,
+    covered_branches: int,
+    failed_metric: str,
+) -> None:
+    gate = load_coverage_gate()
+    report = tmp_path / "coverage.json"
+    report.write_text(
+        '{"totals":{'
+        f'"covered_lines":{covered_lines},"num_statements":100,'
+        f'"covered_branches":{covered_branches},"num_branches":100'
+        '}}',
+        encoding="utf-8",
+    )
+
+    assert gate.main([str(report), "--lines", "90", "--branches", "80"]) == 1
+    error = capsys.readouterr().err
+    assert "FAIL: coverage threshold missed" in error
+    assert failed_metric in error
+
+
+def test_coverage_gate_rejects_reports_without_branch_data(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    gate = load_coverage_gate()
+    report = tmp_path / "coverage.json"
+    report.write_text(
+        '{"totals":{"covered_lines":91,"num_statements":100,'
+        '"covered_branches":0,"num_branches":0}}',
+        encoding="utf-8",
+    )
+
+    assert gate.main([str(report)]) == 2
+    assert "no branches to evaluate" in capsys.readouterr().err
 
 
 def test_official_github_actions_are_pinned_to_full_commit_shas() -> None:

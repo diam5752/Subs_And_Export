@@ -38,7 +38,7 @@ coverage-frontend:
 
 coverage-backend:
 	@echo "Running backend tests with coverage..."
-	cd backend && APP_ENV=dev python3 -m pytest --cov=app --cov-report=html --cov-report=term
+	cd backend && APP_ENV=dev python3 -m pytest --cov=app --cov-report=html --cov-report=term && python3 ../.codex/scripts/check_coverage_thresholds.py .coverage.json --lines 90 --branches 80
 
 coverage-open:
 	@echo "Opening coverage reports..."
@@ -77,7 +77,7 @@ clean:
 	find . -type d -name ".pytest_cache" -exec rm -rf {} +
 	find . -type d -name ".ruff_cache" -exec rm -rf {} +
 	rm -rf frontend/coverage backend/htmlcov
-	rm -f backend/coverage.xml
+	rm -f backend/coverage.xml backend/.coverage.json
 
 ifneq ("$(wildcard .codex/quality.mk)","")
 include .codex/quality.mk

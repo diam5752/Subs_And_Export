@@ -174,6 +174,23 @@ def test_login_promotion_is_disabled_without_mutating_the_campaign() -> None:
         assert wallet.paid_balance == 0
 
 
+def test_login_promotion_rejects_an_empty_user_or_missing_campaign() -> None:
+    db = Database()
+
+    with pytest.raises(LoginPromotionConfigurationError, match="requires a user"):
+        LoginPromotionStore(db=db, campaign_id=_campaign_id()).claim_for_login(
+            "",
+            enabled=True,
+        )
+
+    user_id = _create_users(db, 1)[0]
+    with pytest.raises(LoginPromotionConfigurationError, match="promotion is missing"):
+        LoginPromotionStore(db=db, campaign_id=_campaign_id()).claim_for_login(
+            user_id,
+            enabled=True,
+        )
+
+
 def test_login_promotion_rejects_a_campaign_contract_mismatch() -> None:
     db = Database()
     campaign_id = _campaign_id()
@@ -257,3 +274,31 @@ def test_login_promotion_rolls_back_counter_and_claim_when_crediting_fails() -> 
             .select_from(DbCreditPromotionClaim)
             .where(DbCreditPromotionClaim.campaign_id == campaign_id)
         ) == 0
+
+
+def test_login_promotion_rejects_an_orphaned_idempotency_entry() -> None:
+    # REGRESSION: a pre-existing promotion ledger row without the matching
+    # campaign claim must fail closed instead of consuming another slot.
+    db = Database()
+    campaign_id = _campaign_id()
+    _create_campaign(db, campaign_id)
+    user_id = _create_users(db, 1)[0]
+
+    class DuplicatePointsStore:
+        def credit_once_in_session(self, *args, **kwargs):
+            return 30, False
+
+    store = LoginPromotionStore(
+        db=db,
+        campaign_id=campaign_id,
+        points_store=DuplicatePointsStore(),  # type: ignore[arg-type]
+    )
+
+    with pytest.raises(LoginPromotionConfigurationError, match="without its campaign claim"):
+        store.claim_for_login(user_id, enabled=True)
+
+    with db.session() as session:
+        campaign = session.get(DbCreditPromotionCampaign, campaign_id)
+        assert campaign is not None
+        assert campaign.claimed_count == 0
+        assert session.get(DbCreditPromotionClaim, (campaign_id, user_id)) is None
