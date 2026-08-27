@@ -363,13 +363,13 @@ def test_production_compose_enables_reviewed_paid_credits_and_budgeted_scribe() 
     assert "APP_ENV: production" in compose
     assert 'GSP_MOCK_EXTERNAL_SERVICES: "0"' in compose
     assert 'GSP_ELEVENLABS_ENABLED: "1"' in compose
-    assert 'GSP_ELEVENLABS_API_BASE: "http://edge:8081/elevenlabs"' in compose
+    assert 'GSP_ELEVENLABS_API_BASE: "http://app-edge:8081/elevenlabs"' in compose
     assert 'GSP_PAID_CREDITS_ENABLED: "1"' in compose
     assert 'GSP_CONSUMER_POLICY_APPROVED: "1"' in compose
     assert 'GSP_DURABLE_CONFIRMATION_CHANNEL_READY: "1"' in compose
     assert 'GSP_ADJUSTMENT_WORKFLOW_READY: "1"' in compose
     assert 'GSP_STRIPE_AUTOMATIC_TAX_ENABLED: "0"' in compose
-    assert 'GSP_STRIPE_API_BASE: "http://edge:8081/stripe"' in compose
+    assert 'GSP_STRIPE_API_BASE: "http://app-edge:8081/stripe"' in compose
     assert 'GSP_STRIPE_RESTRICTED_KEY: "${GSP_STRIPE_RESTRICTED_KEY:-}"' in compose
     assert 'GSP_STRIPE_WEBHOOK_SECRET: "${GSP_STRIPE_WEBHOOK_SECRET:-}"' in compose
     assert 'GSP_STRIPE_PRICE_STARTER: "${GSP_STRIPE_PRICE_STARTER:-}"' in compose
@@ -391,7 +391,7 @@ def test_production_compose_enables_reviewed_paid_credits_and_budgeted_scribe() 
     assert "GOOGLE_APPLICATION_CREDENTIALS" not in compose
     assert 'GOOGLE_CLIENT_SECRET: ""' in compose
     assert 'GOOGLE_REDIRECT_URI: ""' in compose
-    assert 'GSP_GOOGLE_OAUTH_CERTS_URL: "http://edge:8081/oauth2/v1/certs"' in compose
+    assert 'GSP_GOOGLE_OAUTH_CERTS_URL: "http://app-edge:8081/oauth2/v1/certs"' in compose
     assert 'GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD: "100"' in compose
     assert 'GSP_EXTERNAL_PROVIDER_DAILY_BUDGET_USD: "10"' in compose
     assert 'GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD: "0.05"' in compose
@@ -568,13 +568,13 @@ def test_production_verifier_requires_every_fail_closed_runtime_setting() -> Non
         "APP_ENV=production",
         "GSP_MOCK_EXTERNAL_SERVICES=0",
         "GSP_ELEVENLABS_ENABLED=1",
-        "GSP_ELEVENLABS_API_BASE=http://edge:8081/elevenlabs",
+        "GSP_ELEVENLABS_API_BASE=http://app-edge:8081/elevenlabs",
         "GSP_PAID_CREDITS_ENABLED=1",
         "GSP_CONSUMER_POLICY_APPROVED=1",
         "GSP_DURABLE_CONFIRMATION_CHANNEL_READY=1",
         "GSP_ADJUSTMENT_WORKFLOW_READY=1",
         "GSP_STRIPE_AUTOMATIC_TAX_ENABLED=0",
-        "GSP_STRIPE_API_BASE=http://edge:8081/stripe",
+        "GSP_STRIPE_API_BASE=http://app-edge:8081/stripe",
         "GSP_BILLING_ADMIN_USER_IDS=",
         "STRIPE_SECRET_KEY=",
         "STRIPE_WEBHOOK_SECRET=",
@@ -582,7 +582,7 @@ def test_production_verifier_requires_every_fail_closed_runtime_setting() -> Non
         "GROQ_API_KEY=",
         "GOOGLE_CLIENT_SECRET=",
         "GOOGLE_REDIRECT_URI=",
-        "GSP_GOOGLE_OAUTH_CERTS_URL=http://edge:8081/oauth2/v1/certs",
+        "GSP_GOOGLE_OAUTH_CERTS_URL=http://app-edge:8081/oauth2/v1/certs",
         "GSP_GOOGLE_AUTH_NONCE_TTL_SECONDS=600",
         "GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD=100",
         "GSP_EXTERNAL_PROVIDER_DAILY_BUDGET_USD=10",
@@ -756,16 +756,16 @@ def test_production_environment_defaults_do_not_prune_shared_cache() -> None:
     assert "GOOGLE_CLIENT_ID=replace-with-google-web-client-id" in environment
     assert "GOOGLE_CLIENT_SECRET=" in environment
     assert "GOOGLE_REDIRECT_URI=" in environment
-    assert "GSP_GOOGLE_OAUTH_CERTS_URL=http://edge:8081/oauth2/v1/certs" in environment
+    assert "GSP_GOOGLE_OAUTH_CERTS_URL=http://app-edge:8081/oauth2/v1/certs" in environment
     assert "GSP_GOOGLE_AUTH_NONCE_TTL_SECONDS=600" in environment
     assert "GSP_CONSUMER_POLICY_APPROVED=0" in environment
     assert "GSP_DURABLE_CONFIRMATION_CHANNEL_READY=0" in environment
     assert "GSP_ADJUSTMENT_WORKFLOW_READY=0" in environment
-    assert "GSP_STRIPE_API_BASE=http://edge:8081/stripe" in environment
+    assert "GSP_STRIPE_API_BASE=http://app-edge:8081/stripe" in environment
     assert "GSP_BILLING_ADMIN_USER_IDS=" in environment
     assert "GSP_MOCK_EXTERNAL_SERVICES=0" in environment
     assert "GSP_ELEVENLABS_ENABLED=1" in environment
-    assert "GSP_ELEVENLABS_API_BASE=http://edge:8081/elevenlabs" in environment
+    assert "GSP_ELEVENLABS_API_BASE=http://app-edge:8081/elevenlabs" in environment
     assert "ELEVENLABS_API_KEY=" in environment
     assert "GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD=100" in environment
     assert "GSP_EXTERNAL_PROVIDER_DAILY_BUDGET_USD=10" in environment
@@ -2047,6 +2047,7 @@ def test_stable_gateway_serves_maintenance_while_the_private_app_edge_is_closed(
     verifier = deployment_text("verify-production.sh")
     gateway = deployment_text("gateway/Caddyfile")
 
+    backend = compose.split("  backend:", 1)[1].split("\n  feedback-worker:", 1)[0]
     app_edge = compose.split("  app-edge:", 1)[1].split("\n  edge:", 1)[0]
     edge = compose.split("  edge:", 1)[1].split("\n  privacy-relay:", 1)[0]
     assert "ports:" not in app_edge
@@ -2084,6 +2085,18 @@ def test_stable_gateway_serves_maintenance_while_the_private_app_edge_is_closed(
     assert "Running stable gateway contract is unsafe" in verifier
     assert "The application edge must not join the shared public tunnel network" in verifier
     assert "Stable gateway must not reach private application or provider networks directly" in verifier
+
+    # REGRESSION: after the stable gateway split, the backend still addressed
+    # provider relays through `edge`; that service intentionally left the
+    # private network, so DNS resolution and every relay canary failed.
+    assert "      - private" in backend
+    assert "      - private" in app_edge
+    assert 'GSP_GOOGLE_OAUTH_CERTS_URL: "http://app-edge:8081/oauth2/v1/certs"' in backend
+    assert 'GSP_STRIPE_API_BASE: "http://app-edge:8081/stripe"' in backend
+    assert 'GSP_ELEVENLABS_API_BASE: "http://app-edge:8081/elevenlabs"' in backend
+    assert "http://edge:8081" not in backend
+    assert 'base = "http://app-edge:8081"' in verifier
+    assert 'base = "http://edge:8081"' not in verifier
 
 
 def test_edge_caps_stripe_webhook_body_before_generic_billing_proxy() -> None:
@@ -2145,7 +2158,7 @@ def test_google_oauth_certificates_use_a_scoped_internal_edge_relay() -> None:
     verifier = deployment_text("verify-production.sh")
 
     assert "internal: true" in compose
-    assert 'GSP_GOOGLE_OAUTH_CERTS_URL: "http://edge:8081/oauth2/v1/certs"' in compose
+    assert 'GSP_GOOGLE_OAUTH_CERTS_URL: "http://app-edge:8081/oauth2/v1/certs"' in compose
     assert ":8081" in caddyfile
     assert "/oauth2/v1/certs" in caddyfile
     google_matcher = caddyfile.split("@google_oauth_certs {", 1)[1].split("}", 1)[0]
@@ -2164,7 +2177,7 @@ def test_stripe_api_uses_a_method_and_path_scoped_internal_edge_relay() -> None:
     verifier = deployment_text("verify-production.sh")
 
     assert "internal: true" in compose
-    assert 'GSP_STRIPE_API_BASE: "http://edge:8081/stripe"' in compose
+    assert 'GSP_STRIPE_API_BASE: "http://app-edge:8081/stripe"' in compose
     for matcher in (
         "@stripe_checkout_create",
         "@stripe_checkout_expire",
@@ -2197,7 +2210,7 @@ def test_elevenlabs_scribe_uses_a_method_and_path_scoped_internal_edge_relay() -
     verifier = deployment_text("verify-production.sh")
 
     assert "internal: true" in compose
-    assert 'GSP_ELEVENLABS_API_BASE: "http://edge:8081/elevenlabs"' in compose
+    assert 'GSP_ELEVENLABS_API_BASE: "http://app-edge:8081/elevenlabs"' in compose
     assert "@elevenlabs_scribe" in caddyfile
     assert "method POST" in caddyfile
     assert "path /elevenlabs/v1/speech-to-text" in caddyfile

@@ -15,7 +15,7 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 GOOGLE_PUBLIC_OAUTH_CERTS_URL = "https://www.googleapis.com/oauth2/v1/certs"
-GOOGLE_INTERNAL_OAUTH_CERTS_URL = "http://edge:8081/oauth2/v1/certs"
+GOOGLE_INTERNAL_OAUTH_CERTS_URL = "http://app-edge:8081/oauth2/v1/certs"
 APPROVED_GOOGLE_OAUTH_CERTS_URLS = frozenset(
     {
         GOOGLE_PUBLIC_OAUTH_CERTS_URL,
@@ -23,7 +23,7 @@ APPROVED_GOOGLE_OAUTH_CERTS_URLS = frozenset(
     }
 )
 STRIPE_PUBLIC_API_BASE = "https://api.stripe.com"
-STRIPE_INTERNAL_API_BASE = "http://edge:8081/stripe"
+STRIPE_INTERNAL_API_BASE = "http://app-edge:8081/stripe"
 APPROVED_STRIPE_API_BASES = frozenset(
     {
         STRIPE_PUBLIC_API_BASE,
@@ -31,7 +31,7 @@ APPROVED_STRIPE_API_BASES = frozenset(
     }
 )
 ELEVENLABS_PUBLIC_API_BASE = "https://api.elevenlabs.io"
-ELEVENLABS_INTERNAL_API_BASE = "http://edge:8081/elevenlabs"
+ELEVENLABS_INTERNAL_API_BASE = "http://app-edge:8081/elevenlabs"
 ELEVENLABS_PRIVACY_RELAY_API_BASE = "http://privacy-relay:8082/elevenlabs"
 APPROVED_ELEVENLABS_API_BASES = frozenset(
     {

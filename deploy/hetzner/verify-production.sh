@@ -308,13 +308,13 @@ for expected in \
   APP_ENV=production \
   GSP_MOCK_EXTERNAL_SERVICES=0 \
   GSP_ELEVENLABS_ENABLED=1 \
-  GSP_ELEVENLABS_API_BASE=http://edge:8081/elevenlabs \
+  GSP_ELEVENLABS_API_BASE=http://app-edge:8081/elevenlabs \
   GSP_PAID_CREDITS_ENABLED=1 \
   GSP_CONSUMER_POLICY_APPROVED=1 \
   GSP_DURABLE_CONFIRMATION_CHANNEL_READY=1 \
   GSP_ADJUSTMENT_WORKFLOW_READY=1 \
   GSP_STRIPE_AUTOMATIC_TAX_ENABLED=0 \
-  GSP_STRIPE_API_BASE=http://edge:8081/stripe \
+  GSP_STRIPE_API_BASE=http://app-edge:8081/stripe \
   GSP_BILLING_ADMIN_USER_IDS= \
   GSP_FEEDBACK_ENABLED=1 \
   GSP_DISABLE_RATELIMIT=0 \
@@ -325,7 +325,7 @@ for expected in \
   GROQ_API_KEY= \
   GOOGLE_CLIENT_SECRET= \
   GOOGLE_REDIRECT_URI= \
-  GSP_GOOGLE_OAUTH_CERTS_URL=http://edge:8081/oauth2/v1/certs \
+  GSP_GOOGLE_OAUTH_CERTS_URL=http://app-edge:8081/oauth2/v1/certs \
   GSP_GOOGLE_AUTH_NONCE_TTL_SECONDS=600 \
   GSP_DOWNLOAD_GRANT_TTL_SECONDS=300 \
   GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD=100 \
@@ -519,7 +519,7 @@ if settings.mock_external_services:
     raise SystemExit("Production Scribe must not run in mock mode.")
 if not settings.elevenlabs_enabled:
     raise SystemExit("Production Scribe must be enabled.")
-if settings.elevenlabs_api_base != "http://edge:8081/elevenlabs":
+if settings.elevenlabs_api_base != "http://app-edge:8081/elevenlabs":
     raise SystemExit("Production Scribe must use the scoped internal relay.")
 expected_budgets = (100.0, 10.0, 0.05, 1.25)
 actual_budgets = (
@@ -825,7 +825,7 @@ relay_deny_http=$(docker exec "$backend_id" python -c '
 import urllib.error
 import urllib.request
 
-base = "http://edge:8081"
+base = "http://app-edge:8081"
 probes = (
     (f"{base}/oauth2/v1/certs", "POST"),
     (f"{base}/oauth2/v1/certs/verification-deny", "GET"),
