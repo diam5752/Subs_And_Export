@@ -490,6 +490,12 @@ class Settings(BaseSettings):
     max_llm_output_tokens_social: int = 3000
     max_llm_output_tokens_factcheck: int = 6000
     max_upload_mb: int = Field(default=500, gt=0, validation_alias="GSP_MAX_UPLOAD_MB")
+    upload_inactivity_timeout_seconds: float = Field(
+        default=30.0,
+        gt=0,
+        le=300,
+        validation_alias="GSP_UPLOAD_INACTIVITY_TIMEOUT_SECONDS",
+    )
     workspace_retention_hours: int = Field(
         default=24,
         gt=0,

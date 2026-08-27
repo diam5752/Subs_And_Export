@@ -130,17 +130,47 @@ async def save_request_stream_with_limit(
     *,
     expected_size: int | None,
     cleanup_on_error: bool = True,
+    inactivity_timeout_seconds: float | None = None,
 ) -> int:
     """Stream a raw request body directly to disk with a strict size limit.
 
     This path never asks Starlette to parse or spool a multipart body before
-    authentication and application-level size enforcement.
+    authentication and application-level size enforcement. Every received
+    chunk resets a bounded inactivity timer so slow but active mobile uploads
+    remain valid while abandoned requests fail quickly enough to refund their
+    provisional credit reservation.
     """
     destination.parent.mkdir(parents=True, exist_ok=True)
+    timeout_seconds = (
+        settings.upload_inactivity_timeout_seconds
+        if inactivity_timeout_seconds is None
+        else inactivity_timeout_seconds
+    )
+    if timeout_seconds <= 0:
+        raise ValueError("Upload inactivity timeout must be positive")
+
     total = 0
+    stream = request.stream().__aiter__()
     try:
         async with await anyio.open_file(destination, "wb") as buffer:
-            async for chunk in request.stream():
+            while True:
+                try:
+                    with anyio.fail_after(timeout_seconds):
+                        chunk = await anext(stream)
+                except StopAsyncIteration:
+                    break
+                except TimeoutError as exc:
+                    logger.warning(
+                        "Upload stream stalled before completion",
+                        extra={
+                            "bytes_received": total,
+                            "expected_bytes": expected_size,
+                        },
+                    )
+                    raise HTTPException(
+                        status_code=408,
+                        detail="Upload stalled before completion",
+                    ) from exc
                 if not chunk:
                     continue
                 total += len(chunk)

@@ -68,7 +68,7 @@
   "statusProcessing": "Processing",
   "statusReady": "Ready",
   "statusUploading": "Uploading...",
-  "uploadConnectionError": "The connection dropped before the upload finished. Your file is still selected — try again.",
+  "uploadConnectionError": "The connection dropped before the upload finished. Reserved credits were returned and your file is still selected — try again.",
   "uploadFailed": "The upload failed. Your file is still selected — try again.",
   "statusProcessingEllipsis": "Processing...",
   "statusFailedFallback": "Processing failed",

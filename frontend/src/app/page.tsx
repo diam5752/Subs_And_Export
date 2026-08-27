@@ -490,12 +490,26 @@ export default function DashboardPage() {
         && typeof err.code === 'string'
         ? err.code
         : null;
+      const uploadErrorStatus = typeof err === 'object'
+        && err !== null
+        && 'status' in err
+        && typeof err.status === 'number'
+        ? err.status
+        : null;
+      // A stream failure can happen after the server has provisionally
+      // reserved credits. Refresh on every terminal upload error so an
+      // immediate server refund is visible without requiring a page reload.
+      void refreshBalance();
       if (reopenAuthoritativeQuote(err, { kind: 'new', options })) {
         // The server has not charged credits, created a job, or called the
         // provider. Keep the file/settings and require a fresh explicit click.
       } else if (uploadController.signal.aborted || uploadErrorCode === 'upload_cancelled') {
         setProcessError(t('processingCancelled'));
-      } else if (uploadErrorCode === 'upload_network_error' || uploadErrorCode === 'upload_timeout') {
+      } else if (
+        uploadErrorCode === 'upload_network_error'
+        || uploadErrorCode === 'upload_timeout'
+        || uploadErrorStatus === 408
+      ) {
         setProcessError(t('uploadConnectionError'));
       } else if (uploadErrorCode === 'upload_http_error') {
         setProcessError(t('uploadFailed'));

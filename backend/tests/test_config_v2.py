@@ -22,6 +22,7 @@ def test_settings_defaults(monkeypatch) -> None:
     # REGRESSION: production previously advertised 95 MB while local defaults
     # silently allowed 1 GiB.
     assert settings.max_upload_mb == 500
+    assert settings.upload_inactivity_timeout_seconds == 30.0
     assert settings.max_video_duration_seconds == 600
     # REGRESSION: production was pinned to one request-long media lane, so a
     # second customer could not upload while the first transcription ran.
