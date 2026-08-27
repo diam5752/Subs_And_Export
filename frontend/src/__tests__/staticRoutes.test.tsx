@@ -71,6 +71,8 @@ describe('static application routes', () => {
         const assetPaths = [
             'brand/gsubs-logo.svg',
             'brand/gsubs-mark.svg',
+            'brand/gsubs-social-card.svg',
+            'brand/gsubs-social-card.png',
             'brand/gsubs-watermark.svg',
             'gsubs-watermark.png',
             'icon.png',
@@ -101,5 +103,16 @@ describe('static application routes', () => {
         expect(canonicalLogo).toContain('#c66a21');
         expect(canonicalLogo).toContain('M160 36L178 52L160 68');
         expect(canonicalLogo).not.toContain('data-brand-mark="compact-split"');
+
+        const socialCard = fs.readFileSync(
+            path.join(publicRoot, 'brand/gsubs-social-card.png'),
+        );
+        // REGRESSION: Without an explicit 1200x630 share image, link previews
+        // enlarged the square app icon and cropped the gsubs logo.
+        expect(socialCard.subarray(0, 8)).toEqual(
+            Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+        );
+        expect(socialCard.readUInt32BE(16)).toBe(1200);
+        expect(socialCard.readUInt32BE(20)).toBe(630);
     });
 });
