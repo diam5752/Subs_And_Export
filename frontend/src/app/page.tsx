@@ -45,6 +45,9 @@ const statusStyles: Record<string, string> = {
 
 const RESTORABLE_ACTIVE_JOB_STATUSES = new Set(['pending', 'processing', 'cancelling']);
 const CANCELLABLE_JOB_STATUSES = new Set(['pending', 'processing']);
+const ELEVENLABS_MISSING_WORD_TIMESTAMPS = (
+  'ElevenLabs Scribe v2 response did not include word timestamps.'
+);
 const CHECKOUT_RECONCILIATION_DELAYS_MS = [0, 1_000, 2_000, 4_000, 8_000, 15_000] as const;
 const CHECKOUT_NONTERMINAL_STATUSES = new Set([
   'creating',
@@ -346,10 +349,17 @@ export default function DashboardPage() {
     },
     onFailed: (errorMessage: string) => {
       localStorage.removeItem('lastActiveJobId');
-      setProcessError(errorMessage);
+      setProcessError(
+        errorMessage === ELEVENLABS_MISSING_WORD_TIMESTAMPS
+          ? t('transcriptionMissingWordTimestamps')
+          : errorMessage,
+      );
       setIsProcessing(false);
       setCanCancelProcessing(false);
       setJobId(null);
+      // Failed and cancelled background jobs refund reserved credits. Pull the
+      // authoritative wallet as soon as polling observes the terminal state.
+      void refreshBalance();
       refreshActivity();
     },
     onError: (errorMessage: string) => {
@@ -357,7 +367,7 @@ export default function DashboardPage() {
       setCanCancelProcessing(false);
       setProcessError(errorMessage);
     },
-  }), [refreshActivity, setSelectedJob]);
+  }), [refreshActivity, refreshBalance, setSelectedJob, t]);
 
   // Cancel processing handler
   const handleCancelProcessing = useCallback(async () => {
