@@ -1207,7 +1207,7 @@ for (const [label, viewport] of Object.entries(viewports)) {
         expect(selectionBox?.height).toBeGreaterThanOrEqual(44);
         expect(selectionBox?.width).toBeGreaterThanOrEqual(44);
 
-        const historyDownload = historyDialog.getByRole('link', {
+        const historyDownload = historyDialog.getByRole('button', {
           name: new RegExp(`^${el.download} `),
         }).first();
         const historyView = historyDialog.getByRole('button', {
