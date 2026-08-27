@@ -21,7 +21,7 @@ def deployment_text(filename: str) -> str:
 
 
 def relay_validator_source(verifier: str) -> str:
-    marker = 'docker exec "$edge_id" cat /etc/caddy/Caddyfile | docker exec -i "$backend_id" python -c \'\n'
+    marker = 'docker exec "$app_edge_id" cat /etc/caddy/Caddyfile | docker exec -i "$backend_id" python -c \'\n'
     validator = verifier.split(marker, 1)[1].split("\n'; then", 1)[0]
     assert validator.startswith("from __future__ import annotations\n")
     return validator
@@ -432,7 +432,7 @@ def test_feedback_mailer_is_isolated_and_gates_public_cutover() -> None:
     db = compose.split("  db:", 1)[1].split("\n  backend:", 1)[0]
     worker = compose.split("  feedback-worker:", 1)[1].split("\n  frontend:", 1)[0]
     backend = compose.split("  backend:", 1)[1].split("\n  feedback-worker:", 1)[0]
-    edge = compose.split("  edge:", 1)[1].split("\n  privacy-relay:", 1)[0]
+    app_edge = compose.split("  app-edge:", 1)[1].split("\n  edge:", 1)[0]
     assert 'command: ["python", "-m", "backend.cli", "feedback-worker"]' in worker
     assert 'test: ["CMD", "python", "-m", "backend.cli", "check-feedback-worker"]' in worker
     assert "provider_egress" in worker
@@ -446,8 +446,8 @@ def test_feedback_mailer_is_isolated_and_gates_public_cutover() -> None:
     assert "SUBFRAME_FEEDBACK_API_ENV_FILE" in backend
     assert "SUBFRAME_FEEDBACK_API_ENV_FILE" not in worker
     assert "SUBFRAME_FEEDBACK_API_ENV_FILE" not in db
-    assert "feedback-worker:" in edge
-    assert "condition: service_healthy" in edge
+    assert "feedback-worker:" in app_edge
+    assert "condition: service_healthy" in app_edge
     assert "GSP_FEEDBACK_SMTP_PASSWORD" not in backend
     assert "GSP_FEEDBACK_SMTP_PASSWORD" not in main_environment
     assert "GSP_FEEDBACK_SMTP_PASSWORD" not in api_environment
@@ -474,8 +474,8 @@ def test_feedback_mailer_is_isolated_and_gates_public_cutover() -> None:
     cutover = deploy_script.split('install -d -m 700 "$STATE_DIR"', 1)[1]
     core_start = cutover.index("compose up -d backend frontend")
     worker_start = cutover.index("compose up -d feedback-worker")
-    edge_start = cutover.index("compose up -d --force-recreate edge")
-    assert core_start < worker_start < edge_start
+    app_edge_start = cutover.index("compose up -d --no-deps --force-recreate app-edge")
+    assert core_start < worker_start < app_edge_start
     assert "Feedback notification worker is unhealthy" in deploy_script
     assert "Feedback $feedback_env_label env permissions must be 0600" in deploy_script
     assert "SUBFRAME_FEEDBACK_API_ENV_FILE" in deploy_script
@@ -671,7 +671,7 @@ def test_release_blocks_legacy_gcs_reference_loss_before_migration() -> None:
     assert "result_data ? 'source_gcs_object'" in deploy_script
     assert "Legacy GCS retirement preflight failed before database migration." in deploy_script
     assert deploy_script.index("if ! assert_no_legacy_gcs_references; then") < deploy_script.index(
-        "if ! compose stop edge; then",
+        "if ! compose stop app-edge; then",
     )
 
     assert "assert_legacy_gcs_retirement_complete()" in verifier
@@ -789,10 +789,10 @@ def test_production_environment_defaults_do_not_prune_shared_cache() -> None:
     assert "automatic rollback is disabled because the database schema may have advanced" in (deploy_script)
     assert "SUBFRAME_ALLOW_SCHEMA_COMPATIBLE_ROLLBACK must be 0 or 1" in deploy_script
     rollback_body = deploy_script.split("rollback() {", 1)[1].split("\n}\n", 1)[0]
-    assert "compose stop edge" in rollback_body
+    assert "compose stop app-edge" in rollback_body
     assert "compose up -d --no-build db backend frontend" in rollback_body
     assert "compose up -d --no-build;" not in rollback_body
-    assert "the public edge remains stopped" in rollback_body
+    assert "the public application remains behind maintenance mode" in rollback_body
 
 
 def test_erasure_journal_is_separate_and_reconciled_before_public_cutover() -> None:
@@ -830,20 +830,20 @@ def test_erasure_journal_is_separate_and_reconciled_before_public_cutover() -> N
     assert "log {" not in privacy_caddyfile
 
     cutover = deploy_script.split('install -d -m 700 "$STATE_DIR"', 1)[1]
-    edge_stop = cutover.index("compose stop edge")
+    app_edge_stop = cutover.index("compose stop app-edge")
     db_start = cutover.index("compose up -d db")
     continuity_gate = cutover.index("initialize_or_verify_privacy_continuity")
     core_start = cutover.index("compose up -d backend frontend")
     # The app worker delays its first scheduled pass, so cutover must retain
-    # this synchronous retention gate while the public edge is stopped.
+    # this synchronous retention gate while the public app is in maintenance.
     retention = cutover.index("python -m backend.cli run-retention")
     relay_start = cutover.index("compose up -d privacy-relay")
     reconcile = cutover.index("python -m backend.cli reconcile-erasures")
     relay_stop = cutover.index("compose stop privacy-relay")
     receipt = cutover.index('mv -f -- "$erasure_receipt_temp"')
-    edge_start = cutover.index("compose up -d --force-recreate edge")
+    app_edge_start = cutover.index("compose up -d --no-deps --force-recreate app-edge")
     assert (
-        edge_stop
+        app_edge_stop
         < db_start
         < continuity_gate
         < core_start
@@ -852,7 +852,7 @@ def test_erasure_journal_is_separate_and_reconciled_before_public_cutover() -> N
         < reconcile
         < relay_stop
         < receipt
-        < edge_start
+        < app_edge_start
     )
     assert (
         cutover.count(
@@ -861,7 +861,7 @@ def test_erasure_journal_is_separate_and_reconciled_before_public_cutover() -> N
         == 2
     )
     assert "Local retention reconciliation failed" in deploy_script
-    assert "the public edge remains stopped" in deploy_script
+    assert "the public application remains safely in maintenance mode" in deploy_script
     assert "A successful erasure reconciliation receipt is required" in verifier
     assert "reconciled_epoch" in verifier
     assert "backend_started_epoch" in verifier
@@ -1055,7 +1055,7 @@ def test_first_legacy_journal_transition_quiesces_writers_and_requires_fresh_bac
     assert re.search(r"^services_stopped_at_utc=[0-9]{8}T[0-9]{6}Z$", marker_text, re.MULTILINE)
     assert "Create a fresh backup" in completed.stderr
     docker_commands = Path(fixture["docker_log"]).read_text(encoding="utf-8")
-    assert "stop edge backend" in docker_commands
+    assert "stop edge app-edge backend" in docker_commands
     assert " build " not in f" {docker_commands} "
 
 
@@ -1080,9 +1080,9 @@ def test_legacy_journal_transition_rejects_tampering_and_restarted_writers(
     assert "marker is malformed or belongs to another release" in tampered.stderr
     assert "transition validation failed; edge and backend remain closed" in tampered.stderr
     tampered_commands = docker_log.read_text(encoding="utf-8")
-    assert "stop edge backend" in tampered_commands
-    assert "stop subframe-edge-1 subframe-backend-1" in tampered_commands
-    assert "ps --status running -q edge backend" in tampered_commands
+    assert "stop edge app-edge backend" in tampered_commands
+    assert "stop subframe-edge-1 subframe-app-edge-1 subframe-backend-1" in tampered_commands
+    assert "ps --status running -q edge app-edge backend" in tampered_commands
 
     marker.write_text(original_marker, encoding="utf-8")
     marker.chmod(0o600)
@@ -1091,9 +1091,9 @@ def test_legacy_journal_transition_rejects_tampering_and_restarted_writers(
     assert restarted.returncode == 1
     assert "edge or backend restarted after the transition marker" in restarted.stderr
     restarted_commands = docker_log.read_text(encoding="utf-8")
-    assert "stop edge backend" in restarted_commands
-    assert "stop subframe-edge-1 subframe-backend-1" in restarted_commands
-    assert "ps --status running -q edge backend" in restarted_commands
+    assert "stop edge app-edge backend" in restarted_commands
+    assert "stop subframe-edge-1 subframe-app-edge-1 subframe-backend-1" in restarted_commands
+    assert "ps --status running -q edge app-edge backend" in restarted_commands
 
     docker_log.write_text("", encoding="utf-8")
     backend_restarted = run_legacy_journal_transition_fixture(
@@ -1103,9 +1103,9 @@ def test_legacy_journal_transition_rejects_tampering_and_restarted_writers(
     assert backend_restarted.returncode == 1
     assert "edge or backend restarted after the transition marker" in backend_restarted.stderr
     backend_commands = docker_log.read_text(encoding="utf-8")
-    assert "stop edge backend" in backend_commands
-    assert "stop subframe-edge-1 subframe-backend-1" in backend_commands
-    assert "ps --status running -q edge backend" in backend_commands
+    assert "stop edge app-edge backend" in backend_commands
+    assert "stop subframe-edge-1 subframe-app-edge-1 subframe-backend-1" in backend_commands
+    assert "ps --status running -q edge app-edge backend" in backend_commands
 
 
 def test_legacy_journal_transition_rejects_a_pre_quiescence_backup(
@@ -1926,6 +1926,8 @@ printf '%s\n' "$*" >> "$FAKE_DOCKER_COMMAND_LOG"
 case "$*" in
   *"to_regclass"*) printf 'f\n' ;;
   *"source_gcs_object"*) printf '0\n' ;;
+  *"compose"*"ps -q app-edge"*) printf 'app-edge-container\n' ;;
+  *"compose"*"ps -q edge"*) printf 'edge-container\n' ;;
 esac
 if [ "${1:-}" = "inspect" ]; then
   printf 'healthy\\n'
@@ -2034,8 +2036,54 @@ def test_edge_healthcheck_consumes_the_response_body() -> None:
     edge_service = compose.split("  edge:", 1)[1].split("\n  privacy-relay:", 1)[0]
     healthcheck = edge_service.split("    healthcheck:", 1)[1]
 
-    assert 'test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080"]' in healthcheck
+    assert 'test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/.well-known/gsubs-edge-health"]' in healthcheck
     assert "--spider" not in healthcheck
+
+
+def test_stable_gateway_serves_maintenance_while_the_private_app_edge_is_closed() -> None:
+    """REGRESSION: privacy-safe deploy cutovers surfaced a raw tunnel 502."""
+    compose = deployment_text("docker-compose.production.yml")
+    deploy_script = deployment_text("deploy-production.sh")
+    verifier = deployment_text("verify-production.sh")
+    gateway = deployment_text("gateway/Caddyfile")
+
+    app_edge = compose.split("  app-edge:", 1)[1].split("\n  edge:", 1)[0]
+    edge = compose.split("  edge:", 1)[1].split("\n  privacy-relay:", 1)[0]
+    assert "ports:" not in app_edge
+    assert "provider_egress" in app_edge
+    assert "gateway_link" in app_edge
+    assert "mizai_edge" not in app_edge
+    assert "./Caddyfile:/etc/caddy/Caddyfile:ro" in app_edge
+    assert "./gateway:/etc/caddy:ro" in edge
+    assert "subframe-edge" in edge
+    assert "gateway_link" in edge
+    assert "private: {}" not in edge
+    assert "provider_egress" not in edge
+    assert "depends_on:" not in edge
+    assert "/.well-known/gsubs-edge-health" in edge
+
+    assert "admin 127.0.0.1:2019" in gateway
+    assert gateway.count("name app-edge") == 2
+    assert "dynamic a" in gateway
+    assert "handle_errors" in gateway
+    assert 'Retry-After "5"' in gateway
+    assert "Κάνουμε μια σύντομη αναβάθμιση." in gateway
+    assert "reverse_proxy backend:" not in gateway
+    assert "reverse_proxy frontend:" not in gateway
+
+    cutover = deploy_script.split('install -d -m 700 "$STATE_DIR"', 1)[1]
+    app_stop = cutover.index("compose stop app-edge")
+    app_start = cutover.index("compose up -d --no-deps --force-recreate app-edge")
+    reconciliation = cutover.index("python -m backend.cli reconcile-erasures")
+    assert app_stop < reconciliation < app_start
+    assert "prepare_public_gateway" in deploy_script
+    assert "reload_public_gateway" in deploy_script
+    rollback_body = deploy_script.split("rollback() {", 1)[1].split("\n}\n", 1)[0]
+    assert "compose stop app-edge" in rollback_body
+    assert "compose up -d --no-deps edge" not in rollback_body
+    assert "Running stable gateway contract is unsafe" in verifier
+    assert "The application edge must not join the shared public tunnel network" in verifier
+    assert "Stable gateway must not reach private application or provider networks directly" in verifier
 
 
 def test_edge_caps_stripe_webhook_body_before_generic_billing_proxy() -> None:
@@ -2104,8 +2152,8 @@ def test_google_oauth_certificates_use_a_scoped_internal_edge_relay() -> None:
     assert "method GET" in google_matcher
     assert "method POST" not in google_matcher
     assert "reverse_proxy https://www.googleapis.com" in caddyfile
-    assert "compose run --rm --no-deps --entrypoint caddy edge validate" in deploy_script
-    assert "compose up -d --force-recreate edge" in deploy_script
+    assert "compose run --rm --no-deps --entrypoint caddy app-edge validate" in deploy_script
+    assert "compose up -d --no-deps --force-recreate app-edge" in deploy_script
     assert '"@google_oauth_certs": (' in verifier
     assert '"path /oauth2/v1/certs"' in verifier
 
@@ -2296,7 +2344,7 @@ def test_deploy_preflights_backend_import_before_public_cutover() -> None:
         "assert all(os.access(path, os.R_OK | (os.X_OK if path.is_dir() else 0)) "
         "for path in (root, *root.rglob(\"*\"))); import main'"
     )
-    public_cutover = "if ! compose stop edge; then"
+    public_cutover = "if ! compose stop app-edge; then"
 
     # REGRESSION: candidate image startup was first exercised only after the
     # public edge had closed, turning a source-mode build defect into downtime.

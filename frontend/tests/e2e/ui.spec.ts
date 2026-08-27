@@ -106,6 +106,35 @@ test('Google Identity Services login exchanges an ID token for a GSUBS session',
   await expect(page.getByTestId('profile-avatar-image')).toBeVisible();
 });
 
+test('Messenger in-app browser gets a usable Google sign-in fallback', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(Navigator.prototype, 'userAgent', {
+      configurable: true,
+      get: () => (
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) '
+        + 'AppleWebKit/605.1.15 Mobile/15E148 '
+        + '[FBAN/MessengerForiOS;FBAV/520.0.0.0.0]'
+      ),
+    });
+  });
+  let nonceRequests = 0;
+  page.on('request', (request) => {
+    if (new URL(request.url()).pathname === '/auth/google/nonce') {
+      nonceRequests += 1;
+    }
+  });
+  await mockApi(page, { authenticated: false });
+  await page.goto('/login');
+
+  const fallback = page.getByTestId('google-embedded-browser-fallback');
+  await expect(fallback).toBeVisible();
+  await expect(fallback).toContainText(el.loginGoogleEmbeddedTitle);
+  await expect(fallback).toContainText(el.loginGoogleEmbeddedBody);
+  await expect(page.getByTestId('google-button-container')).toHaveCount(0);
+  await expect(page.getByLabel(el.loginEmailLabel)).toBeVisible();
+  expect(nonceRequests).toBe(0);
+});
+
 test('expired Google nonce requires a full reload and never posts the stale credential', async ({ page }) => {
   // REGRESSION: a login tab left open past the nonce TTL used to send the old
   // credential, fail with an English backend detail, and require a manual retry.

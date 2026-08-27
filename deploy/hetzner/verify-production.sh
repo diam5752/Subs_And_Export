@@ -189,7 +189,7 @@ SQL
 }
 
 compose config --quiet
-for service in db backend frontend feedback-worker edge; do
+for service in db backend frontend feedback-worker app-edge edge; do
   container_id=$(compose ps -q "$service")
   if [ -z "$container_id" ]; then
     echo "Missing container for service: $service" >&2
@@ -206,6 +206,7 @@ db_id=$(compose ps -q db)
 backend_id=$(compose ps -q backend)
 frontend_id=$(compose ps -q frontend)
 feedback_worker_id=$(compose ps -q feedback-worker)
+app_edge_id=$(compose ps -q app-edge)
 backend_image=$(docker inspect --format '{{.Config.Image}}' "$backend_id")
 frontend_image=$(docker inspect --format '{{.Config.Image}}' "$frontend_id")
 feedback_worker_image=$(docker inspect --format '{{.Config.Image}}' "$feedback_worker_id")
@@ -594,16 +595,76 @@ if [ "$reconciled_epoch" -lt "$backend_started_epoch" ] ||
   exit 1
 fi
 edge_id=$(compose ps -q edge)
-expected_caddyfile="$ROOT_DIR/deploy/hetzner/Caddyfile"
-expected_caddyfile_sha=$(sha256sum "$expected_caddyfile" | awk 'NR == 1 { print $1 }')
-runtime_caddyfile_sha=$(docker exec "$edge_id" sha256sum /etc/caddy/Caddyfile | awk 'NR == 1 { print $1 }')
-if [ "$runtime_caddyfile_sha" != "$expected_caddyfile_sha" ]; then
-  echo "Running edge relay configuration does not match the reviewed release." >&2
+expected_gateway_caddyfile="$ROOT_DIR/deploy/hetzner/gateway/Caddyfile"
+expected_gateway_caddyfile_sha=$(sha256sum "$expected_gateway_caddyfile" | awk 'NR == 1 { print $1 }')
+runtime_gateway_caddyfile_sha=$(docker exec "$edge_id" sha256sum /etc/caddy/Caddyfile | awk 'NR == 1 { print $1 }')
+if [ "$runtime_gateway_caddyfile_sha" != "$expected_gateway_caddyfile_sha" ]; then
+  echo "Running stable gateway configuration does not match the reviewed release." >&2
   exit 1
 fi
 if ! docker exec "$edge_id" caddy validate \
   --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null; then
-  echo "Running edge relay configuration is invalid." >&2
+  echo "Running stable gateway configuration is invalid." >&2
+  exit 1
+fi
+expected_caddyfile="$ROOT_DIR/deploy/hetzner/Caddyfile"
+expected_caddyfile_sha=$(sha256sum "$expected_caddyfile" | awk 'NR == 1 { print $1 }')
+runtime_caddyfile_sha=$(docker exec "$app_edge_id" sha256sum /etc/caddy/Caddyfile | awk 'NR == 1 { print $1 }')
+if [ "$runtime_caddyfile_sha" != "$expected_caddyfile_sha" ]; then
+  echo "Running application edge configuration does not match the reviewed release." >&2
+  exit 1
+fi
+if ! docker exec "$app_edge_id" caddy validate \
+  --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null; then
+  echo "Running application edge configuration is invalid." >&2
+  exit 1
+fi
+
+gateway_networks=$(docker inspect --format '{{range $name, $network := .NetworkSettings.Networks}}{{println $name}}{{end}}' "$edge_id")
+app_edge_networks=$(docker inspect --format '{{range $name, $network := .NetworkSettings.Networks}}{{println $name}}{{end}}' "$app_edge_id")
+for required_gateway_network in subframe-gateway-link mizai_mizai-private; do
+  printf '%s\n' "$gateway_networks" | grep -Fqx "$required_gateway_network" || {
+    echo "Stable gateway is missing its required network: $required_gateway_network" >&2
+    exit 1
+  }
+done
+for forbidden_gateway_network in subframe-private subframe-provider-egress; do
+  if printf '%s\n' "$gateway_networks" | grep -Fqx "$forbidden_gateway_network"; then
+    echo "Stable gateway must not reach private application or provider networks directly." >&2
+    exit 1
+  fi
+done
+if printf '%s\n' "$app_edge_networks" | grep -Fqx mizai_mizai-private; then
+  echo "The application edge must not join the shared public tunnel network." >&2
+  exit 1
+fi
+for required_app_edge_network in subframe-private subframe-provider-egress subframe-gateway-link; do
+  printf '%s\n' "$app_edge_networks" | grep -Fqx "$required_app_edge_network" || {
+    echo "Application edge is missing its required isolated network: $required_app_edge_network" >&2
+    exit 1
+  }
+done
+
+if ! docker exec "$edge_id" cat /etc/caddy/Caddyfile | docker exec -i "$backend_id" python -c '
+import sys
+
+source = sys.stdin.read()
+required = (
+    "admin 127.0.0.1:2019",
+    "path /.well-known/gsubs-edge-health",
+    "dynamic a",
+    "name app-edge",
+    "Retry-After \"5\"",
+    "Κάνουμε μια σύντομη αναβάθμιση.",
+)
+if any(fragment not in source for fragment in required):
+    raise SystemExit("Stable gateway maintenance contract is incomplete.")
+if "reverse_proxy backend:" in source or "reverse_proxy frontend:" in source:
+    raise SystemExit("Stable gateway must remain data-blind.")
+if source.count("name app-edge") != 2:
+    raise SystemExit("Stable gateway must expose only the two reviewed app-edge ports.")
+'; then
+  echo "Running stable gateway contract is unsafe." >&2
   exit 1
 fi
 
@@ -612,7 +673,7 @@ fi
 # deploy verification. The structural check below is performed against the
 # read-only file mounted in the running edge, while the subsequent HTTP probes
 # use method/path combinations proven to terminate at the local 404 handler.
-if ! docker exec "$edge_id" cat /etc/caddy/Caddyfile | docker exec -i "$backend_id" python -c '
+if ! docker exec "$app_edge_id" cat /etc/caddy/Caddyfile | docker exec -i "$backend_id" python -c '
 from __future__ import annotations
 
 from collections import Counter

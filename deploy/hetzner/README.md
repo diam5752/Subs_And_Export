@@ -1,10 +1,12 @@
 # Hetzner production lane
 
 `https://gsubs.gr` runs as an independent Docker Compose project on the MizAI
-Hetzner VM. It shares only the existing edge network so the public reverse proxy
-can reach the `subframe-edge` alias. PostgreSQL, media data, logs, images and
-the private network remain separate from MizAI and the other projects on the
-host.
+Hetzner VM. A data-blind, stable gateway joins the existing tunnel network so
+the public tunnel can reach the `subframe-edge` alias, plus a dedicated
+internal `gateway_link` shared only with `app-edge`. The private `app-edge`
+contains the application and provider routes; it never joins the shared public
+network. PostgreSQL, media data, logs, images and the private network remain
+separate from MizAI and the other projects on the host.
 
 The `SUBFRAME_*`, `subframe-*`, and `/home/mizai/subframe` identifiers below are
 stable internal deployment contracts. The public product name is gsubs; these
@@ -419,12 +421,17 @@ docker compose --project-name subframe \
   --profile privacy-maintenance stop privacy-relay
 ```
 
-The normal `deploy-production.sh` path does this automatically: it stops the
-edge, invalidates `.runtime/last-erasure-reconciliation`, starts only the core
+The normal `deploy-production.sh` path does this automatically: it keeps the
+stable, data-blind public gateway online, stops the private `app-edge`,
+invalidates `.runtime/last-erasure-reconciliation`, starts only the core
 services, replays and prunes the journal, writes a new receipt atomically, and
-only then recreates the edge. Provider replay uses the private temporary relay
-while the public edge remains stopped, and the relay is torn down before the
-receipt and cutover. `verify-production.sh` rejects a running privacy relay or a missing,
+only then recreates `app-edge`. During that interval the gateway returns a
+branded, non-cacheable HTTP 503 response with `Retry-After: 5` and automatic
+page refresh; its isolated network has no direct route to the backend,
+frontend, database or provider egress, so privacy remains
+fail-closed without exposing a raw tunnel 502. Provider replay uses the private
+temporary relay while the application remains closed, and the relay is torn
+down before the receipt and cutover. `verify-production.sh` rejects a running privacy relay or a missing,
 malformed, release-mismatched or stale receipt, including one written before
 the current backend container started. Never reopen public traffic manually if
 the replay exits nonzero or the journal is malformed. When the live continuity
@@ -463,10 +470,12 @@ SUBFRAME_ENV_FILE=/home/mizai/subframe/.env.production \
   ./deploy/hetzner/verify-production.sh
 ```
 
-The edge service binds to `127.0.0.1:18090` by default. Public HTTPS reaches it
-through the existing reverse proxy and the `subframe-edge` Docker-network
-alias; the backend, frontend and database do not publish host ports. An
-operator can also inspect the loopback surface through an SSH local-forward:
+The stable gateway binds to `127.0.0.1:18090` by default. Public HTTPS reaches
+it through the existing tunnel and the `subframe-edge` Docker-network alias;
+the gateway dynamically resolves `app-edge` across their dedicated internal
+link, while the backend,
+frontend and database do not publish host ports. An operator can also inspect
+the loopback surface through an SSH local-forward:
 
 ```bash
 ssh -N -L 127.0.0.1:18090:127.0.0.1:18090 root@SERVER

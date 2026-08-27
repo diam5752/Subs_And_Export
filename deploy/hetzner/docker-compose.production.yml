@@ -168,17 +168,14 @@ services:
       retries: 6
       start_period: 30s
 
-  edge:
+  app-edge:
     image: ${CADDY_IMAGE:-caddy:2-alpine}
-    ports:
-      - "127.0.0.1:${SUBFRAME_PREVIEW_PORT:-18090}:8080"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
     networks:
-      private: {}
-      mizai_edge:
-        aliases:
-          - subframe-edge
+      - private
+      - provider_egress
+      - gateway_link
     depends_on:
       backend:
         condition: service_healthy
@@ -194,6 +191,26 @@ services:
       timeout: 10s
       retries: 6
       start_period: 15s
+
+  edge:
+    image: ${CADDY_IMAGE:-caddy:2-alpine}
+    ports:
+      - "127.0.0.1:${SUBFRAME_PREVIEW_PORT:-18090}:8080"
+    volumes:
+      - ./gateway:/etc/caddy:ro
+    networks:
+      gateway_link: {}
+      mizai_edge:
+        aliases:
+          - subframe-edge
+    restart: unless-stopped
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:8080/.well-known/gsubs-edge-health"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
 
   privacy-relay:
     image: ${CADDY_IMAGE:-caddy:2-alpine}
@@ -216,6 +233,9 @@ services:
 networks:
   private:
     name: subframe-private
+    internal: true
+  gateway_link:
+    name: subframe-gateway-link
     internal: true
   mizai_edge:
     external: true
