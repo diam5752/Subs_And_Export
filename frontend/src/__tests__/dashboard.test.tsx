@@ -1445,6 +1445,23 @@ describe('DashboardPage', () => {
         expect(screen.getByTestId('process-error')).toHaveTextContent('uploadConnectionError');
     });
 
+    it('refreshes refunded credits after the server terminates a stalled upload', async () => {
+        (api.processVideo as jest.Mock).mockRejectedValue(
+            Object.assign(new Error('Upload stalled before completion'), { status: 408 }),
+        );
+        render(<DashboardPage />);
+
+        fireEvent.click(screen.getByText('Select File'));
+        fireEvent.click(screen.getByText('Start Process'));
+        await confirmProcessingCost();
+
+        await waitFor(() => {
+            expect(api.processVideo).toHaveBeenCalled();
+        });
+        expect(screen.getByTestId('process-error')).toHaveTextContent('uploadConnectionError');
+        expect(__refreshBalanceMock).toHaveBeenCalledTimes(1);
+    });
+
     it('updates balance on reprocess success', async () => {
         (api.reprocessJob as jest.Mock).mockResolvedValue({ id: 'job234', status: 'pending', balance: 700 });
         render(<DashboardPage />);

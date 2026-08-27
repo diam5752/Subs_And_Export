@@ -124,6 +124,65 @@ def test_stream_refunds_pre_body_reservation_when_authoritative_quote_increases(
     assert list(artifacts_root.iterdir()) == []
 
 
+def test_stream_stall_refunds_reservation_and_deletes_partial_workspace(
+    client: TestClient,
+    funded_user_auth_headers: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from backend.app.api.endpoints import videos as videos_module
+    from backend.app.core.database import Database
+    from backend.app.services.jobs import JobStore
+    from backend.app.services.points import PointsStore
+
+    user_id = client.get(
+        "/auth/me",
+        headers=funded_user_auth_headers,
+    ).json()["id"]
+    points_store = PointsStore(Database())
+    starting_balance = points_store.get_balance(user_id)
+    captured_path: list[Path] = []
+
+    async def stall_after_partial_body(
+        _request: object,
+        destination: Path,
+        *,
+        expected_size: int | None,
+        cleanup_on_error: bool,
+    ) -> None:
+        assert expected_size == len(b"private-video")
+        assert cleanup_on_error is False
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(b"partial")
+        captured_path.append(destination)
+        raise HTTPException(
+            status_code=408,
+            detail="Upload stalled before completion",
+        )
+
+    monkeypatch.setattr(
+        videos_module,
+        "save_request_stream_with_limit",
+        stall_after_partial_body,
+    )
+
+    response = post_process_stream(
+        client,
+        funded_user_auth_headers,
+        content=b"private-video",
+        metadata={"authorized_credits": 30},
+    )
+
+    assert response.status_code == 408
+    assert response.json() == {"detail": "Upload stalled before completion"}
+    assert points_store.get_balance(user_id) == starting_balance
+    assert JobStore(Database()).list_jobs_for_user(user_id) == []
+    assert len(captured_path) == 1
+    assert not captured_path[0].exists()
+    _data_dir, uploads_dir, artifacts_root = videos_module.data_roots()
+    assert list(uploads_dir.iterdir()) == []
+    assert list(artifacts_root.iterdir()) == []
+
+
 def test_stream_rejects_nan_probe_with_full_cleanup_and_refund(
     client: TestClient,
     funded_user_auth_headers: dict[str, str],

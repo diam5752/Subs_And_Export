@@ -404,6 +404,7 @@ def test_production_compose_enables_reviewed_paid_credits_and_budgeted_scribe() 
     assert 'GSP_MEDIA_EXTRACTION_SLOTS: "1"' in compose
     assert 'GSP_MEDIA_EXTRACTION_THREADS_PER_SLOT: "1"' in compose
     assert 'GSP_PROVIDER_TRANSCRIPTION_SLOTS: "8"' in compose
+    assert 'GSP_UPLOAD_INACTIVITY_TIMEOUT_SECONDS: "30"' in compose
     assert 'cpus: "${SUBFRAME_BACKEND_CPUS:-3.0}"' in compose
     assert 'mem_limit: "${SUBFRAME_BACKEND_MEMORY_LIMIT:-3g}"' in compose
     assert "pids_limit: 256" in compose
@@ -588,6 +589,7 @@ def test_production_verifier_requires_every_fail_closed_runtime_setting() -> Non
         "GSP_MEDIA_EXTRACTION_SLOTS=1",
         "GSP_MEDIA_EXTRACTION_THREADS_PER_SLOT=1",
         "GSP_PROVIDER_TRANSCRIPTION_SLOTS=8",
+        "GSP_UPLOAD_INACTIVITY_TIMEOUT_SECONDS=30",
         "GSP_WORKSPACE_RETENTION_HOURS=24",
         "GSP_STALE_JOB_RETENTION_HOURS=6",
         "GSP_ORPHAN_RETENTION_HOURS=1",

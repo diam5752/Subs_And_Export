@@ -34,6 +34,55 @@ def _streaming_request(chunks: list[bytes]) -> Request:
     )
 
 
+def _stalled_streaming_request(first_chunk: bytes) -> Request:
+    delivered_first_chunk = False
+
+    async def receive() -> dict[str, object]:
+        nonlocal delivered_first_chunk
+        if not delivered_first_chunk:
+            delivered_first_chunk = True
+            return {
+                "type": "http.request",
+                "body": first_chunk,
+                "more_body": True,
+            }
+        await anyio.sleep_forever()
+        raise AssertionError("unreachable")
+
+    return Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/videos/process-stream",
+            "headers": [],
+        },
+        receive,
+    )
+
+
+def _slow_active_streaming_request(chunks: list[bytes], *, delay_seconds: float) -> Request:
+    pending = list(chunks)
+
+    async def receive() -> dict[str, object]:
+        await anyio.sleep(delay_seconds)
+        body = pending.pop(0) if pending else b""
+        return {
+            "type": "http.request",
+            "body": body,
+            "more_body": bool(pending),
+        }
+
+    return Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/videos/process-stream",
+            "headers": [],
+        },
+        receive,
+    )
+
+
 def test_save_request_stream_removes_incomplete_upload(tmp_path: Path) -> None:
     destination = tmp_path / "upload.mp4"
 
@@ -46,6 +95,65 @@ def test_save_request_stream_removes_incomplete_upload(tmp_path: Path) -> None:
             )
         assert exc_info.value.status_code == 400
         assert exc_info.value.detail == "Incomplete upload"
+
+    anyio.run(run)
+    assert not destination.exists()
+
+
+def test_save_request_stream_times_out_and_removes_a_stalled_partial_upload(
+    tmp_path: Path,
+) -> None:
+    destination = tmp_path / "upload.mp4"
+
+    async def run() -> None:
+        with pytest.raises(HTTPException) as exc_info:
+            await file_utils.save_request_stream_with_limit(
+                _stalled_streaming_request(b"partial-video"),
+                destination,
+                expected_size=1_000,
+                inactivity_timeout_seconds=0.01,
+            )
+        assert exc_info.value.status_code == 408
+        assert exc_info.value.detail == "Upload stalled before completion"
+
+    # REGRESSION: a paused mobile upload previously waited forever for the
+    # next body chunk, retaining both its partial private file and credits.
+    anyio.run(run)
+    assert not destination.exists()
+
+
+def test_save_request_stream_allows_slow_active_chunks(tmp_path: Path) -> None:
+    destination = tmp_path / "upload.mp4"
+
+    async def run() -> None:
+        saved = await file_utils.save_request_stream_with_limit(
+            _slow_active_streaming_request(
+                [b"slow-", b"mobile-", b"upload"],
+                delay_seconds=0.005,
+            ),
+            destination,
+            expected_size=len(b"slow-mobile-upload"),
+            inactivity_timeout_seconds=0.05,
+        )
+        assert saved == len(b"slow-mobile-upload")
+
+    anyio.run(run)
+    assert destination.read_bytes() == b"slow-mobile-upload"
+
+
+def test_save_request_stream_rejects_non_positive_inactivity_timeout(
+    tmp_path: Path,
+) -> None:
+    destination = tmp_path / "upload.mp4"
+
+    async def run() -> None:
+        with pytest.raises(ValueError, match="must be positive"):
+            await file_utils.save_request_stream_with_limit(
+                _streaming_request([b"video"]),
+                destination,
+                expected_size=5,
+                inactivity_timeout_seconds=0,
+            )
 
     anyio.run(run)
     assert not destination.exists()
