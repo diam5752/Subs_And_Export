@@ -7,6 +7,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 from fastapi.testclient import TestClient
+from pydantic import SecretStr
 
 from backend import main as backend_main
 from backend.app.core.database import Database
@@ -71,6 +72,135 @@ def test_static_media_rejects_anonymous_requests(
     response = client.get("/static/artifacts/unknown-job/processed.mp4")
 
     assert response.status_code == 401
+
+
+def test_scoped_download_grant_survives_a_browser_session_handoff(
+    client: TestClient,
+    user_auth_headers: dict[str, str],
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    """The external browser may not have the in-app browser's session cookie."""
+    from backend.app.core.config import settings
+
+    monkeypatch.setattr(backend_main, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(settings, "data_dir", tmp_path)
+    monkeypatch.setattr(settings, "download_grant_secret", SecretStr("g" * 64))
+    monkeypatch.setattr(settings, "download_grant_ttl_seconds", 300)
+    store, job_id, media_path = _create_owned_media(
+        client,
+        user_auth_headers,
+        tmp_path,
+        content=b"private-video-for-browser-handoff",
+    )
+    raw_path = f"/static/artifacts/{job_id}/{media_path.name}"
+
+    try:
+        grant_response = client.post(
+            f"/videos/jobs/{job_id}/download-grant",
+            headers=user_auth_headers,
+            json={
+                "artifact_path": raw_path,
+                "filename": "Δοκιμή_subs.mp4",
+            },
+        )
+        assert grant_response.status_code == 200
+        assert grant_response.headers["cache-control"] == "private, no-store"
+        grant = grant_response.json()
+        assert grant["expires_in"] == 300
+        assert grant["download_url"].startswith(f"{raw_path}?grant=")
+
+        # Simulate the OS handing the URL to Safari/Chrome: no bearer and no
+        # media-session cookie from the Messenger/Facebook in-app browser.
+        client.cookies.clear()
+        assert client.get(raw_path).status_code == 401
+
+        download = client.get(grant["download_url"])
+        assert download.status_code == 200
+        assert download.content == b"private-video-for-browser-handoff"
+        assert download.headers["cache-control"] == "private, no-store"
+        assert download.headers["referrer-policy"] == "no-referrer"
+        assert download.headers["x-robots-tag"] == "noindex, nofollow"
+        assert "attachment" in download.headers["content-disposition"]
+        assert "%CE%94%CE%BF%CE%BA%CE%B9%CE%BC%CE%AE_subs.mp4" in download.headers[
+            "content-disposition"
+        ]
+
+        ranged = client.get(
+            grant["download_url"],
+            headers={"Range": "bytes=0-6"},
+        )
+        assert ranged.status_code == 206
+        assert ranged.content == b"private"
+        assert ranged.headers["accept-ranges"] == "bytes"
+
+        grant_prefix, grant_token = grant["download_url"].split("?grant=", 1)
+        encoded_payload, encoded_signature = grant_token.split(".", 1)
+        tampered_signature = (
+            ("a" if encoded_signature[0] != "a" else "b")
+            + encoded_signature[1:]
+        )
+        tampered_url = (
+            f"{grant_prefix}?grant={encoded_payload}.{tampered_signature}"
+        )
+        assert client.get(tampered_url).status_code == 401
+
+        wrong_path_url = grant["download_url"].replace(
+            media_path.name,
+            "processed_1080x1920.mp4",
+        )
+        assert client.get(wrong_path_url).status_code == 401
+    finally:
+        media_path.unlink(missing_ok=True)
+        media_path.parent.rmdir()
+        store.delete_job(job_id)
+
+
+def test_download_grant_issuance_rejects_unowned_or_noncanonical_artifacts(
+    client: TestClient,
+    user_auth_headers: dict[str, str],
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    from backend.app.core.config import settings
+
+    monkeypatch.setattr(backend_main, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(settings, "data_dir", tmp_path)
+    monkeypatch.setattr(settings, "download_grant_secret", SecretStr("g" * 64))
+    other_headers = _register_user(client)
+    store, job_id, media_path = _create_owned_media(
+        client,
+        other_headers,
+        tmp_path,
+    )
+
+    try:
+        unowned = client.post(
+            f"/videos/jobs/{job_id}/download-grant",
+            headers=user_auth_headers,
+            json={
+                "artifact_path": f"/static/artifacts/{job_id}/{media_path.name}",
+                "filename": "video.mp4",
+            },
+        )
+        assert unowned.status_code == 404
+
+        for invalid_path in (
+            f"https://evil.example/static/artifacts/{job_id}/{media_path.name}",
+            f"/static/artifacts/{job_id}/../private.mp4",
+            f"/static/artifacts/{job_id}/{media_path.name}?download=true",
+            f"/static/artifacts/not-{job_id}/{media_path.name}",
+        ):
+            response = client.post(
+                f"/videos/jobs/{job_id}/download-grant",
+                headers=other_headers,
+                json={"artifact_path": invalid_path, "filename": "video.mp4"},
+            )
+            assert response.status_code == 400
+    finally:
+        media_path.unlink(missing_ok=True)
+        media_path.parent.rmdir()
+        store.delete_job(job_id)
 
 
 def test_auth_me_reissues_media_cookie_for_legacy_bearer_client(

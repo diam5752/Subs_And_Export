@@ -455,8 +455,11 @@ def test_feedback_mailer_is_isolated_and_gates_public_cutover() -> None:
     assert "GSP_DATABASE_URL" not in api_environment
     assert "GSP_DATABASE_URL" in worker_environment
     assert "GSP_FEEDBACK_HASH_SECRET" in api_environment
+    assert "GSP_DOWNLOAD_GRANT_SECRET" in api_environment
     assert "GSP_FEEDBACK_HASH_SECRET" not in main_environment
+    assert "GSP_DOWNLOAD_GRANT_SECRET" not in main_environment
     assert "GSP_FEEDBACK_HASH_SECRET" not in worker_environment
+    assert "GSP_DOWNLOAD_GRANT_SECRET" not in worker_environment
     for provider_secret in (
         "ELEVENLABS_API_KEY",
         "GSP_STRIPE_RESTRICTED_KEY",
@@ -481,7 +484,9 @@ def test_feedback_mailer_is_isolated_and_gates_public_cutover() -> None:
     assert "Feedback $feedback_env_label env permissions must be 0600" in verifier
     assert "public API must not have general provider egress" in verifier
     assert "SMTP credentials must remain isolated" in verifier
-    assert "database container must not receive the feedback pseudonym secret" in verifier
+    assert "database container must not receive API-only signing secrets" in verifier
+    assert "Backend download-grant signing secret is missing or too short" in verifier
+    assert "GSP_DOWNLOAD_GRANT_TTL_SECONDS=300" in verifier
     assert "Feedback worker retention must be pinned to 180 days" in verifier
     assert "GSP_DISABLE_RATELIMIT=0" in verifier
     assert "GSP_USE_MEMORY_RATELIMIT=0" in verifier
@@ -610,6 +615,7 @@ def test_production_verifier_requires_every_fail_closed_runtime_setting() -> Non
     assert "Retired GCS settings remain in the production env" in verifier
     assert "Backend container still exposes retired GCS settings" in verifier
     assert "settings.assert_paid_credits_configuration()" in verifier
+    assert "settings.assert_download_grant_configuration()" in verifier
     assert "Production CORS requires an explicit origin allow-list" in verifier
     assert "Production CORS origins must be exact HTTPS origins" in verifier
     assert '"*" in origin' in verifier

@@ -11,7 +11,7 @@ import {
 import { PreviewPlayerHandle } from '@/components/PreviewPlayer';
 import type { LastUsedSettings, TranscribeMode, TranscribeProvider } from './processTypes';
 import { resolveConfiguredTranscription } from '@/lib/transcription';
-import { buildSubtitleExportFilename, withDownloadParameters } from '@/lib/exportFilename';
+import { buildSubtitleExportFilename } from '@/lib/exportFilename';
 
 export interface ProcessingOptions {
     transcribeMode: TranscribeMode;
@@ -484,27 +484,28 @@ export function ProcessProvider({
             persistSubtitleSettings();
 
             if (updatedJob.result_data?.variants?.[resolution]) {
-                const url = buildStaticUrl(updatedJob.result_data.variants[resolution]);
-                if (url) {
-                    try {
-                        // Direct download avoids loading the entire export into browser memory.
-                        const link = document.createElement('a');
-                        const extension = subtitleFileFormats.has(resolution) ? resolution : 'mp4';
-                        const downloadFilename = buildSubtitleExportFilename(
-                            updatedJob.result_data.original_filename
-                                ?? selectedJob.result_data?.original_filename,
-                            extension,
-                        );
-                        link.href = withDownloadParameters(url, downloadFilename);
-                        link.download = downloadFilename;
-                        // NOTE: Don't set target="_blank" - it prevents download attribute from working
-                        document.body.appendChild(link);
-                        link.click();
-                        document.body.removeChild(link);
-                    } catch (err) {
-                        console.error('Download failed:', err);
-                        window.open(url, '_blank');
-                    }
+                const artifactPath = updatedJob.result_data.variants[resolution];
+                const extension = subtitleFileFormats.has(resolution) ? resolution : 'mp4';
+                const downloadFilename = buildSubtitleExportFilename(
+                    updatedJob.result_data.original_filename
+                        ?? selectedJob.result_data?.original_filename,
+                    extension,
+                );
+                const grant = await api.createArtifactDownloadGrant(
+                    selectedJob.id,
+                    artifactPath,
+                    downloadFilename,
+                );
+                const grantedUrl = buildStaticUrl(grant.download_url);
+                if (grantedUrl) {
+                    // Keep large exports streamed by the server. The scoped URL
+                    // remains valid if iOS hands it to a different browser.
+                    const link = document.createElement('a');
+                    link.href = grantedUrl;
+                    link.download = downloadFilename;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
                 }
             }
         } catch (err) {

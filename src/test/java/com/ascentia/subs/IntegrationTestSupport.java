@@ -66,6 +66,7 @@ public abstract class IntegrationTestSupport {
         registry.add("GOOGLE_CLIENT_ID", () -> "test-google-client");
         registry.add("FRONTEND_URL", () -> "http://localhost:3000");
         registry.add("app.allowed-origins", () -> "http://localhost:3000");
+        registry.add("app.download-grant-secret", () -> "g".repeat(64));
     }
 
     private static String requiredEnvironment(String name) {

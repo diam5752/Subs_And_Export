@@ -6,13 +6,15 @@ import hmac
 import logging
 import re
 from pathlib import Path
+from urllib.parse import urlsplit
 
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field, field_validator
+from fastapi import APIRouter, Depends, HTTPException, Response
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from ...core.auth import User
 from ...core.config import settings
 from ...core.database import Database
+from ...core.download_grants import DownloadGrantError, create_download_grant
 from ...core.errors import sanitize_message
 from ...core.media_capacity import lock_media_render, render_slot_weight
 from ...core.ratelimit import limiter_content
@@ -31,7 +33,12 @@ from ...services.video_export_cache import build_video_export_signature
 from ...services.video_processing import generate_video_variant
 from ...services.video_quality import crf_for_video_quality
 from ..deps import get_current_user, get_db, get_job_store
-from .file_utils import data_roots, relpath_safe, reserve_render_storage
+from .file_utils import (
+    data_roots,
+    relpath_safe,
+    reserve_render_storage,
+    sanitize_download_filename,
+)
 from .validation import (
     validate_highlight_style,
     validate_max_subtitle_lines,
@@ -110,6 +117,91 @@ class ExportRequest(BaseModel):
             raise ValueError(f"Resolution exceeds max {settings.max_resolution_dimension}")
 
         return f"{width}x{height}"
+
+
+class ArtifactDownloadGrantRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    artifact_path: str = Field(..., min_length=1, max_length=1_024)
+    filename: str = Field(..., min_length=1, max_length=255)
+
+
+class ArtifactDownloadGrantResponse(BaseModel):
+    download_url: str
+    expires_in: int
+
+
+def _download_grant_file_path(artifact_path: str, expected_job_id: str) -> str:
+    parsed = urlsplit(artifact_path)
+    if parsed.scheme or parsed.netloc or parsed.query or parsed.fragment or "%" in artifact_path:
+        raise DownloadGrantError("Artifact path must be a canonical same-origin path")
+    prefix = f"/static/artifacts/{expected_job_id}/"
+    if not parsed.path.startswith(prefix) or "\\" in parsed.path:
+        raise DownloadGrantError("Artifact path does not match the requested job")
+    file_path = parsed.path.removeprefix("/static/")
+    parts = file_path.split("/")
+    if len(parts) < 3 or any(not part or part in {".", ".."} for part in parts):
+        raise DownloadGrantError("Artifact path is invalid")
+    return file_path
+
+
+def _assert_regular_job_artifact(artifacts_root: Path, job_id: str, file_path: str) -> None:
+    job_root = artifacts_root / job_id
+    relative_path = Path(*file_path.split("/")[2:])
+    candidate = job_root / relative_path
+    try:
+        if job_root.is_symlink() or not job_root.is_dir():
+            raise ValueError("invalid job root")
+        current = job_root
+        for component in relative_path.parts:
+            current = current / component
+            if current.is_symlink():
+                raise ValueError("symlinked artifact")
+        candidate.resolve().relative_to(job_root.resolve())
+    except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=404, detail="File not found") from exc
+    if not candidate.is_file():
+        raise HTTPException(status_code=404, detail="File not found")
+
+
+@router.post(
+    "/jobs/{job_id}/download-grant",
+    response_model=ArtifactDownloadGrantResponse,
+    dependencies=[Depends(limiter_content)],
+)
+def create_artifact_download_grant(
+    job_id: str,
+    request: ArtifactDownloadGrantRequest,
+    response: Response,
+    current_user: User = Depends(get_current_user),
+    job_store: JobStore = Depends(get_job_store),
+) -> ArtifactDownloadGrantResponse:
+    """Create an exact, short-lived URL that may cross browser sessions."""
+    job = job_store.get_job(job_id)
+    if job is None or job.user_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Job not found")
+    try:
+        file_path = _download_grant_file_path(request.artifact_path, job_id)
+    except DownloadGrantError as exc:
+        raise HTTPException(status_code=400, detail="Invalid artifact path") from exc
+
+    _, _, artifacts_root = data_roots()
+    _assert_regular_job_artifact(artifacts_root, job_id, file_path)
+    source_filename = Path(file_path).name
+    filename = sanitize_download_filename(request.filename, source_filename)
+    token = create_download_grant(
+        secret=settings.download_grant_signing_secret(),
+        user_id=current_user.id,
+        file_path=file_path,
+        filename=filename,
+        ttl_seconds=settings.download_grant_ttl_seconds,
+    )
+    response.headers["Cache-Control"] = "private, no-store"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    return ArtifactDownloadGrantResponse(
+        download_url=f"/static/{file_path}?grant={token}",
+        expires_in=settings.download_grant_ttl_seconds,
+    )
 
 
 @router.post("/jobs/{job_id}/export", response_model=JobResponse, dependencies=[Depends(limiter_content)])

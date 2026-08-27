@@ -201,6 +201,11 @@ export interface JobResponse {
     balance?: number | null;
 }
 
+interface ArtifactDownloadGrantResponse {
+    download_url: string;
+    expires_in: number;
+}
+
 interface HistoryEvent {
     ts: string;
     user_id: string;
@@ -1162,6 +1167,24 @@ class ApiClient {
             method: 'POST',
             body: JSON.stringify({ resolution, ...settings }),
         });
+    }
+
+    async createArtifactDownloadGrant(
+        jobId: string,
+        artifactPath: string,
+        filename: string,
+    ): Promise<ArtifactDownloadGrantResponse> {
+        return this.request<ArtifactDownloadGrantResponse>(
+            `/videos/jobs/${encodeURIComponent(jobId)}/download-grant`,
+            {
+                method: 'POST',
+                cache: 'no-store',
+                body: JSON.stringify({
+                    artifact_path: artifactPath,
+                    filename,
+                }),
+            },
+        );
     }
 
     async reprocessJob(jobId: string, settings: {

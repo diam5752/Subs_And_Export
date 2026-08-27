@@ -9,6 +9,7 @@ from backend.app.core.logging import setup_logging
 logger = setup_logging()
 
 import os
+from dataclasses import dataclass
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -33,10 +34,15 @@ from backend.app.api.endpoints.file_utils import sanitize_download_filename
 from backend.app.api.endpoints.processing_tasks import (
     reconcile_stranded_cancellations,
 )
-from backend.app.core.auth import SessionStore, User
+from backend.app.core.auth import SessionStore
 from backend.app.core.cleanup import retention_worker
 from backend.app.core.config import settings
 from backend.app.core.database import Database
+from backend.app.core.download_grants import (
+    DownloadGrantClaims,
+    DownloadGrantError,
+    validate_download_grant,
+)
 from backend.app.core.erasure_journal import configured_erasure_journal
 from backend.app.core.private_media import PrivateMediaFileResponse
 from backend.app.core.ratelimit import get_client_ip, limiter_static
@@ -80,12 +86,18 @@ def assert_runtime_feedback_configuration() -> None:
     settings.assert_feedback_api_configuration()
 
 
+def assert_runtime_download_grant_configuration() -> None:
+    """Fail before health when production cannot issue scoped download URLs."""
+    settings.assert_download_grant_configuration()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Startup
     assert_runtime_billing_configuration()
     assert_runtime_privacy_configuration()
     assert_runtime_feedback_configuration()
+    assert_runtime_download_grant_configuration()
     app.state.db = Database()
     retention_task: asyncio.Task[None] | None = None
     try:
@@ -244,6 +256,8 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             # transcript, or project data. Keep it out of shared and browser
             # caches unless the endpoint already set an equally strict rule.
             response.headers["Cache-Control"] = "private, no-store"
+        if request.url.path.startswith("/static/") and request.query_params.get("grant"):
+            response.headers["Referrer-Policy"] = "no-referrer"
         # Avoid sending HSTS on cleartext requests to keep local dev/proxy setups flexible.
         if settings.is_dev and request.url.scheme not in ("https", "wss"):
             if "Strict-Transport-Security" in response.headers:
@@ -292,21 +306,43 @@ def _media_session_token(request: Request) -> str | None:
     return request.cookies.get(auth.MEDIA_SESSION_COOKIE_NAME)
 
 
-def _authenticate_media_request(request: Request) -> User:
-    """Authenticate a private-media request against the app-scoped database."""
-    token = _media_session_token(request)
+@dataclass(frozen=True, slots=True)
+class MediaAuthorization:
+    user_id: str
+    download_grant: DownloadGrantClaims | None = None
+
+
+def _authorize_media_request(request: Request, file_path: str) -> MediaAuthorization:
+    """Accept the current session or an exact short-lived download grant."""
     db: Database = request.app.state.db
+    grant = request.query_params.get("grant")
+    if grant:
+        try:
+            claims = validate_download_grant(
+                grant,
+                secret=settings.download_grant_signing_secret(),
+                expected_file_path=file_path,
+                ttl_seconds=settings.download_grant_ttl_seconds,
+            )
+            return MediaAuthorization(
+                user_id=claims.user_id,
+                download_grant=claims,
+            )
+        except (DownloadGrantError, RuntimeError):
+            pass
+
+    token = _media_session_token(request)
     user = SessionStore(db=db).authenticate(token or "")
-    if user is None:
-        raise HTTPException(
-            status_code=401,
-            detail="Authentication required",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    return user
+    if user is not None:
+        return MediaAuthorization(user_id=user.id)
+    raise HTTPException(
+        status_code=401,
+        detail="Authentication required",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
 
 
-def _owned_artifact_parts(file_path: str, user: User, db: Database) -> list[str]:
+def _owned_artifact_parts(file_path: str, user_id: str, db: Database) -> list[str]:
     """Validate an exact artifact path and enforce its job ownership."""
     if "\\" in file_path:
         raise HTTPException(status_code=404, detail="File not found")
@@ -319,7 +355,7 @@ def _owned_artifact_parts(file_path: str, user: User, db: Database) -> list[str]
         raise HTTPException(status_code=404, detail="File not found")
 
     job = JobStore(db).get_job(parts[1])
-    if job is None or job.user_id != user.id:
+    if job is None or job.user_id != user_id:
         raise HTTPException(status_code=404, detail="File not found")
     return parts
 
@@ -335,9 +371,9 @@ async def serve_static(
     ip = get_client_ip(request)
     limiter_static.check(ip)
 
-    user = _authenticate_media_request(request)
+    authorization = _authorize_media_request(request, file_path)
     db: Database = request.app.state.db
-    artifact_parts = _owned_artifact_parts(file_path, user, db)
+    artifact_parts = _owned_artifact_parts(file_path, authorization.user_id, db)
     full_path = DATA_DIR.joinpath(*artifact_parts)
 
     # Constrain the resolved file to this exact owned job. A global DATA_DIR
@@ -353,7 +389,7 @@ async def serve_static(
 
     if full_path.is_file():
         # Force download for video files or when download=true
-        force_download = download or full_path.suffix.lower() in {
+        force_download = authorization.download_grant is not None or download or full_path.suffix.lower() in {
             ".mp4",
             ".mov",
             ".avi",
@@ -361,7 +397,12 @@ async def serve_static(
             ".mkv",
         }
         if force_download:
-            download_name = sanitize_download_filename(filename, full_path.name)
+            requested_filename = (
+                authorization.download_grant.filename
+                if authorization.download_grant is not None
+                else filename
+            )
+            download_name = sanitize_download_filename(requested_filename, full_path.name)
             response = PrivateMediaFileResponse(
                 full_path,
                 job_id=artifact_parts[1],
@@ -376,6 +417,9 @@ async def serve_static(
                 transfer_kind="preview",
             )
         response.headers["Cache-Control"] = "private, no-store"
+        if authorization.download_grant is not None:
+            response.headers["Referrer-Policy"] = "no-referrer"
+            response.headers["X-Robots-Tag"] = "noindex, nofollow"
         return response
 
     if full_path.is_dir():
