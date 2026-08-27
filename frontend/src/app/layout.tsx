@@ -15,6 +15,7 @@ import { FeedbackWidgetLauncher } from "@/components/FeedbackWidgetLauncher";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(BRAND.siteUrl),
   applicationName: BRAND.name,
   title: {
     default: BRAND.productTitle,
@@ -29,6 +30,29 @@ export const metadata: Metadata = {
   icons: {
     icon: BRAND.assets.icon,
     apple: BRAND.assets.appleIcon,
+  },
+  openGraph: {
+    type: 'website',
+    url: '/',
+    siteName: BRAND.name,
+    locale: 'el_GR',
+    title: BRAND.social.title,
+    description: BRAND.social.description,
+    images: [
+      {
+        url: BRAND.assets.socialCard,
+        width: 1200,
+        height: 630,
+        alt: BRAND.social.imageAlt,
+        type: 'image/png',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: BRAND.social.title,
+    description: BRAND.social.description,
+    images: [BRAND.assets.socialCard],
   },
 };
 

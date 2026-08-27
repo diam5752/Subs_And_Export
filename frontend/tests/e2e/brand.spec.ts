@@ -24,6 +24,22 @@ test('gsubs branding is visible across the public shell and metadata', async ({ 
   await expect(headerLogo).toBeVisible();
   await expect(page).toHaveTitle('gsubs · Subtitle Studio');
 
+  // REGRESSION: Social apps fell back to the square PWA icon, enlarged it and
+  // cropped the logo instead of receiving a deliberate wide share card.
+  const socialImage = 'https://gsubs.gr/brand/gsubs-social-card.png';
+  await expect(page.locator('meta[property="og:image"]')).toHaveAttribute('content', socialImage);
+  await expect(page.locator('meta[property="og:image:width"]')).toHaveAttribute('content', '1200');
+  await expect(page.locator('meta[property="og:image:height"]')).toHaveAttribute('content', '630');
+  await expect(page.locator('meta[name="twitter:card"]')).toHaveAttribute('content', 'summary_large_image');
+  await expect(page.locator('meta[name="twitter:image"]')).toHaveAttribute('content', socialImage);
+
+  const socialCardResponse = await page.request.get('/brand/gsubs-social-card.png');
+  expect(socialCardResponse.ok()).toBe(true);
+  expect(socialCardResponse.headers()['content-type']).toContain('image/png');
+  const socialCard = await socialCardResponse.body();
+  expect(socialCard.readUInt32BE(16)).toBe(1200);
+  expect(socialCard.readUInt32BE(20)).toBe(630);
+
   const manifestResponse = await page.request.get('/manifest.webmanifest');
   expect(manifestResponse.ok()).toBe(true);
   const manifest = await manifestResponse.json();
@@ -35,6 +51,8 @@ test('gsubs branding is visible across the public shell and metadata', async ({ 
   for (const asset of [
     '/brand/gsubs-logo.svg',
     '/brand/gsubs-mark.svg',
+    '/brand/gsubs-social-card.svg',
+    '/brand/gsubs-social-card.png',
     '/gsubs-watermark.png',
     '/icon.png',
     '/apple-icon.png',

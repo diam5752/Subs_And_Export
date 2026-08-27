@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" role="img" aria-labelledby="title desc">
+  <title id="title">gsubs Subtitle Studio</title>
+  <desc id="desc">A polished gsubs social card with the official logo, a Greek product message and a vertical-video preview.</desc>
+  <defs>
+    <linearGradient id="canvas" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fbfaf7"/>
+      <stop offset="0.55" stop-color="#f5f7f8"/>
+      <stop offset="1" stop-color="#eaf3f7"/>
+    </linearGradient>
+    <linearGradient id="screen" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#163b59"/>
+      <stop offset="0.55" stop-color="#0b1724"/>
+      <stop offset="1" stop-color="#05070a"/>
+    </linearGradient>
+    <linearGradient id="screen-glow" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#238bc5" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#c66a21" stop-opacity="0.18"/>
+    </linearGradient>
+    <linearGradient id="accent-line" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#166095"/>
+      <stop offset="0.66" stop-color="#238bc5"/>
+      <stop offset="1" stop-color="#c66a21"/>
+    </linearGradient>
+    <pattern id="dots" width="24" height="24" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="2" fill="#166095" fill-opacity="0.12"/>
+    </pattern>
+    <filter id="phone-shadow" x="-25%" y="-20%" width="150%" height="155%">
+      <feDropShadow dx="0" dy="28" stdDeviation="24" flood-color="#10263a" flood-opacity="0.22"/>
+    </filter>
+    <filter id="soft-shadow" x="-30%" y="-50%" width="160%" height="220%">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#05070a" flood-opacity="0.2"/>
+    </filter>
+    <clipPath id="screen-clip">
+      <rect x="841" y="68" width="272" height="494" rx="38"/>
+    </clipPath>
+  </defs>
+
+  <rect width="1200" height="630" fill="url(#canvas)"/>
+  <circle cx="1105" cy="82" r="190" fill="#d8edf5" fill-opacity="0.7"/>
+  <circle cx="1115" cy="84" r="118" fill="url(#dots)"/>
+  <circle cx="48" cy="605" r="205" fill="#f3dfcd" fill-opacity="0.45"/>
+  <path d="M730 0H1200V630H686C748 526 774 417 766 302C759 195 747 94 730 0Z" fill="#edf5f8" fill-opacity="0.6"/>
+
+  <image href="gsubs-logo.svg" x="68" y="48" width="142" height="106" preserveAspectRatio="xMidYMid meet"/>
+  <rect x="224" y="69" width="78" height="32" rx="16" fill="#111215"/>
+  <text x="263" y="91" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="700" letter-spacing="2.1" text-anchor="middle">BETA</text>
+
+  <text x="70" y="206" fill="#166095" font-family="Arial, Helvetica, sans-serif" font-size="15" font-weight="700" letter-spacing="3.2">SUBTITLE STUDIO</text>
+  <text x="66" y="284" fill="#111215" font-family="Arial, Helvetica, sans-serif" font-size="64" font-weight="800" letter-spacing="-2.8">Ο ήχος σου,</text>
+  <text x="66" y="356" fill="#111215" font-family="Arial, Helvetica, sans-serif" font-size="64" font-weight="800" letter-spacing="-2.8">έτοιμος για <tspan fill="#c66a21">προβολή.</tspan></text>
+  <text x="70" y="416" fill="#59616a" font-family="Arial, Helvetica, sans-serif" font-size="22">Απομαγνητοφώνηση, υπότιτλοι και export</text>
+  <text x="70" y="449" fill="#59616a" font-family="Arial, Helvetica, sans-serif" font-size="22">σε ένα απλό, γρήγορο workflow.</text>
+
+  <g transform="translate(70 501)">
+    <rect width="592" height="66" rx="33" fill="#ffffff" stroke="#dde4e8" stroke-width="2"/>
+    <circle cx="34" cy="33" r="18" fill="#eaf3f8"/>
+    <rect x="25" y="29" width="3" height="8" rx="1.5" fill="#166095"/>
+    <rect x="31" y="24" width="3" height="18" rx="1.5" fill="#166095"/>
+    <rect x="37" y="27" width="3" height="12" rx="1.5" fill="#166095"/>
+    <path d="M45 33H52M49 29L53 33L49 37" fill="none" stroke="#c66a21" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="69" y="40" fill="#111215" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700">Ανέβασμα</text>
+    <path d="M180 33H218" stroke="#c9d1d6" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="244" cy="33" r="18" fill="#eaf3f8"/>
+    <text x="244" y="39" fill="#166095" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="800" text-anchor="middle">Aa</text>
+    <text x="276" y="40" fill="#111215" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700">Υπότιτλοι</text>
+    <path d="M390 33H428" stroke="#c9d1d6" stroke-width="2" stroke-linecap="round"/>
+    <circle cx="454" cy="33" r="18" fill="#f7e9dc"/>
+    <path d="M448 33H460M456 29L460 33L456 37" fill="none" stroke="#c66a21" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="486" y="40" fill="#111215" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="700">Export</text>
+  </g>
+
+  <g filter="url(#phone-shadow)">
+    <rect x="821" y="48" width="312" height="534" rx="54" fill="#0b0e12"/>
+    <rect x="829" y="56" width="296" height="518" rx="47" fill="#f9fafb"/>
+    <rect x="841" y="68" width="272" height="494" rx="38" fill="url(#screen)"/>
+  </g>
+
+  <g clip-path="url(#screen-clip)">
+    <circle cx="1055" cy="155" r="190" fill="url(#screen-glow)" opacity="0.72"/>
+    <circle cx="868" cy="432" r="164" fill="#c66a21" opacity="0.2"/>
+    <path d="M807 421C886 332 982 303 1152 323V602H807Z" fill="#070a0e" fill-opacity="0.48"/>
+    <g opacity="0.2" stroke="#ffffff">
+      <path d="M862 135H1093"/>
+      <path d="M862 169H1093"/>
+      <path d="M862 203H1093"/>
+    </g>
+    <text x="865" y="126" fill="#d4eaf5" font-family="Arial, Helvetica, sans-serif" font-size="12" font-weight="700" letter-spacing="2.2">LIVE PREVIEW</text>
+    <rect x="1051" y="105" width="40" height="24" rx="12" fill="#ffffff" fill-opacity="0.13" stroke="#ffffff" stroke-opacity="0.22"/>
+    <text x="1071" y="121" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="11" font-weight="700" text-anchor="middle">9:16</text>
+
+    <g transform="translate(873 226)">
+      <rect x="0" y="38" width="10" height="32" rx="5" fill="#75c8ee"/>
+      <rect x="20" y="23" width="10" height="62" rx="5" fill="#75c8ee"/>
+      <rect x="40" y="5" width="10" height="98" rx="5" fill="#75c8ee"/>
+      <rect x="60" y="23" width="10" height="62" rx="5" fill="#75c8ee"/>
+      <rect x="80" y="38" width="10" height="32" rx="5" fill="#75c8ee"/>
+      <path d="M112 54H154M138 39L156 54L138 69" fill="none" stroke="#ef8a37" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+
+    <g filter="url(#soft-shadow)">
+      <rect x="865" y="386" width="224" height="42" rx="12" fill="#ffffff"/>
+      <text x="977" y="413" fill="#111215" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="800" text-anchor="middle" letter-spacing="0.4">ΤΑ ΛΟΓΙΑ ΣΟΥ</text>
+      <rect x="888" y="437" width="178" height="42" rx="12" fill="#ffd814"/>
+      <text x="977" y="464" fill="#111215" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="800" text-anchor="middle" letter-spacing="0.4">ΞΕΧΩΡΙΖΟΥΝ</text>
+    </g>
+    <rect x="865" y="516" width="224" height="4" rx="2" fill="#ffffff" fill-opacity="0.18"/>
+    <rect x="865" y="516" width="142" height="4" rx="2" fill="url(#accent-line)"/>
+  </g>
+
+  <rect x="918" y="77" width="118" height="30" rx="15" fill="#05070a"/>
+  <circle cx="1052" cy="92" r="5" fill="#19232d"/>
+  <text x="70" y="605" fill="#166095" font-family="Arial, Helvetica, sans-serif" font-size="17" font-weight="700" letter-spacing="1.2">gsubs.gr</text>
+</svg>
