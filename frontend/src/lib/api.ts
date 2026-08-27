@@ -230,6 +230,22 @@ export interface PointsBalanceResponse {
     ai_spendable_balance: number;
 }
 
+export type ProductFeedbackCategory = 'idea' | 'bug' | 'complaint' | 'chat';
+
+export interface ProductFeedbackPayload {
+    category: ProductFeedbackCategory;
+    message: string;
+    source_path: string;
+    page_title: string;
+    form_started_at: number;
+    website: string;
+}
+
+interface ProductFeedbackResponse {
+    status: 'received';
+    id: string | null;
+}
+
 export interface CreditPackage {
     key: string;
     credits: number;
@@ -561,6 +577,7 @@ interface ExportDataResponse {
     provider_budget_reservations: Record<string, unknown>[];
     sessions: Record<string, unknown>[];
     oauth_states: Record<string, unknown>[];
+    product_feedback: Record<string, unknown>[];
 }
 
 
@@ -1049,6 +1066,15 @@ class ApiClient {
 
     async getHistory(limit: number = 50): Promise<HistoryEvent[]> {
         return this.request<HistoryEvent[]>(`/history/?limit=${limit}`);
+    }
+
+    async createProductFeedback(
+        payload: ProductFeedbackPayload,
+    ): Promise<ProductFeedbackResponse> {
+        return this.request<ProductFeedbackResponse>('/feedback', {
+            method: 'POST',
+            body: JSON.stringify(payload),
+        }, true, API_REQUEST_TIMEOUT_MS);
     }
 
     async getTikTokAuthUrl(): Promise<{ auth_url: string; state: string }> {

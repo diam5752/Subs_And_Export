@@ -376,6 +376,14 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
     await route.fulfill(withCors(mockUser));
   });
 
+  await page.route('**/feedback', async (route) => {
+    if (await shortCircuitOptions(route)) return;
+    await route.fulfill(withCors({
+      status: 'received',
+      id: 'feedback-e2e',
+    }, 202));
+  });
+
   await page.route('**/auth/google/nonce', async (route) => {
     if (await shortCircuitOptions(route)) return;
     const origin = route.request().headers().origin ?? 'http://localhost:3000';

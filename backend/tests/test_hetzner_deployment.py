@@ -376,6 +376,10 @@ def test_production_compose_enables_reviewed_paid_credits_and_budgeted_scribe() 
     assert 'GSP_STRIPE_PRICE_CORE: "${GSP_STRIPE_PRICE_CORE:-}"' in compose
     assert 'GSP_STRIPE_PRICE_PRO: "${GSP_STRIPE_PRICE_PRO:-}"' in compose
     assert 'GSP_BILLING_ADMIN_USER_IDS: ""' in compose
+    assert 'GSP_FEEDBACK_ENABLED: "1"' in compose
+    assert "SUBFRAME_FEEDBACK_API_ENV_FILE is required" in compose
+    assert 'GSP_DISABLE_RATELIMIT: "0"' in compose
+    assert 'GSP_USE_MEMORY_RATELIMIT: "0"' in compose
     assert 'STRIPE_SECRET_KEY: ""' in compose
     assert 'STRIPE_WEBHOOK_SECRET: ""' in compose
     assert 'OPENAI_API_KEY: ""' in compose
@@ -413,6 +417,74 @@ def test_production_compose_enables_reviewed_paid_credits_and_budgeted_scribe() 
     assert "NEXT_PUBLIC_TRANSCRIBE_MODE: pro" in compose
     assert "external: true" in compose
     assert "name: mizai_mizai-private" in compose
+
+
+def test_feedback_mailer_is_isolated_and_gates_public_cutover() -> None:
+    compose = deployment_text("docker-compose.production.yml")
+    deploy_script = deployment_text("deploy-production.sh")
+    verifier = deployment_text("verify-production.sh")
+    caddyfile = deployment_text("Caddyfile")
+    main_environment = deployment_text("subframe.env.example")
+    api_environment = deployment_text("feedback-api.env.example")
+    worker_environment = deployment_text("feedback-worker.env.example")
+
+    db = compose.split("  db:", 1)[1].split("\n  backend:", 1)[0]
+    worker = compose.split("  feedback-worker:", 1)[1].split("\n  frontend:", 1)[0]
+    backend = compose.split("  backend:", 1)[1].split("\n  feedback-worker:", 1)[0]
+    edge = compose.split("  edge:", 1)[1].split("\n  privacy-relay:", 1)[0]
+    assert 'command: ["python", "-m", "backend.cli", "feedback-worker"]' in worker
+    assert 'test: ["CMD", "python", "-m", "backend.cli", "check-feedback-worker"]' in worker
+    assert "provider_egress" in worker
+    assert "provider_egress" not in backend
+    assert "ports:" not in worker
+    assert "read_only: true" in worker
+    assert "SUBFRAME_ENV_FILE" not in worker
+    assert "SUBFRAME_FEEDBACK_WORKER_ENV_FILE" in worker
+    assert "SUBFRAME_FEEDBACK_WORKER_ENV_FILE is required" in worker
+    assert 'GSP_FEEDBACK_RETENTION_DAYS: "180"' in worker
+    assert "SUBFRAME_FEEDBACK_API_ENV_FILE" in backend
+    assert "SUBFRAME_FEEDBACK_API_ENV_FILE" not in worker
+    assert "SUBFRAME_FEEDBACK_API_ENV_FILE" not in db
+    assert "feedback-worker:" in edge
+    assert "condition: service_healthy" in edge
+    assert "GSP_FEEDBACK_SMTP_PASSWORD" not in backend
+    assert "GSP_FEEDBACK_SMTP_PASSWORD" not in main_environment
+    assert "GSP_FEEDBACK_SMTP_PASSWORD" not in api_environment
+    assert "GSP_FEEDBACK_SMTP_PASSWORD" in worker_environment
+    assert "GSP_DATABASE_URL" not in api_environment
+    assert "GSP_DATABASE_URL" in worker_environment
+    assert "GSP_FEEDBACK_HASH_SECRET" in api_environment
+    assert "GSP_FEEDBACK_HASH_SECRET" not in main_environment
+    assert "GSP_FEEDBACK_HASH_SECRET" not in worker_environment
+    for provider_secret in (
+        "ELEVENLABS_API_KEY",
+        "GSP_STRIPE_RESTRICTED_KEY",
+        "GSP_STRIPE_WEBHOOK_SECRET",
+        "GOOGLE_CLIENT_SECRET",
+        "OPENAI_API_KEY",
+        "GROQ_API_KEY",
+    ):
+        assert provider_secret not in worker_environment
+    assert "/feedback" in caddyfile
+
+    cutover = deploy_script.split('install -d -m 700 "$STATE_DIR"', 1)[1]
+    core_start = cutover.index("compose up -d backend frontend")
+    worker_start = cutover.index("compose up -d feedback-worker")
+    edge_start = cutover.index("compose up -d --force-recreate edge")
+    assert core_start < worker_start < edge_start
+    assert "Feedback notification worker is unhealthy" in deploy_script
+    assert "Feedback $feedback_env_label env permissions must be 0600" in deploy_script
+    assert "SUBFRAME_FEEDBACK_API_ENV_FILE" in deploy_script
+    assert "SUBFRAME_FEEDBACK_WORKER_ENV_FILE" in deploy_script
+    assert "feedback-worker" in verifier
+    assert "Feedback $feedback_env_label env permissions must be 0600" in verifier
+    assert "public API must not have general provider egress" in verifier
+    assert "SMTP credentials must remain isolated" in verifier
+    assert "database container must not receive the feedback pseudonym secret" in verifier
+    assert "Feedback worker retention must be pinned to 180 days" in verifier
+    assert "GSP_DISABLE_RATELIMIT=0" in verifier
+    assert "GSP_USE_MEMORY_RATELIMIT=0" in verifier
+    assert "Production feedback honeypot canary" in verifier
 
 
 def test_production_media_storage_is_local_to_the_existing_vm_root_disk() -> None:
@@ -1985,6 +2057,30 @@ def test_edge_caps_the_only_streaming_video_upload_route() -> None:
     assert "reverse_proxy backend:8080" in stream_handler
 
 
+def test_edge_caps_feedback_before_the_generic_backend_proxy() -> None:
+    caddyfile = deployment_text("Caddyfile")
+    verifier = deployment_text("verify-production.sh")
+
+    feedback_matcher = "@feedback path /feedback"
+    backend_matcher = next(
+        line.strip()
+        for line in caddyfile.splitlines()
+        if line.strip().startswith("@backend path ")
+    )
+    assert caddyfile.count(feedback_matcher) == 1
+    assert caddyfile.index(feedback_matcher) < caddyfile.index("@backend path")
+    feedback_handler = caddyfile.split(feedback_matcher, 1)[1].split(
+        "@backend path",
+        1,
+    )[0]
+    assert "request_body" in feedback_handler
+    assert "max_size 16KB" in feedback_handler
+    assert feedback_handler.count("reverse_proxy backend:8080") == 1
+    assert "/feedback" not in backend_matcher
+    assert "Public feedback request-body cap must be exactly 16KB" in verifier
+    assert "Feedback must not bypass its body cap" in verifier
+
+
 def test_google_oauth_certificates_use_a_scoped_internal_edge_relay() -> None:
     """REGRESSION: the internal-only backend could not resolve Google's cert host."""
     compose = deployment_text("docker-compose.production.yml")
@@ -2124,6 +2220,8 @@ def test_runtime_relay_contract_validator_accepts_only_the_reviewed_allow_list()
             "\treverse_proxy https://unreviewed.invalid\n\n\trespond 404\n}",
             1,
         ),
+        caddyfile.replace("max_size 16KB", "max_size 1MB", 1),
+        caddyfile.replace("@backend path ", "@backend path /feedback ", 1),
     )
     for unsafe in unsafe_variants:
         rejected = subprocess.run(

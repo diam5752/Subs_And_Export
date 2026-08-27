@@ -446,7 +446,17 @@ and investigate or prepare a new roll-forward release.
 ```bash
 cp deploy/hetzner/subframe.env.example .env.production
 # Fill the random database password, exact SHA, Google client ID, ElevenLabs
-# production key and age public recipient. Never commit this file.
+# production key and age public recipient. Never commit this file. Create the
+# API pseudonym key and SMTP worker bundles separately; both must be absolute,
+# canonical, non-symlink paths with mode 0600.
+install -d -m 700 .runtime
+cp deploy/hetzner/feedback-api.env.example .runtime/feedback-api.env
+cp deploy/hetzner/feedback-worker.env.example .runtime/feedback-worker.env
+chmod 600 .runtime/feedback-api.env .runtime/feedback-worker.env
+# Put only a random stable HMAC key in feedback-api.env. Fill the exact app DB
+# URL, recipient, sender and STARTTLS SMTP credentials in feedback-worker.env.
+# Point SUBFRAME_FEEDBACK_API_ENV_FILE and SUBFRAME_FEEDBACK_WORKER_ENV_FILE in
+# .env.production at these absolute paths.
 SUBFRAME_ENV_FILE=/home/mizai/subframe/.env.production \
   ./deploy/hetzner/deploy-production.sh
 SUBFRAME_ENV_FILE=/home/mizai/subframe/.env.production \
@@ -465,12 +475,17 @@ ssh -N -L 127.0.0.1:18090:127.0.0.1:18090 root@SERVER
 `verify-production.sh` checks container health and image SHAs, every reviewed
 payment/provider setting, the non-empty Scribe credential without printing it,
 the complete live Stripe bundle, and the method/path-scoped Google, Stripe and
-ElevenLabs relays. Relay verification compares and validates the exact runtime
-Caddyfile, checks its structural allow-list and exercises only local
-default-deny routes; it never sends a verification request to a third-party
-provider. The verifier also checks the local-volume and anchor-bind storage
-contract, a complete authenticated read of the erasure journal, the Alembic
-head, and that
+ElevenLabs relays. It also requires separate private 0600 API and worker
+bundles, verifies that the pseudonym key reaches only the public API, and that
+SMTP/provider credentials remain out of the API, database and worker where
+they are not needed. The verifier pins the database-backed rate limiter,
+180-day feedback retention, the public 16KB request-body cap, and confirms the
+durable queue without sending a message. Relay verification compares and
+validates the exact runtime Caddyfile, checks its structural allow-list and
+exercises only local default-deny routes; it never sends a verification request to a third-party
+provider. The verifier also checks the local-volume and
+anchor-bind storage contract, a complete authenticated read of the erasure
+journal, the Alembic head, and that
 `/billing/catalog` returns `checkout_enabled=true` with the approved contract.
 `deploy-production.sh` runs that complete verifier in candidate mode before it
 atomically replaces `.runtime/last-successful-release`. A candidate-verification

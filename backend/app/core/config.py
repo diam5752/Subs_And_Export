@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+from email.utils import parseaddr
 from enum import StrEnum
 from pathlib import Path
 from typing import Annotated
@@ -332,6 +333,70 @@ class Settings(BaseSettings):
         validation_alias="GSP_BETA_LOGIN_PROMOTION_ENABLED",
     )
 
+    # --- Product feedback inbox and isolated notification worker ---
+    feedback_enabled: bool = Field(
+        default=False,
+        validation_alias="GSP_FEEDBACK_ENABLED",
+    )
+    feedback_hash_secret: SecretStr | None = Field(
+        default=None,
+        validation_alias="GSP_FEEDBACK_HASH_SECRET",
+    )
+    feedback_notification_to: str = Field(
+        default="",
+        validation_alias="GSP_FEEDBACK_NOTIFICATION_TO",
+    )
+    feedback_mail_from: str = Field(
+        default="",
+        validation_alias="GSP_FEEDBACK_MAIL_FROM",
+    )
+    feedback_smtp_host: str = Field(
+        default="",
+        validation_alias="GSP_FEEDBACK_SMTP_HOST",
+    )
+    feedback_smtp_port: int = Field(
+        default=587,
+        ge=1,
+        le=65535,
+        validation_alias="GSP_FEEDBACK_SMTP_PORT",
+    )
+    feedback_smtp_starttls: bool = Field(
+        default=True,
+        validation_alias="GSP_FEEDBACK_SMTP_STARTTLS",
+    )
+    feedback_smtp_username: str = Field(
+        default="",
+        validation_alias="GSP_FEEDBACK_SMTP_USERNAME",
+    )
+    feedback_smtp_password: SecretStr | None = Field(
+        default=None,
+        validation_alias="GSP_FEEDBACK_SMTP_PASSWORD",
+    )
+    feedback_smtp_timeout_seconds: int = Field(
+        default=15,
+        ge=5,
+        le=60,
+        validation_alias="GSP_FEEDBACK_SMTP_TIMEOUT_SECONDS",
+    )
+    feedback_worker_poll_seconds: int = Field(
+        default=5,
+        ge=1,
+        le=60,
+        validation_alias="GSP_FEEDBACK_WORKER_POLL_SECONDS",
+    )
+    feedback_worker_batch_size: int = Field(
+        default=10,
+        ge=1,
+        le=50,
+        validation_alias="GSP_FEEDBACK_WORKER_BATCH_SIZE",
+    )
+    feedback_retention_days: int = Field(
+        default=180,
+        ge=30,
+        le=365,
+        validation_alias="GSP_FEEDBACK_RETENTION_DAYS",
+    )
+
     # --- Prepaid credit Checkout (owner-gated; disabled until Stripe setup) ---
     paid_credits_enabled: bool = Field(
         default=False,
@@ -513,6 +578,68 @@ class Settings(BaseSettings):
                 "A Stripe restricted key, webhook signing secret and all three "
                 "Stripe credit Price IDs are required."
             )
+
+    def assert_feedback_api_configuration(self) -> None:
+        """Fail closed when the public inbox lacks a stable pseudonym key."""
+        if not self.feedback_enabled:
+            return
+        hash_secret = (
+            self.feedback_hash_secret.get_secret_value().strip()
+            if self.feedback_hash_secret is not None
+            else ""
+        )
+        if len(hash_secret) < 32:
+            raise RuntimeError(
+                "Enabled product feedback requires a dedicated secret of at least 32 characters.",
+            )
+
+    def assert_feedback_worker_configuration(self) -> None:
+        """Require an encrypted, complete SMTP bundle before delivery starts."""
+        if not self.feedback_enabled:
+            raise RuntimeError("The product feedback worker cannot run while feedback is disabled.")
+
+        password = (
+            self.feedback_smtp_password.get_secret_value().strip()
+            if self.feedback_smtp_password is not None
+            else ""
+        )
+        missing = [
+            label
+            for label, value in (
+                ("notification recipient", self.feedback_notification_to),
+                ("mail sender", self.feedback_mail_from),
+                ("SMTP host", self.feedback_smtp_host),
+                ("SMTP username", self.feedback_smtp_username),
+                ("SMTP password", password),
+            )
+            if not value.strip()
+        ]
+        if missing:
+            raise RuntimeError(
+                "Feedback notification configuration is incomplete: "
+                + ", ".join(missing)
+                + ".",
+            )
+        if not self.feedback_smtp_starttls:
+            raise RuntimeError("Feedback SMTP delivery requires STARTTLS.")
+        if not self._is_valid_mailbox(self.feedback_notification_to, allow_display_name=False):
+            raise RuntimeError("Feedback notification recipient is not a valid email address.")
+        if not self._is_valid_mailbox(self.feedback_mail_from, allow_display_name=True):
+            raise RuntimeError("Feedback mail sender is not a valid email address.")
+        if re.search(r"[\s\x00-\x1f\x7f]", self.feedback_smtp_host):
+            raise RuntimeError("Feedback SMTP host is invalid.")
+
+    @staticmethod
+    def _is_valid_mailbox(value: str, *, allow_display_name: bool) -> bool:
+        if any(character in value for character in ("\r", "\n", "\x00")):
+            return False
+        display_name, address = parseaddr(value)
+        if not allow_display_name and display_name:
+            return False
+        if address != value.strip() and not allow_display_name:
+            return False
+        local, separator, domain = address.rpartition("@")
+        return bool(separator and local and "." in domain and not domain.startswith("."))
 
     def assert_stripe_stage_configuration(self) -> bool:
         """Validate an all-or-nothing Stripe bundle without enabling Checkout."""

@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from contextlib import suppress
 from pathlib import Path
 from typing import TypeVar
 
@@ -9,6 +10,12 @@ from backend.app.core.config import settings
 from backend.app.core.database import Database
 from backend.app.core.erasure_journal import configured_erasure_journal
 from backend.app.services.erasure_reconciliation import reconcile_erasure_journal
+from backend.app.services.product_feedback import (
+    FeedbackNotificationWorker,
+    FeedbackStore,
+    SmtpFeedbackNotifier,
+    run_feedback_worker,
+)
 from backend.app.services.video_processing import process_video_pipeline
 
 app = typer.Typer(
@@ -74,6 +81,78 @@ def run_retention() -> None:
     )
     if report.failed_job_ids or report.failed_orphan_items:
         raise typer.Exit(code=1)
+
+
+def _configured_feedback_store(db: Database) -> FeedbackStore:
+    return FeedbackStore(db=db)
+
+
+def _configured_feedback_notifier() -> SmtpFeedbackNotifier:
+    password = (
+        settings.feedback_smtp_password.get_secret_value()
+        if settings.feedback_smtp_password is not None
+        else ""
+    )
+    return SmtpFeedbackNotifier(
+        host=settings.feedback_smtp_host,
+        port=settings.feedback_smtp_port,
+        username=settings.feedback_smtp_username,
+        password=password,
+        mail_from=settings.feedback_mail_from,
+        recipient=settings.feedback_notification_to,
+        timeout_seconds=settings.feedback_smtp_timeout_seconds,
+    )
+
+
+@app.command("feedback-worker")
+def feedback_worker() -> None:
+    """Deliver the durable feedback outbox through the isolated mail network."""
+    db: Database | None = None
+    try:
+        settings.assert_feedback_worker_configuration()
+        db = Database()
+        store = _configured_feedback_store(db)
+        store.assert_queue_available()
+        worker = FeedbackNotificationWorker(
+            store=store,
+            notifier=_configured_feedback_notifier(),
+            retention_days=settings.feedback_retention_days,
+            batch_size=settings.feedback_worker_batch_size,
+        )
+    except Exception:
+        if db is not None:
+            with suppress(Exception):
+                db.dispose()
+        typer.echo("Feedback worker configuration failed.", err=True)
+        raise typer.Exit(code=1) from None
+
+    try:
+        run_feedback_worker(
+            worker=worker,
+            poll_seconds=settings.feedback_worker_poll_seconds,
+        )
+    except Exception:
+        typer.echo("Feedback worker stopped unexpectedly.", err=True)
+        raise typer.Exit(code=1) from None
+    finally:
+        with suppress(Exception):
+            db.dispose()
+
+
+@app.command("check-feedback-worker")
+def check_feedback_worker() -> None:
+    """Validate mail configuration and the feedback queue without sending."""
+    try:
+        settings.assert_feedback_worker_configuration()
+        db = Database()
+        try:
+            _configured_feedback_store(db).assert_queue_available()
+        finally:
+            db.dispose()
+    except Exception:
+        typer.echo("Feedback worker health check failed.", err=True)
+        raise typer.Exit(code=1) from None
+    typer.echo("Feedback worker ready.")
 
 
 @app.command("process")

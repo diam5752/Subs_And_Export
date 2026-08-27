@@ -91,9 +91,9 @@ container_runtime_fingerprint() {
 }
 
 stop_legacy_services_fail_closed() {
-  compose stop edge backend >/dev/null 2>&1 || true
-  docker stop subframe-edge-1 subframe-backend-1 >/dev/null 2>&1 || true
-  running_legacy_services=$(compose ps --status running -q edge backend 2>/dev/null) || {
+  compose stop edge backend feedback-worker >/dev/null 2>&1 || true
+  docker stop subframe-edge-1 subframe-backend-1 subframe-feedback-worker-1 >/dev/null 2>&1 || true
+  running_legacy_services=$(compose ps --status running -q edge backend feedback-worker 2>/dev/null) || {
     echo "Could not verify that the legacy edge and backend are closed." >&2
     return 1
   }
@@ -277,6 +277,41 @@ if grep -Eq \
   "$ENV_FILE"; then
   echo "Remove retired GCS settings from the production env before deploying." >&2
   exit 1
+fi
+feedback_api_env_file=""
+feedback_worker_env_file=""
+if grep -Eq '^  feedback-worker:' "$COMPOSE_FILE"; then
+  feedback_api_env_file="${SUBFRAME_FEEDBACK_API_ENV_FILE:-$(sed -n 's/^SUBFRAME_FEEDBACK_API_ENV_FILE=//p' "$ENV_FILE" | tail -n 1)}"
+  feedback_worker_env_file="${SUBFRAME_FEEDBACK_WORKER_ENV_FILE:-$(sed -n 's/^SUBFRAME_FEEDBACK_WORKER_ENV_FILE=//p' "$ENV_FILE" | tail -n 1)}"
+  for private_feedback_env in \
+    "api:$feedback_api_env_file" \
+    "worker:$feedback_worker_env_file"
+  do
+    feedback_env_label=${private_feedback_env%%:*}
+    feedback_env_path=${private_feedback_env#*:}
+    case "$feedback_env_path" in
+      /*) ;;
+      *)
+        echo "Feedback $feedback_env_label env path must be absolute." >&2
+        exit 1
+        ;;
+    esac
+    if [ ! -f "$feedback_env_path" ] || [ -L "$feedback_env_path" ]; then
+      echo "Feedback $feedback_env_label env must be a regular non-symlink file: $feedback_env_path" >&2
+      exit 1
+    fi
+    feedback_env_parent=$(CDPATH= cd -- "$(dirname -- "$feedback_env_path")" && pwd -P)
+    if [ "$feedback_env_parent/$(basename -- "$feedback_env_path")" != "$feedback_env_path" ]; then
+      echo "Feedback $feedback_env_label env path must be canonical and must not traverse a symlink." >&2
+      exit 1
+    fi
+    if [ "$(portable_mode "$feedback_env_path")" != 600 ]; then
+      echo "Feedback $feedback_env_label env permissions must be 0600." >&2
+      exit 1
+    fi
+  done
+  export SUBFRAME_FEEDBACK_API_ENV_FILE="$feedback_api_env_file"
+  export SUBFRAME_FEEDBACK_WORKER_ENV_FILE="$feedback_worker_env_file"
 fi
 
 worktree_status=$(git -C "$ROOT_DIR" status --porcelain --untracked-files=normal)
@@ -698,6 +733,7 @@ rollback() {
     docker stop subframe-edge-1 >/dev/null 2>&1 || true
   fi
   compose stop privacy-relay >/dev/null 2>&1 || true
+  compose stop feedback-worker >/dev/null 2>&1 || true
   rm -f -- "$ERASURE_RECEIPT_FILE"
   if [ "$allow_schema_compatible_rollback" != 1 ]; then
     echo "Deployment failed; automatic rollback is disabled because the database schema may have advanced." >&2
@@ -808,7 +844,7 @@ else
     exit 1
   fi
 fi
-if ! compose stop backend frontend; then
+if ! compose stop backend frontend feedback-worker; then
   echo "Could not stop the old application before privacy continuity validation." >&2
   rollback
   exit 1
@@ -855,6 +891,30 @@ done
 if [ "$healthy" -ne 1 ]; then
   compose ps >&2
   compose logs --tail=120 backend frontend >&2
+  rollback
+  exit 1
+fi
+
+if ! compose up -d feedback-worker; then
+  echo "Feedback notification worker failed to start; the public edge remains stopped." >&2
+  rollback
+  exit 1
+fi
+feedback_worker_id=$(compose ps -q feedback-worker)
+feedback_worker_healthy=0
+attempt=0
+while [ "$attempt" -lt 40 ]; do
+  feedback_worker_health=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}' "$feedback_worker_id" 2>/dev/null || true)
+  if [ "$feedback_worker_health" = healthy ]; then
+    feedback_worker_healthy=1
+    break
+  fi
+  attempt=$((attempt + 1))
+  sleep 1
+done
+if [ "$feedback_worker_healthy" -ne 1 ]; then
+  echo "Feedback notification worker is unhealthy; the public edge remains stopped." >&2
+  compose logs --tail=120 feedback-worker >&2
   rollback
   exit 1
 fi
@@ -939,7 +999,7 @@ fi
 if ! "$ROOT_DIR/deploy/hetzner/verify-production.sh" --candidate; then
   echo "Candidate production verification failed; the previous successful-release state was preserved." >&2
   compose ps >&2
-  compose logs --tail=120 backend frontend edge >&2
+  compose logs --tail=120 backend frontend feedback-worker edge >&2
   rollback
   exit 1
 fi

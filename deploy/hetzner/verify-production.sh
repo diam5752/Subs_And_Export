@@ -22,6 +22,10 @@ CONTINUITY_STATE_FILE="$ROOT_DIR/.runtime/privacy-continuity-id"
 ERASURE_ANCHOR_DIR="$ROOT_DIR/.runtime/privacy-erasure-anchor"
 export SUBFRAME_ERASURE_ANCHOR_DIR="$ERASURE_ANCHOR_DIR"
 
+portable_mode() {
+  stat -c %a "$1" 2>/dev/null || stat -f %Lp "$1"
+}
+
 if [ ! -f "$ENV_FILE" ]; then
   echo "Production env is required: $ENV_FILE" >&2
   exit 1
@@ -31,6 +35,41 @@ if grep -Eq \
   "$ENV_FILE"; then
   echo "Retired GCS settings remain in the production env." >&2
   exit 1
+fi
+feedback_api_env_file=""
+feedback_worker_env_file=""
+if grep -Eq '^  feedback-worker:' "$COMPOSE_FILE"; then
+  feedback_api_env_file="${SUBFRAME_FEEDBACK_API_ENV_FILE:-$(sed -n 's/^SUBFRAME_FEEDBACK_API_ENV_FILE=//p' "$ENV_FILE" | tail -n 1)}"
+  feedback_worker_env_file="${SUBFRAME_FEEDBACK_WORKER_ENV_FILE:-$(sed -n 's/^SUBFRAME_FEEDBACK_WORKER_ENV_FILE=//p' "$ENV_FILE" | tail -n 1)}"
+  for private_feedback_env in \
+    "api:$feedback_api_env_file" \
+    "worker:$feedback_worker_env_file"
+  do
+    feedback_env_label=${private_feedback_env%%:*}
+    feedback_env_path=${private_feedback_env#*:}
+    case "$feedback_env_path" in
+      /*) ;;
+      *)
+        echo "Feedback $feedback_env_label env path must be absolute." >&2
+        exit 1
+        ;;
+    esac
+    if [ ! -f "$feedback_env_path" ] || [ -L "$feedback_env_path" ]; then
+      echo "Feedback $feedback_env_label env must be a regular non-symlink file: $feedback_env_path" >&2
+      exit 1
+    fi
+    feedback_env_parent=$(CDPATH= cd -- "$(dirname -- "$feedback_env_path")" && pwd -P)
+    if [ "$feedback_env_parent/$(basename -- "$feedback_env_path")" != "$feedback_env_path" ]; then
+      echo "Feedback $feedback_env_label env path must be canonical and must not traverse a symlink." >&2
+      exit 1
+    fi
+    if [ "$(portable_mode "$feedback_env_path")" != 600 ]; then
+      echo "Feedback $feedback_env_label env permissions must be 0600." >&2
+      exit 1
+    fi
+  done
+  export SUBFRAME_FEEDBACK_API_ENV_FILE="$feedback_api_env_file"
+  export SUBFRAME_FEEDBACK_WORKER_ENV_FILE="$feedback_worker_env_file"
 fi
 if ! "$ROOT_DIR/deploy/hetzner/verify-gcs-retirement.sh"; then
   echo "Legacy GCS retirement evidence is missing or invalid." >&2
@@ -150,7 +189,7 @@ SQL
 }
 
 compose config --quiet
-for service in db backend frontend edge; do
+for service in db backend frontend feedback-worker edge; do
   container_id=$(compose ps -q "$service")
   if [ -z "$container_id" ]; then
     echo "Missing container for service: $service" >&2
@@ -163,10 +202,13 @@ for service in db backend frontend edge; do
   fi
 done
 
+db_id=$(compose ps -q db)
 backend_id=$(compose ps -q backend)
 frontend_id=$(compose ps -q frontend)
+feedback_worker_id=$(compose ps -q feedback-worker)
 backend_image=$(docker inspect --format '{{.Config.Image}}' "$backend_id")
 frontend_image=$(docker inspect --format '{{.Config.Image}}' "$frontend_id")
+feedback_worker_image=$(docker inspect --format '{{.Config.Image}}' "$feedback_worker_id")
 [ "$backend_image" = "subframe-backend:$release_sha" ] || {
   echo "Backend image does not match release $release_sha." >&2
   exit 1
@@ -175,6 +217,67 @@ frontend_image=$(docker inspect --format '{{.Config.Image}}' "$frontend_id")
   echo "Frontend image does not match release $release_sha." >&2
   exit 1
 }
+[ "$feedback_worker_image" = "subframe-backend:$release_sha" ] || {
+  echo "Feedback worker image does not match release $release_sha." >&2
+  exit 1
+}
+if ! docker exec "$feedback_worker_id" python -m backend.cli check-feedback-worker >/dev/null; then
+  echo "Feedback worker configuration or durable queue is unavailable." >&2
+  exit 1
+fi
+backend_networks=$(docker inspect --format '{{range $name, $network := .NetworkSettings.Networks}}{{println $name}}{{end}}' "$backend_id")
+feedback_worker_networks=$(docker inspect --format '{{range $name, $network := .NetworkSettings.Networks}}{{println $name}}{{end}}' "$feedback_worker_id")
+if printf '%s\n' "$backend_networks" | grep -Fqx subframe-provider-egress; then
+  echo "The public API must not have general provider egress." >&2
+  exit 1
+fi
+for required_network in subframe-private subframe-provider-egress; do
+  printf '%s\n' "$feedback_worker_networks" | grep -Fqx "$required_network" || {
+    echo "Feedback worker is missing its required isolated network: $required_network" >&2
+    exit 1
+  }
+done
+
+feedback_worker_environment=$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$feedback_worker_id")
+for required_secret in \
+  GSP_DATABASE_URL \
+  GSP_FEEDBACK_NOTIFICATION_TO \
+  GSP_FEEDBACK_MAIL_FROM \
+  GSP_FEEDBACK_SMTP_HOST \
+  GSP_FEEDBACK_SMTP_USERNAME \
+  GSP_FEEDBACK_SMTP_PASSWORD
+do
+  printf '%s\n' "$feedback_worker_environment" | grep -Eq "^$required_secret=.+" || {
+    echo "Feedback worker is missing required mail configuration: $required_secret" >&2
+    exit 1
+  }
+done
+printf '%s\n' "$feedback_worker_environment" | grep -Fqx 'GSP_FEEDBACK_RETENTION_DAYS=180' || {
+  echo "Feedback worker retention must be pinned to 180 days." >&2
+  exit 1
+}
+for forbidden_secret in \
+  ELEVENLABS_API_KEY \
+  GSP_STRIPE_RESTRICTED_KEY \
+  GSP_STRIPE_WEBHOOK_SECRET \
+  GOOGLE_CLIENT_SECRET \
+  GOOGLE_CLIENT_ID \
+  OPENAI_API_KEY \
+  GROQ_API_KEY \
+  POSTGRES_PASSWORD \
+  GSP_FEEDBACK_HASH_SECRET
+do
+  if printf '%s\n' "$feedback_worker_environment" | grep -Eq "^$forbidden_secret="; then
+    echo "Feedback worker must not receive unrelated provider credentials: $forbidden_secret" >&2
+    exit 1
+  fi
+done
+
+db_environment=$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$db_id")
+if printf '%s\n' "$db_environment" | grep -Eq '^GSP_FEEDBACK_HASH_SECRET='; then
+  echo "The database container must not receive the feedback pseudonym secret." >&2
+  exit 1
+fi
 
 backend_nano_cpus=$(docker inspect --format '{{.HostConfig.NanoCpus}}' "$backend_id")
 [ "$backend_nano_cpus" = "3000000000" ] || {
@@ -211,6 +314,9 @@ for expected in \
   GSP_STRIPE_AUTOMATIC_TAX_ENABLED=0 \
   GSP_STRIPE_API_BASE=http://edge:8081/stripe \
   GSP_BILLING_ADMIN_USER_IDS= \
+  GSP_FEEDBACK_ENABLED=1 \
+  GSP_DISABLE_RATELIMIT=0 \
+  GSP_USE_MEMORY_RATELIMIT=0 \
   STRIPE_SECRET_KEY= \
   STRIPE_WEBHOOK_SECRET= \
   OPENAI_API_KEY= \
@@ -245,6 +351,14 @@ do
     exit 1
   }
 done
+printf '%s\n' "$backend_environment" | grep -Eq '^GSP_FEEDBACK_HASH_SECRET=.{32,}$' || {
+  echo "Backend feedback pseudonym secret is missing or too short." >&2
+  exit 1
+}
+if printf '%s\n' "$backend_environment" | grep -Eq '^GSP_FEEDBACK_(NOTIFICATION_TO|MAIL_FROM|SMTP_[A-Z0-9_]+)='; then
+  echo "SMTP credentials must remain isolated from the public API container." >&2
+  exit 1
+fi
 
 assert_existing_vm_local_volume() {
   volume_name=$1
@@ -525,6 +639,27 @@ def directives(scope: str) -> tuple[str, ...]:
     )
 
 
+public = block(source, ":8080")
+feedback_matchers = re.findall(
+    r"^[ \t]*@feedback[ \t]+path[ \t]+/feedback[ \t]*(?:#.*)?$",
+    public,
+    re.MULTILINE,
+)
+if len(feedback_matchers) != 1:
+    raise SystemExit("Public feedback route must have one exact path matcher.")
+feedback_handler = block(public, "handle @feedback")
+if directives(block(feedback_handler, "request_body")) != ("max_size 16KB",):
+    raise SystemExit("Public feedback request-body cap must be exactly 16KB.")
+if feedback_handler.count("reverse_proxy backend:8080") != 1:
+    raise SystemExit("Public feedback route must have one backend upstream.")
+backend_matchers = re.findall(
+    r"^[ \t]*@backend[ \t]+path[ \t]+[^\n]+$",
+    public,
+    re.MULTILINE,
+)
+if len(backend_matchers) != 1 or "/feedback" in backend_matchers[0]:
+    raise SystemExit("Feedback must not bypass its body cap through the generic backend matcher.")
+
 relay = block(source, ":8081")
 expected_matchers = {
     "@stripe_checkout_create": (
@@ -655,13 +790,22 @@ print(",".join(statuses))
 
 health_json=""
 catalog_json=""
+feedback_canary_json=""
 if command -v curl >/dev/null 2>&1; then
   health_json=$(curl -fsS "http://127.0.0.1:$preview_port/health")
   catalog_json=$(curl -fsS "http://127.0.0.1:$preview_port/billing/catalog")
+  feedback_canary_json=$(curl -fsS \
+    -H 'Content-Type: application/json' \
+    --data '{"category":"chat","message":"deployment honeypot canary","source_path":"/","page_title":"GSUBS","form_started_at":1,"website":"deployment-canary"}' \
+    "http://127.0.0.1:$preview_port/feedback")
   curl -fsS "http://127.0.0.1:$preview_port/" >/dev/null
 elif command -v wget >/dev/null 2>&1; then
   health_json=$(wget -qO- "http://127.0.0.1:$preview_port/health")
   catalog_json=$(wget -qO- "http://127.0.0.1:$preview_port/billing/catalog")
+  feedback_canary_json=$(wget -qO- \
+    --header='Content-Type: application/json' \
+    --post-data='{"category":"chat","message":"deployment honeypot canary","source_path":"/","page_title":"GSUBS","form_started_at":1,"website":"deployment-canary"}' \
+    "http://127.0.0.1:$preview_port/feedback")
   wget -qO- "http://127.0.0.1:$preview_port/" >/dev/null
 else
   echo "curl or wget is required for loopback verification." >&2
@@ -688,6 +832,14 @@ if catalog.get("consumer_contract_status") != "approved":
     raise SystemExit("Production billing catalog must expose the approved consumer contract")
 if not isinstance(catalog.get("consumer_contract"), dict):
     raise SystemExit("Production billing catalog must publish the approved consumer contract")
+'
+printf '%s' "$feedback_canary_json" | docker exec -i "$backend_id" python -c '
+import json
+import sys
+
+payload = json.load(sys.stdin)
+if payload != {"status": "received", "id": None}:
+    raise SystemExit("Production feedback honeypot canary must succeed without persistence")
 '
 
 if [ "$candidate_mode" -eq 0 ]; then

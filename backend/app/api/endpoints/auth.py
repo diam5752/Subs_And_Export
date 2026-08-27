@@ -34,6 +34,7 @@ from ...db.models import (
     DbCreditPurchaseReversal,
     DbOAuthState,
     DbPointTransaction,
+    DbProductFeedback,
     DbProviderBudgetReservation,
     DbSession,
     DbTokenUsage,
@@ -544,6 +545,32 @@ def export_my_data(
             for row in oauth_rows
         ]
 
+        feedback_rows = session.scalars(
+            select(DbProductFeedback)
+            .where(DbProductFeedback.submitter_user_id == current_user.id)
+            .order_by(
+                DbProductFeedback.created_at.asc(),
+                DbProductFeedback.id.asc(),
+            )
+        ).all()
+        product_feedback = [
+            {
+                "id": row.id,
+                "category": row.category,
+                "status": row.status,
+                "message": row.message,
+                "source_path": row.source_path,
+                "page_title": row.page_title,
+                "submitter_key_hash": row.submitter_key_hash,
+                "message_hash": row.message_hash,
+                "created_at": row.created_at,
+                "notification_status": row.notification_status,
+                "notification_attempts": row.notification_attempts,
+                "notification_sent_at": row.notification_sent_at,
+            }
+            for row in feedback_rows
+        ]
+
         # Durable financial records belonging to the active account.
         billing_rows = session.execute(
             select(DbCreditPurchase, DbBillingInvoice)
@@ -895,6 +922,7 @@ def export_my_data(
         "provider_budget_reservations": provider_budget_reservations,
         "sessions": sessions,
         "oauth_states": oauth_states,
+        "product_feedback": product_feedback,
         "billing_purchases": billing_purchases,
     }
 

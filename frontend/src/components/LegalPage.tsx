@@ -49,6 +49,7 @@ const sections: Record<LegalPageKind, LegalSection[]> = {
         { title: 'privacyPaymentsTitle', body: 'privacyPaymentsBody' },
         { title: 'privacyFinancialRetentionTitle', body: 'privacyFinancialRetentionBody' },
         { title: 'privacyProvidersTitle', body: 'privacyProvidersBody' },
+        { title: 'privacyFeedbackTitle', body: 'privacyFeedbackBody' },
         { title: 'privacyChoicesTitle', body: 'privacyChoicesBody' },
         { title: 'privacyCookiesTitle', body: 'privacyCookiesBody' },
         { title: 'privacyContactTitle', body: 'privacyContactBody' },

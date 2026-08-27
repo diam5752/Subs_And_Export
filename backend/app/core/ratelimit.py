@@ -218,6 +218,18 @@ limiter_login = _create_limiter(limit=5, window=60, action="login")
 # 3 registration attempts per minute per IP to prevent spam
 limiter_register = _create_limiter(limit=3, window=60, action="register")
 
+# Product inbox anti-spam limits apply to anonymous and signed-in visitors.
+limiter_feedback_minute = _create_limiter(
+    limit=3,
+    window=60,
+    action="feedback_minute",
+)
+limiter_feedback_hour = _create_limiter(
+    limit=10,
+    window=60 * 60,
+    action="feedback_hour",
+)
+
 # Daily signup limit per IP (anti-abuse)
 limiter_signup_daily = _create_limiter(limit=5, window=86400, action="signup_daily")
 

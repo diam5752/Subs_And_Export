@@ -129,7 +129,7 @@ def test_beta_login_promotion_downgrades_only_before_any_slot_is_awarded() -> No
         with psycopg.connect(connection_url, autocommit=True) as connection:
             assert connection.execute(
                 "SELECT version_num FROM alembic_version"
-            ).fetchone() == ("0023_beta_login_promotion",)
+            ).fetchone() == ("0024_product_feedback",)
             assert connection.execute(
                 """
                 SELECT claimed_count
