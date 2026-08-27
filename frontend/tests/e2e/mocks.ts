@@ -235,6 +235,8 @@ function withCors(body: unknown, status = 200) {
 export async function mockApi(page: Page, options: MockApiOptions = {}): Promise<void> {
   const { authenticated = true, googleNonceExpiresIn = 600 } = options;
   let signedIn = authenticated;
+  let downloadGrantSequence = 0;
+  const downloadGrantFilenames = new Map<string, string>();
   let currentTranscription = mockTranscription.map((cue) => ({
     ...cue,
     words: cue.words.map((word) => ({ ...word })),
@@ -508,6 +510,29 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
     await route.fulfill(withCors(mockJobs));
   });
 
+  // Playwright resolves overlapping page routes in reverse registration
+  // order. Keep the exact grant route after the generic jobs route.
+  await page.route('**/videos/jobs/*/download-grant', async (route) => {
+    if (await shortCircuitOptions(route)) return;
+    if (!signedIn) {
+      await route.fulfill(unauthorizedResponse);
+      return;
+    }
+    const request = route.request().postDataJSON() as {
+      artifact_path?: string;
+      filename?: string;
+    };
+    const artifactPath = request.artifact_path ?? '/static/artifacts/missing/file.mp4';
+    const filename = request.filename ?? 'download.mp4';
+    downloadGrantSequence += 1;
+    const grant = `e2e-download-grant-${downloadGrantSequence}`;
+    downloadGrantFilenames.set(grant, filename);
+    await route.fulfill(withCors({
+      download_url: `${artifactPath}?grant=${grant}`,
+      expires_in: 300,
+    }));
+  });
+
   await page.route('**/history/**', async (route) => {
     if (await shortCircuitOptions(route)) return;
     if (!signedIn) {
@@ -550,11 +575,13 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
       return;
     }
 
-    if (url.searchParams.get('download') === 'true') {
+    const grantFilename = downloadGrantFilenames.get(url.searchParams.get('grant') ?? '');
+    if (url.searchParams.get('download') === 'true' || grantFilename) {
       // REGRESSION: The static-artifact mock ignored the public filename query
       // contract and exposed the internal processed_<format> artifact name.
       const filename = (
-        url.searchParams.get('filename')
+        grantFilename
+        || url.searchParams.get('filename')
         || url.pathname.split('/').pop()
         || 'processed.txt'
       );

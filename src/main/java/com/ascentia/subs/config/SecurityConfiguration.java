@@ -42,6 +42,7 @@ public class SecurityConfiguration {
                                 "/auth/register",
                                 "/auth/token",
                                 "/auth/google/**",
+                                "/static/**",
                                 "/actuator/health/**",
                                 "/actuator/info"
                         ).permitAll()

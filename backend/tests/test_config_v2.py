@@ -48,6 +48,8 @@ def test_settings_defaults(monkeypatch) -> None:
     assert settings.feedback_enabled is False
     assert settings.feedback_hash_secret is None
     assert settings.feedback_retention_days == 180
+    assert settings.download_grant_secret is None
+    assert settings.download_grant_ttl_seconds == 300
     assert settings.paid_credits_enabled is False
     assert settings.consumer_policy_approved is False
     assert settings.durable_confirmation_channel_ready is False
@@ -60,6 +62,37 @@ def test_settings_defaults(monkeypatch) -> None:
     assert settings.external_provider_price_safety_multiplier == 1.25
     assert settings.watermark_path.name == "gsubs-logo.png"
     assert settings.watermark_path.exists()
+
+
+def test_production_download_grants_require_a_dedicated_secret(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("GSP_APP_ENV", "production")
+    monkeypatch.delenv("GSP_DOWNLOAD_GRANT_SECRET", raising=False)
+    missing = Settings(_env_file=None)
+    with pytest.raises(RuntimeError, match="GSP_DOWNLOAD_GRANT_SECRET"):
+        missing.assert_download_grant_configuration()
+
+    monkeypatch.setenv("GSP_DOWNLOAD_GRANT_SECRET", "s" * 31)
+    short = Settings(_env_file=None)
+    with pytest.raises(RuntimeError, match="at least 32 bytes"):
+        short.assert_download_grant_configuration()
+
+    monkeypatch.setenv("GSP_DOWNLOAD_GRANT_SECRET", "s" * 64)
+    configured = Settings(_env_file=None)
+    configured.assert_download_grant_configuration()
+    assert configured.download_grant_signing_secret() == "s" * 64
+
+
+def test_development_download_grants_use_only_the_explicit_dev_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("GSP_APP_ENV", "dev")
+    monkeypatch.delenv("GSP_DOWNLOAD_GRANT_SECRET", raising=False)
+    settings = Settings(_env_file=None)
+
+    settings.assert_download_grant_configuration()
+    assert len(settings.download_grant_signing_secret().encode("utf-8")) >= 32
 
 
 def test_feedback_api_configuration_fails_closed_without_hash_secret(

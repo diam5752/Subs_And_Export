@@ -265,7 +265,8 @@ for forbidden_secret in \
   OPENAI_API_KEY \
   GROQ_API_KEY \
   POSTGRES_PASSWORD \
-  GSP_FEEDBACK_HASH_SECRET
+  GSP_FEEDBACK_HASH_SECRET \
+  GSP_DOWNLOAD_GRANT_SECRET
 do
   if printf '%s\n' "$feedback_worker_environment" | grep -Eq "^$forbidden_secret="; then
     echo "Feedback worker must not receive unrelated provider credentials: $forbidden_secret" >&2
@@ -274,8 +275,8 @@ do
 done
 
 db_environment=$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$db_id")
-if printf '%s\n' "$db_environment" | grep -Eq '^GSP_FEEDBACK_HASH_SECRET='; then
-  echo "The database container must not receive the feedback pseudonym secret." >&2
+if printf '%s\n' "$db_environment" | grep -Eq '^(GSP_FEEDBACK_HASH_SECRET|GSP_DOWNLOAD_GRANT_SECRET)='; then
+  echo "The database container must not receive API-only signing secrets." >&2
   exit 1
 fi
 
@@ -325,6 +326,7 @@ for expected in \
   GOOGLE_REDIRECT_URI= \
   GSP_GOOGLE_OAUTH_CERTS_URL=http://edge:8081/oauth2/v1/certs \
   GSP_GOOGLE_AUTH_NONCE_TTL_SECONDS=600 \
+  GSP_DOWNLOAD_GRANT_TTL_SECONDS=300 \
   GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD=100 \
   GSP_EXTERNAL_PROVIDER_DAILY_BUDGET_USD=10 \
   GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD=0.05 \
@@ -354,6 +356,10 @@ do
 done
 printf '%s\n' "$backend_environment" | grep -Eq '^GSP_FEEDBACK_HASH_SECRET=.{32,}$' || {
   echo "Backend feedback pseudonym secret is missing or too short." >&2
+  exit 1
+}
+printf '%s\n' "$backend_environment" | grep -Eq '^GSP_DOWNLOAD_GRANT_SECRET=.{32,}$' || {
+  echo "Backend download-grant signing secret is missing or too short." >&2
   exit 1
 }
 if printf '%s\n' "$backend_environment" | grep -Eq '^GSP_FEEDBACK_(NOTIFICATION_TO|MAIL_FROM|SMTP_[A-Z0-9_]+)='; then
@@ -526,6 +532,7 @@ if actual_budgets != expected_budgets:
 if not resolve_elevenlabs_api_key():
     raise SystemExit("Production Scribe API key is unavailable.")
 settings.assert_paid_credits_configuration()
+settings.assert_download_grant_configuration()
 '; then
   echo "Production provider or Stripe staging configuration is incomplete or unsafe." >&2
   exit 1

@@ -140,6 +140,7 @@ test.describe('Video Processing Flow', () => {
             if (
                 url.pathname.endsWith('/static/artifacts/job-123/processed_720x1280.mp4')
                 && url.searchParams.get('download') !== 'true'
+                && !url.searchParams.has('grant')
             ) {
                 exportedPreviewRequests.push(url);
             }

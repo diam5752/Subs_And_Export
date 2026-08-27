@@ -12,6 +12,7 @@ jest.mock('@/lib/api', () => ({
     API_BASE: 'http://localhost:8080',
     api: {
         exportVideo: jest.fn(),
+        createArtifactDownloadGrant: jest.fn(),
         getJobsPaginated: jest.fn(),
         updateJobTranscription: jest.fn(),
     },
@@ -175,6 +176,10 @@ describe('ProcessProvider export handling', () => {
         jest.clearAllMocks();
         localStorage.clear();
         (api.exportVideo as jest.Mock).mockRejectedValue(new Error('Export failed'));
+        (api.createArtifactDownloadGrant as jest.Mock).mockResolvedValue({
+            download_url: '/static/artifacts/job-1/scoped-download.mp4?grant=signed-grant',
+            expires_in: 300,
+        });
         (api.updateJobTranscription as jest.Mock).mockResolvedValue({ status: 'ok' });
     });
 
@@ -231,11 +236,17 @@ describe('ProcessProvider export handling', () => {
                 'https://static.local/static/artifacts/job-1/processed.mp4',
             );
             expect(onRefreshJobs).toHaveBeenCalled();
+            expect(api.createArtifactDownloadGrant).toHaveBeenCalledWith(
+                'job-1',
+                '/static/artifacts/job-1/processed-1080.mp4',
+                'E Isous_subs.mp4',
+            );
             expect(clickSpy).toHaveBeenCalled();
             const clickedLink = clickSpy.mock.instances.at(-1) as unknown as HTMLAnchorElement;
             expect(clickedLink.download).toBe('E Isous_subs.mp4');
-            expect(clickedLink.href).toContain('download=true');
-            expect(clickedLink.href).toContain('filename=E%20Isous_subs.mp4');
+            expect(clickedLink.href).toBe(
+                'https://static.local/static/artifacts/job-1/scoped-download.mp4?grant=signed-grant',
+            );
         } finally {
             clickSpy.mockRestore();
         }
@@ -271,8 +282,52 @@ describe('ProcessProvider export handling', () => {
                 );
             });
             expect(clickSpy).toHaveBeenCalled();
+            expect(api.createArtifactDownloadGrant).toHaveBeenCalledWith(
+                'job-1',
+                '/static/artifacts/job-1/processed-720.mp4',
+                'E Isous_subs.mp4',
+            );
         } finally {
             clickSpy.mockRestore();
+        }
+    });
+
+    it('fails closed instead of opening the raw private artifact when grant creation fails', async () => {
+        const updatedJob = {
+            ...baseProps.selectedJob,
+            result_data: {
+                ...baseProps.selectedJob.result_data,
+                variants: {
+                    '720x1280': '/static/artifacts/job-1/processed-720.mp4',
+                },
+            },
+        };
+        const clickSpy = jest.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => { });
+        const openSpy = jest.spyOn(window, 'open').mockImplementation(() => null);
+        (api.exportVideo as jest.Mock).mockResolvedValue(updatedJob);
+        (api.createArtifactDownloadGrant as jest.Mock).mockRejectedValue(
+            new Error('Secure download could not be prepared'),
+        );
+
+        try {
+            render(
+                <I18nProvider initialLocale="en">
+                    <ExportTestBed buildStaticUrl={(path) => path ?? null} />
+                </I18nProvider>,
+            );
+
+            fireEvent.click(screen.getByRole('button', { name: 'export-720' }));
+
+            await waitFor(() => {
+                expect(screen.getByTestId('export-error')).toHaveTextContent(
+                    'Secure download could not be prepared',
+                );
+            });
+            expect(clickSpy).not.toHaveBeenCalled();
+            expect(openSpy).not.toHaveBeenCalled();
+        } finally {
+            clickSpy.mockRestore();
+            openSpy.mockRestore();
         }
     });
 

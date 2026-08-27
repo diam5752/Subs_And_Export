@@ -957,6 +957,46 @@ describe('API Client', () => {
         });
     });
 
+    describe('createArtifactDownloadGrant', () => {
+        it('requests an exact no-store cross-browser download URL', async () => {
+            localStorage.setItem('auth_token', 'stored_token');
+            (fetch as jest.Mock).mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    download_url: '/static/artifacts/job-123/video.mp4?grant=signed',
+                    expires_in: 300,
+                }),
+            });
+            jest.resetModules();
+            const { api } = await import('@/lib/api');
+
+            await expect(api.createArtifactDownloadGrant(
+                'job-123',
+                '/static/artifacts/job-123/video.mp4',
+                'Δοκιμή_subs.mp4',
+            )).resolves.toEqual({
+                download_url: '/static/artifacts/job-123/video.mp4?grant=signed',
+                expires_in: 300,
+            });
+
+            expect(fetch).toHaveBeenCalledWith(
+                expect.stringContaining('/videos/jobs/job-123/download-grant'),
+                expect.objectContaining({
+                    method: 'POST',
+                    cache: 'no-store',
+                    credentials: 'include',
+                    headers: expect.objectContaining({
+                        Authorization: 'Bearer stored_token',
+                    }),
+                    body: JSON.stringify({
+                        artifact_path: '/static/artifacts/job-123/video.mp4',
+                        filename: 'Δοκιμή_subs.mp4',
+                    }),
+                }),
+            );
+        });
+    });
+
     describe('updateJobTranscription', () => {
         it('should update transcription cues for a job', async () => {
             const mockResponse = { status: 'ok' };

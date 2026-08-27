@@ -23,6 +23,8 @@ public class AppProperties {
     private int staticRateLimit = 60;
     private int staticRateLimitWindow = 60;
     private int signupLimitPerIpPerDay = 5;
+    private String downloadGrantSecret = "";
+    private int downloadGrantTtlSeconds = 300;
     private int defaultWidth = 1080;
     private int defaultHeight = 1920;
     private int maxResolutionDimension = 4096;
@@ -198,6 +200,22 @@ public class AppProperties {
 
     public void setSignupLimitPerIpPerDay(int signupLimitPerIpPerDay) {
         this.signupLimitPerIpPerDay = signupLimitPerIpPerDay;
+    }
+
+    public String getDownloadGrantSecret() {
+        return downloadGrantSecret;
+    }
+
+    public void setDownloadGrantSecret(String downloadGrantSecret) {
+        this.downloadGrantSecret = downloadGrantSecret;
+    }
+
+    public int getDownloadGrantTtlSeconds() {
+        return downloadGrantTtlSeconds;
+    }
+
+    public void setDownloadGrantTtlSeconds(int downloadGrantTtlSeconds) {
+        this.downloadGrantTtlSeconds = downloadGrantTtlSeconds;
     }
 
     public int getDefaultWidth() {

@@ -29,6 +29,7 @@ def test_lifespan_disposes_database_when_startup_reconciliation_fails(
     monkeypatch.setattr(main, "assert_runtime_billing_configuration", lambda: None)
     monkeypatch.setattr(main, "assert_runtime_privacy_configuration", lambda: None)
     monkeypatch.setattr(main, "assert_runtime_feedback_configuration", lambda: None)
+    monkeypatch.setattr(main, "assert_runtime_download_grant_configuration", lambda: None)
     monkeypatch.setattr(main, "reclaim_abandoned_lifecycle_locks", lambda **_kwargs: 0)
     monkeypatch.setattr(main, "Database", FailingStartupDatabase)
     monkeypatch.setattr(main, "reconcile_stranded_cancellations", fail_reconciliation)

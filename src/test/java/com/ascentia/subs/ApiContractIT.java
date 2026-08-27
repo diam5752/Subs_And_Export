@@ -74,6 +74,70 @@ class ApiContractIT extends IntegrationTestSupport {
                         org.hamcrest.Matchers.containsString("%CE%95%20Isous_subs.txt")
                 ));
 
+        String grantBody = mockMvc.perform(post("/videos/jobs/static-contract/download-grant")
+                        .header(HttpHeaders.AUTHORIZATION, owner.authorization())
+                        .contentType(APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsBytes(Map.of(
+                                "artifact_path", "/static/artifacts/static-contract/hello.txt",
+                                "filename", "Δοκιμή_subs.txt"
+                        ))))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "private, no-store"))
+                .andExpect(header().string("Referrer-Policy", "no-referrer"))
+                .andExpect(jsonPath("$.expires_in").value(300))
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        String grantUrl = objectMapper.readTree(grantBody).get("download_url").asText();
+        mockMvc.perform(get(grantUrl))
+                .andExpect(status().isOk())
+                .andExpect(header().string(HttpHeaders.CACHE_CONTROL, "private, no-store"))
+                .andExpect(header().string("Referrer-Policy", "no-referrer"))
+                .andExpect(header().string("X-Robots-Tag", "noindex, nofollow"))
+                .andExpect(header().string(
+                        HttpHeaders.CONTENT_DISPOSITION,
+                        org.hamcrest.Matchers.containsString("%CE%94%CE%BF%CE%BA%CE%B9%CE%BC%CE%AE_subs.txt")
+                ))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content().string("hello"));
+
+        int signatureStart = grantUrl.lastIndexOf('.') + 1;
+        char signatureFirst = grantUrl.charAt(signatureStart);
+        String tamperedGrantUrl = grantUrl.substring(0, signatureStart)
+                + (signatureFirst == 'a' ? 'b' : 'a')
+                + grantUrl.substring(signatureStart + 1);
+        mockMvc.perform(get(tamperedGrantUrl))
+                .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(post("/videos/jobs/static-contract/download-grant")
+                        .header(HttpHeaders.AUTHORIZATION, other.authorization())
+                        .contentType(APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsBytes(Map.of(
+                                "artifact_path", "/static/artifacts/static-contract/hello.txt",
+                                "filename", "video.txt"
+                        ))))
+                .andExpect(status().isNotFound());
+
+        for (String invalidPath : List.of(
+                "/static/artifacts/other-job/hello.txt",
+                "/static/artifacts/static-contract/bad\\name.txt",
+                "/static/artifacts/static-contract/%68ello.txt",
+                "/static/artifacts/static-contract/hello.txt?download=true",
+                "/static/artifacts/static-contract/hello.txt#fragment",
+                "/static/artifacts/static-contract/https://evil.example/file.txt",
+                "/static/artifacts/static-contract//hello.txt",
+                "/static/artifacts/static-contract/./hello.txt",
+                "/static/artifacts/static-contract/../hello.txt"
+        )) {
+            mockMvc.perform(post("/videos/jobs/static-contract/download-grant")
+                            .header(HttpHeaders.AUTHORIZATION, owner.authorization())
+                            .contentType(APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsBytes(Map.of(
+                                    "artifact_path", invalidPath,
+                                    "filename", "video.txt"
+                            ))))
+                    .andExpect(status().isBadRequest());
+        }
+
         mockMvc.perform(get("/static/test-listing")
                         .header(HttpHeaders.AUTHORIZATION, owner.authorization()))
                 .andExpect(status().isNotFound());

@@ -7,6 +7,7 @@ import com.ascentia.subs.auth.BearerTokenAuthenticationFilter;
 import com.ascentia.subs.config.AppProperties;
 import com.ascentia.subs.jobs.JobStore;
 import com.ascentia.subs.web.AppController;
+import com.ascentia.subs.web.DownloadGrantService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.Cookie;
@@ -259,7 +260,14 @@ class CommonUnitTest {
         AppProperties properties = new AppProperties();
         ClientIpResolver clientIpResolver = new ClientIpResolver();
         JobStore jobStore = mock(JobStore.class);
-        AppController controller = new AppController(properties, rateLimitService, clientIpResolver, jobStore);
+        properties.setEnv("dev");
+        AppController controller = new AppController(
+                properties,
+                rateLimitService,
+                clientIpResolver,
+                jobStore,
+                new DownloadGrantService(properties, new ObjectMapper())
+        );
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setRemoteAddr("127.0.0.1");
         CurrentUser owner = new CurrentUser("u1", "user@example.com", "User", "local", null, null, "2026-01-01T00:00:00Z", false);
@@ -267,7 +275,7 @@ class CommonUnitTest {
         JobStore.Job job = new JobStore.Job("unit-static-job", owner.id(), "completed", 100, "done", 1, 1, null);
         when(jobStore.getJob("unit-static-job")).thenReturn(java.util.Optional.of(job));
 
-        assertThatThrownBy(() -> controller.serveStatic("../pom.xml", false, null, request, ownerAuthentication))
+        assertThatThrownBy(() -> controller.serveStatic("../pom.xml", false, null, null, request, ownerAuthentication))
                 .isInstanceOf(ResponseStatusException.class)
                 .hasMessageContaining("404 NOT_FOUND");
         assertThatThrownBy(() -> controller.serveStatic("artifacts//file.txt", false, null, request, ownerAuthentication))

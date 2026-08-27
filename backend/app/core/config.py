@@ -40,6 +40,7 @@ APPROVED_ELEVENLABS_API_BASES = frozenset(
         ELEVENLABS_PRIVACY_RELAY_API_BASE,
     }
 )
+DEV_DOWNLOAD_GRANT_SECRET = "gsubs-dev-only-download-grant-secret-not-for-production"
 
 
 class AppEnv(StrEnum):
@@ -197,6 +198,16 @@ class Settings(BaseSettings):
     google_oauth_certs_url: str = Field(
         default=GOOGLE_PUBLIC_OAUTH_CERTS_URL,
         validation_alias="GSP_GOOGLE_OAUTH_CERTS_URL",
+    )
+    download_grant_secret: SecretStr | None = Field(
+        default=None,
+        validation_alias="GSP_DOWNLOAD_GRANT_SECRET",
+    )
+    download_grant_ttl_seconds: int = Field(
+        default=300,
+        ge=60,
+        le=600,
+        validation_alias="GSP_DOWNLOAD_GRANT_TTL_SECONDS",
     )
 
     # --- Database ---
@@ -551,6 +562,32 @@ class Settings(BaseSettings):
     use_llm_by_default: bool = Field(default=False, validation_alias="GSP_USE_LLM_BY_DEFAULT")
     llm_model: str = Field(default="gpt-5-mini", validation_alias="GSP_LLM_MODEL")
     llm_temperature: float = Field(default=0.6, validation_alias="GSP_LLM_TEMPERATURE")
+
+    def assert_download_grant_configuration(self) -> None:
+        """Require a dedicated high-entropy signing key outside development."""
+        if self.is_dev:
+            return
+        secret = (
+            self.download_grant_secret.get_secret_value()
+            if self.download_grant_secret is not None
+            else ""
+        )
+        if len(secret.encode("utf-8")) < 32:
+            raise RuntimeError(
+                "Production cross-browser downloads require a dedicated "
+                "GSP_DOWNLOAD_GRANT_SECRET of at least 32 bytes.",
+            )
+
+    def download_grant_signing_secret(self) -> str:
+        """Return the configured key, with an explicitly dev-only fallback."""
+        if self.download_grant_secret is not None:
+            configured = self.download_grant_secret.get_secret_value()
+            if len(configured.encode("utf-8")) >= 32:
+                return configured
+        if self.is_dev:
+            return DEV_DOWNLOAD_GRANT_SECRET
+        self.assert_download_grant_configuration()
+        raise RuntimeError("Download grant signing secret is unavailable")
 
     def assert_paid_credits_configuration(self) -> None:
         """Fail closed before a runtime can create real Checkout Sessions."""
