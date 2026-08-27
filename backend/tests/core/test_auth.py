@@ -1,5 +1,7 @@
 
 import time
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -286,3 +288,118 @@ def test_verify_google_id_token_hides_provider_verification_errors(monkeypatch):
         )
 
     assert "provider internals" not in str(error.value)
+
+
+def _mock_database_session() -> tuple[MagicMock, MagicMock]:
+    db = MagicMock()
+    session = MagicMock()
+    db.session.return_value.__enter__.return_value = session
+    db.session.return_value.__exit__.return_value = False
+    return db, session
+
+
+def test_user_store_rejects_missing_local_credentials() -> None:
+    store = auth.UserStore(MagicMock())
+    with pytest.raises(ValueError, match="Email is required"):
+        store.register_local_user("   ", "Password1234", "User")
+    with pytest.raises(ValueError, match="Password is required"):
+        store.register_local_user("user@example.com", "", "User")
+
+
+def test_user_store_derives_a_name_for_blank_local_registration(monkeypatch) -> None:
+    db, session = _mock_database_session()
+    store = auth.UserStore(db)
+    monkeypatch.setattr(store, "get_user_by_email", lambda _email: None)
+    monkeypatch.setattr(auth.PointsStore, "ensure_account", lambda _self, _user_id: None)
+
+    user = store.register_local_user(
+        " Person@Example.com ",
+        "Password1234",
+        "   ",
+    )
+
+    assert user.email == "person@example.com"
+    assert user.name == "person"
+    session.add.assert_called_once()
+
+
+@pytest.mark.parametrize("sub", ["", "x" * 256])
+def test_google_upsert_rejects_missing_or_oversized_subject(sub: str) -> None:
+    with pytest.raises(auth.GoogleAuthError, match="subject"):
+        auth.UserStore(MagicMock()).upsert_google_user(
+            "person@example.com",
+            "Person",
+            sub,
+        )
+
+
+@pytest.mark.parametrize(
+    ("avatar_url", "expected_avatar"),
+    [
+        ("https://lh3.googleusercontent.com/a/avatar", "https://lh3.googleusercontent.com/a/avatar"),
+        ("https://evil.example/avatar", "existing-avatar"),
+    ],
+)
+def test_google_upsert_updates_an_existing_identity_without_recreating_points(
+    monkeypatch,
+    avatar_url: str,
+    expected_avatar: str,
+) -> None:
+    db, session = _mock_database_session()
+    existing = SimpleNamespace(
+        id="user-1",
+        email="person@example.com",
+        name="Old Name",
+        provider="google",
+        password_hash=None,
+        google_sub="google-sub",
+        avatar_url="existing-avatar",
+        created_at="2026-01-01T00:00:00+00:00",
+        email_verified=True,
+    )
+    session.scalar.return_value = existing
+    ensure_account = MagicMock()
+    monkeypatch.setattr(auth.PointsStore, "ensure_account", ensure_account)
+
+    user = auth.UserStore(db).upsert_google_user(
+        "person@example.com",
+        "Updated Name",
+        "google-sub",
+        avatar_url,
+    )
+
+    assert user.name == "Updated Name"
+    assert existing.avatar_url == expected_avatar
+    session.flush.assert_called_once_with()
+    ensure_account.assert_not_called()
+
+
+def test_user_store_missing_records_are_safe_noops() -> None:
+    db, session = _mock_database_session()
+    session.get.return_value = None
+    store = auth.UserStore(db)
+
+    store.update_name("missing", "Valid Name")
+    store.update_password("missing", "Password1234")
+    assert store.get_user_by_id("") is None
+    store.delete_user_in_session(session, "missing")
+    session.delete.assert_not_called()
+
+
+@pytest.mark.parametrize("password", ["short1", "letters-only-password", "1234567890123"])
+def test_password_policy_rejects_weak_passwords(password: str) -> None:
+    with pytest.raises(ValueError, match="Password"):
+        auth._validate_password_strength(password)
+
+
+def test_secret_file_without_requested_key_falls_through(monkeypatch, tmp_path) -> None:
+    secrets_file = tmp_path / "secrets.toml"
+    secrets_file.write_text('OTHER_KEY = "value"', encoding="utf-8")
+    monkeypatch.delenv("MISSING_KEY", raising=False)
+    monkeypatch.setenv("GSP_SECRETS_FILE", str(secrets_file))
+
+    assert auth._get_secret("MISSING_KEY") is None
+
+
+def test_optional_google_nonce_accepts_a_missing_cookie() -> None:
+    auth._assert_google_nonce({}, expected_nonce_hash=None, require_nonce=False)

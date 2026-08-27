@@ -45,6 +45,7 @@ const mockContextValue = {
     previewVideoUrl: null,
     transcriptContainerRef: { current: null },
     isSavingTranscript: false,
+    transcriptLoadError: null,
     transcriptSaveError: null,
 };
 
@@ -254,5 +255,127 @@ describe('Sidebar Tabs', () => {
         expect(screen.queryByText('Podcast Style')).not.toBeInTheDocument();
         expect(screen.queryByText('Last Used')).not.toBeInTheDocument();
         expect(screen.queryByRole('switch')).not.toBeInTheDocument();
+    });
+
+    it('renders nothing before a job has been selected', () => {
+        (useProcessContext as jest.Mock).mockReturnValue({
+            ...mockContextValue,
+            selectedJob: null,
+        });
+
+        const { container } = render(
+            <I18nProvider initialLocale="en">
+                <PlaybackProvider>
+                    <Sidebar />
+                </PlaybackProvider>
+            </I18nProvider>,
+        );
+
+        expect(container).toBeEmptyDOMElement();
+    });
+
+    it('shows transcript load/save/progress states while processing an empty job', () => {
+        (useProcessContext as jest.Mock).mockReturnValue({
+            ...mockContextValue,
+            isProcessing: true,
+            isSavingTranscript: true,
+            transcriptLoadError: 'Transcript could not be loaded',
+            transcriptSaveError: 'Transcript could not be saved',
+        });
+
+        render(
+            <I18nProvider initialLocale="en">
+                <PlaybackProvider>
+                    <Sidebar />
+                </PlaybackProvider>
+            </I18nProvider>,
+        );
+
+        expect(screen.getByRole('alert')).toHaveTextContent('Transcript could not be loaded');
+        expect(screen.getByText('Transcript could not be saved')).toBeInTheDocument();
+        expect(screen.getByText('Saving…')).toBeInTheDocument();
+        expect(screen.getByText('Processing')).toBeInTheDocument();
+    });
+
+    it('changes transcript tabs without mobile scrolling', () => {
+        const setActiveSidebarTab = jest.fn();
+        const originalMatchMedia = window.matchMedia;
+        Object.defineProperty(window, 'matchMedia', {
+            configurable: true,
+            writable: true,
+            value: jest.fn(() => ({ matches: false })),
+        });
+        (useProcessContext as jest.Mock).mockReturnValue({
+            ...mockContextValue,
+            activeSidebarTab: 'styles',
+            setActiveSidebarTab,
+        });
+
+        try {
+            render(
+                <I18nProvider initialLocale="en">
+                    <PlaybackProvider>
+                        <Sidebar />
+                    </PlaybackProvider>
+                </I18nProvider>,
+            );
+            fireEvent.click(screen.getByRole('tab', { name: /transcript/i }));
+            expect(setActiveSidebarTab).toHaveBeenCalledWith('transcript');
+        } finally {
+            Object.defineProperty(window, 'matchMedia', {
+                configurable: true,
+                writable: true,
+                value: originalMatchMedia,
+            });
+        }
+    });
+
+    it('uses non-animated mobile style scrolling for reduced-motion users', () => {
+        const scrollIntoView = jest.fn();
+        const originalMatchMedia = window.matchMedia;
+        const requestAnimationFrame = jest
+            .spyOn(window, 'requestAnimationFrame')
+            .mockImplementation((callback) => {
+                callback(0);
+                return 1;
+            });
+        Object.defineProperty(window, 'matchMedia', {
+            configurable: true,
+            writable: true,
+            value: jest.fn((query: string) => ({
+                matches: query === '(max-width: 899px)'
+                    || query === '(prefers-reduced-motion: reduce)',
+            })),
+        });
+        const previewSection = document.createElement('div');
+        previewSection.id = 'preview-section';
+        Object.defineProperty(previewSection, 'scrollIntoView', {
+            configurable: true,
+            value: scrollIntoView,
+        });
+        document.body.appendChild(previewSection);
+
+        try {
+            render(
+                <I18nProvider initialLocale="en">
+                    <PlaybackProvider>
+                        <Sidebar />
+                    </PlaybackProvider>
+                </I18nProvider>,
+            );
+            fireEvent.click(screen.getByRole('tab', { name: /styles/i }));
+            expect(scrollIntoView).toHaveBeenCalledWith({
+                behavior: 'auto',
+                block: 'start',
+            });
+        } finally {
+            previewSection.remove();
+            requestAnimationFrame.mockRestore();
+            Object.defineProperty(window, 'matchMedia', {
+                configurable: true,
+                writable: true,
+                value: originalMatchMedia,
+            });
+        }
     });
 });

@@ -38,3 +38,18 @@ def test_mock_transcriber_checks_cancellation(tmp_path: Path) -> None:
 
     with pytest.raises(InterruptedError, match="cancelled"):
         MockTranscriber().transcribe(audio_path, tmp_path / "output", check_cancelled=cancel)
+
+
+def test_mock_transcriber_uses_bounded_defaults_without_callbacks(tmp_path: Path) -> None:
+    audio_path = tmp_path / "audio.wav"
+    audio_path.write_bytes(b"mock")
+
+    srt_path, cues = MockTranscriber().transcribe(
+        audio_path,
+        tmp_path / "output",
+        total_duration=object(),
+    )
+
+    assert srt_path.exists()
+    assert len(cues) == 4
+    assert cues[-1].end == pytest.approx(12.0)

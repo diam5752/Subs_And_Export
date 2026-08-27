@@ -3,6 +3,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
+from backend.app.services.transcription import local_whisper
 from backend.app.services.transcription.local_whisper import LocalWhisperTranscriber
 
 
@@ -34,6 +35,7 @@ def test_local_whisper_transcriber_uses_large_v3_turbo_alias(tmp_path):
             language="el",
             model="whisper-large-v3-turbo",
             progress_callback=MagicMock(),
+            check_cancelled=MagicMock(),
             initial_prompt="brand words",
         )
 
@@ -82,3 +84,36 @@ def test_local_whisper_transcriber_checks_cancellation_while_iterating_segments(
             assert "cancelled" in str(exc)
         else:
             raise AssertionError("expected cancellation to abort transcription")
+
+
+def test_local_whisper_resolution_helpers_cover_fallbacks(monkeypatch):
+    monkeypatch.setattr(local_whisper.settings, "whisper_model", " Standard ")
+
+    assert local_whisper._resolve_local_model_name("") == "large-v3-turbo"
+    assert local_whisper._resolve_compute_type("cuda", "float16") == "float16"
+    assert local_whisper._resolve_compute_type("cuda", "auto") == "default"
+
+    monkeypatch.setattr(local_whisper.settings, "whisper_model", "")
+    assert local_whisper._resolve_local_model_name(None) == ""
+
+
+def test_local_whisper_transcriber_handles_segments_without_words_or_callbacks(tmp_path):
+    audio_path = tmp_path / "audio.wav"
+    audio_path.write_bytes(b"audio")
+    segment = SimpleNamespace(start=0.0, end=1.0, text=" Plain ", words=None)
+    model_instance = MagicMock()
+    model_instance.transcribe.return_value = (iter([segment]), SimpleNamespace(language="el"))
+    faster_whisper_module = SimpleNamespace(WhisperModel=MagicMock(return_value=model_instance))
+
+    with patch(
+        "backend.app.services.transcription.local_whisper._load_faster_whisper",
+        return_value=faster_whisper_module,
+    ):
+        srt_path, cues = LocalWhisperTranscriber(
+            device="cuda",
+            compute_type="auto",
+        ).transcribe(audio_path, tmp_path, language="", model="standard")
+
+    assert srt_path.exists()
+    assert cues[0].words is None
+    assert model_instance.transcribe.call_args.kwargs["language"] == local_whisper.settings.whisper_language

@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { PointsProvider, usePoints } from '@/context/PointsContext';
 import { api } from '@/lib/api';
@@ -244,5 +244,87 @@ describe('PointsContext', () => {
 
     it('throws when usePoints is called outside a provider', () => {
         expect(() => render(<PointsHarness />)).toThrow('usePoints must be used within a PointsProvider');
+    });
+
+    it('derives omitted wallet buckets and blocks AI spend while debt exists', async () => {
+        (api.getPointsBalance as jest.Mock).mockResolvedValue({
+            balance: 50,
+            paid_balance: 30,
+            reversal_debt: 2,
+        });
+
+        render(
+            <PointsProvider>
+                <PointsHarness />
+            </PointsProvider>,
+        );
+
+        await waitFor(() => expect(screen.getByTestId('balance')).toHaveTextContent('50'));
+        expect(screen.getByTestId('paid-balance')).toHaveTextContent('30');
+        expect(screen.getByTestId('promo-balance')).toHaveTextContent('20');
+        expect(screen.getByTestId('reversal-debt')).toHaveTextContent('2');
+        expect(screen.getByTestId('ai-spendable')).toHaveTextContent('0');
+    });
+
+    it('does not fetch when a guest manually asks for a balance refresh', async () => {
+        (useAuth as jest.Mock).mockReturnValue({ user: null, isLoading: false });
+        render(
+            <PointsProvider>
+                <PointsHarness />
+            </PointsProvider>,
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: 'refresh-balance' }));
+        await act(async () => undefined);
+        expect(api.getPointsBalance).not.toHaveBeenCalled();
+        expect(screen.getByTestId('loading')).toHaveTextContent('false');
+    });
+
+    it('ignores a manual refresh that resolves for a previous account session', async () => {
+        let resolveOldRefresh!: (value: { balance: number }) => void;
+        (api.getPointsBalance as jest.Mock)
+            .mockResolvedValueOnce({ balance: 10 })
+            .mockReturnValueOnce(new Promise((resolve) => {
+                resolveOldRefresh = resolve;
+            }))
+            .mockResolvedValueOnce({ balance: 22 });
+        const view = render(
+            <PointsProvider>
+                <PointsHarness />
+            </PointsProvider>,
+        );
+        await waitFor(() => expect(screen.getByTestId('balance')).toHaveTextContent('10'));
+
+        fireEvent.click(screen.getByRole('button', { name: 'refresh-balance' }));
+        (useAuth as jest.Mock).mockReturnValue({
+            user: { id: 'u2', email: 'second@example.com' },
+            isLoading: false,
+        });
+        view.rerender(
+            <PointsProvider>
+                <PointsHarness />
+            </PointsProvider>,
+        );
+        await waitFor(() => expect(screen.getByTestId('balance')).toHaveTextContent('22'));
+
+        await act(async () => resolveOldRefresh({ balance: 99 }));
+        expect(screen.getByTestId('balance')).toHaveTextContent('22');
+        expect(screen.getByTestId('loading')).toHaveTextContent('false');
+    });
+
+    it('does not publish an automatic request that resolves after unmount', async () => {
+        let resolveBalance!: (value: { balance: number }) => void;
+        (api.getPointsBalance as jest.Mock).mockReturnValue(new Promise((resolve) => {
+            resolveBalance = resolve;
+        }));
+        const view = render(
+            <PointsProvider>
+                <PointsHarness />
+            </PointsProvider>,
+        );
+
+        view.unmount();
+        await act(async () => resolveBalance({ balance: 88 }));
+        expect(api.getPointsBalance).toHaveBeenCalledTimes(1);
     });
 });

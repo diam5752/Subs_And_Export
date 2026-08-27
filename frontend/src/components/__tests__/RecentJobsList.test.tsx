@@ -5,9 +5,14 @@ import { RecentJobsList } from '../RecentJobsList';
 import { api } from '@/lib/api';
 import type { JobResponse } from '@/lib/api';
 
+let mockMissingTranslations = false;
+
 jest.mock('@/context/I18nContext', () => ({
     useI18n: () => ({
         t: (key: string) => {
+            if (mockMissingTranslations) {
+                return '';
+            }
             if (key === 'paginationShowing') {
                 return 'Showing {start}-{end} of {total}';
             }
@@ -122,6 +127,7 @@ function renderList(overrides: Partial<React.ComponentProps<typeof RecentJobsLis
 describe('RecentJobsList', () => {
     beforeEach(() => {
         jest.clearAllMocks();
+        mockMissingTranslations = false;
         Object.defineProperty(window, 'requestAnimationFrame', {
             writable: true,
             value: (callback: FrameRequestCallback) => {
@@ -311,5 +317,100 @@ describe('RecentJobsList', () => {
 
         expect(onPrevPage).toHaveBeenCalled();
         expect(onNextPage).toHaveBeenCalled();
+    });
+
+    it('toggles individual and select-all choices in both directions', () => {
+        renderList();
+        fireEvent.click(screen.getByRole('button', { name: 'selectMode' }));
+
+        fireEvent.click(screen.getByRole('button', { name: 'toggle-job-1' }));
+        expect(screen.getByText('1 selected')).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'toggle-job-1' }));
+        expect(screen.getByText('0 selected')).toBeInTheDocument();
+
+        const selectAll = screen.getByRole('checkbox');
+        fireEvent.click(selectAll);
+        expect(screen.getByText('2 selected')).toBeInTheDocument();
+        fireEvent.click(selectAll);
+        expect(screen.getByText('0 selected')).toBeInTheDocument();
+    });
+
+    it('keeps batch selection available when deletion fails', async () => {
+        const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => undefined);
+        (api.deleteJobs as jest.Mock).mockRejectedValue(new Error('batch failed'));
+        const onJobSelect = jest.fn();
+        const setShowPreview = jest.fn();
+        renderList({ selectedJobId: 'different-job', onJobSelect, setShowPreview });
+
+        fireEvent.click(screen.getByRole('button', { name: 'selectMode' }));
+        fireEvent.click(screen.getByRole('button', { name: 'toggle-job-1' }));
+        fireEvent.click(screen.getByRole('button', { name: /deleteSelected/i }));
+        fireEvent.click(screen.getByRole('button', { name: 'confirmDelete' }));
+
+        await waitFor(() => expect(errorSpy).toHaveBeenCalledWith(
+            'Batch delete failed:',
+            expect.any(Error),
+        ));
+        expect(onJobSelect).not.toHaveBeenCalled();
+        expect(setShowPreview).not.toHaveBeenCalled();
+        expect(screen.getByText('1 selected')).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'cancel' }));
+        expect(screen.queryByText('deleteSelectedConfirm')).not.toBeInTheDocument();
+        errorSpy.mockRestore();
+    });
+
+    it('deletes a non-selected job without clearing the current preview', async () => {
+        (api.deleteJob as jest.Mock).mockResolvedValue({});
+        const onJobSelect = jest.fn();
+        const setShowPreview = jest.fn();
+        renderList({ selectedJobId: 'job-2', onJobSelect, setShowPreview });
+
+        fireEvent.click(screen.getByRole('button', { name: 'ask-delete-job-1' }));
+        fireEvent.click(screen.getByRole('button', { name: 'delete-job-1' }));
+
+        await waitFor(() => expect(api.deleteJob).toHaveBeenCalledWith('job-1'));
+        expect(onJobSelect).not.toHaveBeenCalled();
+        expect(setShowPreview).not.toHaveBeenCalled();
+    });
+
+    it('rejects history downloads that have no artifact path', async () => {
+        const noArtifactJob = {
+            ...jobs[0],
+            result_data: { original_filename: 'missing.mp4' },
+        } as JobResponse;
+        renderList({ jobs: [noArtifactJob], totalJobs: 1, totalPages: 1 });
+
+        fireEvent.click(screen.getByRole('button', { name: 'download-job-1' }));
+
+        expect(await screen.findByRole('alert')).toHaveTextContent('downloadError');
+        expect(api.createArtifactDownloadGrant).not.toHaveBeenCalled();
+    });
+
+    it('renders safe English fallbacks, loading state, and bounded page controls', () => {
+        mockMissingTranslations = true;
+        renderList({
+            isLoading: true,
+            currentPage: 1,
+            totalPages: 2,
+            totalJobs: 3,
+            pageSize: 2,
+            jobs: [{
+                ...jobs[0],
+                updated_at: 0,
+                expires_at: 1,
+                result_data: {
+                    ...jobs[0].result_data!,
+                    public_url: '',
+                    files_missing: true,
+                },
+            }],
+        });
+
+        expect(screen.getByText('History')).toBeInTheDocument();
+        expect(screen.getByText('Items expire in 24 hours')).toBeInTheDocument();
+        expect(screen.getByTestId('jobs-loading')).toBeInTheDocument();
+        expect(screen.getByText('Showing 1-2 of 3')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /Previous/i })).toBeDisabled();
+        expect(screen.getByRole('button', { name: /Next/i })).not.toBeDisabled();
     });
 });

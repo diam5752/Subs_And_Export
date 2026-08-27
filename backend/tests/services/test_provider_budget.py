@@ -3,6 +3,7 @@ from __future__ import annotations
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
+from unittest.mock import MagicMock
 
 import pytest
 from sqlalchemy import delete, select
@@ -234,3 +235,131 @@ def test_provider_budget_concurrent_reservations_cannot_overshoot() -> None:
         results = sorted(executor.map(lambda _: reserve_once(), range(2)))
 
     assert results == ["rejected", "reserved"]
+
+
+@pytest.mark.parametrize("estimated_usd", [float("nan"), 0.0, -0.01])
+def test_provider_budget_preflight_rejects_invalid_estimates(estimated_usd: float) -> None:
+    with pytest.raises(ValueError, match="finite and positive"):
+        ProviderBudgetStore(Database()).assert_can_reserve(
+            estimated_usd=estimated_usd,
+            daily_limit_usd=1.0,
+            monthly_limit_usd=2.0,
+        )
+
+
+def test_provider_budget_preflight_rejects_closed_limits() -> None:
+    with pytest.raises(ProviderBudgetExceededError, match="closed"):
+        ProviderBudgetStore(Database()).assert_can_reserve(
+            estimated_usd=0.01,
+            daily_limit_usd=0.0,
+            monthly_limit_usd=2.0,
+        )
+
+
+def test_provider_budget_preflight_and_reserve_enforce_monthly_limit() -> None:
+    db = Database()
+    _clear_budget_state(db)
+    store = ProviderBudgetStore(db)
+    now = datetime(2031, 5, 2, tzinfo=timezone.utc)
+    store.reserve(
+        idempotency_key=uuid.uuid4().hex,
+        estimated_usd=0.08,
+        daily_limit_usd=1.0,
+        monthly_limit_usd=0.1,
+        now=now,
+    )
+
+    with pytest.raises(ProviderBudgetExceededError, match="Monthly"):
+        store.assert_can_reserve(
+            estimated_usd=0.03,
+            daily_limit_usd=1.0,
+            monthly_limit_usd=0.1,
+            now=now,
+        )
+    with pytest.raises(ProviderBudgetExceededError, match="Monthly"):
+        store.reserve(
+            idempotency_key=uuid.uuid4().hex,
+            estimated_usd=0.03,
+            daily_limit_usd=1.0,
+            monthly_limit_usd=0.1,
+            now=now,
+        )
+
+
+@pytest.mark.parametrize("key", ["", "x" * 65])
+def test_provider_budget_rejects_invalid_idempotency_keys(key: str) -> None:
+    db = Database()
+    _clear_budget_state(db)
+    with db.session() as session:
+        with pytest.raises(ValueError, match="idempotency key"):
+            ProviderBudgetStore(db).reserve_in_session(
+                session,
+                idempotency_key=key,
+                estimated_usd=0.01,
+                daily_limit_usd=1.0,
+                monthly_limit_usd=2.0,
+            )
+
+
+def test_provider_budget_rejects_idempotency_key_estimate_conflict() -> None:
+    db = Database()
+    _clear_budget_state(db)
+    store = ProviderBudgetStore(db)
+    key = uuid.uuid4().hex
+    store.reserve(
+        idempotency_key=key,
+        estimated_usd=0.01,
+        daily_limit_usd=1.0,
+        monthly_limit_usd=2.0,
+    )
+
+    with pytest.raises(ValueError, match="conflict"):
+        store.reserve(
+            idempotency_key=key,
+            estimated_usd=0.02,
+            daily_limit_usd=1.0,
+            monthly_limit_usd=2.0,
+        )
+
+
+def test_provider_budget_detects_unlockable_reservation_windows() -> None:
+    session = MagicMock()
+    session.scalar.return_value = None
+    session.scalars.return_value.all.return_value = []
+
+    with pytest.raises(RuntimeError, match="could not be locked"):
+        ProviderBudgetStore(MagicMock()).reserve_in_session(
+            session,
+            idempotency_key=uuid.uuid4().hex,
+            estimated_usd=0.01,
+            daily_limit_usd=1.0,
+            monthly_limit_usd=2.0,
+            now=datetime(2031, 6, 2, tzinfo=timezone.utc),
+        )
+
+
+@pytest.mark.parametrize("actual_usd", [float("nan"), -0.01])
+def test_provider_budget_rejects_invalid_actual_costs(actual_usd: float) -> None:
+    store = ProviderBudgetStore(Database())
+    with pytest.raises(ValueError, match="finite and non-negative"):
+        store.finalize("unused", actual_usd=actual_usd)
+    with pytest.raises(ValueError, match="finite and non-negative"):
+        store.finalize_in_session(MagicMock(), "unused", actual_usd=actual_usd)
+
+
+def test_provider_budget_detects_missing_windows_during_settlement() -> None:
+    reservation = MagicMock(
+        status="reserved",
+        daily_window_key="day:2031-07-01",
+        monthly_window_key="month:2031-07",
+    )
+    session = MagicMock()
+    session.scalar.return_value = reservation
+    session.scalars.return_value.all.return_value = [MagicMock()]
+
+    with pytest.raises(RuntimeError, match="windows are missing"):
+        ProviderBudgetStore(MagicMock())._settle_in_session(
+            session,
+            idempotency_key="missing-window",
+            actual_usd=0.01,
+        )

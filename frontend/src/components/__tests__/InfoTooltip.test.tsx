@@ -72,4 +72,25 @@ describe('InfoTooltip', () => {
             global.ResizeObserver = OriginalResizeObserver;
         }
     });
+
+    it('stays open while the pointer moves between the trigger and tooltip', () => {
+        // REGRESSION: moving into the portalled tooltip used to be treated like
+        // leaving the whole control, which made the help text flicker closed.
+        render(<InfoTooltip ariaLabel="Hover help">Hover content</InfoTooltip>);
+        const button = screen.getByRole('button', { name: 'Hover help' });
+
+        fireEvent.mouseEnter(button);
+        const tooltip = screen.getByRole('tooltip');
+        fireEvent.keyDown(button, { key: 'Enter' });
+        expect(screen.getByRole('tooltip')).toBeInTheDocument();
+
+        fireEvent.mouseLeave(button, { relatedTarget: tooltip });
+        expect(screen.getByRole('tooltip')).toBeInTheDocument();
+
+        fireEvent.mouseLeave(tooltip, { relatedTarget: button });
+        expect(screen.getByRole('tooltip')).toBeInTheDocument();
+
+        fireEvent.mouseLeave(tooltip);
+        expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+    });
 });

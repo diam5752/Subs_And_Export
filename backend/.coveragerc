@@ -1,4 +1,5 @@
 [run]
+branch = True
 omit =
     app/api/endpoints/dev.py
     app/api/endpoints/intelligence_routes.py

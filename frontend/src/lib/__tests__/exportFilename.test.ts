@@ -17,6 +17,8 @@ describe('buildSubtitleExportFilename', () => {
         expect(buildSubtitleExportFilename('../folder/bad:name?.mkv', 'vtt')).toBe('bad_name__subs.vtt');
         expect(buildSubtitleExportFilename('..', 'txt')).toBe('video_subs.txt');
         expect(buildSubtitleExportFilename(null, '2160x3840')).toBe('video_subs.mp4');
+        expect(buildSubtitleExportFilename('README', 'SRT')).toBe('README_subs.srt');
+        expect(buildSubtitleExportFilename('folder\\clip.avi   ', 'TXT')).toBe('clip_subs.txt');
     });
 });
 
@@ -24,5 +26,10 @@ describe('withDownloadParameters', () => {
     it('adds an encoded filename while preserving existing query parameters and fragments', () => {
         expect(withDownloadParameters('/static/video.mp4?token=1#preview', 'Ε Isous_subs.mp4'))
             .toBe('/static/video.mp4?token=1&download=true&filename=%CE%95%20Isous_subs.mp4#preview');
+    });
+
+    it('adds the first query parameter when no query or fragment exists', () => {
+        expect(withDownloadParameters('/static/video.mp4', 'video_subs.mp4'))
+            .toBe('/static/video.mp4?download=true&filename=video_subs.mp4');
     });
 });
