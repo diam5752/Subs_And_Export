@@ -199,6 +199,8 @@
   "confirmDelete": "Confirm",
   "expired": "Expired",
   "download": "Download",
+  "downloading": "Preparing download",
+  "downloadError": "The secure download could not start. Please try again.",
   "view": "View",
   "previousPage": "Previous",
   "nextPage": "Next",

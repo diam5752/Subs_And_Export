@@ -322,6 +322,36 @@ test.describe('Video Processing Flow', () => {
         ]);
     });
 
+    test('history download survives an in-app to external browser handoff', async ({ page }) => {
+        await mockApi(page);
+        await page.goto('/');
+        await waitForUploadWorkspace(page);
+
+        await page.getByRole('button', { name: el.profileLabel }).click();
+        await page.getByRole('button', { name: el.historyTitle, exact: true }).click();
+
+        const grantRequestPromise = page.waitForRequest(request => (
+            request.method() === 'POST'
+            && request.url().endsWith('/videos/jobs/job-futurist/download-grant')
+        ));
+        const downloadPromise = page.waitForEvent('download');
+        await page.getByRole('button', {
+            name: `${el.download} GreekSubtitles_CaseStudy_Vertical_Edit_v4.mp4`,
+        }).click();
+        const [grantRequest, download] = await Promise.all([
+            grantRequestPromise,
+            downloadPromise,
+        ]);
+
+        expect(grantRequest.postDataJSON()).toEqual({
+            artifact_path: '/static/artifacts/job-futurist/processed.mp4',
+            filename: 'GreekSubtitles_CaseStudy_Vertical_Edit_v4_subs.mp4',
+        });
+        expect(download.suggestedFilename()).toBe(
+            'GreekSubtitles_CaseStudy_Vertical_Edit_v4_subs.mp4',
+        );
+    });
+
     test('slow mobile upload uses progress-capable XHR, stays responsive, and submits once', async ({ page }) => {
         test.setTimeout(60_000);
         await mockApi(page);

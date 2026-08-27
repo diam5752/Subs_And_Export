@@ -12,6 +12,7 @@ import { PreviewPlayerHandle } from '@/components/PreviewPlayer';
 import type { LastUsedSettings, TranscribeMode, TranscribeProvider } from './processTypes';
 import { resolveConfiguredTranscription } from '@/lib/transcription';
 import { buildSubtitleExportFilename } from '@/lib/exportFilename';
+import { downloadArtifactWithGrant } from '@/lib/artifactDownload';
 
 export interface ProcessingOptions {
     transcribeMode: TranscribeMode;
@@ -491,22 +492,12 @@ export function ProcessProvider({
                         ?? selectedJob.result_data?.original_filename,
                     extension,
                 );
-                const grant = await api.createArtifactDownloadGrant(
+                await downloadArtifactWithGrant(
                     selectedJob.id,
                     artifactPath,
                     downloadFilename,
+                    buildStaticUrl,
                 );
-                const grantedUrl = buildStaticUrl(grant.download_url);
-                if (grantedUrl) {
-                    // Keep large exports streamed by the server. The scoped URL
-                    // remains valid if iOS hands it to a different browser.
-                    const link = document.createElement('a');
-                    link.href = grantedUrl;
-                    link.download = downloadFilename;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                }
             }
         } catch (err) {
             if (selectedJobIdRef.current === exportJobId) {

@@ -1,7 +1,6 @@
 import React, { memo, useRef, useEffect } from 'react';
 import { Spinner } from '@/components/Spinner';
 import { JobResponse } from '@/lib/api';
-import { buildSubtitleExportFilename, withDownloadParameters } from '@/lib/exportFilename';
 
 interface JobListItemProps {
     job: JobResponse;
@@ -16,8 +15,10 @@ interface JobListItemProps {
     setShowPreview: (show: boolean) => void;
     isConfirmingDelete: boolean;
     isDeleting: boolean;
+    isDownloading: boolean;
     setConfirmDeleteId: (id: string | null) => void;
     onDeleteConfirmed: (id: string) => void;
+    onDownload: (job: JobResponse) => void;
     t: (key: string, params?: Record<string, string | number>) => string;
 }
 
@@ -41,6 +42,7 @@ function arePropsEqual(prev: JobListItemProps, next: JobListItemProps) {
         prev.timestamp === next.timestamp &&
         prev.isConfirmingDelete === next.isConfirmingDelete &&
         prev.isDeleting === next.isDeleting &&
+        prev.isDownloading === next.isDownloading &&
         // Functions (reference equality)
         prev.formatDate === next.formatDate &&
         prev.onToggleSelection === next.onToggleSelection &&
@@ -48,6 +50,7 @@ function arePropsEqual(prev: JobListItemProps, next: JobListItemProps) {
         prev.setShowPreview === next.setShowPreview &&
         prev.setConfirmDeleteId === next.setConfirmDeleteId &&
         prev.onDeleteConfirmed === next.onDeleteConfirmed &&
+        prev.onDownload === next.onDownload &&
         prev.t === next.t
     );
 }
@@ -65,8 +68,10 @@ export const JobListItem = memo(function JobListItem({
     setShowPreview,
     isConfirmingDelete,
     isDeleting,
+    isDownloading,
     setConfirmDeleteId,
     onDeleteConfirmed,
+    onDownload,
     t
 }: JobListItemProps) {
     const deleteBtnRef = useRef<HTMLButtonElement>(null);
@@ -75,8 +80,7 @@ export const JobListItem = memo(function JobListItem({
     const wasCancelledRef = useRef(false);
 
     const displayFilename = job.result_data?.original_filename || job.id;
-    const downloadFilename = buildSubtitleExportFilename(job.result_data?.original_filename, 'mp4');
-    const downloadUrl = publicUrl ? withDownloadParameters(publicUrl, downloadFilename) : null;
+    const canDownload = Boolean(publicUrl);
     const remainingHours = job.expires_at
         ? Math.ceil(((job.expires_at * 1000) - Date.now()) / (60 * 60 * 1000))
         : null;
@@ -173,17 +177,27 @@ export const JobListItem = memo(function JobListItem({
                     </span>
                 ) : (
                     <>
-                        {job.status === 'completed' && downloadUrl && !selectionMode && (
+                        {job.status === 'completed' && canDownload && !selectionMode && (
                             <>
-                                <a
+                                <button
+                                    type="button"
                                     className="recent-job-action text-xs btn-primary min-h-11 px-3 py-1.5"
-                                    href={downloadUrl}
-                                    download={downloadFilename}
-                                    onClick={(e) => e.stopPropagation()}
-                                    aria-label={`${t('download') || 'Download'} ${displayFilename}`}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onDownload(job);
+                                    }}
+                                    disabled={isDownloading}
+                                    aria-busy={isDownloading}
+                                    aria-label={`${isDownloading
+                                        ? (t('downloading') || 'Preparing download')
+                                        : (t('download') || 'Download')} ${displayFilename}`}
                                 >
-                                    {t('download') || 'Download'}
-                                </a>
+                                    {isDownloading ? (
+                                        <Spinner className="h-3.5 w-3.5 text-white" />
+                                    ) : (
+                                        t('download') || 'Download'
+                                    )}
+                                </button>
                                 <button
                                     onClick={(e) => {
                                         e.stopPropagation();
