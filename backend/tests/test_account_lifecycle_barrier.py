@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import threading
+import time
 import uuid
 from pathlib import Path
 
@@ -18,6 +19,7 @@ from backend.app.core.workspace_deletion import (
     AccountLifecycleLockTimeoutError,
     lock_account_lifecycle,
 )
+from backend.app.db.models import DbProductFeedback
 from backend.app.services.account_erasure import (
     ActiveAccountJobsError,
     erase_account_and_media,
@@ -25,6 +27,11 @@ from backend.app.services.account_erasure import (
 from backend.app.services.billing import BillingService
 from backend.app.services.jobs import JobStore
 from backend.app.services.points import PointsStore
+from backend.app.services.product_feedback import (
+    FeedbackNotification,
+    FeedbackNotificationWorker,
+    FeedbackStore,
+)
 
 
 def test_account_lifecycle_shared_lock_blocks_exclusive_erasure(tmp_path: Path) -> None:
@@ -200,3 +207,98 @@ def test_stale_authenticated_writer_is_rejected_after_erasure_wins(
     assert len(result) == 1
     assert isinstance(result[0], HTTPException)
     assert result[0].status_code == 401
+
+
+def test_feedback_delivery_and_account_erasure_are_serialized(
+    tmp_path: Path,
+) -> None:
+    db = Database()
+    user_store = UserStore(db=db)
+    user = user_store.register_local_user(
+        f"feedback-erasure-{uuid.uuid4().hex}@example.com",
+        "testpassword123",
+        "Feedback Erasure",
+    )
+    now = int(time.time())
+    store = FeedbackStore(db, hash_secret="s" * 64)
+    receipt = store.submit(
+        category="bug",
+        message="Το feedback πρέπει να ολοκληρωθεί πριν διαγραφεί ο λογαριασμός.",
+        source_path="/",
+        page_title="GSUBS",
+        submitter=user,
+        client_ip="203.0.113.60",
+        now=now,
+    )
+    delivery_entered = threading.Event()
+    release_delivery = threading.Event()
+    erasure_finished = threading.Event()
+    order: list[str] = []
+    errors: list[BaseException] = []
+
+    class BlockingNotifier:
+        def send(self, notification: FeedbackNotification) -> None:
+            assert notification.submitter_user_id == user.id
+            assert notification.submitter_email == user.email
+            order.append("delivery-entered")
+            delivery_entered.set()
+            if not release_delivery.wait(timeout=3):
+                raise RuntimeError("Timed out waiting for delivery release")
+            order.append("delivery-finished")
+
+    worker = FeedbackNotificationWorker(
+        store=store,
+        notifier=BlockingNotifier(),
+        retention_days=180,
+        now=lambda: now,
+    )
+
+    def deliver() -> None:
+        try:
+            assert worker.process_once() == 1
+        except BaseException as exc:
+            errors.append(exc)
+
+    def erase() -> None:
+        try:
+            erase_account_and_media(
+                db=db,
+                billing_service=BillingService(
+                    db=db,
+                    points_store=PointsStore(db=db),
+                ),
+                user_store=user_store,
+                user_id=user.id,
+                data_dir=tmp_path,
+                journal=None,
+            )
+            order.append("erasure-finished")
+        except BaseException as exc:
+            errors.append(exc)
+        finally:
+            erasure_finished.set()
+
+    delivery_thread = threading.Thread(target=deliver)
+    erasure_thread = threading.Thread(target=erase)
+    delivery_thread.start()
+    try:
+        assert delivery_entered.wait(timeout=3)
+        erasure_thread.start()
+        assert not erasure_finished.wait(0.15)
+    finally:
+        release_delivery.set()
+
+    delivery_thread.join(timeout=3)
+    erasure_thread.join(timeout=3)
+    assert not delivery_thread.is_alive()
+    assert not erasure_thread.is_alive()
+    assert errors == []
+    assert order == [
+        "delivery-entered",
+        "delivery-finished",
+        "erasure-finished",
+    ]
+    assert user_store.get_user_by_id(user.id) is None
+    with db.session() as session:
+        assert session.get(DbProductFeedback, receipt.id) is None
+    db.dispose()

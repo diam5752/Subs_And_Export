@@ -1,10 +1,12 @@
 from pathlib import Path
 from types import SimpleNamespace
 from typing import NoReturn
+from unittest.mock import Mock
 
 import pytest
 from typer.testing import CliRunner
 
+from backend.app.services.product_feedback import FeedbackNotificationWorker
 from backend.app.services.social_intelligence import SocialContent, SocialCopy
 from backend.cli import app
 
@@ -222,6 +224,89 @@ def test_retention_command_fails_closed_when_an_orphan_cannot_be_erased(
 
     assert result.exit_code == 1
     assert "failed_orphans=1" in result.stdout
+
+
+def test_feedback_worker_health_reports_ready_and_disposes_database(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    database = _TrackingDatabase()
+    configuration_check = Mock()
+    queue = SimpleNamespace(assert_queue_available=Mock())
+    monkeypatch.setattr(
+        "backend.cli.settings",
+        SimpleNamespace(assert_feedback_worker_configuration=configuration_check),
+    )
+    monkeypatch.setattr("backend.cli.Database", lambda: database)
+    monkeypatch.setattr("backend.cli._configured_feedback_store", lambda _db: queue)
+
+    result = CliRunner().invoke(app, ["check-feedback-worker"])
+
+    assert result.exit_code == 0
+    assert result.stdout == "Feedback worker ready.\n"
+    assert result.stderr == ""
+    configuration_check.assert_called_once_with()
+    queue.assert_queue_available.assert_called_once_with()
+    assert database.dispose_calls == 1
+
+
+def test_feedback_worker_health_redacts_configuration_failures(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_configuration() -> NoReturn:
+        raise RuntimeError("smtp-password=must-not-leak")
+
+    monkeypatch.setattr(
+        "backend.cli.settings",
+        SimpleNamespace(assert_feedback_worker_configuration=fail_configuration),
+    )
+
+    result = CliRunner().invoke(app, ["check-feedback-worker"])
+
+    assert result.exit_code == 1
+    assert result.stdout == ""
+    assert result.stderr == "Feedback worker health check failed.\n"
+    assert "must-not-leak" not in result.output
+    assert "Traceback" not in result.output
+
+
+def test_feedback_worker_wires_queue_and_disposes_after_runner_returns(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    database = _TrackingDatabase()
+    configuration_check = Mock()
+    queue = SimpleNamespace(assert_queue_available=Mock())
+    notifier = Mock()
+    captured: dict[str, object] = {}
+    worker_settings = SimpleNamespace(
+        assert_feedback_worker_configuration=configuration_check,
+        feedback_retention_days=180,
+        feedback_worker_batch_size=7,
+        feedback_worker_poll_seconds=3,
+    )
+
+    def capture_runner(*, worker: object, poll_seconds: int) -> None:
+        captured.update(worker=worker, poll_seconds=poll_seconds)
+
+    monkeypatch.setattr("backend.cli.settings", worker_settings)
+    monkeypatch.setattr("backend.cli.Database", lambda: database)
+    monkeypatch.setattr("backend.cli._configured_feedback_store", lambda _db: queue)
+    monkeypatch.setattr("backend.cli._configured_feedback_notifier", lambda: notifier)
+    monkeypatch.setattr("backend.cli.run_feedback_worker", capture_runner)
+
+    result = CliRunner().invoke(app, ["feedback-worker"])
+
+    assert result.exit_code == 0
+    assert result.stderr == ""
+    configuration_check.assert_called_once_with()
+    queue.assert_queue_available.assert_called_once_with()
+    assert captured["poll_seconds"] == 3
+    worker = captured["worker"]
+    assert isinstance(worker, FeedbackNotificationWorker)
+    assert worker.store is queue
+    assert worker.notifier is notifier
+    assert worker.retention_days == 180
+    assert worker.batch_size == 7
+    assert database.dispose_calls == 1
 
 
 def test_process_command_invokes_pipeline(monkeypatch, tmp_path: Path) -> None:

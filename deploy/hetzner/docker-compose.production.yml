@@ -32,6 +32,7 @@ services:
         REQUIREMENTS_FILE: backend/requirements.mock.txt
     env_file:
       - ${SUBFRAME_ENV_FILE:?SUBFRAME_ENV_FILE is required}
+      - ${SUBFRAME_FEEDBACK_API_ENV_FILE:?SUBFRAME_FEEDBACK_API_ENV_FILE is required}
     environment:
       GSP_APP_ENV: production
       APP_ENV: production
@@ -52,6 +53,9 @@ services:
       GSP_STRIPE_PRICE_CORE: "${GSP_STRIPE_PRICE_CORE:-}"
       GSP_STRIPE_PRICE_PRO: "${GSP_STRIPE_PRICE_PRO:-}"
       GSP_BILLING_ADMIN_USER_IDS: ""
+      GSP_FEEDBACK_ENABLED: "1"
+      GSP_DISABLE_RATELIMIT: "0"
+      GSP_USE_MEMORY_RATELIMIT: "0"
       STRIPE_SECRET_KEY: ""
       STRIPE_WEBHOOK_SECRET: ""
       OPENAI_API_KEY: ""
@@ -101,6 +105,38 @@ services:
       retries: 6
       start_period: 45s
 
+  feedback-worker:
+    image: subframe-backend:${SUBFRAME_RELEASE_SHA:?SUBFRAME_RELEASE_SHA is required}
+    env_file:
+      - ${SUBFRAME_FEEDBACK_WORKER_ENV_FILE:?SUBFRAME_FEEDBACK_WORKER_ENV_FILE is required}
+    environment:
+      GSP_APP_ENV: production
+      APP_ENV: production
+      GSP_FEEDBACK_ENABLED: "1"
+      GSP_FEEDBACK_RETENTION_DAYS: "180"
+      GSP_MOCK_EXTERNAL_SERVICES: "1"
+    command: ["python", "-m", "backend.cli", "feedback-worker"]
+    networks:
+      - private
+      - provider_egress
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    cpus: "0.25"
+    mem_limit: 192m
+    pids_limit: 64
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD", "python", "-m", "backend.cli", "check-feedback-worker"]
+      interval: 20s
+      timeout: 10s
+      retries: 6
+      start_period: 20s
+
   frontend:
     image: subframe-frontend:${SUBFRAME_RELEASE_SHA:?SUBFRAME_RELEASE_SHA is required}
     build:
@@ -145,6 +181,8 @@ services:
       backend:
         condition: service_healthy
       frontend:
+        condition: service_healthy
+      feedback-worker:
         condition: service_healthy
     restart: unless-stopped
     logging: *default-logging

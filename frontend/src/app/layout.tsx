@@ -9,6 +9,7 @@ import { PointsProvider } from "@/context/PointsContext";
 import { PwaRegistration } from "@/components/PwaRegistration";
 import { BRAND } from "@/lib/brand";
 import { AdaptivePerformance } from "@/components/AdaptivePerformance";
+import { FeedbackWidgetLauncher } from "@/components/FeedbackWidgetLauncher";
 
 
 const inter = Inter({ subsets: ["latin"] });
@@ -56,6 +57,7 @@ export default function RootLayout({
               <AdaptivePerformance />
               <PwaRegistration />
               {children}
+              <FeedbackWidgetLauncher />
               <CookieConsent />
             </PointsProvider>
           </AuthProvider>

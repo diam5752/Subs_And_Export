@@ -1104,6 +1104,84 @@ class DbProviderBudgetReservation(Base):
     )
 
 
+class DbProductFeedback(Base):
+    """Durable product inbox row and retryable email-outbox state."""
+
+    __tablename__ = "product_feedback"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    category: Mapped[str] = mapped_column(String(16))
+    status: Mapped[str] = mapped_column(String(16), default="new", server_default="new")
+    message: Mapped[str] = mapped_column(Text)
+    source_path: Mapped[str] = mapped_column(String(512))
+    page_title: Mapped[str] = mapped_column(String(255))
+    submitter_user_id: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+    submitter_key_hash: Mapped[str] = mapped_column(String(64))
+    message_hash: Mapped[str] = mapped_column(String(64))
+    dedupe_day: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[int] = mapped_column(BigInteger)
+    notification_status: Mapped[str] = mapped_column(
+        String(16),
+        default="pending",
+        server_default="pending",
+    )
+    notification_attempts: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        server_default="0",
+    )
+    notification_next_attempt_at: Mapped[int] = mapped_column(BigInteger)
+    notification_sent_at: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    notification_last_error_code: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "category IN ('idea','bug','complaint','chat')",
+            name="chk_product_feedback_category",
+        ),
+        CheckConstraint(
+            "status IN ('new','reviewed','closed')",
+            name="chk_product_feedback_status",
+        ),
+        CheckConstraint(
+            "char_length(message) BETWEEN 10 AND 2000",
+            name="chk_product_feedback_message_length",
+        ),
+        CheckConstraint(
+            "notification_status IN ('pending','sending','sent')",
+            name="chk_product_feedback_notification_status",
+        ),
+        CheckConstraint(
+            "notification_attempts >= 0",
+            name="chk_product_feedback_notification_attempts",
+        ),
+        UniqueConstraint(
+            "submitter_key_hash",
+            "message_hash",
+            "dedupe_day",
+            name="uq_product_feedback_daily_duplicate",
+        ),
+        Index(
+            "ix_product_feedback_status_created",
+            "status",
+            "created_at",
+        ),
+        Index(
+            "ix_product_feedback_notification_queue",
+            "notification_status",
+            "notification_next_attempt_at",
+            "created_at",
+        ),
+    )
+
+
 class DbRateLimit(Base):
     """Rate limiting state for DB-backed rate limiting (multi-instance safe)."""
 

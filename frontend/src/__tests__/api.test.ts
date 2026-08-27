@@ -174,6 +174,40 @@ describe('API Client', () => {
         expect(requestOptions.signal).toBeUndefined();
     });
 
+    it('submits product feedback with a bounded request and optional bearer', async () => {
+        localStorage.setItem('auth_token', 'feedback-token');
+        (fetch as jest.Mock).mockResolvedValueOnce({
+            ok: true,
+            json: async () => ({ status: 'received', id: 'feedback-1' }),
+        });
+        jest.resetModules();
+        const { api } = await import('@/lib/api');
+        const payload = {
+            category: 'bug' as const,
+            message: 'The export stopped at the last step.',
+            source_path: '/',
+            page_title: 'GSUBS',
+            form_started_at: 1_800_000_000,
+            website: '',
+        };
+
+        await expect(api.createProductFeedback(payload)).resolves.toEqual({
+            status: 'received',
+            id: 'feedback-1',
+        });
+        expect(fetch).toHaveBeenCalledWith(
+            expect.stringContaining('/feedback'),
+            expect.objectContaining({
+                method: 'POST',
+                body: JSON.stringify(payload),
+                headers: expect.objectContaining({
+                    Authorization: 'Bearer feedback-token',
+                }),
+                signal: expect.any(AbortSignal),
+            }),
+        );
+    });
+
     describe('revokeSession', () => {
         it('posts the current bearer token to the server logout endpoint', async () => {
             localStorage.setItem('auth_token', 'stored_token');

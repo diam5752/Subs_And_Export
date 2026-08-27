@@ -44,6 +44,9 @@ def test_settings_defaults(monkeypatch) -> None:
     assert settings.erasure_journal_retention_days == 30
     assert settings.erasure_journal_continuity_id == ""
     assert settings.beta_login_promotion_enabled is False
+    assert settings.feedback_enabled is False
+    assert settings.feedback_hash_secret is None
+    assert settings.feedback_retention_days == 180
     assert settings.paid_credits_enabled is False
     assert settings.consumer_policy_approved is False
     assert settings.durable_confirmation_channel_ready is False
@@ -56,6 +59,63 @@ def test_settings_defaults(monkeypatch) -> None:
     assert settings.external_provider_price_safety_multiplier == 1.25
     assert settings.watermark_path.name == "gsubs-logo.png"
     assert settings.watermark_path.exists()
+
+
+def test_feedback_api_configuration_fails_closed_without_hash_secret(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("GSP_FEEDBACK_ENABLED", "true")
+    settings = Settings(_env_file=None)
+
+    with pytest.raises(RuntimeError, match="dedicated secret"):
+        settings.assert_feedback_api_configuration()
+
+
+def test_feedback_worker_requires_complete_starttls_mail_bundle(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for key, value in {
+        "GSP_FEEDBACK_ENABLED": "true",
+        "GSP_FEEDBACK_NOTIFICATION_TO": "owner@example.com",
+        "GSP_FEEDBACK_MAIL_FROM": "GSUBS <support@example.com>",
+        "GSP_FEEDBACK_SMTP_HOST": "smtp.example.com",
+        "GSP_FEEDBACK_SMTP_PORT": "587",
+        "GSP_FEEDBACK_SMTP_STARTTLS": "true",
+        "GSP_FEEDBACK_SMTP_USERNAME": "mailer",
+        "GSP_FEEDBACK_SMTP_PASSWORD": "smtp-password",
+    }.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.delenv("GSP_FEEDBACK_HASH_SECRET", raising=False)
+
+    settings = Settings(_env_file=None)
+    settings.assert_feedback_worker_configuration()
+    with pytest.raises(RuntimeError, match="dedicated secret"):
+        settings.assert_feedback_api_configuration()
+
+    monkeypatch.setenv("GSP_FEEDBACK_SMTP_STARTTLS", "false")
+    insecure = Settings(_env_file=None)
+    with pytest.raises(RuntimeError, match="STARTTLS"):
+        insecure.assert_feedback_worker_configuration()
+
+
+def test_feedback_worker_rejects_header_injection_in_mailboxes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    for key, value in {
+        "GSP_FEEDBACK_ENABLED": "true",
+        "GSP_FEEDBACK_NOTIFICATION_TO": "owner@example.com\nBcc: attacker@example.com",
+        "GSP_FEEDBACK_MAIL_FROM": "support@example.com",
+        "GSP_FEEDBACK_SMTP_HOST": "smtp.example.com",
+        "GSP_FEEDBACK_SMTP_USERNAME": "mailer",
+        "GSP_FEEDBACK_SMTP_PASSWORD": "smtp-password",
+    }.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.delenv("GSP_FEEDBACK_HASH_SECRET", raising=False)
+
+    settings = Settings(_env_file=None)
+
+    with pytest.raises(RuntimeError, match="recipient"):
+        settings.assert_feedback_worker_configuration()
 
 
 def test_runtime_startup_rejects_environment_activation_of_draft_registry(

@@ -31,10 +31,12 @@ from ..services.history import HistoryStore
 from ..services.jobs import JobStore
 from ..services.login_promotion import LoginPromotionStore
 from ..services.points import PointsStore
+from ..services.product_feedback import FeedbackStore
 from ..services.usage_ledger import UsageLedgerStore
 
 # Simple OAuth2 scheme (Password flow) for Swagger UI
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
+optional_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token", auto_error=False)
 
 _PROCESS_STREAM_PATH = "/videos/process-stream"
 _MAX_UPLOAD_METADATA_HEADER_CHARS = 12_000
@@ -85,6 +87,28 @@ def get_login_promotion_store(
     return LoginPromotionStore(db=db, points_store=points_store)
 
 
+def get_feedback_store(db: Database = Depends(get_db)) -> FeedbackStore:
+    """Return the inbox only after its public configuration is complete."""
+    if not settings.feedback_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Feedback is temporarily unavailable.",
+        )
+    try:
+        settings.assert_feedback_api_configuration()
+    except RuntimeError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Feedback is temporarily unavailable.",
+        ) from exc
+    hash_secret = (
+        settings.feedback_hash_secret.get_secret_value()
+        if settings.feedback_hash_secret is not None
+        else ""
+    )
+    return FeedbackStore(db=db, hash_secret=hash_secret)
+
+
 def get_usage_ledger_store(
     db: Database = Depends(get_db),
     points_store: PointsStore = Depends(get_points_store),
@@ -110,6 +134,23 @@ async def get_current_user(
     session_store: SessionStore = Depends(get_session_store),
 ) -> User:
     """Validate session token and return current user."""
+    user = session_store.authenticate(token)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return user
+
+
+async def get_optional_current_user(
+    token: Annotated[str | None, Depends(optional_oauth2_scheme)],
+    session_store: SessionStore = Depends(get_session_store),
+) -> User | None:
+    """Authenticate a presented bearer, while allowing a truly anonymous request."""
+    if token is None:
+        return None
     user = session_store.authenticate(token)
     if not user:
         raise HTTPException(

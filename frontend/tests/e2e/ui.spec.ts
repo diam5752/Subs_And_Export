@@ -37,6 +37,61 @@ test('Beta status and testing notice stay discreet and readable', async ({ page 
   }
 });
 
+test('feedback chat is responsive, scroll-locked, and submits a privacy-safe path', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('cookie-consent', 'accepted');
+  });
+  await mockApi(page);
+  const submissions: Array<Record<string, unknown>> = [];
+  page.on('request', (request) => {
+    if (new URL(request.url()).pathname === '/feedback' && request.method() === 'POST') {
+      submissions.push(request.postDataJSON() as Record<string, unknown>);
+    }
+  });
+  await page.goto('/?checkout=must-not-leak');
+  await waitForUploadWorkspace(page);
+
+  for (const viewport of [viewports.mobile, viewports.desktop]) {
+    await page.setViewportSize(viewport);
+    await page.getByTestId('feedback-trigger').click();
+    const dialog = page.getByTestId('feedback-dialog');
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toHaveAttribute('aria-modal', 'true');
+    await expect(page.getByLabel(el.feedbackMessageLabel)).toBeFocused();
+    await expect.poll(() => page.evaluate(() => document.body.style.position)).toBe('fixed');
+    await expectNoHorizontalOverflow(page);
+    const dialogBox = await dialog.boundingBox();
+    expect(dialogBox).not.toBeNull();
+    expect(dialogBox?.x ?? -1).toBeGreaterThanOrEqual(0);
+    expect((dialogBox?.x ?? 0) + (dialogBox?.width ?? viewport.width + 1))
+      .toBeLessThanOrEqual(viewport.width + 1);
+    const closeButton = page.getByRole('button', { name: el.feedbackClose });
+    await closeButton.focus();
+    await page.keyboard.press('Shift+Tab');
+    await expect(page.getByRole('link', { name: el.feedbackPrivacyLink })).toBeFocused();
+    await closeButton.click();
+    await expect(dialog).toBeHidden();
+  }
+
+  await page.setViewportSize(viewports.mobile);
+  await page.getByTestId('feedback-trigger').click();
+  await page.getByRole('radio', { name: el.feedbackCategoryBug }).check();
+  await page.getByLabel(el.feedbackMessageLabel).fill(
+    'Το export κόλλησε στο τελευταίο βήμα της δοκιμής.',
+  );
+  await page.waitForTimeout(2_100);
+  await page.getByRole('button', { name: el.feedbackSubmit }).click();
+
+  await expect(page.getByRole('status')).toHaveText(el.feedbackSuccess);
+  await expect.poll(() => submissions.length).toBe(1);
+  expect(submissions[0]).toMatchObject({
+    category: 'bug',
+    source_path: '/',
+    website: '',
+  });
+  expect(JSON.stringify(submissions[0])).not.toContain('must-not-leak');
+});
+
 test('Google Identity Services login exchanges an ID token for a GSUBS session', async ({ page }) => {
   await mockApi(page, { authenticated: false });
   await page.goto('/login');

@@ -28,7 +28,7 @@ from starlette.requests import Request
 from starlette.types import ASGIApp, Receive, Scope, Send
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
-from backend.app.api.endpoints import auth, billing, billing_admin, history, videos
+from backend.app.api.endpoints import auth, billing, billing_admin, feedback, history, videos
 from backend.app.api.endpoints.file_utils import sanitize_download_filename
 from backend.app.api.endpoints.processing_tasks import (
     reconcile_stranded_cancellations,
@@ -75,11 +75,17 @@ def assert_runtime_privacy_configuration() -> None:
     configured_erasure_journal().read_all()
 
 
+def assert_runtime_feedback_configuration() -> None:
+    """Fail before health when an enabled inbox cannot pseudonymize actors."""
+    settings.assert_feedback_api_configuration()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Startup
     assert_runtime_billing_configuration()
     assert_runtime_privacy_configuration()
+    assert_runtime_feedback_configuration()
     app.state.db = Database()
     retention_task: asyncio.Task[None] | None = None
     try:
@@ -387,6 +393,7 @@ app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(auth.media_router, tags=["auth"])
 app.include_router(videos.router, prefix="/videos", tags=["videos"])
 app.include_router(history.router, prefix="/history", tags=["history"])
+app.include_router(feedback.router, prefix="/feedback", tags=["feedback"])
 app.include_router(billing.router, prefix="/billing", tags=["billing"])
 app.include_router(
     billing_admin.router,

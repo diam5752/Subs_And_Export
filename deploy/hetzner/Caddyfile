@@ -25,6 +25,14 @@
 		reverse_proxy backend:8080
 	}
 
+	@feedback path /feedback
+	handle @feedback {
+		request_body {
+			max_size 16KB
+		}
+		reverse_proxy backend:8080
+	}
+
 	@backend path /auth /auth/* /billing /billing/* /videos /videos/* /history /history/* /static/* /health
 	handle @backend {
 		reverse_proxy backend:8080

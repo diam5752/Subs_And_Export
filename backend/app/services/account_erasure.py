@@ -34,6 +34,9 @@ from backend.app.db.models import (
     DbUser,
 )
 from backend.app.services.billing import BillingService
+from backend.app.services.product_feedback import (
+    acquire_feedback_account_delivery_lock,
+)
 
 
 class ActiveAccountJobsError(RuntimeError):
@@ -151,6 +154,7 @@ def _erase_account_and_media_locked(
     # this order would deadlock account deletion against that final update.
     with lock_job_workspaces(data_dir=data_dir, job_ids=deletion_job_ids):
         with db.session() as session:
+            acquire_feedback_account_delivery_lock(session, user_id)
             billing_service.prepare_account_deletion(
                 session=session,
                 user_id=user_id,
