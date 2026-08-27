@@ -167,6 +167,52 @@ describe('LoginPage', () => {
         });
     });
 
+    it('keeps Messenger users out of the unsupported Google WebView flow', async () => {
+        const userAgent = jest.spyOn(window.navigator, 'userAgent', 'get').mockReturnValue(
+            'Mozilla/5.0 (iPhone; CPU iPhone OS 18_6 like Mac OS X) '
+            + 'AppleWebKit/605.1.15 Mobile/15E148 '
+            + '[FBAN/MessengerForiOS;FBAV/520.0.0.0.0]',
+        );
+        const clipboardDescriptor = Object.getOwnPropertyDescriptor(
+            window.navigator,
+            'clipboard',
+        );
+        const writeText = jest.fn().mockResolvedValue(undefined);
+        Object.defineProperty(window.navigator, 'clipboard', {
+            configurable: true,
+            value: { writeText },
+        });
+
+        try {
+            render(<LoginPage />);
+
+            const fallback = await screen.findByTestId('google-embedded-browser-fallback');
+            expect(fallback).toHaveTextContent('loginGoogleEmbeddedTitle');
+            expect(fallback).toHaveTextContent('loginGoogleEmbeddedBody');
+            expect(api.getGoogleAuthNonce).not.toHaveBeenCalled();
+            expect(loadGoogleIdentityScript).not.toHaveBeenCalled();
+            expect(window.google?.accounts?.id?.initialize).not.toHaveBeenCalled();
+
+            fireEvent.click(screen.getByRole('button', {
+                name: 'loginGoogleEmbeddedCopy',
+            }));
+            await waitFor(() => {
+                expect(writeText).toHaveBeenCalledWith('http://localhost/login');
+                expect(screen.getByRole('status')).toHaveTextContent(
+                    'loginGoogleEmbeddedCopied',
+                );
+            });
+            expect(screen.getByPlaceholderText('loginEmailPlaceholder')).toBeVisible();
+        } finally {
+            userAgent.mockRestore();
+            if (clipboardDescriptor) {
+                Object.defineProperty(window.navigator, 'clipboard', clipboardDescriptor);
+            } else {
+                Reflect.deleteProperty(window.navigator, 'clipboard');
+            }
+        }
+    });
+
     it('does not rotate the nonce when the stored locale hydrates', async () => {
         // REGRESSION: translating the availability fallback used to restart the
         // initialization effect and issue an overlapping nonce-cookie rotation.

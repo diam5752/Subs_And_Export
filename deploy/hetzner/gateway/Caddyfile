@@ -1,0 +1,52 @@
+{
+	auto_https off
+	admin 127.0.0.1:2019
+	persist_config off
+}
+
+:8080 {
+	@edge_health path /.well-known/gsubs-edge-health
+	handle @edge_health {
+		respond "gateway-ok" 200
+	}
+
+	handle {
+		reverse_proxy {
+			dynamic a {
+				name app-edge
+				port 8080
+				refresh 1s
+			}
+			lb_try_duration 1s
+			lb_try_interval 100ms
+		}
+	}
+
+	handle_errors {
+		header {
+			Cache-Control "no-store, max-age=0"
+			Content-Security-Policy "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+			Content-Type "text/html; charset=utf-8"
+			Referrer-Policy "no-referrer"
+			Retry-After "5"
+			X-Content-Type-Options "nosniff"
+			X-Frame-Options "DENY"
+			-Server
+		}
+		respond <<HTML
+		<!doctype html><html lang="el"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="5"><title>GSUBS · Σύντομη αναβάθμιση</title><style>:root{color-scheme:light;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}*{box-sizing:border-box}body{min-height:100vh;margin:0;display:grid;place-items:center;padding:24px;background:radial-gradient(circle at top,#eaf4ff 0,#f8fafc 44%,#fff 100%);color:#171a21}.card{width:min(100%,480px);border:1px solid #dbe6f2;border-radius:24px;background:rgba(255,255,255,.94);box-shadow:0 24px 70px rgba(25,55,95,.12);padding:32px}.brand{display:flex;align-items:center;gap:10px;font-size:19px;font-weight:800;letter-spacing:-.03em}.mark{display:grid;place-items:center;width:38px;height:38px;border-radius:12px;background:#1470f5;color:#fff}.beta{margin-left:auto;border:1px solid #f2cfa9;border-radius:999px;background:#fff7ed;color:#a54d08;font-size:10px;font-weight:800;letter-spacing:.12em;padding:5px 8px}h1{margin:28px 0 10px;font-size:clamp(25px,7vw,34px);line-height:1.08;letter-spacing:-.045em}p{margin:0;color:#667085;font-size:15px;line-height:1.6}.status{display:flex;align-items:center;gap:10px;margin-top:24px;border-radius:14px;background:#f3f7fc;color:#344054;font-size:13px;font-weight:650;padding:13px 14px}.dot{width:9px;height:9px;border-radius:999px;background:#1470f5;box-shadow:0 0 0 6px rgba(20,112,245,.12);animation:pulse 1.4s infinite}@keyframes pulse{50%{opacity:.45}}small{display:block;margin-top:18px;color:#98a2b3;font-size:11px}</style></head><body><main class="card"><div class="brand"><span class="mark">g</span><span>gsubs</span><span class="beta">BETA</span></div><h1>Κάνουμε μια σύντομη αναβάθμιση.</h1><p>Η εφαρμογή θα επιστρέψει αυτόματα σε λίγα δευτερόλεπτα. Η δουλειά και τα αρχεία σου παραμένουν ασφαλή.</p><div class="status"><span class="dot"></span>Γίνεται ασφαλής επανεκκίνηση…</div><small>Αν η σελίδα δεν ανανεωθεί μόνη της, δοκίμασε ξανά σε λίγο.</small></main></body></html>
+		HTML 503
+	}
+}
+
+:8081 {
+	reverse_proxy {
+		dynamic a {
+			name app-edge
+			port 8081
+			refresh 1s
+		}
+		lb_try_duration 1s
+		lb_try_interval 100ms
+	}
+}

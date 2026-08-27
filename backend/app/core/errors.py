@@ -31,7 +31,7 @@ class ProcessingQuoteChangedError(RuntimeError):
 
 
 # Regex to detect internal paths (Unix/Linux focus for container env)
-_PATH_PATTERN = re.compile(r"(\/(?:app|home|var|tmp|usr|etc|opt)\/[\w\-\.\/]+)")
+_PATH_PATTERN = re.compile(r"(\/(?:app|data|home|var|tmp|usr|etc|opt)\/[\w\-\.\/]+)")
 
 # Regex to detect API keys (OpenAI, Groq)
 # OpenAI: sk-..., sk-proj-..., sk-svc-... (usually long strings)

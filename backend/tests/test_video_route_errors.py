@@ -120,7 +120,10 @@ def test_export_video_failure(client: TestClient, user_auth_headers: dict, monke
 
             # Mock generate_video_variant to raise exception
             def mock_gen(*args, **kwargs):
-                raise ValueError("FFmpeg error")
+                raise ValueError(
+                    "Command ['ffmpeg', '-i', '/data/uploads/private.mp4'] "
+                    "returned non-zero exit status 234"
+                )
 
             monkeypatch.setattr(export_routes, "generate_video_variant", mock_gen)
 
@@ -130,7 +133,10 @@ def test_export_video_failure(client: TestClient, user_auth_headers: dict, monke
                 json={"resolution": "1080x1920"}
             )
             assert response.status_code == 500
-            assert "Export failed" in response.json()["detail"]
+            assert response.json()["detail"] == "Export failed. Please try again."
+            assert "ffmpeg" not in response.text.lower()
+            assert "/data/" not in response.text
+            assert "234" not in response.text
             assert update_calls == [("job1", {"status": "completed"})]
 
     finally:

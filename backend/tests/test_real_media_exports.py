@@ -316,6 +316,19 @@ def source_media(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Path]:
         ]
     )
 
+    extra_tall_h264_aac = source_dir / "extra_tall_h264_aac.mp4"
+    _run(
+        [
+            "ffmpeg", "-y", "-v", "error",
+            "-f", "lavfi", "-i",
+            f"color=c=0x101820:s=360x800:r=24:d={TEST_DURATION_SECONDS}",
+            "-f", "lavfi", "-i", f"sine=frequency=520:duration={TEST_DURATION_SECONDS}",
+            "-shortest", "-c:v", "libx264", "-preset", "ultrafast",
+            "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "96k",
+            str(extra_tall_h264_aac),
+        ]
+    )
+
     mpeg4_pcm = source_dir / "mpeg4_pcm.mov"
     _run(
         [
@@ -377,7 +390,15 @@ def source_media(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Path]:
 
     return {
         path.name: path
-        for path in (h264_aac, mpeg4_pcm, ffv1_silent, h264_vfr, hevc_hdr10, rotated_h264)
+        for path in (
+            h264_aac,
+            extra_tall_h264_aac,
+            mpeg4_pcm,
+            ffv1_silent,
+            h264_vfr,
+            hevc_hdr10,
+            rotated_h264,
+        )
     }
 
 
@@ -469,6 +490,40 @@ def test_real_export_compatibility_matrix(
         video_filter="scale=270:480",
     )
     assert _color_pixel_count(preview, "yellow") > 25
+
+
+def test_extra_tall_portrait_fits_inside_720p_export_canvas(
+    source_media: dict[str, Path],
+    tmp_path: Path,
+) -> None:
+    """Regression for FFmpeg exit 234 from width-only portrait scaling."""
+    source = source_media["extra_tall_h264_aac.mp4"]
+    source_video = _stream(_probe(source), "video")
+    assert source_video is not None
+    assert source_video.get("width") == 360
+    assert source_video.get("height") == 800
+
+    output = _render_variant(
+        source,
+        tmp_path / "extra-tall-720p",
+        resolution="720x1280",
+        subtitle_settings={
+            "subtitle_position": 16,
+            "subtitle_size": 100,
+            "max_subtitle_lines": 2,
+            "subtitle_color": "&H0000FFFF",
+            "shadow_strength": 3,
+            "karaoke_enabled": False,
+            "highlight_style": "static",
+        },
+    )
+
+    output_video = _stream(_probe(output), "video")
+    assert output_video is not None
+    assert output_video.get("width") == 720
+    assert output_video.get("height") == 1280
+    assert output.stat().st_size > 1_000
+    _decode_entire_export(output)
 
 
 def test_export_visual_controls_change_real_rendered_frames(

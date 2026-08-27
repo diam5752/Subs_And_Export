@@ -42,6 +42,16 @@ class MediaProbe:
         return (self.audio_codec or "").lower() == "aac"
 
 
+class FFmpegRenderError(subprocess.CalledProcessError):
+    """Preserve FFmpeg diagnostics internally without exposing the command."""
+
+    def __init__(self, returncode: int, cmd: list[str], stderr: str) -> None:
+        super().__init__(returncode, cmd, output=None, stderr=stderr)
+
+    def __str__(self) -> str:
+        return "Video rendering failed."
+
+
 def probe_media(input_path: Path) -> MediaProbe:
     probe_cmd = [
         "ffprobe",
@@ -115,7 +125,12 @@ def build_filtergraph(
 
     width = target_width or settings.default_width
     height = target_height or settings.default_height
-    scale = f"scale={width}:-2:force_original_aspect_ratio=decrease"
+    # Constrain both axes. Width-only scaling makes extra-tall phone videos
+    # taller than the requested canvas, so the following pad filter fails.
+    scale = (
+        f"scale={width}:{height}:force_original_aspect_ratio=decrease:"
+        "force_divisible_by=2"
+    )
     pad = f"pad={width}:{height}:({width}-iw)/2:({height}-ih)/2"
     graph = ",".join([scale, pad, "format=yuv420p"])
 
@@ -398,7 +413,11 @@ def run_ffmpeg_with_subs(
             # simply finalizes the subprocess object / return code.
             process.wait()
             if process.returncode != 0:
-                raise subprocess.CalledProcessError(
+                logger.error(
+                    "FFmpeg render failed with exit code %s",
+                    process.returncode,
+                )
+                raise FFmpegRenderError(
                     process.returncode,
                     cmd,
                     "".join(stderr_lines),

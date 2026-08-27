@@ -42,6 +42,11 @@ def test_sanitize_message_strips_internal_paths():
     assert "[INTERNAL_PATH]" in sanitized2
     assert "/home/user" not in sanitized2
 
+    msg3 = "FFmpeg could not open /data/uploads/private-input.mp4"
+    sanitized3 = sanitize_message(msg3)
+    assert "[INTERNAL_PATH]" in sanitized3
+    assert "/data/uploads" not in sanitized3
+
 def test_http_exception_handler_sanitizes():
     """Test that explicit HTTP exceptions are sanitized."""
     response = client.get("/error/http")

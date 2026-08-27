@@ -9,11 +9,16 @@ import {
     reloadGoogleIdentityPage,
     type GoogleCredentialResponse,
 } from '@/lib/googleIdentity';
+import { isEmbeddedMobileBrowser } from '@/lib/embeddedBrowser';
 import { Spinner } from '@/components/Spinner';
 
 type GoogleRecoveryReason = 'expired' | 'failed';
 
 type GoogleRecoveryStrategy = 'reload-page' | 'reinitialize';
+
+type BrowserSupport = 'checking' | 'supported' | 'embedded';
+
+type CopyState = 'idle' | 'copied' | 'failed';
 
 type GoogleSignInControlProps = {
     onAuthenticated: () => void | Promise<void>;
@@ -53,6 +58,8 @@ export function GoogleSignInControl({
     const [googleRecoveryReason, setGoogleRecoveryReason] =
         useState<GoogleRecoveryReason | null>(null);
     const [initializationAttempt, setInitializationAttempt] = useState(0);
+    const [browserSupport, setBrowserSupport] = useState<BrowserSupport>('checking');
+    const [copyState, setCopyState] = useState<CopyState>('idle');
     const { googleLogin } = useAuth();
     const { t } = useI18n();
     const googleButtonContainerRef = useRef<HTMLDivElement>(null);
@@ -126,6 +133,18 @@ export function GoogleSignInControl({
     }, [handleGoogleCredential]);
 
     useEffect(() => {
+        const navigatorWithStandalone = navigator as Navigator & { standalone?: boolean };
+        /* eslint-disable-next-line react-hooks/set-state-in-effect -- support can only be determined from the hydrated browser UA */
+        setBrowserSupport(isEmbeddedMobileBrowser(
+            navigator.userAgent,
+            navigatorWithStandalone.standalone === true,
+        ) ? 'embedded' : 'supported');
+    }, []);
+
+    useEffect(() => {
+        if (browserSupport !== 'supported') {
+            return;
+        }
         const container = googleButtonContainerRef.current;
         if (!container) {
             return;
@@ -249,7 +268,20 @@ export function GoogleSignInControl({
             googleCredentialSubmittedRef.current = true;
             googleButtonContainer.replaceChildren();
         };
-    }, [initializationAttempt, requireFreshGooglePage]);
+    }, [browserSupport, initializationAttempt, requireFreshGooglePage]);
+
+    const handleCopyLoginLink = async () => {
+        const loginUrl = new URL('/login', window.location.origin).toString();
+        try {
+            if (!navigator.clipboard?.writeText) {
+                throw new Error('Clipboard API unavailable.');
+            }
+            await navigator.clipboard.writeText(loginUrl);
+            setCopyState('copied');
+        } catch {
+            setCopyState('failed');
+        }
+    };
 
     const handleRecovery = () => {
         if (recoveryStrategy === 'reload-page') {
@@ -263,7 +295,35 @@ export function GoogleSignInControl({
 
     return (
         <>
-            {googleRecoveryReason ? (
+            {browserSupport === 'embedded' ? (
+                <div
+                    className="auth-google-embedded"
+                    data-testid="google-embedded-browser-fallback"
+                >
+                    <span className="auth-google-embedded-title">
+                        {t('loginGoogleEmbeddedTitle')}
+                    </span>
+                    <span>{t('loginGoogleEmbeddedBody')}</span>
+                    <button
+                        type="button"
+                        onClick={() => void handleCopyLoginLink()}
+                        className="auth-google-embedded-copy"
+                    >
+                        {t('loginGoogleEmbeddedCopy')}
+                    </button>
+                    {copyState !== 'idle' && (
+                        <span
+                            className="auth-google-embedded-result"
+                            role="status"
+                            aria-live="polite"
+                        >
+                            {copyState === 'copied'
+                                ? t('loginGoogleEmbeddedCopied')
+                                : t('loginGoogleEmbeddedCopyFailed')}
+                        </span>
+                    )}
+                </div>
+            ) : googleRecoveryReason ? (
                 <div
                     className="auth-google-unavailable flex-col gap-2 text-center"
                     role="status"

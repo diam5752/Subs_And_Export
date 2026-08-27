@@ -404,6 +404,20 @@ def test_build_filtergraph_quotes_ass_path():
     assert "foo\\'bar.ass" in fg or "foo'bar.ass" in fg or r"\'" in fg
 
 
+def test_build_filtergraph_constrains_both_axes_for_extra_tall_video():
+    fg = ffmpeg_utils.build_filtergraph(
+        Path("/tmp/subtitles.ass"),
+        target_width=720,
+        target_height=1280,
+    )
+
+    assert (
+        "scale=720:1280:force_original_aspect_ratio=decrease:"
+        "force_divisible_by=2"
+    ) in fg
+    assert "pad=720:1280" in fg
+
+
 def test_process_video_pipeline_removes_temporary_directory(
     monkeypatch, tmp_path: Path
 ):
@@ -812,12 +826,14 @@ def test_normalize_with_large_model_progress():
     # Progress callback testing logic wrapper
     pass
 
-def test_run_ffmpeg_with_subs_raises_on_failure(monkeypatch, tmp_path: Path):
+def test_run_ffmpeg_with_subs_raises_safe_error_on_failure(monkeypatch, tmp_path: Path):
     # Mock subprocess to return error code
     class MockProcess:
         def __init__(self, *args, **kwargs):
             self.stderr = MagicMock()
-            self.stderr.readline.return_value = ""
+            self.stderr.readline.return_value = (
+                "Padded dimensions cannot be smaller than input dimensions.\n"
+            )
             self.returncode = 1 # Error!
         def wait(self): pass
         def poll(self): return 1
@@ -826,9 +842,14 @@ def test_run_ffmpeg_with_subs_raises_on_failure(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(subprocess, "Popen", MockProcess)
     monkeypatch.setattr(select, "select", lambda r, w, x, t: ([r[0]], [], []))
 
-    with pytest.raises(subprocess.CalledProcessError):
+    with pytest.raises(ffmpeg_utils.FFmpegRenderError) as raised:
         ffmpeg_utils.run_ffmpeg_with_subs(tmp_path/"in", tmp_path/"sub", tmp_path/"out",
             video_crf=23, video_preset="f", audio_bitrate="k", audio_copy=False)
+
+    assert str(raised.value) == "Video rendering failed."
+    assert "ffmpeg" not in str(raised.value)
+    assert "Padded dimensions" in raised.value.stderr
+    assert "Padded dimensions" not in str(raised.value)
 
 def test_persist_artifacts_copies_sources_and_writes_bilingual_social_copy(tmp_path: Path):
     artifact_dir = tmp_path / "artifacts"

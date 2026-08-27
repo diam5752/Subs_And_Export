@@ -2705,6 +2705,49 @@ body {
   background: #f7f7f8;
 }
 
+.auth-google-embedded {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 7px;
+  border: 1px solid rgb(20 112 245 / 0.2);
+  border-radius: 12px;
+  background: linear-gradient(145deg, #f4f8ff, #fff);
+  color: #5f636b;
+  font-size: 13px;
+  line-height: 1.45;
+  padding: 14px 15px;
+}
+
+.auth-google-embedded-title {
+  color: #20242c;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.auth-google-embedded-copy {
+  min-height: 38px;
+  margin-top: 3px;
+  border: 1px solid rgb(20 112 245 / 0.26);
+  border-radius: 9px;
+  background: #fff;
+  color: var(--accent);
+  font-weight: 700;
+  padding: 8px 12px;
+}
+
+.auth-google-embedded-copy:focus-visible {
+  outline: 3px solid rgb(20 112 245 / 0.2);
+  outline-offset: 2px;
+}
+
+.auth-google-embedded-result {
+  color: #475467;
+  font-size: 12px;
+  font-weight: 620;
+}
+
 .auth-divider {
   display: flex;
   align-items: center;

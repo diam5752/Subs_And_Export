@@ -460,5 +460,12 @@ def _export_video_locked(
         return JobResponse.model_validate(updated_job)
     except HTTPException:
         raise
-    except Exception as e:
-        raise HTTPException(500, f"Export failed: {sanitize_message(str(e))}")
+    except Exception as exc:
+        logger.exception(
+            "Video export failed",
+            extra={"job_id": job_id, "resolution": request.resolution},
+        )
+        raise HTTPException(
+            500,
+            "Export failed. Please try again.",
+        ) from exc

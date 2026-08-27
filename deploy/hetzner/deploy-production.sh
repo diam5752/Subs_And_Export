@@ -91,9 +91,9 @@ container_runtime_fingerprint() {
 }
 
 stop_legacy_services_fail_closed() {
-  compose stop edge backend feedback-worker >/dev/null 2>&1 || true
-  docker stop subframe-edge-1 subframe-backend-1 subframe-feedback-worker-1 >/dev/null 2>&1 || true
-  running_legacy_services=$(compose ps --status running -q edge backend feedback-worker 2>/dev/null) || {
+  compose stop edge app-edge backend feedback-worker >/dev/null 2>&1 || true
+  docker stop subframe-edge-1 subframe-app-edge-1 subframe-backend-1 subframe-feedback-worker-1 >/dev/null 2>&1 || true
+  running_legacy_services=$(compose ps --status running -q edge app-edge backend feedback-worker 2>/dev/null) || {
     echo "Could not verify that the legacy edge and backend are closed." >&2
     return 1
   }
@@ -201,7 +201,7 @@ stage_or_validate_legacy_transition() {
     echo "Cannot identify the legacy public edge and backend before the journal transition." >&2
     return 1
   fi
-  if compose stop edge backend; then
+  if compose stop edge app-edge backend; then
     :
   else
     if ! stop_legacy_services_fail_closed; then
@@ -729,7 +729,10 @@ SQL
 rollback() {
   # A failed candidate may already have restored files or migrated the DB.
   # Never let a rollback reopen public traffic without a fresh privacy gate.
-  if ! compose stop edge >/dev/null 2>&1; then
+  compose stop app-edge >/dev/null 2>&1 || true
+  docker stop subframe-app-edge-1 >/dev/null 2>&1 || true
+  if [ "$legacy_privacy_transition" -eq 1 ]; then
+    compose stop edge >/dev/null 2>&1 || true
     docker stop subframe-edge-1 >/dev/null 2>&1 || true
   fi
   compose stop privacy-relay >/dev/null 2>&1 || true
@@ -755,9 +758,70 @@ rollback() {
     echo "Schema-compatible rollback failed; manual recovery is required." >&2
     return 0
   fi
-  echo "Rollback core services are restored, but the public edge remains stopped." >&2
+  echo "Rollback core services are restored, but the public application remains behind maintenance mode." >&2
   echo "Complete retention and erasure reconciliation, then deploy a verified roll-forward release." >&2
   return 0
+}
+
+wait_for_service_health() {
+  service_name=$1
+  max_attempts=$2
+  delay_seconds=$3
+  attempt=0
+  while [ "$attempt" -lt "$max_attempts" ]; do
+    service_id=$(compose ps -q "$service_name" 2>/dev/null || true)
+    service_health=""
+    if [ -n "$service_id" ]; then
+      service_health=$(docker inspect --format \
+        '{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}' \
+        "$service_id" 2>/dev/null || true)
+    fi
+    if [ "$service_health" = healthy ]; then
+      return 0
+    fi
+    attempt=$((attempt + 1))
+    sleep "$delay_seconds"
+  done
+  return 1
+}
+
+reload_public_gateway() {
+  edge_id=$(compose ps -q edge 2>/dev/null || true)
+  if [ -z "$edge_id" ] ||
+    ! docker exec "$edge_id" caddy validate \
+      --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null ||
+    ! docker exec "$edge_id" caddy reload \
+      --config /etc/caddy/Caddyfile --adapter caddyfile >/dev/null ||
+    ! docker exec "$edge_id" wget -q -O /dev/null \
+      http://localhost:8080/.well-known/gsubs-edge-health; then
+    echo "The stable public gateway could not load its reviewed configuration." >&2
+    return 1
+  fi
+}
+
+prepare_public_gateway() {
+  # Existing releases used the application proxy itself as the public tunnel
+  # target, so every privacy cutover surfaced a raw 502. Place a stable,
+  # data-blind gateway in front while the old app is still healthy. All later
+  # deploys retain this container and expose only its maintenance response
+  # while app-edge is quiesced.
+  if [ -z "$previous_sha" ] || [ "$legacy_privacy_transition" -eq 1 ]; then
+    return 0
+  fi
+  if ! compose up -d --no-deps --force-recreate app-edge ||
+    ! wait_for_service_health app-edge 60 1; then
+    echo "Application edge preparation failed before cutover; production was not quiesced." >&2
+    compose logs --tail=120 app-edge >&2 || true
+    return 1
+  fi
+  if ! compose up -d --no-deps edge ||
+    ! wait_for_service_health edge 60 1 ||
+    ! reload_public_gateway ||
+    ! docker exec "$(compose ps -q edge)" wget -q -O /dev/null http://localhost:8080; then
+    echo "Stable public gateway preparation failed before privacy cutover." >&2
+    compose logs --tail=120 edge app-edge >&2 || true
+    return 1
+  fi
 }
 
 state_temp=""
@@ -795,7 +859,12 @@ fi
 compose config --quiet
 if ! compose run --rm --no-deps --entrypoint caddy edge validate \
   --config /etc/caddy/Caddyfile --adapter caddyfile; then
-  echo "Caddy configuration validation failed." >&2
+  echo "Public gateway configuration validation failed." >&2
+  exit 1
+fi
+if ! compose run --rm --no-deps --entrypoint caddy app-edge validate \
+  --config /etc/caddy/Caddyfile --adapter caddyfile; then
+  echo "Application edge configuration validation failed." >&2
   exit 1
 fi
 if ! compose run --rm --no-deps --entrypoint caddy privacy-relay validate \
@@ -829,6 +898,9 @@ if ! "$ROOT_DIR/deploy/hetzner/verify-gcs-retirement.sh"; then
   echo "Legacy GCS retirement evidence is required before database migration." >&2
   exit 1
 fi
+if ! prepare_public_gateway; then
+  exit 1
+fi
 trap on_signal INT TERM HUP
 install -d -m 700 "$STATE_DIR"
 rm -f -- "$ERASURE_RECEIPT_FILE"
@@ -838,8 +910,14 @@ if [ "$legacy_privacy_transition" -eq 1 ]; then
     exit 1
   fi
 else
-  if ! compose stop edge; then
-    echo "Could not close the public edge before erasure reconciliation." >&2
+  if ! compose stop app-edge; then
+    echo "Could not put the public application behind maintenance mode before erasure reconciliation." >&2
+    rollback
+    exit 1
+  fi
+  if ! docker exec "$(compose ps -q edge)" wget -q -O /dev/null \
+    http://localhost:8080/.well-known/gsubs-edge-health; then
+    echo "Stable maintenance gateway became unavailable during cutover." >&2
     rollback
     exit 1
   fi
@@ -866,7 +944,7 @@ while [ "$attempt" -lt 60 ]; do
   sleep 1
 done
 if [ "$db_healthy" -ne 1 ] || ! initialize_or_verify_privacy_continuity; then
-  echo "Privacy continuity validation failed; the public edge remains stopped." >&2
+  echo "Privacy continuity validation failed; the public application remains safely in maintenance mode." >&2
   rollback
   exit 1
 fi
@@ -896,7 +974,7 @@ if [ "$healthy" -ne 1 ]; then
 fi
 
 if ! compose up -d feedback-worker; then
-  echo "Feedback notification worker failed to start; the public edge remains stopped." >&2
+  echo "Feedback notification worker failed to start; the public application remains safely in maintenance mode." >&2
   rollback
   exit 1
 fi
@@ -913,14 +991,14 @@ while [ "$attempt" -lt 40 ]; do
   sleep 1
 done
 if [ "$feedback_worker_healthy" -ne 1 ]; then
-  echo "Feedback notification worker is unhealthy; the public edge remains stopped." >&2
+  echo "Feedback notification worker is unhealthy; the public application remains safely in maintenance mode." >&2
   compose logs --tail=120 feedback-worker >&2
   rollback
   exit 1
 fi
 
 if ! compose up -d privacy-relay; then
-  echo "Private erasure relay failed to start; the public edge remains stopped." >&2
+  echo "Private erasure relay failed to start; the public application remains safely in maintenance mode." >&2
   rollback
   exit 1
 fi
@@ -937,26 +1015,26 @@ while [ "$attempt" -lt 20 ]; do
   sleep 1
 done
 if [ "$privacy_relay_healthy" -ne 1 ]; then
-  echo "Private erasure relay is unhealthy; the public edge remains stopped." >&2
+  echo "Private erasure relay is unhealthy; the public application remains safely in maintenance mode." >&2
   rollback
   exit 1
 fi
 if ! compose exec -T \
   -e GSP_ELEVENLABS_API_BASE=http://privacy-relay:8082/elevenlabs \
   backend python -m backend.cli run-retention; then
-  echo "Local retention reconciliation failed; the public edge remains stopped." >&2
+  echo "Local retention reconciliation failed; the public application remains safely in maintenance mode." >&2
   rollback
   exit 1
 fi
 if ! compose exec -T \
   -e GSP_ELEVENLABS_API_BASE=http://privacy-relay:8082/elevenlabs \
   backend python -m backend.cli reconcile-erasures; then
-  echo "Erasure reconciliation failed; the public edge remains stopped." >&2
+  echo "Erasure reconciliation failed; the public application remains safely in maintenance mode." >&2
   rollback
   exit 1
 fi
 if ! compose stop privacy-relay; then
-  echo "Could not stop the temporary erasure relay; the public edge remains stopped." >&2
+  echo "Could not stop the temporary erasure relay; the public application remains safely in maintenance mode." >&2
   rollback
   exit 1
 fi
@@ -970,28 +1048,24 @@ chmod 600 "$erasure_receipt_temp"
 mv -f -- "$erasure_receipt_temp" "$ERASURE_RECEIPT_FILE"
 erasure_receipt_temp=""
 
-# Bind-mounted Caddyfile content is not part of Docker Compose's service hash,
-# so recreate the edge only after its new configuration validates and every
-# durable erasure tombstone has been replayed against the restored local state.
-if ! compose up -d --force-recreate edge; then
+# Recreate only the private application edge after every durable erasure
+# tombstone has been replayed. The stable public gateway remains online and
+# dynamically discovers the restored app-edge without exposing the app early.
+if ! compose up -d --no-deps --force-recreate app-edge; then
   rollback
   exit 1
 fi
-
-attempt=0
-edge_healthy=0
-while [ "$attempt" -lt 60 ]; do
-  edge_health=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}' subframe-edge-1 2>/dev/null || true)
-  if [ "$edge_health" = healthy ]; then
-    edge_healthy=1
-    break
-  fi
-  attempt=$((attempt + 1))
-  sleep 2
-done
-if [ "$edge_healthy" -ne 1 ]; then
+if ! wait_for_service_health app-edge 60 2; then
   compose ps >&2
-  compose logs --tail=120 edge >&2
+  compose logs --tail=120 app-edge >&2
+  rollback
+  exit 1
+fi
+if ! compose up -d --no-deps edge ||
+  ! wait_for_service_health edge 60 1 ||
+  ! reload_public_gateway; then
+  compose ps >&2
+  compose logs --tail=120 edge app-edge >&2
   rollback
   exit 1
 fi
@@ -999,7 +1073,7 @@ fi
 if ! "$ROOT_DIR/deploy/hetzner/verify-production.sh" --candidate; then
   echo "Candidate production verification failed; the previous successful-release state was preserved." >&2
   compose ps >&2
-  compose logs --tail=120 backend frontend feedback-worker edge >&2
+  compose logs --tail=120 backend frontend feedback-worker app-edge edge >&2
   rollback
   exit 1
 fi
