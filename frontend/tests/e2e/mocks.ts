@@ -176,20 +176,26 @@ export const mockApprovedConsumerContract = {
   schema_version: 1,
   status: 'approved',
   classification: 'digital_service_with_prepaid_internal_units',
-  disclosure_id: 'gsubs-b2c-el-2026-07-31-owner-approved-v1',
+  disclosure_id: 'gsubs-b2c-el-2026-08-28-owner-approved-v2',
   disclosure_sha256: 'a'.repeat(64),
   locale: 'el',
-  policy_version: '2026-07-31-owner-approved-v1',
-  terms_version: '2026-07-31-owner-approved-v1',
-  withdrawal_notice_version: '2026-07-31-owner-approved-v1',
-  confirmation_template_version: '2026-07-31-owner-approved-v1',
+  policy_version: '2026-08-28-owner-approved-v2',
+  terms_version: '2026-08-28-owner-approved-v2',
+  withdrawal_notice_version: '2026-08-28-owner-approved-v2',
+  confirmation_template_version: '2026-08-28-owner-approved-v2',
   terms_url: '/terms',
   withdrawal_url: '/account/billing',
   model_withdrawal_form_url: '/terms#withdrawal',
   trader: {
     legal_name: 'Ascentia G.P.',
+    legal_form: 'General Partnership (O.E.)',
     trading_name: 'Ascentia',
     service: 'GSUBS',
+    tax_identification_number: '802523620',
+    vat_id: 'EL802523620',
+    commercial_register: 'General Commercial Registry (GEMI)',
+    commercial_registration_number: '177974203000',
+    euid: 'ELGEMI.177974203000',
     address_line_1: 'Agias Varvaras 4',
     postal_code: '16452',
     city: 'Argiroupoli, Athens',
@@ -247,12 +253,11 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
     words: cue.words.map((word) => ({ ...word })),
   }));
 
-  // Pre-set consent and locale to avoid banners/flicker
+  // Pre-set locale to avoid hydration flicker.
   await page.addInitScript(({ authenticated: isAuthenticated }) => {
     const browserWindow = window as typeof window & {
       __mockGoogleCallback?: (response: { credential?: string }) => void;
     };
-    localStorage.setItem('cookie-consent', 'accepted');
     localStorage.setItem('preferredLocale', 'el');
     localStorage.removeItem('lastActiveJobId');
     if (isAuthenticated) {

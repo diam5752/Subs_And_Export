@@ -3,7 +3,6 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { I18nProvider } from "@/context/I18nContext";
-import CookieConsent from "@/components/CookieConsent"
 import { normalizeAppEnv } from "@/lib/appEnv";
 import { PointsProvider } from "@/context/PointsContext";
 import { PwaRegistration } from "@/components/PwaRegistration";
@@ -82,7 +81,6 @@ export default function RootLayout({
               <PwaRegistration />
               {children}
               <FeedbackWidgetLauncher />
-              <CookieConsent />
             </PointsProvider>
           </AuthProvider>
         </I18nProvider>

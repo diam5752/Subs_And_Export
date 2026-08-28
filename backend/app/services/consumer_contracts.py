@@ -16,10 +16,10 @@ from typing import Any, Literal
 ConsumerLocale = Literal["el", "en"]
 
 CONSUMER_CONTRACT_SCHEMA_VERSION = 1
-CONSUMER_POLICY_VERSION = "2026-07-31-owner-approved-v1"
-TERMS_VERSION = "2026-07-31-owner-approved-v1"
-WITHDRAWAL_NOTICE_VERSION = "2026-07-31-owner-approved-v1"
-CONFIRMATION_TEMPLATE_VERSION = "2026-07-31-owner-approved-v1"
+CONSUMER_POLICY_VERSION = "2026-08-28-owner-approved-v2"
+TERMS_VERSION = "2026-08-28-owner-approved-v2"
+WITHDRAWAL_NOTICE_VERSION = "2026-08-28-owner-approved-v2"
+CONFIRMATION_TEMPLATE_VERSION = "2026-08-28-owner-approved-v2"
 CONSUMER_CONTRACT_CLASSIFICATION = "digital_service_with_prepaid_internal_units"
 CONSUMER_CONTRACT_STATUS = "approved"
 DURABLE_CONFIRMATION_CHANNEL_STATUS = "approved"
@@ -36,26 +36,44 @@ APPROVED_CONTRACT_CONFIRMATION_DELIVERY_STATUS = "available_approved"
 CONSUMER_CONTRACT_APPROVAL_MANIFEST: dict[str, dict[str, str]] = {
     "el": {
         "locale": "el",
-        "policy_version": "2026-07-31-owner-approved-v1",
-        "terms_version": "2026-07-31-owner-approved-v1",
-        "withdrawal_notice_version": "2026-07-31-owner-approved-v1",
-        "confirmation_template_version": "2026-07-31-owner-approved-v1",
-        "disclosure_id": "gsubs-b2c-el-2026-07-31-owner-approved-v1",
-        "disclosure_sha256": "8049c2378e4094f880173a0b74c0dab1d6ac4bb417c9ff0f23afff8d5f2f5172",
+        "policy_version": "2026-08-28-owner-approved-v2",
+        "terms_version": "2026-08-28-owner-approved-v2",
+        "withdrawal_notice_version": "2026-08-28-owner-approved-v2",
+        "confirmation_template_version": "2026-08-28-owner-approved-v2",
+        "disclosure_id": "gsubs-b2c-el-2026-08-28-owner-approved-v2",
+        "disclosure_sha256": "d49507e518a22e4f9187f61b8a88b77f0832831924bbb8b95b6b469115a80ac3",
     },
     "en": {
         "locale": "en",
-        "policy_version": "2026-07-31-owner-approved-v1",
-        "terms_version": "2026-07-31-owner-approved-v1",
-        "withdrawal_notice_version": "2026-07-31-owner-approved-v1",
-        "confirmation_template_version": "2026-07-31-owner-approved-v1",
-        "disclosure_id": "gsubs-b2c-en-2026-07-31-owner-approved-v1",
-        "disclosure_sha256": "a93add55cde6b65dc41c518d1b99e492293adad84e733cc1f2d927f6ec62dea4",
+        "policy_version": "2026-08-28-owner-approved-v2",
+        "terms_version": "2026-08-28-owner-approved-v2",
+        "withdrawal_notice_version": "2026-08-28-owner-approved-v2",
+        "confirmation_template_version": "2026-08-28-owner-approved-v2",
+        "disclosure_id": "gsubs-b2c-en-2026-08-28-owner-approved-v2",
+        "disclosure_sha256": "4160423df038e77420722453c563860351fa4f8608d4aa7e89196f615a27df7c",
     },
 }
 PAID_CREDIT_LEGAL_PUBLICATION_IDENTITY: object = json.loads(
     Path(__file__).with_name("paid_credit_legal_publication.json").read_text(encoding="utf-8")
 )
+_TRADER_DETAILS = {
+    "legal_name": "Ascentia G.P.",
+    "legal_form": "General Partnership (O.E.)",
+    "trading_name": "Ascentia",
+    "service": "GSUBS",
+    "tax_identification_number": "802523620",
+    "vat_id": "EL802523620",
+    "commercial_register": "General Commercial Registry (GEMI)",
+    "commercial_registration_number": "177974203000",
+    "euid": "ELGEMI.177974203000",
+    "address_line_1": "Agias Varvaras 4",
+    "postal_code": "16452",
+    "city": "Argiroupoli, Athens",
+    "country": "GR",
+    "support_email": "info@ascentia-gp.com",
+    "support_phone": "+30 698 756 4060",
+    "website": "https://ascentia-gp.com/",
+}
 
 
 class ConsumerContractValidationError(ValueError):
@@ -100,7 +118,7 @@ class _Disclosure:
 _DISCLOSURES: tuple[_Disclosure, ...] = (
     _Disclosure(
         locale="el",
-        disclosure_id="gsubs-b2c-el-2026-07-31-owner-approved-v1",
+        disclosure_id="gsubs-b2c-el-2026-08-28-owner-approved-v2",
         title="Προσυμβατικές πληροφορίες αγοράς GSUBS credits",
         service_description=(
             "Το GSUBS παρέχει ψηφιακή υπηρεσία επεξεργασίας αρχείων βίντεο και "
@@ -182,7 +200,7 @@ _DISCLOSURES: tuple[_Disclosure, ...] = (
     ),
     _Disclosure(
         locale="en",
-        disclosure_id="gsubs-b2c-en-2026-07-31-owner-approved-v1",
+        disclosure_id="gsubs-b2c-en-2026-08-28-owner-approved-v2",
         title="Pre-contract information for a GSUBS credit purchase",
         service_description=(
             "GSUBS provides a digital service that processes video and audio "
@@ -362,18 +380,7 @@ def public_consumer_contract(locale: str) -> dict[str, Any]:
         "terms_url": "/terms",
         "withdrawal_url": "/account/billing",
         "model_withdrawal_form_url": "/terms#withdrawal",
-        "trader": {
-            "legal_name": "Ascentia G.P.",
-            "trading_name": "Ascentia",
-            "service": "GSUBS",
-            "address_line_1": "Agias Varvaras 4",
-            "postal_code": "16452",
-            "city": "Argiroupoli, Athens",
-            "country": "GR",
-            "support_email": "info@ascentia-gp.com",
-            "support_phone": "+30 698 756 4060",
-            "website": "https://ascentia-gp.com/",
-        },
+        "trader": dict(_TRADER_DETAILS),
         "content": content,
         "required_acceptances": acceptances,
     }

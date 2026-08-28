@@ -1061,8 +1061,8 @@ export default function DashboardPage() {
           </a>
           <p className="studio-beta-note">{t('betaTestingNotice')}</p>
           <div className="footer-links">
-            <a href="/privacy">{t('cookieLearnMore') || 'Privacy Policy'}</a>
-            <a href="/terms">{t('cookieTerms') || 'Terms of Service'}</a>
+            <a href="/privacy">{t('legalPrivacyLink')}</a>
+            <a href="/terms">{t('legalTermsLink')}</a>
           </div>
         </footer>
       </div>

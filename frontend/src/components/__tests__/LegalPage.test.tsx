@@ -44,15 +44,20 @@ describe('LegalPage', () => {
         expect(screen.getByText(/τρέχον ημερολόγιο συνέχειας.*online.*restore.*χαθεί ολόκληρος ο host.*παραμείνει offline.*δεν πρέπει να επαναφερθούν/)).toBeInTheDocument();
         expect(screen.getByRole('heading', { name: '3. Γιατί και με ποια νομική βάση επεξεργαζόμαστε δεδομένα' })).toBeInTheDocument();
         expect(screen.getByText(/εκτέλεση της σύμβασής μας.*έννομα συμφέροντά μας.*νομικές υποχρεώσεις/)).toBeInTheDocument();
-        expect(screen.getByRole('heading', { name: '4. Πληρωμές και παραστατικά' })).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: '4. Αναγκαία δεδομένα και αυτοματοποιημένες αποφάσεις' })).toBeInTheDocument();
+        expect(screen.getByText(/δεν μπορούμε να εκτελέσουμε τη συγκεκριμένη λειτουργία.*δεν λαμβάνει αποφάσεις αποκλειστικά με αυτοματοποιημένα μέσα.*δεν καταρτίζει διαφημιστικό προφίλ/)).toBeInTheDocument();
+        expect(screen.getByText(/δεν απευθύνεται ειδικά σε παιδιά.*προσωπικά δεδομένα τους.*δεν χρησιμοποιεί.*για να εκπαιδεύσει δικά της μοντέλα AI/)).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: '6. Πληρωμές και παραστατικά' })).toBeInTheDocument();
         expect(screen.getByText(/προσφέρει εφάπαξ αγορές.*paid credits.*Stripe-hosted Checkout.*όνομα.*email.*διεύθυνση χρέωσης/)).toBeInTheDocument();
         expect(screen.getByText(/δεν λαμβάνει ούτε αποθηκεύει.*πλήρη αριθμό κάρτας.*CVC/)).toBeInTheDocument();
         expect(screen.getByText(/MARK, διατηρούνται μέχρι το τέλος του πέμπτου πλήρους έτους μετά το σχετικό φορολογικό έτος/)).toBeInTheDocument();
         expect(screen.getByText(/απόδειξη πληρωμής της Stripe.*αποτελεί αποδεικτικό πληρωμής, όχι φορολογικό παραστατικό της ΑΑΔΕ/)).toBeInTheDocument();
         expect(screen.queryByText(/κρυπτογραφικό hash.*credits εγγραφής/)).not.toBeInTheDocument();
         expect(screen.queryByText(/Groq/)).not.toBeInTheDocument();
+        expect(screen.getByText(/Hetzner.*Γερμανία.*Google Workspace.*Τυποποιημένες Συμβατικές Ρήτρες/)).toBeInTheDocument();
+        expect(screen.getByText(/μόνο απολύτως απαραίτητα cookies.*Δεν χρησιμοποιούμε analytics.*δεν εμφανίζουμε πλαίσιο συγκατάθεσης/)).toBeInTheDocument();
         expect(screen.getByText(/Αρχή Προστασίας Δεδομένων Προσωπικού Χαρακτήρα.*www\.dpa\.gr/)).toBeInTheDocument();
-        expect(screen.getByText(/Υπεύθυνος επεξεργασίας.*Ascentia G\.P\..*Αγίας Βαρβάρας 4/)).toBeInTheDocument();
+        expect(screen.getByText(/Υπεύθυνος επεξεργασίας.*Ascentia G\.P\..*802523620.*177974203000.*Αγίας Βαρβάρας 4/)).toBeInTheDocument();
         expect(screen.getByRole('link', { name: /API διαγραφής transcript/ })).toHaveAttribute(
             'href',
             'https://elevenlabs.io/docs/api-reference/speech-to-text/delete',
@@ -75,7 +80,7 @@ describe('LegalPage', () => {
     it('renders the English privacy payment disclosures', () => {
         renderPage('privacy', 'en');
 
-        expect(screen.getByRole('heading', { name: '4. Payments and receipts' })).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: '6. Payments and receipts' })).toBeInTheDocument();
         expect(screen.getByText(/offers one-off paid-credit purchases.*Stripe-hosted Checkout.*name.*email address.*billing address/)).toBeInTheDocument();
         expect(screen.getByText(/MARK, is retained through the end of the fifth full year after the relevant tax year/)).toBeInTheDocument();
         expect(screen.getByText(/Account deletion does not erase records/)).toBeInTheDocument();
@@ -89,6 +94,9 @@ describe('LegalPage', () => {
         );
         expect(screen.getByText(/Hellenic Data Protection Authority.*www\.dpa\.gr/)).toBeInTheDocument();
         expect(screen.getByText(/data controller.*Ascentia G\.P\..*Agias Varvaras 4/)).toBeInTheDocument();
+        expect(screen.getByText(/does not make decisions based solely on automated processing.*does not create advertising profiles/)).toBeInTheDocument();
+        expect(screen.getByText(/does not use your files.*to train its own AI models/)).toBeInTheDocument();
+        expect(screen.getByText(/Hetzner.*Germany.*Google Workspace.*Standard Contractual Clauses/)).toBeInTheDocument();
         expect(screen.queryByText(/cryptographic hash.*signup credits/)).not.toBeInTheDocument();
     });
 
@@ -149,7 +157,7 @@ describe('LegalPage', () => {
         expect(screen.getByRole('heading', {
             name: '7. Στοιχεία πωλητή',
         })).toBeInTheDocument();
-        expect(screen.getByText(/Ascentia G\.P\..*Αγίας Βαρβάρας 4.*16452.*info@ascentia-gp\.com/)).toBeInTheDocument();
+        expect(screen.getByText(/Ascentia G\.P\..*802523620.*177974203000.*ELGEMI\.177974203000.*Αγίας Βαρβάρας 4.*16452.*info@ascentia-gp\.com/)).toBeInTheDocument();
         expect(screen.getByRole('heading', {
             name: '8. Paid credits, Ελλάδα και πληρωμή',
         })).toBeInTheDocument();

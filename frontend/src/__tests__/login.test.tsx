@@ -107,6 +107,17 @@ describe('LoginPage', () => {
         expect(link.closest('a')).toHaveAttribute('href', '/register');
     });
 
+    it('keeps privacy and terms reachable before authentication', () => {
+        // REGRESSION: the login surface used to hide both legal documents from
+        // returning users until after they entered the application.
+        render(<LoginPage />);
+
+        expect(screen.getByRole('link', { name: 'legalTermsLink' }))
+            .toHaveAttribute('href', '/terms');
+        expect(screen.getByRole('link', { name: 'legalPrivacyLink' }))
+            .toHaveAttribute('href', '/privacy');
+    });
+
     it('handles email/password login', async () => {
         render(<LoginPage />);
 

@@ -275,8 +275,14 @@ export interface ConsumerContractDisclosure {
     model_withdrawal_form_url: string;
     trader: {
         legal_name: string;
+        legal_form: string;
         trading_name: string;
         service: string;
+        tax_identification_number: string;
+        vat_id: string;
+        commercial_register: string;
+        commercial_registration_number: string;
+        euid: string;
         address_line_1: string;
         postal_code: string;
         city: string;

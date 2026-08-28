@@ -671,7 +671,7 @@
         60
       ],
       "backend/app/services/consumer_contracts.py::public_consumer_contract": [
-        62
+        51
       ],
       "backend/app/services/erasure_reconciliation.py::_replay_job_terminal_erasure": [
         62
@@ -782,7 +782,7 @@
         269
       ],
       "frontend/src/app/login/page.tsx::LoginPage": [
-        89
+        86
       ],
       "frontend/src/app/page.tsx::(anonymous)": [
         79
@@ -798,9 +798,6 @@
       ],
       "frontend/src/components/ConfirmActionModal.tsx::ConfirmActionModal": [
         82
-      ],
-      "frontend/src/components/CookieConsent.tsx::CookieConsent": [
-        51
       ],
       "frontend/src/components/GoogleSignInControl.tsx::initializeGoogle": [
         74
