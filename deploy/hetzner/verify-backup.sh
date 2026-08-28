@@ -242,7 +242,7 @@ if [ "$server_device" = "$independent_device" ]; then
   echo "Independent backup copy must be mounted on a different filesystem device." >&2
   exit 1
 fi
-independent_mount_options=$(read_independent_mount_options "$INDEPENDENT_DIR")
+read_independent_mount_options "$INDEPENDENT_DIR" >/dev/null
 
 for copied_file in \
   postgres.dump.age \
@@ -429,7 +429,7 @@ require_restore_capacity() {
 }
 
 WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/subframe-backup-verify.XXXXXX")
-backup_token=$(printf '%s' "$backup_id" | tr 'A-Z' 'a-z')
+backup_token=$(printf '%s' "$backup_id" | tr '[:upper:]' '[:lower:]')
 DRILL_DATABASE="subframe_restore_drill_$backup_token"
 DRILL_VOLUME="subframe-restore-drill-$backup_token-app-data"
 active_consumer_pid=""

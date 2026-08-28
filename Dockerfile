@@ -11,7 +11,8 @@ FROM python:3.11-slim AS runtime
 # Install runtime system dependencies
 # - ffmpeg: video/audio processing
 # - fonts-*: subtitle text rendering (Greek support)
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get upgrade -y \
+    && apt-get install -y --no-install-recommends \
     ffmpeg \
     fonts-dejavu-core \
     fonts-noto-core \

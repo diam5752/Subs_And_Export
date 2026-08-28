@@ -1,0 +1,5 @@
+# `CDPATH= cd` is the deliberate POSIX pattern used to neutralize caller CDPATH.
+# Single-quoted commands expand only inside their target container, and trap
+# callbacks are invoked indirectly. Keep those reviewed patterns while all
+# other ShellCheck warnings remain hard failures.
+disable=SC1007,SC2016,SC2329

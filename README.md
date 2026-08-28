@@ -81,9 +81,20 @@ Individual checks:
 ```bash
 make test-backend
 make test-frontend
+make check-complexity
 make check-java
 cd frontend && npm run build && npm run e2e
 ```
+
+The complexity gate covers production Python, TypeScript and Java. New functions
+must stay at cyclomatic complexity 10 or below and at 50 active lines or below.
+Existing hotspots are tracked in a reviewed ratchet: they may improve, but any new
+or worsened hotspot fails CI.
+
+Pull requests also run CodeQL across all three languages, reject newly introduced
+high/critical dependency vulnerabilities and committed secrets, and build plus
+scan both production container images. Dependabot groups routine npm, Python,
+Maven, Docker and GitHub Actions updates into weekly reviewable pull requests.
 
 ## Architecture
 

@@ -147,7 +147,11 @@ def test_github_and_make_use_the_same_isolated_local_ci_entrypoint() -> None:
     assert "ci: check-all" in make_contract
     assert "$(ISOLATED_QUALITY_RUNNER) check:all" in make_contract
     assert "mypy backend/app .codex/scripts/run_isolated_quality_gate.py" in (quality_contract)
+    assert '"check:complexity"' in quality_contract
+    assert "check_code_complexity.py" in quality_contract
+    assert "shellcheck .codex/scripts/*.sh deploy/hetzner/*.sh" in quality_contract
     assert "check_coverage_thresholds.py .coverage.json --lines 90 --branches 80" in quality_contract
+    assert "check-complexity:" in make_contract
     assert "`make ci` is the canonical local and GitHub entrypoint" in readme
 
 
@@ -210,9 +214,9 @@ def test_coverage_gate_rejects_reports_without_branch_data(
     assert "no branches to evaluate" in capsys.readouterr().err
 
 
-def test_official_github_actions_are_pinned_to_full_commit_shas() -> None:
+def test_all_github_actions_are_pinned_to_full_commit_shas() -> None:
     workflow_directory = REPOSITORY_ROOT / ".github" / "workflows"
-    action_reference = re.compile(r"uses:\s+actions/[^@\s]+@([^\s#]+)")
+    action_reference = re.compile(r"uses:\s+[^@\s]+@([^\s#]+)")
 
     references = [
         (workflow.name, match.group(1))
@@ -222,3 +226,62 @@ def test_official_github_actions_are_pinned_to_full_commit_shas() -> None:
 
     assert references
     assert all(re.fullmatch(r"[0-9a-f]{40}", revision) for _, revision in references)
+
+
+def test_supply_chain_and_container_workflows_cover_release_inputs() -> None:
+    workflow_directory = REPOSITORY_ROOT / ".github" / "workflows"
+    codeql = (workflow_directory / "codeql.yml").read_text(encoding="utf-8")
+    supply_chain = (workflow_directory / "supply-chain.yml").read_text(encoding="utf-8")
+    containers = (workflow_directory / "container-images.yml").read_text(encoding="utf-8")
+    dependabot = (REPOSITORY_ROOT / ".github" / "dependabot.yml").read_text(encoding="utf-8")
+    wrapper = (REPOSITORY_ROOT / ".mvn" / "wrapper" / "maven-wrapper.properties").read_text(
+        encoding="utf-8"
+    )
+
+    for language in ("javascript-typescript", "python", "java-kotlin"):
+        assert language in codeql
+    assert "queries: security-extended" in codeql
+    assert "gitleaks/gitleaks-action@" in supply_chain
+    assert "actions/dependency-review-action@" in supply_chain
+    assert "fail-on-severity: high" in supply_chain
+    assert "docker/build-push-action@" in containers
+    assert "aquasecurity/trivy-action@" in containers
+    assert "severity: HIGH,CRITICAL" in containers
+    for ecosystem in ("github-actions", "npm", "pip", "maven", "docker"):
+        assert f"package-ecosystem: {ecosystem}" in dependabot
+    assert (
+        "distributionSha256Sum=55fadd669532a3205d5db95f490bf13971d8b0843526f407f29db0e61f074ab3"
+        in wrapper
+    )
+
+
+def test_runtime_images_apply_security_updates_and_drop_unused_package_managers() -> None:
+    backend_dockerfile = (REPOSITORY_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    frontend_dockerfile = (REPOSITORY_ROOT / "frontend" / "Dockerfile").read_text(
+        encoding="utf-8"
+    )
+
+    assert "apt-get update && apt-get upgrade -y" in backend_dockerfile
+    assert "apk upgrade --no-cache" in frontend_dockerfile
+    assert "rm -rf /usr/local/lib/node_modules/npm" in frontend_dockerfile
+    assert "rm -f /usr/local/bin/npm" in frontend_dockerfile
+
+
+def test_java_crypto_provider_stays_on_the_reviewed_security_floor() -> None:
+    pom = (REPOSITORY_ROOT / "pom.xml").read_text(encoding="utf-8")
+
+    assert "<bouncycastle.version>1.84</bouncycastle.version>" in pom
+
+
+def test_shell_gate_keeps_backup_validation_effectful_and_audits_dependencies() -> None:
+    verify_backup = (REPOSITORY_ROOT / "deploy" / "hetzner" / "verify-backup.sh").read_text(
+        encoding="utf-8"
+    )
+    security_gate = (REPOSITORY_ROOT / ".codex" / "scripts" / "run_security_gate.sh").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'read_independent_mount_options "$INDEPENDENT_DIR" >/dev/null' in verify_backup
+    assert "independent_mount_options=" not in verify_backup
+    assert "tr '[:upper:]' '[:lower:]'" in verify_backup
+    assert "pip check" in security_gate
