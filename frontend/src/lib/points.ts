@@ -18,9 +18,6 @@ export const VIDEO_CREDIT_BRACKETS: readonly VideoCreditQuote[] = [
     { key: 'up_to_10m', maxDurationSeconds: 600, credits: 100 },
 ] as const;
 
-export const FACT_CHECK_COST = 20;
-export const SOCIAL_COPY_COST = 10;
-
 export function isProcessingCreditTier(value: unknown): value is ProcessingCreditTier {
     return value === 25 || value === 60 || value === 100;
 }

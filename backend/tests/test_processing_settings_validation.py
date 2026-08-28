@@ -15,7 +15,6 @@ def _valid_arguments() -> dict[str, object]:
         "openai_model": "",
         "video_quality": "balanced",
         "video_resolution": "720x1280",
-        "use_llm": False,
         "context_prompt": "",
         "subtitle_position": 16,
         "max_subtitle_lines": 2,

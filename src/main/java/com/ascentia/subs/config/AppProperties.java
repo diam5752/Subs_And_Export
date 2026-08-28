@@ -29,18 +29,10 @@ public class AppProperties {
     private int defaultHeight = 1920;
     private int maxResolutionDimension = 4096;
     private String defaultTranscribeTier = "standard";
-    private String socialLlmModel = "gpt-5-mini";
-    private String factcheckLlmModel = "gpt-5-mini";
-    private String extractionLlmModel = "gpt-5-mini";
-    private boolean useLlmByDefault;
-    private String llmModel = "gpt-5-mini";
-    private double llmTemperature = 0.6d;
     private Map<String, String> transcribeTierProvider = Map.of("standard", "groq", "pro", "groq");
     private Map<String, String> transcribeTierModel = Map.of("standard", "whisper-large-v3-turbo", "pro", "whisper-large-v3");
     private Map<String, Integer> creditsPerMinuteTranscribe = Map.of("standard", 10, "pro", 20);
     private Map<String, Integer> creditsMinTranscribe = Map.of("standard", 25, "pro", 50);
-    private Map<String, Integer> creditsMinSocialCopy = Map.of("standard", 10, "pro", 20);
-    private Map<String, Integer> creditsMinFactCheck = Map.of("standard", 20, "pro", 40);
 
     public String env() {
         return env;
@@ -250,54 +242,6 @@ public class AppProperties {
         this.defaultTranscribeTier = defaultTranscribeTier;
     }
 
-    public String getSocialLlmModel() {
-        return socialLlmModel;
-    }
-
-    public void setSocialLlmModel(String socialLlmModel) {
-        this.socialLlmModel = socialLlmModel;
-    }
-
-    public String getFactcheckLlmModel() {
-        return factcheckLlmModel;
-    }
-
-    public void setFactcheckLlmModel(String factcheckLlmModel) {
-        this.factcheckLlmModel = factcheckLlmModel;
-    }
-
-    public String getExtractionLlmModel() {
-        return extractionLlmModel;
-    }
-
-    public void setExtractionLlmModel(String extractionLlmModel) {
-        this.extractionLlmModel = extractionLlmModel;
-    }
-
-    public boolean isUseLlmByDefault() {
-        return useLlmByDefault;
-    }
-
-    public void setUseLlmByDefault(boolean useLlmByDefault) {
-        this.useLlmByDefault = useLlmByDefault;
-    }
-
-    public String getLlmModel() {
-        return llmModel;
-    }
-
-    public void setLlmModel(String llmModel) {
-        this.llmModel = llmModel;
-    }
-
-    public double getLlmTemperature() {
-        return llmTemperature;
-    }
-
-    public void setLlmTemperature(double llmTemperature) {
-        this.llmTemperature = llmTemperature;
-    }
-
     public Map<String, String> getTranscribeTierProvider() {
         return transcribeTierProvider;
     }
@@ -328,22 +272,6 @@ public class AppProperties {
 
     public void setCreditsMinTranscribe(Map<String, Integer> creditsMinTranscribe) {
         this.creditsMinTranscribe = creditsMinTranscribe;
-    }
-
-    public Map<String, Integer> getCreditsMinSocialCopy() {
-        return creditsMinSocialCopy;
-    }
-
-    public void setCreditsMinSocialCopy(Map<String, Integer> creditsMinSocialCopy) {
-        this.creditsMinSocialCopy = creditsMinSocialCopy;
-    }
-
-    public Map<String, Integer> getCreditsMinFactCheck() {
-        return creditsMinFactCheck;
-    }
-
-    public void setCreditsMinFactCheck(Map<String, Integer> creditsMinFactCheck) {
-        this.creditsMinFactCheck = creditsMinFactCheck;
     }
 
 }

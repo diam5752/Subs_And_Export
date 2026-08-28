@@ -1,4 +1,4 @@
-"""Atomic, auditable intelligence points accounting."""
+"""Atomic, auditable prepaid video-credit accounting."""
 
 from __future__ import annotations
 

@@ -198,14 +198,14 @@ def test_terminal_refund_allows_one_serialized_paid_retry() -> None:
         reservation, balance = ledger_store.reserve(
             user_id=user_id,
             job_id=job_id,
-            action="fact_check",
-            provider="openai",
-            model="gpt-test",
+            action="caption_reprocess",
+            provider="elevenlabs",
+            model="scribe_v2",
             tier="standard",
             credits=30,
             min_credits=10,
             cost_estimate_usd=0.02,
-            units={"max_prompt_tokens": 100},
+            units={"audio_seconds": 30},
             idempotency_key=idempotency_key,
             allow_terminal_retry=True,
         )
@@ -274,7 +274,7 @@ def test_terminal_refund_allows_one_serialized_paid_retry() -> None:
             session.scalars(
                 select(DbUsageLedger).where(
                     DbUsageLedger.user_id == user_id,
-                    DbUsageLedger.action == "fact_check",
+                    DbUsageLedger.action == "caption_reprocess",
                 )
             ).all()
         )
@@ -1422,7 +1422,7 @@ def test_included_provider_reservation_tracks_cost_without_hidden_credit_charge(
         job_id=job_id,
         action="social_copy",
         provider="openai",
-        model="gpt-5-mini",
+        model="legacy-text-model",
         tier="standard",
         credits=0,
         min_credits=0,

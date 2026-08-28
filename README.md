@@ -7,7 +7,7 @@
 gsubs is a local-first subtitle studio for turning a raw vertical clip into editable,
 word-timed captions and an export-ready video. The default development profile is
 deliberately zero-cost: it performs the complete workflow with deterministic mock
-transcription and intelligence services and never calls an external provider. The
+transcription and never calls an external provider. The
 separate production profile uses ElevenLabs Scribe v2 for caption transcription and
 Stripe-hosted Checkout for prepaid credits under fail-closed release guards.
 
@@ -19,8 +19,7 @@ Stripe-hosted Checkout for prepaid credits under fail-closed release guards.
 - Deterministic Greek mock transcription with per-word timing for local development.
 - ElevenLabs Scribe v2 production transcription guarded by purchased credits and
   provider budgets.
-- Honest mock fact-check cards and local social-copy preview; provider-backed
-  intelligence remains dormant in production.
+- Optional deterministic local social-copy output for the command-line workflow.
 - Stripe-hosted prepaid-credit Checkout with server-owned prices and fulfillment.
 - Hard provider budgets that default to `$0.00` outside the reviewed production
   profile.
@@ -124,8 +123,6 @@ Maven, Docker and GitHub Actions updates into weekly reviewable pull requests.
 The default local profile keeps every live provider disabled. The production
 profile enables only ElevenLabs Scribe v2 for captions and requires an existing
 purchased-credit balance, the complete Stripe configuration and non-zero guarded
-provider budgets. OpenAI and Groq credentials remain empty there, so
-provider-backed fact-check and social-copy intelligence is dormant. The caption
+provider budgets. OpenAI and Groq credentials remain empty there. The caption
 pipeline only exposes engines that can produce the timestamps required by the
-renderer; newer text-only transcription models are catalogued separately instead
-of being presented as caption-ready.
+renderer.

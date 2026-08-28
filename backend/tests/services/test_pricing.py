@@ -1,4 +1,4 @@
-"""Unit tests for pricing service (tier resolution, credit calculations, cost estimates)."""
+"""Unit tests for transcription pricing and credit calculations."""
 
 from __future__ import annotations
 
@@ -77,22 +77,6 @@ class TestModelResolution:
         assert model == settings.openai_transcribe_model
 
 
-class TestLlmModelsResolution:
-    """Test LLM model resolution by tier."""
-
-    def test_standard_tier_llm_models(self) -> None:
-        models = pricing.resolve_llm_models("standard")
-        assert models.social == settings.social_llm_model
-        assert models.fact_check == settings.factcheck_llm_model
-        assert models.extraction == settings.extraction_llm_model
-
-    def test_pro_tier_llm_models(self) -> None:
-        models = pricing.resolve_llm_models("pro")
-        assert models.social == settings.social_llm_model
-        assert models.fact_check == settings.factcheck_llm_model
-        assert models.extraction == settings.extraction_llm_model
-
-
 class TestCreditsCalculation:
     """Test credit calculation functions."""
 
@@ -150,37 +134,6 @@ class TestCreditsCalculation:
         # 3 minutes at 20 credits/min = 60
         assert credits == 60
 
-    def test_credits_for_tokens_standard(self) -> None:
-        credits = pricing.credits_for_tokens(
-            tier="standard",
-            prompt_tokens=1000,
-            completion_tokens=500,
-            min_credits=10,
-        )
-        # 1500 tokens at 2/1k = 3, but min is 10
-        assert credits == 10
-
-    def test_credits_for_tokens_many(self) -> None:
-        credits = pricing.credits_for_tokens(
-            tier="standard",
-            prompt_tokens=5000,
-            completion_tokens=2000,
-            min_credits=10,
-        )
-        # 7000 tokens at 2/1k = 14
-        assert credits == 14
-
-    def test_credits_for_tokens_pro(self) -> None:
-        credits = pricing.credits_for_tokens(
-            tier="pro",
-            prompt_tokens=5000,
-            completion_tokens=2000,
-            min_credits=20,
-        )
-        # 7000 tokens at 7/1k = 49
-        assert credits == 49
-
-
 class TestCostEstimation:
     """Test cost estimation functions."""
 
@@ -219,28 +172,3 @@ class TestCostEstimation:
             provider="elevenlabs",
             model="scribe_v2",
         ) == pytest.approx(0.22)
-
-    def test_llm_cost_estimate_uses_configured_model_pricing(self) -> None:
-        cost = pricing.llm_cost_estimate_usd(
-            model_name="gpt-5-mini",
-            prompt_tokens=1_000_000,
-            completion_tokens=1_000_000,
-        )
-        assert cost == pytest.approx(2.25)
-
-
-class TestTokenEstimation:
-    """Test token estimation from text."""
-
-    def test_estimate_prompt_tokens(self) -> None:
-        # 100 chars at 4 chars/token = 25 tokens
-        tokens = pricing.estimate_prompt_tokens("a" * 100)
-        assert tokens == 25
-
-    def test_estimate_prompt_tokens_from_chars(self) -> None:
-        tokens = pricing.estimate_prompt_tokens_from_chars(100)
-        assert tokens == 25
-
-    def test_estimate_minimum_one_token(self) -> None:
-        tokens = pricing.estimate_prompt_tokens("")
-        assert tokens == 1

@@ -20,7 +20,6 @@ export interface ProcessingOptions {
     sourceDurationSeconds?: number | null;
     outputQuality: 'low size' | 'balanced' | 'high quality';
     outputResolution: '1080x1920' | '2160x3840' | '';
-    useAI: boolean;
     contextPrompt: string;
     subtitle_position: number;
     max_subtitle_lines: number;
@@ -76,8 +75,8 @@ interface ProcessContextType {
     karaokeEnabled: boolean;
     watermarkEnabled: boolean;
     shadowStrength: number;
-    activeSidebarTab: 'transcript' | 'styles' | 'intelligence';
-    setActiveSidebarTab: (v: 'transcript' | 'styles' | 'intelligence') => void;
+    activeSidebarTab: 'transcript' | 'styles';
+    setActiveSidebarTab: (v: 'transcript' | 'styles') => void;
     videoInfo: VideoInfo | null;
     setVideoInfo: (v: VideoInfo | null) => void;
     previewVideoUrl: string | null;
@@ -244,7 +243,7 @@ export function ProcessProvider({
 
     const [shadowStrength] = useState<number>(4);
 
-    const [activeSidebarTab, setActiveSidebarTab] = useState<'transcript' | 'styles' | 'intelligence'>('transcript');
+    const [activeSidebarTab, setActiveSidebarTab] = useState<'transcript' | 'styles'>('transcript');
 
     const [videoInfo, setVideoInfo] = useState<VideoInfo | null>(null);
     const [previewVideoUrl, setPreviewVideoUrl] = useState<string | null>(null);
@@ -394,7 +393,6 @@ export function ProcessProvider({
                         ?? null,
                     outputQuality: 'balanced',
                     outputResolution: '',
-                    useAI: false,
                     contextPrompt: '',
                     subtitle_position: subtitlePosition,
                     max_subtitle_lines: maxSubtitleLines,
@@ -422,7 +420,6 @@ export function ProcessProvider({
             sourceDurationSeconds: videoInfo?.durationSeconds ?? null,
             outputQuality: 'balanced',
             outputResolution: '',
-            useAI: false,
             contextPrompt: '',
             subtitle_position: subtitlePosition,
             max_subtitle_lines: maxSubtitleLines,

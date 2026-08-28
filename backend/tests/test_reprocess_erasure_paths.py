@@ -147,7 +147,7 @@ def test_reprocess_copy_failures_are_journaled_before_exact_cleanup(
 
         job_store.create_job.side_effect = fail_create_job
 
-    charge_plan = ChargePlan(transcription=None, social_copy=None)
+    charge_plan = ChargePlan(transcription=None)
     if failure_stage == "reserve":
 
         def fail_reservation(**_kwargs: object) -> tuple[ChargePlan, int]:
@@ -190,7 +190,6 @@ def test_reprocess_copy_failures_are_journaled_before_exact_cleanup(
                 {
                     "authorized_credits": 100,
                     "transcribe_provider": "mock",
-                    "use_llm": False,
                 },
             ),
             background_tasks,
@@ -293,7 +292,6 @@ def test_repeated_zero_credit_reprocesses_leave_no_new_jobs_files_or_tombstones(
         {
             "authorized_credits": 100,
             "transcribe_provider": "local",
-            "use_llm": False,
         },
     )
     for _ in range(25):
@@ -398,7 +396,6 @@ def test_reprocess_rejects_nan_probe_before_copy_or_financial_side_effects(
                 {
                     "authorized_credits": 25,
                     "transcribe_provider": "local",
-                    "use_llm": False,
                 },
             ),
             background_tasks,
@@ -483,7 +480,6 @@ def test_reprocess_budget_preflight_rejects_before_uuid_or_copy(
                     "authorized_credits": 100,
                     "transcribe_tier": "pro",
                     "transcribe_provider": "elevenlabs",
-                    "use_llm": False,
                 },
             ),
             BackgroundTasks(),

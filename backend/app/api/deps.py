@@ -191,9 +191,6 @@ def _process_stream_authorization(request: Request) -> tuple[int, bool]:
         )
         if not isinstance(provider, str) or not provider.strip():
             raise ValueError("invalid provider")
-        use_llm = payload.get("use_llm", settings.use_llm_by_default)
-        if not isinstance(use_llm, bool):
-            raise ValueError("invalid use_llm")
     except (
         binascii.Error,
         UnicodeDecodeError,
@@ -208,7 +205,6 @@ def _process_stream_authorization(request: Request) -> tuple[int, bool]:
         and (
             not settings.is_dev
             or normalized_provider not in {"local", "mock"}
-            or use_llm
         )
     )
     return authorized_credits, require_paid

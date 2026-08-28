@@ -75,9 +75,3 @@ app:
   default-height: 1920
   max-resolution-dimension: 4096
   default-transcribe-tier: standard
-  use-llm-by-default: ${GSP_USE_LLM_BY_DEFAULT:false}
-  llm-model: ${GSP_LLM_MODEL:gpt-5-mini}
-  llm-temperature: ${GSP_LLM_TEMPERATURE:0.6}
-  social-llm-model: gpt-5-mini
-  factcheck-llm-model: gpt-5-mini
-  extraction-llm-model: gpt-5-mini

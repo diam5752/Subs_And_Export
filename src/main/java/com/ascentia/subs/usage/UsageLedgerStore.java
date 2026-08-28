@@ -273,9 +273,6 @@ public class UsageLedgerStore {
     ) {
     }
 
-    public record ChargePlan(ChargeReservation transcription, ChargeReservation socialCopy) {
-    }
-
     public record UsageSummaryRow(String bucket, int creditsReserved, int creditsCharged, double costUsd, int count) {
     }
 

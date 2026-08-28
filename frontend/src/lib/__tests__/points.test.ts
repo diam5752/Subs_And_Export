@@ -1,5 +1,4 @@
 import {
-    FACT_CHECK_COST,
     PROCESS_VIDEO_DEFAULT_COST,
     processVideoCostForSelection,
     processVideoCostForDuration,
@@ -46,9 +45,5 @@ describe('points pricing helpers', () => {
         expect(transcribeProviderRequiresPaidCredits(null)).toBe(false);
         expect(transcribeProviderRequiresPaidCredits('groq')).toBe(true);
         expect(transcribeProviderRequiresPaidCredits('elevenlabs')).toBe(true);
-    });
-
-    it('exposes fact check cost constant', () => {
-        expect(FACT_CHECK_COST).toBe(20);
     });
 });

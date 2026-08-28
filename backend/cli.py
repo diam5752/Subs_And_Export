@@ -229,23 +229,6 @@ def process(
         "--audio-copy/--reencode-audio",
         help="Copy input audio instead of re-encoding to AAC (default: auto-detect AAC).",
     ),
-    llm_social_copy: bool = typer.Option(
-        False,
-        "--llm-social-copy/--no-llm-social-copy",
-        help="Use OpenAI GPT models to generate professional social copy (requires OPENAI_API_KEY).",
-    ),
-    llm_model: str | None = typer.Option(
-        None,
-        "--llm-model",
-        help="OpenAI model name (defaults to gpt-5-mini).",
-    ),
-    llm_temperature: float = typer.Option(
-        0.6,
-        "--llm-temperature",
-        min=0.0,
-        max=2.0,
-        help="Sampling temperature for LLM social copy.",
-    ),
     artifacts_dir: Path | None = typer.Option(
         None,
         "--artifacts",
@@ -279,10 +262,6 @@ def process(
         audio_bitrate=audio_bitrate,
         audio_copy=audio_copy,
         generate_social_copy=social_copy,
-        use_llm_social_copy=llm_social_copy,
-        llm_model=llm_model,
-        llm_temperature=llm_temperature,
-        llm_api_key=None,  # CLI relies on env var for now
         artifact_dir=artifacts_dir,
     )
     processed_path = result[0] if isinstance(result, tuple) else result

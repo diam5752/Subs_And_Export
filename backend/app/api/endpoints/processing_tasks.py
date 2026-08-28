@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import time
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 from ...core.auth import User
 from ...core.config import settings as app_settings
@@ -61,9 +61,7 @@ def raise_for_rejected_worker_write(*, job_store: JobStore, job_id: str) -> None
         raise DeletedJobError("Job was deleted")
     if current_job.status in {"cancelling", "cancelled"}:
         raise JobCancellationError("Job cancelled by user")
-    raise StaleWorkerError(
-        f"Job is no longer processing (status={current_job.status})"
-    )
+    raise StaleWorkerError(f"Job is no longer processing (status={current_job.status})")
 
 
 def delete_local_workspace_best_effort(
@@ -166,10 +164,8 @@ def refund_charge_best_effort(
     if not ledger_store or not charge_plan:
         return
 
-    reservations = [charge_plan.transcription, charge_plan.social_copy]
-    for reservation in reservations:
-        if not reservation:
-            continue
+    reservation = charge_plan.transcription
+    if reservation:
         try:
             ledger_store.refund_if_reserved(reservation, status=status, error=error)
         except Exception:
@@ -303,7 +299,6 @@ def run_video_processing(
     *,
     ledger_store: UsageLedgerStore | None = None,
     charge_plan: ChargePlan | None = None,
-    db: Database | None = None,
     source_probe: MediaProbe | None = None,
 ) -> None:
     """Background task to run the heavy video processing."""
@@ -382,47 +377,36 @@ def run_video_processing(
         artifact_dir.mkdir(parents=True, exist_ok=True)
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        result = process_video_pipeline(
-            input_path=input_path,
-            output_path=output_path,
-            transcribe_tier=tier,
-            generate_social_copy=settings.use_llm,
-            use_llm_social_copy=settings.use_llm,
-            llm_model=settings.llm_model,
-            llm_temperature=settings.llm_temperature,
-            artifact_dir=artifact_dir,
-            video_crf=video_crf,
-            initial_prompt=settings.context_prompt,
-            transcribe_provider=provider,
-            provider_model=settings.openai_model,
-            progress_callback=progress_callback,
-            output_width=target_width,
-            output_height=target_height,
-            subtitle_position=settings.subtitle_position,
-            max_subtitle_lines=settings.max_subtitle_lines,
-            subtitle_color=settings.subtitle_color,
-            shadow_strength=settings.shadow_strength,
-            highlight_style=settings.highlight_style,
-            subtitle_size=settings.subtitle_size,
-            karaoke_enabled=settings.karaoke_enabled,
-            watermark_enabled=settings.watermark_enabled,
-            check_cancelled=check_cancelled,
-            transcription_only=True,
-            db=db,
-            job_id=job_id,
-            ledger_store=ledger_store,
-            charge_plan=charge_plan,
-            media_probe=effective_probe,
+        final_path = cast(
+            Path,
+            process_video_pipeline(
+                input_path=input_path,
+                output_path=output_path,
+                transcribe_tier=tier,
+                artifact_dir=artifact_dir,
+                video_crf=video_crf,
+                initial_prompt=settings.context_prompt,
+                transcribe_provider=provider,
+                provider_model=settings.openai_model,
+                progress_callback=progress_callback,
+                output_width=target_width,
+                output_height=target_height,
+                subtitle_position=settings.subtitle_position,
+                max_subtitle_lines=settings.max_subtitle_lines,
+                subtitle_color=settings.subtitle_color,
+                shadow_strength=settings.shadow_strength,
+                highlight_style=settings.highlight_style,
+                subtitle_size=settings.subtitle_size,
+                karaoke_enabled=settings.karaoke_enabled,
+                watermark_enabled=settings.watermark_enabled,
+                check_cancelled=check_cancelled,
+                transcription_only=True,
+                ledger_store=ledger_store,
+                charge_plan=charge_plan,
+                media_probe=effective_probe,
+            ),
         )
         check_cancelled(force=True)
-
-        # Result unpacking
-        social = None
-        final_path = output_path
-        if isinstance(result, tuple):
-            final_path, social = result
-        else:
-            final_path = result
 
         logger.debug(
             "process_video_pipeline completed: max_subtitle_lines=%s subtitle_color=%s shadow_strength=%s highlight_style=%s",
@@ -441,7 +425,6 @@ def run_video_processing(
             "public_url": f"/static/{public_path}",
             "artifact_url": f"/static/{artifact_public}",
             "transcription_url": f"/static/{artifact_public}/transcription.json",
-            "social": social.generic.title_en if social else None,
             "original_filename": original_name or input_path.name,
             "video_crf": video_crf,
             "transcribe_tier": tier,
@@ -561,11 +544,7 @@ def run_video_processing(
             record_event_safe(
                 history_store,
                 user,
-                (
-                    "process_cancellation_cleanup_deferred"
-                    if cancellation_deferred
-                    else "process_failed"
-                ),
+                ("process_cancellation_cleanup_deferred" if cancellation_deferred else "process_failed"),
                 (
                     f"Cancellation cleanup deferred for {original_name or input_path.name}"
                     if cancellation_deferred
@@ -577,11 +556,7 @@ def run_video_processing(
                 refund_charge_best_effort(
                     ledger_store,
                     charge_plan,
-                    status=(
-                        "cancelled"
-                        if cancellation_deferred
-                        else "failed"
-                    ),
+                    status=("cancelled" if cancellation_deferred else "failed"),
                     error=sanitize_message(str(exc)),
                 )
             return
@@ -616,11 +591,7 @@ def run_video_processing(
             record_and_delete_local_workspace(
                 job_id=job_id,
                 user_id=current_job.user_id,
-                terminal_status=(
-                    "cancelled"
-                    if current_job.status == "cancelling"
-                    else "failed"
-                ),
+                terminal_status=("cancelled" if current_job.status == "cancelling" else "failed"),
                 workspace_lock_held=workspace_lock_held,
             )
         except Exception:
@@ -648,11 +619,7 @@ def run_video_processing(
             record_event_safe(
                 history_store,
                 user,
-                (
-                    "process_cancellation_cleanup_deferred"
-                    if cancellation_deferred
-                    else "process_failed"
-                ),
+                ("process_cancellation_cleanup_deferred" if cancellation_deferred else "process_failed"),
                 (
                     f"Cancellation cleanup deferred for {original_name or input_path.name}"
                     if cancellation_deferred
@@ -664,11 +631,7 @@ def run_video_processing(
                 refund_charge_best_effort(
                     ledger_store,
                     charge_plan,
-                    status=(
-                        "cancelled"
-                        if cancellation_deferred
-                        else "failed"
-                    ),
+                    status=("cancelled" if cancellation_deferred else "failed"),
                     error=safe_msg,
                 )
             return
@@ -731,10 +694,7 @@ def run_video_processing(
                         history_store,
                         user,
                         "process_cancellation_cleanup_deferred",
-                        (
-                            "Cancellation cleanup deferred for "
-                            f"{original_name or input_path.name}"
-                        ),
+                        (f"Cancellation cleanup deferred for {original_name or input_path.name}"),
                         {"job_id": job_id, "error": safe_msg},
                     )
                     refund_charge_best_effort(

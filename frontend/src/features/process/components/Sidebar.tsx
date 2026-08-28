@@ -8,16 +8,9 @@ import { CueItem } from '../CueItem';
 import { Cue } from '@/components/SubtitleOverlay';
 import { findCueIndexAtTime } from '@/lib/subtitleUtils';
 
-// This feature flag is currently off. Keep the dormant intelligence workspace
-// out of the transcript/editor critical path while retaining the implementation.
-const ViralIntelligence = dynamic(() => (
-    import('@/components/ViralIntelligence').then((module) => module.ViralIntelligence)
-));
 const SubtitlePositionSelector = dynamic(() => (
     import('@/components/SubtitlePositionSelector').then((module) => module.SubtitlePositionSelector)
 ));
-
-const SHOW_INTELLIGENCE_TAB = false;
 
 interface CueListProps {
     cues: Cue[];
@@ -227,7 +220,6 @@ export function Sidebar() {
         subtitleSize,
     } = useProcessContext();
 
-    const jobId = selectedJob?.id;
     const sidebarBodyRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -235,12 +227,6 @@ export function Sidebar() {
             sidebarBodyRef.current.scrollTop = 0;
         }
     }, [activeSidebarTab]);
-
-    useEffect(() => {
-        if (!SHOW_INTELLIGENCE_TAB && activeSidebarTab === 'intelligence') {
-            setActiveSidebarTab('styles');
-        }
-    }, [activeSidebarTab, setActiveSidebarTab]);
 
     const handleSidebarTabChange = useCallback((
         tab: 'transcript' | 'styles',
@@ -299,18 +285,6 @@ export function Sidebar() {
         setSubtitleSize,
     ]);
 
-    // Optimized: Memoize Intelligence Panel
-    const intelligencePanel = useMemo(() => (
-        <div
-            role="tabpanel"
-            id="panel-intelligence"
-            aria-labelledby="tab-intelligence"
-            className="animate-fade-in pr-2"
-        >
-            {jobId && <ViralIntelligence jobId={jobId} />}
-        </div>
-    ), [jobId]);
-
     // Optimized: Memoize the layout to prevent VDOM re-creation during high-frequency ProcessContext updates
     // (e.g. currentTime updating 60fps). Only re-render when relevant state changes.
     return useMemo(() => {
@@ -322,7 +296,7 @@ export function Sidebar() {
                     <div className="editor-tabs-sticky">
                     <div
                         role="tablist"
-                        className={`editor-tabs ${SHOW_INTELLIGENCE_TAB ? '' : 'editor-tabs-two'}`}
+                        className="editor-tabs editor-tabs-two"
                     >
                         <button
                             role="tab"
@@ -356,26 +330,6 @@ export function Sidebar() {
                             </svg>
                             <span className="truncate">{t('tabStyles') || 'Styles'}</span>
                         </button>
-                        {SHOW_INTELLIGENCE_TAB && (
-                            <button
-                                role="tab"
-                                id="tab-intelligence"
-                                aria-selected={activeSidebarTab === 'intelligence'}
-                                aria-controls="panel-intelligence"
-                                onClick={() => setActiveSidebarTab('intelligence')}
-                                className={`editor-tab ${activeSidebarTab === 'intelligence' ? 'editor-tab-active' : ''}`}
-                            >
-                                <svg className="hidden h-4 w-4 shrink-0 sm:block" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                    <path d="M9.5 2A5.5 5.5 0 0 0 4 7.5c0 1.63.71 3.1 1.84 4.1A4.5 4.5 0 0 0 5 16.5 4.5 4.5 0 0 0 9.5 21h5a4.5 4.5 0 0 0 4.5-4.5 4.5 4.5 0 0 0-.84-2.6A5.5 5.5 0 0 0 20 7.5a5.5 5.5 0 0 0-5.5-5.5h-5z" />
-                                    <path d="M12 2v19" />
-                                    <path d="M8 7c0 .5-.5 1-1 1s-1-.5-1-1 1-2 2-2 2 1.5 2 2" />
-                                    <path d="M16 7c0 .5.5 1 1 1s1-.5 1-1-1-2-2-2-2 1.5-2 2" />
-                                    <path d="M9 14c0 .5-.5 1-1 1s-1-.5-1-1 1-2 2-2" />
-                                    <path d="M15 14c0 .5.5 1 1 1s1-.5 1-1-1-2-2-2" />
-                                </svg>
-                                <span className="truncate">{t('tabIntelligence') || 'Intelligence'}</span>
-                            </button>
-                        )}
                     </div>
                     </div>
 
@@ -386,10 +340,6 @@ export function Sidebar() {
                         )}
 
                         {activeSidebarTab === 'styles' && stylesPanel}
-
-                        {SHOW_INTELLIGENCE_TAB
-                            && activeSidebarTab === 'intelligence'
-                            && intelligencePanel}
                     </div>
                 </div>
             </aside>
@@ -398,9 +348,7 @@ export function Sidebar() {
         selectedJob,
         activeSidebarTab,
         handleSidebarTabChange,
-        setActiveSidebarTab,
         t,
         stylesPanel,
-        intelligencePanel
     ]);
 }

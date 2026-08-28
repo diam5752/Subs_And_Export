@@ -146,7 +146,7 @@ function buildContext() {
         maxSubtitleLines: 2,
         shadowStrength: 4,
         watermarkEnabled: true,
-        activeSidebarTab: 'transcript' as 'transcript' | 'styles' | 'intelligence',
+        activeSidebarTab: 'transcript' as 'transcript' | 'styles',
         playerRef: React.createRef(),
         resultsRef: React.createRef<HTMLDivElement>(),
         currentStep: 3,

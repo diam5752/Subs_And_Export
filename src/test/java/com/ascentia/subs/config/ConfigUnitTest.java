@@ -34,12 +34,6 @@ class ConfigUnitTest {
         properties.setDefaultHeight(1280);
         properties.setMaxResolutionDimension(2048);
         properties.setDefaultTranscribeTier("pro");
-        properties.setSocialLlmModel("social-model");
-        properties.setFactcheckLlmModel("fact-model");
-        properties.setExtractionLlmModel("extract-model");
-        properties.setUseLlmByDefault(true);
-        properties.setLlmModel("llm-model");
-        properties.setLlmTemperature(0.2d);
 
         assertThat(properties.isDev()).isTrue();
         properties.setEnv("development");
@@ -74,12 +68,6 @@ class ConfigUnitTest {
         assertThat(properties.getDefaultHeight()).isEqualTo(1280);
         assertThat(properties.getMaxResolutionDimension()).isEqualTo(2048);
         assertThat(properties.getDefaultTranscribeTier()).isEqualTo("pro");
-        assertThat(properties.getSocialLlmModel()).isEqualTo("social-model");
-        assertThat(properties.getFactcheckLlmModel()).isEqualTo("fact-model");
-        assertThat(properties.getExtractionLlmModel()).isEqualTo("extract-model");
-        assertThat(properties.isUseLlmByDefault()).isTrue();
-        assertThat(properties.getLlmModel()).isEqualTo("llm-model");
-        assertThat(properties.getLlmTemperature()).isEqualTo(0.2d);
         assertThat(properties.dataDir().toString()).isEqualTo("data");
         assertThat(properties.watermarkPath().toString()).isEqualTo("gsubs-logo.png");
         assertThat(AppProperties.csvToList(null)).isEmpty();

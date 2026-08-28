@@ -343,19 +343,17 @@ def test_process_command_invokes_pipeline(monkeypatch, tmp_path: Path) -> None:
     assert "Test Title English" in result.stdout
 
 
-def test_process_command_passes_llm_flag(monkeypatch, tmp_path: Path) -> None:
+def test_process_command_rejects_retired_text_generation_flag(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
     runner = CliRunner()
     input_file = tmp_path / "input.mp4"
     input_file.write_bytes(b"dummy video content")
     output_file = tmp_path / "output.mp4"
 
-    received = {}
-
-    def fake_process(input_video, output_video, **kwargs):
-        received.update(kwargs)
-        return output_video
-
-    monkeypatch.setattr("backend.cli.process_video_pipeline", fake_process)
+    process_pipeline = Mock()
+    monkeypatch.setattr("backend.cli.process_video_pipeline", process_pipeline)
     result = runner.invoke(
         app,
         [
@@ -364,17 +362,9 @@ def test_process_command_passes_llm_flag(monkeypatch, tmp_path: Path) -> None:
             "--output",
             str(output_file),
             "--llm-social-copy",
-            "--llm-model",
-            "gpt-test",
-            "--llm-temperature",
-            "0.5",
         ],
     )
 
-    assert result.exit_code == 0
-    assert received["use_llm_social_copy"] is True
-    assert received["llm_model"] == "gpt-test"
-    assert received["llm_temperature"] == 0.5
-    assert received["llm_api_key"] is None
-    assert received["transcribe_tier"] == "standard"
-    assert received["transcribe_provider"] == "mock"
+    assert result.exit_code == 2
+    assert "No such option" in result.output
+    process_pipeline.assert_not_called()

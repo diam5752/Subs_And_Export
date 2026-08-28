@@ -14,7 +14,7 @@
         15
       ],
       "backend/app/api/deps.py::_process_stream_authorization": [
-        14
+        12
       ],
       "backend/app/api/endpoints/auth.py::export_my_data": [
         42
@@ -49,17 +49,11 @@
       "backend/app/api/endpoints/file_utils.py::save_request_stream_with_limit": [
         15
       ],
-      "backend/app/api/endpoints/intelligence_routes.py::fact_check_video": [
-        14
-      ],
-      "backend/app/api/endpoints/intelligence_routes.py::generate_social_copy_video": [
-        12
-      ],
       "backend/app/api/endpoints/job_routes.py::batch_delete_jobs": [
         14
       ],
       "backend/app/api/endpoints/processing_tasks.py::run_video_processing": [
-        60
+        58
       ],
       "backend/app/api/endpoints/reprocess_routes.py::_record_and_delete_failed_reprocess": [
         11
@@ -250,17 +244,11 @@
       "backend/app/services/erasure_reconciliation.py::_replay_job_terminal_erasure": [
         12
       ],
-      "backend/app/services/fact_checking.py::generate_fact_check": [
-        39
-      ],
       "backend/app/services/ffmpeg_utils.py::probe_media": [
         11
       ],
       "backend/app/services/ffmpeg_utils.py::run_ffmpeg_with_subs": [
         29
-      ],
-      "backend/app/services/llm_utils.py::extract_chat_completion_text": [
-        11
       ],
       "backend/app/services/points.py::_mutate_paid_wallet_once_in_session": [
         11
@@ -270,9 +258,6 @@
       ],
       "backend/app/services/provider_budget.py::reserve_in_session": [
         18
-      ],
-      "backend/app/services/social_intelligence.py::build_social_copy_llm": [
-        26
       ],
       "backend/app/services/subtitle_renderer.py::_score_wrapped_chunk": [
         13
@@ -335,7 +320,7 @@
         25
       ],
       "backend/app/services/video_processing.py::process_video_pipeline": [
-        78
+        74
       ],
       "backend/app/services/video_processing.py::resolve_runtime_transcribe_provider": [
         11
@@ -408,9 +393,6 @@
       ],
       "frontend/src/components/SubtitleOverlay.tsx::renderOverlay": [
         13
-      ],
-      "frontend/src/components/ViralIntelligence.tsx::ViralIntelligenceSession": [
-        31
       ],
       "frontend/src/features/process/CueItem.tsx::(anonymous)": [
         11
@@ -523,38 +505,32 @@
       "backend/app/api/endpoints/file_utils.py::save_request_stream_with_limit": [
         60
       ],
-      "backend/app/api/endpoints/intelligence_routes.py::fact_check_video": [
-        76
-      ],
-      "backend/app/api/endpoints/intelligence_routes.py::generate_social_copy_video": [
-        76
-      ],
       "backend/app/api/endpoints/job_routes.py::batch_delete_jobs": [
         62
       ],
       "backend/app/api/endpoints/processing_tasks.py::run_video_processing": [
-        459
+        425
       ],
       "backend/app/api/endpoints/reprocess_routes.py::_reserve_reprocess_job": [
-        94
+        91
       ],
       "backend/app/api/endpoints/reprocess_routes.py::reprocess_job": [
-        159
+        154
       ],
       "backend/app/api/endpoints/settings.py::build_processing_settings": [
-        76
+        71
       ],
       "backend/app/api/endpoints/videos.py::_queue_saved_upload": [
-        223
+        216
       ],
       "backend/app/api/endpoints/videos.py::_record_and_delete_rejected_upload": [
         77
       ],
       "backend/app/api/endpoints/videos.py::_reserve_stream_upload": [
-        74
+        71
       ],
       "backend/app/api/endpoints/videos.py::process_video_stream": [
-        120
+        115
       ],
       "backend/app/core/auth.py::upsert_google_user": [
         63
@@ -688,12 +664,6 @@
       "backend/app/services/billing_retention.py::cleanup_expired_billing_records": [
         216
       ],
-      "backend/app/services/charge_plans.py::reserve_llm_charge": [
-        55
-      ],
-      "backend/app/services/charge_plans.py::reserve_processing_charges": [
-        64
-      ],
       "backend/app/services/charge_plans.py::reserve_transcription_charge": [
         56
       ],
@@ -708,9 +678,6 @@
       ],
       "backend/app/services/erasure_reconciliation.py::reconcile_erasure_journal": [
         88
-      ],
-      "backend/app/services/fact_checking.py::generate_fact_check": [
-        285
       ],
       "backend/app/services/ffmpeg_utils.py::run_ffmpeg_with_subs": [
         177
@@ -732,9 +699,6 @@
       ],
       "backend/app/services/provider_budget.py::reserve_in_session": [
         120
-      ],
-      "backend/app/services/social_intelligence.py::build_social_copy_llm": [
-        169
       ],
       "backend/app/services/startup_recovery.py::reconcile_interrupted_media_jobs": [
         51
@@ -797,10 +761,10 @@
         126
       ],
       "backend/app/services/video_processing.py::process_video_pipeline": [
-        321
+        300
       ],
       "backend/cli.py::process": [
-        139
+        118
       ],
       "backend/main.py::serve_static": [
         58
@@ -821,7 +785,7 @@
         89
       ],
       "frontend/src/app/page.tsx::(anonymous)": [
-        80
+        79
       ],
       "frontend/src/app/page.tsx::DashboardPage": [
         70
@@ -859,9 +823,6 @@
       "frontend/src/components/VideoModal.tsx::VideoModal": [
         51
       ],
-      "frontend/src/components/ViralIntelligence.tsx::ViralIntelligenceSession": [
-        232
-      ],
       "frontend/src/features/process/CueItem.tsx::(anonymous)": [
         103
       ],
@@ -872,8 +833,8 @@
         86
       ],
       "frontend/src/features/process/components/Sidebar.tsx::(anonymous)": [
-        69,
-        68
+        68,
+        59
       ],
       "frontend/src/features/process/components/UploadSection.tsx::(anonymous)": [
         267

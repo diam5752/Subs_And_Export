@@ -47,7 +47,6 @@ class ChargePlan:
     """Charge reservations tied to a processing job."""
 
     transcription: ChargeReservation | None = None
-    social_copy: ChargeReservation | None = None
 
 
 @dataclass(frozen=True)

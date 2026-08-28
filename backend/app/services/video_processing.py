@@ -10,13 +10,11 @@ import tempfile
 import time
 import uuid
 from collections.abc import Mapping
-from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Callable, cast
 
 from backend.app.core import metrics
 from backend.app.core.config import settings
-from backend.app.core.database import Database
 from backend.app.core.errors import ProviderDispatchAlreadyClaimedError
 from backend.app.core.media_capacity import (
     lock_provider_transcription,
@@ -25,8 +23,8 @@ from backend.app.core.media_capacity import (
 from backend.app.services import (
     artifact_manager,
     ffmpeg_utils,
-    llm_utils,
     pricing,
+    provider_clients,
     settings_utils,
     social_intelligence,
     subtitle_renderer,
@@ -42,7 +40,7 @@ from backend.app.services.transcription.groq_cloud import GroqTranscriber
 from backend.app.services.transcription.local_whisper import LocalWhisperTranscriber
 from backend.app.services.transcription.mock_service import MockTranscriber
 from backend.app.services.transcription.openai_cloud import OpenAITranscriber
-from backend.app.services.usage_ledger import ChargePlan, ChargeReservation, UsageLedgerStore
+from backend.app.services.usage_ledger import ChargePlan, UsageLedgerStore
 
 logger = logging.getLogger(__name__)
 
@@ -153,14 +151,14 @@ def resolve_runtime_transcribe_provider(
             or settings.external_provider_per_request_budget_usd <= 0
         ):
             raise RuntimeError("ElevenLabs Scribe v2 safety budgets are closed.")
-        if not llm_utils.resolve_elevenlabs_api_key():
+        if not provider_clients.resolve_elevenlabs_api_key():
             raise RuntimeError("ElevenLabs API key is missing.")
 
-    if normalized_provider == "groq" and not llm_utils.resolve_groq_api_key():
+    if normalized_provider == "groq" and not provider_clients.resolve_groq_api_key():
         logger.warning("GROQ_API_KEY is missing; falling back to local faster-whisper transcription.")
         return "local"
 
-    if normalized_provider == "openai" and not llm_utils.resolve_openai_api_key(openai_api_key):
+    if normalized_provider == "openai" and not provider_clients.resolve_openai_api_key(openai_api_key):
         logger.warning("OPENAI_API_KEY is missing; falling back to local faster-whisper transcription.")
         return "local"
 
@@ -203,10 +201,6 @@ def process_video_pipeline(
     device: str | None = None,
     compute_type: str | None = None,
     generate_social_copy: bool = False,
-    use_llm_social_copy: bool = False,
-    llm_model: str | None = None,
-    llm_temperature: float = 0.6,
-    llm_api_key: str | None = None,
     artifact_dir: Path | None = None,
     use_hw_accel: bool = settings.use_hw_accel,
     progress_callback: Callable[[str, float], None] | None = None,
@@ -229,8 +223,6 @@ def process_video_pipeline(
     audio_bitrate: str | None = None,
     watermark_enabled: bool = False,
     audio_copy: bool | None = None,
-    db: Database | None = None,
-    job_id: str | None = None,
     ledger_store: UsageLedgerStore | None = None,
     charge_plan: ChargePlan | None = None,
 ) -> Path | tuple[Path, SocialCopy]:
@@ -456,51 +448,10 @@ def process_video_pipeline(
 
             transcript_text = subtitles.cues_to_text(cues)
             social_copy: SocialCopy | None = None
-            future_social: Future[SocialCopy] | None = None
-
-            with ThreadPoolExecutor() as executor:
-                if generate_social_copy:
-                    if progress_callback:
-                        progress_callback("Social Copy...", 70.0)
-                    if use_llm_social_copy and not settings.mock_external_services:
-                        def _run_social_with_session(
-                            text: str,
-                            model: str | None,
-                            temp: float,
-                            api_key: str | None,
-                            reservation: ChargeReservation | None,
-                        ) -> SocialCopy:
-                            if db:
-                                with db.session() as session:
-                                    return social_intelligence.build_social_copy_llm(
-                                        text,
-                                        model=model,
-                                        temperature=temp,
-                                        api_key=api_key,
-                                        session=session,
-                                        job_id=job_id,
-                                        ledger_store=ledger_store,
-                                        charge_reservation=reservation,
-                                    )
-                            return social_intelligence.build_social_copy_llm(
-                                    text,
-                                    model=model,
-                                    temperature=temp,
-                                    api_key=api_key,
-                                    ledger_store=ledger_store,
-                                    charge_reservation=reservation,
-                                )
-
-                        future_social = executor.submit(
-                            _run_social_with_session,
-                            transcript_text,
-                            llm_model,
-                            llm_temperature,
-                            llm_api_key,
-                            charge_plan.social_copy if charge_plan else None,
-                        )
-                    else:
-                        social_copy = social_intelligence.build_social_copy(transcript_text)
+            if generate_social_copy:
+                if progress_callback:
+                    progress_callback("Social Copy...", 70.0)
+                social_copy = social_intelligence.build_social_copy(transcript_text)
 
             if not transcription_only:
                 if progress_callback:
@@ -548,9 +499,6 @@ def process_video_pipeline(
                         )
                     else:
                         raise
-
-                if future_social:
-                    social_copy = future_social.result()
 
             if progress_callback:
                 progress_callback("Finalizing...", 95.0)

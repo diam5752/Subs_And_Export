@@ -804,24 +804,6 @@ test('the active subtitle can be dragged and resized directly on the desktop pre
   await expectNoHorizontalOverflow(page);
 });
 
-test('intelligence entry stays hidden while the feature is disabled', async ({ page }) => {
-  await mockApi(page);
-  await page.addInitScript(() => {
-    localStorage.setItem('lastActiveJobId', 'job-futurist');
-  });
-  await page.goto('/');
-  await page.getByTestId('completed-editor').waitFor({ timeout: 30_000 });
-  await stabilizeUi(page);
-
-  for (const viewport of [viewports.mobile, viewports.desktop]) {
-    await page.setViewportSize(viewport);
-    await expect(page.getByRole('tab', { name: el.tabIntelligence })).toHaveCount(0);
-    await expect(page.getByText(el.viralVerifyFacts, { exact: true })).toHaveCount(0);
-    await expect(page.getByText(el.viralGenerateMetadata, { exact: true })).toHaveCount(0);
-    await expectNoHorizontalOverflow(page, '[data-testid="editor-sidebar"]');
-  }
-});
-
 test('style controls stay responsive when reduced effects are active', async ({ page }) => {
   await mockApi(page);
   await page.addInitScript(() => {

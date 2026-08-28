@@ -11,11 +11,6 @@ jest.mock('../ProcessContext', () => ({
     useProcessContext: jest.fn(),
 }));
 
-// Keep the hidden feature implementation isolated from the navigation tests.
-jest.mock('@/components/ViralIntelligence', () => ({
-    ViralIntelligence: () => <div data-testid="viral-intelligence">Viral Intelligence Component</div>,
-}));
-
 const mockContextValue = {
     selectedJob: { id: 'test-job' },
     isProcessing: false,
@@ -66,7 +61,6 @@ describe('Sidebar Tabs', () => {
 
         expect(screen.getByRole('tab', { name: /transcript/i })).toBeInTheDocument();
         expect(screen.getByRole('tab', { name: /styles/i })).toBeInTheDocument();
-        expect(screen.queryByRole('tab', { name: /intelligence/i })).not.toBeInTheDocument();
 
         const tabList = screen.getByRole('tablist');
         expect(tabList.parentElement).toHaveClass('editor-tabs-sticky');
@@ -195,26 +189,6 @@ describe('Sidebar Tabs', () => {
                 value: originalMatchMedia,
             });
         }
-    });
-
-    it('redirects a stale intelligence selection to styles while the tab is hidden', () => {
-        const setActiveSidebarTab = jest.fn();
-        (useProcessContext as jest.Mock).mockReturnValue({
-            ...mockContextValue,
-            activeSidebarTab: 'intelligence',
-            setActiveSidebarTab,
-        });
-
-        render(
-            <I18nProvider initialLocale="en">
-                <PlaybackProvider>
-                    <Sidebar />
-                </PlaybackProvider>
-            </I18nProvider>
-        );
-
-        expect(screen.queryByTestId('viral-intelligence')).not.toBeInTheDocument();
-        expect(setActiveSidebarTab).toHaveBeenCalledWith('styles');
     });
 
     it('keeps the full transcript label accessible while exposing a compact mobile label', () => {

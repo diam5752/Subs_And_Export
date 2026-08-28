@@ -5,7 +5,7 @@
 The upload path ran against an isolated local PostgreSQL database with six
 synthetic accounts and `GSP_MOCK_EXTERNAL_SERVICES=1`. The completed jobs
 reported `transcribe_provider=mock`. All provider budgets and paid Checkout
-were disabled, so no transcription, LLM, Stripe, or other paid API request was
+were disabled, so no transcription, text-generation, Stripe, or other paid API request was
 made.
 
 The exact production-host comparison bypassed accounts, credits, the job

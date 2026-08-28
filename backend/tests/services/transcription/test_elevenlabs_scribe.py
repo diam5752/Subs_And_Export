@@ -8,7 +8,7 @@ import pytest
 import requests
 
 from backend.app.core.config import settings
-from backend.app.services import llm_utils
+from backend.app.services import provider_clients
 from backend.app.services.transcription import elevenlabs_scribe as scribe_module
 from backend.app.services.transcription.elevenlabs_scribe import (
     ElevenLabsScribeTranscriber,
@@ -495,4 +495,4 @@ def test_resolve_elevenlabs_api_key_uses_environment_without_exposing_it(
 ) -> None:
     monkeypatch.setenv("ELEVENLABS_API_KEY", "test-elevenlabs-key")
 
-    assert llm_utils.resolve_elevenlabs_api_key() == "test-elevenlabs-key"
+    assert provider_clients.resolve_elevenlabs_api_key() == "test-elevenlabs-key"

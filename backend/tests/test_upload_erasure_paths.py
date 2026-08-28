@@ -124,7 +124,7 @@ def test_post_save_failures_use_the_correct_durable_erasure_scope(
     if failure_stage == "create_job":
         job_store.create_job.side_effect = RuntimeError("database unavailable")
 
-    charge_plan = ChargePlan(transcription=None, social_copy=None)
+    charge_plan = ChargePlan(transcription=None)
     if failure_stage == "reserve":
         monkeypatch.setattr(
             videos,
@@ -222,10 +222,7 @@ def test_repeated_zero_credit_uploads_leave_no_jobs_files_or_tombstones(
                 filename="video.mp4",
                 video_resolution="",
                 authorized_credits=100,
-                proc_settings=ProcessingSettings(
-                    transcribe_provider="local",
-                    use_llm=False,
-                ),
+                proc_settings=ProcessingSettings(transcribe_provider="local"),
                 current_user=user,
                 job_store=job_store,
                 history_store=MagicMock(),

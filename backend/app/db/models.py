@@ -226,7 +226,7 @@ class DbAIModel(Base):
 
     __tablename__ = "ai_models"
 
-    id: Mapped[str] = mapped_column(String(64), primary_key=True)  # e.g. "gpt-4o-mini"
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
     input_price_per_1m: Mapped[float] = mapped_column(default=0.0)
     output_price_per_1m: Mapped[float] = mapped_column(default=0.0)
     currency: Mapped[str] = mapped_column(String(3), default="USD")

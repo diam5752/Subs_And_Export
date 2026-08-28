@@ -1,7 +1,10 @@
 from pathlib import Path
 from typing import Any
 
-from backend.app.services.llm_utils import load_openai_client, resolve_groq_api_key
+from backend.app.services.provider_clients import (
+    load_openai_compatible_client,
+    resolve_groq_api_key,
+)
 from backend.app.services.subtitle_types import Cue, TimeRange, WordTiming
 from backend.app.services.transcription.base import Transcriber
 from backend.app.services.transcription.utils import normalize_text, write_srt_from_segments
@@ -39,7 +42,7 @@ class GroqTranscriber(Transcriber):
             )
 
         # Groq uses OpenAI-compatible API
-        client = load_openai_client(
+        client = load_openai_compatible_client(
             api_key=api_key,
             base_url="https://api.groq.com/openai/v1"
         )
