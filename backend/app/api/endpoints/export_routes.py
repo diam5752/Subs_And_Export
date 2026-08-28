@@ -306,7 +306,7 @@ def _export_video_locked(
         except MalformedTranscriptError as e:
             raise HTTPException(422, f"Cannot export malformed transcript: {sanitize_message(str(e))}") from e
         except Exception as e:
-            logger.exception("%s export failed", request.resolution.upper())
+            logger.exception("Subtitle export failed")
             raise HTTPException(500, f"{request.resolution.upper()} export failed: {sanitize_message(str(e))}")
 
     # Video export
@@ -394,10 +394,7 @@ def _export_video_locked(
                     status_code=500,
                     detail="Cached export job could not be reloaded",
                 )
-            logger.info(
-                "Reused exact rendered video export",
-                extra={"job_id": job_id, "resolution": request.resolution},
-            )
+            logger.info("Reused exact rendered video export")
             return JobResponse.model_validate(updated_job)
 
         width, height = (int(part) for part in request.resolution.split("x"))
@@ -461,10 +458,7 @@ def _export_video_locked(
     except HTTPException:
         raise
     except Exception as exc:
-        logger.exception(
-            "Video export failed",
-            extra={"job_id": job_id, "resolution": request.resolution},
-        )
+        logger.exception("Video export failed")
         raise HTTPException(
             500,
             "Export failed. Please try again.",

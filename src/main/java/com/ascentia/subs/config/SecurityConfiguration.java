@@ -29,6 +29,9 @@ public class SecurityConfiguration {
         BearerTokenAuthenticationFilter bearerTokenAuthenticationFilter =
                 new BearerTokenAuthenticationFilter(authStore);
         return httpSecurity
+                // Mutations authenticate only through an explicit Authorization
+                // header. The sole cookie credential is path-scoped to /static
+                // and the filter accepts it only for private-media reads.
                 .csrf(csrf -> csrf.disable())
                 .cors(Customizer.withDefaults())
                 .httpBasic(httpBasic -> httpBasic.disable())

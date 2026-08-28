@@ -237,6 +237,13 @@ class ApiContractIT extends IntegrationTestSupport {
         mockMvc.perform(post("/auth/logout"))
                 .andExpect(status().isUnauthorized());
 
+        // The media cookie is intentionally read-only and path-scoped. It must
+        // never authenticate a mutation even though this stateless bearer API
+        // does not use a synchronizer CSRF token.
+        mockMvc.perform(post("/auth/logout")
+                        .cookie(new Cookie("gsubs_media_session", current.token())))
+                .andExpect(status().isUnauthorized());
+
         mockMvc.perform(post("/auth/logout")
                         .header(HttpHeaders.AUTHORIZATION, current.authorization()))
                 .andExpect(status().isOk())

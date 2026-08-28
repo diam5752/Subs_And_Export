@@ -26,6 +26,8 @@ public class BearerTokenAuthenticationFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
         String token = bearerToken(request);
+        // Never promote the media cookie into general API authentication: that
+        // cookie exists only so browsers can render private /static resources.
         if (token == null && request.getRequestURI().startsWith("/static/")) {
             token = cookieToken(request);
         }

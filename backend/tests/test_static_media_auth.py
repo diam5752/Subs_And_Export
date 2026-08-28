@@ -6,12 +6,43 @@ import uuid
 from pathlib import Path
 from urllib.parse import quote
 
+import pytest
+from fastapi import Response
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
 from backend import main as backend_main
+from backend.app.api.endpoints.auth import _set_media_session_cookie
 from backend.app.core.database import Database
 from backend.app.services.jobs import JobStore
+
+
+@pytest.mark.parametrize(
+    "unsafe_token",
+    (
+        "short",
+        "a" * 42 + "=",
+        "a" * 41 + "\r\n",
+        "a" * 42 + ";",
+    ),
+)
+def test_media_session_cookie_rejects_noncanonical_tokens(
+    unsafe_token: str,
+) -> None:
+    response = Response()
+
+    with pytest.raises(ValueError, match="Invalid media session token"):
+        _set_media_session_cookie(response, unsafe_token)
+
+    assert "set-cookie" not in response.headers
+
+
+def test_media_session_cookie_accepts_generated_token_shape() -> None:
+    response = Response()
+
+    _set_media_session_cookie(response, "a" * 43)
+
+    assert "gsubs_media_session=" + ("a" * 43) in response.headers["set-cookie"]
 
 
 def _create_owned_media(

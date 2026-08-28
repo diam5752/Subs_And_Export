@@ -16,7 +16,7 @@ def mock_user_store():
 @pytest.fixture
 def mock_session_store():
     mock = MagicMock()
-    mock.issue_session.return_value = "fake_token"
+    mock.issue_session.return_value = "a" * 43
     return mock
 
 @pytest.fixture
@@ -67,5 +67,5 @@ def test_login_normal_length(client_with_mocks, mock_user_store, mock_session_st
         }
     )
     assert response.status_code == 200
-    assert response.json()["access_token"] == "fake_token"
+    assert response.json()["access_token"] == "a" * 43
     mock_user_store.authenticate_local.assert_called_once()
