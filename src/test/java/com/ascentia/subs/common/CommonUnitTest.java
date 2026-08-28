@@ -246,7 +246,7 @@ class CommonUnitTest {
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
         SecurityContextHolder.clearContext();
 
-        MockHttpServletRequest nonStaticCookieRequest = new MockHttpServletRequest("GET", "/auth/me");
+        MockHttpServletRequest nonStaticCookieRequest = new MockHttpServletRequest("POST", "/auth/logout");
         nonStaticCookieRequest.setCookies(new Cookie("gsubs_media_session", "valid-token"));
         filter.doFilter(nonStaticCookieRequest, new MockHttpServletResponse(), new MockFilterChain());
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();

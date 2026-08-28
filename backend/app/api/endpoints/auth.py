@@ -1,4 +1,5 @@
 import logging
+import re
 import time
 from typing import Any, Literal
 
@@ -78,6 +79,7 @@ ACCOUNT_DELETION_NOTICE = (
     "Account and media are permanently deleted; legally required financial records are retained in detached form."
 )
 MEDIA_SESSION_COOKIE_NAME = "gsubs_media_session"
+_MEDIA_SESSION_TOKEN_PATTERN = re.compile(r"^[A-Za-z0-9_-]{43}$")
 
 
 def media_session_cookie_settings() -> dict[str, Any]:
@@ -92,8 +94,18 @@ def media_session_cookie_settings() -> dict[str, Any]:
     }
 
 
+def _validated_media_session_token(token: str) -> str:
+    """Return only the canonical URL-safe 256-bit session-token encoding."""
+    if _MEDIA_SESSION_TOKEN_PATTERN.fullmatch(token) is None:
+        raise ValueError("Invalid media session token")
+    return token
+
+
 def _set_media_session_cookie(response: Response, token: str) -> None:
-    response.set_cookie(value=token, **media_session_cookie_settings())
+    response.set_cookie(
+        value=_validated_media_session_token(token),
+        **media_session_cookie_settings(),
+    )
     response.headers["Cache-Control"] = "no-store"
 
 

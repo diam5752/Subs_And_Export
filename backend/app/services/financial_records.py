@@ -8,7 +8,13 @@ from zoneinfo import ZoneInfo
 
 
 def financial_account_reference_hash(user_id: str) -> str:
-    """Return the DB-compatible pseudonymous reference for a GSUBS account."""
+    """Return the immutable v1 database reference for a GSUBS account.
+
+    This is a compatibility identifier, not a credential or integrity digest.
+    PostgreSQL trigger logic and already-retained financial records use this
+    exact 64-character v1 representation, so a future keyed v2 scheme needs a
+    versioned data migration rather than an in-place algorithm substitution.
+    """
     normalized_user_id = user_id.strip()
     if not normalized_user_id:
         raise ValueError("Financial account reference requires a user id")
