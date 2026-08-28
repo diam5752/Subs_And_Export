@@ -38,9 +38,6 @@ test('Beta status and testing notice stay discreet and readable', async ({ page 
 });
 
 test('feedback chat is responsive, scroll-locked, and submits a privacy-safe path', async ({ page }) => {
-  await page.addInitScript(() => {
-    localStorage.setItem('cookie-consent', 'accepted');
-  });
   await mockApi(page);
   const submissions: Array<Record<string, unknown>> = [];
   page.on('request', (request) => {
@@ -986,36 +983,13 @@ test('workflow labels stay aligned across upload, captions, and export', async (
   await expect(page.getByRole('heading', { name: el.customSettings })).toHaveCount(0);
 });
 
-test('mobile consent and footer stay compact, readable, and touch friendly', async ({ page }) => {
+test('mobile public shell avoids a needless cookie consent gate and keeps the footer readable', async ({ page }) => {
+  // REGRESSION: the app used to show accept/decline choices even though both
+  // paths enabled the same strictly necessary storage and no optional tracker.
   await page.setViewportSize({ width: 430, height: 932 });
   await mockApi(page, { authenticated: false });
-  await page.addInitScript(() => {
-    localStorage.removeItem('cookie-consent');
-  });
   await page.goto('/');
-  const consent = page.getByRole('dialog', { name: el.cookieTitle });
-  await expect(consent).toBeVisible();
-
-  const consentMetrics = await consent.evaluate((element) => {
-    const rect = element.getBoundingClientRect();
-    const card = element.firstElementChild as HTMLElement | null;
-    const buttons = Array.from(element.querySelectorAll('button')).map((button) => {
-      const buttonRect = button.getBoundingClientRect();
-      return { width: buttonRect.width, height: buttonRect.height };
-    });
-    return {
-      height: rect.height,
-      background: card ? getComputedStyle(card).backgroundColor : '',
-      buttons,
-    };
-  });
-
-  expect(consentMetrics.height).toBeLessThanOrEqual(180);
-  expect(consentMetrics.background).toBe('rgb(255, 255, 255)');
-  for (const button of consentMetrics.buttons) {
-    expect(button.width).toBeGreaterThanOrEqual(44);
-    expect(button.height).toBeGreaterThanOrEqual(44);
-  }
+  await expect(page.getByRole('dialog')).toHaveCount(0);
   const publicHeaderActions = page.locator('.language-toggle, .guest-sign-in');
   await expect(publicHeaderActions).toHaveCount(2);
   for (let index = 0; index < await publicHeaderActions.count(); index += 1) {
@@ -1023,8 +997,6 @@ test('mobile consent and footer stay compact, readable, and touch friendly', asy
     expect(box?.height).toBeGreaterThanOrEqual(44);
     expect(box?.width).toBeGreaterThanOrEqual(44);
   }
-
-  await page.getByRole('button', { name: el.cookieDecline }).click();
   const footer = page.locator('.studio-footer');
   await footer.scrollIntoViewIfNeeded();
   const footerMetrics = await footer.evaluate((element) => {
@@ -1059,6 +1031,10 @@ for (const [label, viewport] of Object.entries(viewports)) {
       await stabilizeUi(page);
       await expectNoHorizontalOverflow(page);
       await expect(page.getByText(el.loginSubtitle)).toBeVisible();
+      await expect(page.getByRole('link', { name: el.legalTermsLink }))
+        .toHaveAttribute('href', '/terms');
+      await expect(page.getByRole('link', { name: el.legalPrivacyLink }))
+        .toHaveAttribute('href', '/privacy');
       await expect(page.getByText(/Mock|€0/)).toHaveCount(0);
       if (viewport.width <= 640) {
         await expect(page.locator('.auth-promise')).toBeHidden();
@@ -1105,10 +1081,6 @@ for (const [label, viewport] of Object.entries(viewports)) {
     });
 
     test('legal pages stay readable and contained', async ({ page }) => {
-      await page.addInitScript(() => {
-        localStorage.setItem('cookie-consent', 'declined');
-      });
-
       const legalPages: Array<{
         path: string;
         heading: string;

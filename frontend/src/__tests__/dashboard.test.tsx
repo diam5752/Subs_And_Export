@@ -964,8 +964,8 @@ describe('DashboardPage', () => {
     it('renders footer with privacy and terms links', () => {
         render(<DashboardPage />);
 
-        const privacyLink = screen.getByText('cookieLearnMore');
-        const termsLink = screen.getByText('cookieTerms');
+        const privacyLink = screen.getByText('legalPrivacyLink');
+        const termsLink = screen.getByText('legalTermsLink');
 
         expect(privacyLink).toBeInTheDocument();
         expect(privacyLink.closest('a')).toHaveAttribute('href', '/privacy');

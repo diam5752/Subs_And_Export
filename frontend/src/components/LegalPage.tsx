@@ -46,6 +46,8 @@ const sections: Record<LegalPageKind, LegalSection[]> = {
         { title: 'privacyCollectionTitle', body: 'privacyCollectionBody' },
         { title: 'privacyRetentionTitle', body: 'privacyRetentionBody' },
         { title: 'privacyLawfulBasisTitle', body: 'privacyLawfulBasisBody' },
+        { title: 'privacyProvisionTitle', body: 'privacyProvisionBody' },
+        { title: 'privacyChildrenTitle', body: 'privacyChildrenBody' },
         { title: 'privacyPaymentsTitle', body: 'privacyPaymentsBody' },
         { title: 'privacyFinancialRetentionTitle', body: 'privacyFinancialRetentionBody' },
         { title: 'privacyProvidersTitle', body: 'privacyProvidersBody' },
@@ -99,7 +101,7 @@ export function LegalPage({ kind }: LegalPageProps) {
     const introKey: MessageKey = isPrivacy ? 'privacyPageIntro' : 'termsPageIntro';
     const kickerKey: MessageKey = isPrivacy ? 'legalPrivacyKicker' : 'legalTermsKicker';
     const relatedHref = isPrivacy ? '/terms' : '/privacy';
-    const relatedLabel = isPrivacy ? t('cookieTerms') : t('cookieLearnMore');
+    const relatedLabel = isPrivacy ? t('legalTermsLink') : t('legalPrivacyLink');
     const visibleSections = isPrivacy
         ? sections.privacy
         : paidCreditLegalPublicationIsApproved()
