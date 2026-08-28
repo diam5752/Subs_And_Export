@@ -3888,6 +3888,9 @@ def test_stripe_sdk_gateway_disables_retries_uses_fixed_price_and_verifies_signa
     assert params["customer_creation"] == "always"
     assert params["billing_address_collection"] == "required"
     assert params["name_collection"] == {"individual": {"enabled": True}}
+    # REGRESSION: the hosted Checkout page is the actual payment step, so its
+    # final action must use Stripe's explicit purchase/payment submit label.
+    assert params["submit_type"] == "pay"
     # REGRESSION: Stripe must apply dynamic eligibility filtering instead of
     # forcing an unsupported method into a manual-capture Checkout Session.
     assert "payment_method_types" not in params

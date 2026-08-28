@@ -10,8 +10,9 @@
     *   **Backend:** Unit/Integration tests (Pytest).
     *   **Java/Spring:** Maven/JUnit tests with Java 25 (`make check-java` or `./mvnw -B test` under JDK 25).
 2.  **Test First:** Write the test *before* or *simultaneously* with the code.
-3.  **Green Build:** You must run the full suite (`npm test`, `pytest`) before declaring a task finished.
-4.  **Snapshots:** If UI changes, carefully review and update Playwright snapshots.
+3.  **Targeted Iteration Gate:** While implementing, reviewing, or refining a change, run only the smallest relevant tests and static checks that cover the files and behavior changed. Do not repeatedly run unrelated suites.
+4.  **Final PR Gate:** Run the complete repository suite only once the implementation and targeted verification are finished and the change is ready to open, update, or finalize a pull request. If no PR-finalization step is requested, report the targeted results and do not run the full suite.
+5.  **Snapshots:** If UI changes, carefully review and update Playwright snapshots.
 
 ## Critical: Tests MUST Accompany Code Changes
 
@@ -34,7 +35,8 @@
 3. **Pre-Commit Checklist:**
    - [ ] Did I add tests for ALL code changes?
    - [ ] If this is a bug fix, do I have a regression test?
-   - [ ] Do all tests pass (`make test-backend`, `make test-frontend`)?
+   - [ ] Do the targeted tests and static checks for this change pass?
+   - [ ] At the final PR gate only, does the complete suite pass (`make test-backend`, `make test-frontend`, and any other required repository gates)?
    - [ ] Is code coverage maintained or improved?
 
 ## Mandatory Compliance Checklist
@@ -43,8 +45,9 @@ Add this to the end of every `walkthrough.md`:
 ```markdown
 ## ⚖️ Rules Compliance Checklist
 - [ ] Added unit tests for all new/modified code
-- [ ] Verified tests pass locally (`pytest`/`npm test`)
-- [ ] Verified Java tests pass when Java/Spring code or migration contracts changed (`make check-java`)
+- [ ] Verified the targeted tests and checks for the changed behavior pass locally
+- [ ] At the final PR gate only, verified the complete repository suite passes
+- [ ] Verified targeted Java tests pass when Java/Spring code or migration contracts changed; run the complete Java gate only at final PR readiness
 - [ ] No regression or logic gaps left uncovered
 ```
 
