@@ -1,0 +1,9 @@
+# The product owner reviews changes to every surface by default.
+* @diam5752
+
+# Keep changes to release, security and repository governance visible.
+/.github/ @diam5752
+/deploy/ @diam5752
+/SECURITY.md @diam5752
+/.agent/ @diam5752
+/AGENTS.md @diam5752
