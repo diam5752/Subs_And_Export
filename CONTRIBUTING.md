@@ -53,7 +53,7 @@ make ci
 `make ci` is the source of truth. It runs backend and frontend tests, Java 25
 checks, real local FFmpeg export tests, browser E2E, linting, type checks, dependency
 audits, architecture-cycle checks and the complexity ratchet. CI also enforces
-backend line and branch coverage of at least 80%.
+backend line coverage of at least 90% and branch coverage of at least 80%.
 
 ## Coding standards
 
