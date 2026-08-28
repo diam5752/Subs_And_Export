@@ -21,7 +21,7 @@ def load_contract() -> dict[str, object]:
 
 def builtin_contract_check(root: Path) -> int:
     required = [
-        root / "AGENT.md",
+        root / "AGENTS.md",
         root / ".codex" / "quality-gates.json",
         root / ".codex" / "acceptance-flows.md",
     ]
