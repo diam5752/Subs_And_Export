@@ -75,6 +75,10 @@ export function FeedbackWidget({ initiallyOpen = false }: FeedbackWidgetProps) {
     });
     const selectedCategory = useWatch({ control, name: 'category' });
     const message = useWatch({ control, name: 'message' });
+    const trimmedMessageLength = message.trim().length;
+    const messageIsTooShort = (
+        trimmedMessageLength > 0 && trimmedMessageLength < MIN_MESSAGE_CHARS
+    );
     const messageRegistration = register('message', {
         required: t('feedbackMessageRequired'),
         minLength: {
@@ -106,7 +110,13 @@ export function FeedbackWidget({ initiallyOpen = false }: FeedbackWidgetProps) {
         if (!isOpen) return;
 
         const returnFocus = triggerRef.current;
-        const focusTimer = window.setTimeout(() => textareaRef.current?.focus(), 80);
+        const focusTimer = window.setTimeout(() => {
+            if (window.navigator.maxTouchPoints > 0) {
+                dialogRef.current?.focus({ preventScroll: true });
+                return;
+            }
+            textareaRef.current?.focus({ preventScroll: true });
+        }, 80);
         const safetyTimer = window.setTimeout(() => setCanSubmit(true), MIN_FORM_AGE_MS);
         const handleKeyDown = (event: KeyboardEvent) => {
             if (event.key === 'Escape') {
@@ -209,7 +219,7 @@ export function FeedbackWidget({ initiallyOpen = false }: FeedbackWidgetProps) {
                         aria-label={t('feedbackTitle')}
                         aria-describedby={descriptionId}
                         data-testid="feedback-dialog"
-                        className="relative max-h-[calc(100dvh-env(safe-area-inset-top)-0.75rem)] w-full cursor-default overflow-y-auto rounded-t-[22px] border border-[#d9dbe0] bg-white shadow-[0_24px_80px_rgb(17_24_39/0.24)] sm:max-h-[min(720px,calc(100dvh-2rem))] sm:w-[390px] sm:rounded-[20px]"
+                        className="relative max-h-[calc(100dvh-env(safe-area-inset-top)-0.75rem)] w-full touch-pan-y cursor-default overflow-y-auto overscroll-y-contain rounded-t-[22px] border border-[#d9dbe0] bg-white shadow-[0_24px_80px_rgb(17_24_39/0.24)] [-webkit-overflow-scrolling:touch] sm:max-h-[min(720px,calc(100dvh-2rem))] sm:w-[390px] sm:rounded-[20px]"
                         onMouseDown={(event) => event.stopPropagation()}
                     >
                         <div className="h-1 w-full rounded-t-[inherit] bg-[var(--accent)]" />
@@ -342,8 +352,12 @@ export function FeedbackWidget({ initiallyOpen = false }: FeedbackWidgetProps) {
                                         rows={5}
                                         maxLength={MAX_MESSAGE_CHARS}
                                         placeholder={t('feedbackMessagePlaceholder')}
-                                        aria-invalid={Boolean(errors.message)}
-                                        aria-describedby={errors.message ? 'feedback-message-error' : 'feedback-message-help'}
+                                        aria-invalid={Boolean(errors.message) || messageIsTooShort}
+                                        aria-describedby={
+                                            errors.message || messageIsTooShort
+                                                ? 'feedback-message-error'
+                                                : 'feedback-message-help'
+                                        }
                                         className="mt-2 min-h-32 w-full resize-y rounded-xl border border-[#d7d9de] bg-white px-3.5 py-3 text-base leading-6 text-[#111215] outline-none transition placeholder:text-[#a1a4aa] focus:border-[var(--accent)] focus:ring-4 focus:ring-blue-100"
                                         {...messageRegistration}
                                         ref={(element) => {
@@ -353,10 +367,21 @@ export function FeedbackWidget({ initiallyOpen = false }: FeedbackWidgetProps) {
                                     />
                                     <div className="mt-1.5 flex items-start justify-between gap-3 text-xs">
                                         <p
-                                            id={errors.message ? 'feedback-message-error' : 'feedback-message-help'}
-                                            className={errors.message ? 'font-semibold text-[var(--danger)]' : 'text-[#858991]'}
+                                            id={
+                                                errors.message || messageIsTooShort
+                                                    ? 'feedback-message-error'
+                                                    : 'feedback-message-help'
+                                            }
+                                            className={
+                                                errors.message || messageIsTooShort
+                                                    ? 'font-semibold text-[var(--danger)]'
+                                                    : 'text-[#858991]'
+                                            }
                                         >
-                                            {errors.message?.message ?? t('feedbackMessageHelp')}
+                                            {errors.message?.message
+                                                ?? (messageIsTooShort
+                                                    ? t('feedbackMessageTooShort')
+                                                    : t('feedbackMessageHelp'))}
                                         </p>
                                         <span className="shrink-0 tabular-nums text-[#858991]">
                                             {message.length}/{MAX_MESSAGE_CHARS}
@@ -398,7 +423,7 @@ export function FeedbackWidget({ initiallyOpen = false }: FeedbackWidgetProps) {
                                         disabled={
                                             isSubmitting
                                             || !canSubmit
-                                            || message.trim().length < MIN_MESSAGE_CHARS
+                                            || trimmedMessageLength === 0
                                         }
                                         className="mt-4 inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-[var(--accent)] px-4 font-bold text-white shadow-[0_9px_22px_rgb(18_103_244/0.2)] transition hover:bg-[#075be4] disabled:cursor-not-allowed disabled:bg-[#aeb8c8] disabled:shadow-none"
                                     >

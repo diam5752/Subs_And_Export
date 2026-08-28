@@ -49,7 +49,7 @@
   "feedbackMessagePlaceholder": "Tell us what happened or what you would like to see…",
   "feedbackMessageHelp": "The more specific you are, the easier it is for us to improve it.",
   "feedbackMessageRequired": "Write your message first.",
-  "feedbackMessageTooShort": "Please enter at least 10 characters.",
+  "feedbackMessageTooShort": "Write at least 10 characters to send.",
   "feedbackMessageTooLong": "The message cannot exceed 2,000 characters.",
   "feedbackSignedInNotice": "The message will be linked to {email}, so we can reply to you.",
   "feedbackAnonymousNotice": "The message is sent without contact details. Sign in first if you would like a reply.",
