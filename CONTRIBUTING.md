@@ -66,8 +66,7 @@ backend line coverage of at least 90% and branch coverage of at least 80%.
 - Do not add live provider calls to tests. Paid-provider paths must fail closed and
   preserve idempotent credit/refund behavior.
 
-The complete repository rules live in `.agent/rules/` and are summarized in
-`AGENTS.md`.
+The complete repository instructions live only in the root `AGENTS.md`.
 
 ## Pull requests and releases
 

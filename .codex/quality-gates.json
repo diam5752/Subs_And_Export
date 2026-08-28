@@ -38,7 +38,7 @@
     "github-actions"
   ],
   "enforcement": {
-    "agent_file": "AGENT.md",
+    "agent_file": "AGENTS.md",
     "quality_contract_file": ".codex/quality-gates.json",
     "acceptance_flows_file": ".codex/acceptance-flows.md"
   },
