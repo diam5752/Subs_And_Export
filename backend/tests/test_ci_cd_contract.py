@@ -267,6 +267,12 @@ def test_runtime_images_apply_security_updates_and_drop_unused_package_managers(
     assert "rm -f /usr/local/bin/npm" in frontend_dockerfile
 
 
+def test_java_crypto_provider_stays_on_the_reviewed_security_floor() -> None:
+    pom = (REPOSITORY_ROOT / "pom.xml").read_text(encoding="utf-8")
+
+    assert "<bouncycastle.version>1.84</bouncycastle.version>" in pom
+
+
 def test_shell_gate_keeps_backup_validation_effectful_and_audits_dependencies() -> None:
     verify_backup = (REPOSITORY_ROOT / "deploy" / "hetzner" / "verify-backup.sh").read_text(
         encoding="utf-8"
