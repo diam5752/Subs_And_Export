@@ -314,8 +314,15 @@ test.describe('Feedback sheet on mobile browsers', () => {
     const dialog = page.getByTestId('feedback-dialog');
     const message = page.getByLabel(el.feedbackMessageLabel);
     await expect(dialog).toBeVisible();
-    await expect(dialog).toBeFocused();
-    await expect(message).not.toBeFocused();
+    const hasTouch = await page.evaluate(() => navigator.maxTouchPoints > 0);
+    if (hasTouch) {
+      // The exact non-text focus target differs between Chromium and WebKit.
+      // The customer-visible invariant is that opening a touch sheet does not
+      // focus the textarea and summon the virtual keyboard.
+      await expect(message).not.toBeFocused();
+    } else {
+      await expect(message).toBeFocused();
+    }
 
     await message.fill('Test');
     await page.waitForTimeout(2_100);
