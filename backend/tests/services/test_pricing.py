@@ -83,8 +83,8 @@ class TestCreditsCalculation:
     @pytest.mark.parametrize(
         ("duration_seconds", "expected_credits", "expected_key"),
         [
-            (0.001, 25, "up_to_3m"),
-            (180.0, 25, "up_to_3m"),
+            (0.001, 30, "up_to_3m"),
+            (180.0, 30, "up_to_3m"),
             (180.001, 60, "up_to_6m"),
             (360.0, 60, "up_to_6m"),
             (360.001, 100, "up_to_10m"),
@@ -117,7 +117,7 @@ class TestCreditsCalculation:
         catalog = pricing.video_credit_catalog()
         catalog[0]["credits"] = 999
 
-        assert pricing.video_credit_catalog()[0]["credits"] == 25
+        assert pricing.video_credit_catalog()[0]["credits"] == 30
 
     def test_credits_for_minutes_standard(self) -> None:
         credits = pricing.credits_for_minutes(tier="standard", duration_seconds=60.0, min_credits=25)

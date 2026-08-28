@@ -14,7 +14,7 @@ from backend.tests.process_stream import post_process_stream
 
 @pytest.mark.parametrize(
     "authorized_credits",
-    (None, True, "25", 24),
+    (None, True, "30", 29),
 )
 def test_stream_requires_a_strict_canonical_authorized_credit_tier_before_writing(
     client: TestClient,
@@ -59,7 +59,7 @@ def test_stream_refunds_pre_body_reservation_when_authoritative_quote_increases(
 
     # REGRESSION: the browser/container quote can be exactly 180.000 seconds
     # while authoritative ffprobe resolves 180.001 seconds. The backend must
-    # never turn the already-confirmed 25-credit quote into a 60-credit charge.
+    # never turn the already-confirmed 30-credit quote into a 60-credit charge.
     user_id = client.get(
         "/auth/me",
         headers=funded_user_auth_headers,
@@ -102,7 +102,7 @@ def test_stream_refunds_pre_body_reservation_when_authoritative_quote_increases(
         client,
         funded_user_auth_headers,
         content=b"private-video",
-        metadata={"authorized_credits": 25},
+        metadata={"authorized_credits": 30},
     )
 
     assert response.status_code == 409
@@ -115,7 +115,7 @@ def test_stream_refunds_pre_body_reservation_when_authoritative_quote_increases(
         },
     }
     budget_preflight.assert_called_once()
-    assert observed_balances == [starting_balance - 25]
+    assert observed_balances == [starting_balance - 30]
     assert points_store.get_balance(user_id) == starting_balance
     provider_dispatch.assert_not_called()
     assert JobStore(Database()).list_jobs_for_user(user_id) == []
@@ -169,7 +169,7 @@ def test_stream_stall_refunds_reservation_and_deletes_partial_workspace(
         client,
         funded_user_auth_headers,
         content=b"private-video",
-        metadata={"authorized_credits": 25},
+        metadata={"authorized_credits": 30},
     )
 
     assert response.status_code == 408
@@ -230,7 +230,7 @@ def test_stream_rejects_nan_probe_with_full_cleanup_and_refund(
         client,
         funded_user_auth_headers,
         content=b"private-video",
-        metadata={"authorized_credits": 25},
+        metadata={"authorized_credits": 30},
     )
 
     assert response.status_code == 400

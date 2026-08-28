@@ -49,7 +49,7 @@ def test_zero_credit_upload_is_rejected_before_body_read(
         client,
         user_auth_headers,
         metadata={
-            "authorized_credits": 25,
+            "authorized_credits": 30,
             "transcribe_provider": "elevenlabs",
         },
         content=b"must-not-be-consumed",
@@ -78,7 +78,7 @@ def test_live_provider_requires_paid_credits_before_upload(
         client,
         user_auth_headers,
         metadata={
-            "authorized_credits": 25,
+            "authorized_credits": 30,
             "transcribe_provider": "elevenlabs",
         },
         content=b"must-not-be-consumed",
@@ -128,7 +128,7 @@ def test_authorized_credits_are_reserved_before_upload_body_and_refunded_on_fail
         client,
         user_auth_headers,
         metadata={
-            "authorized_credits": 25,
+            "authorized_credits": 30,
             "transcribe_provider": settings.transcribe_tier_provider[
                 settings.default_transcribe_tier
             ],
@@ -137,7 +137,7 @@ def test_authorized_credits_are_reserved_before_upload_body_and_refunded_on_fail
     )
 
     assert response.status_code == 507, response.text
-    assert observed_balances == [starting_balance - 25]
+    assert observed_balances == [starting_balance - 30]
     assert points_store.get_balance(user_id) == starting_balance
     assert JobStore(Database()).list_jobs_for_user(user_id) == []
 
@@ -171,7 +171,7 @@ def test_global_active_job_limit_rejects_the_sixth_before_body_read(
         response = post_process_stream(
             client,
             funded_user_auth_headers,
-            metadata={"authorized_credits": 25},
+            metadata={"authorized_credits": 30},
             content=b"must-not-be-consumed",
         )
     finally:
@@ -289,7 +289,7 @@ def test_five_customers_process_concurrently_and_sixth_is_rejected_before_upload
         return post_process_stream(
             client,
             headers,
-            metadata={"authorized_credits": 25},
+            metadata={"authorized_credits": 30},
             content=b"synthetic-video",
         )
 

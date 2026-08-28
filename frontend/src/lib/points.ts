@@ -1,4 +1,4 @@
-export type ProcessingCreditTier = 25 | 60 | 100;
+export type ProcessingCreditTier = 30 | 60 | 100;
 
 export const PROCESS_VIDEO_DEFAULT_COST: ProcessingCreditTier = 100;
 const PROCESS_VIDEO_MODEL_COSTS: Record<string, ProcessingCreditTier> = {
@@ -13,13 +13,13 @@ interface VideoCreditQuote {
 }
 
 export const VIDEO_CREDIT_BRACKETS: readonly VideoCreditQuote[] = [
-    { key: 'up_to_3m', maxDurationSeconds: 180, credits: 25 },
+    { key: 'up_to_3m', maxDurationSeconds: 180, credits: 30 },
     { key: 'up_to_6m', maxDurationSeconds: 360, credits: 60 },
     { key: 'up_to_10m', maxDurationSeconds: 600, credits: 100 },
 ] as const;
 
 export function isProcessingCreditTier(value: unknown): value is ProcessingCreditTier {
-    return value === 25 || value === 60 || value === 100;
+    return value === 30 || value === 60 || value === 100;
 }
 
 export function processVideoCostForTranscribeModel(

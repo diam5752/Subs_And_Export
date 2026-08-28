@@ -14,7 +14,7 @@ does not change the visible price of a video.
 
 | Server-measured duration | Credits |
 | --- | ---: |
-| `0:01` through `3:00` | 25 |
+| `0:01` through `3:00` | 30 |
 | `3:00.001` through `6:00` | 60 |
 | `6:00.001` through `10:00` | 100 |
 
@@ -54,59 +54,50 @@ These figures are a planning model, not tax advice. They assume:
 - conservative USD/EUR parity; and
 - no refund of the original Stripe processing fee.
 
-The maximum modeled external-provider cost for one 10-minute video is about
-€0.037. The table allocates the one package payment fee across the number of
-100-credit videos it funds:
+The raw external-provider cost for one 10-minute video is about €0.03667. The
+guarded provider allowance is €0.04583 after the 25% dispatch headroom. The
+table allocates the one package payment fee across the number of 100-credit
+videos it funds:
 
 | Package | Ex-VAT revenue per 100 credits | Allocated Stripe fee | Provider ceiling | Contribution | Margin on ex-VAT revenue |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Starter | €0.806 | €0.265 | €0.037 | €0.505 | 62.6% |
-| Core | €0.691 | €0.084 | €0.037 | €0.570 | 82.5% |
-| Pro | €0.672 | €0.033 | €0.037 | €0.602 | 89.6% |
+| Starter | €0.806 | €0.265 | €0.046 | €0.496 | 61.5% |
+| Core | €0.691 | €0.084 | €0.046 | €0.561 | 81.2% |
+| Pro | €0.672 | €0.033 | €0.046 | €0.593 | 88.2% |
 
-Even after an additional provisional €0.10/video allowance for compute,
-storage and egress, the modeled margins are approximately 50.2%, 68.0% and
-74.7%. Production telemetry must replace that allowance before claiming a
-guaranteed margin. A €0.50 single-video payment is mathematically positive but
-leaves almost no margin after that infrastructure allowance; €1.00 is the
-practical minimum. The €20 Stripe dispute fee is an exceptional risk that no
-per-video price this small can absorb, so dispute monitoring remains a launch
-requirement.
+An additional €0.10/video infrastructure allowance was used only as a severe
+stress-test placeholder. It is not an observed marginal cost. If imposed, the
+modeled margins become approximately 49.1%, 66.7% and 73.3%. Production
+telemetry must instead measure FFmpeg compute, temporary storage and egress per
+completed job. Fixed hosting, support, refunds and disputes belong in a separate
+monthly profitability model rather than being presented as known per-job API
+cost. The €20 Stripe dispute fee is an exceptional risk that no video price this
+small can absorb, so dispute monitoring remains a launch requirement.
 
 For the three-minute tier, Scribe v2 costs US$0.011. After the 25% provider
 headroom, the guarded provider allowance is €0.01375 at conservative USD/EUR
-parity. Adding the provisional €0.10 compute, storage and egress allowance gives
-an all-in planning cost of €0.11375 per video.
+parity. This is the known direct provider allowance; marginal infrastructure
+must be measured rather than assumed.
 
-| Three-minute credits | Discount vs 30 | Contribution, standard EEA card | Contribution, international + FX stress |
-| ---: | ---: | ---: | ---: |
-| 22 | 26.7% | +€0.005 | -€0.003 |
-| 23 | 23.3% | +€0.011 | +€0.002 |
-| 24 | 20.0% | +€0.016 | +€0.007 |
-| **25** | **16.7%** | **+€0.022** | **+€0.012** |
-| 30 | baseline | +€0.049 | +€0.038 |
+| Three-minute credits | Gross Starter share | Net revenue, standard EEA | Net revenue, international + FX stress | Remainder after guarded provider |
+| ---: | ---: | ---: | ---: | ---: |
+| 25 | €0.250 | €0.135 | €0.126 | €0.112-€0.122 |
+| **30** | **€0.300** | **€0.162** | **€0.151** | **€0.138-€0.149** |
 
-Twenty-two credits can lose money in the payment-fee stress case. Twenty-three
-is the absolute whole-credit floor that remains positive in both modeled cases,
-but its stress contribution margin is only about 2.1%. Twenty-four leaves about
-6.1% in that case. Twenty-five remains the safer public price, with about 9.9%
-stress contribution margin and 16.0% under the standard EEA case after the
-provisional infrastructure allowance. These are planning buffers, not
-guaranteed net profit: refunds, failed provider calls, support, fixed hosting
-and disputes can still reduce or eliminate them.
+The remainder is available for measured infrastructure and contribution; it is
+not guaranteed net profit. If the old unmeasured €0.10 stress placeholder were
+imposed, 30 credits would still leave about €0.038-€0.049 per job, while 25
+credits would leave about €0.012-€0.022. The 30-credit price is retained because
+it preserves a simple linear 10-credits-per-minute schedule across the
+30/60/100 tiers and gives the larger per-video buffer. A Starter purchase funds
+three complete three-minute jobs and carries 10 credits toward later usage.
 
 The 50-user campaign has a hard face-value cap of 1,500 sponsored credits. At
-the 25-credit three-minute tier, each standalone 30-credit grant funds one
-first-tier cloud job and leaves five credits. Without later top-ups, the 50
-grants therefore expose about €5.69 of modeled provider-plus-infrastructure
-cost. If every sponsored credit is eventually combined with purchased credits
-and consumed, the prorated ceiling is 60 first-tier job-equivalents, or about
-€6.83. Expanding from 20 to 50 adds about €3.41 of standalone exposure, or
-€4.10 on the fully allocated basis.
-At 24 credits the fully allocated campaign ceiling would rise to about €7.11;
-at the 23-credit absolute floor it would rise to about €7.42. The standalone
-50-job exposure remains about €5.69 because a 30-credit grant still funds only
-one complete short-video job without a later top-up.
+30 credits, each grant funds exactly one three-minute job. The guarded direct
+provider ceiling is therefore about €0.69 for all 50 grants. Including the old
+unmeasured €0.10/job infrastructure stress placeholder raises the campaign
+ceiling to about €5.69. Expanding from 20 to 50 adds about €0.41 of guarded
+provider exposure, or €3.41 under that stress placeholder.
 
 Current official references:
 

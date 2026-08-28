@@ -43,16 +43,16 @@ def test_provider_economics_accepts_current_ten_minute_scribe_ceiling() -> None:
     assert quote.contribution_margin >= MINIMUM_CONTRIBUTION_MARGIN
 
 
-def test_twenty_five_credits_cover_three_minute_transcription_ceiling() -> None:
+def test_thirty_credits_cover_three_minute_transcription_ceiling() -> None:
     scribe_cost_usd = 0.22 * (3 / 60)
 
     quote = assert_provider_economics(
-        credits=25,
+        credits=30,
         estimated_cost_usd=scribe_cost_usd,
         safety_multiplier=1.25,
     )
 
-    assert quote.credits == 25
+    assert quote.credits == 30
     assert quote.net_revenue_eur > quote.guarded_provider_cost_eur
     assert quote.contribution_margin >= MINIMUM_CONTRIBUTION_MARGIN
 

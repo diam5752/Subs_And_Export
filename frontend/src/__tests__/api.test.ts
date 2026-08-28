@@ -682,7 +682,7 @@ describe('API Client', () => {
             const xhrMock = installProcessXhr(400, { message: 'Custom error message' });
             const { api } = await import('@/lib/api');
             const file = new File(['video'], 'test.mp4', { type: 'video/mp4' });
-            const promise = api.processVideo(file, { authorized_credits: 25 });
+            const promise = api.processVideo(file, { authorized_credits: 30 });
 
             xhrMock.onload?.();
 
@@ -693,7 +693,7 @@ describe('API Client', () => {
             const xhrMock = installProcessXhr(400, 'Generic error string');
             const { api } = await import('@/lib/api');
             const file = new File(['video'], 'test.mp4', { type: 'video/mp4' });
-            const promise = api.processVideo(file, { authorized_credits: 25 });
+            const promise = api.processVideo(file, { authorized_credits: 30 });
 
             xhrMock.onload?.();
 
@@ -713,7 +713,7 @@ describe('API Client', () => {
             });
             const { api } = await import('@/lib/api');
             const file = new File(['video'], 'boundary.mp4', { type: 'video/mp4' });
-            const promise = api.processVideo(file, { authorized_credits: 25 });
+            const promise = api.processVideo(file, { authorized_credits: 30 });
 
             xhrMock.onload?.();
 
@@ -738,7 +738,7 @@ describe('API Client', () => {
             const promise = api.processVideo(
                 file,
                 {
-                    authorized_credits: 25,
+                    authorized_credits: 30,
                     transcribe_tier: 'standard',
                     video_quality: 'high',
                 },
@@ -765,7 +765,7 @@ describe('API Client', () => {
             ) as Record<string, unknown>;
             expect(metadata).toEqual(expect.objectContaining({
                 filename: 'test.mp4',
-                authorized_credits: 25,
+                authorized_credits: 30,
                 transcribe_tier: 'standard',
                 video_quality: 'high',
             }));
@@ -779,7 +779,7 @@ describe('API Client', () => {
             const xhrMock = installProcessXhr(200, mockResponse);
             const { api } = await import('@/lib/api');
             const file = new File(['video'], 'default.mp4', { type: 'video/mp4' });
-            const promise = api.processVideo(file, { authorized_credits: 25 });
+            const promise = api.processVideo(file, { authorized_credits: 30 });
 
             xhrMock.onload?.();
             await promise;
@@ -798,7 +798,7 @@ describe('API Client', () => {
             expect(metadata.max_subtitle_lines).toBe(2);
             expect(metadata.subtitle_size).toBe(100);
             expect(metadata.karaoke_enabled).toBe(true);
-            expect(metadata.authorized_credits).toBe(25);
+            expect(metadata.authorized_credits).toBe(30);
         });
 
         it('rejects a non-canonical credit ceiling before opening an upload', async () => {
@@ -809,7 +809,7 @@ describe('API Client', () => {
             });
 
             await expect(api.processVideo(file, {
-                authorized_credits: 45 as 25,
+                authorized_credits: 45 as 30,
             })).rejects.toMatchObject({
                 name: 'ApiError',
                 status: 0,
@@ -827,7 +827,7 @@ describe('API Client', () => {
             const file = new File(['video'], 'oversized-settings.mp4', { type: 'video/mp4' });
 
             await expect(api.processVideo(file, {
-                authorized_credits: 25,
+                authorized_credits: 30,
                 context_prompt: 'α'.repeat(5000),
             })).rejects.toMatchObject({
                 name: 'ApiError',
@@ -848,7 +848,7 @@ describe('API Client', () => {
             const file = new File(['video'], 'cancel.mp4', { type: 'video/mp4' });
             const promise = api.processVideo(
                 file,
-                { authorized_credits: 25 },
+                { authorized_credits: 30 },
                 { signal: controller.signal },
             );
 
@@ -879,7 +879,7 @@ describe('API Client', () => {
 
             const { api } = await import('@/lib/api');
             await api.reprocessJob('source-job', {
-                authorized_credits: 25,
+                authorized_credits: 30,
                 transcribe_provider: 'mock',
                 watermark_enabled: true,
             });
@@ -893,7 +893,7 @@ describe('API Client', () => {
             );
             const request = (fetch as jest.Mock).mock.calls[0][1] as RequestInit;
             expect(JSON.parse(request.body as string)).toEqual(expect.objectContaining({
-                authorized_credits: 25,
+                authorized_credits: 30,
                 transcribe_provider: 'mock',
                 watermark_enabled: true,
             }));
@@ -915,7 +915,7 @@ describe('API Client', () => {
 
             const { api } = await import('@/lib/api');
             await expect(api.reprocessJob('source-job', {
-                authorized_credits: 25,
+                authorized_credits: 30,
             })).rejects.toMatchObject({
                 name: 'ApiError',
                 status: 409,
@@ -931,7 +931,7 @@ describe('API Client', () => {
             const { api } = await import('@/lib/api');
 
             await expect(api.reprocessJob('source-job', {
-                authorized_credits: 45 as 25,
+                authorized_credits: 45 as 30,
             })).rejects.toMatchObject({
                 name: 'ApiError',
                 status: 0,

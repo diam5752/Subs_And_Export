@@ -16,7 +16,7 @@ class VideoCreditQuote:
 
 
 VIDEO_CREDIT_BRACKETS: tuple[VideoCreditQuote, ...] = (
-    VideoCreditQuote(key="up_to_3m", max_duration_seconds=180, credits=25),
+    VideoCreditQuote(key="up_to_3m", max_duration_seconds=180, credits=30),
     VideoCreditQuote(key="up_to_6m", max_duration_seconds=360, credits=60),
     VideoCreditQuote(key="up_to_10m", max_duration_seconds=600, credits=100),
 )

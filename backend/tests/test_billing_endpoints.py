@@ -360,7 +360,7 @@ def test_withdrawal_action_stays_available_pending_manual_timeliness_review(
 def test_credit_catalog_is_public_and_checkout_requires_login(client: TestClient) -> None:
     catalog = client.get("/billing/catalog")
     assert catalog.status_code == 200
-    assert [item["credits"] for item in catalog.json()["video_pricing"]] == [25, 60, 100]
+    assert [item["credits"] for item in catalog.json()["video_pricing"]] == [30, 60, 100]
     assert catalog.json()["consumer_contract_status"] == "approved"
     assert catalog.json()["consumer_contract"]["status"] == "approved"
     assert catalog.json()["consumer_contract"]["content"]["withdrawal_notice"]
