@@ -103,6 +103,8 @@ Maven, Docker and GitHub Actions updates into weekly reviewable pull requests.
 ## Contributing and security
 
 - Read `CONTRIBUTING.md` before opening a pull request.
+- Follow `CODE_OF_CONDUCT.md` and use `SUPPORT.md` to choose the right reporting
+  channel.
 - Use the structured GitHub issue forms for reproducible bugs and feature requests.
 - Never post customer media, transcripts, credentials, payment data or personal
   information in a public issue.
