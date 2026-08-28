@@ -43,13 +43,8 @@ interface OpenCreditPurchaseDialogProps
 
 interface ContractConsentState {
     disclosureIdentity: string;
-    greekBillingAddressConfirmed: boolean;
-    termsAccepted: boolean;
-    immediatePerformanceRequested: boolean;
-    withdrawalConsequencesAcknowledged: boolean;
+    combinedAccepted: boolean;
 }
-
-type ConsentField = Exclude<keyof ContractConsentState, 'disclosureIdentity'>;
 
 const FOCUSABLE_SELECTOR = [
     'a[href]',
@@ -57,6 +52,7 @@ const FOCUSABLE_SELECTOR = [
     'input:not([disabled])',
     'select:not([disabled])',
     'textarea:not([disabled])',
+    'summary',
     '[tabindex]:not([tabindex="-1"])',
 ].join(',');
 
@@ -126,8 +122,6 @@ function OpenCreditPurchaseDialog({
     onRedirect = (checkoutUrl) => window.location.assign(checkoutUrl),
 }: OpenCreditPurchaseDialogProps) {
     const {
-        balance,
-        promotionalBalance,
         reversalDebt,
         aiSpendableBalance,
     } = usePoints();
@@ -147,10 +141,8 @@ function OpenCreditPurchaseDialog({
     const recommendationGapRef = useRef(
         Math.max(0, requiredCredits - (aiSpendableBalance ?? 0)),
     );
-    const termsAcceptanceId = useId();
-    const greekBillingAddressId = useId();
-    const immediatePerformanceId = useId();
-    const withdrawalConsequencesId = useId();
+    const combinedConsentId = useId();
+    const consentConsequenceId = useId();
 
     useDocumentScrollLock(true);
 
@@ -241,8 +233,8 @@ function OpenCreditPurchaseDialog({
         [catalog, selectedKey],
     );
     const consumerContract = catalog?.consumer_contract ?? null;
-    const paidSalesAvailable = Boolean(
-        catalog?.checkout_enabled
+    const paidSalesDisclosureReady = Boolean(
+        catalog
         && Array.isArray(catalog.billing_country_scope)
         && catalog.billing_country_scope.length === 1
         && catalog.billing_country_scope[0] === 'GR'
@@ -251,6 +243,15 @@ function OpenCreditPurchaseDialog({
         && consumerContract.locale === locale
         && paidCreditLegalPublicationIsApproved()
     );
+    const paidSalesAvailable = Boolean(
+        catalog?.checkout_enabled && paidSalesDisclosureReady,
+    );
+    const paidSalesReviewMode = Boolean(
+        !catalog?.checkout_enabled
+        && paidSalesDisclosureReady
+        && process.env.NEXT_PUBLIC_PAID_CREDITS_UI_REVIEW === '1'
+    );
+    const paidSalesVisible = paidSalesAvailable || paidSalesReviewMode;
     const disclosureIdentity = consumerContract
         ? contractDisclosureIdentity(consumerContract)
         : null;
@@ -258,21 +259,14 @@ function OpenCreditPurchaseDialog({
         disclosureIdentity !== null
         && consentState?.disclosureIdentity === disclosureIdentity
     );
-    const termsAccepted = Boolean(
-        consentMatchesDisclosure && consentState?.termsAccepted,
+    const combinedConsentAccepted = Boolean(
+        consentMatchesDisclosure && consentState?.combinedAccepted,
     );
-    const greekBillingAddressConfirmed = Boolean(
-        consentMatchesDisclosure
-        && consentState?.greekBillingAddressConfirmed,
-    );
-    const immediatePerformanceRequested = Boolean(
-        consentMatchesDisclosure
-        && consentState?.immediatePerformanceRequested,
-    );
-    const withdrawalConsequencesAcknowledged = Boolean(
-        consentMatchesDisclosure
-        && consentState?.withdrawalConsequencesAcknowledged,
-    );
+    const termsBaseUrl = consumerContract
+        ? consumerContract.terms_url.split('#')[0]
+        : '/terms';
+    const paidCreditsTermsUrl = `${termsBaseUrl}#seller`;
+    const withdrawalRightsUrl = `${termsBaseUrl}#withdrawal-rights`;
     const missingCredits = Math.max(0, requiredCredits - (aiSpendableBalance ?? 0));
 
     const handlePackageChange = (packageKey: string) => {
@@ -282,19 +276,11 @@ function OpenCreditPurchaseDialog({
         idempotencyKeyRef.current = checkoutIdempotencyKey();
     };
 
-    const updateConsent = (field: ConsentField, checked: boolean) => {
+    const updateConsent = (checked: boolean) => {
         if (!disclosureIdentity) return;
-        setConsentState((current) => {
-            const state = current?.disclosureIdentity === disclosureIdentity
-                ? current
-                : {
-                    disclosureIdentity,
-                    greekBillingAddressConfirmed: false,
-                    termsAccepted: false,
-                    immediatePerformanceRequested: false,
-                    withdrawalConsequencesAcknowledged: false,
-                };
-            return { ...state, [field]: checked };
+        setConsentState({
+            disclosureIdentity,
+            combinedAccepted: checked,
         });
     };
 
@@ -339,10 +325,7 @@ function OpenCreditPurchaseDialog({
             || !paidSalesAvailable
             || !disclosureIdentity
             || consentState?.disclosureIdentity !== disclosureIdentity
-            || !greekBillingAddressConfirmed
-            || !termsAccepted
-            || !immediatePerformanceRequested
-            || !withdrawalConsequencesAcknowledged
+            || !combinedConsentAccepted
         ) return;
         setIsCheckingOut(true);
         setError('');
@@ -392,10 +375,10 @@ function OpenCreditPurchaseDialog({
             data-testid="credit-purchase-dialog"
         >
             <div
-                className="relative max-h-[94dvh] w-full max-w-[760px] overflow-y-auto rounded-[28px] border border-white/10 bg-[#0a0b0e] text-white shadow-[0_30px_100px_rgba(0,0,0,0.65)]"
+                className="relative max-h-[94dvh] w-full max-w-[680px] overflow-y-auto rounded-[26px] border border-white/10 bg-[#0a0b0e] text-white shadow-[0_30px_100px_rgba(0,0,0,0.65)]"
                 onClick={(event) => event.stopPropagation()}
             >
-                <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-white/10 bg-[#0a0b0e]/95 px-5 py-5 backdrop-blur-xl sm:px-8">
+                <div className="sticky top-0 z-10 flex items-start justify-between gap-4 bg-[#0a0b0e]/95 px-5 pt-5 pb-3 backdrop-blur-xl sm:px-7 sm:pt-7">
                     <div>
                         <span className="text-[10px] font-bold uppercase tracking-[0.22em] text-sky-400">
                             {t('creditPurchaseKicker')}
@@ -403,27 +386,33 @@ function OpenCreditPurchaseDialog({
                         <h2 id="credit-purchase-title" className="mt-2 text-2xl font-bold tracking-[-0.04em] sm:text-3xl">
                             {t('creditPurchaseTitle')}
                         </h2>
-                        <p className="mt-2 max-w-xl text-sm leading-6 text-[#9aa2ae]">
-                            {t('creditPurchaseDescription')}
-                        </p>
                     </div>
                     <button
                         ref={closeButtonRef}
                         type="button"
                         onClick={close}
                         disabled={isCheckingOut}
-                        className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-white/10 text-[#9aa2ae] transition hover:bg-white/5 hover:text-white disabled:opacity-40"
+                        className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/15 text-[#9aa2ae] transition hover:border-white/25 hover:bg-white/5 hover:text-white disabled:opacity-40"
                         aria-label={t('closeLabel')}
                     >
                         <span aria-hidden="true">✕</span>
                     </button>
                 </div>
 
-                <div className="space-y-6 px-5 py-6 sm:px-8 sm:py-8">
-                    <div className="grid gap-3 rounded-2xl border border-white/10 bg-white/[0.035] p-4 sm:grid-cols-3">
-                        <WalletMetric label={t('creditPurchaseTotalBalance')} value={balance} />
-                        <WalletMetric label={t('creditPurchaseCloudBalance')} value={aiSpendableBalance} accent />
-                        <WalletMetric label={t('creditPurchasePromoBalance')} value={promotionalBalance} />
+                <div className="space-y-5 px-5 pt-3 pb-5 sm:px-7 sm:pb-7">
+                    <div
+                        data-testid="credit-purchase-available-balance"
+                        className="inline-flex items-center gap-2.5 rounded-xl border border-white/10 bg-white/[0.025] px-3.5 py-2.5"
+                    >
+                        <CoinsIcon className="h-4 w-4 text-sky-400" />
+                        <strong className="text-base text-white">
+                            {aiSpendableBalance === null
+                                ? '—'
+                                : formatPoints(aiSpendableBalance)}
+                        </strong>
+                        <span className="text-sm text-[#b2bac5]">
+                            {t('creditPurchaseAvailableNow')}
+                        </span>
                     </div>
 
                     {requiredCredits > 0 && (
@@ -448,11 +437,11 @@ function OpenCreditPurchaseDialog({
                         <div className="grid min-h-52 place-items-center">
                             <Spinner className="h-6 w-6" />
                         </div>
-                    ) : paidSalesAvailable ? (
+                    ) : paidSalesVisible ? (
                         <div
                             role="radiogroup"
                             aria-label={t('creditPurchasePackagesLabel')}
-                            className="grid gap-3 sm:grid-cols-3"
+                            className="grid grid-cols-3 gap-2.5"
                         >
                             {catalog?.packages.map((creditPackage, index) => (
                                 <PackageOption
@@ -484,14 +473,13 @@ function OpenCreditPurchaseDialog({
                                             );
                                         }
                                     }}
-                                    featuredLabel={t('creditPurchasePopular')}
                                     creditsLabel={t('creditsLabel')}
                                 />
                             ))}
                         </div>
                     ) : null}
 
-                    {catalog && !paidSalesAvailable && (
+                    {catalog && !paidSalesVisible && (
                         <p role="status" className="rounded-2xl border border-amber-300/20 bg-amber-300/[0.07] px-4 py-3 text-sm leading-6 text-amber-100">
                             {t('creditPurchaseNotEnabled')}
                         </p>
@@ -503,167 +491,84 @@ function OpenCreditPurchaseDialog({
                         </p>
                     )}
 
-                    {catalog && consumerContract && paidSalesAvailable && (
-                        <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.025] p-4 text-sm leading-6 text-[#b8c0cb]">
-                            <h3 className="text-base font-semibold text-white">
-                                {consumerContract.content.title}
-                            </h3>
-                            <div className="rounded-xl border border-white/10 bg-black/20 px-4 py-3">
-                                <p className="font-semibold text-white">
-                                    {consumerContract.trader.legal_name}
-                                </p>
-                                <p>
-                                    {consumerContract.trader.trading_name}
-                                    {' · '}
-                                    {consumerContract.trader.service}
-                                </p>
-                                <p>
-                                    {consumerContract.trader.address_line_1}
-                                    {', '}
-                                    {consumerContract.trader.postal_code}
-                                    {' '}
-                                    {consumerContract.trader.city}
-                                    {', '}
-                                    {consumerContract.trader.country}
-                                </p>
-                                <div className="flex flex-wrap gap-x-4">
-                                    <a
-                                        href={`mailto:${consumerContract.trader.support_email}`}
-                                        className="font-semibold text-white underline decoration-white/30 underline-offset-4"
-                                    >
-                                        {consumerContract.trader.support_email}
-                                    </a>
-                                    <a
-                                        href={`tel:${consumerContract.trader.support_phone.replace(/\s/g, '')}`}
-                                        className="font-semibold text-white underline decoration-white/30 underline-offset-4"
-                                    >
-                                        {consumerContract.trader.support_phone}
-                                    </a>
-                                    <a
-                                        href={consumerContract.trader.website}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="font-semibold text-white underline decoration-white/30 underline-offset-4"
-                                    >
-                                        {consumerContract.trader.website}
-                                    </a>
-                                </div>
-                            </div>
-                            <p>{consumerContract.content.service_description}</p>
-                            <p>{consumerContract.content.credit_description}</p>
-                            <p>{consumerContract.content.purchase_terms}</p>
-                            <p>{consumerContract.content.delivery_timing}</p>
-                            <p>{consumerContract.content.validity_and_transfer}</p>
-                            <p>{consumerContract.content.functionality}</p>
-                            <p>{consumerContract.content.compatibility}</p>
-                            <p>{consumerContract.content.withdrawal_notice}</p>
-                            <p>{consumerContract.content.manual_review_notice}</p>
-                            <div className="flex flex-wrap gap-4">
+                    {catalog && consumerContract && paidSalesVisible && (
+                        <div className="space-y-4">
+                            <div
+                                role="note"
+                                className="flex flex-wrap items-center gap-x-2.5 gap-y-2 border-y border-white/10 py-3 text-xs text-[#9da6b2]"
+                            >
+                                <span>{t('creditPurchaseBillingScope')}</span>
+                                <span aria-hidden="true">·</span>
+                                <span>{t('creditPurchaseVatIncluded')}</span>
+                                <span aria-hidden="true">·</span>
+                                <span>{t('creditPurchaseOneOff')}</span>
+                                <span className="hidden h-4 w-px bg-white/10 sm:block" aria-hidden="true" />
                                 <a
-                                    href={consumerContract.terms_url}
+                                    href={paidCreditsTermsUrl}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="font-semibold text-white underline decoration-white/30 underline-offset-4"
+                                    className="font-semibold text-white underline decoration-white/30 underline-offset-4 transition hover:decoration-white"
                                 >
                                     {t('creditPurchaseTermsLink')}
                                 </a>
                                 <a
-                                    href={consumerContract.model_withdrawal_form_url}
+                                    href={withdrawalRightsUrl}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="font-semibold text-white underline decoration-white/30 underline-offset-4"
+                                    className="font-semibold text-white underline decoration-white/30 underline-offset-4 transition hover:decoration-white"
                                 >
-                                    {t('creditPurchaseWithdrawalFormLink')}
+                                    {t('creditPurchaseWithdrawalDetailsLink')}
                                 </a>
                             </div>
-                        </div>
-                    )}
-
-                    {catalog && consumerContract && paidSalesAvailable && (
-                        <div className="space-y-3">
-                            <p
-                                role="note"
-                                className="rounded-2xl border border-sky-400/25 bg-sky-400/[0.07] px-4 py-3 text-sm leading-6 text-sky-100"
-                            >
-                                {t('creditPurchaseGreeceOnlyNotice')}
-                            </p>
-                            <div className="flex items-start gap-3 rounded-2xl border border-sky-400/25 p-4 text-sm leading-6 text-[#d7e6f4]">
+                            <div className="flex items-start gap-3">
                                 <input
-                                    id={greekBillingAddressId}
+                                    id={combinedConsentId}
                                     type="checkbox"
-                                    checked={greekBillingAddressConfirmed}
+                                    checked={combinedConsentAccepted}
+                                    aria-describedby={consentConsequenceId}
                                     onChange={(event) => {
-                                        updateConsent(
-                                            'greekBillingAddressConfirmed',
-                                            event.target.checked,
-                                        );
+                                        updateConsent(event.target.checked);
                                     }}
-                                    className="mt-1 h-4 w-4 rounded border-white/20 accent-sky-400"
+                                    className="mt-0.5 h-5 w-5 shrink-0 rounded border-white/20 accent-sky-400"
                                 />
-                                <label htmlFor={greekBillingAddressId} className="cursor-pointer">
-                                    {t('creditPurchaseGreeceBillingConfirmation')}
-                                </label>
-                            </div>
-                            <div className="flex items-start gap-3 rounded-2xl border border-white/10 p-4 text-sm leading-6 text-[#b8c0cb]">
-                                <input
-                                    id={termsAcceptanceId}
-                                    type="checkbox"
-                                    checked={termsAccepted}
-                                    onChange={(event) => {
-                                        updateConsent(
-                                            'termsAccepted',
-                                            event.target.checked,
-                                        );
-                                    }}
-                                    className="mt-1 h-4 w-4 rounded border-white/20 accent-sky-400"
-                                />
-                                <label htmlFor={termsAcceptanceId} className="cursor-pointer">
-                                    {consumerContract.required_acceptances.terms}
-                                </label>
-                            </div>
-                            <div className="flex items-start gap-3 rounded-2xl border border-white/10 p-4 text-sm leading-6 text-[#b8c0cb]">
-                                <input
-                                    id={immediatePerformanceId}
-                                    type="checkbox"
-                                    checked={immediatePerformanceRequested}
-                                    onChange={(event) => {
-                                        updateConsent(
-                                            'immediatePerformanceRequested',
-                                            event.target.checked,
-                                        );
-                                    }}
-                                    className="mt-1 h-4 w-4 rounded border-white/20 accent-sky-400"
-                                />
-                                <label htmlFor={immediatePerformanceId} className="cursor-pointer">
-                                    {consumerContract.required_acceptances.immediate_performance}
-                                </label>
-                            </div>
-                            <div className="flex items-start gap-3 rounded-2xl border border-white/10 p-4 text-sm leading-6 text-[#b8c0cb]">
-                                <input
-                                    id={withdrawalConsequencesId}
-                                    type="checkbox"
-                                    checked={withdrawalConsequencesAcknowledged}
-                                    onChange={(event) => {
-                                        updateConsent(
-                                            'withdrawalConsequencesAcknowledged',
-                                            event.target.checked,
-                                        );
-                                    }}
-                                    className="mt-1 h-4 w-4 rounded border-white/20 accent-sky-400"
-                                />
-                                <label htmlFor={withdrawalConsequencesId} className="cursor-pointer">
-                                    {consumerContract.required_acceptances.withdrawal_consequences}
-                                </label>
+                                <div>
+                                    <label
+                                        htmlFor={combinedConsentId}
+                                        className="cursor-pointer text-sm font-medium leading-5 text-[#e6eaf0]"
+                                    >
+                                        {t('creditPurchaseConsentRequest')}
+                                    </label>
+                                    <p
+                                        id={consentConsequenceId}
+                                        className="mt-1 text-xs leading-5 text-[#8f98a5]"
+                                    >
+                                        {t('creditPurchaseConsentConsequence')}
+                                    </p>
+                                    <details className="group mt-1.5 text-xs text-[#8f98a5]">
+                                        <summary className="inline-flex cursor-pointer list-none items-center gap-1 font-medium text-[#c8d0da] underline decoration-white/20 underline-offset-4 transition hover:text-white [&::-webkit-details-marker]:hidden">
+                                            {t('creditPurchaseExactConsentDetails')}
+                                            <span
+                                                aria-hidden="true"
+                                                className="text-[10px] transition group-open:rotate-180"
+                                            >
+                                                ▾
+                                            </span>
+                                        </summary>
+                                        <ul className="mt-2 space-y-1.5 border-l border-white/10 pl-4 text-[11px] leading-5">
+                                            {Object.entries(
+                                                consumerContract.required_acceptances,
+                                            ).map(([key, acceptance]) => (
+                                                <li key={key}>{acceptance}</li>
+                                            ))}
+                                        </ul>
+                                    </details>
+                                </div>
                             </div>
                         </div>
                     )}
 
-                    {paidSalesAvailable && (
-                        <div className="flex flex-col gap-3 border-t border-white/10 pt-5 sm:flex-row sm:items-center sm:justify-between">
-                            <p className="flex items-center gap-2 text-xs leading-5 text-[#89929f]">
-                                <span className="grid h-7 w-7 place-items-center rounded-full bg-white/5 text-sky-300" aria-hidden="true">↗</span>
-                                {t('creditPurchaseStripeNote')}
-                            </p>
+                    {paidSalesVisible && (
+                        <div className="flex flex-col border-t border-white/10 pt-5 sm:flex-row sm:justify-end">
                             <button
                                 type="button"
                                 onClick={() => void handleCheckout()}
@@ -674,20 +579,17 @@ function OpenCreditPurchaseDialog({
                                         isAuthenticated
                                         && (
                                             !selectedPackage
-                                            || !greekBillingAddressConfirmed
-                                            || !termsAccepted
-                                            || !immediatePerformanceRequested
-                                            || !withdrawalConsequencesAcknowledged
+                                            || !combinedConsentAccepted
                                         )
                                     )
                                 }
-                                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-sky-500 px-6 font-bold text-white shadow-[0_14px_36px_rgba(14,165,233,0.22)] transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-40"
+                                className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-xl bg-sky-500 px-5 text-sm font-bold text-[#061018] shadow-[0_14px_36px_rgba(14,165,233,0.18)] transition hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-40"
                             >
                                 {isCheckingOut && <Spinner className="h-4 w-4" />}
                                 {!isAuthenticated
                                     ? t('creditPurchaseSignIn')
                                     : selectedPackage
-                                        ? t('creditPurchasePay', {
+                                        ? t('creditPurchaseContinueToPayment', {
                                             amount: (selectedPackage.amount_eur_cents / 100).toFixed(2),
                                         })
                                         : t('creditPurchaseContinue')}
@@ -700,26 +602,6 @@ function OpenCreditPurchaseDialog({
     );
 }
 
-function WalletMetric({
-    label,
-    value,
-    accent = false,
-}: {
-    label: string;
-    value: number | null;
-    accent?: boolean;
-}) {
-    return (
-        <div>
-            <span className="block text-[10px] font-bold uppercase tracking-[0.15em] text-[#7f8895]">{label}</span>
-            <strong className={`mt-1 flex items-center gap-2 text-lg ${accent ? 'text-sky-300' : 'text-white'}`}>
-                <CoinsIcon className="h-4 w-4" />
-                {value === null ? '—' : formatPoints(value)}
-            </strong>
-        </div>
-    );
-}
-
 function PackageOption({
     creditPackage,
     packageLabel,
@@ -727,7 +609,6 @@ function PackageOption({
     onSelect,
     onKeyDown,
     inputRef,
-    featuredLabel,
     creditsLabel,
 }: {
     creditPackage: CreditPackage;
@@ -736,7 +617,6 @@ function PackageOption({
     onSelect: () => void;
     onKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => void;
     inputRef: (element: HTMLInputElement | null) => void;
-    featuredLabel: string;
     creditsLabel: string;
 }) {
     return (
@@ -752,25 +632,20 @@ function PackageOption({
                 className="peer sr-only"
             />
             <span
-                className={`relative block min-h-44 rounded-2xl border p-5 text-left transition peer-focus-visible:outline-none peer-focus-visible:ring-2 peer-focus-visible:ring-sky-300 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-[#0a0b0e] ${
+                className={`relative block min-h-36 rounded-2xl border p-3.5 text-left transition sm:p-4 peer-focus-visible:outline-none peer-focus-visible:ring-2 peer-focus-visible:ring-sky-300 peer-focus-visible:ring-offset-2 peer-focus-visible:ring-offset-[#0a0b0e] ${
                     selected
                         ? 'border-sky-400 bg-sky-400/[0.09] shadow-[0_0_0_1px_rgba(56,189,248,0.25)]'
                         : 'border-white/10 bg-white/[0.025] hover:border-white/20 hover:bg-white/[0.045]'
                 }`}
             >
-                {creditPackage.featured && (
-                    <span className="absolute right-3 top-3 rounded-full bg-sky-400 px-2 py-1 text-[9px] font-black uppercase tracking-[0.12em] text-[#071016]">
-                        {featuredLabel}
-                    </span>
-                )}
-                <span className="block text-xs font-bold uppercase tracking-[0.16em] text-[#8d96a3]">
+                <span className="block truncate text-[10px] font-bold uppercase tracking-[0.16em] text-[#8d96a3] sm:text-xs">
                     {packageLabel}
                 </span>
-                <strong className="mt-6 block text-3xl tracking-[-0.05em]">
+                <strong className="mt-5 block text-2xl tracking-[-0.05em] sm:text-3xl">
                     €{(creditPackage.amount_eur_cents / 100).toFixed(2)}
                 </strong>
-                <span className="mt-3 flex items-center gap-2 text-sm font-semibold text-[#dbe3ec]">
-                    <CoinsIcon className="h-4 w-4 text-sky-300" />
+                <span className="mt-3 flex items-center gap-1.5 text-[11px] font-medium text-[#cbd3dc] sm:text-sm">
+                    <CoinsIcon className="hidden h-3.5 w-3.5 text-sky-300 sm:block" />
                     {formatPoints(creditPackage.credits)} {creditsLabel}
                 </span>
             </span>

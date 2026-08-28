@@ -325,7 +325,7 @@ class StripeSdkGateway:
         }
         session = self._client.v1.checkout.sessions.create(
             {
-                "mode": "payment",
+                "mode": "payment", "submit_type": "pay",
                 "line_items": [{"price": price_id, "quantity": 1}],
                 "success_url": settings.stripe_success_url,
                 "cancel_url": settings.stripe_cancel_url,

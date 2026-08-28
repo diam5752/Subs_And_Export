@@ -37,6 +37,7 @@ type MockHistoryEvent = {
 type MockApiOptions = {
   authenticated?: boolean;
   googleNonceExpiresIn?: number;
+  checkoutEnabled?: boolean;
 };
 
 const corsHeaders = {
@@ -171,7 +172,7 @@ const mockHistory: MockHistoryEvent[] = [
   },
 ];
 
-const mockApprovedConsumerContract = {
+export const mockApprovedConsumerContract = {
   schema_version: 1,
   status: 'approved',
   classification: 'digital_service_with_prepaid_internal_units',
@@ -233,7 +234,11 @@ function withCors(body: unknown, status = 200) {
 }
 
 export async function mockApi(page: Page, options: MockApiOptions = {}): Promise<void> {
-  const { authenticated = true, googleNonceExpiresIn = 600 } = options;
+  const {
+    authenticated = true,
+    googleNonceExpiresIn = 600,
+    checkoutEnabled = true,
+  } = options;
   let signedIn = authenticated;
   let downloadGrantSequence = 0;
   const downloadGrantFilenames = new Map<string, string>();
@@ -343,7 +348,7 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
       catalog_version: '2026-08-28-v2',
       currency: 'eur',
       billing_country_scope: ['GR'],
-      checkout_enabled: true,
+      checkout_enabled: checkoutEnabled,
       consumer_contract_status: 'approved',
       consumer_contract: mockApprovedConsumerContract,
       packages: [

@@ -81,6 +81,7 @@ const paidCreditSections: LegalSection[] = [
         body: 'termsRefundsBody',
     },
     {
+        id: 'withdrawal-rights',
         title: 'termsWithdrawalTitle',
         body: 'termsWithdrawalBody',
     },

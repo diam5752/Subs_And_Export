@@ -117,6 +117,7 @@ export default defineConfig({
       // Keep release E2E deterministic even when a developer has an
       // ignored .env.local configured for a real paid provider.
       NEXT_PUBLIC_API_URL: '',
+      NEXT_PUBLIC_PAID_CREDITS_UI_REVIEW: '1',
       NEXT_PUBLIC_TRANSCRIBE_PROVIDER: 'mock',
       NEXT_PUBLIC_TRANSCRIBE_MODE: 'standard',
     },

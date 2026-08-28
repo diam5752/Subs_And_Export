@@ -1,6 +1,10 @@
 import { expect, test } from '@playwright/test';
 import el from '@/i18n/el.json';
-import { mockApi, waitForUploadWorkspace } from './mocks';
+import {
+  mockApi,
+  mockApprovedConsumerContract,
+  waitForUploadWorkspace,
+} from './mocks';
 
 for (const viewport of [
   { name: 'desktop', width: 1440, height: 900 },
@@ -26,12 +30,71 @@ for (const viewport of [
     await expect(dialog.getByText('€1.00', { exact: true })).toBeVisible();
     await expect(dialog.getByText('€3.00', { exact: true })).toBeVisible();
     await expect(dialog.getByText('€10.00', { exact: true })).toBeVisible();
-    await expect(dialog.getByText('Ascentia G.P.')).toBeVisible();
+    await expect(dialog.getByRole('checkbox')).toHaveCount(1);
+    await expect(dialog.getByRole('checkbox')).toHaveAccessibleName(
+      el.creditPurchaseConsentRequest,
+    );
+    await expect(dialog.getByRole('checkbox')).toHaveAccessibleDescription(
+      el.creditPurchaseConsentConsequence,
+    );
+    await expect(dialog.getByText(
+      mockApprovedConsumerContract.required_acceptances.terms,
+    )).toBeHidden();
+    await expect(dialog.getByRole('note')).toContainText(
+      el.creditPurchaseBillingScope,
+    );
+    await expect(dialog.getByRole('note')).toContainText(
+      el.creditPurchaseVatIncluded,
+    );
+    await expect(dialog.getByRole('note')).toContainText(
+      el.creditPurchaseOneOff,
+    );
+    await expect(dialog.getByRole('link', {
+      name: el.creditPurchaseTermsLink,
+    })).toHaveAttribute('href', '/terms#seller');
+    await expect(dialog.getByText(
+      '100 credits · €1.00 με ΦΠΑ · εφάπαξ αγορά',
+    )).toHaveCount(0);
     await expect(dialog.getByRole('button', {
       name: /€1\.00/,
     })).toBeDisabled();
+
+    await dialog.getByText(el.creditPurchaseExactConsentDetails).click();
+    await expect(dialog.getByText(
+      mockApprovedConsumerContract.required_acceptances.terms,
+    )).toBeVisible();
   });
 }
+
+test('local review shows the same customer-facing purchase UI without checkout', async ({ page }) => {
+  // REGRESSION: localhost displayed internal review messaging instead of the
+  // interface an active customer will see.
+  await mockApi(page, { checkoutEnabled: false });
+  await page.goto('/');
+  await waitForUploadWorkspace(page);
+
+  await page.getByTestId('credits-balance').click();
+
+  const dialog = page.getByRole('dialog', {
+    name: el.creditPurchaseTitle,
+  });
+  await expect(dialog.getByRole('status')).toHaveCount(0);
+  await expect(dialog.getByTestId(
+    'credit-purchase-available-balance',
+  )).toContainText(`100${el.creditPurchaseAvailableNow}`);
+  await expect(dialog.getByRole('radio')).toHaveCount(3);
+  await expect(dialog.getByRole('checkbox')).toHaveCount(1);
+  await expect(dialog.getByText(el.creditPurchaseConsentConsequence)).toBeVisible();
+
+  const purchaseButton = dialog.getByRole('button', {
+    name: el.creditPurchaseContinueToPayment.replace('{amount}', '1.00'),
+  });
+  await expect(purchaseButton).toBeDisabled();
+  await dialog.getByRole('checkbox').check();
+  await expect(purchaseButton).toBeEnabled();
+  await purchaseButton.click();
+  await expect(page).toHaveURL('/');
+});
 
 test('approved terms expose seller, payment, refund and withdrawal wording', async ({ page }) => {
   await page.goto('/terms');
@@ -45,6 +108,8 @@ test('approved terms expose seller, payment, refund and withdrawal wording', asy
   })).toBeVisible();
   await expect(page.getByText(el.termsRefundsBody)).toBeVisible();
   await expect(page.getByText(el.termsWithdrawalFormBody)).toBeVisible();
+  await expect(page.locator('#paid-credits')).toHaveCount(1);
+  await expect(page.locator('#withdrawal-rights')).toHaveCount(1);
   await expect(page.locator('#withdrawal')).toHaveCount(1);
 });
 

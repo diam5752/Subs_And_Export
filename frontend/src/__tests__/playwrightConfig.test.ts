@@ -28,6 +28,7 @@ describe('Playwright server isolation', () => {
         HOSTNAME: '127.0.0.1',
         PORT: '31873',
         NEXT_PUBLIC_API_URL: '',
+        NEXT_PUBLIC_PAID_CREDITS_UI_REVIEW: '1',
         NEXT_PUBLIC_TRANSCRIBE_PROVIDER: 'mock',
         NEXT_PUBLIC_TRANSCRIBE_MODE: 'standard',
       },

@@ -24,7 +24,7 @@ Reusable procedures live in `.agent/workflows/`:
 1.  **[Universal Sync](.agent/rules/000-universal-sync.md):** Keep all config files in sync.
 2.  **[Core Architecture](.agent/rules/00-core-architecture.md):** Local-First hybrid Next.js + Python + Java/Spring surface. Refactor legacy code on sight.
 3.  **[Stack Standards](.agent/rules/01-stack-standards.md):** Strict TypeScript, Python Type Hints, Java 25 Spring standards, TailwindCSS v4, and `pathlib` over `os.path`.
-4.  **[Testing Policy](.agent/rules/02-testing-coverage.md):** Zero-gap coverage. No tests = No merge.
+4.  **[Testing Policy](.agent/rules/02-testing-coverage.md):** Zero-gap coverage. Run targeted tests while iterating; run the complete suite only at the final PR gate. No tests = No merge.
 
 ## 🤖 Registered Agents
 *   **[Bolt](.jules/bolt.md):** Backend Performance & Pipeline Efficiency
@@ -33,7 +33,9 @@ Reusable procedures live in `.agent/workflows/`:
 *   **[Cerberus](.jules/cerberus.md):** Test Integrity & Quality Assurance 🐕‍🦺
 
 ## 🚀 Quick Start
-*   **Frontend Test:** `npm test` / `npm run e2e`
-*   **Backend Test:** `python3 -m pytest`
+Use focused test selectors during implementation. Run the complete commands below only when the change is finished and ready to open, update, or finalize a PR.
+
+*   **Frontend Full Suite:** `npm test` / `npm run e2e`
+*   **Backend Full Suite:** `python3 -m pytest`
 *   **Java/Spring Test:** `make check-java` (requires JDK 25)
 *   **Lint:** `npm run lint` / `ruff check .`

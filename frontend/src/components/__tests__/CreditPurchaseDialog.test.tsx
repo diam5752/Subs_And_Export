@@ -15,6 +15,9 @@ import { api, type CreditCatalogResponse } from '@/lib/api';
 
 const mockPaidCreditLegalPublication = { approved: true };
 const mockLocaleState = { locale: 'el' as 'el' | 'en' };
+const originalPaidCreditUiReview = (
+    process.env.NEXT_PUBLIC_PAID_CREDITS_UI_REVIEW
+);
 
 jest.mock('@/lib/paidCreditLegal', () => ({
     paidCreditLegalPublicationIsApproved: () => (
@@ -117,10 +120,10 @@ const catalog = {
     ],
 };
 
-function acceptAllConsumerTerms(): void {
-    screen.getAllByRole('checkbox').forEach((checkbox) => {
-        fireEvent.click(checkbox);
-    });
+function acceptConsumerTerms(): void {
+    fireEvent.click(screen.getByRole('checkbox', {
+        name: 'creditPurchaseConsentRequest',
+    }));
 }
 
 function deferred<T>() {
@@ -155,6 +158,7 @@ describe('CreditPurchaseDialog', () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
+        delete process.env.NEXT_PUBLIC_PAID_CREDITS_UI_REVIEW;
         mockPaidCreditLegalPublication.approved = true;
         mockLocaleState.locale = 'el';
         (api.getCreditCatalog as jest.Mock).mockResolvedValue(catalog);
@@ -196,6 +200,16 @@ describe('CreditPurchaseDialog', () => {
         expect(scrollTo).toHaveBeenCalledWith(0, 220);
     });
 
+    afterAll(() => {
+        if (originalPaidCreditUiReview === undefined) {
+            delete process.env.NEXT_PUBLIC_PAID_CREDITS_UI_REVIEW;
+        } else {
+            process.env.NEXT_PUBLIC_PAID_CREDITS_UI_REVIEW = (
+                originalPaidCreditUiReview
+            );
+        }
+    });
+
     it('accepts only the exact Stripe hosted-checkout origin', () => {
         expect(isAllowedStripeCheckoutUrl('https://checkout.stripe.com/c/pay/cs_test_123')).toBe(true);
         expect(isAllowedStripeCheckoutUrl('http://checkout.stripe.com/c/pay/test')).toBe(false);
@@ -221,8 +235,10 @@ describe('CreditPurchaseDialog', () => {
         expect(starter).toBeChecked();
         expect(screen.getByText(/creditPurchaseMissing/)).toHaveTextContent('40');
 
-        acceptAllConsumerTerms();
-        fireEvent.click(screen.getByRole('button', { name: /creditPurchasePay/ }));
+        acceptConsumerTerms();
+        fireEvent.click(screen.getByRole('button', {
+            name: /creditPurchaseContinueToPayment/,
+        }));
 
         await waitFor(() => {
             expect(api.createCreditCheckout).toHaveBeenCalledWith(
@@ -290,8 +306,10 @@ describe('CreditPurchaseDialog', () => {
         fireEvent.click(screen.getByTestId('credit-purchase-dialog'));
         expect(onClose).toHaveBeenCalledTimes(2);
 
-        acceptAllConsumerTerms();
-        fireEvent.click(screen.getByRole('button', { name: /creditPurchasePay/ }));
+        acceptConsumerTerms();
+        fireEvent.click(screen.getByRole('button', {
+            name: /creditPurchaseContinueToPayment/,
+        }));
 
         await waitFor(() => {
             expect(api.createCreditCheckout).toHaveBeenCalledWith(
@@ -357,14 +375,16 @@ describe('CreditPurchaseDialog', () => {
         const closeButton = screen.getByRole('button', { name: 'closeLabel' });
         await waitFor(() => expect(closeButton).toHaveFocus());
         await screen.findByRole('radio', { name: /starter/i });
-        const lastConsent = screen.getAllByRole('checkbox')[3];
+        const lastDisclosureControl = screen.getByText(
+            'creditPurchaseExactConsentDetails',
+        );
 
-        lastConsent.focus();
+        lastDisclosureControl.focus();
         fireEvent.keyDown(document, { key: 'Tab' });
         expect(closeButton).toHaveFocus();
 
         fireEvent.keyDown(document, { key: 'Tab', shiftKey: true });
-        expect(lastConsent).toHaveFocus();
+        expect(lastDisclosureControl).toHaveFocus();
 
         fireEvent.keyDown(document, { key: 'Escape' });
         expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
@@ -387,7 +407,7 @@ describe('CreditPurchaseDialog', () => {
         expect(await screen.findByRole('alert')).toHaveTextContent('creditPurchaseLoadError');
         expect(screen.queryByRole('radio')).not.toBeInTheDocument();
         expect(screen.queryByRole('button', {
-            name: /creditPurchase(?:Continue|Pay|SignIn)/,
+            name: /creditPurchase(?:ContinueToPayment|Continue|SignIn)/,
         })).not.toBeInTheDocument();
         expect(api.createCreditCheckout).not.toHaveBeenCalled();
     });
@@ -411,8 +431,10 @@ describe('CreditPurchaseDialog', () => {
         );
 
         await screen.findByRole('radio', { name: /starter/i });
-        acceptAllConsumerTerms();
-        fireEvent.click(screen.getByRole('button', { name: /creditPurchasePay/ }));
+        acceptConsumerTerms();
+        fireEvent.click(screen.getByRole('button', {
+            name: /creditPurchaseContinueToPayment/,
+        }));
 
         expect(await screen.findByRole('alert')).toHaveTextContent('creditPurchaseUnsafeRedirect');
         expect(onRedirect).not.toHaveBeenCalled();
@@ -440,9 +462,54 @@ describe('CreditPurchaseDialog', () => {
         expect(screen.queryByText('€3.00')).not.toBeInTheDocument();
         expect(screen.queryByText('€10.00')).not.toBeInTheDocument();
         expect(screen.queryByRole('button', {
-            name: /creditPurchase(?:Continue|Pay|SignIn)/,
+            name: /creditPurchase(?:ContinueToPayment|Continue|SignIn)/,
         })).not.toBeInTheDocument();
         expect(api.createCreditCheckout).not.toHaveBeenCalled();
+    });
+
+    it('shows the customer-facing purchase UI in safe local review mode', async () => {
+        // REGRESSION: local design review showed internal preview messaging
+        // instead of the exact interface an active customer will see.
+        process.env.NEXT_PUBLIC_PAID_CREDITS_UI_REVIEW = '1';
+        (api.getCreditCatalog as jest.Mock).mockResolvedValueOnce({
+            ...catalog,
+            checkout_enabled: false,
+        });
+
+        render(
+            <CreditPurchaseDialog
+                isOpen
+                isAuthenticated
+                onClose={onClose}
+                onRequireAuth={onRequireAuth}
+                onRedirect={onRedirect}
+            />,
+        );
+
+        expect(await screen.findByRole('radio', { name: /starter/i })).toBeChecked();
+        expect(screen.queryByRole('status')).not.toBeInTheDocument();
+        expect(screen.queryByText('creditPurchaseDescription')).not.toBeInTheDocument();
+        expect(screen.getByTestId(
+            'credit-purchase-available-balance',
+        )).toHaveTextContent('20creditPurchaseAvailableNow');
+        expect(screen.queryByText('creditPurchaseTotalBalance')).not.toBeInTheDocument();
+        expect(screen.queryByText('creditPurchaseCloudBalance')).not.toBeInTheDocument();
+        expect(screen.queryByText('creditPurchasePromoBalance')).not.toBeInTheDocument();
+        expect(screen.getByText('€1.00')).toBeVisible();
+        expect(screen.getByText('€3.00')).toBeVisible();
+        expect(screen.getByText('€10.00')).toBeVisible();
+        expect(screen.getAllByRole('checkbox')).toHaveLength(1);
+        expect(screen.queryByText('creditPurchaseStripeNote')).not.toBeInTheDocument();
+
+        const purchaseButton = screen.getByRole('button', {
+            name: /creditPurchaseContinueToPayment/,
+        });
+        expect(purchaseButton).toBeDisabled();
+        acceptConsumerTerms();
+        expect(purchaseButton).toBeEnabled();
+        fireEvent.click(purchaseButton);
+        expect(api.createCreditCheckout).not.toHaveBeenCalled();
+        expect(onRedirect).not.toHaveBeenCalled();
     });
 
     it('fails closed unless the backend publishes an exact Greece-only billing scope', async () => {
@@ -580,7 +647,7 @@ describe('CreditPurchaseDialog', () => {
         expect(api.createCreditCheckout).not.toHaveBeenCalled();
     });
 
-    it('requires Greece eligibility plus three distinct unchecked acceptances and does not let links toggle them', async () => {
+    it('requires one explicit combined acceptance and does not let legal links toggle it', async () => {
         render(
             <CreditPurchaseDialog
                 isOpen
@@ -592,30 +659,43 @@ describe('CreditPurchaseDialog', () => {
         );
 
         await screen.findByRole('radio', { name: /starter/i });
-        const checkboxes = screen.getAllByRole('checkbox');
-        expect(checkboxes).toHaveLength(4);
-        checkboxes.forEach((checkbox) => expect(checkbox).not.toBeChecked());
-        expect(screen.getByRole('note')).toHaveTextContent(
-            'creditPurchaseGreeceOnlyNotice',
+        const checkbox = screen.getByRole('checkbox', {
+            name: 'creditPurchaseConsentRequest',
+        });
+        expect(screen.getAllByRole('checkbox')).toHaveLength(1);
+        expect(checkbox).not.toBeChecked();
+        expect(checkbox).toHaveAccessibleDescription(
+            'creditPurchaseConsentConsequence',
         );
-        expect(screen.getByRole('checkbox', {
-            name: 'creditPurchaseGreeceBillingConfirmation',
-        })).not.toBeChecked();
+        expect(screen.getByRole('note')).toHaveTextContent(
+            'creditPurchaseBillingScope',
+        );
+        expect(screen.getByRole('note')).toHaveTextContent(
+            'creditPurchaseVatIncluded',
+        );
+        expect(screen.getByRole('note')).toHaveTextContent(
+            'creditPurchaseOneOff',
+        );
 
         fireEvent.click(screen.getByRole('link', { name: 'creditPurchaseTermsLink' }));
-        checkboxes.forEach((checkbox) => expect(checkbox).not.toBeChecked());
+        expect(checkbox).not.toBeChecked();
+        expect(screen.getByRole('button', {
+            name: /creditPurchaseContinueToPayment/,
+        })).toBeDisabled();
 
-        fireEvent.click(checkboxes[0]);
-        fireEvent.click(checkboxes[1]);
-        fireEvent.click(checkboxes[2]);
-        expect(screen.getByRole('button', { name: /creditPurchasePay/ })).toBeDisabled();
-        fireEvent.click(checkboxes[3]);
-        expect(screen.getByRole('button', { name: /creditPurchasePay/ })).toBeEnabled();
+        fireEvent.click(screen.getByText('creditPurchaseExactConsentDetails'));
+        expect(checkbox).not.toBeChecked();
+
+        fireEvent.click(checkbox);
+        expect(screen.getByRole('button', {
+            name: /creditPurchaseContinueToPayment/,
+        })).toBeEnabled();
     });
 
-    // REGRESSION: the dialog previously omitted canonical trader, functionality,
-    // compatibility, and manual-review disclosure fields before consent.
-    it('shows the complete canonical consumer disclosure before consent', async () => {
+    // REGRESSION: the complete contract made the purchase decision unreadable.
+    // Keep the mandatory purchase essentials next to the CTA and route the full
+    // pre-contract information to stable, anchored legal sections.
+    it('keeps purchase essentials in the dialog and links the full disclosure elsewhere', async () => {
         render(
             <CreditPurchaseDialog
                 isOpen
@@ -628,56 +708,42 @@ describe('CreditPurchaseDialog', () => {
 
         await screen.findByRole('radio', { name: /starter/i });
 
-        const disclosureTitle = screen.getByRole('heading', {
-            name: consumerContract.content.title,
-        });
-        const traderName = screen.getByText(
+        expect(screen.getByRole('note')).toHaveTextContent(
+            'creditPurchaseBillingScope',
+        );
+        expect(screen.getByRole('link', {
+            name: 'creditPurchaseTermsLink',
+        })).toHaveAttribute('href', '/terms#seller');
+        expect(screen.getByRole('link', {
+            name: 'creditPurchaseWithdrawalDetailsLink',
+        })).toHaveAttribute('href', '/terms#withdrawal-rights');
+        expect(screen.getByText('€1.00')).toBeVisible();
+        expect(screen.getByRole('radio', {
+            name: /starter/i,
+        })).toHaveAccessibleName(/100/);
+        // REGRESSION: the footer repeated the selected package and implied that
+        // this pre-Stripe step placed the paid order.
+        expect(screen.queryByText(/creditPurchaseOrderSummary/)).not.toBeInTheDocument();
+        expect(screen.getByRole('button', {
+            name: /creditPurchaseContinueToPayment.*"amount":"1.00"/,
+        })).toBeDisabled();
+        expect(screen.queryByText(
             consumerContract.trader.legal_name,
-        );
-        const traderService = screen.getByText(
-            `${consumerContract.trader.trading_name} · ${consumerContract.trader.service}`,
-        );
-        const traderAddress = screen.getByText(
-            `${consumerContract.trader.address_line_1}, ${consumerContract.trader.postal_code} ${consumerContract.trader.city}, ${consumerContract.trader.country}`,
-        );
-        const traderEmail = screen.getByRole('link', {
-            name: consumerContract.trader.support_email,
+        )).not.toBeInTheDocument();
+        Object.values(consumerContract.content).forEach((content) => {
+            expect(screen.queryByText(content)).not.toBeInTheDocument();
         });
-        const traderPhone = screen.getByRole('link', {
-            name: consumerContract.trader.support_phone,
-        });
-        const traderWebsite = screen.getByRole('link', {
-            name: consumerContract.trader.website,
-        });
-        expect(traderEmail).toHaveAttribute(
-            'href',
-            `mailto:${consumerContract.trader.support_email}`,
+        Object.values(consumerContract.required_acceptances).forEach(
+            (acceptance) => {
+                expect(screen.getByText(acceptance)).not.toBeVisible();
+            },
         );
-        expect(traderPhone).toHaveAttribute('href', 'tel:+306987564060');
-        expect(traderWebsite).toHaveAttribute(
-            'href',
-            consumerContract.trader.website,
+        fireEvent.click(screen.getByText('creditPurchaseExactConsentDetails'));
+        Object.values(consumerContract.required_acceptances).forEach(
+            (acceptance) => {
+                expect(screen.getByText(acceptance)).toBeVisible();
+            },
         );
-
-        const firstConsent = screen.getAllByRole('checkbox')[0];
-        const canonicalDisclosureElements = [
-            traderName,
-            traderService,
-            traderAddress,
-            traderEmail,
-            traderPhone,
-            traderWebsite,
-            ...Object.values(consumerContract.content).map((text) => (
-                screen.getByText(text)
-            )),
-        ];
-        expect(disclosureTitle).toBeInTheDocument();
-        canonicalDisclosureElements.forEach((element) => {
-            expect(
-                element.compareDocumentPosition(firstConsent)
-                & Node.DOCUMENT_POSITION_FOLLOWING,
-            ).toBeTruthy();
-        });
     });
 
     it('clears every acceptance and rotates the intent when the package changes', async () => {
@@ -692,15 +758,19 @@ describe('CreditPurchaseDialog', () => {
         );
 
         await screen.findByRole('radio', { name: /starter/i });
-        acceptAllConsumerTerms();
-        expect(screen.getByRole('button', { name: /creditPurchasePay/ })).toBeEnabled();
+        acceptConsumerTerms();
+        expect(screen.getByRole('button', {
+            name: /creditPurchaseContinueToPayment/,
+        })).toBeEnabled();
 
         fireEvent.click(screen.getByRole('radio', { name: /creator/i }));
 
         screen.getAllByRole('checkbox').forEach((checkbox) => {
             expect(checkbox).not.toBeChecked();
         });
-        expect(screen.getByRole('button', { name: /creditPurchasePay/ })).toBeDisabled();
+        expect(screen.getByRole('button', {
+            name: /creditPurchaseContinueToPayment/,
+        })).toBeDisabled();
     });
 
     // REGRESSION: a locale change could leave the previous disclosure and its
@@ -728,9 +798,9 @@ describe('CreditPurchaseDialog', () => {
             greekCatalog.resolve(catalog);
         });
         await screen.findByRole('radio', { name: /starter/i });
-        acceptAllConsumerTerms();
+        acceptConsumerTerms();
         expect(screen.getByRole('button', {
-            name: /creditPurchasePay/,
+            name: /creditPurchaseContinueToPayment/,
         })).toBeEnabled();
 
         mockLocaleState.locale = 'en';
@@ -739,7 +809,7 @@ describe('CreditPurchaseDialog', () => {
         expect(screen.queryByRole('radio')).not.toBeInTheDocument();
         expect(screen.queryAllByRole('checkbox')).toHaveLength(0);
         expect(screen.queryByRole('button', {
-            name: /creditPurchasePay/,
+            name: /creditPurchaseContinueToPayment/,
         })).not.toBeInTheDocument();
 
         const changedCatalog = {
@@ -763,12 +833,12 @@ describe('CreditPurchaseDialog', () => {
             expect(checkbox).not.toBeChecked();
         });
         expect(screen.getByRole('button', {
-            name: /creditPurchasePay/,
+            name: /creditPurchaseContinueToPayment/,
         })).toBeDisabled();
 
-        acceptAllConsumerTerms();
+        acceptConsumerTerms();
         fireEvent.click(screen.getByRole('button', {
-            name: /creditPurchasePay/,
+            name: /creditPurchaseContinueToPayment/,
         }));
         await waitFor(() => {
             expect(api.createCreditCheckout).toHaveBeenCalledWith(
@@ -809,9 +879,9 @@ describe('CreditPurchaseDialog', () => {
         const view = render(renderDialog(true));
 
         await screen.findByRole('radio', { name: /starter/i });
-        acceptAllConsumerTerms();
+        acceptConsumerTerms();
         expect(screen.getByRole('button', {
-            name: /creditPurchasePay/,
+            name: /creditPurchaseContinueToPayment/,
         })).toBeEnabled();
 
         view.rerender(renderDialog(false));
@@ -831,7 +901,7 @@ describe('CreditPurchaseDialog', () => {
             expect(checkbox).not.toBeChecked();
         });
         expect(screen.getByRole('button', {
-            name: /creditPurchasePay/,
+            name: /creditPurchaseContinueToPayment/,
         })).toBeDisabled();
     });
 });
