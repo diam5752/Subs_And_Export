@@ -42,7 +42,7 @@ test.describe('Video Processing Flow', () => {
         })).toBeEnabled();
     });
 
-    test('authoritative 30-to-60 quote change requires a second explicit confirmation', async ({ page }) => {
+    test('authoritative 25-to-60 quote change requires a second explicit confirmation', async ({ page }) => {
         // REGRESSION: the browser must not silently retry when server-measured
         // duration crosses a pricing boundary after the first confirmation.
         await mockApi(page);
@@ -94,7 +94,7 @@ test.describe('Video Processing Flow', () => {
             name: el.processingGateCostTitle,
         });
         await costDialog.getByRole('button', {
-            name: new RegExp(el.processingGateConfirm.replace('{cost}', '30')),
+            name: new RegExp(el.processingGateConfirm.replace('{cost}', '25')),
         }).click();
 
         await expect(costDialog).toBeVisible();
@@ -106,7 +106,7 @@ test.describe('Video Processing Flow', () => {
         );
         expect(processRequests).toBe(1);
         expect(processMetadata[0]).toEqual(expect.objectContaining({
-            authorized_credits: 30,
+            authorized_credits: 25,
             filename: 'demo_output.mp4',
         }));
 
@@ -123,7 +123,7 @@ test.describe('Video Processing Flow', () => {
         }));
         const { authorized_credits: firstCredits, ...firstSettings } = processMetadata[0];
         const { authorized_credits: secondCredits, ...secondSettings } = processMetadata[1];
-        expect(firstCredits).toBe(30);
+        expect(firstCredits).toBe(25);
         expect(secondCredits).toBe(60);
         expect(secondSettings).toEqual(firstSettings);
         await page.waitForTimeout(250);

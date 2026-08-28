@@ -111,7 +111,7 @@ const catalog = {
         { key: 'studio', credits: 1200, amount_eur_cents: 1000, featured: false },
     ],
     video_pricing: [
-        { key: 'up_to_3m', max_duration_seconds: 180, credits: 30 },
+        { key: 'up_to_3m', max_duration_seconds: 180, credits: 25 },
         { key: 'up_to_6m', max_duration_seconds: 360, credits: 60 },
         { key: 'up_to_10m', max_duration_seconds: 600, credits: 100 },
     ],

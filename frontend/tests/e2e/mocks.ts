@@ -340,7 +340,7 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
   await page.route(/\/billing\/catalog(?:\?.*)?$/, async (route) => {
     if (await shortCircuitOptions(route)) return;
     await route.fulfill(withCors({
-      catalog_version: '2026-07-23-v1',
+      catalog_version: '2026-08-28-v2',
       currency: 'eur',
       billing_country_scope: ['GR'],
       checkout_enabled: true,
@@ -352,7 +352,7 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
         { key: 'pro', credits: 1200, amount_eur_cents: 1000, featured: false },
       ],
       video_pricing: [
-        { key: 'up_to_3m', max_duration_seconds: 180, credits: 30 },
+        { key: 'up_to_3m', max_duration_seconds: 180, credits: 25 },
         { key: 'up_to_6m', max_duration_seconds: 360, credits: 60 },
         { key: 'up_to_10m', max_duration_seconds: 600, credits: 100 },
       ],

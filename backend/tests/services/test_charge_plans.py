@@ -89,9 +89,9 @@ class TestReserveTranscriptionCharge:
         assert reservation.action == "transcription"
         assert reservation.tier == "standard"
         assert reservation.provider == "groq"
-        assert reservation.min_credits == 30
-        assert reservation.reserved_credits == 30
-        assert balance == starting_balance - 30
+        assert reservation.min_credits == 25
+        assert reservation.reserved_credits == 25
+        assert balance == starting_balance - 25
 
     def test_reserve_pro_tier(self) -> None:
         db = Database()
@@ -120,8 +120,8 @@ class TestReserveTranscriptionCharge:
         )
 
         assert reservation.tier == "pro"
-        assert reservation.reserved_credits == 30
-        assert balance == starting_balance - 30
+        assert reservation.reserved_credits == 25
+        assert balance == starting_balance - 25
 
 
 class TestReserveLlmCharge:
@@ -197,9 +197,9 @@ class TestReserveProcessingCharges:
         assert charge_plan.social_copy is not None
         assert charge_plan.transcription.action == "transcription"
         assert charge_plan.social_copy.action == "social_copy"
-        assert charge_plan.transcription.reserved_credits == 30
+        assert charge_plan.transcription.reserved_credits == 25
         assert charge_plan.social_copy.reserved_credits == 0
-        assert balance == starting_balance - 30
+        assert balance == starting_balance - 25
 
     def test_reserve_without_llm(self) -> None:
         db = Database()
@@ -232,7 +232,7 @@ class TestReserveProcessingCharges:
         assert charge_plan.transcription is not None
         assert charge_plan.social_copy is None
         # Only transcription charge
-        assert balance == starting_balance - 30
+        assert balance == starting_balance - 25
 
 
 def test_processing_preflight_rejects_zero_credit_without_reserving() -> None:

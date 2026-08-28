@@ -9,7 +9,10 @@ from decimal import Decimal, localcontext
 from backend.app.core.errors import ProviderBudgetExceededError
 
 VAT_RATE = Decimal("0.24")
-STRIPE_PERCENT_FEE = Decimal("0.015")
+# Checkout is restricted by billing country, not by card-issuing country. Use
+# Stripe's international-card rate plus the possible currency-conversion
+# uplift so the shared credit wallet remains safe regardless of purchase mix.
+STRIPE_PERCENT_FEE = Decimal("0.0515")
 STRIPE_FIXED_FEE_EUR = Decimal("0.25")
 USD_TO_EUR_SAFETY_RATE = Decimal("1")
 PROVIDER_COST_COVERAGE_MULTIPLIER = Decimal("3")
@@ -38,7 +41,7 @@ class ProviderEconomicsQuote:
 
 
 def minimum_net_revenue_per_credit_eur() -> Decimal:
-    """Return the most conservative net package value after VAT and Stripe."""
+    """Return the stress-case net package value after VAT and Stripe."""
     with localcontext() as context:
         context.prec = 28
         values = []

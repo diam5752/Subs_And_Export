@@ -842,7 +842,7 @@ def test_reprocess_rejects_authoritative_quote_increase_before_financial_or_prov
         client,
         headers,
         content=b"private-source",
-        metadata={"authorized_credits": 30},
+        metadata={"authorized_credits": 25},
     )
     assert source.status_code == 200
     source_job_id = source.json()["id"]
@@ -890,7 +890,7 @@ def test_reprocess_rejects_authoritative_quote_increase_before_financial_or_prov
     response = client.post(
         f"/videos/jobs/{source_job_id}/reprocess",
         headers=headers,
-        json={"authorized_credits": 30},
+        json={"authorized_credits": 25},
     )
 
     assert response.status_code == 409

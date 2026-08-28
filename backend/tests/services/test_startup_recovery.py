@@ -67,7 +67,7 @@ def test_startup_recovery_fails_job_refunds_and_deletes_workspace(
         enforce_budget=False,
         require_paid_credits=False,
     )
-    assert points_store.get_balance(user.id) == 70
+    assert points_store.get_balance(user.id) == 75
 
     journal = ErasureJournal(tmp_path / "journal", retention_days=30)
     journal.initialize()

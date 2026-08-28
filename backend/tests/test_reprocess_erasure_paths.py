@@ -26,8 +26,8 @@ from backend.app.services.usage_ledger import ChargePlan, UsageLedgerStore
     (
         {},
         {"authorized_credits": True},
-        {"authorized_credits": "30"},
-        {"authorized_credits": 29},
+        {"authorized_credits": "25"},
+        {"authorized_credits": 24},
     ),
 )
 def test_reprocess_requires_a_strict_canonical_authorized_credit_tier(
@@ -396,7 +396,7 @@ def test_reprocess_rejects_nan_probe_before_copy_or_financial_side_effects(
             source_job_id,
             ReprocessRequest.model_validate(
                 {
-                    "authorized_credits": 30,
+                    "authorized_credits": 25,
                     "transcribe_provider": "local",
                     "use_llm": False,
                 },

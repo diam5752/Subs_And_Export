@@ -416,7 +416,7 @@ describe('UploadSection', () => {
         };
 
         const { rerender } = renderUpload();
-        expect(screen.getByRole('button', { name: /startProcessing 30/i })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /startProcessing 25/i })).toBeInTheDocument();
 
         contextValue.selectedJob = {
             status: 'completed',
@@ -446,7 +446,7 @@ describe('UploadSection', () => {
         renderUpload();
 
         const pricing = screen.getByTestId('video-credit-pricing');
-        expect(pricing).toHaveTextContent('30 creditsLabel');
+        expect(pricing).toHaveTextContent('25 creditsLabel');
         expect(pricing).toHaveTextContent('60 creditsLabel');
         expect(pricing).toHaveTextContent('100 creditsLabel');
         expect(pricing.querySelector('[data-active="true"]')).toHaveTextContent('100 creditsLabel');

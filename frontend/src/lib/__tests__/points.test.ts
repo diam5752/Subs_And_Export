@@ -23,14 +23,14 @@ describe('points pricing helpers', () => {
         expect(processVideoCostForTranscribeModel('pro')).toBe(PROCESS_VIDEO_DEFAULT_COST);
         expect(processVideoCostForSelection('groq', 'pro')).toBe(100);
         expect(processVideoCostForSelection('groq', 'standard')).toBe(PROCESS_VIDEO_DEFAULT_COST);
-        expect(processVideoCostForSelection('groq', 'pro', 180)).toBe(30);
+        expect(processVideoCostForSelection('groq', 'pro', 180)).toBe(25);
         expect(processVideoCostForSelection('groq', 'standard', 180.001)).toBe(60);
         expect(processVideoCostForSelection('openai', 'pro', 600)).toBe(100);
     });
 
     it('uses exact 3, 6 and 10 minute boundaries', () => {
-        expect(processVideoCostForDuration(0.1)).toBe(30);
-        expect(processVideoCostForDuration(180)).toBe(30);
+        expect(processVideoCostForDuration(0.1)).toBe(25);
+        expect(processVideoCostForDuration(180)).toBe(25);
         expect(processVideoCostForDuration(180.001)).toBe(60);
         expect(processVideoCostForDuration(360)).toBe(60);
         expect(processVideoCostForDuration(360.001)).toBe(100);

@@ -1,6 +1,6 @@
 # Prepaid video credits and Stripe handoff
 
-Updated: 2026-08-01
+Updated: 2026-08-28
 
 Stripe test-mode Checkout and the complete live production configuration have
 been validated. Production paid credits are enabled only by the reviewed,
@@ -14,7 +14,7 @@ does not change the visible price of a video.
 
 | Server-measured duration | Credits |
 | --- | ---: |
-| `0:01` through `3:00` | 30 |
+| `0:01` through `3:00` | 25 |
 | `3:00.001` through `6:00` | 60 |
 | `6:00.001` through `10:00` | 100 |
 
@@ -31,12 +31,16 @@ The immutable package catalog is:
 | Studio (`pro`) | €10.00 | 1,200 | 12 |
 
 New accounts start with zero credits; GSUBS does not grant signup, trial or
-email-verification credits automatically. Purchased and any legacy or explicit
-non-paid credits remain separate in the ledger. Any request that can spend
-money at an external provider requires purchased credits; non-paid credits can
-fund only local/mock work. A refund or dispute claws back unused paid credits
-and records debt for credits already consumed. A later purchase repays that
-debt before becoming spendable.
+email-verification credits automatically. When the explicitly configured Beta
+login campaign is enabled, the first 50 distinct users to complete a real login
+receive 30 operator-sponsored, cloud-spendable credits once. Migration 0025
+extends the original 20-slot campaign in place, so existing recipients keep
+their ordinal and cannot claim again. Purchased, operator-sponsored and
+ordinary non-paid credits remain auditable by ledger reason. External-provider
+work requires purchased or operator-sponsored cloud-spendable credits;
+ordinary non-paid credits can fund only local/mock work. A refund or dispute
+claws back unused paid credits and records debt for credits already consumed. A
+later purchase repays that debt before becoming spendable.
 
 ## Conservative unit economics
 
@@ -44,6 +48,8 @@ These figures are a planning model, not tax advice. They assume:
 
 - Greek B2C price inclusive of 24% VAT;
 - a standard EEA card at 1.5% + €0.25;
+- a stress case of 3.15% + €0.25 for an international card plus the possible
+  2% currency-conversion uplift;
 - the current Scribe v2 API list price of US$0.22/hour;
 - an optional bundled social-copy call at the full configured GPT-5 mini
   limits (3,750 input and 3,000 output tokens at US$0.25/US$2.00 per million);
@@ -68,6 +74,36 @@ leaves almost no margin after that infrastructure allowance; €1.00 is the
 practical minimum. The €20 Stripe dispute fee is an exceptional risk that no
 per-video price this small can absorb, so dispute monitoring remains a launch
 requirement.
+
+For the three-minute tier, Scribe v2 costs US$0.011. The optional social-copy
+ceiling adds US$0.00694; after the 25% provider headroom, the guarded provider
+allowance is €0.02242 at conservative USD/EUR parity. Adding the provisional
+€0.10 compute, storage and egress allowance gives an all-in planning cost of
+€0.12242 per video.
+
+| Three-minute credits | Discount vs 30 | Contribution, standard EEA card | Contribution, international + FX stress |
+| ---: | ---: | ---: | ---: |
+| 23 | 23.3% | +€0.002 | -€0.006 |
+| 24 | 20.0% | +€0.008 | -€0.001 |
+| **25** | **16.7%** | **+€0.013** | **+€0.004** |
+| 30 | baseline | +€0.040 | +€0.029 |
+
+Twenty-three credits are only a mathematical floor for a standard EEA card;
+24 can still lose money in the payment-fee stress case. Twenty-five is the
+lowest whole-credit price that remains positive in both modeled cases. Under
+the standard EEA case it leaves about 9.6% contribution after the provisional
+infrastructure allowance. This is a planning buffer, not a guaranteed net
+profit: refunds, failed provider calls, support, fixed hosting and disputes can
+still reduce or eliminate it.
+
+The 50-user campaign has a hard face-value cap of 1,500 sponsored credits. At
+the 25-credit three-minute tier, each standalone 30-credit grant funds one
+first-tier cloud job and leaves five credits. Without later top-ups, the 50
+grants therefore expose about €6.12 of modeled provider-plus-infrastructure
+cost. If every sponsored credit is eventually combined with purchased credits
+and consumed, the prorated ceiling is 60 first-tier job-equivalents, or about
+€7.35. Expanding from 20 to 50 adds about €3.67 of standalone exposure, or
+€4.41 on the fully allocated basis.
 
 Current official references:
 
@@ -103,8 +139,9 @@ Current official references:
 9. A provider call reserves paid credits plus daily/monthly USD budget before
    dispatch. Zero budgets mean closed.
 10. Provider estimates reserve 25% headroom and must pass a runtime
-    contribution guard: the lowest net package value after 24% VAT and modeled
-    Stripe fees must cover the guarded provider estimate at least three times.
+    contribution guard: the lowest net package value after 24% VAT, the
+    international-card fee and the possible currency-conversion uplift must
+    cover the guarded provider estimate at least three times.
     Paid calls use zero SDK retries and bounded output tokens. A failed service
     refunds the user's reserved credits idempotently even after dispatch, while
     the operator provider budget remains consumed when the call may have
@@ -123,7 +160,7 @@ Current official references:
     refunded, guarded provider exposure remains counted, and orphaned budget
     reservations are released atomically with any exact outstanding legacy
     debit compensation.
-11. The visible 30/60/100 video charge includes optional social-copy generation;
+11. The visible 25/60/100 video charge includes optional social-copy generation;
     it is not deducted a second time.
 12. New wallets start at zero credits at both application and database level.
     Historical balances are preserved; paid external-provider work can spend

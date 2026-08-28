@@ -648,6 +648,7 @@ def test_public_catalog_matches_video_brackets_and_packages(
     billing_settings: None,
 ) -> None:
     catalog = public_credit_catalog()
+    assert catalog["catalog_version"] == "2026-08-28-v2"
     assert catalog["checkout_enabled"] is True
     assert catalog["billing_country_scope"] == ["GR"]
     assert [(item["credits"], item["amount_eur_cents"]) for item in catalog["packages"]] == [
@@ -655,7 +656,7 @@ def test_public_catalog_matches_video_brackets_and_packages(
         (350, 300),
         (1200, 1000),
     ]
-    assert [item["credits"] for item in catalog["video_pricing"]] == [30, 60, 100]
+    assert [item["credits"] for item in catalog["video_pricing"]] == [25, 60, 100]
 
 
 def test_checkout_rejects_non_greek_billing_country_before_provider_call(
