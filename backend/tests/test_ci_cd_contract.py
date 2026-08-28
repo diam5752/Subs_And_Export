@@ -255,6 +255,18 @@ def test_supply_chain_and_container_workflows_cover_release_inputs() -> None:
     )
 
 
+def test_runtime_images_apply_security_updates_and_drop_unused_package_managers() -> None:
+    backend_dockerfile = (REPOSITORY_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    frontend_dockerfile = (REPOSITORY_ROOT / "frontend" / "Dockerfile").read_text(
+        encoding="utf-8"
+    )
+
+    assert "apt-get update && apt-get upgrade -y" in backend_dockerfile
+    assert "apk upgrade --no-cache" in frontend_dockerfile
+    assert "rm -rf /usr/local/lib/node_modules/npm" in frontend_dockerfile
+    assert "rm -f /usr/local/bin/npm" in frontend_dockerfile
+
+
 def test_shell_gate_keeps_backup_validation_effectful_and_audits_dependencies() -> None:
     verify_backup = (REPOSITORY_ROOT / "deploy" / "hetzner" / "verify-backup.sh").read_text(
         encoding="utf-8"

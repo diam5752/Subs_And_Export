@@ -36,6 +36,19 @@ ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 ENV APP_ENV=production
 
+# Apply available Alpine security fixes and remove build/package-management
+# tooling from the runtime image. The standalone Next.js server needs Node,
+# but not npm, npx, Corepack, or Yarn.
+RUN apk upgrade --no-cache \
+    && rm -rf /usr/local/lib/node_modules/npm \
+        /usr/local/lib/node_modules/corepack \
+        /opt/yarn-v* \
+    && rm -f /usr/local/bin/npm \
+        /usr/local/bin/npx \
+        /usr/local/bin/corepack \
+        /usr/local/bin/yarn \
+        /usr/local/bin/yarnpkg
+
 # Create non-root user for security
 RUN addgroup --system --gid 1001 nodejs \
     && adduser --system --uid 1001 nextjs
