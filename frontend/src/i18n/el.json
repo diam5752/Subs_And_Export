@@ -49,7 +49,7 @@
   "feedbackMessagePlaceholder": "Γράψε τι έγινε ή τι θα ήθελες να δεις…",
   "feedbackMessageHelp": "Όσο πιο συγκεκριμένα, τόσο πιο εύκολα θα το βελτιώσουμε.",
   "feedbackMessageRequired": "Γράψε πρώτα το μήνυμά σου.",
-  "feedbackMessageTooShort": "Χρειαζόμαστε τουλάχιστον 10 χαρακτήρες.",
+  "feedbackMessageTooShort": "Γράψε τουλάχιστον 10 χαρακτήρες για να σταλεί.",
   "feedbackMessageTooLong": "Το μήνυμα δεν μπορεί να ξεπερνά τους 2.000 χαρακτήρες.",
   "feedbackSignedInNotice": "Το μήνυμα θα συνδεθεί με το {email}, ώστε να μπορούμε να σου απαντήσουμε.",
   "feedbackAnonymousNotice": "Το μήνυμα στέλνεται χωρίς στοιχεία επικοινωνίας. Αν θέλεις απάντηση, συνδέσου πρώτα.",

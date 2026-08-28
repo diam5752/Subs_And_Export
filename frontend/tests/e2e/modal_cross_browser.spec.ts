@@ -292,3 +292,48 @@ test.describe('Inline processing gate on mobile browsers', () => {
     expect(restoredState).toEqual(originalState);
   });
 });
+
+test.describe('Feedback sheet on mobile browsers', () => {
+  test('opens without the keyboard and makes short-message validation actionable', async ({ page }) => {
+    // REGRESSION: a four-character message on iPhone left an unexplained,
+    // permanently disabled submit button while opening the keyboard immediately.
+    let feedbackPosts = 0;
+    page.on('request', (request) => {
+      if (
+        new URL(request.url()).pathname === '/feedback'
+        && request.method() === 'POST'
+      ) {
+        feedbackPosts += 1;
+      }
+    });
+    await mockApi(page);
+    await page.goto('/');
+    await waitForUploadWorkspace(page);
+
+    await page.getByTestId('feedback-trigger').click();
+    const dialog = page.getByTestId('feedback-dialog');
+    const message = page.getByLabel(el.feedbackMessageLabel);
+    await expect(dialog).toBeVisible();
+    const hasTouch = await page.evaluate(() => navigator.maxTouchPoints > 0);
+    if (hasTouch) {
+      // The exact non-text focus target differs between Chromium and WebKit.
+      // The customer-visible invariant is that opening a touch sheet does not
+      // focus the textarea and summon the virtual keyboard.
+      await expect(message).not.toBeFocused();
+    } else {
+      await expect(message).toBeFocused();
+    }
+
+    await message.fill('Test');
+    await page.waitForTimeout(2_100);
+
+    await expect(page.getByText(el.feedbackMessageTooShort)).toBeVisible();
+    const submit = dialog.getByRole('button', { name: el.feedbackSubmit });
+    await expect(submit).toBeEnabled();
+    await submit.click();
+
+    await expect(message).toBeFocused();
+    await expect(page.getByText(el.feedbackMessageTooShort)).toBeVisible();
+    expect(feedbackPosts).toBe(0);
+  });
+});

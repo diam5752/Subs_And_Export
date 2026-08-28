@@ -22,6 +22,10 @@ jest.mock('@/context/I18nContext', () => ({
 describe('FeedbackWidget', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    Object.defineProperty(window.navigator, 'maxTouchPoints', {
+      configurable: true,
+      value: 0,
+    });
     (useAuth as jest.Mock).mockReturnValue({
       user: {
         id: 'user-1',
@@ -134,9 +138,53 @@ describe('FeedbackWidget', () => {
         jest.advanceTimersByTime(2_100);
       });
 
-      fireEvent.submit(screen.getByLabelText('feedbackMessageLabel').closest('form')!);
+      await act(async () => {
+        fireEvent.submit(screen.getByLabelText('feedbackMessageLabel').closest('form')!);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
 
       expect(await screen.findByText('feedbackMessageTooShort')).toBeInTheDocument();
+      expect(api.createProductFeedback).not.toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('keeps short mobile feedback actionable and explains why it cannot be sent yet', async () => {
+    // REGRESSION: on iPhone, a short message left the submit button disabled,
+    // showed only generic help, and opened the keyboard as soon as the sheet appeared.
+    jest.useFakeTimers();
+    try {
+      Object.defineProperty(window.navigator, 'maxTouchPoints', {
+        configurable: true,
+        value: 1,
+      });
+      render(<FeedbackWidget initiallyOpen />);
+
+      await act(async () => {
+        jest.advanceTimersByTime(2_100);
+      });
+
+      const dialog = screen.getByRole('dialog', { name: 'feedbackTitle' });
+      const message = screen.getByLabelText('feedbackMessageLabel');
+      expect(dialog).toHaveFocus();
+      expect(message).not.toHaveFocus();
+
+      fireEvent.change(message, { target: { value: 'Test' } });
+
+      expect(screen.getByText('feedbackMessageTooShort')).toBeInTheDocument();
+      const submit = screen.getByRole('button', { name: 'feedbackSubmit' });
+      expect(submit).toBeEnabled();
+
+      await act(async () => {
+        fireEvent.click(submit);
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(await screen.findByText('feedbackMessageTooShort')).toBeInTheDocument();
+      expect(message).toHaveFocus();
       expect(api.createProductFeedback).not.toHaveBeenCalled();
     } finally {
       jest.useRealTimers();
