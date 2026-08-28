@@ -2,7 +2,7 @@ PYTHON ?= python3
 QUALITY_RUNNER = $(PYTHON) .codex/scripts/quality_runner.py
 ISOLATED_QUALITY_RUNNER = $(PYTHON) .codex/scripts/run_isolated_quality_gate.py
 
-.PHONY: ci check-contract check-fast check-static check-unit check-integration check-media-export check-e2e check-arch check-java check-security check-mutation check-performance check-dast check-all
+.PHONY: ci check-contract check-fast check-static check-complexity check-unit check-integration check-media-export check-e2e check-arch check-java check-security check-mutation check-performance check-dast check-all
 
 ci: check-all
 
@@ -14,6 +14,9 @@ check-fast:
 
 check-static:
 	$(QUALITY_RUNNER) check:static
+
+check-complexity:
+	$(QUALITY_RUNNER) check:complexity
 
 check-unit:
 	$(QUALITY_RUNNER) check:unit

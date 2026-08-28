@@ -59,6 +59,11 @@
       "max": 8,
       "ideal_max": 5
     },
+    "cyclomatic_complexity": {
+      "type": "hard_gate_with_ratchet",
+      "max_for_new_functions": 10,
+      "baseline_file": ".codex/code-complexity-baseline.json"
+    },
     "mutation_kill_rate": {
       "type": "strong_target",
       "min_pct": 95
@@ -96,8 +101,9 @@
       "warn_if_code_to_test_exceeds": "1:2"
     },
     "function_size": {
-      "type": "heuristic",
-      "ideal_lines_max": 50
+      "type": "hard_gate_with_ratchet",
+      "nloc_max_for_new_functions": 50,
+      "baseline_file": ".codex/code-complexity-baseline.json"
     }
   },
   "pr_gates": [
@@ -135,6 +141,13 @@
       "status": "enabled",
       "suggested_command": "Run the repo-local architecture checker for cross-stack leaks and import cycles.",
       "command_id": "check:arch"
+    },
+    {
+      "id": "code-complexity",
+      "requirement": "No new or worsened complexity and function-size hotspots across Python, TypeScript, and Java.",
+      "status": "enabled",
+      "suggested_command": "Run the cross-language Lizard ratchet at cyclomatic complexity 10 and NLOC 50.",
+      "command_id": "check:complexity"
     },
     {
       "id": "static-analysis",
@@ -184,6 +197,8 @@
   "notes": [
     "Acceptance flows remain human-owned and should be confirmed in .codex/acceptance-flows.md.",
     "Fast/static/security/integration/E2E enforcement is executable today.",
+    "Complexity and function-size regressions are blocked across Python, TypeScript, and Java with a reviewed baseline ratchet.",
+    "CodeQL, secret scanning, dependency-diff review, and production-image build/vulnerability scans run as dedicated GitHub workflows.",
     "Real-media export compatibility and golden-frame regression checks run locally without external providers.",
     "Java/Spring enforcement is executable through check:java and CI configures JDK 25 plus PostgreSQL; local runs require both services.",
     "Java PIT mutation testing covers the authentication and request-safety boundary; subtitle export performance smoke is also executable nightly.",
@@ -197,6 +212,7 @@
     "make_targets": [
       "check-fast",
       "check-static",
+      "check-complexity",
       "check-unit",
       "check-integration",
       "check-media-export",
@@ -218,7 +234,12 @@
     },
     "check:static": {
       "kind": "shell",
-      "shell": "mypy backend/app .codex/scripts/run_isolated_quality_gate.py .codex/scripts/check_coverage_thresholds.py && ruff check backend .codex/scripts/run_isolated_quality_gate.py .codex/scripts/check_coverage_thresholds.py && cd frontend && npm run lint && npm run lint:dead-code && npx tsc --noEmit",
+      "shell": "mypy backend/app .codex/scripts/run_isolated_quality_gate.py .codex/scripts/check_coverage_thresholds.py .codex/scripts/check_code_complexity.py && ruff check backend .codex/scripts/run_isolated_quality_gate.py .codex/scripts/check_coverage_thresholds.py .codex/scripts/check_code_complexity.py && shellcheck .codex/scripts/*.sh deploy/hetzner/*.sh && cd frontend && npm run lint && npm run lint:dead-code && npx tsc --noEmit",
+      "status": "enabled"
+    },
+    "check:complexity": {
+      "kind": "shell",
+      "shell": "python3 .codex/scripts/check_code_complexity.py",
       "status": "enabled"
     },
     "check:unit:backend": {
@@ -290,6 +311,7 @@
       "steps": [
         "check:contract",
         "check:static",
+        "check:complexity",
         "check:unit"
       ],
       "status": "enabled"
