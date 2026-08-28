@@ -1,0 +1,74 @@
+name: Bug report
+description: Report a reproducible gsubs defect without sharing private media or credentials.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve gsubs. Do not attach customer videos, transcripts,
+        access tokens, cookies, payment data, email addresses or other personal data.
+        For a security or privacy issue, use the private security-reporting link instead.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Safe report
+      options:
+        - label: I removed credentials, private media and personal data from this report.
+          required: true
+        - label: I searched existing issues for the same problem.
+          required: true
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Describe the observed behavior and what you expected instead.
+      placeholder: The export stopped at… I expected…
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Use mock or redacted data only.
+      placeholder: |
+        1. Open…
+        2. Select…
+        3. Observe…
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Affected surface
+      options:
+        - Web app / PWA
+        - Upload or transcription
+        - Subtitle editor or preview
+        - Video or subtitle export
+        - Login or account
+        - Billing or credits
+        - History or download
+        - Deployment or operations
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Device, OS, browser and whether this was local, staging or production.
+      placeholder: iPhone 15, iOS 19, Safari, production
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Redacted evidence
+      description: Add screenshots or logs only after removing sensitive information.
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: Add the deployed SHA or branch when known.

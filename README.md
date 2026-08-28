@@ -1,5 +1,9 @@
 # gsubs
 
+[![Quality gates](https://github.com/diam5752/Subs_And_Export/actions/workflows/quality-gates.yml/badge.svg?branch=main)](https://github.com/diam5752/Subs_And_Export/actions/workflows/quality-gates.yml)
+[![CodeQL](https://github.com/diam5752/Subs_And_Export/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/diam5752/Subs_And_Export/actions/workflows/codeql.yml)
+[![Container images](https://github.com/diam5752/Subs_And_Export/actions/workflows/container-images.yml/badge.svg?branch=main)](https://github.com/diam5752/Subs_And_Export/actions/workflows/container-images.yml)
+
 gsubs is a local-first subtitle studio for turning a raw vertical clip into editable,
 word-timed captions and an export-ready video. The default development profile is
 deliberately zero-cost: it performs the complete workflow with deterministic mock
@@ -95,6 +99,17 @@ Pull requests also run CodeQL across all three languages, reject newly introduce
 high/critical dependency vulnerabilities and committed secrets, and build plus
 scan both production container images. Dependabot groups routine npm, Python,
 Maven, Docker and GitHub Actions updates into weekly reviewable pull requests.
+
+## Contributing and security
+
+- Read `CONTRIBUTING.md` before opening a pull request.
+- Use the structured GitHub issue forms for reproducible bugs and feature requests.
+- Never post customer media, transcripts, credentials, payment data or personal
+  information in a public issue.
+- Report vulnerabilities privately through GitHub Security Advisories as described
+  in `SECURITY.md`.
+- Production changes must follow `deploy/hetzner/README.md`; a green merge is not
+  evidence that the reviewed SHA is live.
 
 ## Architecture
 

@@ -1,0 +1,19 @@
+* text=auto eol=lf
+
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+*.gif binary
+*.ico binary
+*.jpg binary
+*.jpeg binary
+*.mp3 binary
+*.mp4 binary
+*.pdf binary
+*.png binary
+*.webm binary
+*.woff binary
+*.woff2 binary
+
+package-lock.json linguist-generated=true
+frontend/package-lock.json linguist-generated=true

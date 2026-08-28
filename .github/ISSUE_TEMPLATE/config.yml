@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Private security or privacy report
+    url: https://github.com/diam5752/Subs_And_Export/security/advisories/new
+    about: Report vulnerabilities, exposed credentials or privacy incidents privately.

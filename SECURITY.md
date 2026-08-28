@@ -1,3 +1,21 @@
+# Security policy
+
+## Reporting a vulnerability
+
+Do not open a public issue for a suspected vulnerability, exposed credential or
+privacy incident. Use the repository's
+[private security advisory form](https://github.com/diam5752/Subs_And_Export/security/advisories/new)
+and include only the minimum redacted information needed to reproduce the problem.
+Do not upload customer media, transcripts, session cookies, API keys or payment
+data. The maintainer will acknowledge the report, assess impact and coordinate a
+fix before public disclosure.
+
+## Supported version
+
+Only the latest deployed commit from the protected `main` branch receives security
+fixes. Historical commits, local development branches and unverified artifacts are
+not supported releases.
+
 ## Security checklist (Hetzner + Docker)
 
 The persistent production media-storage path is local-only. Source videos and
