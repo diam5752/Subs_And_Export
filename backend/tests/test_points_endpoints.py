@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import types
-import uuid
 from pathlib import Path
 
 import pytest
@@ -9,10 +7,8 @@ from fastapi.testclient import TestClient
 
 from backend.app.api.endpoints import processing_tasks
 from backend.app.api.endpoints import videos as videos_endpoints
-from backend.app.core import config
 from backend.app.core.database import Database
 from backend.app.services import pricing
-from backend.app.services.jobs import JobStore
 from backend.app.services.points import PointsStore
 from backend.tests.process_stream import post_process_stream
 
@@ -162,136 +158,3 @@ def test_process_video_rejects_on_insufficient_points(client: TestClient, user_a
     assert resp.status_code == 402
     assert resp.json()["detail"] == "Insufficient points"
     assert client.get("/auth/points", headers=user_auth_headers).json()["balance"] == 0
-
-
-def test_fact_check_charges_points_and_rejects_on_insufficient_balance(
-    client: TestClient,
-    user_auth_headers: dict[str, str],
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    monkeypatch.setattr(config.settings, "mock_external_services", False)
-    data_dir = tmp_path / "data"
-    uploads_dir = data_dir / "uploads"
-    artifacts_dir = data_dir / "artifacts"
-    uploads_dir.mkdir(parents=True)
-    artifacts_dir.mkdir(parents=True)
-    monkeypatch.setattr(
-        "backend.app.api.endpoints.intelligence_routes.data_roots", lambda: (data_dir, uploads_dir, artifacts_dir)
-    )
-    monkeypatch.setattr(videos_endpoints, "data_roots", lambda: (data_dir, uploads_dir, artifacts_dir))
-    monkeypatch.setattr(videos_endpoints, "run_video_processing", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(
-        "backend.app.api.endpoints.intelligence_routes.generate_fact_check",
-        lambda *_args, **_kwargs: types.SimpleNamespace(
-            items=[], truth_score=100, supported_claims_pct=100, claims_checked=0
-        ),
-    )
-    _grant_paid_credits(client, user_auth_headers, amount=1000)
-
-    process_resp = post_process_stream(
-        client,
-        user_auth_headers,
-        content=b"123",
-        metadata={"transcribe_tier": "standard"},
-    )
-    assert process_resp.status_code == 200, process_resp.text
-    job_id = process_resp.json()["id"]
-
-    # Mark job completed + seed transcript.
-    db = _db_from_env()
-    JobStore(db=db).update_job(job_id, status="completed", progress=100)
-    job_dir = artifacts_dir / job_id
-    job_dir.mkdir(parents=True, exist_ok=True)
-    (job_dir / "transcript.txt").write_text("hello", encoding="utf-8")
-
-    before = client.get("/auth/points", headers=user_auth_headers).json()["balance"]
-    fact_resp = client.post(f"/videos/jobs/{job_id}/fact-check", headers=user_auth_headers)
-    assert fact_resp.status_code == 200, fact_resp.text
-    expected_reserve = pricing.max_llm_credits_for_limits(
-        tier="standard",
-        max_prompt_chars=(config.settings.max_llm_input_chars * 2) + 10_000,
-        max_completion_tokens=(
-            config.settings.max_llm_output_tokens_extraction + config.settings.max_llm_output_tokens_factcheck
-        ),
-        min_credits=config.settings.credits_min_fact_check["standard"],
-    )["credits"]
-    assert fact_resp.json()["balance"] == before - expected_reserve
-
-    # Use a distinct job so idempotent retries of the first request remain free.
-    me = client.get("/auth/me", headers=user_auth_headers)
-    user_id = me.json()["id"]
-    insufficient_job_id = str(uuid.uuid4())
-    job_store = JobStore(db=db)
-    job_store.create_job(insufficient_job_id, user_id)
-    job_store.update_job(
-        insufficient_job_id,
-        status="completed",
-        progress=100,
-        result_data={"transcribe_tier": "standard"},
-    )
-    insufficient_job_dir = artifacts_dir / insufficient_job_id
-    insufficient_job_dir.mkdir(parents=True, exist_ok=True)
-    (insufficient_job_dir / "transcript.txt").write_text("hello", encoding="utf-8")
-
-    # Drain remaining points and verify the first charge for the second job is rejected.
-    current = client.get("/auth/points", headers=user_auth_headers).json()["balance"]
-    if current:
-        PointsStore(db=db).spend(user_id, current, reason="test_setup")
-
-    # Verify zero balance
-    zero_bal = client.get("/auth/points", headers=user_auth_headers).json()["balance"]
-    assert zero_bal == 0, f"Balance not drained! {zero_bal}"
-
-    insufficient = client.post(
-        f"/videos/jobs/{insufficient_job_id}/fact-check",
-        headers=user_auth_headers,
-    )
-    assert insufficient.status_code == 402
-    assert insufficient.json()["detail"] == "Insufficient points"
-
-
-def test_fact_check_refunds_points_when_generation_fails(
-    client: TestClient,
-    user_auth_headers: dict[str, str],
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
-) -> None:
-    monkeypatch.setattr(config.settings, "mock_external_services", False)
-    data_dir = tmp_path / "data"
-    uploads_dir = data_dir / "uploads"
-    artifacts_dir = data_dir / "artifacts"
-    uploads_dir.mkdir(parents=True)
-    artifacts_dir.mkdir(parents=True)
-    monkeypatch.setattr(
-        "backend.app.api.endpoints.intelligence_routes.data_roots", lambda: (data_dir, uploads_dir, artifacts_dir)
-    )
-    monkeypatch.setattr(videos_endpoints, "data_roots", lambda: (data_dir, uploads_dir, artifacts_dir))
-
-    monkeypatch.setattr(
-        "backend.app.api.endpoints.intelligence_routes.generate_fact_check",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("boom")),
-    )
-
-    me = client.get("/auth/me", headers=user_auth_headers)
-    assert me.status_code == 200
-    user_id = me.json()["id"]
-
-    db = _db_from_env()
-    PointsStore(db=db).credit(
-        user_id,
-        500,
-        reason="test_paid_funding",
-        paid_credit_delta=500,
-    )
-    job_id = f"job_fact_refund_{uuid.uuid4().hex}"
-    JobStore(db=db).create_job(job_id, user_id)
-    JobStore(db=db).update_job(job_id, status="completed", progress=100)
-    job_dir = artifacts_dir / job_id
-    job_dir.mkdir(parents=True, exist_ok=True)
-    (job_dir / "transcript.txt").write_text("hello", encoding="utf-8")
-
-    before = client.get("/auth/points", headers=user_auth_headers).json()["balance"]
-    resp = client.post(f"/videos/jobs/{job_id}/fact-check", headers=user_auth_headers)
-    assert resp.status_code == 500
-    assert client.get("/auth/points", headers=user_auth_headers).json()["balance"] == before

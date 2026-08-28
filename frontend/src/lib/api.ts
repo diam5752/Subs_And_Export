@@ -44,7 +44,6 @@ interface ProcessVideoSettings {
     openai_model?: string;
     video_quality?: string;
     video_resolution?: string;
-    use_llm?: boolean;
     context_prompt?: string;
     subtitle_position?: number;
     max_subtitle_lines?: number;
@@ -90,7 +89,6 @@ function normalizedProcessVideoSettings(settings: ProcessVideoSettings) {
         openai_model: settings.openai_model || '',
         video_quality: settings.video_quality || 'balanced',
         video_resolution: settings.video_resolution || '',
-        use_llm: Boolean(settings.use_llm),
         context_prompt: settings.context_prompt || '',
         subtitle_position: settings.subtitle_position ?? 16,
         max_subtitle_lines: settings.max_subtitle_lines ?? 2,
@@ -1194,7 +1192,6 @@ class ApiClient {
         openai_model?: string;
         video_quality?: string;
         video_resolution?: string;
-        use_llm?: boolean;
         context_prompt?: string;
         subtitle_position?: number;
         max_subtitle_lines?: number;
@@ -1214,7 +1211,6 @@ class ApiClient {
                 openai_model: settings.openai_model || '',
                 video_quality: settings.video_quality || 'balanced',
                 video_resolution: settings.video_resolution || '',
-                use_llm: Boolean(settings.use_llm),
                 context_prompt: settings.context_prompt || '',
                 subtitle_position: settings.subtitle_position ?? 16,
                 max_subtitle_lines: settings.max_subtitle_lines ?? 2,
@@ -1234,56 +1230,6 @@ class ApiClient {
             body: JSON.stringify({ cues }),
         });
     }
-
-
-
-    async factCheck(jobId: string): Promise<FactCheckResponse> {
-        return this.request<FactCheckResponse>(`/videos/jobs/${jobId}/fact-check`, {
-            method: 'POST',
-        });
-    }
-
-    async socialCopy(jobId: string): Promise<SocialCopyResponse> {
-        return this.request<SocialCopyResponse>(`/videos/jobs/${jobId}/social-copy`, {
-            method: 'POST',
-        });
-    }
-}
-
-interface FactCheckItem {
-    mistake_el: string;
-    mistake_en: string;
-    correction_el: string;
-    correction_en: string;
-    explanation_el: string;
-    explanation_en: string;
-    severity: 'minor' | 'medium' | 'major';
-    confidence: number;
-    real_life_example_el: string;
-    real_life_example_en: string;
-    scientific_evidence_el: string;
-    scientific_evidence_en: string;
-}
-
-export interface FactCheckResponse {
-    items: FactCheckItem[];
-    truth_score: number;
-    supported_claims_pct: number;
-    claims_checked: number;
-    balance?: number | null;
-}
-
-interface SocialCopySchema {
-    title_el: string;
-    title_en: string;
-    description_el: string;
-    description_en: string;
-    hashtags: string[];
-}
-
-export interface SocialCopyResponse {
-    social_copy: SocialCopySchema;
-    balance?: number | null;
 }
 
 export const api = new ApiClient();

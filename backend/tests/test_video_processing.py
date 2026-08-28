@@ -23,8 +23,16 @@ from backend.app.services.subtitle_types import Cue, WordTiming
 
 @pytest.fixture(autouse=True)
 def _default_cloud_keys_for_video_processing_tests(monkeypatch):
-    monkeypatch.setattr(video_processing.llm_utils, "resolve_groq_api_key", lambda: "test-groq-key")
-    monkeypatch.setattr(video_processing.llm_utils, "resolve_openai_api_key", lambda explicit=None: explicit or "test-openai-key")
+    monkeypatch.setattr(
+        video_processing.provider_clients,
+        "resolve_groq_api_key",
+        lambda: "test-groq-key",
+    )
+    monkeypatch.setattr(
+        video_processing.provider_clients,
+        "resolve_openai_api_key",
+        lambda explicit=None: explicit or "test-openai-key",
+    )
 
 
 def test_font_size_from_subtitle_size_presets():
@@ -161,7 +169,7 @@ def test_elevenlabs_pipeline_reserves_weighted_provider_capacity(
     monkeypatch.setattr(video_processing.settings, "mock_external_services", False)
     monkeypatch.setattr(video_processing.settings, "elevenlabs_enabled", True)
     monkeypatch.setattr(
-        video_processing.llm_utils,
+        video_processing.provider_clients,
         "resolve_elevenlabs_api_key",
         lambda: "test-elevenlabs-key",
     )
@@ -226,7 +234,7 @@ def test_mock_transcription_finalizes_with_zero_provider_cost(monkeypatch, tmp_p
 
     ledger_store = MagicMock()
     reservation = types.SimpleNamespace(tier="standard", min_credits=25)
-    charge_plan = types.SimpleNamespace(transcription=reservation, social_copy=None)
+    charge_plan = types.SimpleNamespace(transcription=reservation)
 
     video_processing.process_video_pipeline(
         input_video,
@@ -276,7 +284,7 @@ def test_process_video_pipeline_falls_back_to_local_when_groq_key_missing(monkey
     monkeypatch.setattr(video_processing.subtitle_renderer, "create_styled_subtitle_file", fake_style)
     monkeypatch.setattr(ffmpeg_utils, "run_ffmpeg_with_subs", fake_burn)
     monkeypatch.setattr(ffmpeg_utils, "probe_media", lambda p: ffmpeg_utils.MediaProbe(10.0, "aac"))
-    monkeypatch.setattr(video_processing.llm_utils, "resolve_groq_api_key", lambda: None)
+    monkeypatch.setattr(video_processing.provider_clients, "resolve_groq_api_key", lambda: None)
     monkeypatch.setattr(video_processing, "LocalWhisperTranscriber", FakeLocalTranscriber)
 
     def fail_if_cloud_used(*args, **kwargs):
@@ -299,14 +307,14 @@ def test_process_video_pipeline_falls_back_to_local_when_groq_key_missing(monkey
 def test_resolve_runtime_transcribe_provider_treats_empty_secret_as_missing(monkeypatch):
     # REGRESSION: config/secrets.toml may contain empty-string placeholders.
     # These must still trigger local fallback instead of pretending a cloud key exists.
-    monkeypatch.setattr(video_processing.llm_utils, "resolve_groq_api_key", lambda: "")
+    monkeypatch.setattr(video_processing.provider_clients, "resolve_groq_api_key", lambda: "")
     assert video_processing.resolve_runtime_transcribe_provider("groq") == "local"
 
 
 def test_resolve_runtime_transcribe_provider_forces_mock_mode(monkeypatch):
     monkeypatch.setattr(video_processing.settings, "mock_external_services", True)
     monkeypatch.setattr(
-        video_processing.llm_utils,
+        video_processing.provider_clients,
         "resolve_groq_api_key",
         lambda: "would-have-been-live",
     )
@@ -322,7 +330,7 @@ def test_mock_mode_forces_scribe_without_resolving_a_key(monkeypatch):
         raise AssertionError("No ElevenLabs credential should be resolved in mock mode")
 
     monkeypatch.setattr(
-        video_processing.llm_utils,
+        video_processing.provider_clients,
         "resolve_elevenlabs_api_key",
         fail_if_key_is_resolved,
     )
@@ -586,40 +594,6 @@ def test_process_video_pipeline_persists_artifacts(monkeypatch, tmp_path: Path):
 
     mock_persist.assert_called_once()
     assert mock_persist.call_args[0][0] == artifact_dir
-
-
-def test_process_video_pipeline_can_use_llm_social_copy(monkeypatch, tmp_path: Path):
-    # Verify use_llm_social_copy triggers build_social_copy_llm
-    input_video = tmp_path / "vid.mp4"
-    input_video.touch()
-
-    monkeypatch.setattr(subtitles, "extract_audio", lambda *args, **kwargs: tmp_path / "a.wav")
-    monkeypatch.setattr(video_processing.subtitle_renderer, "create_styled_subtitle_file", lambda *args, **kwargs: tmp_path / "a.ass")
-    def fake_burn(input_path, ass_path, output_path, **kwargs):
-        Path(output_path).touch()
-    monkeypatch.setattr(ffmpeg_utils, "run_ffmpeg_with_subs", fake_burn)
-    monkeypatch.setattr(ffmpeg_utils, "probe_media", lambda p: ffmpeg_utils.MediaProbe(10.0, "aac"))
-
-    class FakeTranscriber:
-        def __init__(self, *args, **kwargs): pass
-        def transcribe(self, audio_path, output_dir, **kwargs):
-            srt = output_dir / "a.srt"
-            srt.touch()
-            return srt, [Cue(0, 1, "test")]
-    monkeypatch.setattr(video_processing, "GroqTranscriber", FakeTranscriber)
-
-    mock_llm = MagicMock()
-    monkeypatch.setattr(video_processing.social_intelligence, "build_social_copy_llm", mock_llm)
-
-    video_processing.process_video_pipeline(
-        input_video, tmp_path/"out.mp4",
-        transcribe_provider="groq",
-        generate_social_copy=True,
-        use_llm_social_copy=True,
-    )
-
-    mock_llm.assert_called_once()
-
 
 def test_pipeline_logs_metrics(monkeypatch, tmp_path: Path):
     input_video = tmp_path / "vid.mp4"

@@ -31,6 +31,7 @@ from ..services.history import HistoryStore
 from ..services.jobs import JobStore
 from ..services.login_promotion import LoginPromotionStore
 from ..services.points import PointsStore
+from ..services.pricing import VIDEO_CREDIT_BRACKETS
 from ..services.product_feedback import FeedbackStore
 from ..services.usage_ledger import UsageLedgerStore
 
@@ -40,7 +41,9 @@ optional_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token", auto_error=
 
 _PROCESS_STREAM_PATH = "/videos/process-stream"
 _MAX_UPLOAD_METADATA_HEADER_CHARS = 12_000
-_CANONICAL_VIDEO_CREDITS = frozenset({30, 60, 100})
+_CANONICAL_VIDEO_CREDITS = frozenset(
+    quote.credits for quote in VIDEO_CREDIT_BRACKETS
+)
 
 
 def get_db(request: Request) -> Generator[Database, None, None]:
@@ -188,9 +191,6 @@ def _process_stream_authorization(request: Request) -> tuple[int, bool]:
         )
         if not isinstance(provider, str) or not provider.strip():
             raise ValueError("invalid provider")
-        use_llm = payload.get("use_llm", settings.use_llm_by_default)
-        if not isinstance(use_llm, bool):
-            raise ValueError("invalid use_llm")
     except (
         binascii.Error,
         UnicodeDecodeError,
@@ -205,7 +205,6 @@ def _process_stream_authorization(request: Request) -> tuple[int, bool]:
         and (
             not settings.is_dev
             or normalized_provider not in {"local", "mock"}
-            or use_llm
         )
     )
     return authorized_credits, require_paid

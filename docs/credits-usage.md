@@ -1,6 +1,6 @@
 # Prepaid video credits and Stripe handoff
 
-Updated: 2026-08-01
+Updated: 2026-08-28
 
 Stripe test-mode Checkout and the complete live production configuration have
 been validated. Production paid credits are enabled only by the reviewed,
@@ -31,12 +31,16 @@ The immutable package catalog is:
 | Studio (`pro`) | €10.00 | 1,200 | 12 |
 
 New accounts start with zero credits; GSUBS does not grant signup, trial or
-email-verification credits automatically. Purchased and any legacy or explicit
-non-paid credits remain separate in the ledger. Any request that can spend
-money at an external provider requires purchased credits; non-paid credits can
-fund only local/mock work. A refund or dispute claws back unused paid credits
-and records debt for credits already consumed. A later purchase repays that
-debt before becoming spendable.
+email-verification credits automatically. When the explicitly configured Beta
+login campaign is enabled, the first 50 distinct users to complete a real login
+receive 30 operator-sponsored, cloud-spendable credits once. Migration 0025
+extends the original 20-slot campaign in place, so existing recipients keep
+their ordinal and cannot claim again. Purchased, operator-sponsored and
+ordinary non-paid credits remain auditable by ledger reason. External-provider
+work requires purchased or operator-sponsored cloud-spendable credits;
+ordinary non-paid credits can fund only local/mock work. A refund or dispute
+claws back unused paid credits and records debt for credits already consumed. A
+later purchase repays that debt before becoming spendable.
 
 ## Conservative unit economics
 
@@ -44,37 +48,62 @@ These figures are a planning model, not tax advice. They assume:
 
 - Greek B2C price inclusive of 24% VAT;
 - a standard EEA card at 1.5% + €0.25;
+- a stress case of 3.15% + €0.25 for an international card plus the possible
+  2% currency-conversion uplift;
 - the current Scribe v2 API list price of US$0.22/hour;
-- an optional bundled social-copy call at the full configured GPT-5 mini
-  limits (3,750 input and 3,000 output tokens at US$0.25/US$2.00 per million);
 - conservative USD/EUR parity; and
 - no refund of the original Stripe processing fee.
 
-The maximum modeled external-provider cost for one 10-minute video is about
-€0.044. The table allocates the one package payment fee across the number of
-100-credit videos it funds:
+The raw external-provider cost for one 10-minute video is about €0.03667. The
+guarded provider allowance is €0.04583 after the 25% dispatch headroom. The
+table allocates the one package payment fee across the number of 100-credit
+videos it funds:
 
 | Package | Ex-VAT revenue per 100 credits | Allocated Stripe fee | Provider ceiling | Contribution | Margin on ex-VAT revenue |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Starter | €0.806 | €0.265 | €0.044 | €0.498 | 61.7% |
-| Core | €0.691 | €0.084 | €0.044 | €0.563 | 81.5% |
-| Pro | €0.672 | €0.033 | €0.044 | €0.595 | 88.6% |
+| Starter | €0.806 | €0.265 | €0.046 | €0.496 | 61.5% |
+| Core | €0.691 | €0.084 | €0.046 | €0.561 | 81.2% |
+| Pro | €0.672 | €0.033 | €0.046 | €0.593 | 88.2% |
 
-Even after an additional provisional €0.10/video allowance for compute,
-storage and egress, the modeled margins are approximately 49.3%, 67.0% and
-73.7%. Production telemetry must replace that allowance before claiming a
-guaranteed margin. A €0.50 single-video payment is mathematically positive but
-leaves almost no margin after that infrastructure allowance; €1.00 is the
-practical minimum. The €20 Stripe dispute fee is an exceptional risk that no
-per-video price this small can absorb, so dispute monitoring remains a launch
-requirement.
+An additional €0.10/video infrastructure allowance was used only as a severe
+stress-test placeholder. It is not an observed marginal cost. If imposed, the
+modeled margins become approximately 49.1%, 66.7% and 73.3%. Production
+telemetry must instead measure FFmpeg compute, temporary storage and egress per
+completed job. Fixed hosting, support, refunds and disputes belong in a separate
+monthly profitability model rather than being presented as known per-job API
+cost. The €20 Stripe dispute fee is an exceptional risk that no video price this
+small can absorb, so dispute monitoring remains a launch requirement.
+
+For the three-minute tier, Scribe v2 costs US$0.011. After the 25% provider
+headroom, the guarded provider allowance is €0.01375 at conservative USD/EUR
+parity. This is the known direct provider allowance; marginal infrastructure
+must be measured rather than assumed.
+
+| Three-minute credits | Gross Starter share | Net revenue, standard EEA | Net revenue, international + FX stress | Remainder after guarded provider |
+| ---: | ---: | ---: | ---: | ---: |
+| 25 | €0.250 | €0.135 | €0.126 | €0.112-€0.122 |
+| **30** | **€0.300** | **€0.162** | **€0.151** | **€0.138-€0.149** |
+
+The remainder is available for measured infrastructure and contribution; it is
+not guaranteed net profit. If the old unmeasured €0.10 stress placeholder were
+imposed, 30 credits would still leave about €0.038-€0.049 per job, while 25
+credits would leave about €0.012-€0.022. The 30-credit price is retained because
+it preserves a simple linear 10-credits-per-minute schedule across the
+30/60/100 tiers and gives the larger per-video buffer. A Starter purchase funds
+three complete three-minute jobs and carries 10 credits toward later usage.
+
+The 50-user campaign has a hard face-value cap of 1,500 sponsored credits. At
+30 credits, each grant funds exactly one three-minute job. The guarded direct
+provider ceiling is therefore about €0.69 for all 50 grants. Including the old
+unmeasured €0.10/job infrastructure stress placeholder raises the campaign
+ceiling to about €5.69. Expanding from 20 to 50 adds about €0.41 of guarded
+provider exposure, or €3.41 under that stress placeholder.
 
 Current official references:
 
 - [Stripe pricing for Greece](https://stripe.com/en-gr/pricing)
 - [ElevenLabs API pricing](https://elevenlabs.io/pricing/api?price.section=speech_to_text)
 - [Groq on-demand pricing](https://groq.com/pricing)
-- [OpenAI GPT-5 mini model pricing](https://developers.openai.com/api/docs/models/gpt-5-mini)
 
 ## Money and provider safety invariants
 
@@ -103,32 +132,26 @@ Current official references:
 9. A provider call reserves paid credits plus daily/monthly USD budget before
    dispatch. Zero budgets mean closed.
 10. Provider estimates reserve 25% headroom and must pass a runtime
-    contribution guard: the lowest net package value after 24% VAT and modeled
-    Stripe fees must cover the guarded provider estimate at least three times.
+    contribution guard: the lowest net package value after 24% VAT, the
+    international-card fee and the possible currency-conversion uplift must
+    cover the guarded provider estimate at least three times.
     Paid calls use zero SDK retries and bounded output tokens. A failed service
     refunds the user's reserved credits idempotently even after dispatch, while
     the operator provider budget remains consumed when the call may have
     reached the provider. Wallet compensation, usage-ledger settlement, and
     provider-budget settlement commit atomically so a crash or retry cannot
     double-refund or strand a reservation. A database-backed dispatch claim
-    permits exactly one worker to call the provider. Valid paid fact-check and
-    social-copy responses are schema-validated before settlement and stored
-    in dedicated temporary replay storage tied to the job lifecycle, so a
-    disconnected client can replay the finalized result without a second
-    provider call. Invalid paid semantic output fails closed and refunds
-    instead of silently returning a local fallback. A later retry after a
-    terminal refund is serialized onto one new paid attempt; concurrent retries
-    cannot create duplicate provider calls or debits. Stale claims left by a
-    crashed winner are reconciled by the retention worker: the customer is
+    permits exactly one worker to call the transcription provider. A later retry
+    after a terminal refund is serialized onto one new paid attempt; concurrent
+    retries cannot create duplicate provider calls or debits. Stale claims left
+    by a crashed winner are reconciled by the retention worker: the customer is
     refunded, guarded provider exposure remains counted, and orphaned budget
     reservations are released atomically with any exact outstanding legacy
     debit compensation.
-11. The visible 30/60/100 video charge includes optional social-copy generation;
-    it is not deducted a second time.
-12. New wallets start at zero credits at both application and database level.
+11. New wallets start at zero credits at both application and database level.
     Historical balances are preserved; paid external-provider work can spend
     only purchased credits.
-13. The $0.05 per-request circuit breaker remains narrowly above the guarded
+12. The $0.05 per-request circuit breaker remains narrowly above the guarded
     cost of a maximum ten-minute Scribe v2 job. The $10 daily and $100 monthly
     global ceilings are emergency launch controls, not the source of unit
     economics: at the official $0.22/hour rate and 1.25 reserve multiplier they

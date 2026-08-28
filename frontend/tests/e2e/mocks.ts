@@ -340,7 +340,7 @@ export async function mockApi(page: Page, options: MockApiOptions = {}): Promise
   await page.route(/\/billing\/catalog(?:\?.*)?$/, async (route) => {
     if (await shortCircuitOptions(route)) return;
     await route.fulfill(withCors({
-      catalog_version: '2026-07-23-v1',
+      catalog_version: '2026-08-28-v2',
       currency: 'eur',
       billing_country_scope: ['GR'],
       checkout_enabled: true,

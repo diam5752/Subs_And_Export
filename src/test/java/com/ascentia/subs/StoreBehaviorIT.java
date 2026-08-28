@@ -19,6 +19,19 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class StoreBehaviorIT extends IntegrationTestSupport {
 
     @Test
+    void retiredTextGenerationCatalogIsAbsentAfterMigrations() {
+        Integer modelCount = jdbcClient.sql("""
+                SELECT count(*)
+                FROM ai_models
+                WHERE id LIKE 'gpt-%'
+                """)
+                .query(Integer.class)
+                .single();
+
+        assertThat(modelCount).isZero();
+    }
+
+    @Test
     void retiredCloudUploadMetadataTableIsAbsentAfterMigrations() {
         // REGRESSION: the retired external-storage path left an unused table in
         // fresh and upgraded Java-compatible databases.
@@ -156,26 +169,26 @@ class StoreBehaviorIT extends IntegrationTestSupport {
         PointsStore.SpendOnceResult firstSpend = pointsStore.spendOnce(
                 user.id(),
                 15,
-                "fact_check",
-                PointsStore.makeIdempotencyId("fact", "j1"),
+                "caption_reprocess",
+                PointsStore.makeIdempotencyId("caption", "j1"),
                 Map.of("job_id", "j1")
         );
         PointsStore.SpendOnceResult repeatedSpend = pointsStore.spendOnce(
                 user.id(),
                 15,
-                "fact_check",
-                PointsStore.makeIdempotencyId("fact", "j1"),
+                "caption_reprocess",
+                PointsStore.makeIdempotencyId("caption", "j1"),
                 Map.of("job_id", "j1")
         );
         assertThat(firstSpend.applied()).isTrue();
         assertThat(repeatedSpend.applied()).isFalse();
         assertThat(repeatedSpend.balance()).isEqualTo(firstSpend.balance());
 
-        assertThat(pointsStore.refund(user.id(), 5, "fact_check", Map.of("job_id", "j1"))).isEqualTo(80);
+        assertThat(pointsStore.refund(user.id(), 5, "caption_reprocess", Map.of("job_id", "j1"))).isEqualTo(80);
         assertThat(pointsStore.refundOnce(
                 user.id(),
                 5,
-                "fact_check",
+                "caption_reprocess",
                 PointsStore.makeIdempotencyId("refund", "j1"),
                 Map.of("job_id", "j1")
         )).isEqualTo(85);
@@ -184,16 +197,16 @@ class StoreBehaviorIT extends IntegrationTestSupport {
         UsageLedgerStore.ReserveResult reserved = usageLedgerStore.reserve(
                 user.id(),
                 "job-usage",
-                "social_copy",
+                "transcription",
                 "openai",
-                "gpt-5-mini",
+                "whisper-1",
                 "standard",
                 20,
                 10,
                 0.25d,
                 Map.of("seconds", 30),
                 "usage-key",
-                "/videos/jobs/job-usage/social-copy",
+                "/audio/transcriptions",
                 "USD"
         );
         assertThat(reserved.balance()).isEqualTo(65);
@@ -212,16 +225,16 @@ class StoreBehaviorIT extends IntegrationTestSupport {
         UsageLedgerStore.ReserveResult failed = usageLedgerStore.reserve(
                 user.id(),
                 "job-fail",
-                "fact_check",
+                "caption_reprocess",
                 "openai",
-                "gpt-5-mini",
+                "whisper-1",
                 "standard",
                 10,
                 10,
                 0.20d,
                 Map.of("seconds", 10),
                 "usage-fail",
-                "/videos/jobs/job-fail/fact-check",
+                "/audio/transcriptions",
                 "USD"
         );
         int afterFail = usageLedgerStore.refundIfReserved(failed.reservation(), "failed", "boom");
@@ -229,7 +242,7 @@ class StoreBehaviorIT extends IntegrationTestSupport {
         jobStore.updateJob("job-fail", "failed", 100, "boom", null);
         assertThat(usageLedgerStore.summarize(0, Integer.MAX_VALUE, "action"))
                 .extracting(UsageLedgerStore.UsageSummaryRow::bucket)
-                .contains("social_copy", "fact_check");
+                .contains("transcription", "caption_reprocess");
 
         String activeJobId = "job-active";
         jobStore.createJob(activeJobId, user.id());
@@ -259,7 +272,7 @@ class StoreBehaviorIT extends IntegrationTestSupport {
                 refundJobId,
                 "transcription",
                 "openai",
-                "gpt-5-mini",
+                "whisper-1",
                 null,
                 20,
                 5,
@@ -274,7 +287,7 @@ class StoreBehaviorIT extends IntegrationTestSupport {
                 refundJobId,
                 "transcription",
                 "openai",
-                "gpt-5-mini",
+                "whisper-1",
                 null,
                 20,
                 5,
@@ -295,9 +308,9 @@ class StoreBehaviorIT extends IntegrationTestSupport {
         UsageLedgerStore.ReserveResult overageReservation = usageLedgerStore.reserve(
                 user.id(),
                 overageJobId,
-                "social_copy",
+                "transcription_overage",
                 "openai",
-                "gpt-5-mini",
+                "whisper-1",
                 "standard",
                 10,
                 5,
@@ -316,9 +329,9 @@ class StoreBehaviorIT extends IntegrationTestSupport {
         UsageLedgerStore.ReserveResult failedReservation = usageLedgerStore.reserve(
                 user.id(),
                 failedJobId,
-                "fact_check",
+                "caption_reprocess",
                 "openai",
-                "gpt-5-mini",
+                "whisper-1",
                 "pro",
                 12,
                 10,
@@ -348,9 +361,6 @@ class StoreBehaviorIT extends IntegrationTestSupport {
                 .query(String.class)
                 .single()).isEqualTo("failed");
         assertThat(usageLedgerStore.pointsStore()).isSameAs(pointsStore);
-        assertThat(new UsageLedgerStore.ChargePlan(refundReservation.reservation(), overageReservation.reservation()).socialCopy())
-                .isEqualTo(overageReservation.reservation());
-
         String currentDay = DateTimeFormatter.ofPattern("yyyy-MM-dd")
                 .format(LocalDateTime.ofEpochSecond(Instant.now().getEpochSecond(), 0, ZoneOffset.UTC));
         String currentMonth = DateTimeFormatter.ofPattern("yyyy-MM")
@@ -370,7 +380,7 @@ class StoreBehaviorIT extends IntegrationTestSupport {
                 .isEqualTo(user.id());
         assertThat(usageLedgerStore.summarize(0, Integer.MAX_VALUE, "action"))
                 .extracting(UsageLedgerStore.UsageSummaryRow::bucket)
-                .containsExactlyInAnyOrder("transcription", "social_copy", "fact_check");
+                .containsExactlyInAnyOrder("transcription", "transcription_overage", "caption_reprocess");
         assertThatThrownBy(() -> usageLedgerStore.summarize(10, 9, "day"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("start_ts");

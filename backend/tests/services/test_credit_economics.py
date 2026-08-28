@@ -19,7 +19,7 @@ from backend.app.services.credit_economics import (
 def test_minimum_net_revenue_uses_the_most_conservative_package() -> None:
     net_per_credit = minimum_net_revenue_per_credit_eur()
 
-    assert net_per_credit == pytest.approx(Decimal("0.005414516129032258"))
+    assert net_per_credit == pytest.approx(Decimal("0.005049516129032258"))
 
 
 def test_economics_catalog_matches_server_owned_checkout_catalog() -> None:
@@ -39,6 +39,20 @@ def test_provider_economics_accepts_current_ten_minute_scribe_ceiling() -> None:
         safety_multiplier=1.25,
     )
 
+    assert quote.net_revenue_eur > quote.guarded_provider_cost_eur
+    assert quote.contribution_margin >= MINIMUM_CONTRIBUTION_MARGIN
+
+
+def test_thirty_credits_cover_three_minute_transcription_ceiling() -> None:
+    scribe_cost_usd = 0.22 * (3 / 60)
+
+    quote = assert_provider_economics(
+        credits=30,
+        estimated_cost_usd=scribe_cost_usd,
+        safety_multiplier=1.25,
+    )
+
+    assert quote.credits == 30
     assert quote.net_revenue_eur > quote.guarded_provider_cost_eur
     assert quote.contribution_margin >= MINIMUM_CONTRIBUTION_MARGIN
 

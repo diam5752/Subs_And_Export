@@ -32,16 +32,15 @@ def test_refund_charge_best_effort_handles_missing_inputs_and_errors(monkeypatch
     ledger_store = MagicMock()
     processing_tasks.refund_charge_best_effort(None, None, status="failed", error="boom")
 
-    reservation_a = types.SimpleNamespace(user_id="user-1", action="transcription")
-    reservation_b = types.SimpleNamespace(user_id="user-1", action="social")
-    charge_plan = ChargePlan(transcription=reservation_a, social_copy=reservation_b)
-    ledger_store.refund_if_reserved.side_effect = [None, RuntimeError("refund failed")]
+    reservation = types.SimpleNamespace(user_id="user-1", action="transcription")
+    charge_plan = ChargePlan(transcription=reservation)
+    ledger_store.refund_if_reserved.side_effect = RuntimeError("refund failed")
     logger_spy = MagicMock()
     monkeypatch.setattr(processing_tasks, "logger", types.SimpleNamespace(exception=logger_spy))
 
     processing_tasks.refund_charge_best_effort(ledger_store, charge_plan, status="cancelled", error="cancelled")
 
-    assert ledger_store.refund_if_reserved.call_count == 2
+    ledger_store.refund_if_reserved.assert_called_once()
     logger_spy.assert_called_once()
 
 
@@ -125,7 +124,6 @@ def test_run_video_processing_aborts_missing_job_without_recreating_user(
             user_id=user.id,
             action="transcription",
         ),
-        social_copy=None,
     )
     pipeline = MagicMock()
     monkeypatch.setattr(
@@ -236,7 +234,6 @@ def test_run_video_processing_cleans_up_if_job_disappears_mid_run(
             user_id=user.id,
             action="transcription",
         ),
-        social_copy=None,
     )
 
     processing_tasks.run_video_processing(
@@ -269,7 +266,6 @@ def test_abort_deleted_job_refunds_when_local_cleanup_fails(
             user_id="deleted-user",
             action="transcription",
         ),
-        social_copy=None,
     )
     cleanup_error = RuntimeError("workspace unavailable")
     monkeypatch.setattr(
@@ -330,7 +326,6 @@ def test_run_video_processing_refunds_when_job_disappears_on_worker_error(
             user_id="deleted-user",
             action="transcription",
         ),
-        social_copy=None,
     )
 
     processing_tasks.run_video_processing(
@@ -412,7 +407,6 @@ def test_run_video_processing_observes_cancellation_during_pipeline(
             user_id="cancelled-user",
             action="transcription",
         ),
-        social_copy=None,
     )
 
     processing_tasks.run_video_processing(
@@ -689,7 +683,6 @@ def test_cleanup_journal_failure_observes_concurrent_cancellation(
             user_id=user.id,
             action="transcription",
         ),
-        social_copy=None,
     )
 
     processing_tasks.run_video_processing(
@@ -772,7 +765,6 @@ def test_failure_records_cancelled_precedence_when_cancel_wins_after_intent(
             user_id=user.id,
             action="transcription",
         ),
-        social_copy=None,
     )
 
     processing_tasks.run_video_processing(
@@ -825,7 +817,6 @@ def test_duplicate_paid_dispatch_does_not_fail_or_refund_winner(
             user_id="duplicate-user",
             action="transcription",
         ),
-        social_copy=None,
     )
 
     processing_tasks.run_video_processing(
@@ -872,7 +863,6 @@ def test_run_video_processing_refunds_if_job_disappears_after_completion_update(
             user_id="deleted-user",
             action="transcription",
         ),
-        social_copy=None,
     )
 
     processing_tasks.run_video_processing(

@@ -320,11 +320,6 @@ class Settings(BaseSettings):
     )
     elevenlabs_transcribe_model: str = "scribe_v2"
 
-    # --- LLM ---
-    social_llm_model: str = "gpt-5-mini"
-    factcheck_llm_model: str = "gpt-5-mini"
-    extraction_llm_model: str = "gpt-5-mini"
-
     # --- Pricing & Credits ---
     default_transcribe_tier: str = "standard"
     transcribe_tier_provider: dict[str, str] = {"standard": "groq", "pro": "groq"}
@@ -332,11 +327,8 @@ class Settings(BaseSettings):
         "standard": "whisper-large-v3-turbo",
         "pro": "whisper-large-v3",
     }
-    credits_per_1k_tokens: dict[str, int] = {"standard": 2, "pro": 7}
     credits_per_minute_transcribe: dict[str, int] = {"standard": 10, "pro": 20}
     credits_min_transcribe: dict[str, int] = {"standard": 25, "pro": 50}
-    credits_min_social_copy: dict[str, int] = {"standard": 10, "pro": 20}
-    credits_min_fact_check: dict[str, int] = {"standard": 20, "pro": 40}
 
     # --- Bounded Beta launch grant (off unless explicitly enabled) ---
     beta_login_promotion_enabled: bool = Field(
@@ -465,15 +457,6 @@ class Settings(BaseSettings):
         "standard": 0.04 / 60,
         "pro": 0.111 / 60,
     }
-    # Pricing per 1M tokens
-    llm_pricing: dict[str, dict[str, float]] = {
-        "gpt-4o": {"input": 5.00, "output": 15.00},
-        "gpt-4o-mini": {"input": 0.15, "output": 0.60},
-        "gpt-5-mini": {"input": 0.25, "output": 2.00},
-    }
-    default_llm_input_price: float = 0.25
-    default_llm_output_price: float = 2.00
-
     # --- Safety Limits ---
     external_provider_monthly_budget_usd: float = Field(
         default=0.0,
@@ -496,10 +479,6 @@ class Settings(BaseSettings):
         le=2.0,
         validation_alias="GSP_EXTERNAL_PROVIDER_PRICE_SAFETY_MULTIPLIER",
     )
-    max_llm_input_chars: int = 15000
-    max_llm_output_tokens_extraction: int = 1000
-    max_llm_output_tokens_social: int = 3000
-    max_llm_output_tokens_factcheck: int = 6000
     max_upload_mb: int = Field(default=500, gt=0, validation_alias="GSP_MAX_UPLOAD_MB")
     upload_inactivity_timeout_seconds: float = Field(
         default=30.0,
@@ -557,11 +536,6 @@ class Settings(BaseSettings):
     signup_limit_per_ip_per_day: int = 5
     static_rate_limit: int = 60
     static_rate_limit_window: int = 60
-
-    # --- Runtime defaults ---
-    use_llm_by_default: bool = Field(default=False, validation_alias="GSP_USE_LLM_BY_DEFAULT")
-    llm_model: str = Field(default="gpt-5-mini", validation_alias="GSP_LLM_MODEL")
-    llm_temperature: float = Field(default=0.6, validation_alias="GSP_LLM_TEMPERATURE")
 
     def assert_download_grant_configuration(self) -> None:
         """Require a dedicated high-entropy signing key outside development."""

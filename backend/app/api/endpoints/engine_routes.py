@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from ...core.auth import User
 from ...core.config import settings
-from ...services.llm_utils import (
+from ...services.provider_clients import (
     resolve_elevenlabs_api_key,
     resolve_groq_api_key,
     resolve_openai_api_key,

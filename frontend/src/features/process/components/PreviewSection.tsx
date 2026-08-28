@@ -32,7 +32,7 @@ type PreviewSectionLayoutProps = {
     handleExport: (resolution: string) => Promise<void>;
     exportingResolutions: Record<string, boolean>;
     exportError: string | null;
-    activeSidebarTab: 'transcript' | 'styles' | 'intelligence';
+    activeSidebarTab: 'transcript' | 'styles';
     exportFilenamePreview: string;
     showNewVideoModal: boolean;
     setShowNewVideoModal: React.Dispatch<React.SetStateAction<boolean>>;

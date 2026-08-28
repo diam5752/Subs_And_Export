@@ -13,7 +13,7 @@ import requests
 
 from backend.app.core.config import settings
 from backend.app.core.erasure_journal import configured_erasure_journal
-from backend.app.services.llm_utils import resolve_elevenlabs_api_key
+from backend.app.services.provider_clients import resolve_elevenlabs_api_key
 from backend.app.services.subtitle_types import Cue, WordTiming
 from backend.app.services.transcription.base import Transcriber
 from backend.app.services.transcription.utils import normalize_text, write_srt_from_segments

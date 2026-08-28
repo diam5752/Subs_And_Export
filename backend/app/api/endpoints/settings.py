@@ -9,7 +9,6 @@ from fastapi import HTTPException
 from pydantic import BaseModel
 
 from ...core.config import settings
-from ...services import pricing
 from .validation import (
     validate_highlight_style,
     validate_max_subtitle_lines,
@@ -36,10 +35,7 @@ class ProcessingSettings(BaseModel):
     video_quality: str = "high quality"
     target_width: int | None = None
     target_height: int | None = None
-    use_llm: bool = settings.use_llm_by_default
     context_prompt: str = ""
-    llm_model: str = settings.llm_model
-    llm_temperature: float = settings.llm_temperature
     subtitle_position: int = 16  # 5-95 progression from safe bottom to safe top
     max_subtitle_lines: int = 2
     subtitle_color: str | None = None
@@ -88,7 +84,6 @@ def build_processing_settings(
     openai_model: str,
     video_quality: str,
     video_resolution: str,
-    use_llm: bool,
     context_prompt: str,
     subtitle_position: int,
     max_subtitle_lines: int,
@@ -133,7 +128,6 @@ def build_processing_settings(
     if settings.mock_external_services:
         provider = "mock"
         openai_model_value = None
-        use_llm = False
 
     quality = validate_video_quality(video_quality)
     subtitle_position = validate_subtitle_position(subtitle_position)
@@ -149,7 +143,6 @@ def build_processing_settings(
             raise HTTPException(status_code=400, detail="Invalid subtitle color format (expected &HAABBGGRR)")
 
     target_width, target_height = parse_resolution(video_resolution)
-    llm_models = pricing.resolve_llm_models(tier)
     return ProcessingSettings(
         transcribe_tier=tier,
         transcribe_provider=provider,
@@ -157,7 +150,6 @@ def build_processing_settings(
         video_quality=quality,
         target_width=target_width,
         target_height=target_height,
-        use_llm=use_llm,
         context_prompt=context_prompt,
         subtitle_position=subtitle_position,
         max_subtitle_lines=max_subtitle_lines,
@@ -167,5 +159,4 @@ def build_processing_settings(
         subtitle_size=subtitle_size,
         karaoke_enabled=karaoke_enabled,
         watermark_enabled=watermark_enabled,
-        llm_model=llm_models.social,
     )

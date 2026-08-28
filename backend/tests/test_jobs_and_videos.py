@@ -308,9 +308,7 @@ def test_run_video_processing_success(monkeypatch, tmp_path: Path):
         kwargs["progress_callback"]("halfway", 50)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_bytes(b"ok")
-        # Update mock to match new SocialContent structure (generic.title_en)
-        social = types.SimpleNamespace(generic=types.SimpleNamespace(title_en="hi"))
-        return output_path, social
+        return output_path
 
     monkeypatch.setattr(processing_tasks, "process_video_pipeline", fake_normalize)
     settings = ProcessingSettings()
@@ -439,15 +437,12 @@ def test_run_video_processing_does_not_restart_cancelled_job_and_refunds(monkeyp
     )
     starting_balance = points_store.get_balance(user_id)
 
-    llm_models = pricing.resolve_llm_models("standard")
     charge_plan, _ = reserve_processing_charges(
         ledger_store=ledger_store,
         user_id=user_id,
         job_id=job.id,
         tier="standard",
         duration_seconds=60.0,
-        use_llm=False,
-        llm_model=llm_models.social,
         provider="groq",
         stt_model=pricing.resolve_transcribe_model("standard"),
     )
@@ -662,14 +657,29 @@ def test_process_video_forces_mock_before_charge_planning(client: TestClient, mo
             "transcribe_tier": "pro",
             "transcribe_provider": "openai",
             "openai_model": "gpt-4o-transcribe",
-            "use_llm": True,
         },
     )
 
     assert response.status_code == 200
     assert captured["provider"] == "mock"
     assert captured["stt_model"] == "mock-caption-v1"
-    assert captured["use_llm"] is False
+
+
+def test_process_video_rejects_removed_text_generation_setting(
+    client: TestClient,
+) -> None:
+    # REGRESSION: a stale client must not silently re-enable the retired surface.
+    headers = _auth_header(client, email="process-retired-setting@example.com")
+
+    response = post_process_stream(
+        client,
+        headers,
+        content=b"123",
+        metadata={"use_llm": True},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Invalid upload metadata"
 
 
 def test_process_video_accepts_local_provider_override(client: TestClient, monkeypatch):

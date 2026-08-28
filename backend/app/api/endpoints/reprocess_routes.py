@@ -7,7 +7,7 @@ import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from ...core.auth import User
 from ...core.config import settings
@@ -64,13 +64,14 @@ router = APIRouter()
 
 
 class ReprocessRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     authorized_credits: int = Field(..., strict=True)
     transcribe_tier: str = Field(settings.default_transcribe_tier, max_length=50)
     transcribe_provider: str = Field(settings.transcribe_tier_provider[settings.default_transcribe_tier], max_length=50)
     openai_model: str = Field("", max_length=50)
     video_quality: str = Field("high quality", max_length=50)
     video_resolution: str = Field("", max_length=50)
-    use_llm: bool = settings.use_llm_by_default
     context_prompt: str = Field("", max_length=5000)
     subtitle_position: int = 16
     max_subtitle_lines: int = 2
@@ -142,7 +143,6 @@ def _reserve_reprocess_job(
     proc_settings: ProcessingSettings,
     duration_seconds: float,
     source_size_bytes: int,
-    llm_models: pricing.LlmModels,
     stt_model: str,
     job_store: JobStore,
     history_store: HistoryStore,
@@ -213,8 +213,6 @@ def _reserve_reprocess_job(
                 job_id=new_job_id,
                 tier=proc_settings.transcribe_tier,
                 duration_seconds=duration_seconds,
-                use_llm=proc_settings.use_llm,
-                llm_model=llm_models.social,
                 provider=proc_settings.transcribe_provider,
                 stt_model=stt_model,
             )
@@ -264,7 +262,6 @@ def reprocess_job(
         openai_model=request.openai_model,
         video_quality=request.video_quality,
         video_resolution=request.video_resolution,
-        use_llm=request.use_llm,
         context_prompt=request.context_prompt,
         subtitle_position=request.subtitle_position,
         max_subtitle_lines=request.max_subtitle_lines,
@@ -327,7 +324,6 @@ def reprocess_job(
         authorized_credits=request.authorized_credits,
     )
 
-    llm_models = pricing.resolve_llm_models(proc_settings.transcribe_tier)
     stt_model = pricing.resolve_requested_transcribe_model(
         tier=proc_settings.transcribe_tier,
         provider=proc_settings.transcribe_provider,
@@ -338,8 +334,6 @@ def reprocess_job(
         user_id=current_user.id,
         tier=proc_settings.transcribe_tier,
         duration_seconds=float(probe.duration_s),
-        use_llm=proc_settings.use_llm,
-        llm_model=llm_models.social,
         provider=proc_settings.transcribe_provider,
         stt_model=stt_model,
     )
@@ -359,7 +353,6 @@ def reprocess_job(
         proc_settings=proc_settings,
         duration_seconds=float(probe.duration_s or 0),
         source_size_bytes=size_bytes,
-        llm_models=llm_models,
         stt_model=stt_model,
         job_store=job_store,
         history_store=history_store,

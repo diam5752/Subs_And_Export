@@ -27,14 +27,19 @@ def _campaign_id() -> str:
     return f"beta-test-{secrets.token_hex(8)}"
 
 
-def _create_campaign(db: Database, campaign_id: str) -> None:
+def _create_campaign(
+    db: Database,
+    campaign_id: str,
+    *,
+    claimed_count: int = 0,
+) -> None:
     with db.session() as session:
         session.add(
             DbCreditPromotionCampaign(
                 id=campaign_id,
                 max_claims=BETA_LOGIN_MAX_CLAIMS,
                 credit_amount=BETA_LOGIN_CREDIT_AMOUNT,
-                claimed_count=0,
+                claimed_count=claimed_count,
                 created_at=1_700_000_000,
             )
         )
@@ -58,7 +63,7 @@ def test_beta_login_campaign_migration_seeds_the_reviewed_contract() -> None:
     with db.session() as session:
         campaign = session.get(DbCreditPromotionCampaign, BETA_LOGIN_CAMPAIGN_ID)
         assert campaign is not None
-        assert campaign.max_claims == 20
+        assert campaign.max_claims == 50
         assert campaign.credit_amount == 30
         assert campaign.claimed_count == 0
 
@@ -102,13 +107,13 @@ def test_login_promotion_is_idempotent_and_cloud_spendable() -> None:
         assert transaction.meta == {
             "campaign_id": campaign_id,
             "slot_number": 1,
-            "max_claims": 20,
+            "max_claims": 50,
             "credit_amount": 30,
             "funding": "operator_sponsored_cloud",
         }
 
 
-def test_login_promotion_caps_twenty_simultaneous_unique_claims() -> None:
+def test_login_promotion_caps_fifty_simultaneous_unique_claims() -> None:
     db = Database()
     campaign_id = _campaign_id()
     _create_campaign(db, campaign_id)
@@ -125,15 +130,15 @@ def test_login_promotion_caps_twenty_simultaneous_unique_claims() -> None:
 
     awarded = [result for result in results if result.status == "awarded"]
     exhausted = [result for result in results if result.status == "exhausted"]
-    assert len(awarded) == 20
+    assert len(awarded) == 50
     assert len(exhausted) == 1
-    assert sum(result.awarded_credits for result in results) == 600
-    assert sorted(result.slot_number for result in awarded) == list(range(1, 21))
+    assert sum(result.awarded_credits for result in results) == 1500
+    assert sorted(result.slot_number for result in awarded) == list(range(1, 51))
 
     with db.session() as session:
         campaign = session.get(DbCreditPromotionCampaign, campaign_id)
         assert campaign is not None
-        assert campaign.claimed_count == 20
+        assert campaign.claimed_count == 50
         claims = list(
             session.scalars(
                 select(DbCreditPromotionClaim)
@@ -141,13 +146,33 @@ def test_login_promotion_caps_twenty_simultaneous_unique_claims() -> None:
                 .order_by(DbCreditPromotionClaim.slot_number.asc())
             ).all()
         )
-        assert [claim.slot_number for claim in claims] == list(range(1, 21))
+        assert [claim.slot_number for claim in claims] == list(range(1, 51))
         assert session.scalar(
             select(func.sum(DbPointTransaction.delta)).where(
                 DbPointTransaction.reason == "beta_login_credit",
                 DbPointTransaction.meta["campaign_id"].as_string() == campaign_id,
             )
-        ) == 600
+        ) == 1500
+
+
+def test_expanded_campaign_continues_after_the_original_twenty_slots() -> None:
+    db = Database()
+    campaign_id = _campaign_id()
+    _create_campaign(db, campaign_id, claimed_count=20)
+    user_id = _create_users(db, 1)[0]
+
+    result = LoginPromotionStore(db=db, campaign_id=campaign_id).claim_for_login(
+        user_id,
+        enabled=True,
+    )
+
+    assert result.status == "awarded"
+    assert result.slot_number == 21
+    assert result.awarded_credits == 30
+    with db.session() as session:
+        campaign = session.get(DbCreditPromotionCampaign, campaign_id)
+        assert campaign is not None
+        assert campaign.claimed_count == 21
 
 
 def test_login_promotion_is_disabled_without_mutating_the_campaign() -> None:
@@ -198,7 +223,7 @@ def test_login_promotion_rejects_a_campaign_contract_mismatch() -> None:
         session.add(
             DbCreditPromotionCampaign(
                 id=campaign_id,
-                max_claims=21,
+                max_claims=49,
                 credit_amount=30,
                 claimed_count=0,
                 created_at=1_700_000_000,
@@ -206,7 +231,7 @@ def test_login_promotion_rejects_a_campaign_contract_mismatch() -> None:
         )
     user_id = _create_users(db, 1)[0]
 
-    with pytest.raises(LoginPromotionConfigurationError, match="20-by-30"):
+    with pytest.raises(LoginPromotionConfigurationError, match="50-by-30"):
         LoginPromotionStore(db=db, campaign_id=campaign_id).claim_for_login(
             user_id,
             enabled=True,

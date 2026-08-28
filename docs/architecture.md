@@ -4,10 +4,9 @@
 
 The default development profile is mock-only. `GSP_MOCK_EXTERNAL_SERVICES=1` is
 the application default and the root `docker-compose.yml` forces it explicitly.
-The backend rewrites every transcription request to `mock-caption-v1`, disables
-LLM reservations, and reports provider cost as zero. External-provider budgets
-default to `0.0`, providing a second fail-closed barrier if mock mode is changed
-accidentally.
+The backend rewrites every transcription request to `mock-caption-v1` and
+reports provider cost as zero. External-provider budgets default to `0.0`,
+providing a second fail-closed barrier if mock mode is changed accidentally.
 
 The tracked production profile is a separate contract in
 `deploy/hetzner/docker-compose.production.yml`. It forces mock mode off, enables
@@ -16,16 +15,13 @@ prepaid-credit Checkout contract. Startup and production verification require th
 complete ElevenLabs and Stripe configuration from the untracked environment.
 Every Scribe request must reserve purchased credits and pass the per-request,
 daily, monthly and contribution-margin guards before provider dispatch. OpenAI
-and Groq credentials remain empty and no relay route is provided for them, so
-provider-backed fact-check and social-copy intelligence remains dormant.
+and Groq credentials remain empty and no relay route is provided for them.
 
 The default mock services still exercise the real product boundaries:
 
 1. The source video is validated and FFmpeg extracts/probes its media locally.
 2. `MockTranscriber` emits deterministic Greek cues and per-word timestamps.
 3. The normal subtitle renderer, preview, editor, SRT export and video export run.
-4. Fact-check and social-copy endpoints return clearly labelled deterministic
-   previews without network calls or usage reservations.
 
 ## Components
 

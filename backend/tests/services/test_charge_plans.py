@@ -17,7 +17,6 @@ from backend.app.services import pricing
 from backend.app.services.charge_plans import (
     assert_external_provider_budget,
     preflight_processing_charges,
-    reserve_llm_charge,
     reserve_processing_charges,
     reserve_transcription_charge,
 )
@@ -124,87 +123,13 @@ class TestReserveTranscriptionCharge:
         assert balance == starting_balance - 30
 
 
-class TestReserveLlmCharge:
-    """Test reserve_llm_charge helper."""
-
-    def test_reserve_social_copy_charge(self) -> None:
-        db = Database()
-        user_id = _seed_user(db)
-        job_id = f"job-llm-{uuid.uuid4().hex[:8]}"
-        _seed_job(db, user_id, job_id)
-        points_store = PointsStore(db=db)
-        points_store.ensure_account(user_id)
-        points_store.credit(
-            user_id,
-            200,
-            reason="test_paid_funding",
-            paid_credit_delta=200,
-        )
-        starting_balance = points_store.get_balance(user_id)
-        ledger_store = UsageLedgerStore(db=db, points_store=points_store)
-
-        reservation, balance = reserve_llm_charge(
-            ledger_store=ledger_store,
-            user_id=user_id,
-            job_id=job_id,
-            tier="standard",
-            action="social_copy",
-            model="gpt-5-mini",
-            max_prompt_chars=config.settings.max_llm_input_chars,
-            max_completion_tokens=config.settings.max_llm_output_tokens_social,
-            min_credits=config.settings.credits_min_social_copy["standard"],
-        )
-
-        assert reservation.action == "social_copy"
-        assert reservation.provider == "openai"
-        assert reservation.tier == "standard"
-        assert balance < starting_balance
-
-
 class TestReserveProcessingCharges:
     """Test reserve_processing_charges helper."""
 
-    def test_reserve_with_llm(self) -> None:
+    def test_reserve_transcription_plan(self) -> None:
         db = Database()
         user_id = _seed_user(db)
-        job_id = f"job-proc-llm-{uuid.uuid4().hex[:8]}"
-        _seed_job(db, user_id, job_id)
-        points_store = PointsStore(db=db)
-        points_store.ensure_account(user_id)
-        points_store.credit(
-            user_id,
-            200,
-            reason="test_paid_funding",
-            paid_credit_delta=200,
-        )
-        starting_balance = points_store.get_balance(user_id)
-        ledger_store = UsageLedgerStore(db=db, points_store=points_store)
-
-        llm_models = pricing.resolve_llm_models("standard")
-        charge_plan, balance = reserve_processing_charges(
-            ledger_store=ledger_store,
-            user_id=user_id,
-            job_id=job_id,
-            tier="standard",
-            duration_seconds=60.0,
-            use_llm=True,
-            llm_model=llm_models.social,
-            provider="groq",
-            stt_model=config.settings.transcribe_tier_model["standard"],
-        )
-
-        assert charge_plan.transcription is not None
-        assert charge_plan.social_copy is not None
-        assert charge_plan.transcription.action == "transcription"
-        assert charge_plan.social_copy.action == "social_copy"
-        assert charge_plan.transcription.reserved_credits == 30
-        assert charge_plan.social_copy.reserved_credits == 0
-        assert balance == starting_balance - 30
-
-    def test_reserve_without_llm(self) -> None:
-        db = Database()
-        user_id = _seed_user(db)
-        job_id = f"job-proc-nollm-{uuid.uuid4().hex[:8]}"
+        job_id = f"job-proc-transcription-{uuid.uuid4().hex[:8]}"
         _seed_job(db, user_id, job_id)
         points_store = PointsStore(db=db)
         points_store.ensure_account(user_id)
@@ -223,15 +148,11 @@ class TestReserveProcessingCharges:
             job_id=job_id,
             tier="standard",
             duration_seconds=60.0,
-            use_llm=False,
-            llm_model="gpt-5-mini",
             provider="groq",
             stt_model=config.settings.transcribe_tier_model["standard"],
         )
 
         assert charge_plan.transcription is not None
-        assert charge_plan.social_copy is None
-        # Only transcription charge
         assert balance == starting_balance - 30
 
 
@@ -254,8 +175,6 @@ def test_processing_preflight_rejects_zero_credit_without_reserving() -> None:
             user_id=user_id,
             tier="standard",
             duration_seconds=60.0,
-            use_llm=False,
-            llm_model="gpt-5-mini",
             provider="local",
             stt_model=config.settings.transcribe_tier_model["standard"],
         )
@@ -285,8 +204,6 @@ def test_processing_preflight_preserves_external_provider_paid_credit_rule(
             user_id=user_id,
             tier="standard",
             duration_seconds=60.0,
-            use_llm=False,
-            llm_model="gpt-5-mini",
             provider="groq",
             stt_model="whisper-large-v3-turbo",
         )
@@ -320,8 +237,6 @@ def test_processing_preflight_rejects_closed_budget_before_wallet_check(
             user_id=user_id,
             tier="standard",
             duration_seconds=60.0,
-            use_llm=False,
-            llm_model="gpt-5-mini",
             provider="elevenlabs",
             stt_model="scribe_v2",
         )
@@ -434,8 +349,6 @@ def test_processing_charge_fails_before_reservation_when_economics_are_unsafe(
             job_id=job_id,
             tier="standard",
             duration_seconds=60.0,
-            use_llm=False,
-            llm_model="gpt-5-mini",
             provider="elevenlabs",
             stt_model="scribe_v2",
         )

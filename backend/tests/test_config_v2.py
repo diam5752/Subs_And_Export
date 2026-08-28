@@ -293,9 +293,6 @@ def test_runtime_privacy_gate_rejects_disabled_production_retention(
 
 def test_settings_environment_overrides(monkeypatch) -> None:
     monkeypatch.setenv("GSP_MOCK_EXTERNAL_SERVICES", "false")
-    monkeypatch.setenv("GSP_USE_LLM_BY_DEFAULT", "true")
-    monkeypatch.setenv("GSP_LLM_MODEL", "gpt-env-test")
-    monkeypatch.setenv("GSP_LLM_TEMPERATURE", "0.42")
     monkeypatch.setenv("GSP_MAX_UPLOAD_MB", "123")
     monkeypatch.setenv("GSP_MAX_VIDEO_DURATION_SECONDS", "480")
     monkeypatch.setenv("GSP_MAX_ACTIVE_MEDIA_JOBS", "7")
@@ -336,9 +333,6 @@ def test_settings_environment_overrides(monkeypatch) -> None:
     settings = Settings(_env_file=None)
 
     assert settings.mock_external_services is False
-    assert settings.use_llm_by_default is True
-    assert settings.llm_model == "gpt-env-test"
-    assert settings.llm_temperature == 0.42
     assert settings.max_upload_mb == 123
     assert settings.max_video_duration_seconds == 480
     assert settings.max_active_media_jobs == 7
@@ -596,7 +590,6 @@ def test_stripe_stage_configuration_rejects_partial_bundle_without_key(
 
 def test_settings_pricing_integration() -> None:
     settings = Settings()
-    assert "gpt-5-mini" in settings.llm_pricing
     assert settings.stt_price_per_minute["standard"] == pytest.approx(0.04 / 60)
 
 

@@ -7,7 +7,6 @@ Helper functions are extracted into separate modules for maintainability:
 - settings.py: ProcessingSettings model and builder
 - processing_tasks.py: Background processing tasks
 - job_routes.py: Job CRUD operations
-- intelligence_routes.py: Fact-check and social copy
 - export_routes.py: Video and SRT exports
 - reprocess_routes.py: Reprocess routes
 """
@@ -87,13 +86,11 @@ logger = logging.getLogger(__name__)
 # Include sub-routers
 from .engine_routes import router as engine_router
 from .export_routes import router as export_router
-from .intelligence_routes import router as intelligence_router
 from .job_routes import router as job_router
 from .reprocess_routes import router as reprocess_router
 
 router.include_router(job_router)
 router.include_router(engine_router)
-router.include_router(intelligence_router)
 router.include_router(export_router)
 router.include_router(reprocess_router)
 
@@ -120,7 +117,6 @@ class StreamProcessMetadata(BaseModel):
     openai_model: str = Field("", max_length=50)
     video_quality: str = Field("high quality", max_length=50)
     video_resolution: str = Field("", max_length=50)
-    use_llm: bool = settings.use_llm_by_default
     context_prompt: str = Field("", max_length=5000)
     subtitle_position: int = 16
     max_subtitle_lines: int = 2
@@ -412,7 +408,6 @@ def _queue_saved_upload(
         )
         raise
 
-    llm_models = pricing.resolve_llm_models(proc_settings.transcribe_tier)
     stt_model = pricing.resolve_requested_transcribe_model(
         tier=proc_settings.transcribe_tier,
         provider=proc_settings.transcribe_provider,
@@ -426,8 +421,6 @@ def _queue_saved_upload(
                 user_id=current_user.id,
                 tier=proc_settings.transcribe_tier,
                 duration_seconds=float(probe.duration_s),
-                use_llm=proc_settings.use_llm,
-                llm_model=llm_models.social,
                 provider=proc_settings.transcribe_provider,
                 stt_model=stt_model,
             )
@@ -469,8 +462,6 @@ def _queue_saved_upload(
                 job_id=job_id,
                 tier=proc_settings.transcribe_tier,
                 duration_seconds=float(probe.duration_s),
-                use_llm=proc_settings.use_llm,
-                llm_model=llm_models.social,
                 provider=proc_settings.transcribe_provider,
                 stt_model=stt_model,
             )
@@ -508,7 +499,6 @@ def _queue_saved_upload(
             filename,
             ledger_store=ledger_store,
             charge_plan=charge_plan,
-            db=db,
             source_probe=probe,
         )
         record_event_safe(
@@ -523,7 +513,6 @@ def _queue_saved_upload(
                 or settings.transcribe_tier_provider[settings.default_transcribe_tier],
                 "video_quality": proc_settings.video_quality,
                 "video_resolution": video_resolution,
-                "use_llm": proc_settings.use_llm,
             },
         )
     except Exception as exc:
@@ -559,7 +548,6 @@ def _reserve_stream_upload(
     expected_upload_bytes: int | None,
     proc_settings: ProcessingSettings,
     authorized_quote: pricing.VideoCreditQuote,
-    llm_models: pricing.LlmModels,
     stt_model: str,
 ) -> tuple[Job, ChargePlan, int]:
     """Create and charge one pending upload under the short admission lock."""
@@ -606,8 +594,6 @@ def _reserve_stream_upload(
                 job_id=job_id,
                 tier=proc_settings.transcribe_tier,
                 duration_seconds=float(authorized_quote.max_duration_seconds),
-                use_llm=proc_settings.use_llm,
-                llm_model=llm_models.social,
                 provider=proc_settings.transcribe_provider,
                 stt_model=stt_model,
                 allow_downward_adjustment=True,
@@ -650,7 +636,6 @@ async def process_video_stream(
         openai_model=metadata.openai_model,
         video_quality=metadata.video_quality,
         video_resolution=metadata.video_resolution,
-        use_llm=metadata.use_llm,
         context_prompt=metadata.context_prompt,
         subtitle_position=metadata.subtitle_position,
         max_subtitle_lines=metadata.max_subtitle_lines,
@@ -671,7 +656,6 @@ async def process_video_stream(
 
     expected_upload_bytes = _parse_content_length(request)
     authorized_quote = _authorized_video_quote(metadata.authorized_credits)
-    llm_models = pricing.resolve_llm_models(proc_settings.transcribe_tier)
     stt_model = pricing.resolve_requested_transcribe_model(
         tier=proc_settings.transcribe_tier,
         provider=proc_settings.transcribe_provider,
@@ -681,8 +665,6 @@ async def process_video_stream(
         ledger_store=ledger_store,
         tier=proc_settings.transcribe_tier,
         duration_seconds=float(authorized_quote.max_duration_seconds),
-        use_llm=proc_settings.use_llm,
-        llm_model=llm_models.social,
         provider=proc_settings.transcribe_provider,
         stt_model=stt_model,
     )
@@ -702,7 +684,6 @@ async def process_video_stream(
         expected_upload_bytes=expected_upload_bytes,
         proc_settings=proc_settings,
         authorized_quote=authorized_quote,
-        llm_models=llm_models,
         stt_model=stt_model,
     )
 

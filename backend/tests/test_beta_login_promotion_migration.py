@@ -90,7 +90,7 @@ def test_beta_login_promotion_downgrades_only_before_any_slot_is_awarded() -> No
                 FROM credit_promotion_campaigns
                 WHERE id = 'beta_first_20_logins_v1'
                 """
-            ).fetchone() == (20, 30, 0)
+            ).fetchone() == (50, 30, 0)
 
         clean_downgrade = _run_alembic(
             database_url,
@@ -129,7 +129,7 @@ def test_beta_login_promotion_downgrades_only_before_any_slot_is_awarded() -> No
         with psycopg.connect(connection_url, autocommit=True) as connection:
             assert connection.execute(
                 "SELECT version_num FROM alembic_version"
-            ).fetchone() == ("0024_product_feedback",)
+            ).fetchone() == ("0026_retire_text_models",)
             assert connection.execute(
                 """
                 SELECT claimed_count
@@ -137,3 +137,58 @@ def test_beta_login_promotion_downgrades_only_before_any_slot_is_awarded() -> No
                 WHERE id = 'beta_first_20_logins_v1'
                 """
             ).fetchone() == (1,)
+
+
+def test_beta_login_promotion_expands_in_place_and_refuses_unsafe_rollback() -> None:
+    with _isolated_database() as (database_url, connection_url):
+        original = _run_alembic(
+            database_url,
+            "upgrade",
+            "0024_product_feedback",
+        )
+        assert original.returncode == 0, original.stderr
+        with psycopg.connect(connection_url, autocommit=True) as connection:
+            connection.execute(
+                """
+                UPDATE credit_promotion_campaigns
+                SET claimed_count = 20
+                WHERE id = 'beta_first_20_logins_v1'
+                """
+            )
+
+        expanded = _run_alembic(database_url, "upgrade", "head")
+        assert expanded.returncode == 0, expanded.stderr
+        with psycopg.connect(connection_url, autocommit=True) as connection:
+            assert connection.execute(
+                """
+                SELECT max_claims, credit_amount, claimed_count
+                FROM credit_promotion_campaigns
+                WHERE id = 'beta_first_20_logins_v1'
+                """
+            ).fetchone() == (50, 30, 20)
+            connection.execute(
+                """
+                UPDATE credit_promotion_campaigns
+                SET claimed_count = 21
+                WHERE id = 'beta_first_20_logins_v1'
+                """
+            )
+
+        refused = _run_alembic(
+            database_url,
+            "downgrade",
+            "0024_product_feedback",
+        )
+        assert refused.returncode != 0
+        assert "more than 20 campaign slots were awarded" in refused.stderr
+        with psycopg.connect(connection_url, autocommit=True) as connection:
+            assert connection.execute(
+                "SELECT version_num FROM alembic_version"
+            ).fetchone() == ("0026_retire_text_models",)
+            assert connection.execute(
+                """
+                SELECT max_claims, claimed_count
+                FROM credit_promotion_campaigns
+                WHERE id = 'beta_first_20_logins_v1'
+                """
+            ).fetchone() == (50, 21)

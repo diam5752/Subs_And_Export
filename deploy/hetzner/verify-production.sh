@@ -489,7 +489,7 @@ if ! docker exec "$backend_id" python -c '
 from urllib.parse import urlsplit
 
 from backend.app.core.config import settings
-from backend.app.services.llm_utils import resolve_elevenlabs_api_key
+from backend.app.services.provider_clients import resolve_elevenlabs_api_key
 
 if not settings.allowed_origins:
     raise SystemExit("Production CORS requires an explicit origin allow-list.")

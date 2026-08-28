@@ -7,12 +7,11 @@ from unittest.mock import MagicMock
 import pytest
 
 from backend.app.services import (
-    llm_utils,
+    provider_clients,
     social_intelligence,
     subtitle_renderer,
     subtitles,
 )
-from backend.app.services import social_intelligence as social_lib
 from backend.app.services.subtitle_types import Cue, WordTiming
 
 # Import modules to patch them directly
@@ -185,33 +184,6 @@ def test_format_karaoke_wraps_long_lines():
     assert lines[0][0].text == "One"  # Just checking structure
 
 
-def test_clean_json_response_strips_fences():
-    raw = "```json\n{\"foo\": \"bar\"}\n```"
-    cleaned = llm_utils.clean_json_response(raw)
-    assert cleaned == '{"foo": "bar"}'
-
-
-def test_build_social_copy_llm_retries_and_raises(monkeypatch):
-    monkeypatch.setattr(llm_utils, "resolve_openai_api_key", lambda k: "sk-fake")
-
-    # Mock fallback to ensure it is returned
-    fallback = social_lib.SocialCopy(
-        social_lib.SocialContent("Fallback EL", "Fallback EN", "Fallback EL Desc", "Fallback EN Desc", ["#fallback"])
-    )
-    monkeypatch.setattr(social_lib, "build_social_copy", lambda text: fallback)
-
-    mock_client = MagicMock()
-    # Mock create to raise exception
-    mock_client.chat.completions.create.side_effect = Exception("API Error")
-
-    # Patch where it is used! (In llm_utils because social_lib calls it from there)
-    monkeypatch.setattr(llm_utils, "load_openai_client", lambda k: mock_client)
-
-    res = social_lib.build_social_copy_llm("some text", api_key="sk-fake")
-    assert res is not None
-    assert res.generic.title_en == "Fallback EN"
-
-
 def test_compose_title_branches():
     # Test short text - MUST PASS LIST of keywords
     t1 = social_intelligence._compose_title(["Short"])
@@ -225,34 +197,10 @@ def test_compose_title_branches():
     assert "Moments" in t2
 
 
-def test_load_openai_client_success(monkeypatch):
+def test_load_openai_compatible_client_success(monkeypatch):
     monkeypatch.setitem(sys.modules, "openai", MagicMock())
-    client = llm_utils.load_openai_client("sk-test")
+    client = provider_clients.load_openai_compatible_client("sk-test")
     assert client is not None
-
-
-def test_build_social_copy_llm_empty_response(monkeypatch):
-    monkeypatch.setattr(llm_utils, "resolve_openai_api_key", lambda k: "sk-fake")
-    mock_client = MagicMock()
-
-    # Return empty content
-    mock_response = MagicMock()
-    mock_response.choices[0].message.content = ""
-    mock_response.choices[0].message.refusal = None
-    mock_client.chat.completions.create.return_value = mock_response
-
-    # Patch in llm_utils
-    monkeypatch.setattr(llm_utils, "load_openai_client", lambda k: mock_client)
-
-    # Pass fallback
-    fallback = social_lib.SocialCopy(
-        social_lib.SocialContent("Fallback EL", "Fallback EN", "Fallback EL Desc", "Fallback EN Desc", ["#fallback"])
-    )
-    monkeypatch.setattr(social_lib, "build_social_copy", lambda text: fallback)
-
-    res = social_lib.build_social_copy_llm("text", api_key="sk-fake")
-    assert res is not None
-    assert res.generic.title_en == "Fallback EN"
 
 
 def test_transcribe_openai_error(monkeypatch, tmp_path):
@@ -267,7 +215,7 @@ def test_transcribe_openai_error(monkeypatch, tmp_path):
     mock_client.audio = MagicMock()
     mock_client.audio.transcriptions = MagicMock()
     mock_client.audio.transcriptions.create.side_effect = Exception("OpenAI Error")
-    monkeypatch.setattr(openai_cloud, "load_openai_client", lambda k: mock_client)
+    monkeypatch.setattr(openai_cloud, "load_openai_compatible_client", lambda k: mock_client)
 
     transcriber = openai_cloud.OpenAITranscriber(api_key="sk-fake")
     audio = tmp_path / "audio.wav"
@@ -278,19 +226,17 @@ def test_transcribe_openai_error(monkeypatch, tmp_path):
 
 
 def test_resolve_openai_api_key(monkeypatch):
-    # Mock secrets loading in llm_utils
-    monkeypatch.setattr(llm_utils.tomllib, "load", lambda f: {})
-    # Mock Path exists in llm_utils context? No, just Path.
+    monkeypatch.setattr(provider_clients.tomllib, "load", lambda f: {})
     monkeypatch.setattr(Path, "exists", lambda self: True)
     # Mock open
     monkeypatch.setattr("builtins.open", MagicMock())
 
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
-    assert llm_utils.resolve_openai_api_key() is None
-    assert llm_utils.resolve_openai_api_key("sk-test") == "sk-test"
+    assert provider_clients.resolve_openai_api_key() is None
+    assert provider_clients.resolve_openai_api_key("sk-test") == "sk-test"
     monkeypatch.setenv("OPENAI_API_KEY", "sk-env")
-    assert llm_utils.resolve_openai_api_key() == "sk-env"
+    assert provider_clients.resolve_openai_api_key() == "sk-env"
 
 
 def test_wrap_lines_empty():
@@ -325,7 +271,7 @@ def test_transcribe_with_openai_success(monkeypatch, tmp_path):
     mock_transcript.segments = [mock_resp]
 
     mock_client.audio.transcriptions.create.return_value = mock_transcript
-    monkeypatch.setattr(openai_cloud, "load_openai_client", lambda k: mock_client)
+    monkeypatch.setattr(openai_cloud, "load_openai_compatible_client", lambda k: mock_client)
 
     transcriber = openai_cloud.OpenAITranscriber(api_key="sk-fake")
     audio = tmp_path / "a.wav"
@@ -380,22 +326,22 @@ def test_short_text_stays_on_single_line():
 
 
 def test_resolve_groq_api_key_explicit():
-    assert llm_utils.resolve_groq_api_key("gsk-test") == "gsk-test"
+    assert provider_clients.resolve_groq_api_key("gsk-test") == "gsk-test"
 
 
 def test_resolve_groq_api_key_env(monkeypatch):
     monkeypatch.setenv("GROQ_API_KEY", "gsk-env")
-    assert llm_utils.resolve_groq_api_key() == "gsk-env"
+    assert provider_clients.resolve_groq_api_key() == "gsk-env"
 
 
 def test_resolve_groq_api_key_not_found(monkeypatch):
     # Mock secrets
-    monkeypatch.setattr(llm_utils.tomllib, "load", lambda f: {})
+    monkeypatch.setattr(provider_clients.tomllib, "load", lambda f: {})
     monkeypatch.setattr(Path, "exists", lambda self: True)
     monkeypatch.setattr("builtins.open", MagicMock())
 
     monkeypatch.delenv("GROQ_API_KEY", raising=False)
-    assert llm_utils.resolve_groq_api_key() is None
+    assert provider_clients.resolve_groq_api_key() is None
 
 
 def test_cues_without_words_DO_split_interpolated():

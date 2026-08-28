@@ -62,7 +62,7 @@ from backend.app.services.financial_records import (
 from backend.app.services.points import PointsBalance, PointsStore, make_idempotency_id
 
 STRIPE_API_VERSION = "2026-06-24.dahlia"
-CATALOG_VERSION = "2026-07-23-v1"
+CATALOG_VERSION = "2026-08-28-v2"
 UNPAID_PURCHASE_RETENTION_SECONDS = 24 * 60 * 60
 _IDEMPOTENCY_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{15,63}$")
 _INTEGRATION_ALPHABET = string.ascii_lowercase

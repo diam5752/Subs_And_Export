@@ -135,7 +135,9 @@ def test_openai_transcriber_delegates(tmp_path):
     mock_transcript = MagicMock()
     mock_transcript.segments = []
 
-    with patch("backend.app.services.transcription.openai_cloud.load_openai_client") as mock_load:
+    with patch(
+        "backend.app.services.transcription.openai_cloud.load_openai_compatible_client"
+    ) as mock_load:
         mock_client = MagicMock()
         mock_load.return_value = mock_client
         mock_client.audio.transcriptions.create.return_value = mock_transcript
@@ -191,7 +193,7 @@ def test_openai_transcriber_reports_progress_cancellation_and_word_cues(tmp_path
     client.audio.transcriptions.create.return_value = transcript
 
     with patch(
-        "backend.app.services.transcription.openai_cloud.load_openai_client",
+        "backend.app.services.transcription.openai_cloud.load_openai_compatible_client",
         return_value=client,
     ):
         srt_path, cues = OpenAITranscriber(api_key="k").transcribe(
@@ -216,7 +218,7 @@ def test_openai_transcriber_accepts_provider_payload_without_segments(tmp_path):
     client = MagicMock()
     client.audio.transcriptions.create.return_value = object()
     with patch(
-        "backend.app.services.transcription.openai_cloud.load_openai_client",
+        "backend.app.services.transcription.openai_cloud.load_openai_compatible_client",
         return_value=client,
     ):
         srt_path, cues = OpenAITranscriber(api_key="k").transcribe(audio_path, tmp_path)
@@ -234,7 +236,7 @@ def test_openai_transcriber_keeps_segment_cues_when_word_data_is_empty(tmp_path)
         words=[],
     )
     with patch(
-        "backend.app.services.transcription.openai_cloud.load_openai_client",
+        "backend.app.services.transcription.openai_cloud.load_openai_compatible_client",
         return_value=client,
     ):
         _srt_path, cues = OpenAITranscriber(api_key="k").transcribe(audio_path, tmp_path)
