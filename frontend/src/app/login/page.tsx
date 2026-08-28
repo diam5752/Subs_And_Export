@@ -9,6 +9,25 @@ import { Spinner } from '@/components/Spinner';
 import { BetaBrandLogo } from '@/components/BetaBrandLogo';
 import { GoogleSignInControl } from '@/components/GoogleSignInControl';
 
+function LoginFooter() {
+    const { t } = useI18n();
+
+    return (
+        <footer className="auth-footer">
+            <span>gsubs</span>
+            <span className="auth-footer-copy">
+                <span>{t('loginFooter', { year: new Date().getFullYear() })}</span>
+                <Link href="/terms" className="auth-footer-link">
+                    {t('legalTermsLink')}
+                </Link>
+                <Link href="/privacy" className="auth-footer-link">
+                    {t('legalPrivacyLink')}
+                </Link>
+            </span>
+        </footer>
+    );
+}
+
 export default function LoginPage() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -120,10 +139,7 @@ export default function LoginPage() {
                 </section>
             </main>
 
-            <footer className="auth-footer">
-                <span>gsubs</span>
-                <span>{t('loginFooter', { year: new Date().getFullYear() })}</span>
-            </footer>
+            <LoginFooter />
         </div>
     );
 }

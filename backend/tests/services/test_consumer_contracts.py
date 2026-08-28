@@ -56,6 +56,11 @@ def test_registry_is_localized_versioned_and_content_addressed() -> None:
     assert greek["launch_review_status"]["adjustment_workflow"] == "approved"
     assert greek["launch_review_status"]["adjustment_workflow_implemented"] is True
     assert greek["trader"]["legal_name"] == "Ascentia G.P."
+    assert greek["trader"]["legal_form"] == "General Partnership (O.E.)"
+    assert greek["trader"]["tax_identification_number"] == "802523620"
+    assert greek["trader"]["vat_id"] == "EL802523620"
+    assert greek["trader"]["commercial_registration_number"] == "177974203000"
+    assert greek["trader"]["euid"] == "ELGEMI.177974203000"
     assert greek["trader"]["country"] == "GR"
     assert consumer_contract_registry_is_approved() is True
 
@@ -69,12 +74,12 @@ def test_backend_and_frontend_share_one_approved_publication_identity() -> None:
     identity = json.loads(backend_identity_path.read_text(encoding="utf-8"))
     assert identity == {
         "approval_identity_sha256": (
-            "57b90cf4d2bc5c5f076058e344b1c2536478f1d7bda9a342eefab7f32c3a998c"
+            "652048585a9bc1a3fa6bf6c88768230b1c30052eddff4f07b9190d89a0771f9e"
         ),
         "public_terms_route": "/terms",
         "schema_version": 1,
         "status": "approved",
-        "terms_version": "2026-07-31-owner-approved-v1",
+        "terms_version": "2026-08-28-owner-approved-v2",
     }
 
 
