@@ -1020,6 +1020,59 @@ test('mobile public shell avoids a needless cookie consent gate and keeps the fo
   }
 });
 
+for (const authenticated of [false, true] as const) {
+  test(`initial mobile upload landing fits one viewport (${authenticated ? 'signed in' : 'signed out'})`, async ({ page }) => {
+    await page.setViewportSize(viewports.mobile);
+    await mockApi(page, { authenticated });
+    await page.goto('/');
+    await waitForUploadWorkspace(page, { authenticated });
+    await stabilizeUi(page);
+
+    await expect(page.locator('.app-shell')).toHaveClass(/app-shell-upload-landing/);
+
+    for (const viewport of [
+      viewports.mobile,
+      { width: 375, height: 667 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await stabilizeUi(page);
+
+      const metrics = await page.evaluate(() => {
+        const bounds = (selector: string) => {
+          const element = document.querySelector<HTMLElement>(selector);
+          if (!element) throw new Error(`Missing mobile landing element: ${selector}`);
+          const rect = element.getBoundingClientRect();
+          return {
+            top: rect.top,
+            right: rect.right,
+            bottom: rect.bottom,
+            left: rect.left,
+            width: rect.width,
+            height: rect.height,
+          };
+        };
+
+        return {
+          viewportHeight: window.innerHeight,
+          pageHeight: document.documentElement.scrollHeight,
+          uploadAction: bounds('.studio-upload-cta'),
+          footer: bounds('.studio-footer'),
+          feedback: bounds('[data-testid="feedback-trigger"]'),
+        };
+      });
+
+      expect(metrics.pageHeight, `${viewport.width}x${viewport.height} mobile landing height`)
+        .toBeLessThanOrEqual(metrics.viewportHeight + 1);
+      expect(metrics.footer.bottom, `${viewport.width}x${viewport.height} footer visibility`)
+        .toBeLessThanOrEqual(metrics.viewportHeight + 1);
+      expect(metrics.uploadAction.height, `${viewport.width}x${viewport.height} upload touch target`)
+        .toBeGreaterThanOrEqual(44);
+      expect(metrics.feedback.bottom, `${viewport.width}x${viewport.height} feedback/footer clearance`)
+        .toBeLessThanOrEqual(metrics.footer.top - 4);
+    }
+  });
+}
+
 for (const [label, viewport] of Object.entries(viewports)) {
   test.describe(`${label} layouts`, () => {
     test.use({ viewport });

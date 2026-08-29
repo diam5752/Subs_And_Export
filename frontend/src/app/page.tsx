@@ -952,8 +952,19 @@ export default function DashboardPage() {
     || (paidCreditSalesUiApproved && showCreditPurchase)
     || showHomeNavigationConfirm;
 
+  const isUploadLanding = !selectedFile
+    && !selectedJob
+    && !isProcessing
+    && !jobId
+    && betaCreditsAwarded === 0
+    && !checkoutNotice;
+
   return (
-    <div className="app-shell min-h-dvh relative overflow-x-hidden">
+    <div
+      className={`app-shell min-h-dvh relative overflow-x-hidden ${
+        isUploadLanding ? 'app-shell-upload-landing' : ''
+      }`}
+    >
       <header
         className="studio-header"
         aria-label="gsubs studio"
