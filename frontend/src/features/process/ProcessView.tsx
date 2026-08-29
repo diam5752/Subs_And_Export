@@ -1,12 +1,26 @@
 import React, { useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import { StepIndicator } from './StepIndicator';
 import { ProcessProvider, useProcessContext, ProcessingOptions } from './ProcessContext';
 import { PlaybackProvider } from './PlaybackContext';
 export type { ProcessingOptions } from './ProcessContext';
-import { UploadSection } from './components/UploadSection';
 import { PreviewSection } from './components/PreviewSection';
 import { JobResponse } from '@/lib/api';
 import { useI18n } from '@/context/I18nContext';
+
+// The upload controls are not rendered when a completed job opens directly.
+// Keep their media-inspection and pricing code out of that low-end editor path.
+const UploadSection = dynamic(() => (
+    import('./components/UploadSection').then((module) => module.UploadSection)
+), {
+    loading: () => (
+        <div
+            data-testid="upload-workspace-loading"
+            className="min-h-64 animate-pulse rounded-2xl border border-[var(--border)] bg-[var(--surface-elevated)]"
+            aria-hidden="true"
+        />
+    ),
+});
 
 interface ProcessViewProps {
     selectedFile: File | null;

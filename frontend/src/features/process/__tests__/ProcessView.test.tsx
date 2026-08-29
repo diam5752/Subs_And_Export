@@ -106,7 +106,7 @@ describe('ProcessView', () => {
         (useProcessContext as jest.Mock).mockReturnValue(mockContextValue);
     });
 
-    it('renders Step 1 initially', () => {
+    it('renders Step 1 initially', async () => {
         render(
             <I18nProvider initialLocale="en">
                 <PlaybackProvider>
@@ -115,7 +115,7 @@ describe('ProcessView', () => {
             </I18nProvider>
         );
         expect(screen.getAllByText(/Step 1/i).length).toBeGreaterThan(0);
-        expect(screen.getByRole('button', { name: /choose video/i })).toBeInTheDocument();
+        expect(await screen.findByRole('button', { name: /choose video/i })).toBeInTheDocument();
         expect(screen.queryByTestId('mock-mode-badge')).not.toBeInTheDocument();
         expect(screen.queryByTestId('engine-settings-toggle')).not.toBeInTheDocument();
     });
