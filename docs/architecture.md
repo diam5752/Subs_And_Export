@@ -33,6 +33,24 @@ The default mock services still exercise the real product boundaries:
 | Usage ledger | Idempotent points reservations and provider-cost audit | PostgreSQL |
 | Java 25 surface | Contract-compatible migration path | test-only for now |
 
+## Privacy-bounded operational observability
+
+Production enables a first-party diagnostic surface for bug repair. The browser
+sends only a fixed event vocabulary, coarse route and viewport buckets, export
+format buckets, status categories, and runtime heartbeats. The server persists
+content-free events in `/data/observability/events.jsonl` for at most 168 hours
+and holds active presence only in memory for 90 seconds. Signed-in accounts are
+deduplicated by a runtime-salted key; guest browser IDs exist only for the current
+page runtime. Neither identifier is written to disk.
+
+The intake schema rejects arbitrary fields. It cannot accept media, captions,
+filenames, email, user IDs, IP addresses, cookies, raw error messages, stacks,
+keystrokes, or replay data. A dedicated immutable user-ID allow-list protects
+the no-store `/observability/admin/snapshot` response. The public intake has a
+4 KiB body limit and an in-memory abuse limiter so its network key does not
+become analytics data. Diagnostic writes are best-effort and can never make a
+product action fail.
+
 ## Engine policy
 
 The API catalog is capability-first:

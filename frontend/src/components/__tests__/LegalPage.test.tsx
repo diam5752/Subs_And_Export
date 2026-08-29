@@ -55,7 +55,7 @@ describe('LegalPage', () => {
         expect(screen.queryByText(/κρυπτογραφικό hash.*credits εγγραφής/)).not.toBeInTheDocument();
         expect(screen.queryByText(/Groq/)).not.toBeInTheDocument();
         expect(screen.getByText(/Hetzner.*Γερμανία.*Google Workspace.*Τυποποιημένες Συμβατικές Ρήτρες/)).toBeInTheDocument();
-        expect(screen.getByText(/μόνο απολύτως απαραίτητα cookies.*Δεν χρησιμοποιούμε analytics.*δεν εμφανίζουμε πλαίσιο συγκατάθεσης/)).toBeInTheDocument();
+        expect(screen.getByText(/μόνο απολύτως απαραίτητα cookies.*λειτουργικά διαγνωστικά.*δεν θέτουν analytics cookie.*Δεν χρησιμοποιούμε third-party analytics.*δεν εμφανίζουμε πλαίσιο συγκατάθεσης/)).toBeInTheDocument();
         expect(screen.getByText(/Αρχή Προστασίας Δεδομένων Προσωπικού Χαρακτήρα.*www\.dpa\.gr/)).toBeInTheDocument();
         expect(screen.getByText(/Υπεύθυνος επεξεργασίας.*Ascentia G\.P\..*802523620.*177974203000.*Αγίας Βαρβάρας 4/)).toBeInTheDocument();
         expect(screen.getByRole('link', { name: /API διαγραφής transcript/ })).toHaveAttribute(

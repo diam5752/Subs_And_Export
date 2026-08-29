@@ -2,6 +2,7 @@ import {
     isProcessingCreditTier,
     type ProcessingCreditTier,
 } from '@/lib/points';
+import { reportApiFailure } from '@/lib/observability';
 
 // An explicitly empty production value keeps every API request same-origin.
 // That makes the standalone image portable across verified hostnames without
@@ -29,6 +30,19 @@ export class ApiError extends Error {
         this.code = code;
         this.details = details;
     }
+}
+
+function requestTimeoutError(): ApiError {
+    return new ApiError(
+        'Request timed out. Check your connection and try again.',
+        0,
+        'request_timeout',
+    );
+}
+
+function throwReportedApiFailure(endpoint: string, error: unknown): never {
+    reportApiFailure(endpoint, error);
+    throw error;
 }
 
 interface UploadCallbacks {
@@ -699,13 +713,9 @@ class ApiClient {
             });
         } catch (error) {
             if (timeoutTriggered) {
-                throw new ApiError(
-                    'Request timed out. Check your connection and try again.',
-                    0,
-                    'request_timeout',
-                );
+                throwReportedApiFailure(endpoint, requestTimeoutError());
             }
-            throw error;
+            throwReportedApiFailure(endpoint, error);
         } finally {
             if (timeoutId !== null) {
                 globalThis.clearTimeout(timeoutId);
@@ -714,7 +724,10 @@ class ApiClient {
 
         if (!response.ok) {
             const errorData = await response.json().catch(() => ({ detail: 'Request failed' }));
-            throw apiErrorFromPayload(errorData, response.status, 'Request failed');
+            throwReportedApiFailure(
+                endpoint,
+                apiErrorFromPayload(errorData, response.status, 'Request failed'),
+            );
         }
 
         return response.json();
@@ -744,6 +757,7 @@ class ApiClient {
                 if (settled) return;
                 settled = true;
                 cleanup();
+                reportApiFailure(endpoint, error);
                 reject(error);
             };
             const handleAbortSignal = () => xhr.abort();

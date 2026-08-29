@@ -9,6 +9,7 @@ import { PwaRegistration } from "@/components/PwaRegistration";
 import { BRAND } from "@/lib/brand";
 import { AdaptivePerformance } from "@/components/AdaptivePerformance";
 import { FeedbackWidgetLauncher } from "@/components/FeedbackWidgetLauncher";
+import { ObservabilityReporter } from "@/components/ObservabilityReporter";
 
 
 const inter = Inter({ subsets: ["latin"] });
@@ -76,6 +77,7 @@ export default function RootLayout({
       <body className={inter.className}>
         <I18nProvider>
           <AuthProvider>
+            <ObservabilityReporter />
             <PointsProvider>
               <AdaptivePerformance />
               <PwaRegistration />

@@ -1,3 +1,6 @@
+import logging
+
+import pytest
 from fastapi.testclient import TestClient
 
 from backend.app.api.endpoints import export_routes
@@ -78,7 +81,12 @@ def test_cancel_job_invalid_status(client: TestClient, user_auth_headers: dict, 
     finally:
         app.dependency_overrides = {}
 
-def test_export_video_failure(client: TestClient, user_auth_headers: dict, monkeypatch):
+def test_export_video_failure(
+    client: TestClient,
+    user_auth_headers: dict,
+    monkeypatch,
+    caplog: pytest.LogCaptureFixture,
+):
     from backend.app.api import deps
     from backend.app.core.auth import User
     from backend.app.services.jobs import Job
@@ -126,6 +134,7 @@ def test_export_video_failure(client: TestClient, user_auth_headers: dict, monke
                 )
 
             monkeypatch.setattr(export_routes, "generate_video_variant", mock_gen)
+            caplog.set_level(logging.ERROR, logger=export_routes.__name__)
 
             response = client.post(
                 "/videos/jobs/job1/export",
@@ -137,7 +146,15 @@ def test_export_video_failure(client: TestClient, user_auth_headers: dict, monke
             assert "ffmpeg" not in response.text.lower()
             assert "/data/" not in response.text
             assert "234" not in response.text
-            assert update_calls == [("job1", {"status": "completed"})]
+            assert update_calls == [
+                ("job1", {"status": "completed"}),
+                ("job1", {"progress": 0}),
+                ("job1", {"progress": 100}),
+            ]
+            assert "Video export failed" in caplog.text
+            assert "private.mp4" not in caplog.text
+            assert "/data/" not in caplog.text
+            assert caplog.records[-1].data == {"error_type": "ValueError"}
 
     finally:
         app.dependency_overrides = {}

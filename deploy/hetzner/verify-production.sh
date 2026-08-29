@@ -112,6 +112,12 @@ if [ -z "$(env_value ELEVENLABS_API_KEY)" ]; then
   echo "ElevenLabs production API key is required." >&2
   exit 1
 fi
+observability_admin_user_ids=$(env_value GSP_OBSERVABILITY_ADMIN_USER_IDS)
+if ! printf '%s\n' "$observability_admin_user_ids" | grep -Eq \
+  '^[0-9a-f]{16}(,[0-9a-f]{16})*$'; then
+  echo "A valid immutable observability admin user ID allowlist is required." >&2
+  exit 1
+fi
 export SUBFRAME_ENV_FILE="$ENV_FILE"
 export SUBFRAME_RELEASE_SHA="$release_sha"
 
@@ -362,6 +368,10 @@ for expected in \
   GSP_STRIPE_AUTOMATIC_TAX_ENABLED=0 \
   GSP_STRIPE_API_BASE=http://app-edge:8081/stripe \
   GSP_BILLING_ADMIN_USER_IDS= \
+  GSP_OBSERVABILITY_ENABLED=1 \
+  GSP_OBSERVABILITY_RETENTION_HOURS=168 \
+  GSP_OBSERVABILITY_PRESENCE_TTL_SECONDS=90 \
+  "GSP_OBSERVABILITY_ADMIN_USER_IDS=$observability_admin_user_ids" \
   GSP_FEEDBACK_ENABLED=1 \
   GSP_DISABLE_RATELIMIT=0 \
   GSP_USE_MEMORY_RATELIMIT=0 \
@@ -773,6 +783,20 @@ if directives(block(feedback_handler, "request_body")) != ("max_size 16KB",):
     raise SystemExit("Public feedback request-body cap must be exactly 16KB.")
 if feedback_handler.count("reverse_proxy backend:8080") != 1:
     raise SystemExit("Public feedback route must have one backend upstream.")
+observability_matchers = re.findall(
+    r"^[ \t]*@observability_events[ \t]+path[ \t]+/observability/events[ \t]*(?:#.*)?$",
+    public,
+    re.MULTILINE,
+)
+if len(observability_matchers) != 1:
+    raise SystemExit("Operational telemetry must have one exact intake matcher.")
+observability_handler = block(public, "handle @observability_events")
+if directives(block(observability_handler, "request_body")) != ("max_size 4KB",):
+    raise SystemExit("Operational telemetry request-body cap must be exactly 4KB.")
+if observability_handler.count("reverse_proxy backend:8080") != 1:
+    raise SystemExit("Operational telemetry must have one backend upstream.")
+if public.find("@observability_events path") > public.find("@backend path"):
+    raise SystemExit("Operational telemetry body cap must precede the generic backend route.")
 backend_matchers = re.findall(
     r"^[ \t]*@backend[ \t]+path[ \t]+[^\n]+$",
     public,

@@ -229,6 +229,16 @@ class JobStore:
             )
             return int(count or 0)
 
+    def count_jobs_by_status_since(self, since: int) -> dict[str, int]:
+        """Return content-free operational job counts for a bounded window."""
+        with self.db.session() as session:
+            rows = session.execute(
+                select(DbJob.status, func.count())
+                .where(DbJob.updated_at >= since)
+                .group_by(DbJob.status)
+            ).all()
+        return {str(job_status): int(count) for job_status, count in rows}
+
     def list_jobs_for_user_paginated(self, user_id: str, offset: int = 0, limit: int = 10) -> list[Job]:
         """List jobs for a user with pagination support."""
         with self.db.session() as session:

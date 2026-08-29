@@ -28,6 +28,8 @@ import { BetaBrandLogo } from '@/components/BetaBrandLogo';
 import { ProfileAvatar } from '@/components/ProfileAvatar';
 import { SessionRecoveryScreen } from '@/components/SessionRecoveryScreen';
 import { ConfirmActionModal } from '@/components/ConfirmActionModal';
+import { reportProductAction } from '@/lib/observability';
+import type { MessageKey } from '@/context/i18nMessages';
 
 // The purchase form is never visible during the initial workspace render.
 // Keep its catalog, consent and checkout code out of the critical dashboard
@@ -92,6 +94,42 @@ type PendingProcessingAction =
 interface ProcessingQuoteChange {
   durationSeconds: number;
   requiredCredits: ProcessingCreditTier;
+}
+
+type Translate = (key: MessageKey, params?: Record<string, string | number>) => string;
+const UPLOAD_FAILURE_MESSAGES: Readonly<Record<string, MessageKey>> = {
+  upload_cancelled: 'processingCancelled',
+  upload_network_error: 'uploadConnectionError',
+  upload_timeout: 'uploadConnectionError',
+  upload_http_error: 'uploadFailed',
+};
+
+function uploadErrorDetails(error: unknown): { code: string; status: number | null } {
+  if (typeof error !== 'object' || error === null) return { code: '', status: null };
+  const value = error as { code?: unknown; status?: unknown };
+  return {
+    code: typeof value.code === 'string' ? value.code : '',
+    status: typeof value.status === 'number' ? value.status : null,
+  };
+}
+
+function uploadFailureMessage(
+  error: unknown,
+  aborted: boolean,
+  t: Translate,
+): string {
+  if (aborted) return t('processingCancelled');
+  const details = uploadErrorDetails(error);
+  const messageKey = UPLOAD_FAILURE_MESSAGES[details.code];
+  if (messageKey) return t(messageKey);
+  if (details.status === 408) return t('uploadConnectionError');
+  return error instanceof Error ? error.message : t('startProcessingError');
+}
+
+function reportProcessingFailure(aborted: boolean, quoteReopened: boolean): void {
+  if (!aborted && !quoteReopened) {
+    reportProductAction('processing_failed', { outcome: 'failed' });
+  }
 }
 
 function BetaLaunchCreditAward({
@@ -371,6 +409,7 @@ export default function DashboardPage() {
       setStatusMessage(message);
     },
     onComplete: (job: JobResponse) => {
+      reportProductAction('processing_completed', { outcome: 'succeeded' });
       setIsProcessing(false);
       setCanCancelProcessing(false);
       setJobId(null);
@@ -379,6 +418,7 @@ export default function DashboardPage() {
       refreshActivity();
     },
     onFailed: (errorMessage: string) => {
+      reportProductAction('processing_failed', { outcome: 'failed' });
       localStorage.removeItem('lastActiveJobId');
       setProcessError(
         errorMessage === ELEVENLABS_MISSING_WORD_TIMESTAMPS
@@ -469,6 +509,8 @@ export default function DashboardPage() {
   ) => {
     if (!selectedFile) return;
 
+    reportProductAction('processing_started', { outcome: 'started' });
+
     const uploadController = new AbortController();
     activeUploadAbortRef.current = uploadController;
     setIsProcessing(true);
@@ -524,40 +566,20 @@ export default function DashboardPage() {
       }
       void refreshBalance();
     } catch (err) {
-      const uploadErrorCode = typeof err === 'object'
-        && err !== null
-        && 'code' in err
-        && typeof err.code === 'string'
-        ? err.code
-        : null;
-      const uploadErrorStatus = typeof err === 'object'
-        && err !== null
-        && 'status' in err
-        && typeof err.status === 'number'
-        ? err.status
-        : null;
       // A stream failure can happen after the server has provisionally
       // reserved credits. Refresh on every terminal upload error so an
       // immediate server refund is visible without requiring a page reload.
       void refreshBalance();
-      if (reopenAuthoritativeQuote(err, { kind: 'new', options })) {
+      const quoteReopened = reopenAuthoritativeQuote(err, { kind: 'new', options });
+      if (quoteReopened) {
         // The server has not charged credits, created a job, or called the
         // provider. Keep the file/settings and require a fresh explicit click.
-      } else if (uploadController.signal.aborted || uploadErrorCode === 'upload_cancelled') {
-        setProcessError(t('processingCancelled'));
-      } else if (
-        uploadErrorCode === 'upload_network_error'
-        || uploadErrorCode === 'upload_timeout'
-        || uploadErrorStatus === 408
-      ) {
-        setProcessError(t('uploadConnectionError'));
-      } else if (uploadErrorCode === 'upload_http_error') {
-        setProcessError(t('uploadFailed'));
       } else {
-        setProcessError(err instanceof Error ? err.message : t('startProcessingError'));
+        setProcessError(uploadFailureMessage(err, uploadController.signal.aborted, t));
       }
       setIsProcessing(false);
       setCanCancelProcessing(false);
+      reportProcessingFailure(uploadController.signal.aborted, quoteReopened);
     } finally {
       if (activeUploadAbortRef.current === uploadController) {
         activeUploadAbortRef.current = null;
@@ -577,6 +599,7 @@ export default function DashboardPage() {
     options: ProcessingOptions,
     authorizedCredits: ProcessingCreditTier,
   ) => {
+    reportProductAction('processing_started', { outcome: 'started' });
     setIsProcessing(true);
     setCanCancelProcessing(false);
     setProcessError('');
@@ -614,6 +637,7 @@ export default function DashboardPage() {
     } catch (err) {
       if (!reopenAuthoritativeQuote(err, { kind: 'reprocess', sourceJobId, options })) {
         setProcessError(err instanceof Error ? err.message : t('startProcessingError'));
+        reportProductAction('processing_failed', { outcome: 'failed' });
       }
       setIsProcessing(false);
       setCanCancelProcessing(false);
@@ -895,7 +919,10 @@ export default function DashboardPage() {
   // Memoized to prevent unnecessary re-renders of ProcessView and its children
   const handleFileSelect = useCallback((file: File | null) => {
     setSelectedFile(file);
-    if (file) setSelectedJob(null);
+    if (file) {
+      setSelectedJob(null);
+      reportProductAction('file_selected');
+    }
   }, [setSelectedJob]);
 
   // Memoized to ensure stable reference for ProcessView -> JobListItem, preventing re-renders during progress updates

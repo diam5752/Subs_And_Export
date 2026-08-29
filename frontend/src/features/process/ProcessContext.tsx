@@ -13,6 +13,10 @@ import type { LastUsedSettings, TranscribeMode, TranscribeProvider } from './pro
 import { resolveConfiguredTranscription } from '@/lib/transcription';
 import { buildSubtitleExportFilename } from '@/lib/exportFilename';
 import { downloadArtifactWithGrant } from '@/lib/artifactDownload';
+import {
+    exportFormatBucket,
+    reportProductAction,
+} from '@/lib/observability';
 
 export interface ProcessingOptions {
     transcribeMode: TranscribeMode;
@@ -101,6 +105,7 @@ interface ProcessContextType {
     handleStart: () => void;
     handleExport: (resolution: string) => Promise<void>;
     exportingResolutions: Record<string, boolean>;
+    exportProgress: Record<string, number | null>;
     exportError: string | null;
 
     // Transcript editing
@@ -270,6 +275,7 @@ export function ProcessProvider({
 
     const [overrideStep, setOverrideStepState] = useState<number | null>(null);
     const [exportingResolutions, setExportingResolutions] = useState<Record<string, boolean>>({});
+    const [exportProgress, setExportProgress] = useState<Record<string, number | null>>({});
     const [exportError, setExportError] = useState<string | null>(null);
 
     // Transcript editing state
@@ -323,6 +329,7 @@ export function ProcessProvider({
     if (transientJobId !== selectedJobId) {
         setTransientJobId(selectedJobId);
         setExportingResolutions({});
+        setExportProgress({});
         setExportError(null);
         setTranscriptSaveError(null);
         setIsSavingTranscript(false);
@@ -453,9 +460,32 @@ export function ProcessProvider({
     const handleExport = useCallback(async (resolution: string) => {
         if (!selectedJob) return;
         const exportJobId = selectedJob.id;
+        const format = exportFormatBucket(resolution);
+        let pollInFlight = false;
+        let renderProgressObserved = false;
 
         setExportError(null);
         setExportingResolutions(prev => ({ ...prev, [resolution]: true }));
+        setExportProgress(prev => ({ ...prev, [resolution]: null }));
+        reportProductAction('export_started', { outcome: 'started', exportFormat: format });
+        const pollId = window.setInterval(() => {
+            if (pollInFlight || selectedJobIdRef.current !== exportJobId) return;
+            pollInFlight = true;
+            void api.getJobStatus(exportJobId)
+                .then(job => {
+                    if (selectedJobIdRef.current !== exportJobId) return;
+                    const rawProgress = job.progress ?? 0;
+                    if (rawProgress <= 0) return;
+                    if (rawProgress >= 100 && !renderProgressObserved) return;
+                    renderProgressObserved = true;
+                    const value = Math.max(1, Math.min(99, rawProgress));
+                    setExportProgress(prev => ({ ...prev, [resolution]: value }));
+                })
+                .catch(() => undefined)
+                .finally(() => {
+                    pollInFlight = false;
+                });
+        }, 750);
         try {
             const subtitleFileFormats = new Set(['srt', 'vtt', 'txt']);
             const colorObj = SUBTITLE_COLORS.find(c => c.value === subtitleColor) || SUBTITLE_COLORS[0];
@@ -502,13 +532,17 @@ export function ProcessProvider({
                     buildStaticUrl,
                 );
             }
+            setExportProgress(prev => ({ ...prev, [resolution]: 100 }));
+            reportProductAction('export_completed', { outcome: 'succeeded', exportFormat: format });
         } catch (err) {
+            reportProductAction('export_failed', { outcome: 'failed', exportFormat: format });
             if (selectedJobIdRef.current === exportJobId) {
                 setExportError(
                     err instanceof Error ? err.message : (t('exportVideoError') || 'Failed to export file')
                 );
             }
         } finally {
+            window.clearInterval(pollId);
             if (selectedJobIdRef.current === exportJobId) {
                 setExportingResolutions(prev => ({ ...prev, [resolution]: false }));
             }
@@ -585,6 +619,7 @@ export function ProcessProvider({
             setEditingCueIndex(null);
             setEditingCueSurface(null);
             setEditingCueDraft('');
+            reportProductAction('subtitle_saved', { outcome: 'succeeded' });
         } catch (err) {
             if (selectedJobIdRef.current !== editingJobId) return;
             // Keep the editor and server-backed transcript in sync. If persistence
@@ -676,7 +711,7 @@ export function ProcessProvider({
         processedCues,
         fileInputRef, resultsRef, transcriptContainerRef, playerRef,
         currentStep, setOverrideStep, overrideStep,
-        handleStart, handleExport, exportingResolutions,
+        handleStart, handleExport, exportingResolutions, exportProgress,
         exportError,
         editingCueIndex, setEditingCueIndex,
         editingCueSurface,

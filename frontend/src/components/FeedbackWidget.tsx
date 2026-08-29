@@ -12,6 +12,7 @@ import {
     type ProductFeedbackCategory,
     type ProductFeedbackPayload,
 } from '@/lib/api';
+import { reportProductAction } from '@/lib/observability';
 
 const MIN_MESSAGE_CHARS = 10;
 const MAX_MESSAGE_CHARS = 2_000;
@@ -104,6 +105,7 @@ export function FeedbackWidget({ initiallyOpen = false }: FeedbackWidgetProps) {
         setCanSubmit(false);
         setFormStartedAt(Math.floor(Date.now() / 1_000));
         setIsOpen(true);
+        reportProductAction('feedback_opened');
     }, [reset]);
 
     useEffect(() => {
@@ -166,9 +168,11 @@ export function FeedbackWidget({ initiallyOpen = false }: FeedbackWidgetProps) {
         };
         try {
             await api.createProductFeedback(payload);
+            reportProductAction('feedback_submitted', { outcome: 'succeeded' });
             setSubmitted(true);
             reset({ category: values.category, message: '', website: '' });
         } catch {
+            reportProductAction('feedback_failed', { outcome: 'failed' });
             setRequestError(true);
         }
     });
