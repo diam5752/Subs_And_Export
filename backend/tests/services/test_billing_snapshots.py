@@ -738,6 +738,7 @@ def test_incomplete_billing_details_grant_paid_credits_but_flag_manual_review(
         assert stored.customer_snapshot["status"] == "manual_review_required"
         assert stored.customer_snapshot["missing_required_fields"] == [
             "name",
+            "line1",
             "city",
             "postal_code",
         ]

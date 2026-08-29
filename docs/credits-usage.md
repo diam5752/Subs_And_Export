@@ -169,9 +169,10 @@ workflow as the GSUBS accounting baseline:
   24% VAT. Stripe Automatic Tax remains disabled and Checkout is limited to a
   Greek billing address both before authorization and again at signed-webhook
   fulfillment.
-- Stripe-hosted Checkout collects the buyer's individual name, email and billing
-  address. Stripe handles card details; GSUBS never stores the full card number
-  or CVC.
+- Stripe-hosted Checkout collects the buyer's individual name, email and full
+  billing address. The minimum accounting snapshot requires street/address line
+  1, city, postal code and country; address line 2 and region remain optional.
+  Stripe handles card details; GSUBS never stores the full card number or CVC.
 - The Stripe receipt is payment evidence, not an AADE tax document. Ascentia
   issues the tax document manually through e-Timologio and records its series,
   number and MARK against the internal purchase.

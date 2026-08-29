@@ -19,7 +19,14 @@ STRIPE_PRODUCT_TAX_CODE = "txcd_10103001"
 VAT_RATE_PERCENT = 24
 GREEK_B2C_BILLING_COUNTRY = "GR"
 MANUAL_CAPTURE_POLICY = "validate_gr_billing_before_capture_v1"
-_REQUIRED_CUSTOMER_FIELDS = ("name", "email", "country", "city", "postal_code")
+_REQUIRED_CUSTOMER_FIELDS = (
+    "name",
+    "email",
+    "country",
+    "line1",
+    "city",
+    "postal_code",
+)
 
 
 class CheckoutAccountingIneligibleError(ValueError):
