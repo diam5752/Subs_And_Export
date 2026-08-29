@@ -747,17 +747,19 @@ test('the active subtitle can be dragged and resized directly on the desktop pre
 
   const initialPosition = Number(await overlay.getAttribute('data-position'));
   const initialSize = Number(await overlay.getAttribute('data-font-size'));
-  const overlayBox = await overlay.boundingBox();
-  expect(overlayBox).not.toBeNull();
+  // Let Playwright prove the real handle owns the initial hit before the raw
+  // mouse gesture continues. Its centre is stable when the hover style scales
+  // the circle, while coordinates sampled before hover can land on the overlay.
+  await moveHandle.hover();
+  const moveBox = await moveHandle.boundingBox();
+  expect(moveBox).not.toBeNull();
+  const moveX = moveBox!.x + (moveBox!.width / 2);
+  const moveY = moveBox!.y + (moveBox!.height / 2);
 
-  await page.mouse.move(
-    overlayBox!.x + overlayBox!.width / 2,
-    overlayBox!.y + overlayBox!.height / 2,
-  );
   await page.mouse.down();
   await page.mouse.move(
-    overlayBox!.x + overlayBox!.width / 2,
-    overlayBox!.y + overlayBox!.height / 2 - 55,
+    moveX,
+    moveY - 55,
     { steps: 5 },
   );
   await page.mouse.up();
