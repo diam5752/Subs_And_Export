@@ -18,7 +18,7 @@ public class AppProperties {
     private String proxyTrustedHosts = "127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16";
     private boolean forceHttps;
     private int maxUploadMb = 500;
-    private int maxVideoDurationSeconds = 600;
+    private int maxVideoDurationSeconds = 180;
     private int maxConcurrentJobs = 2;
     private int staticRateLimit = 60;
     private int staticRateLimitWindow = 60;

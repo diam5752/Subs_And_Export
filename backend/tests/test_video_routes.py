@@ -46,7 +46,7 @@ def test_stream_requires_a_strict_canonical_authorized_credit_tier_before_writin
     save.assert_not_called()
 
 
-def test_stream_refunds_pre_body_reservation_when_authoritative_quote_increases(
+def test_stream_refunds_pre_body_reservation_when_authoritative_duration_exceeds_launch_cap(
     client: TestClient,
     funded_user_auth_headers: dict[str, str],
     monkeypatch: pytest.MonkeyPatch,
@@ -58,8 +58,8 @@ def test_stream_refunds_pre_body_reservation_when_authoritative_quote_increases(
     from backend.app.services.points import PointsStore
 
     # REGRESSION: the browser/container quote can be exactly 180.000 seconds
-    # while authoritative ffprobe resolves 180.001 seconds. The backend must
-    # never turn the already-confirmed 30-credit quote into a 60-credit charge.
+    # while authoritative ffprobe resolves 180.001 seconds. The launch cap must
+    # fail closed and refund the already-reserved 30 credits.
     user_id = client.get(
         "/auth/me",
         headers=funded_user_auth_headers,
@@ -77,9 +77,11 @@ def test_stream_refunds_pre_body_reservation_when_authoritative_quote_increases(
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_bytes(b"private-video")
 
+    # The pre-body budget check uses the customer's exact 180-second quote.
+    # The authoritative 180.001-second rejection happens after upload probing.
     budget_preflight = MagicMock()
     provider_dispatch = MagicMock(
-        side_effect=AssertionError("quote check must precede provider dispatch"),
+        side_effect=AssertionError("duration check must precede provider dispatch"),
     )
     monkeypatch.setattr(
         videos_module,
@@ -105,15 +107,8 @@ def test_stream_refunds_pre_body_reservation_when_authoritative_quote_increases(
         metadata={"authorized_credits": 30},
     )
 
-    assert response.status_code == 409
-    assert response.json() == {
-        "detail": "Processing quote changed",
-        "code": "PROCESSING_QUOTE_CHANGED",
-        "details": {
-            "duration_seconds": 180.001,
-            "required_credits": 60,
-        },
-    }
+    assert response.status_code == 400
+    assert response.json() == {"detail": "Video too long (max 3.0 minutes)"}
     budget_preflight.assert_called_once()
     assert observed_balances == [starting_balance - 30]
     assert points_store.get_balance(user_id) == starting_balance

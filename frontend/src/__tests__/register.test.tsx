@@ -34,6 +34,9 @@ describe('RegisterPage', () => {
             .toHaveAttribute('src', '/brand/gsubs-logo.svg');
         expect(screen.getByText('gsubs')).toBeInTheDocument();
         expect(screen.getByText(el.registerTitle)).toBeInTheDocument();
+        expect(screen.getByText(el.betaLaunchOfferKicker)).toBeInTheDocument();
+        expect(screen.getByText(el.betaLaunchOfferTitle)).toBeInTheDocument();
+        expect(screen.getByText(el.betaLaunchOfferBody)).toBeInTheDocument();
     });
 
     // REGRESSION: legal navigation replaced the registration document and

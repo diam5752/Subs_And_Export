@@ -392,6 +392,8 @@ def test_production_compose_enables_reviewed_paid_credits_and_budgeted_scribe() 
     assert 'GOOGLE_CLIENT_SECRET: ""' in compose
     assert 'GOOGLE_REDIRECT_URI: ""' in compose
     assert 'GSP_GOOGLE_OAUTH_CERTS_URL: "http://app-edge:8081/oauth2/v1/certs"' in compose
+    assert 'GSP_BETA_LOGIN_PROMOTION_ENABLED: "1"' in compose
+    assert 'GSP_MAX_VIDEO_DURATION_SECONDS: "180"' in compose
     assert 'GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD: "100"' in compose
     assert 'GSP_EXTERNAL_PROVIDER_DAILY_BUDGET_USD: "10"' in compose
     assert 'GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD: "0.05"' in compose
@@ -416,6 +418,7 @@ def test_production_compose_enables_reviewed_paid_credits_and_budgeted_scribe() 
     assert 'GSP_RETENTION_CLEANUP_ENABLED: "1"' in compose
     assert "NEXT_PUBLIC_TRANSCRIBE_PROVIDER: elevenlabs" in compose
     assert "NEXT_PUBLIC_TRANSCRIBE_MODE: pro" in compose
+    assert "NEXT_PUBLIC_MAX_VIDEO_DURATION_SECONDS: ${SUBFRAME_MAX_VIDEO_DURATION_SECONDS:-180}" in compose
     assert "external: true" in compose
     assert "name: mizai_mizai-private" in compose
 
@@ -584,6 +587,8 @@ def test_production_verifier_requires_every_fail_closed_runtime_setting() -> Non
         "GOOGLE_REDIRECT_URI=",
         "GSP_GOOGLE_OAUTH_CERTS_URL=http://app-edge:8081/oauth2/v1/certs",
         "GSP_GOOGLE_AUTH_NONCE_TTL_SECONDS=600",
+        "GSP_BETA_LOGIN_PROMOTION_ENABLED=1",
+        "GSP_MAX_VIDEO_DURATION_SECONDS=180",
         "GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD=100",
         "GSP_EXTERNAL_PROVIDER_DAILY_BUDGET_USD=10",
         "GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD=0.05",
@@ -624,6 +629,11 @@ def test_production_verifier_requires_every_fail_closed_runtime_setting() -> Non
     assert 'catalog.get("consumer_contract_status") != "approved"' in verifier
     assert "Running provider relay contract is unsafe" in verifier
     assert "Provider relay local default-deny checks failed" in verifier
+    assert "assert_beta_login_promotion_contract" in verifier
+    assert "campaign_max_claims IS DISTINCT FROM 20" in verifier
+    assert "campaign_credit_amount IS DISTINCT FROM 30" in verifier
+    assert "slot_number > campaign_claimed_count" in verifier
+    assert "Beta login promotion contract failed after database migration." in verifier
 
 
 def test_release_scripts_reject_retired_gcs_environment_keys(

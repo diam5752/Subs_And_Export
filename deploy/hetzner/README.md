@@ -84,8 +84,12 @@ Paid Checkout is enabled by the tracked release contract:
 durable-confirmation-channel and manual-adjustment gates also fixed to `1`.
 Stripe Automatic Tax remains fixed to `0` for the reviewed tax-inclusive
 Greek B2C catalog. The Compose file forces the billing-admin allowlist to an
-empty value. New accounts receive no automatic credits, and external provider
-spend requires an existing paid-credit balance.
+empty value. The tracked Beta campaign gives exactly the first 20 distinct
+successful logins one operator-sponsored grant of 30 cloud-spendable credits;
+all later accounts start at zero. The database campaign, persistent claim
+ordinal and idempotent ledger transaction enforce that cap even across retries
+or account deletion. External provider spend requires purchased or
+operator-sponsored paid-credit balance.
 
 The Compose contract requires one complete live Stripe bundle (restricted key,
 webhook signing secret and all three Price IDs) from the untracked production

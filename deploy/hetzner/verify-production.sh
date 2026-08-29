@@ -188,6 +188,52 @@ COMMIT;
 SQL
 }
 
+assert_beta_login_promotion_contract() {
+  compose exec -T db sh -eu -c \
+    'exec psql -X --no-password -v ON_ERROR_STOP=1 --quiet --username "$POSTGRES_USER" --dbname "$POSTGRES_DB"' <<'SQL'
+BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY;
+DO $promotion$
+DECLARE
+    campaign_max_claims INTEGER;
+    campaign_credit_amount INTEGER;
+    campaign_claimed_count INTEGER;
+    unsafe_claims BIGINT;
+BEGIN
+    SELECT max_claims, credit_amount, claimed_count
+    INTO STRICT campaign_max_claims, campaign_credit_amount, campaign_claimed_count
+    FROM credit_promotion_campaigns
+    WHERE id = 'beta_first_20_logins_v1';
+
+    IF campaign_max_claims IS DISTINCT FROM 20
+       OR campaign_credit_amount IS DISTINCT FROM 30
+       OR campaign_claimed_count < 0
+       OR campaign_claimed_count > 20 THEN
+        RAISE EXCEPTION 'Beta login promotion is not the reviewed 20-by-30 contract.';
+    END IF;
+
+    SELECT count(*)
+    INTO unsafe_claims
+    FROM credit_promotion_claims
+    WHERE campaign_id = 'beta_first_20_logins_v1'
+      AND (
+          credit_amount IS DISTINCT FROM 30
+          OR slot_number < 1
+          OR slot_number > campaign_claimed_count
+          OR slot_number > 20
+      );
+
+    IF unsafe_claims <> 0 THEN
+        RAISE EXCEPTION 'Beta login promotion contains % unsafe claim(s).', unsafe_claims;
+    END IF;
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        RAISE EXCEPTION 'Reviewed Beta login promotion campaign is missing.';
+END
+$promotion$;
+COMMIT;
+SQL
+}
+
 compose config --quiet
 for service in db backend frontend feedback-worker app-edge edge; do
   container_id=$(compose ps -q "$service")
@@ -328,6 +374,8 @@ for expected in \
   GSP_GOOGLE_OAUTH_CERTS_URL=http://app-edge:8081/oauth2/v1/certs \
   GSP_GOOGLE_AUTH_NONCE_TTL_SECONDS=600 \
   GSP_DOWNLOAD_GRANT_TTL_SECONDS=300 \
+  GSP_BETA_LOGIN_PROMOTION_ENABLED=1 \
+  GSP_MAX_VIDEO_DURATION_SECONDS=180 \
   GSP_EXTERNAL_PROVIDER_MONTHLY_BUDGET_USD=100 \
   GSP_EXTERNAL_PROVIDER_DAILY_BUDGET_USD=10 \
   GSP_EXTERNAL_PROVIDER_PER_REQUEST_BUDGET_USD=0.05 \
@@ -540,6 +588,10 @@ settings.assert_download_grant_configuration()
 fi
 if ! docker exec "$backend_id" alembic current --check-heads >/dev/null; then
   echo "Production database is not at the Alembic head revision." >&2
+  exit 1
+fi
+if ! assert_beta_login_promotion_contract; then
+  echo "Beta login promotion contract failed after database migration." >&2
   exit 1
 fi
 if ! assert_legacy_gcs_retirement_complete; then

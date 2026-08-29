@@ -15,12 +15,14 @@ interface AuthContextType {
     user: User | null;
     isLoading: boolean;
     sessionUnavailable: boolean;
+    betaCreditsAwarded: number;
     login: (email: string, password: string) => Promise<void>;
     register: (email: string, password: string, name: string) => Promise<void>;
     googleLogin: (idToken: string) => Promise<void>;
     logout: () => Promise<void>;
     refreshUser: () => Promise<void>;
     retrySession: () => Promise<void>;
+    dismissBetaCreditsAwarded: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -43,6 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [sessionUnavailable, setSessionUnavailable] = useState(false);
+    const [betaCreditsAwarded, setBetaCreditsAwarded] = useState(0);
 
     const clearRejectedSession = useCallback(async (): Promise<boolean> => {
         try {
@@ -55,6 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         api.clearToken();
         setUser(null);
+        setBetaCreditsAwarded(0);
         return true;
     }, []);
 
@@ -114,7 +118,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, [retrySession]);
 
     const login = useCallback(async (email: string, password: string) => {
-        await api.login(email, password);
+        const response = await api.login(email, password);
+        setBetaCreditsAwarded(response.beta_credits_awarded ?? 0);
         await refreshUser();
     }, [refreshUser]);
 
@@ -124,7 +129,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, [login]);
 
     const googleLogin = useCallback(async (idToken: string) => {
-        await api.googleLogin(idToken);
+        const response = await api.googleLogin(idToken);
+        setBetaCreditsAwarded(response.beta_credits_awarded ?? 0);
         await refreshUser();
     }, [refreshUser]);
 
@@ -135,6 +141,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await api.revokeSession();
         api.clearToken();
         setUser(null);
+        setBetaCreditsAwarded(0);
+    }, []);
+
+    const dismissBetaCreditsAwarded = useCallback(() => {
+        setBetaCreditsAwarded(0);
     }, []);
 
     return (
@@ -142,12 +153,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             user,
             isLoading,
             sessionUnavailable,
+            betaCreditsAwarded,
             login,
             register,
             googleLogin,
             logout,
             refreshUser,
             retrySession,
+            dismissBetaCreditsAwarded,
         }}>
             {children}
         </AuthContext.Provider>

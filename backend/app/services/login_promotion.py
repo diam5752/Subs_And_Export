@@ -12,10 +12,10 @@ from backend.app.core.database import Database
 from backend.app.db.models import DbCreditPromotionCampaign, DbCreditPromotionClaim
 from backend.app.services.points import PointsStore, make_idempotency_id
 
-# This identifier is immutable campaign history. Migration 0025 expands the
-# same ordered campaign in place so earlier recipients cannot claim twice.
+# This identifier is immutable campaign history. Migration 0027 restores the
+# reviewed launch cap without replacing earlier recipient identity.
 BETA_LOGIN_CAMPAIGN_ID = "beta_first_20_logins_v1"
-BETA_LOGIN_MAX_CLAIMS = 50
+BETA_LOGIN_MAX_CLAIMS = 20
 BETA_LOGIN_CREDIT_AMOUNT = 30
 BETA_LOGIN_TRANSACTION_REASON = "beta_login_credit"
 
@@ -164,5 +164,5 @@ class LoginPromotionStore:
             or int(campaign.claimed_count) > BETA_LOGIN_MAX_CLAIMS
         ):
             raise LoginPromotionConfigurationError(
-                "The login promotion does not match the reviewed 50-by-30 contract",
+                "The login promotion does not match the reviewed 20-by-30 contract",
             )

@@ -18,10 +18,10 @@ const MAX_UPLOAD_MB = Number.isFinite(parsedMaxUploadMb) && parsedMaxUploadMb > 
     ? Math.floor(parsedMaxUploadMb)
     : DEFAULT_MAX_UPLOAD_MB;
 const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
-const parsedMaxVideoDurationSeconds = Number(process.env.NEXT_PUBLIC_MAX_VIDEO_DURATION_SECONDS ?? '600');
+const parsedMaxVideoDurationSeconds = Number(process.env.NEXT_PUBLIC_MAX_VIDEO_DURATION_SECONDS ?? '180');
 const MAX_VIDEO_DURATION_SECONDS = Number.isFinite(parsedMaxVideoDurationSeconds) && parsedMaxVideoDurationSeconds > 0
     ? Math.floor(parsedMaxVideoDurationSeconds)
-    : 600;
+    : 180;
 const MAX_VIDEO_DURATION_LABEL = `${Math.floor(MAX_VIDEO_DURATION_SECONDS / 60)}:${String(MAX_VIDEO_DURATION_SECONDS % 60).padStart(2, '0')}`;
 const ALLOWED_VIDEO_EXT = /\.(mp4|mov|mkv)$/i;
 
@@ -242,12 +242,20 @@ export function UploadSection() {
         const pricingDuration = videoInfo?.durationSeconds
             ?? selectedJob?.result_data?.duration_seconds
             ?? null;
-        const selectedQuote = videoCreditQuoteForDuration(pricingDuration);
-        const selectedCost = processVideoCostForSelection(
-            transcribeProvider,
-            transcribeMode,
-            pricingDuration,
-        );
+        const selectedQuote = pricingDuration === null
+            ? VIDEO_CREDIT_BRACKETS.find(
+                (quote) => quote.maxDurationSeconds >= MAX_VIDEO_DURATION_SECONDS,
+            ) ?? VIDEO_CREDIT_BRACKETS[0]
+            : videoCreditQuoteForDuration(pricingDuration);
+        const selectedDurationAvailable = pricingDuration === null
+            || pricingDuration <= MAX_VIDEO_DURATION_SECONDS;
+        const selectedCost = pricingDuration === null
+            ? selectedQuote.credits
+            : processVideoCostForSelection(
+                transcribeProvider,
+                transcribeMode,
+                pricingDuration,
+            );
 
         // Show compact view if we have a file OR a completed job (restored state)
         // Check if we have consistent job data to display if file is missing
@@ -499,21 +507,32 @@ export function UploadSection() {
                                         </p>
                                     </div>
                                     <div className="flex items-center gap-2 text-sm font-bold text-sky-500">
-                                        <TokenIcon className="h-4 w-4" />
-                                        <span>{formatPoints(selectedCost)} {t('creditsLabel')}</span>
+                                        {selectedDurationAvailable ? (
+                                            <>
+                                                <TokenIcon className="h-4 w-4" />
+                                                <span>{formatPoints(selectedCost)} {t('creditsLabel')}</span>
+                                            </>
+                                        ) : (
+                                            <span>{t('videoCreditPricingComingSoon')}</span>
+                                        )}
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-3 gap-2" aria-label={t('videoCreditPricingTiers')}>
                                     {VIDEO_CREDIT_BRACKETS.map((quote) => {
-                                        const isActive = quote.key === selectedQuote.key;
+                                        const isAvailable = quote.maxDurationSeconds <= MAX_VIDEO_DURATION_SECONDS;
+                                        const isActive = isAvailable && quote.key === selectedQuote.key;
                                         return (
                                             <div
                                                 key={quote.key}
                                                 data-active={isActive ? 'true' : 'false'}
+                                                data-available={isAvailable ? 'true' : 'false'}
+                                                aria-disabled={!isAvailable}
                                                 className={`rounded-xl border px-2 py-3 text-center transition ${
                                                     isActive
                                                         ? 'border-sky-400 bg-sky-400/10 text-[var(--foreground)] shadow-[0_0_0_1px_rgba(56,189,248,0.12)]'
-                                                        : 'border-[var(--border)] bg-[var(--surface-elevated)] text-[var(--muted)]'
+                                                        : isAvailable
+                                                            ? 'border-[var(--border)] bg-[var(--surface-elevated)] text-[var(--muted)]'
+                                                            : 'border-dashed border-[var(--border)] bg-[var(--surface-elevated)]/55 text-[var(--muted)] opacity-70'
                                                 }`}
                                             >
                                                 <span className="block text-[10px] font-semibold uppercase tracking-wide">
@@ -522,7 +541,9 @@ export function UploadSection() {
                                                     })}
                                                 </span>
                                                 <strong className="mt-1 block text-sm">
-                                                    {formatPoints(quote.credits)} {t('creditsLabel')}
+                                                    {isAvailable
+                                                        ? `${formatPoints(quote.credits)} ${t('creditsLabel')}`
+                                                        : t('videoCreditPricingComingSoon')}
                                                 </strong>
                                             </div>
                                         );

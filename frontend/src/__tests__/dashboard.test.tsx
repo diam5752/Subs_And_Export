@@ -194,6 +194,7 @@ describe('DashboardPage', () => {
     const mockRetrySession = jest.fn();
     const mockLogin = jest.fn();
     const mockRegister = jest.fn();
+    const mockDismissBetaCreditsAwarded = jest.fn();
     const mockSetSelectedJob = jest.fn();
     const {
         __setBalanceMock,
@@ -228,11 +229,13 @@ describe('DashboardPage', () => {
             user: mockUser,
             isLoading: false,
             sessionUnavailable: false,
+            betaCreditsAwarded: 0,
             refreshUser: mockRefreshUser,
             retrySession: mockRetrySession,
             logout: jest.fn(),
             login: mockLogin,
             register: mockRegister,
+            dismissBetaCreditsAwarded: mockDismissBetaCreditsAwarded,
         });
         (api.getPointsBalance as jest.Mock).mockResolvedValue({ balance: 125 });
         (api.getCreditCatalog as jest.Mock).mockResolvedValue({
@@ -284,6 +287,29 @@ describe('DashboardPage', () => {
         expect(screen.getByTestId('beta-badge')).toHaveTextContent('betaBadge');
         expect(screen.getByText('betaTestingNotice')).toBeInTheDocument();
         expect(mockLoadJobs).not.toHaveBeenCalled();
+    });
+
+    it('shows and dismisses the first-20 credit award after an eligible login', () => {
+        (useAuth as jest.Mock).mockReturnValue({
+            user: mockUser,
+            isLoading: false,
+            sessionUnavailable: false,
+            betaCreditsAwarded: 30,
+            refreshUser: mockRefreshUser,
+            retrySession: mockRetrySession,
+            logout: jest.fn(),
+            login: mockLogin,
+            register: mockRegister,
+            dismissBetaCreditsAwarded: mockDismissBetaCreditsAwarded,
+        });
+
+        render(<DashboardPage />);
+
+        expect(screen.getByTestId('beta-launch-credit-award')).toHaveTextContent(
+            'betaLaunchAwardTitle',
+        );
+        fireEvent.click(screen.getByRole('button', { name: 'betaLaunchAwardDismiss' }));
+        expect(mockDismissBetaCreditsAwarded).toHaveBeenCalledTimes(1);
     });
 
     it('renders the Google profile picture with an initial fallback', () => {

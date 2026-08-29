@@ -53,6 +53,15 @@ export default function RegisterPage() {
                         <h2 id="register-title">{t('registerTitle')}</h2>
                         <p>{t('registerSubtitle')}</p>
                     </div>
+                    <div className="mb-5 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sky-950">
+                        <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-sky-600">
+                            {t('betaLaunchOfferKicker')}
+                        </p>
+                        <p className="mt-1 text-sm font-bold">{t('betaLaunchOfferTitle')}</p>
+                        <p className="mt-1 text-xs leading-5 text-sky-800">
+                            {t('betaLaunchOfferBody')}
+                        </p>
+                    </div>
                     <form onSubmit={handleSubmit} className="space-y-5">
                         <div>
                             <label htmlFor="name" className="auth-label">
