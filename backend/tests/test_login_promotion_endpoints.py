@@ -22,7 +22,7 @@ def _install_test_campaign(client: TestClient, monkeypatch) -> tuple[Database, s
         session.add(
             DbCreditPromotionCampaign(
                 id=campaign_id,
-                max_claims=50,
+                max_claims=20,
                 credit_amount=30,
                 claimed_count=0,
                 created_at=1_700_000_000,
@@ -135,7 +135,7 @@ def test_google_login_uses_the_same_beta_campaign(client: TestClient, monkeypatc
         assert claim.slot_number == 1
 
 
-def test_login_still_succeeds_after_the_fifty_slots_are_exhausted(
+def test_login_still_succeeds_after_the_twenty_slots_are_exhausted(
     client: TestClient,
     monkeypatch,
 ) -> None:
@@ -143,7 +143,7 @@ def test_login_still_succeeds_after_the_fifty_slots_are_exhausted(
     with db.session() as session:
         campaign = session.get(DbCreditPromotionCampaign, campaign_id)
         assert campaign is not None
-        campaign.claimed_count = 50
+        campaign.claimed_count = 20
 
     email = f"beta-exhausted-{secrets.token_hex(8)}@example.com"
     password = "testpassword123"

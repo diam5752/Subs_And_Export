@@ -71,7 +71,7 @@ def test_feedback_migration_preserves_submitted_messages_on_downgrade() -> None:
         with psycopg.connect(connection_url, autocommit=True) as connection:
             assert connection.execute(
                 "SELECT version_num FROM alembic_version",
-            ).fetchone() == ("0026_retire_text_models",)
+            ).fetchone() == ("0027_restore_beta_promo_cap",)
 
         clean_downgrade = _run_alembic(
             database_url,
@@ -107,4 +107,4 @@ def test_feedback_migration_preserves_submitted_messages_on_downgrade() -> None:
         with psycopg.connect(connection_url, autocommit=True) as connection:
             assert connection.execute(
                 "SELECT version_num FROM alembic_version",
-            ).fetchone() == ("0026_retire_text_models",)
+            ).fetchone() == ("0027_restore_beta_promo_cap",)
