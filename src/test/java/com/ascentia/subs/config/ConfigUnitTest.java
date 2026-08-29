@@ -12,10 +12,10 @@ class ConfigUnitTest {
     @Test
     void appPropertiesParsesEnvironmentListsAndConfiguredGetters() {
         AppProperties properties = new AppProperties();
-        // REGRESSION: Java and Python defaults diverged from the public 95 MB
-        // production ceiling.
+        // REGRESSION: keep the Java compatibility defaults aligned with the
+        // Python launch profile and the browser bundle.
         assertThat(properties.getMaxUploadMb()).isEqualTo(500);
-        assertThat(properties.getMaxVideoDurationSeconds()).isEqualTo(600);
+        assertThat(properties.getMaxVideoDurationSeconds()).isEqualTo(180);
         properties.setEnv("local");
         properties.setDatabaseUrl("postgresql://localhost:5432/config");
         properties.setDatabaseUsername("db-user");

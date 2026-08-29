@@ -1,6 +1,6 @@
 /* eslint-disable @next/next/no-img-element */
 import React from 'react';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { UploadSection } from '../UploadSection';
 import { useProcessContext } from '../../ProcessContext';
@@ -140,7 +140,7 @@ describe('UploadSection', () => {
             height: 1920,
             aspectWarning: false,
             thumbnailUrl: 'blob:thumb',
-            durationSeconds: 601,
+            durationSeconds: 181,
         });
 
         renderUpload();
@@ -150,23 +150,21 @@ describe('UploadSection', () => {
         });
     });
 
-    it('accepts a video longer than the legacy three-and-a-half-minute limit', async () => {
-        contextValue.selectedFile = new File(['video'], 'ten-minute-clip.mp4', { type: 'video/mp4' });
+    it('accepts a video at the three-minute launch limit', async () => {
+        contextValue.selectedFile = new File(['video'], 'three-minute-clip.mp4', { type: 'video/mp4' });
         (validateVideoAspectRatio as jest.Mock).mockResolvedValueOnce({
             width: 1080,
             height: 1920,
             aspectWarning: false,
             thumbnailUrl: 'blob:thumb',
-            durationSeconds: 600,
+            durationSeconds: 180,
         });
 
         renderUpload();
 
         await waitFor(() => {
-            expect(contextValue.setVideoInfo).toHaveBeenCalledWith(expect.objectContaining({ durationSeconds: 600 }));
+            expect(contextValue.setVideoInfo).toHaveBeenCalledWith(expect.objectContaining({ durationSeconds: 180 }));
         });
-        // REGRESSION: uploads above 3:30 used to be rejected even though the
-        // processing pipeline can safely handle the new ten-minute ceiling.
         expect(screen.queryByText('uploadDurationTooLong')).not.toBeInTheDocument();
     });
 
@@ -433,24 +431,24 @@ describe('UploadSection', () => {
         expect(screen.queryByRole('button', { name: /startProcessing/i })).not.toBeInTheDocument();
     });
 
-    it('shows the exact 3, 6 and 10 minute pricing tier for the selected video', async () => {
+    it('keeps 3 minutes active and marks the larger launch tiers as coming soon', async () => {
         contextValue.selectedFile = new File(['video'], 'priced.mp4', { type: 'video/mp4' });
         contextValue.videoInfo = {
             width: 1080,
             height: 1920,
             aspectWarning: false,
             thumbnailUrl: null,
-            durationSeconds: 360.001,
+            durationSeconds: 120,
         };
 
         renderUpload();
 
         const pricing = screen.getByTestId('video-credit-pricing');
         expect(pricing).toHaveTextContent('30 creditsLabel');
-        expect(pricing).toHaveTextContent('60 creditsLabel');
-        expect(pricing).toHaveTextContent('100 creditsLabel');
-        expect(pricing.querySelector('[data-active="true"]')).toHaveTextContent('100 creditsLabel');
-        const startButton = screen.getByRole('button', { name: /startProcessing 100/i });
+        expect(within(pricing).getAllByText('videoCreditPricingComingSoon')).toHaveLength(2);
+        expect(pricing.querySelectorAll('[data-available="false"]')).toHaveLength(2);
+        expect(pricing.querySelector('[data-active="true"]')).toHaveTextContent('30 creditsLabel');
+        const startButton = screen.getByRole('button', { name: /startProcessing 30/i });
         await waitFor(() => {
             expect(startButton).toBeEnabled();
         });

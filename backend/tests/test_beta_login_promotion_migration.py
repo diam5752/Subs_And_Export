@@ -90,7 +90,7 @@ def test_beta_login_promotion_downgrades_only_before_any_slot_is_awarded() -> No
                 FROM credit_promotion_campaigns
                 WHERE id = 'beta_first_20_logins_v1'
                 """
-            ).fetchone() == (50, 30, 0)
+            ).fetchone() == (20, 30, 0)
 
         clean_downgrade = _run_alembic(
             database_url,
@@ -129,7 +129,7 @@ def test_beta_login_promotion_downgrades_only_before_any_slot_is_awarded() -> No
         with psycopg.connect(connection_url, autocommit=True) as connection:
             assert connection.execute(
                 "SELECT version_num FROM alembic_version"
-            ).fetchone() == ("0026_retire_text_models",)
+            ).fetchone() == ("0027_restore_beta_promo_cap",)
             assert connection.execute(
                 """
                 SELECT claimed_count
@@ -139,7 +139,7 @@ def test_beta_login_promotion_downgrades_only_before_any_slot_is_awarded() -> No
             ).fetchone() == (1,)
 
 
-def test_beta_login_promotion_expands_in_place_and_refuses_unsafe_rollback() -> None:
+def test_beta_login_promotion_restores_twenty_and_refuses_unsafe_existing_claims() -> None:
     with _isolated_database() as (database_url, connection_url):
         original = _run_alembic(
             database_url,
@@ -156,8 +156,8 @@ def test_beta_login_promotion_expands_in_place_and_refuses_unsafe_rollback() -> 
                 """
             )
 
-        expanded = _run_alembic(database_url, "upgrade", "head")
-        assert expanded.returncode == 0, expanded.stderr
+        restored = _run_alembic(database_url, "upgrade", "head")
+        assert restored.returncode == 0, restored.stderr
         with psycopg.connect(connection_url, autocommit=True) as connection:
             assert connection.execute(
                 """
@@ -165,7 +165,15 @@ def test_beta_login_promotion_expands_in_place_and_refuses_unsafe_rollback() -> 
                 FROM credit_promotion_campaigns
                 WHERE id = 'beta_first_20_logins_v1'
                 """
-            ).fetchone() == (50, 30, 20)
+            ).fetchone() == (20, 30, 20)
+
+        predecessor = _run_alembic(
+            database_url,
+            "downgrade",
+            "0026_retire_text_models",
+        )
+        assert predecessor.returncode == 0, predecessor.stderr
+        with psycopg.connect(connection_url, autocommit=True) as connection:
             connection.execute(
                 """
                 UPDATE credit_promotion_campaigns
@@ -176,11 +184,11 @@ def test_beta_login_promotion_expands_in_place_and_refuses_unsafe_rollback() -> 
 
         refused = _run_alembic(
             database_url,
-            "downgrade",
-            "0024_product_feedback",
+            "upgrade",
+            "head",
         )
         assert refused.returncode != 0
-        assert "more than 20 campaign slots were awarded" in refused.stderr
+        assert "after a slot above 20 was awarded" in refused.stderr
         with psycopg.connect(connection_url, autocommit=True) as connection:
             assert connection.execute(
                 "SELECT version_num FROM alembic_version"

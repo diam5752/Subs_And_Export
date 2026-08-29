@@ -1296,7 +1296,7 @@ test('unauthenticated users can open the upload workspace before login', async (
   await expect(page.getByText(
     el.uploadDropFootnote
       .replace('{size}', '500')
-      .replace('{duration}', '10:00'),
+      .replace('{duration}', '3:00'),
   )).toBeVisible();
   const signInLink = page.getByRole('link', { name: el.guestSignIn });
   await expect(signInLink).toBeVisible();

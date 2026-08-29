@@ -222,7 +222,7 @@ class Settings(BaseSettings):
     default_fps: int = 30
     max_resolution_dimension: int = 4096
     max_video_duration_seconds: int = Field(
-        default=600,
+        default=180,
         gt=0,
         validation_alias="GSP_MAX_VIDEO_DURATION_SECONDS",
     )

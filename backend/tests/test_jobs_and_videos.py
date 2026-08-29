@@ -819,7 +819,7 @@ def test_reprocess_job_creates_new_job(client: TestClient, monkeypatch):
     assert calls[1] == new_job_id
 
 
-def test_reprocess_rejects_authoritative_quote_increase_before_financial_or_provider_work(
+def test_reprocess_rejects_authoritative_duration_above_launch_cap_before_financial_or_provider_work(
     client: TestClient,
     monkeypatch,
 ) -> None:
@@ -861,8 +861,8 @@ def test_reprocess_rejects_authoritative_quote_increase_before_financial_or_prov
     balance_before = points_store.get_balance(user_id)
 
     # REGRESSION: a stored source confirmed at 180.000 seconds can be resolved
-    # by the authoritative reprocess probe as 180.001. Reprocess must require a
-    # new confirmation without creating or reserving a second job.
+    # by the authoritative reprocess probe as 180.001. Reprocess must fail the
+    # launch cap without creating or reserving a second job.
     charge_preflight = MagicMock(
         side_effect=AssertionError("quote check must precede wallet preflight"),
     )
@@ -903,15 +903,8 @@ def test_reprocess_rejects_authoritative_quote_increase_before_financial_or_prov
         json={"authorized_credits": 30},
     )
 
-    assert response.status_code == 409
-    assert response.json() == {
-        "detail": "Processing quote changed",
-        "code": "PROCESSING_QUOTE_CHANGED",
-        "details": {
-            "duration_seconds": 180.001,
-            "required_credits": 60,
-        },
-    }
+    assert response.status_code == 400
+    assert response.json() == {"detail": "Video too long (max 3.0 minutes)"}
     charge_preflight.assert_not_called()
     uuid4.assert_not_called()
     copy_file.assert_not_called()

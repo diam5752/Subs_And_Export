@@ -20,12 +20,14 @@ function AuthHarness() {
         user,
         isLoading,
         sessionUnavailable,
+        betaCreditsAwarded,
         login,
         register,
         googleLogin,
         logout,
         refreshUser,
         retrySession,
+        dismissBetaCreditsAwarded,
     } = useAuth();
 
     return (
@@ -33,6 +35,7 @@ function AuthHarness() {
             <div data-testid="user-email">{user?.email ?? 'none'}</div>
             <div data-testid="loading">{String(isLoading)}</div>
             <div data-testid="session-unavailable">{String(sessionUnavailable)}</div>
+            <div data-testid="beta-credits-awarded">{betaCreditsAwarded}</div>
             <button type="button" onClick={() => void login('user@example.com', 'secret')}>
                 login
             </button>
@@ -51,6 +54,9 @@ function AuthHarness() {
             <button type="button" onClick={() => void retrySession()}>
                 retry session
             </button>
+            <button type="button" onClick={dismissBetaCreditsAwarded}>
+                dismiss beta award
+            </button>
         </div>
     );
 }
@@ -68,6 +74,14 @@ describe('AuthContext', () => {
         });
         (api.revokeSession as jest.Mock).mockResolvedValue({
             status: 'success',
+        });
+        (api.login as jest.Mock).mockResolvedValue({
+            access_token: 'login-token',
+            beta_credits_awarded: 0,
+        });
+        (api.googleLogin as jest.Mock).mockResolvedValue({
+            access_token: 'google-token',
+            beta_credits_awarded: 0,
         });
     });
 
@@ -192,6 +206,27 @@ describe('AuthContext', () => {
             expect(api.login).toHaveBeenCalledWith('user@example.com', 'secret');
             expect(api.getCurrentUser).toHaveBeenCalledTimes(2);
         });
+    });
+
+    it('surfaces and dismisses the one-time Beta credit award', async () => {
+        (api.login as jest.Mock).mockResolvedValueOnce({
+            access_token: 'launch-token',
+            beta_credits_awarded: 30,
+        });
+        render(
+            <AuthProvider>
+                <AuthHarness />
+            </AuthProvider>,
+        );
+
+        await waitFor(() => expect(screen.getByTestId('loading')).toHaveTextContent('false'));
+        fireEvent.click(screen.getByRole('button', { name: 'login' }));
+
+        await waitFor(() => {
+            expect(screen.getByTestId('beta-credits-awarded')).toHaveTextContent('30');
+        });
+        fireEvent.click(screen.getByRole('button', { name: 'dismiss beta award' }));
+        expect(screen.getByTestId('beta-credits-awarded')).toHaveTextContent('0');
     });
 
     it('registers and then logs the new user in', async () => {

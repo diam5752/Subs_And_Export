@@ -1,6 +1,6 @@
 # Prepaid video credits and Stripe handoff
 
-Updated: 2026-08-28
+Updated: 2026-08-29
 
 Stripe test-mode Checkout and the complete live production configuration have
 been validated. Production paid credits are enabled only by the reviewed,
@@ -12,15 +12,17 @@ used.
 The backend is the pricing authority. The provider/model selected internally
 does not change the visible price of a video.
 
-| Server-measured duration | Credits |
-| --- | ---: |
-| `0:01` through `3:00` | 30 |
-| `3:00.001` through `6:00` | 60 |
-| `6:00.001` through `10:00` | 100 |
+| Server-measured duration | Launch availability | Credits |
+| --- | --- | ---: |
+| `0:01` through `3:00` | Available | 30 |
+| `3:00.001` through `6:00` | Coming soon | 60 when enabled |
+| `6:00.001` through `10:00` | Coming soon | 100 when enabled |
 
 An upload with an unreadable duration is rejected. Every local upload is probed
 by the server before reservation; browser-reported duration is never trusted.
-More than 10 minutes is rejected.
+The current launch profile rejects videos over 3 minutes in both new-upload and
+reprocess paths. The 6- and 10-minute brackets remain visible as inactive
+roadmap tiers so they can return without changing historical pricing records.
 
 The immutable package catalog is:
 
@@ -30,12 +32,12 @@ The immutable package catalog is:
 | Creator (`core`) | €3.00 | 350 | 3, plus 50 credits |
 | Studio (`pro`) | €10.00 | 1,200 | 12 |
 
-New accounts start with zero credits; GSUBS does not grant signup, trial or
-email-verification credits automatically. When the explicitly configured Beta
-login campaign is enabled, the first 50 distinct users to complete a real login
-receive 30 operator-sponsored, cloud-spendable credits once. Migration 0025
-extends the original 20-slot campaign in place, so existing recipients keep
-their ordinal and cannot claim again. Purchased, operator-sponsored and
+New accounts start with zero credits; GSUBS does not grant email-verification
+credits automatically. The explicitly configured Beta login campaign awards
+the first 20 distinct users to complete a real login 30 operator-sponsored,
+cloud-spendable credits once. Migration 0027 safely restores the reviewed
+20-slot cap in place, so existing recipients keep their ordinal and cannot
+claim again. Purchased, operator-sponsored and
 ordinary non-paid credits remain auditable by ledger reason. External-provider
 work requires purchased or operator-sponsored cloud-spendable credits;
 ordinary non-paid credits can fund only local/mock work. A refund or dispute
@@ -92,12 +94,11 @@ it preserves a simple linear 10-credits-per-minute schedule across the
 30/60/100 tiers and gives the larger per-video buffer. A Starter purchase funds
 three complete three-minute jobs and carries 10 credits toward later usage.
 
-The 50-user campaign has a hard face-value cap of 1,500 sponsored credits. At
-30 credits, each grant funds exactly one three-minute job. The guarded direct
-provider ceiling is therefore about €0.69 for all 50 grants. Including the old
+The 20-user campaign has a hard face-value cap of 600 sponsored credits. At 30
+credits, each grant funds exactly one three-minute job. The guarded direct
+provider ceiling is therefore about €0.28 for all 20 grants. Including the old
 unmeasured €0.10/job infrastructure stress placeholder raises the campaign
-ceiling to about €5.69. Expanding from 20 to 50 adds about €0.41 of guarded
-provider exposure, or €3.41 under that stress placeholder.
+ceiling to about €2.28.
 
 Current official references:
 
